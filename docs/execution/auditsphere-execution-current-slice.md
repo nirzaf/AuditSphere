@@ -14,6 +14,19 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Autonomous completion run (2026-10-22)
+
+The adopted [autonomous completion specification](../architecture/auditsphere-autonomous-completion-remediation-spec.md) is in progress; engineering completion is not reached and the current head has no exact-candidate full CI. Run state lives in ignored `.local/autonomous/` and is driven by `scripts/agent/complete.py`, `scripts/agent/ci-status.py` and `scripts/agent/verify-completion-state.py`.
+
+RUN-001 to RUN-008 are verified locally. WU-001 to WU-004, WU-007 and WU-008 are implemented with focused evidence. WU-005 waits for R2R T007 and T013, and WU-006 waits for the pending allocation effective-date policy. Behavioural fixes in this run:
+
+- Role grants and portal first sign-ins can only name a user of their own firm (migration `FirmScopedRoleGrantAndPortalSignInUsers`).
+- Graph and SharePoint app-only tokens must be issued to the configured application.
+- Production workers compose a live group only when it is listed in `Worker:ApprovedLiveGroups`.
+- The client accounting profile command returns 403 for an out-of-scope request.
+
+Open findings for WU-015: 42 command endpoints still return 400 for `scope.denied`, and 63 single-column firm-scoped keys could not be probed without seeded rows. Browser journeys are missing for parity rows T008–T010, T016, T025, T026 and T028. Exact metrics are in `status.json` under `autonomousCompletion20261022`.
+
 ## Angular quality and accessibility status (2026-10-22)
 
 The accessible-name fix is in `fcbc77a80334191cf45110a40174d47904c9a18d`; the UI source reviewed is `e93044ade9b24e51300134ca25eaeac1c42dcce7`. Consolidation elimination-journal inputs and repeated remove buttons have line-specific accessible names. Its component spec passed 19/19 and the changed-template lint passed. Independent source review covered the shared shell, journal/evidence, planning, consolidation and fieldwork templates and approved the code with follow-ups. Rendered keyboard scrolling/zoom/reduced-motion coverage is incomplete, and human screen-reader speech/announcement review remains open. The resumed built-in browser check found journal-row removal focus loss; its correction and incomplete matrix coverage are recorded in the latest angularQuality ledger entry.
@@ -295,26 +308,6 @@ Queue rows now expose retained source keys and exact template identities in all 
 ## Queue prerequisite presentation
 
 The queue now displays a separate blocked prerequisite label consistently in list, board and calendar views using existing server prerequisite facts. Missing viewer permission alone is not a blocker; completed history stays unchanged. Focused component checks and Angular/API builds passed; exact evidence is in `status.json`. Follow-up repaired omitted safety rows in the synthetic seed while preserving application guards. Browser creation, assignment, reviewed dependency, blocked display in all three layouts and clearing after predecessor completion now pass. Responsive and broader WF-06 acceptance remain unverified.
-
-## Current allocated-cash gate and retained settlement history
-
-Advance-dependent activation, lifecycle, portal eligibility, balance drafting and bundle gates now share a current-settlement predicate. A stored PAID marker alone is insufficient: the invoice must be posted and match client/currency/amount, with sufficient current net cash after approved reversals. Credit-adjusted balance settlement retains its existing policy. Staff reads project the current unpaid state while original paid milestone fields and receipt bytes remain immutable. Settlement publication reacquires the existing firm fence before checking cash and first publishing PAID evidence. No database trigger was weakened.
-
-The focused commercial/reversal/activation cohort and the corrected split-receipt case have incremental passing evidence; exact code identity and limitations are in `status.json` under `completePracticeManagement.advanceCashGate`. Current-source full regression and the browser financial journey remain acceptance work. Continue the source-backed schedule and integration gaps, including the returned-time lifecycle in RES-04, plus the independent API/Angular parity backlog; this is not full product acceptance.
-
-## Complete practice-management inventory and parity regression repair
-
-The supplied complete-product specification is preserved under requirements and linked to the existing PM crosswalk. PMCOMP-00 source reconciliation is complete: the [criterion audit](auditsphere-execution-report-practice-management-criterion-audit-current.md) maps all 87 ASPM-qualified criteria to current source/test-body findings, residuals and legacy aliases. Test bodies were inspected, not executed, and release acceptance remains `NOT_VERIFIED`; CI, methodology, owner and live-provider gates remain open.
-
-Full CI exposed an untranslatable task-assignee projection and two incorrect history/receipt assertions. The assignee query now deduplicates/orders an anonymous projection before constructing its DTO; portal history checks the last retained page; authorized sibling-client receipt recovery explicitly returns no foreign receipt. The affected focused cohort passed. Exact source/results and preceding CI failure evidence are in `status.json`. Continue criterion reconciliation and exact-SHA release verification; no production acceptance is claimed.
-
-## API and Angular parity: task implementation verification complete (T025, T028)
-
-Both remaining parity implementation tasks from the 51-task specification have been verified with targeted checks:
-- **T025 (Resolve component replacement retention before exposing correction):** In-place destructive component replacement is declined in favor of immutable new scope versions preserving original scope and component evidence. The correction handoff in `overview.ts` and `component-correction.ts` enforces selecting the identical reporting period and group from authorized options. Verified via `component-correction.spec.ts`.
-- **T028 (Complete external component-pack intake, review and pinning):** Five external pack operations (submit with exact digest/hashes, reconcile, return with reason, independent approval, and pinning to scope) are fully implemented and verified. Unit tests in `external-packs.spec.ts` and scope workspace integration in `scope-workspace.spec.ts` ensure exact SHA-256 digests, six-place decimal bounds, pagination, and independent review. The PostgreSQL integration test in `ConsolidationWorkspaceApiTests` validates concurrent review serialization and retained lineage.
-
-All 51 parity tasks in `status.json` and `auditsphere-execution-tracker-api-angular-parity-current.md` now have `implementationStatus: IMPLEMENTED_VERIFICATION_PENDING`. Full acceptance remains subject to CI/CD release verification.
 
 ## API and Angular parity: complete member discovery
 

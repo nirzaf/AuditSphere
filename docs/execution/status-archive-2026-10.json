@@ -15482,7 +15482,7 @@
             "observed": "in_progress; Angular/full specs, build/contracts/publication and Domain SUCCESS; API/E2E running",
             "result": "PENDING; no FULL_CI_PASS",
             "domain": "Job 119963215892 SUCCESS; artifact 12444885555 domain.trx: total/executed/passed 1493, failed/notExecuted 0. Source 48816d27.",
-            "narrowSkipLink": "Built-in IAB, 4304/ui/app/practice/time, current UI source unchanged from 48816d27: at 320x900, Enter on Skip to main content then Tab focused Task title. focus-visible true; field x41–229/y691.75–731.75 below header bottom69.1875; document width305. Viewport restored. Screenshot /tmp/auditsphere-time-skip-link-320.png. No business mutation or native zoom claim."
+            "narrowSkipLink": "Built-in IAB, 4304/ui/app/practice/time, current UI source unchanged from 48816d27: at 320x900, Enter on Skip to main content then Tab focused Task title. focus-visible true; field x41\u2013229/y691.75\u2013731.75 below header bottom69.1875; document width305. Viewport restored. Screenshot /tmp/auditsphere-time-skip-link-320.png. No business mutation or native zoom claim."
           }
         }
       },
@@ -20611,18 +20611,7 @@
       "duration": "43s"
     },
     "targetedVerification.workflowTaskRequiredDesignation20261018": {
-      "recordedAtUtc": "2026-10-18T09:01:28Z",
-      "sourceCommit": "e4c5fa5f6def0077662b784650ac8d66f53ba956",
-      "status": "PARTIAL",
-      "scope": "Required/Optional from exact pinned template; manual tasks unlabelled. Informational only.",
-      "checks": [
-        "Pinned-plan PostgreSQL regression PASS 1/1.",
-        "work-queue.spec.ts PASS 18/18 across three layouts.",
-        "OpenAPI current; Angular and OpenAPI emitter builds pass. Existing stylesheet budget warning."
-      ],
-      "browser": "Manual task unlabelled; positive labels not browser-verified because API predates field.",
-      "releaseRun": "39113751546 (in progress)",
-      "stillOpen": "Required-task graph semantics and broader ASPM-WF-02 acceptance."
+      "archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowTaskRequiredDesignation20261018"
     },
     "targetedVerification.angularAccountingMaintenanceRecovery": {
       "result": "PARTIAL",
@@ -20780,113 +20769,21 @@
       ]
     },
     "targetedVerification.aspmCrm02RelationshipHistory20261018": {
-      "recordedAtUtc": "2026-10-18T10:15:53Z",
-      "sourceCommit": "05406665c6d7e8ba1413b189d00d1cc1d5d12ba0",
-      "criterion": "ASPM-CRM-02",
-      "status": "PARTIAL",
-      "scope": "Retain revoked organization relationships in the authorized hierarchy; derive ACTIVE/FUTURE/EXPIRED/REVOKED status from current UTC date and stored effective dates; show existing registration number and jurisdiction in the legal-entity panel.",
-      "authorization": "Relationship counterpart details remain disclosed only when the actor has current authorization for both client records. Existing cycle prevention and firm/client scope guards remain unchanged.",
-      "verification": {
-        "domainCommand": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~OrganizationRelationships_BuildsHierarchy_AndEnforcesCycleAndBoundaryInvariants|FullyQualifiedName~OrganizationRelationships_PreservesEffectivePeriodAndProjectsCurrentStatus'",
-        "domainResult": "Passed 2, Failed 0, Skipped 0; 42 seconds.",
-        "angularCommand": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/clients/client-relationships.spec.ts'",
-        "angularResult": "Passed 8 tests in 1 file.",
-        "angularBuild": "npm --prefix src/AuditSphereOps.Ui run build passed; pre-existing commercial/settings.scss budget warning: 7.53 kB vs 4.00 kB.",
-        "openApi": "bash scripts/contracts/verify-openapi.sh passed; OpenAPI contract current.",
-        "browser": "NOT_VERIFIED. Existing tabs at 127.0.0.1:5029 displayed workspace shell/navigation without route content. Existing process left untouched."
-      },
-      "ci": {
-        "fastRunId": "39118460754",
-        "sourceCommit": "05406665c6d7e8ba1413b189d00d1cc1d5d12ba0",
-        "statusAtRecordedAt": "CANCELLED after superseding push.",
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39118460754",
-        "olderFullReleaseRunId": "39117606930",
-        "olderFullReleaseCommit": "9f15c482cef11402875d09a53ede4d21af10a3c6",
-        "olderFullReleaseStatusAtRecordedAt": "CANCELLED after Domain FAILED (1,368 passed, 2 failed); Angular and build/contracts/publication PASSED; API and Playwright E2E were cancelled before completion.",
-        "currentFastRunId": "39120222007",
-        "currentFastSourceCommit": "1f4e5430092aee635ff8320e6d52f539c6d32203",
-        "currentFastStatusAtRecordedAt": "SUCCESS; Docs Health, Angular and .NET Release passed.",
-        "contractFollowUpRunId": "39119821556",
-        "contractFollowUpSourceCommit": "9fad72d01586e6fd4981be4a5c0a665b3822156e",
-        "contractFollowUpStatus": "SUCCESS; Angular, Docs Health and .NET Release passed.",
-        "fullReleaseOnCurrentSource": "NOT_RUN"
-      },
-      "remaining": [
-        "No client archive lifecycle/search behavior established; ASPM-CRM-02 remains PARTIAL."
-      ]
+      "result": "PARTIAL",
+      "evidenceArchive": "status-archive-2026-10.json#keys.aspmCrm02RelationshipHistoryBeforePublicationFence20261019",
+      "scope": "Earlier effective/revoked relationship history and scoped counterpart evidence retained; publication-fence evidence is in clientAndQuotationPublication20261019. Parent remains PARTIAL."
     },
     "targetedVerification.aspmCom03QarAcceptance20261018": {
-      "recordedAtUtc": "2026-10-18T10:24:48Z",
-      "sourceCommit": "954a623f799b0871afc85937d43267726d74ee7c",
-      "criterion": "ASPM-COM-03",
       "status": "PARTIAL",
-      "scope": "QAR 20,000 accepted audit-fee example: QAR 10,000 advance and balance; QAR 4,000 partial advance followed by QAR 6,000; idempotency, reversal/recovery, retained receipt/voucher history and balance settlement.",
-      "verification": {
-        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach'",
-        "result": "Passed 1, Failed 0, Skipped 0; 4 seconds on final run. Two initial expected strings were corrected to match the query\u2019s six-decimal representation.",
-        "assertions": [
-          "8 Partner hours at QAR 1,000 and 16 Manager hours at QAR 750 produce QAR 20,000.",
-          "Agreement creates QAR 10,000 advance and balance milestones.",
-          "After QAR 4,000, QAR 6,000 remains and AdvanceCurrentlyPaidAsync is false.",
-          "After a separate QAR 6,000 allocation, the advance gate is true.",
-          "Finance review/posting, duplicate payment references, reversal/recovery, immutable receipts/vouchers, and QAR 10,000 balance settlement remain covered."
-        ],
-        "browser": "NOT_RUN for this test-only fixture change; activation/readiness browser acceptance remains open."
-      },
-      "ci": {
-        "fastRunId": "39119098499",
-        "sourceCommit": "954a623f799b0871afc85937d43267726d74ee7c",
-        "statusAtRecordedAt": "FAILED: OpenAPI contract drift; effectiveStatus was absent from the generated relationship schema.",
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39119098499",
-        "olderFullReleaseRunId": "39117606930",
-        "olderFullReleaseCommit": "9f15c482cef11402875d09a53ede4d21af10a3c6",
-        "olderFullReleaseStatusAtRecordedAt": "CANCELLED after Domain FAILED (1,368 passed, 2 failed); Angular and build/contracts/publication PASSED; API and Playwright E2E were cancelled before completion.",
-        "followUpRunId": "39119821556",
-        "followUpSourceCommit": "9fad72d01586e6fd4981be4a5c0a665b3822156e",
-        "followUpStatus": "SUCCESS; Angular, Docs Health and .NET Release passed after contract regeneration.",
-        "currentFastRunId": "39120222007",
-        "currentFastSourceCommit": "1f4e5430092aee635ff8320e6d52f539c6d32203",
-        "currentFastStatusAtRecordedAt": "SUCCESS; Docs Health, Angular and .NET Release passed.",
-        "fullReleaseOnCurrentSource": "NOT_RUN"
-      },
-      "remaining": [
-        "Current-source fast CI passed on 1f4e5430.",
-        "Exact-SHA full release verification has not run.",
-        "Activation/readiness browser acceptance remains unverified.",
-        "Older full run 39117606930 was cancelled after two Domain failures; API/E2E did not complete."
-      ]
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.aspmCom03QarAcceptance20261018"
     },
     "targetedVerification.aspmFin03ReceivablesTypes20261018": {
-      "recordedAtUtc": "2026-10-18T10:42:00Z",
-      "sourceCommit": "9fad72d01586e6fd4981be4a5c0a665b3822156e",
-      "criterion": "ASPM-FIN-03",
       "status": "COMPLETE",
-      "scope": "All posted firm invoices are included and typed ADVANCE, FINAL, TIME or OTHER; effective payment terms, receipts, credits and allocation corrections are applied as of the requested UTC date, and client bookkeeping invoices are excluded.",
-      "verification": {
-        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~ReportUsesApprovedTermsAndOnlyReceiptsCreditsAndAllocationsEffectiveByUtcAsOfDate'",
-        "result": "Passed 1, Failed 0, Skipped 0; 43 seconds. The tested source is included in 9fad72d0.",
-        "assertions": [
-          "The report returns ADVANCE, FINAL, TIME and OTHER rows; FINAL and TIME retain engagement attribution, while OTHER remains unlinked and has no due date.",
-          "A synthetic approved time entry is invoiced through BillingService; the FINAL row is a query fixture and does not bypass the production balance-invoice creation gate.",
-          "The ADVANCE row applies posted receipts, an approved reversal, an issued credit, approved terms and UTC as-of aging; a correction approved after the as-of date does not rewrite the report.",
-          "The firm-scoped query does not include client bookkeeping invoices."
-        ],
-        "browser": "NOT_RUN; this slice adds query regression coverage and generated contract metadata, without changing browser behavior."
-      },
-      "ci": {
-        "currentFastRunId": "39120222007",
-        "currentFastSourceCommit": "1f4e5430092aee635ff8320e6d52f539c6d32203",
-        "currentFastStatusAtRecordedAt": "SUCCESS; Docs Health, Angular and .NET Release passed.",
-        "fullReleaseVerification": "NOT_RUN on current source.",
-        "olderFullReleaseRunId": "39117606930",
-        "olderFullReleaseStatusAtRecordedAt": "CANCELLED after Domain FAILED (1,368 passed, 2 failed); Angular and build/contracts/publication PASSED; API and Playwright E2E were cancelled before completion.",
-        "previousFastRunId": "39119821556",
-        "previousFastSourceCommit": "9fad72d01586e6fd4981be4a5c0a665b3822156e",
-        "previousFastStatus": "SUCCESS"
-      },
-      "remaining": [
-        "No known gap remains in the FIN-03 source/query criterion; exact-SHA full release suite remains a separate project-level gate."
-      ]
+      "sourceCommit": "9fad72d01586e6fd4981be4a5c0a665b3822156e",
+      "focusedTest": "PASS 1/1 in 43 seconds; ADVANCE, FINAL, TIME and OTHER use firm receivables query semantics and UTC as-of corrections.",
+      "fullReleaseVerification": "NOT_RUN on current source; full release gate remains separate.",
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.aspmFin03ReceivablesTypes20261018",
+      "fastCiRun": "39120222007 SUCCESS on 1f4e5430 (Docs Health, Angular, .NET Release); predecessor 39119821556 SUCCESS on 9fad72d0; run 39119098499 FAILED contract drift (fixed in 9fad72d0)."
     },
     "documentationReconciliationChecks20261018": {
       "sourceIntegrity": "PASS: Word SHA-256; 20 sections; 165 exact procedures",
@@ -23384,6 +23281,116 @@
         "previousFailure": "Run 39705319035 on efb9c4bd reported two E2E failures: revocation raced the leads refresh button, and the portal diff included its live activity cutoff. Both corrected methods pass locally."
       },
       "accessibility": "PARTIAL_AGENT_REVIEW: source/code review is not human assistive-technology acceptance. The local app remains unreachable in the built-in browser; qualified screen-reader review with actual AT/browser versions is OPEN."
+    },
+    "targetedVerification.angularBlazorPackageGateFixtureFollowUp": {
+      "archive": "status-archive-2026-10.json",
+      "key": "keys.targetedVerification.angularBlazorPackageGateFixtureFollowUp",
+      "note": "Retained full package-gate fixture evidence; current full-release verification is recorded in angularMigrationAcceptanceBatch."
+    },
+    "targetedVerification.angularBlazorConsolidationGuardFollowUp": {
+      "archive": "docs/execution/status-archive-2026-10.json",
+      "key": "keys.targetedVerification.angularBlazorConsolidationGuardFollowUp"
+    },
+    "targetedVerification.atomicBlazorRetirement": {
+      "result": "PARTIAL",
+      "source": "Owner-authorized retirement of the legacy Blazor rollback/reference host.",
+      "branch": "chore/retire-blazor-host",
+      "baseCommit": "c3905e078b44c84c5ec0ad4bbda6d11894acf42d",
+      "migration": "NONE",
+      "checks": {
+        "releaseBuild": "PASS: 0 warnings, 0 errors",
+        "apiTests": "PASS: 15/15 focused configuration, route-contract and API host tests",
+        "domainTests": "PASS: 3/3 architecture guards",
+        "docsHealth": "PASS",
+        "uiInventory": "PASS: retired source keeps the historical discovery inventory",
+        "retirementInventory": "PASS",
+        "openApiContract": "PASS: no drift",
+        "gitDiffCheck": "PASS"
+      },
+      "notDone": [
+        "Review and merge of the removal branch",
+        "Full hosted CI/release verification",
+        "Production rollback/canary and external acceptance"
+      ]
+    },
+    "targetedVerification.angularBlazorSourceDispositionCounts": {
+      "source": "1e56926c2f00542d3d486171aa6d3ec25517c540",
+      "counts": {
+        "PARTIAL": 71,
+        "PARITY_VERIFIED": 5
+      },
+      "retirementGate": "NOT_READY"
+    },
+    "targetedVerification.pbcExactVersionAcceptance20261018": {
+      "result": "FOCUSED_PASS",
+      "evidence": "status-archive-2026-10.json#keys.pbcExactVersionAcceptance20261018"
+    },
+    "targetedVerification.practiceManagementCrossLedgerBoundaries20261018": {
+      "recordedAtUtc": "2026-10-18T06:40:04Z",
+      "sourceCommit": "fb19f4574eaec6bccfb53c9484720293b0bcd6ee",
+      "status": "PARTIAL",
+      "scope": "NR-11 named three-book cases complete; NR-12 five-switch matrix and Angular 403 state covered. Disabled route and deployed configuration remain open.",
+      "stillOpen": [
+        "NR-12: verify disabled work-queue browser state against known feature-off configuration and deployed effective settings.",
+        "Full release verification remains a CI/CD responsibility."
+      ],
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.practiceManagementCrossLedgerBoundaries20261018"
+    },
+    "targetedVerification.practiceContactValidity20261018": {
+      "sourceCommit": "95af9748f30b8d48c823d0461c2cd0c4d19c3e35",
+      "result": "FOCUSED_PASS",
+      "test": "CorrespondenceRouting effective-date regression",
+      "passed": 1,
+      "failed": 0
+    },
+    "targetedVerification.practiceProposalSendRecipientAuthority20261018": {
+      "sourceCommit": "395d2ef06e53e7c21aece54f8d85f78c482a9514",
+      "result": "FOCUSED_PASS",
+      "testsPassed": 2,
+      "summary": "Prospect email change and revoked client route block before provider send."
+    },
+    "targetedVerification.practiceResourcePhaseRisk20261018": {
+      "sourceCommit": "5996f36d49bf89feba9c99a7fab7c567c5f41c95",
+      "result": "FOCUSED_PASS",
+      "domain": 1,
+      "angular": 15,
+      "e2e": 4,
+      "fastCiRun": "39108092465",
+      "fastCi": "CANCELLED_SUPERSEDED"
+    },
+    "targetedVerification.staffingCertificationRevocationRace20261018": {
+      "status": "FOCUSED_PASS",
+      "sourceCommit": "8a01261066f5e105bd993ac999a61b840d2cff29",
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.staffingCertificationRevocationRace20261018",
+      "fastCiRun": "39108579093",
+      "fastCi": "Superseded by passing run 39109639455 on 5dcb656e"
+    },
+    "targetedVerification.resourceAvailabilityProjection20261018": {
+      "evidence": "status-archive-2026-10.json#keys.resourceAvailabilityProjectionBeforeReadAuthority20261019"
+    },
+    "targetedVerification.workflowDependencyGraphLimit20261018": {
+      "recordedAtUtc": "2026-10-18T08:46:21Z",
+      "sourceCommit": "58a073b79526731653cd2e51b6e598d291bee39e",
+      "status": "PARTIAL",
+      "scope": "Atomic task/edge bounds verified; detailed results archived.",
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowDependencyGraphLimit20261018"
+    },
+    "targetedVerification.clientPortalInvoiceSettlement20261018": {
+      "sourceCommit": "de8b6655d250867262550e998cd6d5fe46388977",
+      "status": "FOCUSED_PASS_BROWSER_SCOPE_LIMITED",
+      "checks": "Domain 1/1; Angular 7/7; OpenAPI emitter/drift, Angular build and docs PASS; existing SCSS budget warning.",
+      "browser": "Client role NOT_VERIFIED; staff redirected from /portal.",
+      "ci": "Fast 39115003072 IN_PROGRESS; full release 39115052329 QUEUED.",
+      "remaining": "Invoice delivery receipt and client-role browser acceptance; details in current-slice handoff."
+    },
+    "targetedVerification.searchRoleMatrix20261018": {
+      "baseline": "f854ddee62daac0b4e798daaf3e31457c38a3e2d",
+      "testPatchSha256": "109cd1753cfd671d15969fabcca3260615f0e86bbef839334501d564e90335f2",
+      "test": "GlobalSearchQueryTests.SearchResultKindsFollowCapabilitySpecificRolesAndScopes",
+      "result": "PASS 1/1; Release; PostgreSQL auditsphere_tests on loopback 5433",
+      "priorFailure": "39132911253 Domain on f5f96d9e: 1372 pass, 1 fail; expected Lead, actual Client/Lead",
+      "testValue": "Static: omitting Client or adding professional result kinds fails exact equality. Counterfactual NOT_RUN.",
+      "fullCi": "QUEUED: 39141016934 on ab8a413d72fa422b75997c8245981f131709f3fc"
     }
   }
 }

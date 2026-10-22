@@ -2,6 +2,26 @@
 
 > **STATUS: HISTORICAL.** Sections moved verbatim from `auditsphere-execution-current-slice.md` on 2026-10-08 to keep the current handoff small. They are the audit trail of earlier slices. Never edit them to change a verdict; record a new observation in the current slice or in `status.json`.
 
+## Current allocated-cash gate and retained settlement history
+
+Advance-dependent activation, lifecycle, portal eligibility, balance drafting and bundle gates now share a current-settlement predicate. A stored PAID marker alone is insufficient: the invoice must be posted and match client/currency/amount, with sufficient current net cash after approved reversals. Credit-adjusted balance settlement retains its existing policy. Staff reads project the current unpaid state while original paid milestone fields and receipt bytes remain immutable. Settlement publication reacquires the existing firm fence before checking cash and first publishing PAID evidence. No database trigger was weakened.
+
+The focused commercial/reversal/activation cohort and the corrected split-receipt case have incremental passing evidence; exact code identity and limitations are in `status.json` under `completePracticeManagement.advanceCashGate`. Current-source full regression and the browser financial journey remain acceptance work. Continue the source-backed schedule and integration gaps, including the returned-time lifecycle in RES-04, plus the independent API/Angular parity backlog; this is not full product acceptance.
+
+## Complete practice-management inventory and parity regression repair
+
+The supplied complete-product specification is preserved under requirements and linked to the existing PM crosswalk. PMCOMP-00 source reconciliation is complete: the [criterion audit](auditsphere-execution-report-practice-management-criterion-audit-current.md) maps all 87 ASPM-qualified criteria to current source/test-body findings, residuals and legacy aliases. Test bodies were inspected, not executed, and release acceptance remains `NOT_VERIFIED`; CI, methodology, owner and live-provider gates remain open.
+
+Full CI exposed an untranslatable task-assignee projection and two incorrect history/receipt assertions. The assignee query now deduplicates/orders an anonymous projection before constructing its DTO; portal history checks the last retained page; authorized sibling-client receipt recovery explicitly returns no foreign receipt. The affected focused cohort passed. Exact source/results and preceding CI failure evidence are in `status.json`. Continue criterion reconciliation and exact-SHA release verification; no production acceptance is claimed.
+
+## API and Angular parity: task implementation verification complete (T025, T028)
+
+Both remaining parity implementation tasks from the 51-task specification have been verified with targeted checks:
+- **T025 (Resolve component replacement retention before exposing correction):** In-place destructive component replacement is declined in favor of immutable new scope versions preserving original scope and component evidence. The correction handoff in `overview.ts` and `component-correction.ts` enforces selecting the identical reporting period and group from authorized options. Verified via `component-correction.spec.ts`.
+- **T028 (Complete external component-pack intake, review and pinning):** Five external pack operations (submit with exact digest/hashes, reconcile, return with reason, independent approval, and pinning to scope) are fully implemented and verified. Unit tests in `external-packs.spec.ts` and scope workspace integration in `scope-workspace.spec.ts` ensure exact SHA-256 digests, six-place decimal bounds, pagination, and independent review. The PostgreSQL integration test in `ConsolidationWorkspaceApiTests` validates concurrent review serialization and retained lineage.
+
+All 51 parity tasks in `status.json` and `auditsphere-execution-tracker-api-angular-parity-current.md` now have `implementationStatus: IMPLEMENTED_VERIFICATION_PENDING`. Full acceptance remains subject to CI/CD release verification.
+
 ## Cash-flow and equity schedules in statement presentation — 2026-10-11
 
 Working-tree follow-up based on `3012b495`. The typed statement presentation now renders the persisted cash-flow movements and equity rollforward beside the SFP and profit-or-loss statements. PDF, Word and Excel exports use the same model. Cash bridge totals exclude noncash items and remain unavailable when an operating, investing, financing or FX input is missing; a supplied zero FX effect is distinct from an absent effect. Comparative schedule amounts remain unavailable when the comparative package has no matching rows. The builder refuses oversized supplementary schedules rather than silently truncating them.
