@@ -199,7 +199,7 @@
           <details style="margin: 1rem 0;">
             <summary><strong>Create elimination journal</strong></summary>
             <div class="panel" style="margin-top: 0.5rem;">
-              <div class="inline-form">
+              <div class="inline-form journal-fields">
                 <label>
                   Journal number *
                   <input type="text" [(ngModel)]="journalNumber" placeholder="EJ-001" maxlength="32" />
@@ -243,7 +243,7 @@
                         <td><input type="text" [attr.aria-label]="'Journal line ' + ($index + 1) + ' description'" [ngModel]="line.description" (ngModelChange)="updateJournalLine($index, 'description', $event)" placeholder="Line memo" /></td>
                         <td>
                           @if (journalLines().length > 2) {
-                            <button type="button" [attr.aria-label]="'Remove journal line ' + ($index + 1)" (click)="removeJournalLine($index)">Remove</button>
+                            <button matButton="outlined" type="button" [attr.aria-label]="'Remove journal line ' + ($index + 1)" (click)="removeJournalLine($index)">Remove</button>
                           }
                         </td>
                       </tr>
@@ -254,22 +254,24 @@
                       <th>Total</th>
                       <th class="number">{{ totalDebits() }}</th>
                       <th class="number">{{ totalCredits() }}</th>
-                      <th colspan="2">
-                        @if (!journalAmountsValid()) {
-                          <span class="error-text" role="alert">Enter non-negative decimal amounts within numeric(19,6), with no more than six decimal places.</span>
-                        } @else if (isJournalBalanced()) {
-                          <span style="color: #127236; font-weight: 600;">✓ Balanced</span>
-                        } @else {
-                          <span class="error-text">Out of balance (Diff: {{ journalDifference() }})</span>
-                        }
-                      </th>
+                      <td colspan="2"></td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
 
+              <p class="journal-balance" role="status">
+                @if (!journalAmountsValid()) {
+                  <span class="error-text" role="alert">Enter non-negative decimal amounts within numeric(19,6), with no more than six decimal places.</span>
+                } @else if (isJournalBalanced()) {
+                  <span style="color: #127236; font-weight: 600;">✓ Balanced</span>
+                } @else {
+                  <span class="error-text">Out of balance (Diff: {{ journalDifference() }})</span>
+                }
+              </p>
+
               <div class="actions" style="margin-top: 1rem;">
-                <button type="button" (click)="addJournalLine()">Add line</button>
+                <button matButton="outlined" type="button" (click)="addJournalLine()">Add line</button>
                 <button
                   matButton="filled"
                   (click)="createJournal(w.scope.id)"

@@ -347,3 +347,9 @@ Tasks 01–06 are implemented. The latest follow-up fixes observed keyboard focu
 Task 07 / AC-09 remains partial. Built-in browser checks exercised the synthetic staff shell, empty journal queue and existing consolidation draft form. The focus correction passed a built-in browser recheck. Planning leave-dialog focus, fieldwork tab/validation behavior and narrow-screen reduced-motion checks also passed within the available fixture. Populated editors, approved-budget/procedure review, client shell, native zoom and remaining state coverage are incomplete. Owner review/approval was reported; actual AT/browser versions and workflow findings remain requested.
 
 The earlier exact-source full release pass is retained as baseline evidence. A subsequent nightly exposed asynchronous snapshot/navigation readiness failures; bounded test corrections preserve the isolation, final-path, revocation and persistence assertions and pass the focused E2E cohort. Current-source CI remains in progress; full suites run only in CI/CD. No live tenant or production data was changed.
+
+## Journal layout follow-up (2026-10-22)
+
+- Styled draft Add/Remove actions using existing Material buttons; responsive metadata fields; moved balance feedback outside horizontal table scrolling.
+- Focused scope-workspace specs: 19 passed; changed-file lint and diff check passed. Built-in browser: added/removed draft rows, focus returned to row 2 taxonomy, 390px viewport had no page overflow; console errors empty. No journal submitted.
+- Full local suites not run. AC-09 human AT/native zoom evidence remains pending; release CI 39785630053 was still running when checked.

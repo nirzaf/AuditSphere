@@ -19,7 +19,14 @@ export { formatOwnershipPercent } from './scope-amounts';
   selector: 'audit-consolidation-scope-workspace',
   imports: [FormsModule, RouterLink, MatButtonModule, ConsolidationOwnership, ConsolidationComponentCorrection, ConsolidationExternalPacks, ...SHARED],
   templateUrl: './scope-workspace.html',
-  styles: ['.inline-form { min-width: 0; max-width: 100%; }'],
+  styles: [`
+    .inline-form { min-width: 0; max-width: 100%; }
+    .journal-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .journal-fields label, .journal-fields input, .journal-fields select { min-width: 0; }
+    .journal-fields input, .journal-fields select { width: 100%; box-sizing: border-box; }
+    .journal-balance { overflow-wrap: anywhere; }
+    @media (max-width: 600px) { .journal-fields { grid-template-columns: minmax(0, 1fr); } }
+  `],
 })
 export class ConsolidationScopeWorkspace {
   private readonly api = inject(Api);
