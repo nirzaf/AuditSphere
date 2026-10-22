@@ -17,6 +17,7 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class EngagementWorkflowTaskTests
 {
+  [Trait("CompletionUnit", "WU-016")]
   [Fact]
   public async Task ExistingWorkTaskOwnsWorkflowBinding_TimeLineageAndScopedRevisionFencing()
   {
@@ -349,6 +350,7 @@ public sealed class EngagementWorkflowTaskTests
     }
   }
 
+  [Trait("CompletionUnit", "WU-016")]
   [Fact]
   public async Task CancellationIsScopedReplayableAndPreservesTaskHistoryAndBlockedDependents()
   {
@@ -581,6 +583,7 @@ public sealed class EngagementWorkflowTaskTests
     }
   }
 
+  [Trait("CompletionUnit", "WU-016")]
   [Fact]
   public async Task ReopeningIsScopedReplayableAndRetainsTaskEvidenceTimeAndDependencyHistory()
   {

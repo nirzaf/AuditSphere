@@ -145,6 +145,7 @@ public sealed class PracticeTimeTests
     }
   }
 
+  [Trait("CompletionUnit", "WU-016")]
   [Fact]
   public async Task EngagementTaskPinsApprovedFsliMapping_AndTimeCorrectionRetainsItsLineage()
   {
