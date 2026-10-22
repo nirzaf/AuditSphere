@@ -1072,13 +1072,14 @@
       },
       "clientSiteOperatorIntents": {
         "status": "PARTIALLY_VERIFIED",
-        "behavior": "Exact current-client review and local intent request reuse existing worker discovery; published receipts remain separate from pending acknowledgments. Review binds resolved staff and clock-effective authority; connection is captured before token validation.",
+        "behavior": "Exact current-client review and local intent request reuse existing worker discovery; published receipts remain separate from pending acknowledgments. Review binds resolved staff and clock-effective authority; connection is captured before token validation. Retained receipts with changed current staff authority project HISTORICAL and PENDING, not verified membership.",
         "checks": {
           "applicationReviewFixes": "PASS: 2 focused PostgreSQL tests; .local/autonomous/evidence/wu021-review-fixes/review-fixes.trx",
           "applicationIntentCohort": "PASS: 4 focused tests before final review fixes; .local/autonomous/evidence/wu021-intents/wu021-intents.trx",
           "httpDenials": "PASS: 1 focused API test before final review fixes; .local/autonomous/evidence/wu021-intent-http/wu021-intent-http.trx",
           "openapi": "PASS: emitter build and contract drift check before internal review fixes; no subsequent DTO changes",
-          "documentation": "PASS: markdown validator and narrative metrics"
+          "documentation": "PASS: markdown validator and narrative metrics",
+          "receiptFreshness": "PASS: 2 focused PostgreSQL tests after historical-receipt projection correction; .local/autonomous/evidence/wu021-receipt-freshness/receipt-freshness.trx"
         },
         "remaining": [
           "CLI orchestration integration",

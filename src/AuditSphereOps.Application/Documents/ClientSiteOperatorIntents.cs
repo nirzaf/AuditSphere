@@ -78,6 +78,8 @@ public static class ClientSiteOperatorIntents
         ? "The isolated client-sites worker must report current readiness." : "Ready for the existing worker's discovery cycle.";
     var eligible = reason == "Ready for the existing worker's discovery cycle.";
     var receipt = Published(site, operation);
+    var receiptIsCurrent = receipt is not null && receipt.StaffAuthorizationDigest == staffBasis &&
+      receipt.ManagedStaffObjectIds.OrderBy(x => x, StringComparer.Ordinal).SequenceEqual(staff.OrderBy(x => x, StringComparer.Ordinal));
     // Normalize absence and an untouched REQUESTED row so an identical replay is a no-op.
     var token = Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
     {
@@ -90,8 +92,9 @@ public static class ClientSiteOperatorIntents
     }));
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<ClientSiteOperatorReview>();
     return CommandResult<ClientSiteOperatorReview>.Ok(new(clientId, policy.TenantId, client.CreatedAt, effective, url, marker,
-      token, staffBasis, staff, eligible, reason, site?.State ?? "NOT_REQUESTED", site?.MembershipState ?? "PENDING",
-      outstanding?.Id ?? operation?.Id, (outstanding ?? operation)?.Status.ToString(), receipt is null ? "NOT_PUBLISHED" : "PUBLISHED", receipt));
+      token, staffBasis, staff, eligible, reason, site?.State ?? "NOT_REQUESTED",
+      receiptIsCurrent ? site!.MembershipState : "PENDING",
+      outstanding?.Id ?? operation?.Id, (outstanding ?? operation)?.Status.ToString(), receipt is null ? "NOT_PUBLISHED" : receiptIsCurrent ? "PUBLISHED" : "HISTORICAL", receipt));
   }
 
   public static async Task<CommandResult<ClientSiteIntentRequestReceipt>> RequestAsync(IAuditSphereDbContext db,

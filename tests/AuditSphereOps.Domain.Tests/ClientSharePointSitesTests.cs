@@ -147,6 +147,8 @@ public sealed class ClientSharePointSitesTests
     var current = await ClientSiteOperatorIntents.ReviewAsync(db, rig.H.Admin, rig.H.A.ClientId, policy, true);
     Assert.NotEqual(preview.Value.StaffAuthorizationDigest, current.Value!.StaffAuthorizationDigest);
     Assert.Equal(preview.Value.StaffObjectIds, current.Value.StaffObjectIds);
+    Assert.Equal("HISTORICAL", current.Value.ReceiptState);
+    Assert.Equal("PENDING", current.Value.MembershipState);
     Assert.False((await ClientSiteOperatorIntents.ReviewAsync(db, PbcSeed.Actor(rig.H.A.Client, "ClientUser"), rig.H.A.ClientId, policy, false)).Succeeded);
     Assert.False((await ClientSiteOperatorIntents.ReviewAsync(db, rig.H.Admin, Guid.NewGuid(), policy, false)).Succeeded);
     var client = await db.PracticeClients.SingleAsync(x => x.Id == rig.H.A.ClientId);
