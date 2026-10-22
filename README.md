@@ -64,7 +64,7 @@ Native R2R lifecycle under [`docs/task_breakdown`](docs/task_breakdown/auditsphe
 | Checklist | Capability | Status |
 |---|---|---|
 | [x] | Selected document-site grant reconciliation and separate certificate runtime probe | Implemented; focused offline checks passed |
-| [ ] | Client-site terminal intent/status adapter and managed staff reconciliation | Partially pending; existing worker authority and receipt fences strengthened |
+| [x] | Client-site terminal intent/status adapter and managed staff reconciliation | Implemented; focused offline checks passed |
 | [ ] | Real tenant positive reads, unrelated-site denial and protected credential custody | Pending external acceptance; simulations do not establish this |
 
 Operator steps: [Entra and selected-resource automation](docs/operations/auditsphere-entra-registration-automation.md). Exact verification evidence: [execution status](docs/execution/status.json).
@@ -140,7 +140,7 @@ The [product crosswalk](docs/execution/auditsphere-execution-tracker-practice-ma
 | ☐ Partially pending | Audit planning & execution | Programs, materiality/risk, procedures, sampling, confirmations, workpapers and review | Qualified methodology decisions, terminal evidence mapping and complete review journeys. |
 | ☐ Partially pending | Completion, release & records | SRM/readiness, human decisions, report artifacts, sealing, signing hooks and archive lineage | Signing/legal policy, authoritative-store/provider acceptance and independent release review. |
 | ☐ Partially pending | Administration & security | Initial setup, users/grants, tenant capabilities, search, operations and progress | Whole-application isolation/revocation acceptance and operator readiness. |
-| ☐ Partially pending | Microsoft 365 & client sites | Isolated identities/workers, selected-resource verification and per-client provisioning | Approved rollout, exact-site/staff reconciliation and live production acceptance. |
+| ☐ Partially pending | Microsoft 365 & client sites | Isolated identities/workers, selected-resource verification, per-client site provisioning and managed staff reconciliation | Approved rollout, live tenant positive/negative validation and production acceptance. |
 | ☐ Partially pending | Knowledge library | Technical pages and reusable audit-program library | Current authorization, authoring and workflow acceptance. |
 | ☐ Partially pending | Platform & durable operations | ASP.NET Core API, Angular, PostgreSQL, retries, idempotency and reconciliation | Current-SHA full CI, recovery/capacity/observability and deployment acceptance. |
 | ☐ Pending | Professional acceptance | Human review gates are retained | Named qualified methodology owner and independent reviewer approve applicable policies/fixtures. |
@@ -183,6 +183,9 @@ These checkmarks apply only to the stated slice; the parent module remains parti
 | ☑ Completed | Owned Entra registration and public-certificate reconciliation — offline engineering | [Operator procedure](docs/operations/auditsphere-entra-registration-automation.md) covers exact IDs, signed approvals, uncertain-create reconciliation and key overlap. Synthetic checks pass; live tenant, credential custody and consent/runtime acceptance remain separate. |
 | ☑ Completed | Offline Microsoft 365 plan permission boundaries | Exact capability roles/resources, isolated certificates and redirect origins are validated before any connection; incompatible Exchange permission models are refused. Live provisioning and tenant acceptance remain pending. |
 | ☑ Completed | Autonomous runner evidence integrity | Supervisor-owned hashes and bounded evidence sizes are checked again before completion; missing, changed or symlinked evidence is refused. Existing checkpoints need attributable evidence revalidation; this does not establish whole-product completion. |
+| ☑ Completed | Selected document-site grant reconciliation and separate certificate runtime probe — offline engineering | [Operator procedure](docs/operations/auditsphere-entra-registration-automation.md#selected-document-sites-grant-automation) covers exact site ownership, application write-grant reconciliation and separate DOCUMENTS certificate probe with negative control. Synthetic checks pass; live tenant and credential custody remain separate. |
+| ☑ Completed | Client-site terminal intent/status adapter and managed staff reconciliation — offline engineering | [Operator procedure](docs/operations/auditsphere-entra-registration-automation.md#sharepoint-client-site-provisioning-and-managed-staff-full-control-wu-021) covers deterministic URLs, STS#3 template, ownership markers, rollout cutoff, isolated write grant, and managed staff group Full Control reconciliation. Synthetic checks pass; live tenant and SharePoint provisioning acceptance remain separate. |
+| ☑ Completed | Unmanaged client-site membership preservation and residual-access auditing | Worker removes only previously managed staff identities from the assigned group, leaving unmanaged access untouched and recording residual references in durable receipts and audit events. Focused PostgreSQL and provider checks pass; live tenant acceptance remains open. |
 
 ### Angular quality and accessibility follow-up
 
