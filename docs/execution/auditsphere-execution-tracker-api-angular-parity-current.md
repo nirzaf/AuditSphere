@@ -73,3 +73,20 @@ The scope workspace now pages components and readiness independently, alongside 
 ## Intercompany member discovery and safe read failures
 
 Matching options now support bounded member search and paging, with exact seller/buyer resolution independently of the current discovery page. Selections remain tied to the current scope and reporting-period eligibility. Outside-party review refuses a resolved in-perimeter member, including one off the displayed page. Shared UI exception handling is documented as a sanitized JSON service-unavailable response through common endpoint metadata. Focused evidence and remaining acceptance limits are recorded in `status.json`; full functional and release acceptance remains pending.
+
+## RUN-007 trace at source ef9bf058 (22 October 2026)
+
+Local agent evidence only; exact-candidate release verification has not yet run on this source, so no row below is `FULL_CI_PASS`. Statuses in the main table are unchanged; this section records the next action for each row.
+
+**Contract rows T035–T051.** `bash scripts/contracts/verify-openapi.sh` reports the contract current. Every `Map*` route under `src/AuditSphereOps.Api/` (639 mappings) resolves to an emitted path and method, except the two simulation-only Microsoft consent pages, which are registered only when simulation is enabled. `OpenApiContractTests`, `UiContractTests`, `UiPortalContractTests` and `UiWorkbenchContractTests` pass 32/32. Disposition: `CONTRACT_LOCAL_PASS`; next action is exact-candidate CI.
+
+**Browser rows.** Each row's Angular component was resolved to its route, and its control labels were matched against the accessible names that Playwright journeys target. A route visit alone does not count.
+
+| Rows | Covering browser evidence | Disposition and next action |
+|---|---|---|
+| T018–T024 | `AngularClientSalesInvoiceWorkflowJourneyTests` drives allocation, purchase-invoice, purchase-credit and supplier-page controls; passed 1/1 | `PLAYWRIGHT_E2E_PASS` for the primary flow. Uncertain-outcome recovery and settlement-draft reload are covered by Angular specs and Domain tests, not the browser. Next action: exact-candidate CI. |
+| T027 | `AngularConsolidationIntercompanyJourneyTests` passed 1/1 (RUN-005) | Unchanged: `PLAYWRIGHT_E2E_PASS`; `HUMAN_AT_OPEN` stays with WU-037. |
+| T029, T032 | `AngularClientPortalJourneyTests` passed 5/5 | Journeys cover the portal request and history surfaces. The same-context draft refresh is asserted in `request.spec.ts`. Next action: exact-candidate CI. |
+| T031 | `AngularConsolidationComponentReadinessJourneyTests` passed 3/3 (components table and readiness) | Pagination and bounded errors are asserted at query and spec level. Next action: exact-candidate CI. |
+| T008, T009, T010, T016, T025, T026, T028 | No journey targets these components' controls | `BROWSER_JOURNEY_MISSING`. Next action: extend the existing consolidation journey (T008–T010, T025, T026, T028) and the workflow journeys (T016) under WU-032 and WU-028. |
+| T011–T015, T030, T033, T034 | Journeys visit the route, but only generic or neighbouring controls match | `BROWSER_ACTION_UNVERIFIED`. Next action: add action-specific assertions to the nearest existing journey under WU-027–031. |
