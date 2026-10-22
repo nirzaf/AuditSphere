@@ -20,28 +20,63 @@ Three isolated domains — enforced in Domain, services, and database. Import-fi
 ## Architecture
 
 ```mermaid
-flowchart TB
-    U["Angular 22 + Material/CDK<br/>Staff and Client Portals"]
-    A["ASP.NET Core 10<br/>API + OIDC / Cookie Auth"]
-    APP["Application Layer<br/>Commands · Queries · RoleGrants"]
-    D["Domain Layer<br/>Financial Rules · Audit Invariants"]
-    I["Infrastructure<br/>EF Core 10 · Npgsql"]
-    PG[("PostgreSQL 18<br/>Business Data · Audit History")]
-    W[".NET Worker<br/>Durable Operations"]
-    M["Microsoft Entra ID<br/>Authentication"]
-    G["Microsoft Graph / SharePoint<br/>Selected Resource Access"]
-    R["Authoritative<br/>Release & Archive Store"]
-    U --> A
-    A --> APP
-    APP --> D
-    APP --> I
-    I --> PG
-    W --> PG
-    W --> APP
-    A --> M
-    W --> G
-    W --> R
+flowchart LR
+    subgraph Browsers["Browsers"]
+        STAFF["Staff workspace"]
+        PORTAL["Client portal"]
+    end
+
+    subgraph ApiHost["AuditSphereOps.Api · ASP.NET Core 10"]
+        SPA["Angular 22 SPA<br/>Material/CDK · same-origin"]
+        UIAPI["/api/ui/* endpoints<br/>OpenAPI contract"]
+        AUTH["Entra OIDC + cookie session<br/>antiforgery · session generation"]
+        SPA -->|"JSON + XSRF"| UIAPI
+        AUTH --- UIAPI
+    end
+
+    subgraph Workers["AuditSphereOps.Worker · one isolated group per process"]
+        CORE["general · processing · records<br/>TB/GL checks · package build/render<br/>checkpoint · file freeze · reminders<br/>no external effects"]
+        MAIL["mail<br/>PBC and commercial mail"]
+        PBC["pbc<br/>selected-site documents<br/>engagement folders"]
+        SITES["client-sites<br/>per-client sites<br/>managed staff membership"]
+    end
+
+    subgraph Core["Shared modular monolith"]
+        INF["Infrastructure<br/>EF Core 10 · Npgsql<br/>provider adapters"]
+        APP["Application<br/>commands · queries · RoleGrants<br/>durable-operation handlers"]
+        DOM["Domain<br/>invariants · pure calculators<br/>exact decimal money"]
+        INF -.->|"implements"| APP
+        APP --> DOM
+    end
+
+    subgraph Data["Persistence"]
+        PG[("PostgreSQL 18<br/>append-only triggers<br/>durable operations")]
+        CKPT[("Append-only release<br/>checkpoint store")]
+    end
+
+    subgraph External["External providers · one least-privilege identity per capability"]
+        ENTRA["Entra ID<br/>sign-in"]
+        GRAPH["Microsoft Graph<br/>User.Read.All · Sites.Selected · Mail.Send"]
+        SPO["SharePoint<br/>client sites"]
+        SMTP["SMTP / Resend<br/>alternative mail"]
+    end
+
+    STAFF --> SPA
+    PORTAL --> SPA
+    UIAPI --> APP
+    Workers -->|"lease · retry · reconcile"| APP
+    INF --> PG
+    CORE --> CKPT
+
+    AUTH -.->|"OIDC"| ENTRA
+    UIAPI -.->|"directory · consent"| GRAPH
+    MAIL -.-> GRAPH
+    MAIL -.-> SMTP
+    PBC -.-> GRAPH
+    SITES -.-> SPO
 ```
+
+Live groups (`mail`, `pbc`, `client-sites`) compose in Production only when listed in `Worker:ApprovedLiveGroups`. Each one mounts only its own certificate. Core groups never carry external effects.
 
 Reference direction: `Domain → nothing; Application → Domain; Infrastructure → Application, Domain; Api/Worker → all`. Details: [current architecture](docs/architecture/auditsphere-architecture-current-architecture.md) · [code map](docs/architecture/auditsphere-architecture-code-map.md) · [enterprise target (PROPOSED)](docs/architecture/auditsphere-architecture-specification-enterprise-target-proposed.md). Routes: `src/AuditSphereOps.Ui/src/app/app.routes.ts`.
 
