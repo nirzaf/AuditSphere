@@ -1071,7 +1071,7 @@
       "result": "PARTIAL",
       "criteria": "AC01\u201308 pass; AC09 partial; CI pending.",
       "fastCi": "39818469441 SUCCESS on aedc42df; fast gate only.",
-      "fullReleaseCi": "39818204512 on 48816d27: Angular/build/contracts/Domain PASS; API/E2E running.",
+      "fullReleaseCi": "39818204512 SUCCESS on 48816d27; historical source, not current HEAD.",
       "browser": "All five surfaces and both shells sampled; full matrix partial.",
       "humanAT": "BLOCKED_EXTERNAL: AT/version/workflow evidence absent.",
       "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityFocusRecovery20261022"
@@ -1099,6 +1099,7 @@
         "supported Production worker composition with per-group live approval (Worker:ApprovedLiveGroups)"
       ],
       "localFocusedEvidence": "Focused TRX per unit asserted with scripts/verification/assert-test-results.py; full suites deferred to release-verification.yml",
+      "m365PlanPermissionBoundary": "WU-017 correction: exact resource/role matrix, capability certificate isolation, required MAIL/CLIENT_SITES config, redirect-origin match and Exchange RBAC no-unscoped-Graph-role guard. Offline Test-Automation: 33 PASS, zero failures. Prerequisite DryRun + verify-result PLANNED PASS with zero network/mutations. Live WU-018..025 engineering and external acceptance remain open.",
       "runnerEvidenceIntegrity": "RUN-008 correction: supervisor hashes and size-bounds evidence; final verify/run/resume reject missing or changed artifacts and directory symlinks. Focused completion runner/state cohort: 34 PASS; descriptor-relative reads and same-byte validation/hash close independent-review race findings. Historical checkpoints lacking digests require real revalidation, not automatic backfill. Full current-candidate CI NOT_RUN.",
       "openFindings": [
         "42 command endpoints map scope.denied to 400 (WU-015)",

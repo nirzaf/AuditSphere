@@ -53,6 +53,41 @@ try {
   $pinned = Invoke-Prerequisites $fixture @('-DryRun', '-ExpectedPlanSha256', ('0' * 64))
   Assert-That 'digest-mismatch-refused' ($pinned.Exit -eq 4 -and $pinned.Result.errorCode -eq 'plan-sha256-mismatch')
 
+  # Approved permission profiles remain usable; planning never grants these roles.
+  $profiles = @{
+    LOGIN = @(); USER_CREATE = @('User.Create'); INVITATIONS = @('User.Invite.All')
+    GROUP_MEMBERSHIP = @('GroupMember.ReadWrite.All'); MAIL = @('Mail.Send')
+    CLIENT_SITES = @('Sites.FullControl.All', 'Sites.FullControl.All')
+  }
+  foreach ($kind in $profiles.Keys) {
+    $path = Write-Variant {
+      param($p)
+      $p.capabilities = @($p.capabilities[0])
+      $p.capabilities[0].kind = $kind
+      $p.capabilities[0].expectedApplicationRoles = @(
+        for ($i = 0; $i -lt $profiles[$kind].Count; $i++) {
+          @{ resourceAppId = $(if ($i -eq 1) { '00000003-0000-0ff1-ce00-000000000000' } else { '00000003-0000-0000-c000-000000000000' }); value = $profiles[$kind][$i] }
+        }
+      )
+      if ($kind -eq 'MAIL') {
+        $p.mail = @{ permissionModel = 'LEGACY_APPLICATION_ACCESS_POLICY'; senderObjectIds = @('00000000-0000-4000-8000-000000000050') }
+      }
+    }
+    $outcome = Invoke-Prerequisites $path @('-DryRun')
+    Assert-That "allowed-profile-$kind" ($outcome.Exit -eq 0 -and $outcome.Result.status -eq 'PLANNED' -and $outcome.Result.networkCalls -eq 0)
+    if ($kind -eq 'MAIL') {
+      $rbac = Get-Content -Raw $path | ConvertFrom-Json -AsHashtable
+      $rbac.mail.permissionModel = 'EXCHANGE_RBAC_RESOURCE_SCOPE'
+      $rbac.capabilities[0].expectedApplicationRoles = @()
+      $rbac | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath $path -Encoding utf8NoBOM
+      $outcome = Invoke-Prerequisites $path @('-DryRun')
+      Assert-That 'rbac-no-unscoped-role' ($outcome.Exit -eq 0 -and $outcome.Result.status -eq 'PLANNED')
+      $rbac.capabilities[0].expectedApplicationRoles = @(@{ resourceAppId = '00000003-0000-0000-c000-000000000000'; value = 'Mail.Send' })
+      $rbac | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath $path -Encoding utf8NoBOM
+      Assert-That 'rbac-additive-unscoped-role-refused' ((Invoke-Prerequisites $path @('-DryRun')).Exit -eq 4)
+    }
+  }
+
   # Unsafe or invalid plans: INVALID_OR_UNSAFE (exit 4) before anything else happens.
   $cases = [ordered]@{
     'invalid-guid'          = { param($p) $p.tenantId = 'not-a-guid' }
@@ -63,6 +98,22 @@ try {
     'operator-as-runtime'   = { param($p) $p.capabilities[0].clientId = $p.operator.clientId }
     'invalid-host'          = { param($p) $p.clientSites.host = 'evil.example.com' }
     'non-utc-cutoff'        = { param($p) $p.clientSites.rolloutCutoffUtc = '2026-10-01T00:00:00+03:00' }
+    'missing-mail-config'   = { param($p) $p.capabilities[0].kind = 'MAIL'; $p.capabilities[0].expectedApplicationRoles[0].value = 'Mail.Send' }
+    'missing-sites-config'  = {
+      param($p)
+      $p.capabilities[0].kind = 'CLIENT_SITES'
+      $p.capabilities[0].expectedApplicationRoles = @(
+        @{ resourceAppId = '00000003-0000-0000-c000-000000000000'; value = 'Sites.FullControl.All' },
+        @{ resourceAppId = '00000003-0000-0ff1-ce00-000000000000'; value = 'Sites.FullControl.All' }
+      )
+      $p.Remove('clientSites') | Out-Null
+    }
+    'broad-directory-role'  = { param($p) $p.capabilities[0].expectedApplicationRoles[0].value = 'Directory.ReadWrite.All' }
+    'wrong-resource-role'   = { param($p) $p.capabilities[0].expectedApplicationRoles[0].resourceAppId = '00000003-0000-0ff1-ce00-000000000000' }
+    'missing-role'          = { param($p) $p.capabilities[0].expectedApplicationRoles = @() }
+    'reused-certificate'    = { param($p) $p.capabilities[1].certificateReference = $p.capabilities[0].certificateReference }
+    'reused-public-key'     = { param($p) $p.capabilities[1].publicCertificateSha256 = $p.capabilities[0].publicCertificateSha256 }
+    'foreign-redirect'      = { param($p) $p.redirectUris = @('https://other.synthetic.test/signin-oidc') }
     'http-base-uri'         = { param($p) $p.publicBaseUri = 'http://auditsphere.synthetic.test' }
   }
   foreach ($case in $cases.GetEnumerator()) {

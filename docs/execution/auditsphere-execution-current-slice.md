@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Offline Microsoft 365 plan boundaries (2026-10-22)
+
+Plan validation now enforces the approved capability permission matrix, separate certificate identities, exact redirect origin and required mail/client-site configuration before provider access. Exchange RBAC plans cannot also request unscoped Graph mail permission. Offline positive/negative checks and the PLANNED envelope check pass. The unfinished provisioning scripts are engineering work; missing live tenant credentials block their live acceptance only. They must not be parked wholesale as external work.
+
 ## Completion evidence integrity follow-up (2026-10-22)
 
 The runner captures artifact hashes and byte sizes itself, bounds evidence reads, rejects symlink traversal, and revalidates retained artifacts before any completion exit. Historical checkpoints remain readable but cannot certify completion without retained digests. Re-run or independently inspect the original checks before recording new evidence; never backfill a digest merely to turn the gate green. Focused runner/state results are recorded in `autonomousCompletion20261022` in [status.json](status.json); product and live acceptance remain open.

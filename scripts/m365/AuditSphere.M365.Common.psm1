@@ -78,6 +78,45 @@ function Read-M365Plan([string] $Path, [string] $SchemaPath) {
   $clients = @($plan.capabilities | ForEach-Object { $_.clientId.ToLowerInvariant() }) + @($plan.operator.clientId.ToLowerInvariant())
   if (@($kinds | Select-Object -Unique).Count -ne $kinds.Count) { throw [M365PlanException]::new('duplicate-capability-kind') }
   if (@($clients | Select-Object -Unique).Count -ne $clients.Count) { throw [M365PlanException]::new('reused-client-identity') }
+  # The plan is an allowlist, not a vehicle for arbitrary tenant permissions.
+  # Resolve role GUIDs from the provider only after this exact resource/value boundary passes.
+  $graph = '00000003-0000-0000-c000-000000000000'
+  $sharepoint = '00000003-0000-0ff1-ce00-000000000000'
+  $roles = @{
+    LOGIN = @(); DIRECTORY_READER = @("${graph}:User.Read.All")
+    DOCUMENTS = @("${graph}:Sites.Selected"); MAIL = @("${graph}:Mail.Send")
+    USER_CREATE = @("${graph}:User.Create"); INVITATIONS = @("${graph}:User.Invite.All")
+    GROUP_MEMBERSHIP = @("${graph}:GroupMember.ReadWrite.All")
+    CLIENT_SITES = @("${graph}:Sites.FullControl.All", "${sharepoint}:Sites.FullControl.All")
+  }
+  foreach ($capability in $plan.capabilities) {
+    if (($capability.kind -eq 'MAIL' -and -not $plan.ContainsKey('mail')) -or
+        ($capability.kind -eq 'CLIENT_SITES' -and -not $plan.ContainsKey('clientSites'))) {
+      throw [M365PlanException]::new('capability-configuration-missing')
+    }
+    $expected = @($roles[$capability.kind])
+    if ($capability.kind -eq 'MAIL' -and $plan.ContainsKey('mail') -and
+        $plan.mail.permissionModel -eq 'EXCHANGE_RBAC_RESOURCE_SCOPE') { $expected = @() }
+    $actual = @($capability.expectedApplicationRoles | ForEach-Object {
+      "$($_.resourceAppId.ToLowerInvariant()):$($_.value)"
+    })
+    if ($actual.Count -ne $expected.Count -or
+        @($actual | Select-Object -Unique).Count -ne $actual.Count -or
+        @($actual | Where-Object { $_ -cnotin $expected }).Count -gt 0) {
+      throw [M365PlanException]::new('capability-permission-mismatch')
+    }
+  }
+  foreach ($field in @('certificateReference', 'publicCertificateSha256')) {
+    $values = @($plan.capabilities | ForEach-Object { $_[$field] })
+    if (@($values | Select-Object -Unique).Count -ne $values.Count) {
+      throw [M365PlanException]::new('reused-capability-certificate')
+    }
+  }
+  foreach ($redirect in $plan.redirectUris) {
+    $base = [uri] $plan.publicBaseUri
+    $target = [uri] $redirect
+    if ($target.Authority -ne $base.Authority) { throw [M365PlanException]::new('redirect-origin-mismatch') }
+  }
   if ($plan.ContainsKey('clientSites')) {
     $cutoff = [DateTimeOffset]::MinValue
     $value = $plan.clientSites.rolloutCutoffUtc
