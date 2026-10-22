@@ -342,8 +342,8 @@ Reminder bounds, template prerequisites, quotation timelines, practice-time phas
 
 ## Angular quality and development-speed specification follow-up (2026-10-22)
 
-Tasks 01–06 are implemented. Current master fast CI passed Angular lint, production build and full Angular specs, the .NET Release build, and documentation health. Focused authorization E2E checks and the serialized .NET solution build also passed; full suites were not run locally. The exact source and run evidence are in [`status.json`](status.json#targetedVerification.angularQuality20261022).
+Tasks 01–06 are implemented. Fast CI `39719683921` passed on `bd150590`: Docs, Angular lint/build/full specs, and .NET Release. Focused authorization E2E checks and the serialized .NET solution build also passed; full suites were not run locally. Evidence is in [`status.json`](status.json#targetedVerification.angularQuality20261022).
 
 Task 07 / AC-09 remains partial. The local synthetic browser fixture built, migrated and seeded `auditsphere_browser`; the API Release build had 0 warnings/errors. I fixed a malformed fixture UUID. The API listened on `127.0.0.1:5029`, but browser policy denied the existing `data:` error tab and prohibits alternate browser surfaces. No rendered workflow was observed. Human screen-reader review and actual AT/browser versions/findings remain open.
 
-Fast CI `39718853950` passed on `90e7478a` (Docs, Angular lint/build/specs and .NET Release). Full release CI `39715225886` is still running on app/test SHA `7b69f6db`: Domain and Angular/build checks passed; API and Playwright E2E have no terminal result. Superseded run `39712938338` was canceled. No full suites ran locally. See [status.json](status.json).
+Full release CI `39720105655` is running on exact SHA `bd150590`: Angular, Domain and build/contracts/publication passed; unfiltered API and Playwright E2E remain active. Superseded runs `39715225886` and `39712938338` were canceled. No full suites ran locally; see [status.json](status.json).
