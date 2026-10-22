@@ -262,27 +262,43 @@ public sealed class AngularAuditFieldworkParityJourneyTests
     var previewHeading = page.GetByRole(AriaRole.Heading, new() { Name = "Exact selection preview", Exact = true });
     await Assertions.Expect(previewHeading).ToBeFocusedAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Table, new() { Name = "Exact selected sampling rows", Exact = true })).ToContainTextAsync("ROW-001");
-    var reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-    var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-    await page.RouteAsync("**/sampling/preview", async route =>
+    foreach (var returnToOrigin in new[] { false, true })
     {
-      reached.TrySetResult();
-      await release.Task;
-      await route.ContinueAsync();
-    });
-    try
-    {
-      var delayedPreview = previewTrigger.PressAsync("Enter");
-      await reached.Task.WaitAsync(TimeSpan.FromSeconds(20));
-      var portfolio = page.GetByRole(AriaRole.Navigation, new() { Name = "Breadcrumb", Exact = true })
-        .GetByRole(AriaRole.Link, new() { Name = "Portfolio", Exact = true });
-      await portfolio.FocusAsync();
-      release.TrySetResult();
-      await delayedPreview;
-      await Assertions.Expect(previewHeading).ToBeVisibleAsync();
-      await Assertions.Expect(portfolio).ToBeFocusedAsync();
+      var reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+      var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+      await page.RouteAsync("**/sampling/preview", async route =>
+      {
+        reached.TrySetResult();
+        await release.Task;
+        await route.ContinueAsync();
+      });
+      try
+      {
+        var rationale = page.GetByLabel("Rationale", new() { Exact = true });
+        var delayedPreview = rationale.PressAsync("Enter");
+        await reached.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        var portfolio = page.GetByRole(AriaRole.Navigation, new() { Name = "Breadcrumb", Exact = true })
+          .GetByRole(AriaRole.Link, new() { Name = "Portfolio", Exact = true });
+        if (returnToOrigin)
+        {
+          await page.Keyboard.PressAsync("Tab");
+          await Assertions.Expect(rationale).Not.ToBeFocusedAsync();
+          await page.Keyboard.PressAsync("Shift+Tab");
+          await Assertions.Expect(rationale).ToBeFocusedAsync();
+        }
+        else await portfolio.FocusAsync();
+        release.TrySetResult();
+        await delayedPreview;
+        await Assertions.Expect(previewTrigger).ToBeEnabledAsync();
+        await Assertions.Expect(previewHeading).ToBeVisibleAsync();
+        await Assertions.Expect(returnToOrigin ? rationale : portfolio).ToBeFocusedAsync();
+      }
+      finally
+      {
+        release.TrySetResult();
+        await page.UnrouteAsync("**/sampling/preview");
+      }
     }
-    finally { release.TrySetResult(); }
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, fieldworkPath, "fieldwork-populated-accessibility");
     Assert.Empty(errors);
   }

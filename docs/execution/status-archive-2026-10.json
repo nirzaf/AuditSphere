@@ -15412,6 +15412,25 @@
           ],
           "reason": "One final-source complete unfiltered verification replaces concurrent superseded source runs. Completed Domain/Angular/build job results remain historical only.",
           "remaining": "No FULL_CI_PASS yet. Native zoom and knowledgeable human screen-reader observations remain unavailable; rendered matrix still partial."
+        },
+        "independentFocusReview20261022": {
+          "runtimeSource": "94f18f9e24e04059c48f497b159ff0dd83322cc4 (unchanged)",
+          "sourceBase": "3d9b8aae",
+          "sourceBlobs": {
+            "src/AuditSphereOps.Ui/src/app/features/accounting/journal.spec.ts": "2f5367ec8727b6600e84bb3bd1a3d2591735a2af",
+            "tests/AuditSphereOps.E2E.Tests/AngularAuditFieldworkParityJourneyTests.cs": "c5b2c3d8f9645e9b9fc412b0e66120acb670d74a"
+          },
+          "reviewer": "Independent coding agent Banach; source-only review of journal/fieldwork focus owner guards and tests",
+          "finding": "No concrete implementation defect found. P3: interaction counter needed a regression where focus leaves and returns to origin during a pending preview.",
+          "changes": "Extended existing journal negative test with body keyboard interaction while preview pending; retained existing focus-elsewhere assertion. Parameterized existing fieldwork journey for both focus elsewhere and Tab-away/Shift+Tab-back. No test cases removed or added in this follow-up.",
+          "followUp": "Independent reviewer confirmed the P3 gap closed, original assertions preserved and no actionable issue; source-only, no independent rerun.",
+          "verification": {
+            "journal": "13 passed; journal.spec.ts",
+            "fieldwork": "Passed: 1, Failed: 0, Skipped: 0; /tmp/auditsphere-fieldwork-a11y-20261022/fieldwork-focus-both-guards.trx",
+            "initialAttempt": "The two-scenario test first timed out waiting for a second request because it restarted before the first response released the busy control. Corrected by awaiting Preview selection enabled; no timeout increase or assertion removal.",
+            "build": "Only changed E2E project rebuilt with BuildProjectReferences=false after proving production inputs unchanged; full local suites not run."
+          },
+          "limits": "Independent source review is not human assistive-technology evidence; full state matrix/native zoom/human AT and final full CI remain open."
         }
       },
       "workflowHistory20261020": {

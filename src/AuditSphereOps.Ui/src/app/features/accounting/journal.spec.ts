@@ -273,6 +273,18 @@ describe('Exact native journal editor and receipt recovery', () => {
     await task;
     TestBed.tick();
     expect(document.activeElement).toBe(back);
+
+    // A busy button can leave the body focused. A later keyboard action still
+    // owns that context even though the active-element fallback permits body.
+    trigger.focus();
+    const second = c.prepare();
+    const secondRequest = http.expectOne(root + '/preview');
+    trigger.blur();
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    secondRequest.flush({ value: preview });
+    await second;
+    TestBed.tick();
+    expect(document.activeElement).toBe(document.body);
   });
   it('clears the editor, evidence, drafts and late preview after epoch loss', async () => {
     const { c, http } = await open();
