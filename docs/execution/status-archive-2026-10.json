@@ -15295,6 +15295,18 @@
           },
           "result": "PASS_SAMPLED_TEXT_ONLY",
           "limits": "Not whole-page conformance; excludes disabled controls, placeholder/non-text contrast, hover states, human AT and native zoom."
+        },
+        "evidenceEditorFocused20261022": {
+          "source": "892c8ea5 (documentation-only descendant of e63b304f); .NET inputs unchanged since rebuilt e494d48d binaries",
+          "angularBuild": "PASS; existing commercial/settings.scss budget warning retained",
+          "test": "AngularEvidenceActionsJourneyTests.KeyboardReviewPreviewCancelAndFreshAssentPreserveFocusOwnership",
+          "result": "Passed: 1, Failed: 0, Skipped: 0 (two executions; second reopened bounded fixture)",
+          "reports": [
+            "/tmp/auditsphere-evidence-a11y-20261022/evidence-a11y.trx",
+            "/tmp/auditsphere-evidence-a11y-20261022/evidence-a11y-browser.trx"
+          ],
+          "browser": "NOT_VERIFIED: first disposable fixture expired before navigation; internal error page then blocked by Browser Use URL policy. No bypass attempted. User reports normal workspace still errors; screenshot requested. Local UI 4304 and API 5100 listening; workspace HTTP 200.",
+          "scope": "Existing test exercises keyboard preview focus, cancel/return focus, fresh assent, delayed-preview focus ownership and zero reviewed-action dispatch. Does not replace human AT review."
         }
       },
       "workflowHistory20261020": {
