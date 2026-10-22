@@ -198,10 +198,10 @@ public static partial class UiEndpoints
       if (input.ProfileId is { } profileId)
       {
         var result = await ClientAccountingService.ReviseProfileAsync(db, actor, profileId, request, revision, http.RequestAborted);
-        return result.Succeeded ? Results.Ok(new { revision = result.Value.ToString(CultureInfo.InvariantCulture) }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+        return result.Succeeded ? Results.Ok(new { revision = result.Value.ToString(CultureInfo.InvariantCulture) }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
       }
       var created = await ClientAccountingService.CreateProfileAsync(db, actor, request, http.RequestAborted);
-      return created.Succeeded ? Results.Ok(new { id = created.Value }) : Results.Json(new { code = created.ErrorCode }, statusCode: 400);
+      return created.Succeeded ? Results.Ok(new { id = created.Value }) : Results.Json(new { code = created.ErrorCode }, statusCode: created.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces<UiProfileResponse>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
