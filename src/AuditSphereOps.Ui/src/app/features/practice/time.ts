@@ -186,7 +186,7 @@ export const decodeTime = (value: unknown, path: string) => {
       <section class="panel" aria-labelledby="my-time-heading">
         <h2 id="my-time-heading" #entriesHeading tabindex="-1">My recorded time</h2>
         <p>Newest work dates first, then creation time. This is live history; refresh from the start to include newly recorded or corrected work.</p>
-        <nav aria-label="Recorded time pages">
+        <nav class="time-pages" aria-label="Recorded time pages">
           <button matButton type="button" (click)="previousEntriesPage()" [disabled]="approvalNavigationBlocked() || entriesPositions().length === 1">Newer time entries</button>
           <span aria-live="polite">Page {{ entriesPositions().length }} · {{ v.myEntries.length }} shown</span>
           <button matButton type="button" (click)="nextEntriesPage()" [disabled]="approvalNavigationBlocked() || !v.entriesPage?.hasMore">Older time entries</button>
@@ -229,7 +229,7 @@ export const decodeTime = (value: unknown, path: string) => {
           <h2 id="queue-heading" #approvalHeading tabindex="-1">Time approval queue</h2>
           <p>Independent approval segregation: managers and partners cannot approve their own time entries.</p>
           <p>This is a live queue, not a fixed snapshot. Refresh from the start to include newly submitted or backdated work.</p>
-          <nav aria-label="Time approval pages">
+          <nav class="time-pages" aria-label="Time approval pages">
             <button matButton type="button" (click)="previousApprovalPage()" [disabled]="approvalNavigationBlocked() || approvalPositions().length === 1">Previous approvals</button>
             <span aria-live="polite">Page {{ approvalPositions().length }} · {{ v.awaitingApproval.length }} shown</span>
             <button matButton type="button" (click)="nextApprovalPage()" [disabled]="approvalNavigationBlocked() || !v.approvalPage?.hasMore">Next approvals</button>
@@ -260,7 +260,7 @@ export const decodeTime = (value: unknown, path: string) => {
     }
     <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
   `,
-  styles: `:host .timer-controls { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: .75rem; } :host .return-feedback { display: block; max-width: 32rem; white-space: normal; } :host textarea { display: block; max-width: 24rem; min-width: 16rem; } :host .time-entry-actions { min-width: 14rem; }`,
+  styles: `:host .time-pages { flex-wrap: wrap; } :host .time-pages button { max-width: 100%; white-space: normal; height: auto; min-height: 2.75rem; } :host .timer-controls { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: .75rem; } :host .return-feedback { display: block; max-width: 32rem; white-space: normal; } :host textarea { display: block; max-width: 24rem; min-width: 16rem; } :host .time-entry-actions { min-width: 14rem; }`,
 })
 export class PracticeTime implements NavigationProtected {
   private readonly api = inject(Api);

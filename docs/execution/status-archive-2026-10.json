@@ -15397,7 +15397,7 @@
         "finalSourceVerification20261022": {
           "run": 39796315334,
           "source": "94f18f9e24e04059c48f497b159ff0dd83322cc4",
-          "observed": "Domain, Angular/full specs and build/contracts/publication jobs succeeded; API and E2E jobs still in_progress. No overall full-CI pass claimed.",
+          "observed": "Completed FAIL: Domain 1493 passed; API 394 passed; E2E 329 passed / 1 failed. Time 320px reflow failure fixed and original failing cohort passes locally; corrected-source full run pending.",
           "superseded": [
             {
               "run": 39785630053,
@@ -15437,9 +15437,45 @@
           "status": "BLOCKED_EXTERNAL",
           "reason": "Knowledgeable human screen-reader observations, actual screen-reader/browser versions and native 200%/400% zoom results were requested repeatedly but not supplied. Owner approval/acknowledgement does not provide these observations. Supported embedded-browser shortcuts produced no observable native zoom change.",
           "technicalState": "All five surfaces and both shells have bounded rendered evidence; observed focus/scroll defects fixed and focused regressions pass. Full rendered state matrix remains partial. No outstanding concrete defect from independent source review.",
-          "externalState": "Final-source CI 39796315334 remains live; API/E2E unfinished. It is not considered stopped or passed. Later external CI results may require targeted correction.",
+          "externalState": "Prior final-source CI completed with one observed reflow failure; corrected locally. Required human AT/zoom report still absent; corrected-source full CI remains unverified.",
           "resumeNeeds": "Actual human AT/native zoom report for the scoped checklist, plus final-source CI terminal evidence and remaining rendered-state acceptance.",
           "record": "README and the current ledger retain partial status; no whole-spec completion claimed."
+        },
+        "timePaginationCiRecovery20261022": {
+          "sourceBase": "7dacd021",
+          "sourceBlob": "b1efeedd8c2b8886a6021ca11c66cd68418644ad",
+          "ci": {
+            "run": 39796315334,
+            "source": "94f18f9e24e04059c48f497b159ff0dd83322cc4",
+            "result": "FAIL",
+            "domain": {
+              "passed": 1493,
+              "failed": 0,
+              "total": 1493
+            },
+            "api": {
+              "passed": 394,
+              "failed": 0,
+              "total": 394
+            },
+            "e2e": {
+              "passed": 329,
+              "failed": 1,
+              "total": 330
+            },
+            "failure": "StaffAndDetailRoutesReflowAcrossTheSixViewportMatrix: /app/practice/time refresh buttons extended to x326/329 at 320px."
+          },
+          "rootCause": "Two Time pagination navs inherited non-wrapping global flex layout; shrinking Material buttons/labels overflowed the narrow workspace.",
+          "fix": "Scoped time-pages class on recorded-time and approval navs; wrap flex rows and allow readable bounded-height-auto button labels with 44px minimum. No global hiding/overflow suppression or behavior changes.",
+          "verification": {
+            "browser": "Existing signed-in local Test API and Angular dev UI. At 320px, document width 305px; both refresh controls fit and keyboard Enter refreshed their queues. Console errors empty. Viewport restored.",
+            "screenshot": "/tmp/auditsphere-time-pagination-320-fixed.png",
+            "lint": "time.ts passes configured inline-template lint",
+            "build": "Angular production build PASS; existing commercial/settings.scss size warning retained",
+            "test": "Unchanged failing E2E method rerun only: Passed: 1, Failed: 0, Skipped: 0; six viewport route matrix. /tmp/auditsphere-ci-reflow-20261022/time-reflow-six-viewports.trx",
+            "scope": "No full suites run locally; existing current .NET binaries reused because only Angular style/markup changed."
+          },
+          "remaining": "Fresh corrected-source full CI requested after push; human AT/native zoom and remaining matrix acceptance still open."
         }
       },
       "workflowHistory20261020": {

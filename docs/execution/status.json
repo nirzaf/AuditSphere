@@ -1201,7 +1201,7 @@
       "result": "PARTIAL",
       "criteria": "AC01–08 pass; AC09 partial; CI pending.",
       "fastCi": "39798807887 queued (729f2368); prior fast pass historical.",
-      "fullReleaseCi": "39796315334: Domain/UI/build pass; API/E2E running; 94f18f9e.",
+      "fullReleaseCi": "39796315334 FAIL: Time reflow fixed; failed cohort now passes.",
       "browser": "All five surfaces and both shells sampled; full matrix partial.",
       "humanAT": "BLOCKED_EXTERNAL: AT/version/workflow evidence absent.",
       "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityFocusRecovery20261022"
