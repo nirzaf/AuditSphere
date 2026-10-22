@@ -36,6 +36,21 @@ Do not submit financial, audit, access or approval commands as part of an access
 
 Use native browser zoom for the zoom checks; changing device scale alone is not equivalent. Record the resulting CSS viewport alongside the zoom percentage. At narrow widths, activate the skip link and Tab to the first content control: its focus indication and control must remain visible, including below a wrapped header. Check horizontal tables with the keyboard as well as the pointer. Restore browser zoom, viewport and media emulation after inspection.
 
+## Automated accessibility evidence (AUTOMATED_A11Y_ACCEPTANCE)
+
+Agent-run Playwright (Chromium, headless) on 22 October 2026, UI source 6969a469 (unchanged by the test-only commit that records this), synthetic administrator fixture from `OwnedHost`, loopback API. This is automated evidence only; it is not a human assessor result and not a compliance certification.
+
+| Check | Route/state | Test | Result |
+|---|---|---|---|
+| Landmarks, heading order, skip link reached by keyboard, route focus to main, live-region announcement | `/ui/app`, `/ui/app/practice/leads`, `/ui/app/administration/users` | `AngularAccessibilityDeepAcceptanceTests.ScreenReaderProxySemantics_LiveRegionsAndDialogMatrix_HoldAcrossTheShell` | PASS |
+| Dialog focus entry, Tab/Shift+Tab containment (no trap outside dialog), Escape dismissal, return focus, honest `aria-expanded` | `/ui/app/administration/users` role dialog | same test | PASS |
+| Every visible control named; every `aria-describedby` resolves; invalid controls reference error text; repeated row actions carry row context (209 controls, 0 findings; injected bad markup is flagged) | `/ui/app`, `/ui/app/practice/leads`, `/ui/app/administration/users`, `/ui/app/practice/commercial-settings` | `AngularAccessibilityDeepAcceptanceTests.RenderedControls_AreNamedDescribedAndDistinct_AndReducedMotionStopsAnimation` | PASS |
+| Reduced motion collapses animation and transition durations to at most 1 ms | same routes with `prefers-reduced-motion: reduce` | same test | PASS |
+| Reflow across 320, 390, 760, 1024, 1440 and 1920 px CSS widths | staff and detail routes | `AngularRouteAndShellMigrationSweepTests.StaffAndDetailRoutesReflowAcrossTheSixViewportMatrix` | PASS |
+| Native browser zoom at 200% and 400% | — | not automatable with viewport emulation | NOT_RUN |
+
+The rendered workflow matrix rows above still need attributable per-surface observations; automated results inform them but do not close them.
+
 ## Human assistive-technology review
 
 - [ ] A knowledgeable reviewer uses a screen reader on the changed workflow and records the actual screen reader and browser versions.

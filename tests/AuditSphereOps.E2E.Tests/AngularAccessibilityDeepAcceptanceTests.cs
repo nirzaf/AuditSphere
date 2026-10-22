@@ -223,4 +223,101 @@ public sealed class AngularAccessibilityDeepAcceptanceTests
     output.WriteLine($"PERF sustained warm navigations slowest={slowest}ms over {routes.Length * 3} navigations (ceiling 5000ms each)");
     Assert.Empty(pageErrors);
   }
+
+  // RUN-006: control naming, description and repeated-action rules audited on rendered pages.
+  private const string ControlAuditScript = """
+() => {
+  const visible = (e) => e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
+  const text = (e) => (e?.textContent || '').replace(/\s+/g, ' ').trim();
+  const name = (e) => {
+    if (e.getAttribute('aria-label')?.trim()) return e.getAttribute('aria-label').trim();
+    const by = e.getAttribute('aria-labelledby');
+    if (by) return by.split(/\s+/).map((id) => text(document.getElementById(id))).join(' ').trim();
+    if (e.id) { const l = document.querySelector(`label[for="${CSS.escape(e.id)}"]`); if (l && text(l)) return text(l); }
+    const wrap = e.closest('label'); if (wrap && text(wrap)) return text(wrap);
+    if (['BUTTON', 'A'].includes(e.tagName)) return text(e);
+    return e.getAttribute('title')?.trim() || '';
+  };
+  const problems = [];
+  const controls = [...document.querySelectorAll('input:not([type=hidden]),select,textarea,button,a[href],[role=button],[role=tab],[role=checkbox],[role=switch]')].filter(visible);
+  for (const e of controls) {
+    const label = e.outerHTML.slice(0, 90);
+    if (!name(e)) problems.push('unnamed control: ' + label);
+    for (const id of (e.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean))
+      if (!document.getElementById(id)) problems.push(`aria-describedby "${id}" missing: ` + label);
+    if (e.getAttribute('aria-invalid') === 'true') {
+      const described = (e.getAttribute('aria-describedby') || '').split(/\s+/).map((id) => text(document.getElementById(id))).join('');
+      if (!described) problems.push('invalid control without described error: ' + label);
+    }
+  }
+  // Repeated row actions must say which row they act on.
+  const seen = new Map();
+  for (const row of document.querySelectorAll('tr, [role=row], li')) {
+    for (const b of [...row.querySelectorAll(':scope > * button, :scope > button')].filter(visible)) {
+      const n = name(b); if (!n) continue;
+      if (!seen.has(n)) seen.set(n, new Set());
+      seen.get(n).add(row);
+    }
+  }
+  for (const [n, rows] of seen) if (rows.size > 1) problems.push(`repeated row action "${n}" x${rows.size} without row context`);
+  return { controls: controls.length, problems };
+}
+""";
+
+  [Fact]
+  [Trait("CaseId", "RUN-006-A11Y-CONTROLS")]
+  public async Task RenderedControls_AreNamedDescribedAndDistinct_AndReducedMotionStopsAnimation()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "RUN-006-A11Y-CONTROLS");
+    var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin,
+      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync(new() { ReducedMotion = ReducedMotion.Reduce });
+    var page = await context.NewPageAsync();
+    var pageErrors = new List<string>();
+    page.PageError += (_, error) => pageErrors.Add(error);
+    await SignInAsync(page, origin, "/ui/app");
+
+    var findings = new List<string>();
+    foreach (var route in new[] { "/ui/app", "/ui/app/practice/leads", "/ui/app/administration/users", "/ui/app/practice/commercial-settings" })
+    {
+      await page.GotoAsync(origin + route);
+      await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+      var audit = await page.EvaluateAsync<ControlAudit>(ControlAuditScript);
+      Assert.True(audit.Controls > 5, $"{route}: only {audit.Controls} visible controls; the audit would be vacuous.");
+      output.WriteLine($"A11Y {route}: {audit.Controls} controls, {audit.Problems.Length} finding(s)");
+      findings.AddRange(audit.Problems.Select(problem => route + ": " + problem));
+    }
+    Assert.True(findings.Count == 0, string.Join(Environment.NewLine, findings));
+
+    // Negative control: the auditor must flag known-bad markup, so a clean result is not vacuous.
+    await page.EvaluateAsync("""
+      () => {
+        const probe = document.createElement('div');
+        probe.id = 'a11y-audit-probe';
+        probe.innerHTML = '<input><input aria-label="Amount" aria-invalid="true" aria-describedby="absent-error">'
+          + '<table><tr><td><button>Remove</button></td></tr><tr><td><button>Remove</button></td></tr></table>';
+        document.body.appendChild(probe);
+      }
+      """);
+    var probe = await page.EvaluateAsync<ControlAudit>(ControlAuditScript);
+    await page.EvaluateAsync("() => document.getElementById('a11y-audit-probe').remove()");
+    Assert.Contains(probe.Problems, problem => problem.StartsWith("unnamed control"));
+    Assert.Contains(probe.Problems, problem => problem.Contains("\"absent-error\" missing"));
+    Assert.Contains(probe.Problems, problem => problem.StartsWith("invalid control without described error"));
+    Assert.Contains(probe.Problems, problem => problem.StartsWith("repeated row action \"Remove\""));
+
+    // Reduced motion: the global rule collapses animation and transition durations.
+    var longest = await page.EvaluateAsync<double>("""
+      () => Math.max(0, ...[...document.querySelectorAll('*')].flatMap((e) => {
+        const s = getComputedStyle(e);
+        return [...s.animationDuration.split(','), ...s.transitionDuration.split(',')].map((v) => parseFloat(v) * (v.trim().endsWith('ms') ? 1 : 1000));
+      }))
+      """);
+    Assert.True(longest <= 1, $"Reduced motion left a {longest}ms animation or transition.");
+    Assert.Empty(pageErrors);
+  }
+
+  private sealed class ControlAudit { public int Controls { get; set; } public string[] Problems { get; set; } = []; }
 }
