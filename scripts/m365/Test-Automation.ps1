@@ -6,12 +6,16 @@
   pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-017 -Offline
 #>
 param(
-  [ValidateSet('WU-017', 'WU-018', 'WU-019', 'WU-020')] [string] $Unit = 'WU-017',
+  [ValidateSet('WU-017', 'WU-018', 'WU-019', 'WU-020', 'WU-021')] [string] $Unit = 'WU-017',
   [switch] $Offline
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $Offline) { throw 'Test-Automation runs offline only; pass -Offline.' }
+if ($Unit -eq 'WU-021') {
+  & (Join-Path $PSScriptRoot 'tests/ClientSites.Tests.ps1') -Offline
+  exit $LASTEXITCODE
+}
 if ($Unit -eq 'WU-020') {
   & (Join-Path $PSScriptRoot 'tests/Grant-SelectedDocumentSites.Tests.ps1') -Offline
   exit $LASTEXITCODE

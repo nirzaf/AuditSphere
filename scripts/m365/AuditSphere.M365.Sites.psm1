@@ -237,5 +237,5 @@ function Invoke-SelectedSitesReconciliation($Plan, $Result, [ValidateSet('ReadOn
 
 
 Export-ModuleMember -Function Invoke-DocumentsRuntimeProbe, Get-SitesId, Assert-SelectedSitesPlan, Assert-SitesObservation, Get-SitesJournalPath,
-  Save-SitesMutationIntent, Confirm-SitesMutationIntent, Get-DocumentsSiteGrant, Open-DocumentsRuntimeCertificate,
+  Save-SitesMutationIntent, Confirm-SitesMutationIntent, Get-SitesPermissions, Get-DocumentsSiteGrant, Open-DocumentsRuntimeCertificate,
   Assert-DocumentsRuntimeResult, Invoke-SelectedSitesReconciliation

@@ -313,35 +313,6 @@
       "externalAcceptance": "NOT_VERIFIED: no live Microsoft provisioning or membership reconciliation; no production database migration; code was not deployed to the VPS.",
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.clientSitesDefaultRollout20261011"
     },
-    "ste22EndToEndIncrement1": {
-      "archive": "docs/execution/status-archive-2026-10.json",
-      "key": "keys.targetedVerification.ste22EndToEndIncrement1"
-    },
-    "ste22F08CommercialResponse": {
-      "recordedAtUtc": "2026-10-15T11:22:47Z",
-      "sourceCommit": "9a2630f628ca1c64ebffe576e716cbdc1b849f2e",
-      "status": "PARTIAL",
-      "verified": "d991 build; D42/API1/E2E1/Ng752. 9a build; D148/API8; CI38724299753 green incl. 15 E2E/Angular/EF/OpenAPI/Docs; image build green.",
-      "open": "Full workflow 38726773300 pending; story PARTIAL: output/profile and professional/owner/provider/live gates; no deployment."
-    },
-    "workflowReviewTurnaround": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowReviewTurnaround"
-    },
-    "workflowCiRegressionGate": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowCiRegressionGate"
-    },
-    "angularMigrationAdminRevocationFencing": {
-      "result": "PASS",
-      "scopeStatus": "PARTIAL",
-      "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAdminRevocationFencing"
-    },
-    "angularMigrationAccessNotAssignedBrowser": {
-      "result": "PASS",
-      "scopeStatus": "PARTIAL",
-      "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAccessNotAssignedBrowser"
-    },
     "angularMigrationAdminGroupRevocationFencing": {
       "result": "PASS",
       "scopeStatus": "PARTIAL",
@@ -1118,6 +1089,36 @@
       "unverified": "Preserved settings reuse capability app IDs: startup correctly blocked. Database readiness, authenticated session/CSRF, cold-cache, Application-specific and frontend edit-feedback comparisons not verified. SDK mixed-separator static-assets warning retained; no security/SDK/Release changes.",
       "ci": "Fast CI 39860369161 passed f954d8cd; updated source CI pending; full immutable-source gate deferred.",
       "localArtifacts": ".local/dev-speed/ (ignored binlogs, diagnostic logs and measurement JSON; inspect/redact before sharing)"
+    },
+    "sharePointClientSitesAutomation": {
+      "status": "ENGINEERING_VERIFIED",
+      "authority": "ADR-0006; R18-R19; WU-021",
+      "code": [
+        "scripts/m365/AuditSphere.M365.ClientSites.psm1",
+        "scripts/m365/Configure-SharePointClientSites.ps1",
+        "scripts/m365/Reconcile-ClientSiteStaff.ps1"
+      ],
+      "tests": [
+        "scripts/m365/tests/ClientSites.Tests.ps1"
+      ],
+      "verification": {
+        "offlineAutomation": "PASS",
+        "checksPassed": 36,
+        "dryRunStatus": "PLANNED",
+        "planSha": "verified",
+        "reconciliation": "PASS"
+      },
+      "invariants": {
+        "siteUrlDerivation": "deterministic from clientSites.host and clientId N-format",
+        "ownershipMarker": "AuditSphere:firmId:clientId strictly enforced on STS#3 sites",
+        "rolloutCutoff": "pre-cutoff clients require explicit migration approval",
+        "staffGroup": "AuditSphere Assigned Staff with Full Control (role type 5)",
+        "staffMembership": "exact match to approved staff assignments, AadObjectId verified",
+        "workerGrant": "DOCUMENTS application write grant verified on site"
+      },
+      "externalGates": [
+        "GATE-M365-LIVE-TARGET"
+      ]
     }
   },
   "externalGates": [

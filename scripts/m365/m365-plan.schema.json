@@ -93,11 +93,45 @@
           "managedStaffManifestDigest": {
             "type": "string",
             "pattern": "^[0-9a-f]{64}$"
+          },
+          "staffObjectIds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/guid"
+            }
           }
         }
       },
       "minItems": 1,
       "maxItems": 50
+    },
+    "staffAssignments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifestId", "generation", "observedAtUtc", "expiresAtUtc", "assignments"],
+      "properties": {
+        "manifestId": { "$ref": "#/$defs/guid" },
+        "generation": { "type": "integer", "minimum": 1 },
+        "observedAtUtc": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+        "expiresAtUtc": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+        "assignments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["clientId", "staffObjectIds"],
+            "properties": {
+              "clientId": { "$ref": "#/$defs/guid" },
+              "staffObjectIds": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "$ref": "#/$defs/guid" }
+              }
+            }
+          }
+        }
+      }
     },
     "mail": {
       "type": "object", "additionalProperties": false, "required": ["permissionModel", "senderObjectIds"],

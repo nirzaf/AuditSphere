@@ -23472,5 +23472,36 @@
       "testValue": "Static: omitting Client or adding professional result kinds fails exact equality. Counterfactual NOT_RUN.",
       "fullCi": "QUEUED: 39141016934 on ab8a413d72fa422b75997c8245981f131709f3fc"
     }
+  },
+  "archivedTargetedVerification": {
+    "ste22EndToEndIncrement1": {
+      "archive": "docs/execution/status-archive-2026-10.json",
+      "key": "keys.targetedVerification.ste22EndToEndIncrement1"
+    },
+    "ste22F08CommercialResponse": {
+      "recordedAtUtc": "2026-10-15T11:22:47Z",
+      "sourceCommit": "9a2630f628ca1c64ebffe576e716cbdc1b849f2e",
+      "status": "PARTIAL",
+      "verified": "d991 build; D42/API1/E2E1/Ng752. 9a build; D148/API8; CI38724299753 green incl. 15 E2E/Angular/EF/OpenAPI/Docs; image build green.",
+      "open": "Full workflow 38726773300 pending; story PARTIAL: output/profile and professional/owner/provider/live gates; no deployment."
+    },
+    "workflowReviewTurnaround": {
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.workflowReviewTurnaround"
+    },
+    "workflowCiRegressionGate": {
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.workflowCiRegressionGate"
+    },
+    "angularMigrationAdminRevocationFencing": {
+      "result": "PASS",
+      "scopeStatus": "PARTIAL",
+      "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAdminRevocationFencing"
+    },
+    "angularMigrationAccessNotAssignedBrowser": {
+      "result": "PASS",
+      "scopeStatus": "PARTIAL",
+      "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAccessNotAssignedBrowser"
+    }
   }
 }

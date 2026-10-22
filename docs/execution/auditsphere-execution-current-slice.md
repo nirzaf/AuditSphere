@@ -259,17 +259,17 @@ Purpose-specific recipient resolution excludes contacts whose validity interval 
 
 `CommercialPricingPolicyTests.PendingProposalMail_BlocksWhenProspectRecipientChangesBeforeProviderSend` and `PendingProposalMail_BlocksWhenClientCommercialRouteIsRevokedBeforeProviderSend` pass against PostgreSQL on that commit. Exact metadata is in `status.json` under `targetedVerification.practiceProposalSendRecipientAuthority20261018`. This covers proposal notifications only. Fee receipts/vouchers and holding letters still lack this recheck, the dispatch does not retain the initiating actor for current-role reauthorization, and the check is not serialized against a routing mutation that races after the pre-send query. DEC-09, live provider acceptance and integrated browser acceptance remain open, so ASPM-CRM-03 stays partial.
 
-## Resource allocation eligibility regression (2026-10-18)
+## Practice-management and workflow bounds (2026-10-18)
 
-The resource allocation paths already require current staffing for the exact engagement and use a locked target identity that must remain enabled staff. A focused regression now proves a disabled assignee is refused at allocation preview, reviewed execution and the direct write command, with no allocation created; the existing certification receipt remains recoverable. ASPM-RES-01 remains partial because phase/risk-area planned allocations and broader availability dimensions are still open. Exact test metadata is in `status.json` under `targetedVerification.practiceResourceEligibility20261018`.
+Resource allocation eligibility, time-source billing reservation guards against reserved revision edits, and workflow dependency graph bounds (500-task / 4,000-edge limit) were verified with focused PostgreSQL regressions on commits `5996f36d` and `5e9a1eb5`. Exact test evidence is preserved in `status.json` (`targetedVerification.practiceResourceEligibility20261018`, `practiceResourcePhaseRisk20261018`, `workflowDependencyGraphLimit20261018`).
 
-## Time-source billing reservation guard (2026-10-18)
+## SharePoint client sites and managed staff reconciliation (2026-10-23)
 
-Commit `5e9a1eb5` prevents an approved time entry from being corrected after its exact revision is reserved to an invoice. Billing also walks a corrected entry's `SupersedesId` ancestry and refuses it if any predecessor revision is already reserved, covering retained legacy chains. The focused PostgreSQL regression asserts the original invoice/allocation remain the only billing reservation and that the forbidden correction creates no child entry; it also attempts to bill a legacy correction descendant and verifies no second invoice is created. The named Domain test passed 1/1. Full suites and authenticated browser verification were not run for this server-side change. ASPM-RES-04 and ASPM-FIN-01 remain partial; milestone and other source reservation cases remain open. Fast CI is pending on the pushed commit.
-
-## Workflow dependency graph bound (2026-10-18)
-
-The existing dependency command checks the complete engagement graph before saving and refuses graphs beyond its 500-task/4,000-edge bounds. Focused PostgreSQL regressions now cover both overflow paths: a valid published-template graph with 501 tasks, and an acyclic 4,001-edge pinned graph created through the template and plan services. Both return `GateBlocked` with no dependency revisions, task-binding revision changes or dependency-change activity. The 4,001-edge test passed 1/1 locally. Current-SHA full release verification is running in CI; no full suite was run locally. `ASPM-WF-02` and PMCOMP-06 remain partial for broader acceptance. Exact test evidence is in `status.json` under `targetedVerification.workflowDependencyGraphLimit20261018`.
+WU-021 automates modern nongroup SharePoint client site provisioning and managed staff Full Control lifecycle:
+- `Configure-SharePointClientSites.ps1`: Derives deterministic client site URLs (`/sites/auditsphere-client-{clientId:N}`), enforces `AuditSphere:{firmId}:{clientId:D}` on modern `STS#3` sites, enforces rollout cutoff guards (pre-cutoff clients require explicit migration approval), validates active status via SPSiteManager, and guarantees isolated DOCUMENTS worker write grant on site.
+- `Reconcile-ClientSiteStaff.ps1`: Manages the dedicated `"AuditSphere Assigned Staff"` group, binds Full Control (role type 5), removes obsolete group members, and adds authorized staff members with directory UPN/AadObjectId verification. Client users are strictly excluded from staff Full Control.
+- Offline and synthetic verification: 36/36 tests pass in `scripts/m365/tests/ClientSites.Tests.ps1`, including dry-run envelope verification (`verify-result.py --expect PLANNED`), pre-cutoff refusal, idempotent re-apply (0 mutations), and detached CMS approval checks.
+- Live tenant execution and operator credentials remain external gates (`GATE-M365-LIVE-TARGET`).
 
 ## Engagement workflow phase cues (2026-10-18)
 

@@ -40,9 +40,28 @@
       "siteId": "synthetic.sharepoint.com,00000000-0000-4000-8000-000000000050,00000000-0000-4000-8000-000000000051",
       "siteUrl": "https://synthetic.sharepoint.com/sites/auditsphere-client-00000000000040008000000000000002",
       "ownershipMarker": "AuditSphere:00000000-0000-4000-8000-000000000002:00000000-0000-4000-8000-000000000002",
-      "permission": "write"
+      "permission": "write",
+      "staffObjectIds": [
+        "00000000-0000-4000-8000-000000000060",
+        "00000000-0000-4000-8000-000000000061"
+      ]
     }
   ],
+  "staffAssignments": {
+    "manifestId": "00000000-0000-4000-8000-000000000070",
+    "generation": 1,
+    "observedAtUtc": "2026-10-20T00:00:00Z",
+    "expiresAtUtc": "2026-11-20T00:00:00Z",
+    "assignments": [
+      {
+        "clientId": "00000000-0000-4000-8000-000000000002",
+        "staffObjectIds": [
+          "00000000-0000-4000-8000-000000000060",
+          "00000000-0000-4000-8000-000000000061"
+        ]
+      }
+    ]
+  },
   "negativeControls": {"siteIds": ["synthetic.sharepoint.com,00000000-0000-4000-8000-000000000099,00000000-0000-4000-8000-000000000099"]},
   "approvalReference": "SYNTHETIC-NOT-AN-APPROVAL"
 }

@@ -233,12 +233,37 @@ pwsh -NoProfile -NonInteractive -File scripts/m365/Grant-SelectedDocumentSites.p
 python3 scripts/m365/verify-result.py /approved/operator/sites-plan.json --expect PLANNED
 ```
 
+## SharePoint client site provisioning and managed staff Full Control (WU-021)
+
+`Configure-SharePointClientSites.ps1` and `Reconcile-ClientSiteStaff.ps1` implement the
+approved client-site automation and managed staff membership lifecycle:
+
+- Site URL derivation: `https://{clientSites.host}/sites/auditsphere-client-{clientId:N}`.
+- Ownership marker: `AuditSphere:{firmId}:{clientId:D}` on modern nongroup sites (`STS#3`).
+- Rollout cutoff: pre-cutoff clients retain their existing mode unless a migration is approved.
+- Managed staff group: dedicated `"AuditSphere Assigned Staff"` group with Full Control (role type 5).
+- Membership reconciliation: exact match against approved staff assignments; obsolete members removed, missing members added via `ensureuser` with `AadObjectId` verification.
+- Isolated DOCUMENTS worker application `write` grant on each client site.
+
+```powershell
+pwsh -NoProfile -NonInteractive -File scripts/m365/Configure-SharePointClientSites.ps1 `
+  -PlanPath /approved/operator/target-plan.json -DryRun `
+  -OutputPath /approved/operator/client-sites-plan.json
+python3 scripts/m365/verify-result.py /approved/operator/client-sites-plan.json --expect PLANNED
+
+pwsh -NoProfile -NonInteractive -File scripts/m365/Reconcile-ClientSiteStaff.ps1 `
+  -PlanPath /approved/operator/target-plan.json -DryRun `
+  -OutputPath /approved/operator/client-staff-plan.json
+python3 scripts/m365/verify-result.py /approved/operator/client-staff-plan.json --expect PLANNED
+```
+
 ## Offline engineering checks
 
 ```powershell
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-018 -Offline
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-019 -Offline
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-020 -Offline
+pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-021 -Offline
 ```
 
 The transport is synthetic and has no tenant connection. Current observed results and remaining live prerequisites belong in the execution ledger, not this procedure. No simulated result establishes Microsoft provider acceptance.
