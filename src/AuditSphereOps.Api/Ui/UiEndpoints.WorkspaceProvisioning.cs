@@ -14,6 +14,7 @@ public static partial class UiEndpoints
 
   private static void MapWorkspaceProvisioningEndpoints(RouteGroupBuilder group)
   {
+    MapClientSiteOperatorIntentEndpoints(group);
     group.MapUiGet("/administration/microsoft365/workspaces", http => ReadAsync(http, async (db, actor, ct) =>
     {
       if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<object>();

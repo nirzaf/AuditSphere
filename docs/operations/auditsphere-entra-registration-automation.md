@@ -262,6 +262,29 @@ pwsh -NoProfile -NonInteractive -File scripts/m365/Reconcile-ClientSiteStaff.ps1
 python3 scripts/m365/verify-result.py /approved/operator/client-staff-plan.json --expect PLANNED
 ```
 
+### Application intent boundary
+
+The client-site operator adapter uses the authenticated AuditSphere origin, not
+Microsoft Graph. Review one exact client through
+`GET /api/ui/administration/microsoft365/client-sites/{id}/review` (or
+`staff-review` for an existing site). Submit the returned review identity with
+`POST /api/ui/administration/microsoft365/client-sites/{id}/request`; the body
+contains `reviewToken`, `reviewed`, `reason` and `reconcileOnly`. Cookie and CSRF
+validation and current firm-wide administrator authority are required.
+
+`PENDING_DISCOVERY` and `ALREADY_QUEUED` acknowledge local work only. The existing
+isolated worker performs the provider operation. A completed worker receipt must
+match the current site, tenant, staff authorization and membership before the
+operator can claim verified reconciliation. Blocked or uncertain original
+operations require their existing Operations recovery workflow; creating another
+request is not recovery. A client predating the persisted rollout boundary must
+remain in its existing repository.
+
+The API needs the non-secret `ClientSites:SiteHost`, tenant identity and explicit
+rollout boundary to match the persisted tenant configuration. Privileged worker
+certificates remain in the isolated worker. CLI integration is still pending;
+this API description does not enable the blocked draft scripts.
+
 ## Offline engineering checks
 
 ```powershell

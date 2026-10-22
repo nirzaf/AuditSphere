@@ -83,6 +83,35 @@ public static class ClientSharePointSites
   }
 
   internal static string Digest(IReadOnlyList<string> ids) => TenantAdministration.Fingerprint(ids.ToArray());
+
+  internal static async Task<string> AuthorizationDigestAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct)
+  {
+    var now = DateTimeOffset.UtcNow;
+    var rows = await (from assignment in db.EngagementStaffAssignments.AsNoTracking()
+      join user in db.Users.AsNoTracking() on new { assignment.FirmId, Id = assignment.UserId } equals new { user.FirmId, user.Id }
+      join grant in db.RoleGrants.AsNoTracking() on new { assignment.FirmId, Id = assignment.RoleGrantId } equals new { grant.FirmId, grant.Id }
+      where assignment.FirmId == firmId && assignment.ClientId == clientId && assignment.RevokedAt == null
+      orderby assignment.Id
+      select new { assignment.Id, assignment.EngagementId, assignment.RoleGrantId, assignment.StaffingLevel,
+        user.Subject, user.TenantId, user.UserKind, user.Disabled, user.SessionEpoch,
+        grant.UserId, grant.ClientId, GrantEngagementId = grant.EngagementId, grant.Role, grant.GrantedAt, grant.ExpiresAt, grant.RevokedAt,
+        GrantIsCurrent = grant.RevokedAt == null && grant.GrantedAt <= now && (grant.ExpiresAt == null || grant.ExpiresAt > now) })
+      .ToListAsync(ct);
+    return Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(rows));
+  }
+
+  internal static async Task<bool> LockIntentScopeAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct)
+  {
+    // Match the durable store and staffing commands: firm, client safety, target.
+    await db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
+    var firm = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR SHARE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    if (firm is null || firm.OperatingMode != "LOCAL_ONLY") return false;
+    if (await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id = {firmId} AND id = {clientId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
+    return await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id = {firmId} AND id = {clientId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct) is not null;
+  }
 }
 
 public sealed class ClientSharePointSiteHandler(IAuditSphereDbContextFactory factory, IClientSharePointSiteProvider provider) : IOperationHandler
@@ -122,6 +151,7 @@ public sealed class ClientSharePointSiteHandler(IAuditSphereDbContextFactory fac
     await LockTargetAsync(db, op, ct);
     var site = await db.ClientSharePointSites.SingleAsync(x => x.FirmId == op.FirmId && x.ClientId == op.TargetId, ct);
     var desired = await ClientSharePointSites.DesiredStaffAsync(db, op.FirmId, site.ClientId, site.TenantId, ct);
+    var authorizationBasis = await ClientSharePointSites.AuthorizationDigestAsync(db, op.FirmId, site.ClientId, ct);
     var allowCreate = mayCreate && site.State == "REQUESTED" && site.CreationOperationId == op.Id && site.CreationDispatchedAt == null;
     if (allowCreate) { site.CreationDispatchedAt = DateTimeOffset.UtcNow; await db.SaveChangesAsync(ct); }
     await tx.CommitAsync(ct); // Durable creation fence survives timeouts, cancellation and operator re-arming.
@@ -139,6 +169,7 @@ public sealed class ClientSharePointSiteHandler(IAuditSphereDbContextFactory fac
         throw new OperationOwnershipLostException();
       if (!await current.Microsoft365ConnectionRevisions.AsNoTracking().AnyAsync(x => x.Id == site.ConnectionRevisionId &&
           x.FirmId == op.FirmId && x.TenantId == site.TenantId && x.State == Microsoft365RevisionStates.Active && x.ConsentState == "VERIFIED", token) ||
+          authorizationBasis != await ClientSharePointSites.AuthorizationDigestAsync(current, op.FirmId, site.ClientId, token) ||
           !desired.SequenceEqual(await ClientSharePointSites.DesiredStaffAsync(current, op.FirmId, site.ClientId, site.TenantId, token)))
         throw new OperationBlockedException("client-site-assignments-or-connection-changed", authorization: true);
     }
@@ -151,7 +182,7 @@ public sealed class ClientSharePointSiteHandler(IAuditSphereDbContextFactory fac
         site.OwnershipMarker, site.SiteId, desired, op.CorrelationId, RecheckAuthorizationAsync,
         JsonSerializer.Deserialize<string[]>(site.MemberObjectIdsJson) ?? []), allowCreate, ct);
       await RecheckAuthorizationAsync(ct);
-      receipt = receipt with { AuthorizedStaffDigest = ClientSharePointSites.Digest(desired) };
+      receipt = receipt with { AuthorizedStaffDigest = authorizationBasis };
     }
     catch (ClientSitePreflightException failure)
     {
@@ -178,7 +209,7 @@ public sealed class ClientSharePointSiteHandler(IAuditSphereDbContextFactory fac
     var desired = await ClientSharePointSites.DesiredStaffAsync(db, op.FirmId, site.ClientId, site.TenantId, ct);
     // Publication must not certify a receipt produced for a superseded assignment set.
     // Legacy/unknown receipts without this binding must reconcile through the existing owner.
-    if (receipt.AuthorizedStaffDigest != ClientSharePointSites.Digest(desired))
+    if (receipt.AuthorizedStaffDigest != await ClientSharePointSites.AuthorizationDigestAsync(db, op.FirmId, site.ClientId, ct))
       throw new OperationBlockedException("client-site-assignment-receipt-stale", authorization: true);
     if (receipt.TenantId != site.TenantId || receipt.Url != site.RequestedUrl || receipt.OwnershipMarker != site.OwnershipMarker ||
         string.IsNullOrWhiteSpace(receipt.SiteId) || string.IsNullOrWhiteSpace(receipt.DriveId) || string.IsNullOrWhiteSpace(receipt.RootItemId) ||
@@ -267,7 +298,7 @@ public sealed class ClientSharePointSiteDiscovery(IAuditSphereDbContextFactory f
       await using var db = await factory.CreateAsync(ct);
       await using var tx = await db.Database.BeginTransactionAsync(ct);
       // Serialize intent creation and queueing for this client across multiple worker processes.
-      await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id = {options.FirmId} AND id = {client.Id} FOR UPDATE").LoadAsync(ct);
+      if (!await ClientSharePointSites.LockIntentScopeAsync(db, options.FirmId, client.Id, ct)) continue;
       var actor = await ClientSharePointSites.AdministratorAsync(db, options.FirmId, policy.AdministratorUserId, ct);
       var site = await db.ClientSharePointSites.SingleOrDefaultAsync(x => x.FirmId == options.FirmId && x.ClientId == client.Id, ct);
       if (site == null)

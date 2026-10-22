@@ -83,10 +83,18 @@ public sealed class WorkspaceProvisioningApiTests
   {
     await using var pg=await OwnedPostgresDatabase.CreateAsync("API-WORKSPACE-ISOLATION");var f=await Seed(pg);var other=await Seed(pg);var provider=new FakeProvider();
     using var staffFactory=Factory(pg,f,provider,staff:true);using var staff=staffFactory.CreateClient(new(){AllowAutoRedirect=false});var csrf=await SignIn(staff);
-    foreach(var path in new[]{"workspaces?page=invalid","client-sites","workspaces/clients/"+f.ClientId+"/review"})Assert.Equal(HttpStatusCode.Forbidden,(await staff.GetAsync(Prefix+path)).StatusCode);
+    foreach(var path in new[]{"workspaces?page=invalid","client-sites","workspaces/clients/"+f.ClientId+"/review",
+      "client-sites/"+f.ClientId+"/review","client-sites/"+f.ClientId+"/staff-review"})Assert.Equal(HttpStatusCode.Forbidden,(await staff.GetAsync(Prefix+path)).StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden,(await Post(staff,"workspaces/clients/provision",csrf,new{reviewed=true})).StatusCode);
+    var intent = new { reviewToken = new string('a',64), reviewed = true, reason = "Synthetic intent boundary", reconcileOnly = false };
+    Assert.Equal(HttpStatusCode.Forbidden,(await Post(staff,"client-sites/"+f.ClientId+"/request",csrf,intent)).StatusCode);
     using var factory=Factory(pg,f,provider);using var admin=factory.CreateClient(new(){AllowAutoRedirect=false});csrf=await SignIn(admin);
     foreach(var id in new[]{other.ClientId,Guid.NewGuid()})Assert.Equal(HttpStatusCode.Forbidden,(await admin.GetAsync(Prefix+"workspaces/clients/"+id+"/review")).StatusCode);
+    foreach(var id in new[]{other.ClientId,Guid.NewGuid()})Assert.Equal(HttpStatusCode.Forbidden,(await admin.GetAsync(Prefix+"client-sites/"+id+"/review")).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden,(await admin.PostAsJsonAsync(Prefix+"client-sites/"+f.ClientId+"/request",intent)).StatusCode);
+    using var intentReview=JsonDocument.Parse(await admin.GetStringAsync(Prefix+"client-sites/"+f.ClientId+"/review"));
+    Assert.False(intentReview.RootElement.GetProperty("eligible").GetBoolean());
+    Assert.Equal("NOT_PUBLISHED",intentReview.RootElement.GetProperty("receiptState").GetString());
     var raw=await admin.GetStringAsync(Prefix+"workspaces");Assert.DoesNotContain(other.ClientId.ToString(),raw);
     await using(var db=new AuditSphereDbContext(pg.Options)){
       db.ClientSharePointSites.Add(new ClientSharePointSite{Id=Guid.NewGuid(),FirmId=f.FirmId,ClientId=f.ClientId,TenantId=f.Admin.TenantId,

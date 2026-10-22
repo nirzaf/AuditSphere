@@ -2,7 +2,9 @@ using System.Text.Json;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Microsoft365;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Providers;
 using Microsoft.EntityFrameworkCore;
 
@@ -76,6 +78,83 @@ public sealed class ClientSharePointSitesTests
     Assert.EndsWith(id.ToString("N"), slug);
     Assert.NotEqual(slug, ClientSharePointSites.SiteSlug("A/B: Client & Co 🌎", Guid.NewGuid()));
     Assert.StartsWith("client-", ClientSharePointSites.SiteSlug("🌎", id));
+  }
+
+  private static async Task<ClientSitePolicy> OperatorPolicyAsync(Rig rig)
+  {
+    await using var db = rig.H.Db();
+    var cutoff = await db.FirmWorkspaceConfigurations.Where(x => x.FirmId == rig.H.A.FirmId && x.ClientSitesRequiredFrom != null)
+      .Select(x => x.ClientSitesRequiredFrom!.Value).FirstAsync();
+    db.ClientSiteWorkerHeartbeats.Add(new ClientSiteWorkerHeartbeat { Id = Guid.NewGuid(), FirmId = rig.H.A.FirmId,
+      WorkerInstanceId = "synthetic-operator-intent", DeploymentEpoch = 1, ReadinessState = "READY",
+      StartedAt = DateTimeOffset.UtcNow, LastSeenAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    return new(true, Tenant, "example.sharepoint.com", rig.H.A.Admin.Id, cutoff);
+  }
+
+  [Fact]
+  public async Task OperatorIntent_IsExactIdempotentDiscoveryRequest_NotProviderSuccess_ThenPublishesBoundReceipt()
+  {
+    var rig = await CreateAsync(); await using var _ = rig.H;
+    await rig.Discovery.EnqueuePendingAsync(default);
+    while (await rig.Dispatcher.ProcessNextAsync()) { }
+    var policy = await OperatorPolicyAsync(rig); var id = Guid.NewGuid();
+    await using (var create = rig.H.Db())
+    {
+      create.PracticeClients.Add(new PracticeClient { Id = id, FirmId = rig.H.A.FirmId, LegalName = "Exact operator client", CreatedAt = DateTimeOffset.UtcNow });
+      create.ClientSafetyStates.Add(new ClientSafetyState { Id = id, FirmId = rig.H.A.FirmId, InputGeneration = 1 });
+      await create.SaveChangesAsync();
+    }
+    await using (var db = rig.H.Db())
+    {
+      var preview = await ClientSiteOperatorIntents.ReviewAsync(db, rig.H.Admin, id, policy, false);
+      Assert.True(preview.Succeeded, preview.Message); Assert.True(preview.Value!.Eligible, preview.Value.RequiredAction);
+      Assert.EndsWith(ClientSharePointSites.SiteSlug("Exact operator client", id), preview.Value.Url);
+      var first = await ClientSiteOperatorIntents.RequestAsync(db, rig.H.Admin, id, policy, preview.Value.ReviewToken, true, "Synthetic exact request", false);
+      Assert.True(first.Succeeded, first.Message); Assert.Equal("PENDING_DISCOVERY", first.Value!.State); Assert.Null(first.Value.OperationId);
+      var repeated = await ClientSiteOperatorIntents.RequestAsync(db, rig.H.Admin, id, policy, preview.Value.ReviewToken, true, "Synthetic exact request", false);
+      Assert.True(repeated.Succeeded, repeated.Message); Assert.Equal(first.Value, repeated.Value);
+      Assert.Single(await db.ClientSharePointSites.Where(x => x.ClientId == id).ToListAsync());
+      Assert.Empty(await db.DurableOperations.Where(x => x.TargetId == id).ToListAsync());
+      Assert.DoesNotContain(rig.Provider.Calls, x => x.Client == id);
+    }
+    Assert.Equal(1, await rig.Discovery.EnqueuePendingAsync(default));
+    Assert.Equal(0, await rig.Discovery.EnqueuePendingAsync(default));
+    while (await rig.Dispatcher.ProcessNextAsync()) { }
+    await using var verify = rig.H.Db();
+    var published = await ClientSiteOperatorIntents.ReviewAsync(verify, rig.H.Admin, id, policy, false);
+    Assert.True(published.Succeeded, published.Message);
+    Assert.Equal("PUBLISHED", published.Value!.ReceiptState);
+    Assert.Equal(rig.Provider.Sites[id].SiteId, published.Value.PublishedReceipt!.SiteId);
+    Assert.Equal("COMPLETED", published.Value.OperationState);
+    Assert.Single(rig.Provider.Calls, x => x.Client == id);
+  }
+
+  [Fact]
+  public async Task OperatorIntent_DeniesStaleStaffAuthority_HistoricalConversion_AndScopedUsers()
+  {
+    var rig = await CreateAsync(); await using var _ = rig.H;
+    await rig.Discovery.EnqueuePendingAsync(default);
+    while (await rig.Dispatcher.ProcessNextAsync()) { }
+    var policy = await OperatorPolicyAsync(rig);
+    await using var db = rig.H.Db();
+    var preview = await ClientSiteOperatorIntents.ReviewAsync(db, rig.H.Admin, rig.H.A.ClientId, policy, true);
+    Assert.True(preview.Succeeded, preview.Message); Assert.True(preview.Value!.Eligible, preview.Value.RequiredAction);
+    var staff = await db.Users.SingleAsync(x => x.Id == rig.H.A.Staff.Id); staff.SessionEpoch++;
+    await db.SaveChangesAsync();
+    var stale = await ClientSiteOperatorIntents.RequestAsync(db, rig.H.Admin, rig.H.A.ClientId, policy, preview.Value.ReviewToken, true, "Stale staff review", true);
+    Assert.False(stale.Succeeded); Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
+    var current = await ClientSiteOperatorIntents.ReviewAsync(db, rig.H.Admin, rig.H.A.ClientId, policy, true);
+    Assert.NotEqual(preview.Value.StaffAuthorizationDigest, current.Value!.StaffAuthorizationDigest);
+    Assert.Equal(preview.Value.StaffObjectIds, current.Value.StaffObjectIds);
+    Assert.False((await ClientSiteOperatorIntents.ReviewAsync(db, PbcSeed.Actor(rig.H.A.Client, "ClientUser"), rig.H.A.ClientId, policy, false)).Succeeded);
+    Assert.False((await ClientSiteOperatorIntents.ReviewAsync(db, rig.H.Admin, Guid.NewGuid(), policy, false)).Succeeded);
+    var client = await db.PracticeClients.SingleAsync(x => x.Id == rig.H.A.ClientId);
+    client.CreatedAt = policy.ClientsCreatedAfter!.Value.AddDays(-1); await db.SaveChangesAsync();
+    var historical = await ClientSiteOperatorIntents.ReviewAsync(db, rig.H.Admin, rig.H.A.ClientId, policy, false);
+    Assert.False(historical.Value!.Eligible); Assert.Contains("predates", historical.Value.RequiredAction);
+    var denied = await ClientSiteOperatorIntents.RequestAsync(db, rig.H.Admin, rig.H.A.ClientId, policy, historical.Value.ReviewToken, true, "No historical conversion", false);
+    Assert.False(denied.Succeeded);
   }
 
   [Fact]

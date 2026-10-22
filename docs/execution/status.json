@@ -1069,6 +1069,23 @@
         ],
         "behavior": "Only prior published managed object IDs may be removed; preserve unrelated managed-group members, publish exact residual references, audit and mark membership PARTIAL. Other groups/direct permissions are not certified by this check.",
         "remaining": "WU-021 authenticated exact-client Application intent/status adapter remains pending; live tenant acceptance and full current-candidate CI not established."
+      },
+      "clientSiteOperatorIntents": {
+        "status": "PARTIALLY_VERIFIED",
+        "behavior": "Exact current-client review and local intent request reuse existing worker discovery; published receipts remain separate from pending acknowledgments. Review binds resolved staff and clock-effective authority; connection is captured before token validation.",
+        "checks": {
+          "applicationReviewFixes": "PASS: 2 focused PostgreSQL tests; .local/autonomous/evidence/wu021-review-fixes/review-fixes.trx",
+          "applicationIntentCohort": "PASS: 4 focused tests before final review fixes; .local/autonomous/evidence/wu021-intents/wu021-intents.trx",
+          "httpDenials": "PASS: 1 focused API test before final review fixes; .local/autonomous/evidence/wu021-intent-http/wu021-intent-http.trx",
+          "openapi": "PASS: emitter build and contract drift check before internal review fixes; no subsequent DTO changes",
+          "documentation": "PASS: markdown validator and narrative metrics"
+        },
+        "remaining": [
+          "CLI orchestration integration",
+          "Exact-source CI",
+          "Live tenant provisioning acceptance"
+        ],
+        "fullLocalSuites": "NOT_RUN"
       }
     },
     "developmentFeedback20261023": {
