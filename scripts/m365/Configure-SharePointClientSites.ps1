@@ -77,6 +77,11 @@ try {
   }
 
   if (-not $ExpectedPlanSha256) { throw 'INVALID_OR_UNSAFE' }
+  # The historical draft below is not an approved second provider. Live work must
+  # submit current-authorized intents to AuditSphere and let its isolated worker
+  # publish the real receipt. Keep this engineering gap explicit until that adapter exists.
+  throw 'BLOCKED_BOOTSTRAP'
+
   $module = (Get-Content -Raw (Join-Path $PSScriptRoot 'modules.lock.json') | ConvertFrom-Json -AsHashtable).modules |
     Where-Object name -eq 'Microsoft.Graph.Authentication'
   $loaded = Get-Module -Name $module.name

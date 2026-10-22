@@ -1091,7 +1091,7 @@
       "localArtifacts": ".local/dev-speed/ (ignored binlogs, diagnostic logs and measurement JSON; inspect/redact before sharing)"
     },
     "sharePointClientSitesAutomation": {
-      "status": "ENGINEERING_VERIFIED",
+      "status": "PARTIAL",
       "authority": "ADR-0006; R18-R19; WU-021",
       "code": [
         "scripts/m365/AuditSphere.M365.ClientSites.psm1",
@@ -1102,19 +1102,15 @@
         "scripts/m365/tests/ClientSites.Tests.ps1"
       ],
       "verification": {
-        "offlineAutomation": "PASS",
-        "checksPassed": 36,
+        "offlineAutomation": "42 offline assertions passed including zero-effect live blocking; legacy draft synthetic helpers do not prove Application integration",
+        "checksPassed": 42,
         "dryRunStatus": "PLANNED",
         "planSha": "verified",
-        "reconciliation": "PASS"
+        "reconciliation": "NOT_VERIFIED: authenticated Application intent/receipt adapter pending"
       },
       "invariants": {
-        "siteUrlDerivation": "deterministic from clientSites.host and clientId N-format",
-        "ownershipMarker": "AuditSphere:firmId:clientId strictly enforced on STS#3 sites",
-        "rolloutCutoff": "pre-cutoff clients require explicit migration approval",
-        "staffGroup": "AuditSphere Assigned Staff with Full Control (role type 5)",
-        "staffMembership": "exact match to approved staff assignments, AadObjectId verified",
-        "workerGrant": "DOCUMENTS application write grant verified on site"
+        "requiredOwner": "Existing isolated .NET client-sites worker; deterministic name-plus-client-ID SiteSlug; persisted cutoff and current server staffing authority",
+        "draftDisposition": "Live CLI blocked pending faithful Application adapter; no second provisioning/membership mechanism accepted"
       },
       "externalGates": [
         "GATE-M365-LIVE-TARGET"

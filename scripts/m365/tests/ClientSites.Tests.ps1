@@ -414,6 +414,18 @@ try {
     -OutputPath $expiredStaffOut | Out-Null
   Assert ($LASTEXITCODE -eq 3) 'staff-expired-approval-exits-blocked-approval'
 
+  # A signed plan is not a substitute for the unfinished Application intent adapter.
+  foreach ($entry in @('Configure-SharePointClientSites.ps1','Reconcile-ClientSiteStaff.ps1')) {
+    $blockedOutput = Join-Path $work ($entry + '-blocked.json')
+    & pwsh -NoProfile -NonInteractive -File (Join-Path $root $entry) `
+      -PlanPath $fixturePlanPath -Mode ReadOnly -ExpectedPlanSha256 (Get-M365PlanSha256 $basePlan) `
+      -OutputPath $blockedOutput | Out-Null
+    Assert ($LASTEXITCODE -eq (Get-M365ExitCode 'BLOCKED_BOOTSTRAP')) "$entry-requires-application-adapter"
+    $blocked = Get-Content -Raw $blockedOutput | ConvertFrom-Json -AsHashtable
+    Assert ($blocked.status -ceq 'BLOCKED_BOOTSTRAP') "$entry-blocked-status"
+    Assert ($blocked.networkCalls -eq 0 -and $blocked.mutationsAttempted -eq 0) "$entry-zero-provider-effects"
+  }
+
   [ordered]@{ unit = 'WU-021'; offline = $true; passed = $passed; failed = 0 } | ConvertTo-Json
 } finally {
   if (Test-Path -LiteralPath $work) {

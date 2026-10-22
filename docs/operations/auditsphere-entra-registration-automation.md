@@ -235,15 +235,20 @@ python3 scripts/m365/verify-result.py /approved/operator/sites-plan.json --expec
 
 ## SharePoint client site provisioning and managed staff Full Control (WU-021)
 
-`Configure-SharePointClientSites.ps1` and `Reconcile-ClientSiteStaff.ps1` implement the
-approved client-site automation and managed staff membership lifecycle:
+`Configure-SharePointClientSites.ps1` and `Reconcile-ClientSiteStaff.ps1`
+currently support **offline planning only**. Live modes stop with
+`BLOCKED_BOOTSTRAP` after approval validation: the authenticated Application intent
+adapter is unfinished. This is an engineering gap, not a request for broader
+Microsoft consent. The draft PowerShell transport must not execute a second
+SPSiteManager/membership workflow or use a Graph token for SharePoint.
 
-- Site URL derivation: `https://{clientSites.host}/sites/auditsphere-client-{clientId:N}`.
-- Ownership marker: `AuditSphere:{firmId}:{clientId:D}` on modern nongroup sites (`STS#3`).
-- Rollout cutoff: pre-cutoff clients retain their existing mode unless a migration is approved.
-- Managed staff group: dedicated `"AuditSphere Assigned Staff"` group with Full Control (role type 5).
-- Membership reconciliation: exact match against approved staff assignments; obsolete members removed, missing members added via `ensureuser` with `AadObjectId` verification.
-- Isolated DOCUMENTS worker application `write` grant on each client site.
+The existing isolated .NET `client-sites` worker remains the effect/receipt owner.
+It derives URLs using `ClientSharePointSites.SiteSlug(clientName, clientId)`,
+verifies the exact firm/client marker, uses the persisted rollout boundary, and
+builds staff authority from current Application assignments. Caller-declared
+`staffAssignments` or migration flags in a plan are not authorization. The pending
+CLI must request exact-client intents and observe durable published receipts,
+without mounting the privileged worker certificate in the API or CLI.
 
 ```powershell
 pwsh -NoProfile -NonInteractive -File scripts/m365/Configure-SharePointClientSites.ps1 `
