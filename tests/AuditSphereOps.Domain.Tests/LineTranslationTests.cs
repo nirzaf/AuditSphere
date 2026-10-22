@@ -5,6 +5,7 @@ namespace AuditSphereOps.Domain.Tests;
 
 /// <summary>M26 per-line foreign-operation translation: rate purposes per line, a
 /// calculated translation reserve with a rate bridge, and fail-closed missing rates.</summary>
+[Trait("CompletionUnit", "WU-012")]
 public sealed class LineTranslationTests
 {
   private static readonly Dictionary<string, string> SectionPurposes = new(StringComparer.Ordinal)
