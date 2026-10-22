@@ -35,6 +35,7 @@ Use existing partial capability files (`<Service>.<Capability>.cs`, `AuditSphere
 - Complete one coherent behavior per task/PR, including all inseparable layers. Keep diffs reviewable; stop and simplify on scope expansion.
 - **Restore/install once:** `dotnet tool restore`, `dotnet restore AuditSphereOps.slnx --locked-mode` and `npm --prefix src/AuditSphereOps.Ui ci` only for a fresh environment or changed toolchain/lockfiles. Do not reinstall dependencies for every edit.
 - Diagnose with the smallest applicable build/test, preferably once after the coherent edit. On failure rerun only the failed check after fixing it; don't rerun already-passing suites without relevant new changes.
+- **Development loop:** reuse the active backend/Angular servers. For a fresh loop use `scripts/dev/backend-watch.sh` (Debug, no restore, process-local noncanonical Angular routes) and `npm --prefix src/AuditSphereOps.Ui start`. Do not run competing builds against the same project/configuration outputs. Avoid a separate build when the selected test already compiles the affected code. Never use stale `--no-build` binaries.
 - Never claim a simulation, TODO, proposed story, UI route or passing compile proves production readiness.
 
 ## 4. Test policy — local targeted; full suite in CI/CD

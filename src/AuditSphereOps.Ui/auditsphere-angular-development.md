@@ -1,6 +1,6 @@
 # AuditSphere Angular UI
 
-`AuditSphereOps.Api` is the ASP.NET Core backend; `AuditSphereOps.Ui` is the Angular frontend. Domain/Application/Infrastructure/Worker remain unchanged in responsibility. Native Angular routes cover practice, accounting, audit, completion, administration and the client portal; broader source-action parity and production acceptance remain open. On 2026-10-17 the owner authorized retirement of the Blazor rollback/reference host; removal is prepared on branch `chore/retire-blazor-host` for review, and `master` retains the host until that review concludes. Retirement authorization does not establish operational rollback or migration acceptance.
+`AuditSphereOps.Api` is the ASP.NET Core backend; `AuditSphereOps.Ui` is the Angular frontend. Domain/Application/Infrastructure/Worker remain unchanged in responsibility. Native Angular routes cover practice, accounting, audit, completion, administration and the client portal; broader source-action parity and production acceptance remain open. The Blazor host was removed from `master` in `e7ebe27c`; historical references do not represent an available rollback host or proof of Angular parity.
 
 ## Build and verify
 
@@ -9,9 +9,12 @@ The Microsoft 365 tenant page includes selected-site draft editing, exact bounda
 From this directory, use the Node version in `.nvmrc`:
 
 ```sh
+# Fresh checkout or changed lockfile only:
 npm ci
-npm run build
-npm run test:ci
+# Ordinary feedback (production build is for compilation/release acceptance):
+npm start
+# After a coherent change, select the affected spec:
+npm run test:ci -- --include 'src/app/features/practice/time-tracker-ui.spec.ts'
 ```
 
 From the repository root, after building the Angular browser artifacts:
@@ -22,14 +25,13 @@ dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj -c Re
 dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj -c Release --filter FullyQualifiedName~AngularPortfolioJourneyTests
 ```
 
-The browser journey requires PostgreSQL and the existing Playwright browser setup. It verifies real .NET endpoints against synthetic data, not Microsoft tenant acceptance. Build this workspace before running the whole solution suite, which includes the Angular browser journey.
+The browser journey requires PostgreSQL and the existing Playwright browser setup. It verifies real .NET endpoints against synthetic data, not Microsoft tenant acceptance. CI owns the complete solution suites. Build browser artifacts only when the selected API-hosted browser cohort needs them.
 
-## Run API with the Angular build
+## Optional API-hosted Angular preview
 
 From the repository root, build Angular and then start API with privately supplied approved database/identity configuration:
 
 ```sh
-npm --prefix src/AuditSphereOps.Ui ci
 npm --prefix src/AuditSphereOps.Ui run build
 DOTNET_ENVIRONMENT=Development dotnet run --project src/AuditSphereOps.Api -c Release --no-launch-profile -- --urls http://localhost:5100
 ```
@@ -46,7 +48,7 @@ Supply `Setup:FirmId`, `Setup:InstallationId`, `Setup:BootstrapProofHash`, `Setu
 4. Open Administration → Microsoft 365 → Tenant connection. If the deployment tenant has not been prepared, review its configured identity and prepare the current setup revision. This creates a connection revision requiring Microsoft consent; it does not assert consent or selected-site verification.
 5. Follow the configured Microsoft consent flow and verify each capability separately. Missing deployment credentials, consent or selected-site grants remain blocked.
 
-A lost bootstrap/preparation response requires a fresh sign-in or refresh and review of persisted state before another write. These local tests do not establish live Microsoft authentication/consent acceptance. The API-only test host is not an operator setup route. The separate Blazor rollback/reference project is retired on branch `chore/retire-blazor-host`; `master` retains it pending review.
+A lost bootstrap/preparation response requires a fresh sign-in or refresh and review of persisted state before another write. These local tests do not establish live Microsoft authentication/consent acceptance. The API-only test host is not an operator setup route. The retired Blazor project is not a supported development host.
 
 ### Optional Microsoft administration
 
@@ -122,3 +124,72 @@ Source discovery is generated with `python3 scripts/ui/inventory.py` from the re
 The native confirmation workspace offers explicit case, batch and action draft saving in the current browser tab. These drafts expire and are convenience state; they are not shared server records or retained audit evidence. Reload the workspace, choose Recover, inspect the current evidence and review again. A changed authorized revision prevents recovery of an old draft. In-memory edits survive background refresh but need explicit refreshed-revision selection before submission.
 
 Navigation offers keep editing, save in this tab and continue, or discard. A storage failure keeps the page open and reports memory-only edits. Closing the tab can lose tab storage. Drafts never include review authorization, passwords, credentials or files. A recovered pending submission requires persisted-state refresh and is never automatically retried. These controls currently apply to confirmations; other modules still require draft parity checks.
+
+## Fast backend development loop
+
+After the one-time pinned restore in the root README, run from the repository root:
+
+```sh
+scripts/dev/backend-watch.sh
+# Separate terminal:
+npm --prefix src/AuditSphereOps.Ui start
+```
+
+Open `http://localhost:4200/ui/app`. The backend stays on `localhost:5100`, matching
+`src/AuditSphereOps.Ui/src/proxy.conf.json`. The helper refuses to start when that port is occupied:
+reuse the running server or stop its owning process intentionally. It never kills
+another session. It exports Development plus `AngularUi__Enabled=false` and
+`AngularUi__CanonicalRoutes=false` only for its process, so Angular's development
+server owns `/ui/*`. Credentials, cookies, session checks, CSRF and database settings
+remain those of the existing development configuration; no tenant permission or
+callback registration is changed. Use the same browser-visible host consistently.
+
+The pinned SDK runs Debug hot reload with `--no-restore`; unsupported edits restart
+automatically through `--non-interactive`. Project-reference builds remain serialized
+with `BuildInParallel=false`. Do not run another build/test against these Debug
+outputs while watch is compiling. Stop watch before measuring builds. Configuration,
+SDK/package changes or unsupported edits can still require restart/explicit restore.
+No polling, cache deletion, warning suppression or production setting is added.
+
+### Verification levels
+
+1. **Development feedback:** watch/compiler diagnostics and Angular `ng serve` live
+   updates. No complete solution build or production Angular bundle per edit.
+2. **Feature verification:** use an existing `scripts/agent-check` packet or one
+   focused existing test. A test normally builds its dependencies; avoid building
+   them separately first. Build only the changed project when compilation itself
+   is the required check:
+
+   ```sh
+   dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj -c Debug --no-restore --maxcpucount:1
+   npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/practice/time-tracker-ui.spec.ts'
+   ./scripts/agent-check --list
+   ```
+
+   Select the actual affected spec/packet; the example is not a mandatory test for
+   unrelated work. Database, money, permissions, concurrency and contract changes
+   retain their focused boundary checks. Never use `--no-build` after source changes.
+3. **Release verification:** existing CI Release build and immutable-source full
+   regression workflow. This development helper does not replace release gates,
+   migration validation, browser acceptance or professional/live-provider approval.
+
+Do not clean `bin/obj`, disable build servers or reinstall packages routinely.
+Restore once after lock/toolchain changes. Keep binlogs and diagnostic logs under
+ignored `.local/dev-speed/`; they can contain local paths and configuration and
+must be reviewed before sharing.
+
+### Observed development measurements and startup prerequisite
+
+The dated `developmentFeedback20261023` entry in
+[the execution evidence ledger](../../docs/execution/status.json) records the pinned
+SDK, measured command/cache conditions, timings and unmeasured operations. The
+initial observed Debug build is not a clean-cache benchmark. Two identical warm
+builds skipped every backend `CoreCompile`; there is no evidence for changing the
+shared incremental targets or safe CI build parallelism.
+
+A preserved-settings startup probe found a duplicate Identity/SelectedSite app ID.
+The startup permission-split guard correctly refused that configuration. Correct
+capability identity/certificate configuration through the approved local setup
+before using watch with those settings; do not suppress the guard. An isolated
+synthetic timing probe is not verification of that developer login or Microsoft
+365 access. No private settings or tenant registrations were changed by this work.

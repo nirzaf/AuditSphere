@@ -91,10 +91,11 @@ scripts/db/restore-drill.sh
 ```
 
 ```bash
-# API host serves the canonical Angular build on /app and /portal
-npm --prefix src/AuditSphereOps.Ui run build
-DOTNET_ENVIRONMENT=Development dotnet run --project src/AuditSphereOps.Api -c Release --no-launch-profile -- --urls http://localhost:5100
-# Live reload: npm --prefix src/AuditSphereOps.Ui start, then open http://localhost:4200/ui/app
+# Normal development: two terminals; no Angular production bundle needed.
+scripts/dev/backend-watch.sh
+npm --prefix src/AuditSphereOps.Ui start
+# Open http://localhost:4200/ui/app. Reuse an existing backend on :5100.
+# Release publication remains a separate CI/operator workflow.
 ```
 
 Per-test isolation: uniquely named disposable PostgreSQL schemas on `auditsphere_tests`; no InMemory fallback. Full regressions run in `release-verification.yml` on an immutable SHA — never locally after each edit. UI build/run details: `src/AuditSphereOps.Ui/auditsphere-angular-development.md`.
