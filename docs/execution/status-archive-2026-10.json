@@ -15275,7 +15275,27 @@
         "humanAT": "Owner reported reviewed and approved. Screen-reader/browser versions, named workflow observations and native zoom results were requested and have not yet been supplied; this is owner approval, not completed AT evidence.",
         "priorEvidence": "angularQualityFollowUp20261022b; earlier exact-source CI results retained under their own commits.",
         "browserDiagnostics": "No warning or error entries returned by built-in tab dev.logs after checked workflows. Exact browser version is unavailable through exposed diagnostics; no version is inferred.",
-        "testRecoveryCommit": "e494d48d32253736bd4a4bb80c84a42d3e60974f"
+        "testRecoveryCommit": "e494d48d32253736bd4a4bb80c84a42d3e60974f",
+        "renderedContrast20261022": {
+          "source": "e63b304f4b5fa8f175f2f7306805ae9e6cd13a21",
+          "environment": "Existing signed-in synthetic built-in browser; Angular dev build; external effects disabled",
+          "method": "Read-only rendered computed foreground and nearest opaque ancestor background; WCAG sRGB luminance ratio; enabled text samples only",
+          "observedRatios": {
+            "shellHeader": 17.06,
+            "sidebar": 12.02,
+            "selectedSidebar": 6.7,
+            "scopeLinks": 6.12,
+            "journalLabels": 12.0,
+            "journalHeaders": 7.34,
+            "journalAddRemove": 6.46,
+            "journalError": 7.5,
+            "fieldworkHeading": 10.96,
+            "fieldworkLabels": 12.0,
+            "fieldworkTabText": 17.21
+          },
+          "result": "PASS_SAMPLED_TEXT_ONLY",
+          "limits": "Not whole-page conformance; excludes disabled controls, placeholder/non-text contrast, hover states, human AT and native zoom."
+        }
       },
       "workflowHistory20261020": {
         "workflowTrackerReconciliation": {
