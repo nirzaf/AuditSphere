@@ -105239,7 +105239,9 @@
           "translationRateType",
           "priorScopeVersionId",
           "groupRevision",
-          "status"
+          "status",
+          "supersedesScopeVersionId",
+          "supersedesComponentId"
         ],
         "type": "object",
         "properties": {
@@ -105301,6 +105303,20 @@
           },
           "status": {
             "type": "string"
+          },
+          "supersedesScopeVersionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "supersedesComponentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -106678,7 +106694,9 @@
           "method",
           "status",
           "openingBasis",
-          "isAdvanced"
+          "isAdvanced",
+          "supersedesScopeVersionId",
+          "supersedesComponentId"
         ],
         "type": "object",
         "properties": {
@@ -106730,6 +106748,20 @@
           },
           "isAdvanced": {
             "type": "boolean"
+          },
+          "supersedesScopeVersionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "supersedesComponentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -107429,6 +107461,20 @@
               "string"
             ],
             "format": "int64"
+          },
+          "supersedesScopeVersionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "supersedesComponentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

@@ -68,6 +68,22 @@ public static partial class ConsolidationService
       x.GroupId == request.GroupId && x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         "An approved group membership is required before a legacy perimeter request can be created.");
+
+    if (request.SupersedesScopeVersionId.HasValue != request.SupersedesComponentId.HasValue)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "A correction source requires both its authorized source scope and component identities.");
+    if (request.SupersedesScopeVersionId is { } supersedesScopeId && request.SupersedesComponentId is { } supersedesComponentId)
+    {
+      var supersededScope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.GroupId == request.GroupId && x.Id == supersedesScopeId &&
+        x.PeriodId == request.PeriodId, ct);
+      if (supersededScope is null || !await db.ConsolidationComponents.AsNoTracking().AnyAsync(x =>
+        x.FirmId == actor.FirmId && x.GroupId == request.GroupId && x.ScopeVersionId == supersededScope.Id &&
+        x.Id == supersedesComponentId, ct))
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "The correction source must identify a component in the same authorized group and reporting period.");
+    }
+
     if (method is ConsolidationCalculator.ForeignOperationMethod or AdvancedConsolidationMethods.ForeignCurrencyReserve)
     {
       if (request.ExchangeRateSetVersionId is null || request.TranslationPolicyVersionId is null || request.TranslationRateDate is null ||
@@ -130,7 +146,10 @@ public static partial class ConsolidationService
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = request.GroupId, PeriodId = request.PeriodId,
       GroupRevision = group.Revision,
-      PriorScopeVersionId = request.PriorScopeVersionId, OpeningRunHash = openingRunHash,
+      PriorScopeVersionId = request.PriorScopeVersionId,
+      SupersedesScopeVersionId = request.SupersedesScopeVersionId,
+      SupersedesComponentId = request.SupersedesComponentId,
+      OpeningRunHash = openingRunHash,
       OpeningTranslationManifestHash = openingTranslationManifestHash, OpeningTranslationReserve = openingTranslationReserve,
       RecurringEliminationManifest = recurringEliminationManifest,
       Version = version, ReportingCurrency = currency, Method = method,

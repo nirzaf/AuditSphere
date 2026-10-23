@@ -43,7 +43,9 @@ public static partial class UiEndpoints
     DateOnly? TranslationRateDate,
     string? TranslationRateType,
     Guid? PriorScopeVersionId,
-    long ExpectedGroupRevision);
+    long ExpectedGroupRevision,
+    Guid? SupersedesScopeVersionId = null,
+    Guid? SupersedesComponentId = null);
 
   public sealed record SubmitComponentInput(
     Guid ClientId,
@@ -296,7 +298,7 @@ public static partial class UiEndpoints
         : CommandAsync(http, (db, actor, ct) => ConsolidationService.CreateScopeAsync(db, actor,
         new ConsolidationScopeRequest(i.GroupId, i.PeriodId, i.ReportingCurrency, i.Method, i.OpeningBasis,
           i.ExchangeRateSetVersionId, i.TranslationPolicyVersionId, i.TranslationRateDate, i.TranslationRateType ?? "",
-          i.PriorScopeVersionId, i.ExpectedGroupRevision), ct)))
+          i.PriorScopeVersionId, i.ExpectedGroupRevision, i.SupersedesScopeVersionId, i.SupersedesComponentId), ct)))
       .WithDescription("Creates a new consolidation scope version using the selected group, reporting period, method and pinned approved translation inputs. The expected group revision is checked by the command.")
       .Produces<UiValueResponse<Guid>>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")

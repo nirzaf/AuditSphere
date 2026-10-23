@@ -6490,6 +6490,14 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(30)")
                         .HasColumnName("status");
 
+                    b.Property<Guid?>("SupersedesComponentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supersedes_component_id");
+
+                    b.Property<Guid?>("SupersedesScopeVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supersedes_scope_version_id");
+
                     b.Property<Guid?>("TranslationPolicyVersionId")
                         .HasColumnType("uuid")
                         .HasColumnName("translation_policy_version_id");
@@ -6521,8 +6529,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_consolidation_scope_version");
 
+                    b.HasIndex("FirmId", "GroupId", "SupersedesScopeVersionId", "SupersedesComponentId");
+
                     b.ToTable("consolidation_scope_versions", null, t =>
                         {
+                            t.HasCheckConstraint("ck_consolidation_scope_supersedes_pair", "(supersedes_scope_version_id IS NULL) = (supersedes_component_id IS NULL)");
+
                             t.HasCheckConstraint("ck_consolidation_scope_values", "reporting_currency ~ '^[A-Z]{3}$' AND length(trim(method)) > 0 AND length(trim(opening_basis)) > 0");
                         });
                 });
@@ -32141,6 +32153,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "TranslationPolicyVersionId")
                         .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ConsolidationComponent", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "GroupId", "SupersedesScopeVersionId", "SupersedesComponentId")
+                        .HasPrincipalKey("FirmId", "GroupId", "ScopeVersionId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 

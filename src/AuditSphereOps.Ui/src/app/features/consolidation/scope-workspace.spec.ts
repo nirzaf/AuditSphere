@@ -74,6 +74,7 @@ function workspacePayload(overrides: Record<string, unknown> = {}) {
       id: id1, groupId: id2, groupName: 'Synthetic Group', groupCode: 'SYN-GRP', version: 1,
       groupRevision: 1, periodId: id3, reportingCurrency: 'QAR', method: 'PROPORTIONATE',
       status: 'APPROVED', openingBasis: 'OPENING_BALANCE', isAdvanced: false,
+      supersedesScopeVersionId: null, supersedesComponentId: null,
     },
     canPrepare: true,
     canReview: true,
@@ -271,6 +272,19 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(page.querySelector('audit-consolidation-external-packs')).toBeNull();
   });
 
+  it('renders the persisted correction source identities in the authorized scope summary', () => {
+    const scope = workspacePayload().scope as Record<string, unknown>;
+    const { fixture } = open({
+      ...workspacePayload(),
+      scope: { ...scope, supersedesScopeVersionId: id2, supersedesComponentId: id3 },
+    });
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.textContent).toContain('Correction source scope');
+    expect(page.textContent).toContain(id2);
+    expect(page.textContent).toContain('Correction source component');
+    expect(page.textContent).toContain(id3);
+  });
+
   it('decodes a complete scope workspace structure', () => {
     const raw = {
       scope: {
@@ -286,6 +300,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
         status: 'APPROVED',
         openingBasis: 'OPENING_BALANCE',
         isAdvanced: false,
+        supersedesScopeVersionId: null,
+        supersedesComponentId: null,
       },
       canPrepare: true,
       canReview: true,
@@ -421,11 +437,14 @@ describe('Consolidation Scope Workspace Contracts', () => {
 
     const decoded = decodeScopeWorkspace(raw, 'root');
     expect(decoded.scope.groupCode).toBe('ACME-GRP');
+    expect(decoded.scope.supersedesScopeVersionId).toBeNull();
+    expect(decoded.scope.supersedesComponentId).toBeNull();
     expect(decoded.canApproveScope).toBe(false);
     expect(decoded.scopeApprovalBlocker).toBeNull();
     expect(decoded.components.length).toBe(1);
     expect(() => decodeScopeWorkspace({ ...raw, componentPaging: { totalCount: 2, page: 1, pageSize: 100 } }, 'root')).toThrow();
     expect(() => decodeScopeWorkspace({ ...raw, componentPaging: { totalCount: 1, page: 1, pageSize: 101 } }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, scope: { ...raw.scope, supersedesScopeVersionId: id2 } }, 'root')).toThrow();
     expect(() => decodeScopeWorkspace({ ...raw, readinessPaging: null }, 'root')).toThrow();
     const refusedReadiness = { available: false, value: null, errorCode: 'readiness.denied', message: 'Readiness refused.' };
     expect(() => decodeScopeWorkspace({ ...raw, componentReadiness: refusedReadiness }, 'root')).toThrow();

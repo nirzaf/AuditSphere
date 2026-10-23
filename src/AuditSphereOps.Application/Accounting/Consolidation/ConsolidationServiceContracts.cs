@@ -21,7 +21,7 @@ public sealed record ConsolidationScopeRequest(
   Guid GroupId, Guid PeriodId, string ReportingCurrency, string Method, string OpeningBasis,
   Guid? ExchangeRateSetVersionId = null, Guid? TranslationPolicyVersionId = null,
   DateOnly? TranslationRateDate = null, string TranslationRateType = "", Guid? PriorScopeVersionId = null,
-  long ExpectedGroupRevision = 0);
+  long ExpectedGroupRevision = 0, Guid? SupersedesScopeVersionId = null, Guid? SupersedesComponentId = null);
 
 public sealed record ConsolidationComponentRequest(
   Guid ScopeVersionId, Guid ClientId, Guid EngagementId, Guid PackageId,

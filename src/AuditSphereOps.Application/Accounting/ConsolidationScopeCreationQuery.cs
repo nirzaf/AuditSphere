@@ -18,7 +18,8 @@ public sealed record ConsolidationPriorScopeOption(Guid Id, Guid PeriodId, int V
 public sealed record ConsolidationExistingScopeOption(
   Guid Id, Guid PeriodId, string ReportingCurrency, string Method, string OpeningBasis,
   Guid? ExchangeRateSetVersionId, Guid? TranslationPolicyVersionId, DateOnly? TranslationRateDate,
-  string TranslationRateType, Guid? PriorScopeVersionId, long GroupRevision, string Status);
+  string TranslationRateType, Guid? PriorScopeVersionId, long GroupRevision, string Status,
+  Guid? SupersedesScopeVersionId, Guid? SupersedesComponentId);
 public sealed record ConsolidationScopeCreationOptions(
   Guid GroupId, string GroupCode, string GroupName, long GroupRevision, bool CanCreateScope,
   IReadOnlyList<ConsolidationScopePeriodOption> Periods,
@@ -87,7 +88,7 @@ public static class ConsolidationScopeCreationQuery
       .OrderByDescending(x => x.Version).Take(500).Select(x => new ConsolidationExistingScopeOption(
         x.Id, x.PeriodId, x.ReportingCurrency, x.Method, x.OpeningBasis, x.ExchangeRateSetVersionId,
         x.TranslationPolicyVersionId, x.TranslationRateDate, x.TranslationRateType, x.PriorScopeVersionId,
-        x.GroupRevision, x.Status)).ToListAsync(ct);
+        x.GroupRevision, x.Status, x.SupersedesScopeVersionId, x.SupersedesComponentId)).ToListAsync(ct);
     var approvedPriorScopes = await db.ConsolidationScopeVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
       x.GroupId == groupId && x.Status == AccountingWorkflowStates.Approved &&
       db.ConsolidationRuns.Any(run => run.FirmId == actor.FirmId && run.GroupId == groupId &&

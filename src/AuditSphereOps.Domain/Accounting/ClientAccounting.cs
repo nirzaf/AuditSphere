@@ -875,6 +875,8 @@ public sealed class ConsolidationScopeVersion
   public long GroupRevision { get; set; } = 1;
   public Guid PeriodId { get; set; }
   public Guid? PriorScopeVersionId { get; set; }
+  public Guid? SupersedesScopeVersionId { get; set; }
+  public Guid? SupersedesComponentId { get; set; }
   public string OpeningRunHash { get; set; } = string.Empty;
   public string OpeningTranslationManifestHash { get; set; } = string.Empty;
   public decimal OpeningTranslationReserve { get; set; }

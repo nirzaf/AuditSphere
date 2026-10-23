@@ -383,16 +383,8 @@
     },
     "operatorReceiptRecovery": "PARTIAL; D18 API7 E2E8 Angular1283 pass; 7 migrations pending; live VPS not checked; e4686058 build PASS; Domain 29/29; run 38946802126 running",
     "cashFlowSourceReviewRevocationRace": {
-      "recordedAtUtc": "2026-10-17T05:09:20Z",
-      "sourceCommit": "1ee3c0e7ed743a3b2a838cad102c76428e07c267",
-      "run": "https://github.com/nirzaf/AuditSphere/actions/runs/39003733534",
-      "workflow": "AuditSphere release verification",
-      "cohort": "Test \u00b7 .NET Domain (unfiltered)",
-      "result": "PASS",
-      "test": "CashFlowContractTests.SourceReview_RevokedActorDuringLockWait_RecordsNothing",
-      "evidence": "The test observes the source-review command waiting on the package lock, revokes the reviewer role while the user retains a non-review grant, releases the lock, and verifies ScopeDenied with no source-review row persisted.",
-      "disposition": "CLOSES the prior F-02 post-lock revocation timing-test blocker for this current candidate. F-02 source-kind/provenance and broader story acceptance remain open.",
-      "unrelatedJobs": "API and Playwright E2E jobs in the same release run were still in progress when recorded."
+      "history": "status-archive-2026-10.json#keys.targetedVerification.cashFlowSourceReviewRevocationRace",
+      "note": "Historical focused revocation evidence retained; current acceptance separate."
     },
     "cp13EquityComponentTransfers": {
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.cp13EquityComponentTransfers",
@@ -551,16 +543,8 @@
       "jsonPath": "keys.targetedVerification.workflowTaskReopening"
     },
     "practiceCompletionGuards20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.practiceCompletionGuardsBeforeUploadIntentFreshness20261019",
-      "summary": "Archive focus, exact-task assignment recovery, cost ambiguity and delegation serialization have focused evidence. Detailed source SHAs, counterfactuals, native checks and limits retained intact. No full/professional/live acceptance.",
-      "sourceCommits": {
-        "clientArchiveFocus": "8ff14f6b01e26fbf3ac4bcb96b7f19ed5ac03c49",
-        "assignmentRecovery": "b785ab656aeafc9282ab640fa542f90c7561774e",
-        "staffCostRateAmbiguity": "b445bc5fa23d1b78b12fce3768505d1950c3d2fc",
-        "portalDelegationRevocation": "b1e1b37ce82b764a246ee7caca8e492a3bdd8c39"
-      },
-      "portalCapabilityFollowUpCommit": "54e5b1d641c0c9f667d6411ca774e2126804bb9d"
+      "history": "status-archive-2026-10.json#keys.targetedVerification.practiceCompletionGuards20261019",
+      "note": "Earlier bounded guards/evidence retained; not current-source acceptance."
     },
     "uploadIntentFreshness20261019": {
       "sourceCommit": "b34d0884284b8e93b41ee4575bffe03a5d90f510",
@@ -1131,7 +1115,13 @@
           "result": "FAST_CI_PASS; not full regression or live MAIL verification"
         }
       },
-      "resultStructure": "PASS: 6 focused Python tests; new malformed-envelope regression fails old source. Shape/counters only; freshness/provider acceptance separate."
+      "resultStructure": "PASS: 6 focused Python tests; new malformed-envelope regression fails old source. Shape/counters only; freshness/provider acceptance separate. Fast CI39882506372 PASS on e576; not full regression.",
+      "correctionLineage": {
+        "status": "PARTIAL",
+        "scope": "Nullable immutable same-firm/group/period correction source scope+component pair; ordinary/roll-forward basis preserved; no inferred supersession staleness.",
+        "checks": "PASS: main TRX 1/1 .local/autonomous/evidence/wu013-correction-lineage/correction-lineage.trx; agent Angular36, corrected build (SCSS warning), EF model and OpenAPI checks passed. Migration null-pointer downgrade/reapply and retained-lineage downgrade refusal covered.",
+        "remaining": "Current-source CI, owned correction browser journey and approved supersession policy; broader WU013/group release remains open."
+      }
     },
     "developmentFeedback20261023": {
       "status": "PARTIAL",

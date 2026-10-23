@@ -13,6 +13,7 @@ const firmId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const groupsUrl = '/api/ui/consolidation';
 const optionsUrl = `${groupsUrl}/groups/${groupId}/scope-options`;
 const scopeId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const componentId = '12121212-1212-4212-8212-121212121212';
 const otherGroupId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 const createdGroup = { id: groupId, code: 'HOLDCO-01', name: 'Holding Company Group', scopes: [] };
 const correctionScope = {
@@ -35,6 +36,13 @@ const scopeOptions = {
   ],
   approvedRateSets: [], approvedTranslationPolicies: [], approvedPriorScopes: [], existingScopes: [],
   guidance: 'Options are limited to the authorized group.'
+};
+const correctionSourceOption = {
+  id: scopeId, periodId: scopeOptions.periods[0].id, reportingCurrency: 'QAR',
+  method: 'FULLY_OWNED_SAME_CURRENCY', openingBasis: 'INITIAL_CONSOLIDATION',
+  exchangeRateSetVersionId: null, translationPolicyVersionId: null, translationRateDate: null,
+  translationRateType: '', priorScopeVersionId: null, groupRevision: 7, status: 'APPROVED',
+  supersedesScopeVersionId: null, supersedesComponentId: null,
 };
 
 function overview(groups: object[] = [], canCreateGroup = true) { return { canCreateGroup, groups }; }
@@ -156,7 +164,8 @@ describe('accounting group creation', () => {
       groupId, periodId, reportingCurrency: 'QAR', method: 'FULLY_OWNED_SAME_CURRENCY',
       openingBasis: 'INITIAL_CONSOLIDATION', exchangeRateSetVersionId: null,
       translationPolicyVersionId: null, translationRateDate: null, translationRateType: null,
-      priorScopeVersionId: null, expectedGroupRevision: 7
+      priorScopeVersionId: null, expectedGroupRevision: 7,
+      supersedesScopeVersionId: null, supersedesComponentId: null,
     });
     post.flush({ value: scopeId });
     await creating;
@@ -184,7 +193,8 @@ describe('accounting group creation', () => {
       id: scopeId, periodId: scopeOptions.periods[0].id, reportingCurrency: 'QAR',
       method: 'FULLY_OWNED_SAME_CURRENCY', openingBasis: 'INITIAL_CONSOLIDATION',
       exchangeRateSetVersionId: null, translationPolicyVersionId: null, translationRateDate: null,
-      translationRateType: '', priorScopeVersionId: null, groupRevision: 7, status: 'DRAFT'
+      translationRateType: '', priorScopeVersionId: null, groupRevision: 7, status: 'DRAFT',
+      supersedesScopeVersionId: null, supersedesComponentId: null,
     }] });
     await recovering;
     expect(component.scopeCommand.uncertain()).toBe(false);
@@ -232,14 +242,14 @@ describe('consolidation correction handoff context', () => {
     finally { TestBed.resetTestingModule(); sessionStorage.clear(); vi.restoreAllMocks(); }
   });
 
-  it('binds both correction query identities to the authorized fetched group and scope', async () => {
+  it('binds the correction scope, group and component identities to the authorized handoff', async () => {
     const harness = await RouterTestingHarness.create();
     const navigation = harness.navigateByUrl(
-      `/app/consolidation?correctionScopeId=${scopeId}&correctionGroupId=${groupId}`, ConsolidationOverview);
+      `/app/consolidation?correctionScopeId=${scopeId}&correctionGroupId=${groupId}&correctionComponentId=${componentId}`, ConsolidationOverview);
     const component = await navigation;
     http.expectOne(groupsUrl).flush(overview([{ ...createdGroup, scopes: [correctionScope] }]));
     expect(component.correctionContext()).toEqual({
-      state: 'valid', group: { ...createdGroup, scopes: [correctionScope] }, scope: correctionScope,
+      state: 'valid', group: { ...createdGroup, scopes: [correctionScope] }, scope: correctionScope, componentId,
     });
     await harness.fixture.whenStable();
     harness.fixture.detectChanges();
@@ -251,6 +261,14 @@ describe('consolidation correction handoff context', () => {
     expect(harness.routeNativeElement?.textContent).toContain('Correct a component in a new scope version');
     expect(harness.routeNativeElement?.textContent).toContain('newly reviewed component package');
     expect(harness.routeNativeElement?.textContent).toContain('original scope, component, package and prior run remain');
+    expect(harness.routeNativeElement?.textContent).toContain('Correction source scope');
+    expect(harness.routeNativeElement?.textContent).toContain(scopeId);
+    expect(harness.routeNativeElement?.textContent).toContain('Correction source component');
+    expect(harness.routeNativeElement?.textContent).toContain(componentId);
+    const continueLink = Array.from(harness.routeNativeElement?.querySelectorAll('a') ?? [])
+      .find(link => link.textContent?.includes('Continue to the existing new-scope form'));
+    expect(continueLink).toBeDefined();
+    expect(new URL(continueLink!.href).searchParams.get('correctionComponentId')).toBe(componentId);
     expect(harness.routeNativeElement?.querySelector<HTMLSelectElement>('select[name="scopeGroup"]')?.disabled).toBe(true);
     http.expectNone(request => request.method === 'POST');
     component.scopePeriodId = scopeOptions.periods[0].id;
@@ -261,10 +279,7 @@ describe('consolidation correction handoff context', () => {
     component.scopeOptions.reload();
     http.expectOne(optionsUrl).flush({ ...scopeOptions,
       periods: [...scopeOptions.periods, { ...scopeOptions.periods[0], id: otherGroupId, code: 'FY2027' }],
-      existingScopes: [{ id: scopeId, periodId: scopeOptions.periods[0].id, reportingCurrency: 'QAR',
-        method: correctionScope.method, openingBasis: 'INITIAL_CONSOLIDATION', exchangeRateSetVersionId: null,
-        translationPolicyVersionId: null, translationRateDate: null, translationRateType: '',
-        priorScopeVersionId: null, groupRevision: 7, status: 'APPROVED' }] });
+      existingScopes: [correctionSourceOption] });
     await harness.fixture.whenStable();
     component.scopePeriodId = otherGroupId;
     await component.createScope();
@@ -278,6 +293,8 @@ describe('consolidation correction handoff context', () => {
     const creating = component.createScope();
     const create = http.expectOne({ method: 'POST', url: groupsUrl + '/scopes' });
     expect(create.request.body.periodId).toBe(scopeOptions.periods[0].id);
+    expect(create.request.body.supersedesScopeVersionId).toBe(scopeId);
+    expect(create.request.body.supersedesComponentId).toBe(componentId);
     expect(create.request.body.expectedGroupRevision).toBe(7);
     create.flush({ value: '12121212-1212-4212-8212-121212121212' });
     await creating;
@@ -287,10 +304,11 @@ describe('consolidation correction handoff context', () => {
   it('rejects a stale, unknown, malformed or wrong-group correction source', () => {
     const authorized = [{ ...createdGroup, scopes: [correctionScope] },
       { id: otherGroupId, code: 'OTHER', name: 'Other Group', scopes: [] }];
-    expect(resolveCorrectionContext(authorized, scopeId, otherGroupId).state).toBe('wrong-group');
-    expect(resolveCorrectionContext(authorized, '11111111-1111-4111-8111-111111111111', groupId).state).toBe('unavailable');
-    expect(resolveCorrectionContext(authorized, 'unknown', groupId).state).toBe('invalid');
-    expect(resolveCorrectionContext(null, scopeId, groupId).state).toBe('pending');
-    expect(resolveCorrectionContext(authorized, null, null).state).toBe('none');
+    expect(resolveCorrectionContext(authorized, scopeId, otherGroupId, componentId).state).toBe('wrong-group');
+    expect(resolveCorrectionContext(authorized, '11111111-1111-4111-8111-111111111111', groupId, componentId).state).toBe('unavailable');
+    expect(resolveCorrectionContext(authorized, scopeId, groupId, 'unknown').state).toBe('invalid');
+    expect(resolveCorrectionContext(authorized, scopeId, groupId, null).state).toBe('invalid');
+    expect(resolveCorrectionContext(null, scopeId, groupId, componentId).state).toBe('pending');
+    expect(resolveCorrectionContext(authorized, null, null, null).state).toBe('none');
   });
 });

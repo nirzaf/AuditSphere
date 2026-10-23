@@ -11,6 +11,8 @@ using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -829,6 +831,159 @@ public sealed class ConsolidationQueryTests
       var retainedRun = await staleReadDb.ConsolidationRuns.AsNoTracking()
         .SingleAsync(x => x.FirmId == fixture.FirmId && x.Id == runId);
       Assert.Equal(AccountingWorkflowStates.Approved, retainedRun.Status);
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  [Trait("CompletionUnit", "WU-013")]
+  public async Task CorrectionLineageIsExactImmutableSamePeriodAndGroupAuthorized()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var manager = Actor(fixture.Manager, "Partner");
+    var reviewer = Actor(fixture.GroupReviewer, "AccountingReviewer");
+    var outsider = Actor(fixture.Outsider, "Partner");
+    const string lineageMigration = "20261023011734_ConsolidationScopeCorrectionLineage";
+    await using (var migrationDb = new AuditSphereDbContext(pg.Options))
+    {
+      var migrations = migrationDb.Database.GetMigrations().ToArray();
+      var lineageIndex = Array.IndexOf(migrations, lineageMigration);
+      Assert.True(lineageIndex > 0, "The correction lineage migration must be discoverable.");
+      var migrator = migrationDb.GetService<IMigrator>();
+      await migrator.MigrateAsync(migrations[lineageIndex - 1]);
+      Assert.DoesNotContain(lineageMigration, await migrationDb.Database.GetAppliedMigrationsAsync());
+      await migrator.MigrateAsync();
+      Assert.Contains(lineageMigration, await migrationDb.Database.GetAppliedMigrationsAsync());
+    }
+    Guid sourcePeriodId, sourceComponentId, siblingScopeId, siblingComponentId, correctionScopeId, otherGroupId;
+
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      sourcePeriodId = await setup.ConsolidationScopeVersions.AsNoTracking()
+        .Where(x => x.FirmId == fixture.FirmId && x.Id == fixture.ScopeId)
+        .Select(x => x.PeriodId).SingleAsync();
+      setup.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId,
+        UserId = fixture.GroupReviewer.Id, Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow,
+        GrantedByUserId = fixture.Manager.Id
+      });
+      setup.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = sourcePeriodId, FirmId = fixture.FirmId, ClientId = fixture.ClientA,
+        PeriodCode = "CORRECTION-2026", StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+        CreatedByUserId = fixture.Manager.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await setup.SaveChangesAsync();
+
+      (_, sourceComponentId) = await AddApprovedExternalComponentAsync(
+        setup, fixture, manager, reviewer, fixture.ScopeId, fixture.ClientA, fixture.EngagementA, "correction-source");
+
+      var sibling = await ConsolidationService.CreateScopeAsync(setup, manager,
+        new ConsolidationScopeRequest(fixture.GroupId, sourcePeriodId, "QAR",
+          ConsolidationCalculator.RestrictedMethod, "OPENING-CORRECTION-SIBLING"));
+      Assert.True(sibling.Succeeded, sibling.Message);
+      siblingScopeId = sibling.Value;
+      (_, siblingComponentId) = await AddApprovedExternalComponentAsync(
+        setup, fixture, manager, reviewer, siblingScopeId, fixture.ClientB, fixture.EngagementB, "correction-sibling");
+
+      otherGroupId = (await ConsolidationService.CreateGroupAsync(setup, manager,
+        new ClientGroupRequest("GROUP-CORRECTION-OTHER", "Correction lineage isolation"))).Value;
+      Assert.True((await ConsolidationService.AddMembershipAsync(setup, manager,
+        new GroupMembershipRequest(otherGroupId, fixture.ClientA, new DateOnly(2026, 1, 1), null,
+          "CONTROLLED", 100m, 100m, "correction-other-group-membership"))).Succeeded);
+
+      var wrongComponent = await ConsolidationService.CreateScopeAsync(setup, manager,
+        new ConsolidationScopeRequest(fixture.GroupId, sourcePeriodId, "QAR",
+          ConsolidationCalculator.RestrictedMethod, "CORRECTION-WRONG-COMPONENT",
+          SupersedesScopeVersionId: fixture.ScopeId, SupersedesComponentId: siblingComponentId));
+      Assert.False(wrongComponent.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, wrongComponent.ErrorCode);
+
+      var wrongPeriod = await ConsolidationService.CreateScopeAsync(setup, manager,
+        new ConsolidationScopeRequest(fixture.GroupId, Guid.CreateVersion7(), "QAR",
+          ConsolidationCalculator.RestrictedMethod, "CORRECTION-WRONG-PERIOD",
+          SupersedesScopeVersionId: fixture.ScopeId, SupersedesComponentId: sourceComponentId));
+      Assert.False(wrongPeriod.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, wrongPeriod.ErrorCode);
+
+      var wrongGroup = await ConsolidationService.CreateScopeAsync(setup, manager,
+        new ConsolidationScopeRequest(otherGroupId, sourcePeriodId, "QAR",
+          ConsolidationCalculator.RestrictedMethod, "CORRECTION-WRONG-GROUP",
+          SupersedesScopeVersionId: fixture.ScopeId, SupersedesComponentId: sourceComponentId));
+      Assert.False(wrongGroup.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, wrongGroup.ErrorCode);
+
+      var incompletePair = await ConsolidationService.CreateScopeAsync(setup, manager,
+        new ConsolidationScopeRequest(fixture.GroupId, sourcePeriodId, "QAR",
+          ConsolidationCalculator.RestrictedMethod, "CORRECTION-INCOMPLETE-PAIR",
+          SupersedesScopeVersionId: fixture.ScopeId));
+      Assert.False(incompletePair.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, incompletePair.ErrorCode);
+
+      var correction = await ConsolidationService.CreateScopeAsync(setup, manager,
+        new ConsolidationScopeRequest(fixture.GroupId, sourcePeriodId, "QAR",
+          ConsolidationCalculator.RestrictedMethod, "CORRECTION-EXACT-SOURCE",
+          SupersedesScopeVersionId: fixture.ScopeId, SupersedesComponentId: sourceComponentId));
+      Assert.True(correction.Succeeded, correction.Message);
+      correctionScopeId = correction.Value;
+
+      var authorized = await ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(setup, manager, correctionScopeId);
+      Assert.True(authorized.Succeeded, authorized.Message);
+      Assert.Equal(fixture.ScopeId, authorized.Value!.Scope.SupersedesScopeVersionId);
+      Assert.Equal(sourceComponentId, authorized.Value.Scope.SupersedesComponentId);
+
+      var denied = await ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(setup, outsider, correctionScopeId);
+      Assert.False(denied.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+      Assert.Null(denied.Value);
+    }
+
+    await using (var mutation = new AuditSphereDbContext(pg.Options))
+    {
+      var pointerRewrite = await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+        mutation.ConsolidationScopeVersions.Where(x => x.FirmId == fixture.FirmId && x.Id == correctionScopeId)
+          .ExecuteUpdateAsync(update => update
+            .SetProperty(x => x.SupersedesScopeVersionId, (Guid?)siblingScopeId)
+            .SetProperty(x => x.SupersedesComponentId, (Guid?)siblingComponentId)));
+      Assert.Equal("23514", pointerRewrite.SqlState);
+    }
+
+    await using (var mutation = new AuditSphereDbContext(pg.Options))
+    {
+      var targetPeriodRewrite = await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+        mutation.ConsolidationScopeVersions.Where(x => x.FirmId == fixture.FirmId && x.Id == correctionScopeId)
+          .ExecuteUpdateAsync(update => update.SetProperty(x => x.PeriodId, Guid.CreateVersion7())));
+      Assert.Equal("23514", targetPeriodRewrite.SqlState);
+    }
+
+    await using (var mutation = new AuditSphereDbContext(pg.Options))
+    {
+      var sourcePeriodRewrite = await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+        mutation.ConsolidationScopeVersions.Where(x => x.FirmId == fixture.FirmId && x.Id == fixture.ScopeId)
+          .ExecuteUpdateAsync(update => update.SetProperty(x => x.PeriodId, Guid.CreateVersion7())));
+      Assert.Equal("23514", sourcePeriodRewrite.SqlState);
+    }
+
+    await using (var downgrade = new AuditSphereDbContext(pg.Options))
+    {
+      var migrations = downgrade.Database.GetMigrations().ToArray();
+      var lineageIndex = Array.IndexOf(migrations, lineageMigration);
+      var failure = await Record.ExceptionAsync(() =>
+        downgrade.GetService<IMigrator>().MigrateAsync(migrations[lineageIndex - 1]));
+      Assert.NotNull(failure);
+      while (failure is not Npgsql.PostgresException && failure.InnerException is not null)
+        failure = failure.InnerException;
+      var refusal = Assert.IsType<Npgsql.PostgresException>(failure);
+      Assert.Equal("55000", refusal.SqlState);
+      Assert.Contains("discard recorded provenance", refusal.MessageText, StringComparison.OrdinalIgnoreCase);
+      Assert.Contains(lineageMigration, await downgrade.Database.GetAppliedMigrationsAsync());
+      var retainedScope = await downgrade.ConsolidationScopeVersions.AsNoTracking()
+        .SingleAsync(x => x.FirmId == fixture.FirmId && x.Id == correctionScopeId);
+      Assert.Equal(fixture.ScopeId, retainedScope.SupersedesScopeVersionId);
+      Assert.Equal(sourceComponentId, retainedScope.SupersedesComponentId);
     }
   }
 

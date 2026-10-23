@@ -25,8 +25,13 @@ public sealed partial class AuditSphereDbContext
     scope.Property(x => x.OpeningBasis).HasMaxLength(100);
     scope.Property(x => x.TranslationRateType).HasMaxLength(30);
     scope.HasIndex(x => new { x.FirmId, x.GroupId, x.PeriodId, x.Version }).IsUnique().HasDatabaseName("ux_consolidation_scope_version");
-    scope.ToTable("consolidation_scope_versions", t => t.HasCheckConstraint("ck_consolidation_scope_values",
-      "reporting_currency ~ '^[A-Z]{3}$' AND length(trim(method)) > 0 AND length(trim(opening_basis)) > 0"));
+    scope.ToTable("consolidation_scope_versions", t =>
+    {
+      t.HasCheckConstraint("ck_consolidation_scope_values",
+        "reporting_currency ~ '^[A-Z]{3}$' AND length(trim(method)) > 0 AND length(trim(opening_basis)) > 0");
+      t.HasCheckConstraint("ck_consolidation_scope_supersedes_pair",
+        "(supersedes_scope_version_id IS NULL) = (supersedes_component_id IS NULL)");
+    });
     scope.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     scope.HasOne<ExchangeRateSetVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.ExchangeRateSetVersionId })
@@ -35,6 +40,8 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var component = b.Entity<ConsolidationComponent>();
+    component.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id })
+      .HasName("ak_consolidation_components_scope_id");
     component.Property(x => x.PackageHash).HasMaxLength(64);
     component.Property(x => x.SourceType).HasMaxLength(30);
     component.Property(x => x.PeriodBasis).HasMaxLength(100);
@@ -50,6 +57,9 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     component.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })
       .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    scope.HasOne<ConsolidationComponent>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.GroupId, x.SupersedesScopeVersionId, x.SupersedesComponentId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     component.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     component.HasOne<FinancialPackage>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PackageId })

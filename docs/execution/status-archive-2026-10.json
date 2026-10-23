@@ -23543,6 +23543,30 @@
       "operatorGuide": "docs/operations/auditsphere-entra-registration-automation.md",
       "next": "WU-021 approved client sites and managed staff Full Control reconciliation.",
       "review": "Exact owned app/role/certificate and site metadata; atomic pending/confirmed intents; actual separate-runtime positive namespace reads and known-control HTTP403 required by production probe. Synthetic transports only in this verification; no live isolation claim."
+    },
+    "targetedVerification.practiceCompletionGuards20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.practiceCompletionGuardsBeforeUploadIntentFreshness20261019",
+      "summary": "Archive focus, exact-task assignment recovery, cost ambiguity and delegation serialization have focused evidence. Detailed source SHAs, counterfactuals, native checks and limits retained intact. No full/professional/live acceptance.",
+      "sourceCommits": {
+        "clientArchiveFocus": "8ff14f6b01e26fbf3ac4bcb96b7f19ed5ac03c49",
+        "assignmentRecovery": "b785ab656aeafc9282ab640fa542f90c7561774e",
+        "staffCostRateAmbiguity": "b445bc5fa23d1b78b12fce3768505d1950c3d2fc",
+        "portalDelegationRevocation": "b1e1b37ce82b764a246ee7caca8e492a3bdd8c39"
+      },
+      "portalCapabilityFollowUpCommit": "54e5b1d641c0c9f667d6411ca774e2126804bb9d"
+    },
+    "targetedVerification.cashFlowSourceReviewRevocationRace": {
+      "recordedAtUtc": "2026-10-17T05:09:20Z",
+      "sourceCommit": "1ee3c0e7ed743a3b2a838cad102c76428e07c267",
+      "run": "https://github.com/nirzaf/AuditSphere/actions/runs/39003733534",
+      "workflow": "AuditSphere release verification",
+      "cohort": "Test \u00b7 .NET Domain (unfiltered)",
+      "result": "PASS",
+      "test": "CashFlowContractTests.SourceReview_RevokedActorDuringLockWait_RecordsNothing",
+      "evidence": "The test observes the source-review command waiting on the package lock, revokes the reviewer role while the user retains a non-review grant, releases the lock, and verifies ScopeDenied with no source-review row persisted.",
+      "disposition": "CLOSES the prior F-02 post-lock revocation timing-test blocker for this current candidate. F-02 source-kind/provenance and broader story acceptance remain open.",
+      "unrelatedJobs": "API and Playwright E2E jobs in the same release run were still in progress when recorded."
     }
   },
   "archivedTargetedVerification": {

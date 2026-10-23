@@ -23,6 +23,10 @@
           <dt>Method</dt><dd><code>{{ w.scope.method }}</code></dd>
           <dt>Reporting currency</dt><dd><code>{{ w.scope.reportingCurrency }}</code></dd>
           <dt>Opening basis</dt><dd>{{ w.scope.openingBasis }}</dd>
+          @if (w.scope.supersedesScopeVersionId && w.scope.supersedesComponentId) {
+            <dt>Correction source scope</dt><dd><code>{{ w.scope.supersedesScopeVersionId }}</code></dd>
+            <dt>Correction source component</dt><dd><code>{{ w.scope.supersedesComponentId }}</code></dd>
+          }
           <dt>Group perimeter revision</dt><dd>{{ w.scope.groupRevision }}</dd>
           <dt>Perimeter status</dt><dd><audit-status [value]="w.scope.status" /></dd>
         </dl>

@@ -23,6 +23,7 @@ function workspace(overrides: Record<string, unknown> = {}) {
       id: scopeId, groupId, groupName: 'Holding Company', groupCode: 'HOLDCO', version: 4,
       groupRevision: 9, periodId: '99999999-9999-4999-8999-999999999999', reportingCurrency: 'QAR',
       method: 'FULLY_OWNED_SAME_CURRENCY', status: 'APPROVED', openingBasis: 'APPROVED_PRIOR_SCOPE', isAdvanced: false,
+      supersedesScopeVersionId: null, supersedesComponentId: null,
     },
     canPrepare: false, canReview: false, currentUserId: actorId,
     canApproveScope: false, scopeApprovalBlocker: null,
@@ -96,6 +97,7 @@ describe('consolidation component correction handoff', () => {
     const target = new URL(link!.href);
     expect(target.searchParams.get('correctionScopeId')).toBe(scopeId);
     expect(target.searchParams.get('correctionGroupId')).toBe(groupId);
+    expect(target.searchParams.get('correctionComponentId')).toBe(componentId);
     http.expectNone(request => request.method !== 'GET');
   });
 

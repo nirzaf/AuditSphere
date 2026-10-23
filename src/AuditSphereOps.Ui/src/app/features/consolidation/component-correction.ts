@@ -54,7 +54,7 @@ type CorrectionSource =
               <dt>Submitted by / at</dt><dd><code>{{ current.component.submittedByUserId }} · {{ current.component.submittedAt }}</code></dd>
               <dt>Approved by / at</dt><dd><code>{{ current.component.approvedByUserId ?? 'Not approved' }} · {{ current.component.approvedAt ?? 'Not approved' }}</code></dd>
             </dl>
-            <p><a [routerLink]="['/app/consolidation']" [queryParams]="{ correctionScopeId: current.scope.id, correctionGroupId: current.scope.groupId }">Open the authorized new-scope correction handoff</a></p>
+            <p><a [routerLink]="['/app/consolidation']" [queryParams]="{ correctionScopeId: current.scope.id, correctionGroupId: current.scope.groupId, correctionComponentId: current.component.id }">Open the authorized new-scope correction handoff</a></p>
           }
         }
       }

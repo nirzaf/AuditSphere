@@ -31,7 +31,7 @@ const reportState = oneOf('ADVANCED_PROFILE', 'NO_RUN', 'REVIEW_REQUIRED', 'STAL
 const componentReadinessState = oneOf('NONE', 'DRAFT', 'SUBMITTED', 'APPROVED');
 const intercompanyStatus = oneOf('DRAFT', 'SUBMITTED', 'APPROVED');
 
-export const decodeScopeSummary = obj({
+const decodeScopeSummaryShape = obj({
   id: guid,
   groupId: guid,
   groupName: text,
@@ -44,7 +44,16 @@ export const decodeScopeSummary = obj({
   status: scopeStatus,
   openingBasis: text,
   isAdvanced: bool,
+  supersedesScopeVersionId: nullable(guid),
+  supersedesComponentId: nullable(guid),
 });
+
+export const decodeScopeSummary: Decoder<ReturnType<typeof decodeScopeSummaryShape>> = (value, path) => {
+  const scope = decodeScopeSummaryShape(value, path);
+  if ((scope.supersedesScopeVersionId === null) !== (scope.supersedesComponentId === null))
+    throw new Error(`${path || 'response'}: incomplete correction source identity`);
+  return scope;
+};
 
 const decodeConsolidationComponentShape = obj({
   id: guid,

@@ -21,7 +21,9 @@ public sealed record ConsolidationScopeSummaryDto(
   string Method,
   string Status,
   string OpeningBasis,
-  bool IsAdvanced);
+  bool IsAdvanced,
+  Guid? SupersedesScopeVersionId,
+  Guid? SupersedesComponentId);
 
 public sealed record ConsolidationComponentDto(
   Guid Id,
@@ -482,7 +484,9 @@ public static class ConsolidationScopeWorkspaceQuery
       scope.Method,
       scope.Status,
       scope.OpeningBasis,
-      isAdvanced);
+      isAdvanced,
+      scope.SupersedesScopeVersionId,
+      scope.SupersedesComponentId);
 
     var canApproveScope = canReview && scopeApprovalReadiness?.Succeeded == true;
     var scopeApprovalBlocker = canApproveScope ? null
@@ -558,7 +562,9 @@ public static class ConsolidationScopeWorkspaceQuery
   private static bool SameScopeContext(ConsolidationScopeVersion left, ConsolidationScopeVersion right) =>
     left.Id == right.Id && left.FirmId == right.FirmId && left.GroupId == right.GroupId &&
     left.GroupRevision == right.GroupRevision && left.PeriodId == right.PeriodId &&
-    left.PriorScopeVersionId == right.PriorScopeVersionId && left.OpeningRunHash == right.OpeningRunHash &&
+    left.PriorScopeVersionId == right.PriorScopeVersionId &&
+    left.SupersedesScopeVersionId == right.SupersedesScopeVersionId &&
+    left.SupersedesComponentId == right.SupersedesComponentId && left.OpeningRunHash == right.OpeningRunHash &&
     left.OpeningTranslationManifestHash == right.OpeningTranslationManifestHash &&
     left.OpeningTranslationReserve == right.OpeningTranslationReserve &&
     left.RecurringEliminationManifest == right.RecurringEliminationManifest && left.Version == right.Version &&
