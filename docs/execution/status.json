@@ -361,25 +361,8 @@
       "archivedAt": "status-archive-2026-10.json#keys.targetedVerification.angularArchiveReleaseReadFollowUp"
     },
     "angularParityHostedFollowUp": {
-      "source": "14ae10253962103a4fcdad487b6dfcebf25451a4",
-      "run": 38929554748,
-      "build": "PASS in full run",
-      "docs": "PASS",
-      "angular": {
-        "passed": 1228,
-        "failed": 3,
-        "failure": "Library reconciliation DOM assertion before final render"
-      },
-      "fullRun": 38929567737,
-      "fullResult": "FAIL",
-      "browser": "NOT_EXECUTED",
-      "modelCheck": "PASS",
-      "retirementGate": "NOT_READY",
-      "prior": "status-archive-2026-10.json#keys.targetedVerification.angularParityHostedFollowUp0f34Progress",
-      "fixSource": "637ce970d9b0d1f5b8056de066a0df48afe1cd43",
-      "fixRun": 38932257972,
-      "fixAngular": "PASS",
-      "fixRemaining": "NET/browser pending"
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.angularParityHostedFollowUp",
+      "scope": "Historical focused evidence; whole portal/migration acceptance remains incomplete."
     },
     "operatorReceiptRecovery": "PARTIAL; D18 API7 E2E8 Angular1283 pass; 7 migrations pending; live VPS not checked; e4686058 build PASS; Domain 29/29; run 38946802126 running",
     "cashFlowSourceReviewRevocationRace": {
@@ -903,17 +886,8 @@
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalFinanceScopeBeforeBound20261021"
     },
     "portalActivity20261021": {
-      "status": "PASS_FOCUSED_NOT_FULL_RELEASE",
-      "source": "2d5895391e8c4d2131a60d48f73457bb4cc7412e",
-      "verification": "Three unique focused Domain cases pass across aggregate/scope and receipt-account cohorts; Angular10/10; real browser1/1 and built-in inspection; builds/lint/OpenAPI PASS. No full current-source release.",
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalActivity20261021",
-      "limits": "Cutoff is live continuation, not durable historical snapshot. Fixed25events/page and bounded authority discovery fail closed. Human AT, complete role/state/source coverage, full current-source release and live/professional acceptance remain open. No migrations/deployment/provider effects.",
-      "fastCi": {
-        "status": "FAST_CI_PASS",
-        "run": "39551498061",
-        "sourceCommit": "0b69235dd7d77ed28dbdfc1c8350572909295737",
-        "limits": "Fast gate only; not full .NET release verification."
-      }
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.portalActivity20261021",
+      "scope": "Historical focused evidence; whole portal/migration acceptance remains incomplete."
     },
     "consolidationWorkspaceSnapshot20261021": {
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.consolidationWorkspaceSnapshot20261021"
@@ -1060,7 +1034,7 @@
           "checks": "1fresh-build E2E PASS with source-bound CI UI; actual create response captured before navigation. Payload/readback/UI/DB assertions retained. Historical399178 failure preserved. Broader browser/current-source full CI pending."
         }
       },
-      "ciObserved": "Full889 PASS39903345685 (exactsource/aggregate/TRX). Fast593b728d PASS39940525745 after staffing migration; focused staffing10/EFnodrift and archive1/realCLI PASS. Latest combined source and latest fullCI pending.",
+      "ciObserved": "Full39944364261/d4 source MATCH: Domain1585PASS/4FAIL, history2+reason2 focused repairsPASS. Build/contracts/publication andAngularPASS; API/E2E pending. Older889fullPASS separate; latest-source fullCI required.",
       "scopeUnknownOutcome": {
         "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.scopeUnknownOutcome",
         "status": "PARTIAL",
@@ -1177,6 +1151,15 @@
         "evidence": ".local/autonomous/evidence/wu015-proposal-lifecycle",
         "checks": "1fresh E2E PASS: actual lifecycle200 stages2/3, queued proposal and DBstatus/time/offerhash. Deferredplaceholder scroll+realHTTPcapture; alloldassertions retained. tee log wrapper failed; completedTRX passed.",
         "remaining": "ExactcandidatefullCI; historical defer/chunk trigger unproved. No actual mail delivery or client acceptance claim."
+      },
+      "domainCiFixtureRepair": {
+        "status": "PASS_LOCAL_SLICE",
+        "failedSource": "d4bf3e254255dd09a4190c77c7574b6817d1db24",
+        "failureEvidence": ".local/autonomous/evidence/release-39944364261-artifacts/domain-repair/failures.json",
+        "historyEvidence": ".local/autonomous/evidence/ci-domain-history-repair-d4",
+        "reasonEvidence": ".local/autonomous/evidence/wu015-profile-reason.Cewcn6",
+        "checks": "2history+2reason focusedPASS. Legacyprofile seeded without futurehistorycommand; fullSundayupgrade keepsrealparents/FKs. Explicitrevisionreasons preservecutover/stale assertions andretainedreason. No product/migration guard weakened.",
+        "remaining": "Current-source fullCI; profileReason API/UI adapter underimplementation."
       }
     },
     "developmentFeedback20261023": {

@@ -131,22 +131,16 @@ public sealed class SteV22OwnerDecisionTests
   public async Task SundayWeekMigration_MovesStoredMondayAllocationsIntoTheWeekThatContainsThem()
   {
     await using var pg = await PgTestSchema.CreateAsync(MigrationBeforeSundayWeek);
+    var scope = await PbcSeed.SeedAsync(pg);
     await using var db = new AuditSphereDbContext(pg.Options);
-    // The migration changes only week_start and its check. Parent rows are irrelevant to it, so the foreign keys are dropped in
-    // this schema rather than seeding firms, engagements and users through a model newer than the staged schema.
-    await db.Database.ExecuteSqlRawAsync("""
-      DO $$ DECLARE c record; BEGIN
-        FOR c IN SELECT conname FROM pg_constraint WHERE conrelid = 'staff_allocations'::regclass AND contype = 'f' LOOP
-          EXECUTE format('ALTER TABLE staff_allocations DROP CONSTRAINT %I', c.conname);
-        END LOOP;
-      END $$;
-      """);
-    var firmId = Guid.NewGuid(); var engagementId = Guid.NewGuid(); var userId = Guid.NewGuid();
+    // Keep real owner-scoped parents and foreign keys intact, so upgrading through every
+    // later migration also validates the transformed legacy allocations.
+    var firmId = scope.FirmId; var engagementId = scope.EngagementId; var userId = scope.Staff.Id;
     var first = Guid.NewGuid(); var second = Guid.NewGuid();
     foreach (var (id, monday, minutes) in new[] { (first, new DateOnly(2026, 10, 5), 1200), (second, new DateOnly(2026, 10, 12), 600) })
       await db.Database.ExecuteSqlInterpolatedAsync($"""
         INSERT INTO staff_allocations (id, firm_id, client_id, engagement_id, user_id, week_start, planned_minutes, updated_at, updated_by_user_id)
-        VALUES ({id}, {firmId}, {Guid.NewGuid()}, {engagementId}, {userId}, {monday}, {minutes}, statement_timestamp(), {userId})
+        VALUES ({id}, {firmId}, {scope.ClientId}, {engagementId}, {userId}, {monday}, {minutes}, statement_timestamp(), {userId})
         """);
 
     await db.Database.MigrateAsync();
@@ -159,7 +153,7 @@ public sealed class SteV22OwnerDecisionTests
     // After the change the database refuses a week that does not start on Sunday.
     var refused = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
       INSERT INTO staff_allocations (id, firm_id, client_id, engagement_id, user_id, week_start, planned_minutes, updated_at, updated_by_user_id)
-      VALUES ({Guid.NewGuid()}, {firmId}, {Guid.NewGuid()}, {engagementId}, {userId}, {new DateOnly(2026, 10, 19)}, 60, statement_timestamp(), {userId})
+      VALUES ({Guid.NewGuid()}, {firmId}, {scope.ClientId}, {engagementId}, {userId}, {new DateOnly(2026, 10, 19)}, 60, statement_timestamp(), {userId})
       """));
     Assert.Equal("ck_staff_allocation_values", refused.ConstraintName);
   }

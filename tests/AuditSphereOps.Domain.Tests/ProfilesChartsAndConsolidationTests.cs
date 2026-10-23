@@ -24,6 +24,7 @@ public sealed class ProfilesChartsAndConsolidationTests
   [Trait("Profile", "Database")]
   public async Task ReviseProfile_SucceedsAndGuardsRevisionConcurrency()
   {
+    const string revisionReason = "Synthetic fiscal-calendar profile revision";
     await using var pg = await PgTestSchema.CreateAsync();
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
@@ -41,17 +42,22 @@ public sealed class ProfilesChartsAndConsolidationTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var reviseResult = await ClientAccountingService.ReviseProfileAsync(db, preparer, profileId,
-        new ClientAccountingProfileRequest(scope.ClientId, "QA", "QAR", 4, 1, "SAP-REVISED", "SYSTEM-02"),
+        new ClientAccountingProfileRequest(scope.ClientId, "QA", "QAR", 4, 1, "SAP-REVISED", "SYSTEM-02",
+          Reason: revisionReason),
         expectedRevision: 1);
       Assert.True(reviseResult.Succeeded);
       Assert.Equal(2, reviseResult.Value);
+      var revision = await db.ClientAccountingProfileRevisionRecords
+        .SingleAsync(x => x.ProfileId == profileId && x.Revision == reviseResult.Value);
+      Assert.Equal(revisionReason, revision.Reason);
     }
 
     // Stale revision attempt should fail closed
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var staleResult = await ClientAccountingService.ReviseProfileAsync(db, preparer, profileId,
-        new ClientAccountingProfileRequest(scope.ClientId, "QA", "QAR", 4, 1, "SAP-REVISED", "SYSTEM-02"),
+        new ClientAccountingProfileRequest(scope.ClientId, "QA", "QAR", 4, 1, "SAP-REVISED", "SYSTEM-02",
+          Reason: revisionReason),
         expectedRevision: 1);
       Assert.False(staleResult.Succeeded);
       Assert.Equal(ErrorCodes.StaleRevision, staleResult.ErrorCode);

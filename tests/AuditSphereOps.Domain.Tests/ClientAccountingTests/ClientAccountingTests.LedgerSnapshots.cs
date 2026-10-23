@@ -18,6 +18,7 @@ public sealed partial class ClientAccountingTests
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var legacyProfileId = Guid.CreateVersion7();
     Guid periodId;
     Guid chartId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -30,10 +31,17 @@ public sealed partial class ClientAccountingTests
         EvaluationSnapshotDigest = new string('a', 64), DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
       });
       await db.SaveChangesAsync();
-      var profile = await ClientAccountingService.CreateProfileAsync(db, reviewer,
-        new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 1, 1, "AUDITSPHERE", "MIGRATION-FIXTURE",
-          ClientAccountingSourceModes.NativeBookkeeping));
-      Assert.True(profile.Succeeded, profile.Message);
+      // This is a pre-history schema: current profile commands also write the later immutable
+      // revision table. Seed the actual legacy head without inventing historical snapshots.
+      db.ClientAccountingProfiles.Add(new ClientAccountingProfile
+      {
+        Id = legacyProfileId, FirmId = scope.FirmId, ClientId = scope.ClientA,
+        Jurisdiction = "QA", FunctionalCurrency = "QAR", FiscalYearStartMonth = 1,
+        FiscalYearStartDay = 1, SourceSystem = "AUDITSPHERE", SourceSystemIdentifier = "MIGRATION-FIXTURE",
+        SourceMode = ClientAccountingSourceModes.NativeBookkeeping,
+        CreatedByUserId = reviewer.UserId, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
       var period = await ClientAccountingService.CreatePeriodAsync(db, preparer,
         new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "IFRS", "QAR"));
       Assert.True(period.Succeeded, period.Message);
@@ -107,6 +115,7 @@ public sealed partial class ClientAccountingTests
       var journal = await db.ClientOperationalJournals.AsNoTracking().SingleAsync(x => x.Id == journalId);
       Assert.Equal("POSTED", journal.Status);
       Assert.True(journal.PostingSequence > 0);
+      Assert.False(await db.ClientAccountingProfileRevisionRecords.AnyAsync(x => x.ProfileId == legacyProfileId));
       var ledger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId, pageSize: 1);
       Assert.True(ledger.Succeeded, ledger.Message);
       Assert.Equal(journal.PostingSequence!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture), ledger.Value!.PostingSnapshotThrough);

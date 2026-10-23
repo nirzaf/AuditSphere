@@ -331,7 +331,8 @@ public sealed partial class ClientAccountingTests
 
     var preCutoverRevision = await ClientAccountingService.ReviseProfileAsync(db, reviewer, profile.Value,
       new ClientAccountingProfileRequest(scope.ClientA, "QA", "USD", 4, 1, "AUDITSPHERE", "NATIVE-1",
-        ClientAccountingSourceModes.NativeBookkeeping), expectedRevision: 1);
+        ClientAccountingSourceModes.NativeBookkeeping,
+        Reason: "Synthetic pre-period currency and fiscal-calendar correction"), expectedRevision: 1);
     Assert.True(preCutoverRevision.Succeeded, preCutoverRevision.Message);
     Assert.Equal(2, preCutoverRevision.Value);
     var period = await ClientAccountingService.CreatePeriodAsync(db, reviewer,
@@ -340,10 +341,12 @@ public sealed partial class ClientAccountingTests
 
     var currency = await ClientAccountingService.ReviseProfileAsync(db, reviewer, profile.Value,
       new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 4, 1, "AUDITSPHERE", "NATIVE-1",
-        ClientAccountingSourceModes.NativeBookkeeping), expectedRevision: 2);
+        ClientAccountingSourceModes.NativeBookkeeping,
+        Reason: "Synthetic post-period currency change without reviewed cutover"), expectedRevision: 2);
     var fiscal = await ClientAccountingService.ReviseProfileAsync(db, reviewer, profile.Value,
       new ClientAccountingProfileRequest(scope.ClientA, "QA", "USD", 1, 1, "AUDITSPHERE", "NATIVE-1",
-        ClientAccountingSourceModes.NativeBookkeeping), expectedRevision: 2);
+        ClientAccountingSourceModes.NativeBookkeeping,
+        Reason: "Synthetic post-period fiscal-calendar change without reviewed cutover"), expectedRevision: 2);
     Assert.False(currency.Succeeded);
     Assert.Equal(ErrorCodes.GateBlocked, currency.ErrorCode);
     Assert.False(fiscal.Succeeded);
