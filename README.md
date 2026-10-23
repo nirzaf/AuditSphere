@@ -128,7 +128,7 @@ These are recorded, scoped checks—not current-source full CI or whole-product 
 | ☑ Completed | Journal/evidence/sampling previews; consolidation journal controls and retained-match scrolling | Unknown/stale outcomes and human review; recording stays off before assent. |
 | ☑ Completed | Pinned task context, Required/Optional labels and atomic graph bounds | Manual tasks stay unlabeled; labels grant no completion approval. |
 | ☑ Completed | Proposal dispatch to canonical lifecycle handoff — synthetic browser/API/DB | Client acceptance, provider delivery and full commercial acceptance remain. |
-| ☑ Completed | Net-allocated advance gate, expense paging/recovery and monthly P&L boundaries | Full commercial, receipt, reporting and export acceptance. |
+| ☑ Completed | Net-allocated advance gate, scoped fee-settlement browser/API/DB journey, expense paging/recovery and monthly P&L boundaries | Full commercial, receipt, reporting and export acceptance. |
 | ☑ Completed | Same-firm staffing/resource/cost-rate and expense-account parents; capacity, phase/risk allocation and certification evidence | Wider key inventory, roles and date/concurrency acceptance; expiry is not verification. |
 | ☑ Completed | Assigned-task time, scoped paging, Audit Plan milestones and budget-review keyboard flow | Broader browser/legal acceptance. |
 | ☑ Completed | Purchase/credit preview recovery, accounting-mode lock and exact-period navigation | Native/currentness acceptance; rejection remains distinct from unknown outcome. |
@@ -157,4 +157,4 @@ Start with the [docs index](docs/auditsphere-docs-index.md) and [AGENTS.md](AGEN
 | [Task board](docs/execution/auditsphere-execution-index-task-board-current.md) · [current slice](docs/execution/auditsphere-execution-current-slice.md) · [ledger](docs/execution/status.json) | Dependencies, active runbook and observed verification. |
 | [M365 permissions](docs/architecture/auditsphere-m365-tenant-administration-permissions.md) · [CLI automation](docs/operations/auditsphere-entra-registration-automation.md) | Identity/consent/resource boundaries, configuration and recovery. |
 
-Implement one coherent vertical slice; preserve authorization, ledger and append-only controls. Use focused local checks and zero-warning Release compilation where applicable; full regressions belong in CI. No second ERP, brokers, microservices, MediatR or autonomous audit opinions.
+Implement in the main worktree on `master`; do not create subworktrees. Complete one coherent vertical slice and preserve authorization, ledger and append-only controls. Use focused local checks and zero-warning Release compilation where applicable; full regressions belong in CI. No second ERP, brokers, microservices, MediatR or autonomous audit opinions.

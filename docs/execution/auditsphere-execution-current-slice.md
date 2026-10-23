@@ -14,9 +14,13 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## CI continuation and main-only workflow (2026-10-23)
+
+The nullable capability fixture repair passed the fast CI gate; it is separate from full release acceptance. The fee-settlement browser journey now checks the current forbidden scope-denial contract, retains zero-write checks and rejects private sibling metadata. Its focused owned journey passed. All agents work in the main checkout on `master`; fetch remote changes periodically, inspect overlapping paths and preserve concurrent edits. Full candidate verification and wider integrity/recovery work remain open; exact sources, runs and results are in `status.json`.
+
 ## Subworktree integration (2026-10-23)
 
-Unique GL and expense-account scope corrections were reconciled into the main checkout with signed-mail enrollment. The expense migration was regenerated after the mail migration; neither prior snapshot overwrote the other. Scoped foreign-parent refusal, ledger behavior, GL races and the authenticated mail workflow passed the combined focused checks. Older resolver work was already integrated; newer request-correlated diagnostics were retained. Original scratch sources/evidence are preserved locally for cleanup. Exact verification and deferred CI/live gates remain in `status.json`; no whole-project completion or deployment is claimed.
+The prior source-bounded verification and remaining gates are retained in the [slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#subworktree-integration-2026-10-23) and `status.json`.
 
 ## Signed Legacy mail evidence enrollment (2026-10-23)
 
@@ -44,7 +48,7 @@ The verified dependency repair and scan review are retained in the [slice archiv
 
 ## Mail scope evidence projection (2026-10-23)
 
-Role-only rows cannot verify mail or reuse a verification timestamp. The Graph worker now requires signed source/model/tenant/sender/control evidence, current connection/consent, and model-specific token claims before dispatch; authority is rechecked after evidence I/O. Focused tests and compilation passed; Compose uses immutable sender IDs. The newer enrollment section supersedes the earlier receipt/API metadata gap; broader readiness, migration/rollout and live acceptance remain open. Evidence is in `status.json`.
+The prior source-bounded verification and remaining gates are retained in the [slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#mail-scope-evidence-projection-2026-10-23) and `status.json`.
 
 ## Deployment binding inventory (2026-10-23)
 

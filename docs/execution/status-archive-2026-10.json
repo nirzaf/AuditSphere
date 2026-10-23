@@ -23845,6 +23845,30 @@
       "reasonEvidence": ".local/autonomous/evidence/wu015-profile-reason.Cewcn6",
       "checks": "2history+2reason focusedPASS. Legacyprofile seeded without futurehistorycommand; fullSundayupgrade keepsrealparents/FKs. Explicitrevisionreasons preservecutover/stale assertions andretainedreason. No product/migration guard weakened.",
       "remaining": "Combined exact-source fullCI; profileReason API/UI adapter has focused evidence separately."
+    },
+    "targetedVerification.autonomousCompletion20261022.worktreeIntegrationBeforeCiContinuation20261023": {
+      "status": "PARTIAL_FOCUSED_PASS",
+      "base": "f48a27a4 tracked main + final expense mapping/test/migration overlay; runtime hashes retained",
+      "evidence": ".local/autonomous/evidence/worktree-integration-20261023",
+      "checks": "Combined PostgreSQL Domain7 PASS; authenticated API1 PASS; fresh targeted Release compilation; regenerated OpenAPI equals committed bytes; EF no drift; docs/diff PASS. MAIL Angular4 and offline PS59 assertions independently source-hash matched. No full local suites.",
+      "integration": "GL authority/lock-order and MAIL receipt changes committed; expense FK migration regenerated after MAIL, preserving both target models. Older resolver/clean WU038 have no unique commits; retain newer request-correlated review-point diagnostics. All original patches/untracked source and non-build ignored files retained before cleanup.",
+      "expense": "Both expense/payment accounts now reference the same firm. Same-firm control succeeds; foreign parents refuse23503. Existing scalar indexes retained; normal EF composite indexes retained after scoped referential-query EXPLAIN/size/WAL tradeoff measurement; no production throughput claim. Invalid existing rows fail FK upgrade validation, not silently rewritten.",
+      "remaining": "Exact final-source full CI, live/migration/deployment, broader key inventory and professional acceptance remain open. Cleanup/sync/CI receipts in ignored integration evidence/checkpoint."
+    },
+    "targetedVerification.autonomousCompletion20261022.mailEvidenceEnrollmentBeforeCiContinuation20261023": {
+      "status": "PARTIAL_FOCUSED_PASS",
+      "base": "7d964251+MAIL overlay; final hashes in source.json",
+      "evidence": ".local/autonomous/evidence/mail-enrollment-7d",
+      "checks": "Initial Domain3 PASS; final retained-byte/expiry/consent/downgrade fact1 PASS; authenticated API1 PASS; Angular4 PASS; offline PS59 assertions PASS; targeted Release compilation, OpenAPI generation and EF no-drift PASS. Independent read-only security review found no actionable issue.",
+      "behavior": "Admin/CSRF-bound exact public CMS bytes, append-only replay-safe receipt, current binding/expiry status, explicit ENROLLED worker source; FILE remains default. Malformed acknowledgement stays unknown.",
+      "remaining": "No interactive browser/current-combined full CI/live provider acceptance. Operator issuer tooling, RBAC enrollment, reviewed rollout/rollback, custody and deployment remain separate."
+    },
+    "targetedVerification.autonomousCompletion20261022.glImportAuthorityBeforeCiContinuation20261023": {
+      "status": "PARTIAL_FOCUSED_PASS",
+      "base": "b50b90e8+two-file overlay; integrated after a2e26a43",
+      "evidence": ".local/autonomous/evidence/gl-authority-lockorder-b50b90e-20261023/manifest.json",
+      "checks": "4/4 PostgreSQL PASS, fresh Release compile. Actual revoke blocked by importer; cross-client replay denied; source acceptance and chunk replay complete under firm/client/actor-before-batch lock order. Prior failing authority and fixture attempts retained.",
+      "remaining": "Combined-current-source CI; wider writer/authority inventory remains open."
     }
   },
   "archivedTargetedVerification": {

@@ -178,8 +178,11 @@ public sealed class AngularFeeSettlementJourneyTests
       """, siblingAgreementId.ToString("D"));
     using (var denied = JsonDocument.Parse(siblingMutation))
     {
-      Assert.Equal(400, denied.RootElement.GetProperty("status").GetInt32());
+      // Current scope denial is forbidden; validation errors remain bad requests.
+      Assert.Equal(403, denied.RootElement.GetProperty("status").GetInt32());
       Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ScopeDenied, denied.RootElement.GetProperty("body").GetProperty("code").GetString());
+      Assert.DoesNotContain("PRIVATE-COMMERCIAL-METADATA", siblingMutation);
+      Assert.DoesNotContain("SYNTHETIC UNAUTHORIZED FEE CLIENT", siblingMutation);
     }
     await using (var db = host.CreateDbContext())
       Assert.False(await db.BillingAccounts.AnyAsync(x => x.FirmId == f.FirmId && x.PracticeClientId == siblingClient));

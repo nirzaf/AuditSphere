@@ -7934,3 +7934,13 @@ The allocation-reversal history route and correction handoff are connected. Revi
 Focused API, Domain and Angular checks passed for the affected slices; the emitted contract and drift check passed. Built-in browser smoke verified the synthetic overview, scope, external-pack history/source lines and recovered ownership panel. This was read-only browser coverage, not the complete submission/review/pinning journey or responsive/live-provider acceptance. Exact code snapshot, cohorts and limitations are under `apiAngularParity.localVerification` in [status.json](status.json). PR #46 and #47 are merged. Task statuses retain their remaining acceptance work.
 
 GL upload checkpoint and earlier CI observations are preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Current accessibility and release evidence remains above and in [status.json](status.json).
+
+
+## Subworktree integration (2026-10-23)
+
+Unique GL and expense-account scope corrections were reconciled into the main checkout with signed-mail enrollment. The expense migration was regenerated after the mail migration; neither prior snapshot overwrote the other. Scoped foreign-parent refusal, ledger behavior, GL races and the authenticated mail workflow passed the combined focused checks. Older resolver work was already integrated; newer request-correlated diagnostics were retained. Original scratch sources/evidence are preserved locally for cleanup. Exact verification and deferred CI/live gates remain in `status.json`; no whole-project completion or deployment is claimed.
+
+
+## Mail scope evidence projection (2026-10-23)
+
+Role-only rows cannot verify mail or reuse a verification timestamp. The Graph worker now requires signed source/model/tenant/sender/control evidence, current connection/consent, and model-specific token claims before dispatch; authority is rechecked after evidence I/O. Focused tests and compilation passed; Compose uses immutable sender IDs. The newer enrollment section supersedes the earlier receipt/API metadata gap; broader readiness, migration/rollout and live acceptance remain open. Evidence is in `status.json`.
