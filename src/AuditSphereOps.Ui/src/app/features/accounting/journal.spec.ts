@@ -4,6 +4,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { SessionService } from '../../core/session';
+import { Api, CommandOutcome } from '../../core/api';
+import { TabDrafts } from '../../core/tab-drafts';
 import { AdjustmentJournal } from './journal';
 import { decodeJournalReview, decodeJournalPreview, journalFields } from './journal-contracts';
 
@@ -168,6 +170,51 @@ describe('Exact native journal editor and receipt recovery', () => {
     expect(c.pending()?.requestId).toBe(requestId);
     expect(Object.keys(sessionStorage).map((key) => sessionStorage.getItem(key)).join('')).toContain(requestId);
     http.expectNone(root + '/workspace?historyPage=1');
+  });
+  it.each([1, 2])('refuses dispatch when recovery storage write %i fails', async (failedWrite) => {
+    const { c, http } = await open();
+    await prepare(c, http);
+    c.reviewed.set(true);
+    const drafts = TestBed.inject(TabDrafts);
+    const original = drafts.save.bind(drafts);
+    let writes = 0;
+    const save = vi.spyOn(drafts, 'save').mockImplementation((...args) =>
+      ++writes === failedWrite ? false : original(...args));
+    try {
+      await c.execute();
+      http.expectNone(root + '/actions');
+      expect(c.message()).toContain('No action was sent');
+      expect(c.failed()).toBe(true);
+      expect(c.busy()).toBe(false);
+      expect(c.pending()).toBeNull();
+    } finally {
+      save.mockRestore();
+    }
+  });
+  it.each(['route', 'session'])('ignores a receipt when %s changes before the owner effect runs', async (change) => {
+    const { f, c, http } = await open();
+    await prepare(c, http);
+    c.reviewed.set(true);
+    let complete!: (result: CommandOutcome<unknown>) => void;
+    vi.spyOn(TestBed.inject(Api), 'command').mockReturnValue(new Promise(resolve => { complete = resolve; }));
+    const publish = vi.spyOn(c.receipt, 'set');
+    const clear = vi.spyOn(TestBed.inject(TabDrafts), 'clear');
+    const reload = vi.spyOn(c.journal, 'reload');
+    const task = c.execute();
+    const pending = c.pending()!;
+    // Queue the continuation before Angular schedules owner cleanup.
+    complete({ ok: true, value: receipt(pending.requestId) });
+    if (change === 'route') {
+      const route = TestBed.inject(ActivatedRoute).paramMap as BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+      route.next(convertToParamMap({ id: actor }));
+    } else {
+      TestBed.inject(SessionService).current.update(s => s && { ...s, generation: '2' });
+    }
+    await task;
+    expect(publish).not.toHaveBeenCalled();
+    expect(clear).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+    f.destroy();
   });
   it('resets preview and assent when a field changes and undo never reverses retained state', async () => {
     const { c, http } = await open();

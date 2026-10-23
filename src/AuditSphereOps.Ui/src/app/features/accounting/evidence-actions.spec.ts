@@ -5,6 +5,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { SessionService } from '../../core/session';
+import { Api, CommandOutcome } from '../../core/api';
 import { TabDrafts } from '../../core/tab-drafts';
 import { EvidenceActions } from './evidence-actions';
 import { decodeEvidenceActions, decodeEvidenceLookup, decodeEvidenceReceipt, evidenceActionFields } from './evidence-action-contracts';
@@ -93,6 +94,22 @@ describe('native evidence action review and receipt recovery',()=>{
     expect(Object.keys(sessionStorage).map(key=>sessionStorage.getItem(key)).join('')).toContain(requestId);
     http.expectNone(root+'?page=0');
     http.expectNone(root+'/actions?page=0');
+  });
+  it.each(['route','session'])('ignores a receipt when %s changes before the owner effect runs',async(change)=>{
+    const {f,c}=await open();await prepare(c);c.reviewed.set(true);
+    let complete!:(result:CommandOutcome<unknown>)=>void;
+    vi.spyOn(TestBed.inject(Api),'command').mockReturnValue(new Promise(resolve=>{complete=resolve;}));
+    const publish=vi.spyOn(c.receipt,'set'),clear=vi.spyOn(TestBed.inject(TabDrafts),'clear');
+    const detail=vi.spyOn(c.detail,'reload'),history=vi.spyOn(c.state,'reload');
+    const task=c.execute(),pending=c.pending()!;
+    // Queue the continuation before Angular schedules owner cleanup.
+    complete({ok:true,value:receipt(pending.requestId)});
+    if(change==='route')params.next(convertToParamMap({id:resultId,kind:'INVENTORY'}));
+    else TestBed.inject(SessionService).current.update(s=>s&&{...s,generation:'2'});
+    await task;
+    expect(publish).not.toHaveBeenCalled();expect(clear).not.toHaveBeenCalled();
+    expect(detail).not.toHaveBeenCalled();expect(history).not.toHaveBeenCalled();
+    f.destroy();
   });
   it('rejects a stale navigation-dialog choice after the evidence owner changes', async()=>{
     const {c}=await open();c.model.set({...fields,reason:'Unsaved current edit'});

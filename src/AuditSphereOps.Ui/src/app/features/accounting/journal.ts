@@ -271,9 +271,14 @@ export class AdjustmentJournal implements NavigationProtected {
     return `${this.id()}:${session?.firmId ?? ''}:${session?.userId ?? ''}:${session?.generation ?? ''}:${this.session.invalidation()}:${this.generation}`;
   }
 
+  private captureOwner(): () => boolean {
+    const owner = this.focusOwner(), actor = this.session.current();
+    return () => !this.destroyed && actor === this.session.current() && owner === this.focusOwner();
+  }
+
   async prepare() {
     const v = this.journal.data(),
-      generation = this.generation;
+      current = this.captureOwner();
     if (
       !v ||
       this.busy() ||
@@ -300,7 +305,7 @@ export class AdjustmentJournal implements NavigationProtected {
     this.failed.set(false);
     try {
       const result = await this.api.command(this.base() + '/preview', r);
-      if (generation !== this.generation) return;
+      if (!current()) return;
       if (!result.ok) {
         this.message.set(result.message);
         this.failed.set(true);
@@ -325,19 +330,19 @@ export class AdjustmentJournal implements NavigationProtected {
         this.reviewHeading()?.nativeElement.focus();
       }, { injector: this.renderInjector });
     } catch (e) {
-      if (generation === this.generation) {
+      if (current()) {
         this.message.set(e instanceof Error ? e.message : 'Unsupported journal preview.');
         this.failed.set(true);
       }
     } finally {
-      if (generation === this.generation) this.busy.set(false);
+      if (current()) this.busy.set(false);
     }
   }
   async execute() {
     const v = this.journal.data(),
       p = this.preview(),
       r = this.request,
-      generation = this.generation;
+      current = this.captureOwner();
     if (
       !v ||
       !p?.canProceed ||
@@ -352,15 +357,21 @@ export class AdjustmentJournal implements NavigationProtected {
       JSON.stringify(this.model().lines) !== JSON.stringify(r.lines)
     )
       return;
+    const pending = { requestId: r.requestId, requestHash: p.requestHash };
+    if (
+      !this.drafts.save(this.scope(), this.model(), journalFields, true) ||
+      !this.drafts.save(this.scope(true), pending, pendingRequestReference, true)
+    ) {
+      this.message.set('The recovery reference could not be retained in this tab. No action was sent.');
+      this.failed.set(true);
+      return;
+    }
     this.busy.set(true);
     this.failed.set(false);
     this.reviewed.set(false);
-    const pending = { requestId: r.requestId, requestHash: p.requestHash };
     this.pending.set(pending);
-    this.drafts.save(this.scope(), this.model(), journalFields, true);
-    this.drafts.save(this.scope(true), pending, pendingRequestReference, true);
     const result = await this.api.command(this.base() + '/actions', { ...r, reviewed: true });
-    if (generation !== this.generation) return;
+    if (!current()) return;
     this.busy.set(false);
     if (!result.ok) {
       this.message.set(result.message);
@@ -406,7 +417,7 @@ export class AdjustmentJournal implements NavigationProtected {
   }
   async reconcile() {
     const p = this.pending(),
-      generation = this.generation;
+      current = this.captureOwner();
     if (!p || this.busy() || !this.journal.data()) return;
     this.busy.set(true);
     this.preview.set(null);
@@ -416,7 +427,7 @@ export class AdjustmentJournal implements NavigationProtected {
         this.base() + '/receipts/' + p.requestId + '?requestHash=' + p.requestHash,
         decodeJournalLookup,
       );
-      if (generation !== this.generation) return;
+      if (!current()) return;
       if (lookup.found && lookup.receipt && this.matches(lookup.receipt, p)) {
         this.receipt.set(lookup.receipt);
         this.message.set(
@@ -430,12 +441,12 @@ export class AdjustmentJournal implements NavigationProtected {
         );
       } else throw new Error('Unsupported receipt');
     } catch {
-      if (generation === this.generation)
+      if (current())
         this.message.set(
           'Receipt verification is unavailable. Keep the reference and check again; do not start another action.',
         );
     } finally {
-      if (generation === this.generation) this.busy.set(false);
+      if (current()) this.busy.set(false);
     }
   }
   acknowledge() {
@@ -481,15 +492,15 @@ export class AdjustmentJournal implements NavigationProtected {
     return true;
   }
   async refresh() {
-    const generation = this.generation;
+    const current = this.captureOwner();
     if (this.busy()) return;
     if (
       !this.uncertain() &&
       this.dirty() &&
-      (!(await this.confirmNavigation()) || this.destroyed || generation !== this.generation)
+      (!(await this.confirmNavigation()) || !current())
     )
       return;
-    if (this.destroyed || generation !== this.generation) return;
+    if (!current()) return;
     this.preview.set(null);
     this.reviewed.set(false);
     this.historyId.set('');
@@ -502,12 +513,12 @@ export class AdjustmentJournal implements NavigationProtected {
       return false;
     }
     if (!this.dirty()) return true;
-    const generation = this.generation;
+    const current = this.captureOwner();
     const dialog = this.dialog.open(UnsavedChangesDialog);
     this.navigationDialog = dialog;
     const decision = await firstValueFrom(dialog.afterClosed());
     if (this.navigationDialog === dialog) this.navigationDialog = null;
-    if (this.destroyed || generation !== this.generation) return false;
+    if (!current()) return false;
     return decision === 'save'
       ? this.saveDraft()
       : decision === 'discard'
@@ -522,14 +533,14 @@ export class AdjustmentJournal implements NavigationProtected {
   }
   async export() {
     const v = this.journal.data(),
-      generation = this.generation;
+      current = this.captureOwner();
     if (!v || this.busy() || this.uncertain()) return;
     this.busy.set(true);
     const result = await this.api.download(
       this.base() + '/workspace/instructions',
       { reviewBasis: v.reviewBasis },
       (m) =>
-        generation === this.generation &&
+        current() &&
         this.journal.data()?.reviewBasis === v.reviewBasis &&
         m.headers['x-journal-id'] === v.journalId &&
         m.headers['x-journal-basis'] === v.reviewBasis &&
@@ -538,7 +549,7 @@ export class AdjustmentJournal implements NavigationProtected {
         m.byteCount <= 8 * 1024 * 1024 &&
         m.fileName.endsWith('.csv'),
     );
-    if (generation !== this.generation) return;
+    if (!current()) return;
     this.busy.set(false);
     this.failed.set(!result.ok);
     this.message.set(
@@ -549,7 +560,7 @@ export class AdjustmentJournal implements NavigationProtected {
   }
   async reconcileReflection() {
     const v = this.journal.data(),
-      generation = this.generation;
+      current = this.captureOwner();
     if (!v || !v.canReconcileReflection || this.busy() || this.uncertain()) return;
     const state = this.reflectionState();
     const evidence = this.reflectionEvidence().trim();
@@ -567,7 +578,7 @@ export class AdjustmentJournal implements NavigationProtected {
         state,
         evidence,
       });
-      if (generation !== this.generation) return;
+      if (!current()) return;
       if (!result.ok) {
         this.message.set(result.message);
         this.failed.set(true);
@@ -576,12 +587,12 @@ export class AdjustmentJournal implements NavigationProtected {
       this.message.set('Source reflection reconciliation recorded.');
       this.journal.reload();
     } catch (e) {
-      if (generation === this.generation) {
+      if (current()) {
         this.message.set(e instanceof Error ? e.message : 'Source reflection reconciliation failed.');
         this.failed.set(true);
       }
     } finally {
-      if (generation === this.generation) this.busy.set(false);
+      if (current()) this.busy.set(false);
     }
   }
 }

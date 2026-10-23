@@ -145,11 +145,9 @@ RUN-001 to RUN-008 are verified locally. WU-001 to WU-004, WU-007 and WU-008 are
 
 Open findings for WU-015: 42 command endpoints still return 400 for `scope.denied`, and 63 single-column firm-scoped keys could not be probed without seeded rows. Browser journeys are missing for parity rows T008–T010, T016, T025, T026 and T028. Exact metrics are in `status.json` under `autonomousCompletion20261022`.
 
-## Angular quality and accessibility status (2026-10-22)
+## Angular quality and accessibility status (2026-10-23)
 
-The accessible-name fix is in `fcbc77a80334191cf45110a40174d47904c9a18d`; the UI source reviewed is `e93044ade9b24e51300134ca25eaeac1c42dcce7`. Consolidation elimination-journal inputs and repeated remove buttons have line-specific accessible names. Its component spec passed 19/19 and the changed-template lint passed. Independent source review covered the shared shell, journal/evidence, planning, consolidation and fieldwork templates and approved the code with follow-ups. Rendered keyboard scrolling/zoom/reduced-motion coverage is incomplete, and human screen-reader speech/announcement review remains open. The resumed built-in browser check found journal-row removal focus loss; its correction and incomplete matrix coverage are recorded in the latest angularQuality ledger entry.
-
-The earlier E2E failures on `efb9c4bd` were fixed in `7b69f6db`; the changed Playwright methods passed 2/2 and the serialized Release solution build passed. Superseded run detail is preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). AC-09 is not human sign-off; see [status.json](status.json).
+The new Angular quality attachment largely matches implemented strictness, decomposition, conventions and lint. Journal/evidence continuations now check the current target, visit, session and lifetime directly; journal dispatch requires both recovery writes to succeed. Existing specs cover these boundaries; no local test cases ran. Exact-source CI and task-by-task evidence are in `status.json`. Prior rendered findings/fixes remain recorded. Full state coverage, native zoom and qualified human screen-reader observations remain open; AC-09 is partial.
 
 ## Current master verification and scope (2026-10-21)
 
