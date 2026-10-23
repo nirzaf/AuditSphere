@@ -1,9 +1,12 @@
+using System.Data.Common;
 using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
+using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -15,6 +18,90 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class StatementFinalReadinessAndDecisionChainTests
 {
+  private sealed class PauseAfterContentReviewRead : DbCommandInterceptor
+  {
+    private int paused;
+    public TaskCompletionSource<bool> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("financial_statement_content_reviews", StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.CompareExchange(ref paused, 1, 0) == 0)
+      {
+        Reached.TrySetResult(true);
+        await Release.Task.WaitAsync(cancellationToken);
+      }
+      return result;
+    }
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  [Trait("CompletionUnit", "WU-011")]
+  public async Task ContentReviewRead_RechecksReadAuthorityAfterReviewFetch(bool retainReadGrant)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seeded = await StatementCandidatePromotionTests.SeedPresentableAsync(pg);
+    var preparer = StatementCandidatePromotionTests.Actor(seeded.Preparer, "AccountingPreparer");
+    var reviewer = StatementCandidatePromotionTests.Actor(seeded.Reviewer, "AccountingReviewer");
+    Guid draftId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var pin = await FinancialStatementService.PinPresentationAsync(setup, preparer, seeded.PackageId, seeded.LayoutId);
+      Assert.True(pin.Succeeded, pin.Message);
+      draftId = pin.Value!.RevisionId;
+      Assert.True((await StatementContentReviewCall.RecordAsync(setup, reviewer, seeded.PackageId, draftId,
+        "RETURNED", "Synthetic review retained for the authority read.")).Succeeded);
+      if (retainReadGrant)
+      {
+        setup.RoleGrants.Add(new RoleGrant
+        {
+          Id = Guid.CreateVersion7(), FirmId = seeded.FirmId, UserId = seeded.Reviewer.Id, Role = "AccountingPreparer",
+          GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = seeded.Partner.Id
+        });
+        await setup.SaveChangesAsync();
+      }
+    }
+
+    var pause = new PauseAfterContentReviewRead();
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(pause).Options;
+    await using var delayed = new AuditSphereDbContext(options);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+    var pending = FinancialStatementService.GetStatementContentReviewAsync(delayed, reviewer, seeded.PackageId, draftId, timeout.Token);
+    try
+    {
+      await pause.Reached.Task.WaitAsync(timeout.Token);
+      await using (var writer = new AuditSphereDbContext(pg.Options))
+      {
+        var revoked = await writer.RoleGrants.Where(x => x.FirmId == seeded.FirmId &&
+          x.UserId == seeded.Reviewer.Id && x.Role == "AccountingReviewer" && x.RevokedAt == null)
+          .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), timeout.Token);
+        Assert.Equal(1, revoked);
+      }
+      pause.Release.TrySetResult(true);
+      var result = await pending;
+      Assert.Equal(retainReadGrant, result.Succeeded);
+      if (retainReadGrant)
+      {
+        Assert.False(result.Value!.CanReview);
+        Assert.Single(result.Value.Reviews);
+      }
+      else
+      {
+        Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
+        Assert.Null(result.Value);
+      }
+    }
+    finally
+    {
+      pause.Release.TrySetResult(true);
+      await pending.WaitAsync(timeout.Token);
+    }
+  }
+
   [Fact]
   public async Task CandidatePromotion_RequiresAnIndependentContentReviewOfTheExactDraft()
   {

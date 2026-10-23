@@ -16,7 +16,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Statement content-review identity display (2026-10-23)
 
-The content-review screen exposes the actual presentation revision, full snapshot digest, review IDs and reviewer IDs already returned by the API. Returned decisions remain unapproved; no review or source-currentness policy changes. The focused Angular component checks and corrected build passed. Full source-backed presentation closure, browser acceptance and professional decisions remain separate; evidence is in `status.json`.
+The content-review screen exposes the actual presentation revision, full snapshot digest, review IDs and reviewer IDs already returned by the API. Returned decisions remain unapproved; no review or source-currentness policy changes. Read authority is rechecked after review fetch: revocation denies content, while a retained read grant still allows read-only access. The focused Angular component checks and corrected build passed. Full source-backed presentation closure, browser acceptance and professional decisions remain separate; evidence is in `status.json`.
 
 ## Immutable consolidation correction lineage (2026-10-23)
 

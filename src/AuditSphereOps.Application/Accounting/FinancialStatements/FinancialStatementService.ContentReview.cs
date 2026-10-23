@@ -206,6 +206,12 @@ public static partial class FinancialStatementService
       draft.CreatedByUserId != actor.UserId;
     var approved = reviews.Count > 0 && reviews[0].Decision == FinancialStatementContentReviewDecisions.Approved &&
       reviews[0].SnapshotSha256Hex == draft.SnapshotSha256Hex;
+    // Review permission and read permission are independent. A failed review check must not
+    // allow retained content to escape after the actor's read grant was revoked during the fetch.
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, draft.ClientId, draft.EngagementId, CashFlowSourceReadRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<StatementContentReviewState>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<StatementContentReviewState>.Ok(new(draft.FinancialPackageId, draft.Id, draft.SnapshotSha256Hex, approved,
       canReview, reviews.Count > 0 ? reviews[0].Id : null, ContentReviewedChecks, reviews));
   }
