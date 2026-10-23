@@ -1110,7 +1110,7 @@
         "status": "PASS_LOCAL_SLICE",
         "base": "7e727942c9145bd5ebb98b0b1e1f5301f5652286",
         "evidence": ".local/autonomous/evidence/wu038-scans",
-        "checks": "Vite override8.3.3; npm before1high+1low/after0; isolated npmci/build+4session specsPASS. NuGet9projects nofindings; gitleaks2falsepositives source-reviewed, rawexit1 retained. No history/rule suppression.",
+        "checks": "Vite8.3.3; npm before1high+1low/after0, isolatedci/build+4specPASS. NuGet CLI9projects reportsnone; sparse structured proof remainsUNKNOWN. Gitleaks2source-reviewed falsepositives, rawexit1 retained; no history/rule suppression.",
         "remaining": "Currentcommit CI, operational targets/performance/recovery acceptance."
       },
       "archiveProviderApiCli": {
@@ -1119,6 +1119,12 @@
         "evidence": ".local/autonomous/evidence/wu023-archive-api",
         "checks": "Exactmigration/provider4PASS; final scopedreadback1PG+1API PASS, emitter0warnings/OpenAPIdriftPASS, EFdriftPASS; routedCLI23offlineassertions+PLANNEDenvelopePASS. Shared target uses libraryroot, exactstaffREAD/inheritedpath; retainedDown55000; queue withoutcert; finalauthority recheck. No tenant effects.",
         "remaining": "Expected operation-plan export, connected actual provider/custody/denied-editor/recovery acceptance; no WORM/admin-proof claim."
+      },
+      "operationalEvidenceGuard": {
+        "status": "PARTIAL",
+        "evidence": ".local/autonomous/evidence/wu038-verifier",
+        "checks": "8 focused Python PASS; tracked template INCOMPLETE exit2. Actual Git identity, raw scan/metric comparisons, positive sample counts, hash/size/path/symlink and RPO0 guards; approval refs never authenticated.",
+        "remaining": "Known sparse NuGet shape/capture/feed provenance; approved targets, measured capacity/performance/custody/recovery and production acceptance."
       }
     },
     "developmentFeedback20261023": {

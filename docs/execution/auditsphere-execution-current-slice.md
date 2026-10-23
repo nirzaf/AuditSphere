@@ -16,8 +16,10 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Development dependency advisory repair (2026-10-23)
 
-The Vite patch passed fresh audit, isolated install/build and focused session checks; active servers were preserved. NuGet reported no findings. History scan false positives were source-reviewed without rewriting history or suppressing rules. Raw reports and remaining operational/release gates are in `status.json`.
+The Vite patch passed fresh audit, isolated install/build and focused session checks; servers were preserved. NuGet reported no findings. History scan false positives were source-reviewed without rewriting history or suppressing rules. Raw reports and remaining operational/release gates are in `status.json`.
 
+
+Operational evidence guards reject invented scan/metric summaries; absent targets and approval remain unverified.
 ## Mail scope evidence projection (2026-10-23)
 
 Generic capability verification no longer probes or promotes outbound mail from a role-only result. Enabled mail stays unverified until model-bound evidence is implemented; the overview uses that evaluated state and cannot reuse a historical verification timestamp. Focused PostgreSQL checks passed with source hashes retained in `status.json`. This correction does not gate the Graph sender: typed signed receipts, runtime token/send checks and live sender/control acceptance remain engineering and external work respectively.

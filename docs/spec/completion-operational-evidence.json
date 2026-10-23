@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 1,
+  "recordId": "WU038-OPERATIONAL-EVIDENCE-V1",
+  "findingIdentityRules": {
+    "npm": "NPM-SHA256(package-name-casefold + NUL + advisory-source)",
+    "nuget": "NUGET-SHA256(package-id-casefold + NUL + resolved-version + NUL + advisory-url)",
+    "gitleaks": "GITLEAKS-SHA256(fingerprint)"
+  },
+  "policy": {
+    "sourceToolFeedFailure": "UNKNOWN",
+    "scanReportUnavailable": "UNKNOWN",
+    "measurementEvidenceUnavailable": "UNKNOWN",
+    "missingTargetOrMeasurement": "INCOMPLETE",
+    "approvalEvidence": "REFERENCE_ONLY_NOT_AUTHENTICATED",
+    "localRestore": "LOCAL_ONLY",
+    "operationalAcceptance": "NOT_ASSESSED"
+  },
+  "source": {
+    "repository": "nirzaf/AuditSphere",
+    "commit": "7e727942c9145bd5ebb98b0b1e1f5301f5652286",
+    "workingTree": "DIRTY"
+  },
+  "securityScans": {
+    "nuget": {
+      "runState": "NOT_RUN",
+      "failureClass": null,
+      "sourceCommit": null,
+      "tool": {
+        "name": "dotnet list solution package --vulnerable --include-transitive --format json --no-restore",
+        "version": null
+      },
+      "feed": {
+        "state": "UNKNOWN",
+        "identities": []
+      },
+      "capturedAtUtc": null,
+      "evidence": null,
+      "findings": null
+    },
+    "npm": {
+      "runState": "NOT_RUN",
+      "failureClass": null,
+      "sourceCommit": null,
+      "tool": {
+        "name": "npm audit --json",
+        "version": null
+      },
+      "feed": {
+        "state": "UNKNOWN",
+        "identities": []
+      },
+      "capturedAtUtc": null,
+      "evidence": null,
+      "findings": null
+    },
+    "gitleaks": {
+      "runState": "NOT_RUN",
+      "failureClass": null,
+      "sourceCommit": null,
+      "tool": {
+        "name": "gitleaks git --redact=100 --report-format json",
+        "version": null
+      },
+      "feed": {
+        "state": "NOT_APPLICABLE",
+        "identities": []
+      },
+      "capturedAtUtc": null,
+      "evidence": null,
+      "findings": null
+    }
+  },
+  "targets": {
+    "rpoSeconds": {
+      "value": null,
+      "unit": "seconds",
+      "approvalEvidence": null
+    },
+    "rtoSeconds": {
+      "value": null,
+      "unit": "seconds",
+      "approvalEvidence": null
+    },
+    "databaseMaxSessions": {
+      "value": null,
+      "unit": "sessions",
+      "approvalEvidence": null
+    },
+    "databaseMaxTransactionSeconds": {
+      "value": null,
+      "unit": "seconds",
+      "approvalEvidence": null
+    },
+    "queryP95Milliseconds": {
+      "value": null,
+      "unit": "milliseconds",
+      "approvalEvidence": null
+    },
+    "exportP95Milliseconds": {
+      "value": null,
+      "unit": "milliseconds",
+      "approvalEvidence": null
+    },
+    "uploadChunkP95Milliseconds": {
+      "value": null,
+      "unit": "milliseconds",
+      "approvalEvidence": null
+    },
+    "minimumConcurrentWorkers": {
+      "value": null,
+      "unit": "workers",
+      "approvalEvidence": null
+    },
+    "retentionDays": {
+      "value": null,
+      "unit": "days",
+      "approvalEvidence": null
+    },
+    "custodyModel": {
+      "value": null,
+      "unit": "identifier",
+      "approvalEvidence": null
+    },
+    "supportedLocales": {
+      "value": null,
+      "unit": "locale-tags",
+      "approvalEvidence": null
+    },
+    "supportedBrowsers": {
+      "value": null,
+      "unit": "browser-identifiers",
+      "approvalEvidence": null
+    },
+    "accessibilityTarget": {
+      "value": null,
+      "unit": "standard-identifier",
+      "approvalEvidence": null
+    },
+    "telemetryDestinationIds": {
+      "value": null,
+      "unit": "destination-identifiers",
+      "approvalEvidence": null
+    }
+  },
+  "measurements": {
+    "databaseCapacity": {
+      "maxSessions": null,
+      "maxTransactionSeconds": null,
+      "sampleCount": null,
+      "sourceCommit": null,
+      "tool": {
+        "name": null,
+        "version": null
+      },
+      "measuredAtUtc": null,
+      "evidence": null
+    },
+    "queries": {
+      "p95Milliseconds": null,
+      "commandCount": null,
+      "peakMemoryBytes": null,
+      "sampleCount": null,
+      "sourceCommit": null,
+      "tool": {
+        "name": null,
+        "version": null
+      },
+      "measuredAtUtc": null,
+      "evidence": null
+    },
+    "exports": {
+      "p95Milliseconds": null,
+      "exportCount": null,
+      "peakMemoryBytes": null,
+      "sampleCount": null,
+      "sourceCommit": null,
+      "tool": {
+        "name": null,
+        "version": null
+      },
+      "measuredAtUtc": null,
+      "evidence": null
+    },
+    "uploadChunks": {
+      "p95Milliseconds": null,
+      "chunkBytes": null,
+      "peakMemoryBytes": null,
+      "sampleCount": null,
+      "sourceCommit": null,
+      "tool": {
+        "name": null,
+        "version": null
+      },
+      "measuredAtUtc": null,
+      "evidence": null
+    },
+    "concurrentWorkers": {
+      "workerCount": null,
+      "p95Milliseconds": null,
+      "peakMemoryBytes": null,
+      "sampleCount": null,
+      "sourceCommit": null,
+      "tool": {
+        "name": null,
+        "version": null
+      },
+      "measuredAtUtc": null,
+      "evidence": null
+    }
+  },
+  "recovery": {
+    "localRestoreDrill": {
+      "scope": "LOCAL_LOOPBACK",
+      "recordedAtUtc": "2026-09-24T04:36:24Z",
+      "evidence": {
+        "id": "RESTORE-DRILL-2026-09-24",
+        "path": "docs/evidence/restore-drill-latest.json",
+        "sha256": "f9f0fe34fa270dd9c9a10efb5c5d67aaae8910d57b454bf2876715d4061cd511",
+        "sourceCommit": null
+      }
+    },
+    "productionRecovery": {
+      "observedRpoSeconds": null,
+      "observedRtoSeconds": null,
+      "databaseRestore": null,
+      "releaseArchiveStoreRestore": null,
+      "selectedSharePointCopyRestore": null,
+      "independentCheckpointStore": null,
+      "encryptionKeyCustody": null,
+      "rollbackRehearsal": null,
+      "alerts": null,
+      "independentReview": null
+    }
+  }
+}

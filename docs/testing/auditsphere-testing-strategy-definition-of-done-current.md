@@ -66,3 +66,13 @@ A **PR** is CI-verified only when actual fast `ci.yml` checks pass for the PR SH
 ## 5. Independent and external gates
 
 A full automated CI PASS **does not** certify Entra tenant consent, Graph/SharePoint site grants, live release, source-provider correctness, legal/compliance or professional audit opinions. Those require the named owner, authorized environment, exact evidence, appropriate independent approval and the relevant current requirements/ADR. Record unresolved gates as `BLOCKED_EXTERNAL`; do not bypass maker/checker, immutable records or exact financial correctness for faster delivery.
+
+### Operational evidence record (WU-038)
+
+Use `docs/spec/completion-operational-evidence.json` as the incomplete starting record. Copy it into ignored `artifacts/completion/` before collecting current-candidate evidence; populating a tracked template in place makes the checkout dirty and cannot prove a clean source. Record actual source, tool versions, exits, feeds, scan output and measurements rather than editing a summary to imply success.
+
+```bash
+python3 scripts/verification/verify-operational-evidence.py artifacts/completion/operational-evidence.json
+```
+
+The verifier performs read-only Git/source and bounded, hash-bound JSON checks. It compares supported scanner findings and typed measurement artifacts with the declared record, rejects unsafe paths/symlinks and vacuous counts, and preserves local restore as local-only. Exit codes are `0` for a structurally complete evidence record, `1` for invalid input and `2` for incomplete evidence. A matching reference does not authenticate a human approval or establish operational/production acceptance. Unsupported report shapes or absent feed/capture provenance remain unknown; approved targets, measured recovery and independent custody stay separate gates. Actual findings and focused verification belong in `docs/execution/status.json`.
