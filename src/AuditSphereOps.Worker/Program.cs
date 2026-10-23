@@ -6,6 +6,7 @@ using AuditSphereOps.Application.Diagnostics;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Application.Records;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Infrastructure.Providers;
 using Microsoft.EntityFrameworkCore;
@@ -232,7 +233,9 @@ else if (clientSitesWorker)
       var provider = new SharePointClientSiteProvider(siteHttp, tokenHttp, siteOptions,
         new GraphCapabilityTokenSource(tokenHttp, readerOptions));
       builder.Services.AddSingleton<IClientSharePointSiteProvider>(provider);
+      builder.Services.AddSingleton<IClientSharePointArchiveCopyProvider>(provider);
       builder.Services.AddSingleton<ClientSharePointSiteHandler>();
+      builder.Services.AddSingleton<ArchiveCopyHandler>();
       builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new ClientSharePointSiteDiscovery(
         sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
         sp.GetRequiredService<ClientSharePointSiteHandler>(), workerOptions, policy));
@@ -327,7 +330,9 @@ host.Run();
 
 static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationAllowed, bool liveMail, bool livePbc, bool liveClientSites, bool clientSitesWorker)
 {
-  if (clientSitesWorker) return liveClientSites ? [sp.GetRequiredService<ClientSharePointSiteHandler>()] : [];
+  if (clientSitesWorker) return liveClientSites
+    ? [sp.GetRequiredService<ClientSharePointSiteHandler>(), sp.GetRequiredService<ArchiveCopyHandler>()]
+    : [];
   if (liveClientSites) return [sp.GetRequiredService<ClientSharePointSiteHandler>()];
   if (liveMail) return [sp.GetRequiredService<PbcMailDeliveryHandler>(), sp.GetRequiredService<CommercialMailDeliveryHandler>()];
   if (livePbc) return [sp.GetRequiredService<PbcDocumentTransferHandler>(), sp.GetRequiredService<EngagementWorkspaceProvisioningHandler>()];

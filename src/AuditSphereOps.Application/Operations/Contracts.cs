@@ -390,6 +390,14 @@ public interface IAdjustmentJournalDbContext : IAuditSphereDbContext
   DbSet<AdjustmentJournalAction> AdjustmentJournalActions { get; }
 }
 
+/// <summary>Exact persistence capability used by the append-only secondary archive-copy workflow.</summary>
+public interface IRecordsArchiveCopyDbContext : IAuditSphereDbContext
+{
+  DbSet<ArchiveCopyTargetRevision> ArchiveCopyTargetRevisions { get; }
+  DbSet<ArchiveCopyFileReceipt> ArchiveCopyFileReceipts { get; }
+  DbSet<ArchiveCopyPermissionObservation> ArchiveCopyPermissionObservations { get; }
+}
+
 public interface IAuditSphereDbContextFactory
 {
   Task<IAuditSphereDbContext> CreateAsync(CancellationToken ct = default);

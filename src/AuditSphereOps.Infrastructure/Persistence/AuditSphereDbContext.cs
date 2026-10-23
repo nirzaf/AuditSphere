@@ -18,7 +18,8 @@ namespace AuditSphereOps.Infrastructure.Persistence;
 public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbContext> options) : DbContext(options),
   AuditSphereOps.Application.Operations.IAuditSphereDbContext,
   AuditSphereOps.Application.Operations.IClientAccountingDbContext,
-  AuditSphereOps.Application.Operations.IAdjustmentJournalDbContext
+  AuditSphereOps.Application.Operations.IAdjustmentJournalDbContext,
+  AuditSphereOps.Application.Operations.IRecordsArchiveCopyDbContext
 {
   public DbSet<AppUser> Users => Set<AppUser>();
   public DbSet<AssessmentCommandReceipt> AssessmentCommandReceipts => Set<AssessmentCommandReceipt>();

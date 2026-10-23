@@ -25,6 +25,7 @@ public interface IClock
 
 /// <summary>Verified release checkpoint storage evidence outside the application database (§24.4, §25.7).</summary>
 public sealed record CheckpointReceipt(string Reference, string ContentSha256Hex, long ByteCount);
+public sealed record CheckpointContent(CheckpointReceipt Receipt, byte[] Bytes);
 
 /// <summary>
 /// Trusted external checkpoint storage boundary for release manifests (spec §24.4 step 10, §25.7, §47.5).
@@ -35,5 +36,6 @@ public interface IReleaseCheckpointStore
   Task<CheckpointReceipt> WriteAsync(string manifestDigest, byte[] manifestBytes, CancellationToken ct = default);
   Task<CheckpointReceipt?> VerifyAsync(string reference, string expectedDigest, CancellationToken ct = default);
   Task<CheckpointReceipt?> ProbeAsync(string manifestDigest, CancellationToken ct = default);
+  Task<CheckpointContent?> ReadVerifiedAsync(string reference, string expectedDigest, CancellationToken ct = default);
 }
 

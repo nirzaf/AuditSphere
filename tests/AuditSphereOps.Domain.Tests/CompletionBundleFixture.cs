@@ -21,7 +21,8 @@ public sealed record CompletionBundleScope(Guid FirmId, Guid ClientId, Guid Enga
 // Synthetic fixtures use the actual review, approval, release and billing commands. No live provider acceptance is claimed.
 public static class CompletionBundleFixture
 {
-  public static async Task<(Guid PackageId, Guid ReleaseId)> ReleasedFinancialPackageAsync(DbContextOptions<AuditSphereDbContext> options, CompletionBundleScope w)
+  public static async Task<(Guid PackageId, Guid ReleaseId)> ReleasedFinancialPackageAsync(
+    DbContextOptions<AuditSphereDbContext> options, CompletionBundleScope w, string? checkpointRoot = null)
   {
     var now = DateTimeOffset.UtcNow;
     var periodId = Guid.NewGuid();
@@ -196,7 +197,7 @@ public static class CompletionBundleFixture
       Assert.True(approval.Succeeded, approval.Message);
       var candidate = await ReleaseService.CreateCandidateAsync(db, partner, new(approval.Value, "FINANCIAL_PACKAGE", packageId, package.Revision, package.Generation, policyGeneration, digest));
       Assert.True(candidate.Succeeded, candidate.Message);
-      var root = Path.Combine(Path.GetTempPath(), "auditsphere-bundle-checkpoint", Guid.NewGuid().ToString("N"));
+      var root = checkpointRoot ?? Path.Combine(Path.GetTempPath(), "auditsphere-bundle-checkpoint", Guid.NewGuid().ToString("N"));
       try
       {
         var checkpoint = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, new LocalAppendOnlyCheckpointStore(root), partner, new(candidate.Value, 1, "test-bundle-release", digest, manifest));
@@ -205,7 +206,7 @@ public static class CompletionBundleFixture
         Assert.True(release.Succeeded, release.Message);
         return (packageId, release.Value);
       }
-      finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+      finally { if (checkpointRoot is null && Directory.Exists(root)) Directory.Delete(root, recursive: true); }
     }
   }
 

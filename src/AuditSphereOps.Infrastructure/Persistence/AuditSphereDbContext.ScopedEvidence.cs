@@ -9,6 +9,7 @@ using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Microsoft365;
 
 namespace AuditSphereOps.Infrastructure.Persistence;
 
@@ -16,8 +17,147 @@ namespace AuditSphereOps.Infrastructure.Persistence;
 // Money decimal(19,6); IDs uuid v7-compatible; immutable TB rows have no update path.
 public sealed partial class AuditSphereDbContext
 {
+  public DbSet<ArchiveCopyTargetRevision> ArchiveCopyTargetRevisions => Set<ArchiveCopyTargetRevision>();
+  public DbSet<ArchiveCopyFileReceipt> ArchiveCopyFileReceipts => Set<ArchiveCopyFileReceipt>();
+  public DbSet<ArchiveCopyPermissionObservation> ArchiveCopyPermissionObservations => Set<ArchiveCopyPermissionObservation>();
+
   private static void ConfigureScopedEvidence(ModelBuilder b)
   {
+    var archiveCopyTarget = b.Entity<ArchiveCopyTargetRevision>();
+    archiveCopyTarget.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_archive_copy_target_revisions_firm_id_id");
+    archiveCopyTarget.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.Id })
+      .HasName("AK_archive_copy_target_revisions_firm_client_id_id");
+    archiveCopyTarget.Property(x => x.TargetCode).HasMaxLength(50);
+    archiveCopyTarget.Property(x => x.StaffGroupId).HasMaxLength(20);
+    archiveCopyTarget.Property(x => x.TenantId).HasMaxLength(200);
+    archiveCopyTarget.Property(x => x.SiteId).HasMaxLength(2000);
+    archiveCopyTarget.Property(x => x.DriveId).HasMaxLength(2000);
+    archiveCopyTarget.Property(x => x.LibraryRootItemId).HasMaxLength(2000);
+    archiveCopyTarget.Property(x => x.ExpectedPermissionsJson).HasColumnType("text");
+    archiveCopyTarget.Property(x => x.ExpectedPermissionsSha256).HasMaxLength(64);
+    archiveCopyTarget.Property(x => x.AuthorizedStaffSha256).HasMaxLength(64);
+    archiveCopyTarget.Property(x => x.ConfigurationSha256).HasMaxLength(64);
+    archiveCopyTarget.HasIndex(x => new { x.FirmId, x.ClientId, x.TargetCode, x.Revision }).IsUnique()
+      .HasDatabaseName("ux_archive_copy_target_client_revision");
+    archiveCopyTarget.ToTable("archive_copy_target_revisions", t => t.HasCheckConstraint("ck_archive_copy_target_revision_values",
+      "target_code = 'SECONDARY_ARCHIVE' AND revision >= 1 AND length(trim(tenant_id)) > 0 AND " +
+      "length(trim(site_id)) > 0 AND length(trim(drive_id)) > 0 AND length(trim(library_root_item_id)) > 0 AND " +
+      "length(trim(expected_permissions_json)) > 0 AND expected_permissions_sha256 ~ '^[0-9a-f]{64}$' AND " +
+      "staff_group_id ~ '^[1-9][0-9]*$' AND " +
+      "authorized_staff_sha256 ~ '^[0-9a-f]{64}$' AND " +
+      "configuration_sha256 ~ '^[0-9a-f]{64}$'"));
+    archiveCopyTarget.HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    archiveCopyTarget.HasOne<ClientSharePointSite>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.ClientSharePointSiteId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    archiveCopyTarget.HasOne<Microsoft365ConnectionRevision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ConnectionRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    archiveCopyTarget.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var archiveCopyFile = b.Entity<ArchiveCopyFileReceipt>();
+    archiveCopyFile.Property(x => x.ArchiveManifestSha256).HasMaxLength(64);
+    archiveCopyFile.Property(x => x.TargetConfigurationSha256).HasMaxLength(64);
+    archiveCopyFile.Property(x => x.SourceKind).HasMaxLength(40);
+    archiveCopyFile.Property(x => x.SourceKeySha256).HasMaxLength(64);
+    archiveCopyFile.Property(x => x.SourceVersion).HasMaxLength(500);
+    archiveCopyFile.Property(x => x.SourceSha256).HasMaxLength(64);
+    archiveCopyFile.Property(x => x.RelativePath).HasMaxLength(2000);
+    archiveCopyFile.Property(x => x.DestinationTenantId).HasMaxLength(200);
+    archiveCopyFile.Property(x => x.DestinationSiteId).HasMaxLength(2000);
+    archiveCopyFile.Property(x => x.DestinationDriveId).HasMaxLength(2000);
+    archiveCopyFile.Property(x => x.DestinationLibraryRootItemId).HasMaxLength(2000);
+    archiveCopyFile.Property(x => x.DestinationItemId).HasMaxLength(500);
+    archiveCopyFile.Property(x => x.DestinationVersion).HasMaxLength(500);
+    archiveCopyFile.Property(x => x.ReadBackSha256).HasMaxLength(64);
+    archiveCopyFile.Property(x => x.VerificationOutcome).HasMaxLength(20);
+    archiveCopyFile.HasIndex(x => new { x.FirmId, x.OperationId, x.AttemptToken, x.SourceKeySha256 }).IsUnique()
+      .HasDatabaseName("ux_archive_copy_file_receipt_attempt_source");
+    archiveCopyFile.HasIndex(x => new { x.FirmId, x.ArchiveId, x.ArchiveManifestVersion, x.TargetRevision })
+      .HasDatabaseName("ix_archive_copy_file_receipt_archive");
+    ScopeToEngagement(archiveCopyFile, nameof(ArchiveCopyFileReceipt.FirmId), nameof(ArchiveCopyFileReceipt.ClientId),
+      nameof(ArchiveCopyFileReceipt.EngagementId));
+    archiveCopyFile.ToTable("archive_copy_file_receipts", t => t.HasCheckConstraint("ck_archive_copy_file_receipt_values",
+      "attempt_token >= 1 AND archive_manifest_version >= 1 AND archive_manifest_sha256 ~ '^[0-9a-f]{64}$' AND " +
+      "target_revision >= 1 AND target_configuration_sha256 ~ '^[0-9a-f]{64}$' AND " +
+      "source_kind IN ('CHECKPOINT_MANIFEST','RELEASED_ARTIFACT','REVIEWED_MANIFEST_ENTRY') AND " +
+      "source_key_sha256 ~ '^[0-9a-f]{64}$' AND source_sha256 ~ '^[0-9a-f]{64}$' AND source_byte_count >= 0 AND " +
+      "length(trim(source_version)) > 0 AND length(trim(relative_path)) > 0 AND " +
+      "length(trim(destination_tenant_id)) > 0 AND length(trim(destination_site_id)) > 0 AND " +
+      "length(trim(destination_drive_id)) > 0 AND length(trim(destination_library_root_item_id)) > 0 AND " +
+      "length(trim(destination_item_id)) > 0 AND length(trim(destination_version)) > 0 AND " +
+      "read_back_sha256 ~ '^[0-9a-f]{64}$' AND read_back_byte_count >= 0 AND " +
+      "verification_outcome IN ('MATCH','MISMATCH') AND " +
+      "((source_kind = 'REVIEWED_MANIFEST_ENTRY' AND manifest_entry_id IS NOT NULL) OR " +
+      " (source_kind <> 'REVIEWED_MANIFEST_ENTRY' AND manifest_entry_id IS NULL)) AND " +
+      "(source_kind <> 'CHECKPOINT_MANIFEST' OR source_id = checkpoint_id)"));
+    archiveCopyFile.HasOne<Archive>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    archiveCopyFile.HasOne<ArchiveManifest>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveManifestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    archiveCopyFile.HasOne<ArchiveCopyTargetRevision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, TargetRevisionId = x.TargetRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, Id = x.Id }).OnDelete(DeleteBehavior.Restrict);
+    archiveCopyFile.HasOne<Release>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReleaseId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    archiveCopyFile.HasOne<ReleaseCheckpoint>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.CheckpointId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    archiveCopyFile.HasOne<DurableOperation>().WithMany()
+      .HasForeignKey(x => x.OperationId).HasPrincipalKey(x => x.Id).OnDelete(DeleteBehavior.Restrict);
+
+    var archiveCopyPermission = b.Entity<ArchiveCopyPermissionObservation>();
+    archiveCopyPermission.Property(x => x.ArchiveManifestSha256).HasMaxLength(64);
+    archiveCopyPermission.Property(x => x.TargetConfigurationSha256).HasMaxLength(64);
+    archiveCopyPermission.Property(x => x.AuthorizedStaffSha256).HasMaxLength(64);
+    archiveCopyPermission.Property(x => x.ObservedStaffSha256).HasMaxLength(64);
+    archiveCopyPermission.Property(x => x.StaffGroupId).HasMaxLength(20);
+    archiveCopyPermission.Property(x => x.ObservedTenantId).HasMaxLength(200);
+    archiveCopyPermission.Property(x => x.ObservedSiteId).HasMaxLength(2000);
+    archiveCopyPermission.Property(x => x.ObservedDriveId).HasMaxLength(2000);
+    archiveCopyPermission.Property(x => x.ObservedLibraryRootItemId).HasMaxLength(2000);
+    archiveCopyPermission.Property(x => x.ExpectedPermissionsJson).HasColumnType("text");
+    archiveCopyPermission.Property(x => x.ExpectedPermissionsSha256).HasMaxLength(64);
+    archiveCopyPermission.Property(x => x.ObservedPermissionsJson).HasColumnType("text");
+    archiveCopyPermission.Property(x => x.ObservedPermissionsSha256).HasMaxLength(64);
+    archiveCopyPermission.Property(x => x.ComparisonOutcome).HasMaxLength(20);
+    archiveCopyPermission.HasIndex(x => new { x.FirmId, x.OperationId, x.AttemptToken }).IsUnique()
+      .HasDatabaseName("ux_archive_copy_permission_observation_attempt");
+    archiveCopyPermission.HasIndex(x => new { x.FirmId, x.TargetRevisionId, x.ObservedAt })
+      .HasDatabaseName("ix_archive_copy_permission_observation_target");
+    ScopeToEngagement(archiveCopyPermission, nameof(ArchiveCopyPermissionObservation.FirmId),
+      nameof(ArchiveCopyPermissionObservation.ClientId), nameof(ArchiveCopyPermissionObservation.EngagementId));
+    archiveCopyPermission.ToTable("archive_copy_permission_observations", t => t.HasCheckConstraint("ck_archive_copy_permission_observation_values",
+      "attempt_token >= 1 AND archive_manifest_version >= 1 AND archive_manifest_sha256 ~ '^[0-9a-f]{64}$' AND " +
+      "target_revision >= 1 AND target_configuration_sha256 ~ '^[0-9a-f]{64}$' AND " +
+      "authorized_staff_sha256 ~ '^[0-9a-f]{64}$' AND " +
+      "observed_staff_sha256 ~ '^[0-9a-f]{64}$' AND " +
+      "staff_group_id ~ '^[1-9][0-9]*$' AND " +
+      "length(trim(expected_permissions_json)) > 0 AND expected_permissions_sha256 ~ '^[0-9a-f]{64}$' AND " +
+      "length(trim(observed_permissions_json)) > 0 AND observed_permissions_sha256 ~ '^[0-9a-f]{64}$' AND " +
+      "length(trim(observed_tenant_id)) > 0 AND length(trim(observed_site_id)) > 0 AND " +
+      "length(trim(observed_drive_id)) > 0 AND length(trim(observed_library_root_item_id)) > 0 AND " +
+      "comparison_outcome IN ('MATCH','MISMATCH')"));
+    archiveCopyPermission.HasOne<ArchiveCopyTargetRevision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, TargetRevisionId = x.TargetRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, Id = x.Id }).OnDelete(DeleteBehavior.Restrict);
+    archiveCopyPermission.HasOne<ArchiveManifest>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveManifestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    archiveCopyPermission.HasOne<Release>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReleaseId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    archiveCopyPermission.HasOne<DurableOperation>().WithMany()
+      .HasForeignKey(x => x.OperationId).HasPrincipalKey(x => x.Id).OnDelete(DeleteBehavior.Restrict);
+
     var assignment = b.Entity<EngagementAssignment>();
     assignment.Property(x => x.Role).HasMaxLength(50);
     assignment.HasIndex(x => new { x.FirmId, x.EngagementId, x.UserId, x.Role })

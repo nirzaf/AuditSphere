@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Shared;
 
 namespace AuditSphereOps.Application.Completion;
@@ -103,6 +104,25 @@ public sealed class LocalAppendOnlyCheckpointStore(string rootDirectory) : IRele
     var bytes = await File.ReadAllBytesAsync(targetPath, ct);
     var digest = Hashing.Sha256Hex(bytes);
     return new CheckpointReceipt(targetPath, digest, bytes.LongLength);
+  }
+
+  public async Task<CheckpointContent?> ReadVerifiedAsync(string reference, string expectedDigest, CancellationToken ct = default)
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(reference);
+    if (expectedDigest.Length != 64 || !IsHexString(expectedDigest))
+      throw new ArgumentException("Expected checkpoint digest must be a SHA-256 value.", nameof(expectedDigest));
+
+    var expectedPath = Path.GetFullPath(Path.Combine(RootDirectory, $"{expectedDigest.ToLowerInvariant()}.checkpoint"));
+    var actualPath = Path.GetFullPath(reference);
+    if (!string.Equals(actualPath, expectedPath, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+      throw new OperationBlockedException("checkpoint-reference-mismatch");
+    if (!File.Exists(actualPath)) return null;
+
+    var bytes = await File.ReadAllBytesAsync(actualPath, ct);
+    var digest = Hashing.Sha256Hex(bytes);
+    if (!string.Equals(digest, expectedDigest, StringComparison.OrdinalIgnoreCase))
+      throw new OperationBlockedException("checkpoint-readback-mismatch");
+    return new CheckpointContent(new CheckpointReceipt(actualPath, digest, bytes.LongLength), bytes);
   }
 
   private static bool IsHexString(string value) =>

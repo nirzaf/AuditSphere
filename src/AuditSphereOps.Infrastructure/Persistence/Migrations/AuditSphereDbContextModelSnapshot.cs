@@ -28944,6 +28944,494 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Records.ArchiveCopyFileReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ArchiveId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("archive_id");
+
+                    b.Property<Guid>("ArchiveManifestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("archive_manifest_id");
+
+                    b.Property<string>("ArchiveManifestSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("archive_manifest_sha256");
+
+                    b.Property<long>("ArchiveManifestVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("archive_manifest_version");
+
+                    b.Property<long>("AttemptToken")
+                        .HasColumnType("bigint")
+                        .HasColumnName("attempt_token");
+
+                    b.Property<Guid>("CheckpointId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("checkpoint_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("DestinationDriveId")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("destination_drive_id");
+
+                    b.Property<string>("DestinationItemId")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("destination_item_id");
+
+                    b.Property<string>("DestinationLibraryRootItemId")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("destination_library_root_item_id");
+
+                    b.Property<string>("DestinationSiteId")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("destination_site_id");
+
+                    b.Property<string>("DestinationTenantId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("destination_tenant_id");
+
+                    b.Property<string>("DestinationVersion")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("destination_version");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<bool>("HasExactTargetBinding")
+                        .HasColumnType("boolean")
+                        .HasColumnName("has_exact_target_binding");
+
+                    b.Property<Guid?>("ManifestEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("manifest_entry_id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<DateTimeOffset>("ReadBackAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_back_at");
+
+                    b.Property<long>("ReadBackByteCount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("read_back_byte_count");
+
+                    b.Property<string>("ReadBackSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("read_back_sha256");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("relative_path");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<long>("SourceByteCount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_byte_count");
+
+                    b.Property<Guid?>("SourceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_id");
+
+                    b.Property<string>("SourceKeySha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_key_sha256");
+
+                    b.Property<string>("SourceKind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("source_kind");
+
+                    b.Property<string>("SourceSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_sha256");
+
+                    b.Property<string>("SourceVersion")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("source_version");
+
+                    b.Property<string>("TargetConfigurationSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("target_configuration_sha256");
+
+                    b.Property<long>("TargetRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("target_revision");
+
+                    b.Property<Guid>("TargetRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_revision_id");
+
+                    b.Property<string>("VerificationOutcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("verification_outcome");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId");
+
+                    b.HasIndex("FirmId", "ReleaseId");
+
+                    b.HasIndex("FirmId", "ClientId", "TargetRevisionId");
+
+                    b.HasIndex("FirmId", "ArchiveId", "ArchiveManifestVersion", "TargetRevision")
+                        .HasDatabaseName("ix_archive_copy_file_receipt_archive");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ArchiveId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ArchiveManifestId")
+                        .HasDatabaseName("IX_archive_copy_file_receipts_firm_id_client_id_engagement_id~1");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "CheckpointId")
+                        .HasDatabaseName("IX_archive_copy_file_receipts_firm_id_client_id_engagement_id~2");
+
+                    b.HasIndex("FirmId", "OperationId", "AttemptToken", "SourceKeySha256")
+                        .IsUnique()
+                        .HasDatabaseName("ux_archive_copy_file_receipt_attempt_source");
+
+                    b.ToTable("archive_copy_file_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_archive_copy_file_receipt_values", "attempt_token >= 1 AND archive_manifest_version >= 1 AND archive_manifest_sha256 ~ '^[0-9a-f]{64}$' AND target_revision >= 1 AND target_configuration_sha256 ~ '^[0-9a-f]{64}$' AND source_kind IN ('CHECKPOINT_MANIFEST','RELEASED_ARTIFACT','REVIEWED_MANIFEST_ENTRY') AND source_key_sha256 ~ '^[0-9a-f]{64}$' AND source_sha256 ~ '^[0-9a-f]{64}$' AND source_byte_count >= 0 AND length(trim(source_version)) > 0 AND length(trim(relative_path)) > 0 AND length(trim(destination_tenant_id)) > 0 AND length(trim(destination_site_id)) > 0 AND length(trim(destination_drive_id)) > 0 AND length(trim(destination_library_root_item_id)) > 0 AND length(trim(destination_item_id)) > 0 AND length(trim(destination_version)) > 0 AND read_back_sha256 ~ '^[0-9a-f]{64}$' AND read_back_byte_count >= 0 AND verification_outcome IN ('MATCH','MISMATCH') AND ((source_kind = 'REVIEWED_MANIFEST_ENTRY' AND manifest_entry_id IS NOT NULL) OR  (source_kind <> 'REVIEWED_MANIFEST_ENTRY' AND manifest_entry_id IS NULL)) AND (source_kind <> 'CHECKPOINT_MANIFEST' OR source_id = checkpoint_id)");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Records.ArchiveCopyPermissionObservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ArchiveId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("archive_id");
+
+                    b.Property<Guid>("ArchiveManifestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("archive_manifest_id");
+
+                    b.Property<string>("ArchiveManifestSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("archive_manifest_sha256");
+
+                    b.Property<long>("ArchiveManifestVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("archive_manifest_version");
+
+                    b.Property<long>("AttemptToken")
+                        .HasColumnType("bigint")
+                        .HasColumnName("attempt_token");
+
+                    b.Property<string>("AuthorizedStaffSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("authorized_staff_sha256");
+
+                    b.Property<Guid>("CheckpointId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("checkpoint_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("ComparisonOutcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("comparison_outcome");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<string>("ExpectedPermissionsJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("expected_permissions_json");
+
+                    b.Property<string>("ExpectedPermissionsSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("expected_permissions_sha256");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<bool>("HasExactTargetBinding")
+                        .HasColumnType("boolean")
+                        .HasColumnName("has_exact_target_binding");
+
+                    b.Property<bool>("HasUniquePermissionScope")
+                        .HasColumnType("boolean")
+                        .HasColumnName("has_unique_permission_scope");
+
+                    b.Property<DateTimeOffset>("ObservedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("observed_at");
+
+                    b.Property<string>("ObservedDriveId")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("observed_drive_id");
+
+                    b.Property<string>("ObservedLibraryRootItemId")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("observed_library_root_item_id");
+
+                    b.Property<string>("ObservedPermissionsJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("observed_permissions_json");
+
+                    b.Property<string>("ObservedPermissionsSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("observed_permissions_sha256");
+
+                    b.Property<string>("ObservedSiteId")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("observed_site_id");
+
+                    b.Property<string>("ObservedStaffSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("observed_staff_sha256");
+
+                    b.Property<string>("ObservedTenantId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("observed_tenant_id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<string>("StaffGroupId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("staff_group_id");
+
+                    b.Property<string>("TargetConfigurationSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("target_configuration_sha256");
+
+                    b.Property<long>("TargetRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("target_revision");
+
+                    b.Property<Guid>("TargetRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_revision_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId");
+
+                    b.HasIndex("FirmId", "ReleaseId");
+
+                    b.HasIndex("FirmId", "ClientId", "TargetRevisionId");
+
+                    b.HasIndex("FirmId", "OperationId", "AttemptToken")
+                        .IsUnique()
+                        .HasDatabaseName("ux_archive_copy_permission_observation_attempt");
+
+                    b.HasIndex("FirmId", "TargetRevisionId", "ObservedAt")
+                        .HasDatabaseName("ix_archive_copy_permission_observation_target");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ArchiveManifestId");
+
+                    b.ToTable("archive_copy_permission_observations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_archive_copy_permission_observation_values", "attempt_token >= 1 AND archive_manifest_version >= 1 AND archive_manifest_sha256 ~ '^[0-9a-f]{64}$' AND target_revision >= 1 AND target_configuration_sha256 ~ '^[0-9a-f]{64}$' AND authorized_staff_sha256 ~ '^[0-9a-f]{64}$' AND observed_staff_sha256 ~ '^[0-9a-f]{64}$' AND staff_group_id ~ '^[1-9][0-9]*$' AND length(trim(expected_permissions_json)) > 0 AND expected_permissions_sha256 ~ '^[0-9a-f]{64}$' AND length(trim(observed_permissions_json)) > 0 AND observed_permissions_sha256 ~ '^[0-9a-f]{64}$' AND length(trim(observed_tenant_id)) > 0 AND length(trim(observed_site_id)) > 0 AND length(trim(observed_drive_id)) > 0 AND length(trim(observed_library_root_item_id)) > 0 AND comparison_outcome IN ('MATCH','MISMATCH')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Records.ArchiveCopyTargetRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AuthorizedStaffSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("authorized_staff_sha256");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("ClientSharePointSiteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_share_point_site_id");
+
+                    b.Property<string>("ConfigurationSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("configuration_sha256");
+
+                    b.Property<Guid>("ConnectionRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("connection_revision_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("DriveId")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("drive_id");
+
+                    b.Property<string>("ExpectedPermissionsJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("expected_permissions_json");
+
+                    b.Property<string>("ExpectedPermissionsSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("expected_permissions_sha256");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("LibraryRootItemId")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("library_root_item_id");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<string>("SiteId")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("site_id");
+
+                    b.Property<string>("StaffGroupId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("staff_group_id");
+
+                    b.Property<string>("TargetCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("target_code");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_archive_copy_target_revisions_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "Id")
+                        .HasName("AK_archive_copy_target_revisions_firm_client_id_id");
+
+                    b.HasIndex("FirmId", "ConnectionRevisionId");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "ClientSharePointSiteId");
+
+                    b.HasIndex("FirmId", "ClientId", "TargetCode", "Revision")
+                        .IsUnique()
+                        .HasDatabaseName("ux_archive_copy_target_client_revision");
+
+                    b.ToTable("archive_copy_target_revisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_archive_copy_target_revision_values", "target_code = 'SECONDARY_ARCHIVE' AND revision >= 1 AND length(trim(tenant_id)) > 0 AND length(trim(site_id)) > 0 AND length(trim(drive_id)) > 0 AND length(trim(library_root_item_id)) > 0 AND length(trim(expected_permissions_json)) > 0 AND expected_permissions_sha256 ~ '^[0-9a-f]{64}$' AND staff_group_id ~ '^[1-9][0-9]*$' AND authorized_staff_sha256 ~ '^[0-9a-f]{64}$' AND configuration_sha256 ~ '^[0-9a-f]{64}$'");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Records.ArchiveManifest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -37042,6 +37530,125 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "TemplateRevisionId")
                         .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Records.ArchiveCopyFileReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Completion.DurableOperation", null)
+                        .WithMany()
+                        .HasForeignKey("OperationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Completion.Release", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReleaseId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Records.ArchiveCopyTargetRevision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "TargetRevisionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Completion.Archive", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ArchiveId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Records.ArchiveManifest", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ArchiveManifestId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Completion.ReleaseCheckpoint", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "CheckpointId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Records.ArchiveCopyPermissionObservation", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Completion.DurableOperation", null)
+                        .WithMany()
+                        .HasForeignKey("OperationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Completion.Release", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReleaseId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Records.ArchiveCopyTargetRevision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "TargetRevisionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Records.ArchiveManifest", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ArchiveManifestId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Records.ArchiveCopyTargetRevision", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Microsoft365.Microsoft365ConnectionRevision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ConnectionRevisionId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Microsoft365.ClientSharePointSite", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "ClientSharePointSiteId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

@@ -5,6 +5,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Records;
 
 namespace AuditSphereOps.Infrastructure.Providers;
 
@@ -57,7 +58,7 @@ internal sealed class SharePointProvisioningTokenSource(HttpClient http, ClientS
 /// Supported SPSiteManager provider; no beta APIs, no user passwords and no credentials in receipts.
 /// All URLs are derived from the configured SharePoint host and stored firm/client marker.
 /// </summary>
-public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
+public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider, IClientSharePointArchiveCopyProvider
 {
   private readonly AsyncLocal<Guid?> clientCorrelation = new();
   private readonly AsyncLocal<Func<CancellationToken, Task>?> authorizationGuard = new();
@@ -79,6 +80,18 @@ public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
     sharePointTokens = new(tokenHttp, options);
     graphTokens = new(tokenHttp, new(true, options.TenantId, options.ProvisionerClientId, options.CertificatePath, options.PrivateKeyPath, "Sites.FullControl.All"));
   }
+
+  // The isolated client-sites identity and certificate boundary are the approved host for this
+  // protocol. Its exact-version copy/readback adapter remains unimplemented and fails closed.
+  // These failures are surfaced as provider-blocked durable operations, never successful receipts.
+  public Task<ArchiveCopySnapshotContent> ReadExactSnapshotAsync(ArchiveCopySnapshotReadRequest request, CancellationToken ct) =>
+    Task.FromException<ArchiveCopySnapshotContent>(new OperationBlockedException("archive-copy-provider-adapter-missing"));
+
+  public Task<ArchiveCopyFileReadback> CreateOrReadExactFileAsync(ArchiveCopyFileWriteRequest request, CancellationToken ct) =>
+    Task.FromException<ArchiveCopyFileReadback>(new OperationBlockedException("archive-copy-provider-adapter-missing"));
+
+  public Task<ArchiveCopyPermissionReadback> ReadTargetPermissionsAsync(ArchiveCopyPermissionReadRequest request, CancellationToken ct) =>
+    Task.FromException<ArchiveCopyPermissionReadback>(new OperationBlockedException("archive-copy-provider-adapter-missing"));
 
   public async Task<ClientSiteReceipt> ReconcileAsync(ClientSiteRequest request, bool mayCreate, CancellationToken ct)
   {

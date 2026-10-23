@@ -19,4 +19,7 @@ public sealed class GraphReleaseCheckpointStore : IReleaseCheckpointStore
 
   public Task<CheckpointReceipt?> ProbeAsync(string manifestDigest, CancellationToken ct) =>
     Task.FromException<CheckpointReceipt?>(Block());
+
+  public Task<CheckpointContent?> ReadVerifiedAsync(string reference, string expectedDigest, CancellationToken ct) =>
+    Task.FromException<CheckpointContent?>(Block());
 }

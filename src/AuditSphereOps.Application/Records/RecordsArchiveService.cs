@@ -75,6 +75,23 @@ public static class RecordsArchiveService
 
   public static async Task<CommandResult<ArchiveManifestResult>> BuildManifestAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid archiveId, CancellationToken ct = default)
+    => await BuildManifestCoreAsync(db, actor, archiveId, null, ct);
+
+  /// <summary>
+  /// Builds a new manifest with one explicitly selected commercial bundle and its exact persisted
+  /// parts. The bundle remains an assembled reference; this method does not create or imply issuance.
+  /// </summary>
+  public static async Task<CommandResult<ArchiveManifestResult>> BuildManifestWithCommercialBundleAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid archiveId, Guid commercialBundleId,
+    CancellationToken ct = default)
+  {
+    if (commercialBundleId == Guid.Empty)
+      return CommandResult<ArchiveManifestResult>.Fail("records-manifest.bundle.invalid", "Select one exact commercial bundle.");
+    return await BuildManifestCoreAsync(db, actor, archiveId, commercialBundleId, ct);
+  }
+
+  private static async Task<CommandResult<ArchiveManifestResult>> BuildManifestCoreAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid archiveId, Guid? commercialBundleId, CancellationToken ct)
   {
     var authorized = await AuthorizeArchiveAsync(db, actor, archiveId, ct);
     if (!authorized.Succeeded)
@@ -132,6 +149,34 @@ public static class RecordsArchiveService
       MetadataJson = "{\"schema\":\"records-export.v1\",\"storage\":\"archive_structured_exports\"}"
     });
 
+    if (commercialBundleId is Guid selectedBundleId)
+    {
+      IReadOnlyList<ArchiveCommercialBundleSource> bundleSources;
+      try
+      {
+        var bundleEvidence = await ArchiveCommercialBundleEvidence.ResolveAsync(db, archive.FirmId, archive.ClientId,
+          archive.EngagementId, selectedBundleId, requiredReleaseId: null, ct: ct);
+        bundleSources = bundleEvidence.CreateSources();
+      }
+      catch (OperationBlockedException exception)
+      {
+        return CommandResult<ArchiveManifestResult>.Fail(exception.Code,
+          "The exact commercial bundle, released composition, checkpoint or signed-part lineage is unavailable or inconsistent.");
+      }
+
+      foreach (var source in bundleSources)
+      {
+        entries.Add(new ArchiveManifestEntry
+        {
+          Id = Guid.CreateVersion7(), FirmId = archive.FirmId, ClientId = archive.ClientId,
+          EngagementId = archive.EngagementId, Ordinal = entries.Count + 1, EntryKind = source.EntryKind,
+          SourceKind = source.SourceKind, SourceId = source.SourceId, RelativeName = source.RelativeName,
+          ContentHash = source.ContentHash, ByteCount = source.ByteCount, Required = true,
+          MetadataJson = source.MetadataJson
+        });
+      }
+    }
+
     var missingReferences = snapshots.Count(x => !references.Contains(x.DocumentReferenceId));
     var complete = missingReferences == 0;
     var entryDigest = JsonSerializer.Serialize(entries.Select(x => new
@@ -160,7 +205,7 @@ public static class RecordsArchiveService
       CreatedAt = DateTimeOffset.UtcNow
     });
     // Mark the prior manifest as superseded now that a new version exists.
-    if (predecessorManifest is not null)
+    if (predecessorManifest is not null && predecessorManifest.Status != "REVIEWED")
       predecessorManifest.SupersededByManifestId = manifest.Id;
     await db.SaveChangesAsync(ct);
     if (complete)

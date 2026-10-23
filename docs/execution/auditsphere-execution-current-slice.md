@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Archive secondary-copy protocol (2026-10-23)
+
+The existing client-sites worker now hosts client-bound copy intents, exact per-file receipts and read-only staff ACL observations. A real PostgreSQL store/dispatcher cohort passed with a fake provider boundary, including unknown reconciliation, stale publication guards, malformed evidence, append-only database protection and safe downgrade refusal. EF drift passed. Real SharePoint adapters, shared-site archive-library binding and live custody acceptance remain open; adapter stubs fail closed. Evidence is in `status.json`.
+
 ## Consolidation unknown-outcome controls (2026-10-23)
 
 Mutation controls, including external-pack actions, now reflect the existing unknown-outcome fence. Read-only refresh uses the existing workspace resource without clearing uncertainty; navigation and local editing remain available. Focused Angular checks and build passed; no interactive browser verification is claimed. Exact receipt recovery and broader group acceptance remain open. Evidence is in `status.json`.

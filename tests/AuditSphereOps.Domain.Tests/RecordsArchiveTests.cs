@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Records;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Records;
@@ -407,5 +408,54 @@ public sealed class RecordsArchiveTests
 
     // Identical underlying documents & structured export produce identical manifest digests
     Assert.Equal(v1.Value!.Digest, v2.Value!.Digest);
+  }
+
+  [Fact]
+  public void ArchiveCopyTargetAndPermissionReadback_RejectCrossClientAndStaffWriteEvenWithMatchingHashes()
+  {
+    var firmId = Guid.CreateVersion7();
+    var clientA = Guid.CreateVersion7();
+    var clientB = Guid.CreateVersion7();
+    var siteA = Guid.CreateVersion7();
+    var target = CreateArchiveCopyTarget(firmId, clientA, siteA);
+    var otherClientArchive = new Archive { FirmId = firmId, ClientId = clientB };
+
+    var crossClient = Assert.Throws<OperationBlockedException>(() =>
+      ArchiveCopySourceGuard.EnsureTargetClientBinding(otherClientArchive, target, siteA));
+    Assert.Equal("archive-copy-target-client-scope-mismatch", crossClient.Code);
+
+    var expectedRead = ArchiveCopyPermissionEncoding.Encode(
+      ArchiveCopyPermissionEncoding.ClientStaffRead(target.StaffGroupId));
+    var observedWriteGrants = ArchiveCopyPermissionEncoding.Canonicalize(
+      [new ArchiveCopyPermissionGrant("SHAREPOINT_GROUP", target.StaffGroupId, "WRITE")]);
+    var observedWrite = ArchiveCopyPermissionEncoding.Encode(observedWriteGrants);
+    Assert.False(ArchiveCopyPermissionEncoding.IsExactClientStaffReadGrant(
+      observedWriteGrants, target.StaffGroupId));
+
+    ArchiveCopyPermissionObservation MakeObservation((string Json, string Sha256) expected,
+      (string Json, string Sha256) observed) => ArchiveCopyPermissionObservation.Create(
+        Guid.CreateVersion7(), firmId, clientA, Guid.CreateVersion7(), Guid.CreateVersion7(), 1,
+        Guid.CreateVersion7(), Guid.CreateVersion7(), 1, new string('a', 64),
+        Guid.CreateVersion7(), Guid.CreateVersion7(), target.Id, target.Revision, target.ConfigurationSha256,
+        target.AuthorizedStaffSha256, target.StaffGroupId, expected.Json, expected.Sha256,
+        observed.Json, observed.Sha256, true, true, target.AuthorizedStaffSha256,
+        target.TenantId, target.SiteId, target.DriveId, target.LibraryRootItemId, DateTimeOffset.UtcNow);
+
+    var staffWriteReadback = MakeObservation(expectedRead, observedWrite);
+    Assert.Equal(ArchiveCopyVerificationOutcomes.Mismatch, staffWriteReadback.ComparisonOutcome);
+
+    // A self-consistent hash authenticates bytes only; it cannot authorize a staff WRITE expectation.
+    Assert.Throws<ArgumentException>(() => MakeObservation(observedWrite, observedWrite));
+  }
+
+  private static ArchiveCopyTargetRevision CreateArchiveCopyTarget(Guid firmId, Guid clientId, Guid clientSiteId)
+  {
+    var permissions = ArchiveCopyPermissionEncoding.Encode(
+      ArchiveCopyPermissionEncoding.ClientStaffRead("42"));
+    return ArchiveCopyTargetRevision.Create(Guid.CreateVersion7(), firmId, clientId, clientSiteId, "42", 1,
+      Guid.CreateVersion7(), "tenant-a", "site-a", "archive-drive-a", "archive-root-a",
+      permissions.Json, permissions.Sha256,
+      Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes("authorized-client-staff")),
+      Guid.CreateVersion7(), DateTimeOffset.UtcNow);
   }
 }
