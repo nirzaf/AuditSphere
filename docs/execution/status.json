@@ -886,7 +886,8 @@
     },
     "angularQuality20261023": {
       "result": "PARTIAL",
-      "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualitySpec3Implementation20261023"
+      "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualitySpec3Implementation20261023",
+      "fastCi": "39977274181 FAST_CI_PASS on 2481cbcf; full release 39977360380 pending."
     },
     "autonomousCompletion20261022": {
       "specification": "docs/architecture/auditsphere-autonomous-completion-remediation-spec.md (AS-AUTONOMOUS-COMPLETION-2026-10-22-R2)",
