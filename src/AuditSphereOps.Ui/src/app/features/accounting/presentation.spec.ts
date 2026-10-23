@@ -67,7 +67,13 @@ function savedBody(entity: string, amount: string) {
     ...payload,
     header: { ...payload.header, entity },
     statements: [{ code: 'FINANCIAL_POSITION', title: 'Saved statement', rows: [row({ label: `Saved cash ${entity}`, current: amount })] }],
-    notes: [], checks: [], warnings: [],
+    notes: [{ ...payload.notes[0],
+      current: { ...payload.notes[0].current, text: `Saved note ${entity}` },
+      amounts: [{ ...payload.notes[0].amounts[0], current: amount, comparative: '17',
+        currentEvidenceReference: `saved-source-${entity}`, comparativeEvidenceReference: 'saved-prior-source' }],
+    }],
+    checks: [{ code: 'SAVED_CHECK', passed: false, detail: `Saved check ${entity}` }],
+    warnings: [{ code: 'SAVED_WARNING', detail: `Saved warning ${entity}` }],
   };
 }
 
@@ -193,10 +199,20 @@ describe('Statement presentation screen', () => {
     expect(text).toContain('Saved cash Revision B');
     expect(text).not.toContain('Saved cash Revision A');
     expect(text).toContain(`revision ${revB}`);
+    const snapshot = (fixture.nativeElement as HTMLElement).querySelector('section[aria-labelledby="saved-snapshot-heading"]')!;
+    const schedule = snapshot.querySelector('article[aria-label="Saved statement note"] table')!;
+    expect(schedule.textContent).toContain('202');
+    expect(schedule.textContent).toContain('17');
+    expect(schedule.textContent).not.toContain('1,090,993');
+    expect(snapshot.textContent).toContain('Saved note Revision B');
+    expect(snapshot.textContent).toContain('saved-source-Revision B');
+    expect(snapshot.textContent).toContain('saved-prior-source');
+    expect(snapshot.textContent).toContain('Saved check Revision B');
+    expect(snapshot.textContent).toContain('Saved warning Revision B');
     fixture.destroy();
   });
 
-  it('ignores an out-of-order response and clears a denied saved-revision selection', async () => {
+  it.each([403, 404])('ignores an out-of-order response and visibly clears a refused saved revision (%s)', async (status) => {
     const revA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const revB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
     const deniedRevision = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -220,12 +236,30 @@ describe('Statement presentation screen', () => {
     viewButton(deniedRevision)!.click();
     fixture.detectChanges();
     http.expectOne(`/api/ui/accounting/packages/${id}/presentation/pins/${deniedRevision}`)
-      .flush({ message: 'Access denied.' }, { status: 403, statusText: 'Forbidden' });
+      .flush({ message: 'Access denied.' }, { status, statusText: status === 403 ? 'Forbidden' : 'Not Found' });
     await vi.waitFor(() => expect(fixture.componentInstance.selectedPin()).toBeNull());
     fixture.detectChanges();
     expect(fixture.componentInstance.savedSnapshot()).toBeNull();
     expect(fixture.componentInstance.savedSnapshotError()).toContain('selection was cleared');
+    expect([...(fixture.nativeElement as HTMLElement).querySelectorAll('[role="alert"]')]
+      .some((alert) => alert.textContent?.includes('selection was cleared'))).toBe(true);
     expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Saved snapshot body · immutable revision');
+    fixture.destroy();
+  });
+
+  it('clears a saved body when the current identity loses staff eligibility', async () => {
+    const revision = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const { fixture, http } = await presentationScreen([savedPin(revision)]);
+    const loading = fixture.componentInstance.viewPinned(revision);
+    http.expectOne(`/api/ui/accounting/packages/${id}/presentation/pins/${revision}`).flush(savedBody('Staff only', '101'));
+    await loading;
+    fixture.detectChanges();
+    expect(fixture.componentInstance.savedSnapshot()).not.toBeNull();
+    TestBed.inject(SessionService).current.update((session) => ({ ...session!, staff: false }));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.selectedPin()).toBeNull();
+    expect(fixture.componentInstance.savedSnapshot()).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Saved cash Staff only');
     fixture.destroy();
   });
 });

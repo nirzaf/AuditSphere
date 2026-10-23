@@ -299,6 +299,33 @@ describe('Practical rounding form (STE 3.2)', () => {
     TestBed.inject(HttpTestingController).expectNone((request) => request.method === 'POST' && request.url.includes('/workpaper'));
   });
 
+  it.each([
+    ['route', false], ['route', true], ['identity', false], ['identity', true], ['destroy', false],
+  ] as const)('ignores a late workpaper response after %s changes (uncertain: %s)', async (change, uncertain) => {
+    const f = render(planPayload);
+    const http = TestBed.inject(HttpTestingController);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const opening = f.componentInstance.openWorkpaper(fieldworkPayload.procedures[0]);
+    const pending = http.expectOne({ method: 'POST', url: `/api/ui/procedures/${id4}/workpaper` });
+    if (change === 'destroy') f.destroy();
+    else {
+      if (change === 'identity') TestBed.inject(SessionService).current.update((actor) => ({ ...actor!, userId: id4 }));
+      else (TestBed.inject(ActivatedRoute).paramMap as BehaviorSubject<ReturnType<typeof convertToParamMap>>)
+        .next(convertToParamMap({ id: id2 }));
+      f.detectChanges();
+      const nextId = change === 'route' ? id2 : id1;
+      http.expectOne(`/api/ui/engagements/${nextId}/audit-plan`).flush({ ...planPayload, engagementId: nextId });
+      http.expectOne(`/api/ui/engagements/${nextId}/fieldwork`).flush({ ...fieldworkPayload, engagementId: nextId });
+      f.detectChanges();
+    }
+    if (uncertain) pending.flush({ message: 'Lost reply' }, { status: 503, statusText: 'Unavailable' });
+    else pending.flush({ value: id2 });
+    await opening;
+    expect(navigate).not.toHaveBeenCalled();
+    expect(f.componentInstance.workpaperUncertainProcedureId()).toBeNull();
+    http.expectNone((request) => request.url.endsWith('/fieldwork'));
+  });
+
   it('shows the rounding form to a Manager, prefilled with the computed thresholds', async () => {
     const f = render({ ...planPayload, canApplyPracticalRounding: true });
     await f.whenStable();
@@ -483,6 +510,30 @@ describe('Practical rounding form (STE 3.2)', () => {
     expect(page.milestone.cutoff).toBe('2027-05-01');
     expect(page.milestonePreview()).toBeNull();
     expect((f.nativeElement as HTMLElement).textContent).not.toContain('Calculated schedule preview');
+  });
+
+  it('clears the milestone draft and ignores an old preview when the engagement changes', async () => {
+    const f = render(planPayload);
+    const page = f.componentInstance;
+    const http = TestBed.inject(HttpTestingController);
+    page.milestone = { cutoff: '2027-04-30', fieldwork: '', draft: '', finalReport: '', adjustment: 'Old engagement', override: '' };
+    const preparing = page.previewMilestones();
+    const pending = http.expectOne({ method: 'POST', url: `/api/ui/engagements/${id1}/milestones/calculate` });
+    (TestBed.inject(ActivatedRoute).paramMap as BehaviorSubject<ReturnType<typeof convertToParamMap>>)
+      .next(convertToParamMap({ id: id2 }));
+    f.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id2}/audit-plan`).flush({ ...planPayload, engagementId: id2 });
+    http.expectOne(`/api/ui/engagements/${id2}/fieldwork`).flush({ ...fieldworkPayload, engagementId: id2 });
+    f.detectChanges();
+    pending.flush({ value: {
+      periodEnd: '2026-12-31', statutoryFilingCutoff: '2027-04-30', fieldworkStartDate: '2027-01-07',
+      draftReportDate: '2027-03-13', finalReportDate: '2027-04-15', archiveDeadlineDate: '2027-06-14',
+      hasAdjustments: false, warnings: [], warningOverrideRequired: false,
+    } });
+    await preparing;
+    expect(Object.values(page.milestone).every((value) => value === '')).toBe(true);
+    expect(page.milestonePreview()).toBeNull();
+    expect(page.milestonePreviewBusy()).toBe(false);
   });
 
 });

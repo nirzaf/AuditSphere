@@ -205,14 +205,19 @@ export function presentationAmount(value: string | null | undefined, decimals = 
           }
         </article>
       }
+      @if (savedSnapshotError()) { <p role="alert">{{ savedSnapshotError() }}</p> }
       @if (selectedPin(); as selected) {
         <section class="panel" aria-labelledby="saved-snapshot-heading">
           <h3 id="saved-snapshot-heading">Saved snapshot body · immutable revision</h3>
           <p>Package <code>{{ selected.packageId }}</code> · revision <code>{{ selected.revisionId }}</code>. This view uses the saved presentation snapshot; it is separate from the current live presentation above.</p>
           @if (savedSnapshotLoading()) { <p role="status">Loading the exact saved snapshot…</p> }
-          @if (savedSnapshotError()) { <p role="alert">{{ savedSnapshotError() }}</p> }
           @if (savedSnapshot(); as snapshot) {
-            <p role="status">{{ snapshot.status }} · saved snapshot hash <code>{{ selectedSnapshotHash() }}</code> · {{ snapshot.header.entity }} · {{ snapshot.header.currency }}</p>
+            <p role="status">{{ snapshot.status }} · {{ snapshot.header.entity }} · {{ snapshot.header.currency }}</p>
+            @if (selectedSnapshotHash()) {
+              <p>Saved snapshot hash <code>{{ selectedSnapshotHash() }}</code></p>
+            } @else {
+              <p>The snapshot digest is unavailable in the loaded history.</p>
+            }
             @for (statement of snapshot.statements; track statement.code) {
               <h4>{{ statement.title }}</h4>
               <div class="table-scroll">
@@ -241,8 +246,39 @@ export function presentationAmount(value: string | null | undefined, decimals = 
                 <p>Comparative · {{ note.comparative.state }}</p>
                 @if (note.comparative.text) { <p>{{ note.comparative.text }}</p> }
                 @if (note.comparative.rationale) { <p>Preparer rationale: {{ note.comparative.rationale }}</p> }
+                @if (note.amounts.length > 0) {
+                  <div class="table-scroll">
+                    <table>
+                      <caption>Saved note {{ note.number }} schedule · revision {{ selected.revisionId }}</caption>
+                      <thead><tr><th scope="col">Face line</th><th scope="col">Statement</th><th scope="col">Currency</th><th scope="col" class="number">Current amount</th><th scope="col" class="number">Comparative amount</th></tr></thead>
+                      <tbody>
+                        @for (line of note.amounts; track line.faceDestinationCode) {
+                          <tr>
+                            <th scope="row">{{ line.faceDestinationCode }} · {{ line.label }}</th>
+                            <td>{{ line.statementSection }}</td><td>{{ line.currency }}</td>
+                            <td class="number">{{ amount(line.current, snapshot.displayDecimals) }}</td>
+                            <td class="number">{{ amount(line.comparative, snapshot.displayDecimals) }}</td>
+                          </tr>
+                          @if (line.currentEvidenceReference) { <tr><td colspan="5"><small>Saved current preparer reference, not independently verified: {{ line.currentEvidenceReference }}</small></td></tr> }
+                          @if (line.comparativeEvidenceReference) { <tr><td colspan="5"><small>Saved comparative preparer reference, not independently verified: {{ line.comparativeEvidenceReference }}</small></td></tr> }
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                } @else {
+                  <p>No numeric note schedule was supplied for this saved note.</p>
+                }
               </article>
             }
+            @if (snapshot.notes.length === 0) { <p>No notes were supplied for this saved snapshot.</p> }
+            @if (snapshot.warnings.length > 0) {
+              <h4>Saved readiness and rounding notes</h4>
+              <ul>@for (warning of snapshot.warnings; track warning.detail) { <li>{{ warning.detail }}</li> }</ul>
+            }
+            <details>
+              <summary>Saved presentation checks</summary>
+              <ul>@for (check of snapshot.checks; track check.code) { <li>{{ check.passed ? 'Passed' : 'Failed' }} · {{ check.code }} · {{ check.detail }}</li> }</ul>
+            </details>
           }
         </section>
       }
@@ -308,7 +344,7 @@ export class StatementPresentation {
       if (decoded.manifest.packageId !== packageId) throw new Error('The saved response belongs to a different package.');
       this.savedSnapshot.set(decoded);
       const pin = (this.pins.data() ?? []).find((item) => item.revisionId === revisionId && item.packageId === packageId);
-      this.selectedSnapshotHash.set(pin?.snapshotSha256Hex ?? 'verified saved revision');
+      this.selectedSnapshotHash.set(pin?.snapshotSha256Hex ?? '');
     } catch (error) {
       if (!this.isCurrentSnapshotRequest(request, packageId, revisionId, actorKey, invalidation)) return;
       const status = error instanceof HttpErrorResponse ? error.status : 0;
@@ -333,7 +369,7 @@ export class StatementPresentation {
   }
 
   private actorKey(session: ReturnType<SessionService['current']>): string {
-    return session ? `${session.userId}:${session.firmId}:${session.generation}:${this.session.invalidation()}` : '';
+    return session ? `${session.userId}:${session.firmId}:${session.generation}:${session.staff}:${this.session.invalidation()}` : '';
   }
 
   private isCurrentSnapshotRequest(request: number, packageId: string, revisionId: string, actorKey: string, invalidation: number): boolean {

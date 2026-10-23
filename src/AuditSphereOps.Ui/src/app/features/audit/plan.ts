@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectorRef, Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -52,6 +52,7 @@ export const decodePlan = obj({ engagementId: guid, professionalWorkBlocked: boo
   milestonePlan: nullable(milestonePlan), canApplyPracticalRounding: bool });
 type Plan = ReturnType<typeof decodePlan>;
 interface RowInput { likelihood: number; magnitude: number; fraud: boolean; criticalEstimate: boolean; rationale: string; owner: string; note: string }
+interface WorkpaperContext { engagementId: string; generation: number; actorKey: string }
 
 @Component({
   selector: 'audit-plan',
@@ -367,6 +368,7 @@ export class AuditPlan {
   readonly workpaperBusy = signal(false);
   readonly workpaperUncertainProcedureId = signal<string | null>(null);
   readonly workpaperMessage = signal('');
+  private workpaperContextGeneration = 0;
   readonly cmd = new CommandState(this.api);
   readonly planning = new PlanningCommandState(() => this.id(), () => this.plan.data(),
     () => !!this.plan.data() && !this.plan.loading() && !this.plan.error() && !this.plan.data()!.professionalWorkBlocked,
@@ -400,6 +402,7 @@ export class AuditPlan {
   private milestonePreviewGeneration = 0;
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => { this.workpaperContextGeneration++; });
     effect(() => {
       const receipt = this.planning.receipt();
       if (!receipt || receipt.id === this.handledPlanningReceipt) return;
@@ -414,6 +417,11 @@ export class AuditPlan {
       this.id(); this.session.current(); this.session.invalidation();
       untracked(() => {
         this.invalidateMilestonePreview();
+        this.milestone = { cutoff: '', fieldwork: '', draft: '', finalReport: '', adjustment: '', override: '' };
+        this.workpaperContextGeneration++;
+        this.workpaperBusy.set(false);
+        this.workpaperUncertainProcedureId.set(null);
+        this.workpaperMessage.set('');
         this.inputs.clear(); this.inputHeads.clear(); this.roundPrefilledFor = '';
         this.calc = this.planning.protect({ option: '', rate: '1', performance: '75', trivial: '5', rationale: '' });
         this.round = this.planning.protect({ pm: '', te: '', sad: '', rationale: '' });
@@ -491,25 +499,30 @@ export class AuditPlan {
   async openWorkpaper(procedure: ReturnType<typeof workpaperProcedure>): Promise<void> {
     const fw = this.fieldwork.data();
     const plan = this.plan.data();
-    if (this.workpaperBusy() || !fw?.canManageFieldwork || !plan || plan.professionalWorkBlocked ||
+    if (this.workpaperBusy() || !this.session.current()?.staff || !fw?.canManageFieldwork || !plan || plan.professionalWorkBlocked ||
+        plan.engagementId !== this.id() || fw.engagementId !== this.id() ||
         procedure.applicabilityStatus !== 'APPLICABLE' || !fw.procedures.some((item) => item.id === procedure.id)) return;
     if (this.workpaperUncertainProcedureId() === procedure.id) return this.recoverWorkpaper(procedure);
+    const context = this.workpaperContext();
     this.workpaperBusy.set(true);
     this.workpaperMessage.set('');
     try {
-      await this.createOrOpenWorkpaper(procedure);
+      await this.createOrOpenWorkpaper(procedure, context);
     } finally {
-      this.workpaperBusy.set(false);
+      if (this.isCurrentWorkpaperContext(context)) this.workpaperBusy.set(false);
     }
   }
 
   async recoverWorkpaper(procedure: ReturnType<typeof workpaperProcedure>): Promise<void> {
     const engagementId = this.id();
-    if (this.workpaperBusy() || this.workpaperUncertainProcedureId() !== procedure.id || !engagementId) return;
+    if (this.workpaperBusy() || this.workpaperUncertainProcedureId() !== procedure.id || !engagementId ||
+        !this.session.current()?.staff) return;
+    const context = this.workpaperContext();
     this.workpaperBusy.set(true);
     this.workpaperMessage.set('Checking the current authorized procedure/workpaper association…');
     try {
       const current = await this.api.get(`/api/ui/engagements/${engagementId}/fieldwork`, workpaperFieldwork);
+      if (!this.isCurrentWorkpaperContext(context)) return;
       if (current.engagementId !== engagementId || !current.canManageFieldwork) {
         this.workpaperMessage.set('The procedure context is no longer authorized. Refresh the plan before continuing.');
         return;
@@ -525,16 +538,30 @@ export class AuditPlan {
         await this.router.navigate(['/app/audit/workpapers', refreshed.workpaperId]);
         return;
       }
-      await this.createOrOpenWorkpaper(refreshed);
+      await this.createOrOpenWorkpaper(refreshed, context);
     } catch (error) {
+      if (!this.isCurrentWorkpaperContext(context)) return;
       this.workpaperMessage.set((error as Error).message || 'The current paper association could not be verified. No retry was sent.');
     } finally {
-      this.workpaperBusy.set(false);
+      if (this.isCurrentWorkpaperContext(context)) this.workpaperBusy.set(false);
     }
   }
 
-  private async createOrOpenWorkpaper(procedure: ReturnType<typeof workpaperProcedure>): Promise<void> {
+  private workpaperContext(): WorkpaperContext {
+    const actor = this.session.current();
+    return { engagementId: this.id() ?? '', generation: this.workpaperContextGeneration,
+      actorKey: actor ? `${actor.userId}:${actor.firmId}:${actor.generation}:${actor.staff}:${this.session.invalidation()}` : '' };
+  }
+
+  private isCurrentWorkpaperContext(context: WorkpaperContext): boolean {
+    const current = this.workpaperContext();
+    return current.engagementId === context.engagementId && current.generation === context.generation &&
+      current.actorKey === context.actorKey;
+  }
+
+  private async createOrOpenWorkpaper(procedure: ReturnType<typeof workpaperProcedure>, context: WorkpaperContext): Promise<void> {
     const result = await this.api.command<unknown>(`/api/ui/procedures/${procedure.id}/workpaper`, {});
+    if (!this.isCurrentWorkpaperContext(context)) return;
     if (result.ok) {
       let workpaperId: string;
       try { workpaperId = decode(guid, result.value); }
@@ -554,8 +581,9 @@ export class AuditPlan {
     this.workpaperUncertainProcedureId.set(procedure.id);
     this.workpaperMessage.set('The create/open outcome is unknown. Checking the saved procedure association before any retry.');
     try {
-      const current = await this.api.get(`/api/ui/engagements/${this.id()}/fieldwork`, workpaperFieldwork);
-      const associated = current.engagementId === this.id() && current.canManageFieldwork
+      const current = await this.api.get(`/api/ui/engagements/${context.engagementId}/fieldwork`, workpaperFieldwork);
+      if (!this.isCurrentWorkpaperContext(context)) return;
+      const associated = current.engagementId === context.engagementId && current.canManageFieldwork
         ? current.procedures.find((item) => item.id === procedure.id)?.workpaperId ?? null : null;
       if (associated) {
         this.workpaperUncertainProcedureId.set(null);
@@ -565,6 +593,7 @@ export class AuditPlan {
       }
       this.workpaperMessage.set('No paper association is visible yet. Recheck before an explicit idempotent retry.');
     } catch {
+      if (!this.isCurrentWorkpaperContext(context)) return;
       this.workpaperMessage.set('The saved association could not be checked. No retry was sent; recheck when the service is available.');
     }
   }

@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Retained parity UI corrections (2026-10-23)
+
+Workpaper responses and recovery remain bound to the initiating engagement and identity. Context changes clear milestone drafts. Saved statements retain visible refusals, numeric note schedules and saved checks. Build/static evidence and deferred acceptance are recorded under `apiAngularParity.retainedUiT015T033T034` in `status.json`; no local test cases ran.
+
 ## Scoped accounting and staffing persistence (2026-10-23)
 
 Profile/dimension history retains scoped revisions without legacy backfill. TB/GL resolve exact scope. API/Angular submit bounded reasons; an owned setup journey checks retained reasons and cutover denial. Staffing/resource/cost-rate keys bind owners. Context activation, wider key inventory and broader acceptance remain open. See `status.json`.
@@ -375,15 +379,7 @@ Retained checks and limitations are in the [historical handoff](auditsphere-exec
 
 Retained earlier evidence is in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#pbc-exact-version-reviewer-acceptance).
 
-## API and Angular bidirectional parity — active implementation
-
-The [parity implementation tracker](auditsphere-execution-tracker-api-angular-parity-current.md) covers the attached API/Angular specification independently of the R2R and audit-programme task identifiers. Current source contains the authorization, decimal precision, workflow entry, recovery, supplier selection, portal refresh/history and consolidation ownership slices. Code presence is not final functional acceptance; current checks and remaining tasks are recorded under `apiAngularParity` in [status.json](status.json).
-
-The allocation-reversal history route and correction handoff are connected. Review corrections restore API startup/contract generation, forward independent history pages, preserve exact normalized source ordering, clear scope-specific forms and review assent, and allow independent approval after reconciliation. Intercompany option-bound commands require reporting-period membership and reject negative revision sentinels. The ownership query now applies filtering/paging before its final DTO projection. That initial oversized-readiness limitation is superseded by the bounded scope continuation above: components and readiness have independent pages and complete counts. The existing ConsolidationQueryTests source exercises 501 members across six readiness pages; this reconciliation is static inspection, not a fresh test pass or full workflow acceptance.
-
-Focused API, Domain and Angular checks passed for the affected slices; the emitted contract and drift check passed. Built-in browser smoke verified the synthetic overview, scope, external-pack history/source lines and recovered ownership panel. This was read-only browser coverage, not the complete submission/review/pinning journey or responsive/live-provider acceptance. Exact code snapshot, cohorts and limitations are under `apiAngularParity.localVerification` in [status.json](status.json). PR #46 and #47 are merged. Task statuses retain their remaining acceptance work.
-
-GL upload checkpoint and earlier CI observations are preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Current accessibility and release evidence remains above and in [status.json](status.json).
+Earlier parity implementation observations are retained in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#api-and-angular-parity-handoff-archived-2026-10-23).
 
 > **Archive:** older dated handoff sections are retained verbatim in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are historical evidence; consult `status.json` and current authority documents for present state.
 

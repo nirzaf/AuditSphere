@@ -90,3 +90,13 @@ Local agent evidence only; exact-candidate release verification has not yet run 
 | T031 | `AngularConsolidationComponentReadinessJourneyTests` passed 3/3 (components table and readiness) | Pagination and bounded errors are asserted at query and spec level. Next action: exact-candidate CI. |
 | T008, T009, T010, T016, T025, T026, T028 | No journey targets these components' controls | `BROWSER_JOURNEY_MISSING`. Next action: extend the existing consolidation journey (T008–T010, T025, T026, T028) and the workflow journeys (T016) under WU-032 and WU-028. |
 | T011–T015, T030, T033, T034 | Journeys visit the route, but only generic or neighbouring controls match | `BROWSER_ACTION_UNVERIFIED`. Next action: add action-specific assertions to the nearest existing journey under WU-027–031. |
+
+## Retained UI corrections (23 October 2026)
+
+The current source audit finds an implementation for every specification row. This does not close verification or external acceptance. The original endpoint ledger resolves to the current contract apart from the intentionally removed unreviewed proposal conversion route (replaced by reviewed client conversion); the two direct procedure mutation routes intentionally describe refusal only. Authentication routes describe redirects and HTML rather than invented JSON success bodies. This is source/artifact inspection, not a fresh emitted-contract test.
+
+- **T015:** workpaper creation and uncertain-outcome lookup capture the initiating engagement, actor/session and context generation. Late replies after navigation, identity change or component destruction cannot navigate, retry or update another context. Entry also checks the displayed plan and procedure engagement.
+- **T033:** engagement/session changes clear the milestone input draft as well as invalidating its calculated preview. The existing server-side calculation on save remains authoritative.
+- **T034:** denied/not-found saved revisions clear their selection while keeping an accessible refusal visible. Historical numeric note schedules, source references, warnings and checks render from the selected saved body. Losing staff eligibility clears the body. A missing loaded digest is disclosed instead of being described as verified.
+
+The existing Angular regression cohorts now assert these boundaries and saved numeric content. They were compiled, not executed locally, at the owner's request. The production build passed with the existing commercial stylesheet budget warning. Local lint is unavailable because this checkout's dependency tree lacks ESLint; CI installs from the lockfile. Exact source and CI state belong in `status.json`. Interactive, human and live-provider acceptance remain at their recorded states.

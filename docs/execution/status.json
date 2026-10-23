@@ -1565,13 +1565,7 @@
       "browser": "Unavailable; no group/client access."
     },
     "ownershipWindowsT026": {
-      "result": "FOCUSED_LOCAL_PASS; FAST_CI_PASS",
-      "sourceCommit": "23b33597f8914f2c78588be419bc08c0cb9d295a",
-      "build": "Release 0W/0E; Angular/OpenAPI PASS",
-      "browser": "NOT_RUN",
-      "fastCI": "39667293119 PASS",
-      "checks": "API1/1; Angular3/3",
-      "accessibilityReview": "Source labels/table/pager no finding; auth UI/AT not tested"
+      "archive": "status-archive-2026-10.json#keys.apiAngularParityOwnershipWindowsT02620261023"
     },
     "intercompanyMatchingT027": {
       "result": "FOCUSED_API_PASS; PLAYWRIGHT_PASS; FAST_CI_PASS; HUMAN_AT_OPEN",
@@ -1583,6 +1577,12 @@
     },
     "externalComponentPacksT028": {
       "archive": "status-archive-2026-10.json#keys.apiAngularParityExternalPacksT02820261022"
+    },
+    "retainedUiT015T033T034": {
+      "sourceBase": "7d9642515125003e409288509ca24a148bac455f",
+      "implementation": "T015/T033/T034 context, refusal and saved schedule corrections; see parity tracker.",
+      "localVerification": "Angular build and spec compilation PASS; local tests NOT_RUN per owner; lint unavailable (eslint missing).",
+      "ci": "PENDING"
     }
   },
   "completePracticeManagement": {

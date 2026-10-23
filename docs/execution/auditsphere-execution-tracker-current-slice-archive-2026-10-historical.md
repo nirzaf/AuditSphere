@@ -7922,3 +7922,15 @@ The Vite patch passed fresh audit, isolated install/build and focused session ch
 
 
 Operational evidence guards reject invented scan/metric summaries; absent targets and approval remain unverified.
+
+## API and Angular parity handoff archived 2026-10-23
+
+## API and Angular bidirectional parity — active implementation
+
+The [parity implementation tracker](auditsphere-execution-tracker-api-angular-parity-current.md) covers the attached API/Angular specification independently of the R2R and audit-programme task identifiers. Current source contains the authorization, decimal precision, workflow entry, recovery, supplier selection, portal refresh/history and consolidation ownership slices. Code presence is not final functional acceptance; current checks and remaining tasks are recorded under `apiAngularParity` in [status.json](status.json).
+
+The allocation-reversal history route and correction handoff are connected. Review corrections restore API startup/contract generation, forward independent history pages, preserve exact normalized source ordering, clear scope-specific forms and review assent, and allow independent approval after reconciliation. Intercompany option-bound commands require reporting-period membership and reject negative revision sentinels. The ownership query now applies filtering/paging before its final DTO projection. That initial oversized-readiness limitation is superseded by the bounded scope continuation above: components and readiness have independent pages and complete counts. The existing ConsolidationQueryTests source exercises 501 members across six readiness pages; this reconciliation is static inspection, not a fresh test pass or full workflow acceptance.
+
+Focused API, Domain and Angular checks passed for the affected slices; the emitted contract and drift check passed. Built-in browser smoke verified the synthetic overview, scope, external-pack history/source lines and recovered ownership panel. This was read-only browser coverage, not the complete submission/review/pinning journey or responsive/live-provider acceptance. Exact code snapshot, cohorts and limitations are under `apiAngularParity.localVerification` in [status.json](status.json). PR #46 and #47 are merged. Task statuses retain their remaining acceptance work.
+
+GL upload checkpoint and earlier CI observations are preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Current accessibility and release evidence remains above and in [status.json](status.json).
