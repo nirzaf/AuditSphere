@@ -473,6 +473,66 @@ work. No CMS import/signing command is available from this slice. A matching
 snapshot, valid JSON envelope or zero exit from an offline check cannot replace
 those gates or prove delivery.
 
+## Deployment bindings and safe settings export (WU-024)
+
+The selected owner is `infra/hostinger-acceptance/compose.yaml`. The optional
+`m365-isolation.override.example.yaml` is inspected only when explicitly supplied
+through `-IsolationOverridePath`; it is not automatically applied. These tools
+support that **Acceptance** target. A Production or Development assertion is a
+mismatch, not permission to rename the environment or create another platform.
+
+`Test-DeploymentBindings.ps1` checks declarations; `Export-DeploymentSettings.ps1`
+exports an allowlisted projection of public IDs and credential names/references.
+Both accept `Plan`, `Verify` and `Apply`. Plan, `-DryRun` and `-WhatIf` are offline;
+Apply is refused. Neither script invokes Docker, reads `.env`, resolves a secret,
+contacts a provider, creates a resource or deploys a service.
+
+```powershell
+pwsh -NoProfile -NonInteractive -File scripts/m365/Test-DeploymentBindings.ps1 `
+  -PlanPath /approved/operator/target-plan.json -DryRun `
+  -OutputPath /approved/operator/deployment-plan.json
+
+# Use an artifact sanitized by the approved operator process, never a raw render
+# containing database passwords, client secrets, API keys or signing keys.
+pwsh -NoProfile -NonInteractive -File scripts/m365/Test-DeploymentBindings.ps1 `
+  -PlanPath /approved/operator/target-plan.json -Mode Verify `
+  -ExpectedPlanSha256 $reviewedPlanSha256 -TargetEnvironment Acceptance `
+  -EnabledCapability 'DIRECTORY_READER,DOCUMENTS' `
+  -ConfigJsonPath /approved/operator/compose.sanitized.json `
+  -OutputPath /approved/operator/deployment-bindings.json
+
+pwsh -NoProfile -NonInteractive -File scripts/m365/Export-DeploymentSettings.ps1 `
+  -PlanPath /approved/operator/target-plan.json -Mode Verify `
+  -ExpectedPlanSha256 $reviewedPlanSha256 -TargetEnvironment Acceptance `
+  -EnabledCapability 'DIRECTORY_READER,DOCUMENTS' `
+  -ConfigJsonPath /approved/operator/compose.sanitized.json `
+  -OutputPath /approved/operator/deployment-settings.json
+```
+
+Replace the capability selection with the reviewed enabled subset of the plan.
+It declares inspection scope; it does not activate a group or change application
+flags. Disabled optional groups do not require credentials. Any declared mount
+still has to respect isolation: API never receives the client-sites key, core
+workers/database/migrator receive no capability keys, and unexpected services
+cannot obtain them. All declared workers must state their environment. Present
+credentials must use their allowed read-only mounts; broad parent mounts fail.
+
+Verify checks the plan source against Git HEAD and selected source-file blobs
+and hashes, then checks declared image tags, tenant/client IDs, settings and
+storage/credential paths. The public export withholds unapproved paths and
+rejects unredacted secret-bearing input. Keep sanitized artifacts restricted;
+these are operator evidence, not material to publish in Git or public CI logs.
+
+Even matching declarations return `INCOMPLETE_EVIDENCE`, not `VERIFIED`.
+Operator-provided JSON does not prove render/artifact provenance, a running
+process or mounted certificate. Runtime environment/mounts, schema compatibility,
+worker readiness, egress policy and rollback remain unobserved/null with explicit
+blockers. A source/environment/identity/isolation mismatch returns `DRIFT`;
+unsafe secret input or unsupported Apply returns `INVALID_OR_UNSAFE`. Inspect
+the structured checks and exit code; neither a source hash nor a declared image
+tag establishes that an image is deployed. Complete those runtime observations
+through the existing operator deployment runbook and separately authorized target.
+
 ## Read-only readiness inventory (WU-025)
 
 `Verify-M365Readiness.ps1` inventories the existing authenticated Administration
@@ -550,6 +610,7 @@ pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-020 -Offline
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-021 -Offline
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-022 -Offline
+pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-024 -Offline
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-025 -Offline
 ```
 

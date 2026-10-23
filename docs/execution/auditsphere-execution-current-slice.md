@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Deployment binding inventory (2026-10-23)
+
+The approved Acceptance Compose target has a read-only binding checker and safe public-settings exporter. Exact source, environment declarations, selected capability identities and all-service credential isolation have focused offline evidence; Apply is refused. Model provenance, running mounts, schema, readiness, egress and rollback remain unobserved. Existing CI routes include the cohort. See the local M365 automation guide and `status.json`; no deployment or live acceptance is claimed.
+
 ## Completion evidence identities (2026-10-23)
 
 Completion exposes persisted artifact IDs and full hashes. The existing release validator now separates recorded approvals from current package evidence and blocks prepare after source return or lost Partner authority; issued history is preserved. Focused PostgreSQL/Angular, build and contract checks are recorded in `status.json`. The owned early-lock journey passed; interactive and full completion acceptance remain open.
@@ -349,9 +353,7 @@ Retained checks and limitations are in the [historical handoff](auditsphere-exec
 
 ## PBC exact-version reviewer acceptance
 
-Staff acceptance now requires the assigned, independently authorized reviewer to confirm the exact provider-verified upload ID, revision and content hash. The accepted request stores an immutable receipt binding that source to its request submission revision, provider identity/digest, reviewer and time. Database constraints validate the receipt against the request, received upload and completed transfer operation, and prevent rewriting the accepted decision or source. Legacy upload rows remain readable but cannot be accepted without matching current provider evidence.
-
-Focused PBC Domain and PostgreSQL guard regressions passed, as did the PBC Angular contract spec; the API Release build and OpenAPI contract drift passed; Angular production build passed with the existing `settings.scss` budget warning. Commit `4bf84641` updates two PBC browser journeys to the current accessible control labels; both selected E2E journeys passed on that commit (2/2), including exact-version reviewer assent, receipt persistence and grant-revocation denial. Fast CI run `39093158735` passed on the same SHA: documentation health, Angular build/specs, .NET Release, architecture guards, EF drift, publication and OpenAPI. The built-in browser still has a stale local PBC bundle (lazy chunk 404), so manual browser acceptance remains unverified. Full release verification is not green: the earlier run on `9e2709b4` had Domain pass, API runner communication loss and E2E timeout with 24 failures before cancellation. Live-provider/business acceptance remains external. Exact evidence is in `status.json` under `targetedVerification.pbcExactVersionAcceptance20261018` and `testSuites.latestAttempt`.
+Retained earlier evidence is in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#pbc-exact-version-reviewer-acceptance).
 
 ## API and Angular bidirectional parity — active implementation
 

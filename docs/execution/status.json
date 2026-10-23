@@ -1058,10 +1058,9 @@
       },
       "ciObserved": "FAST_CI_PASS39902421493/images39902421491 at889bde7e58c1c74d9fe52cfbb99565b779676f2f. Full39903345685 RUNNING; sourceartifact MATCH889; AngularPASS, Domain/API/E2E/buildverify running05:02Z. Prior368fullFAIL preserved; no FULL_CI_PASS.",
       "scopeUnknownOutcome": {
+        "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.scopeUnknownOutcome",
         "status": "PARTIAL",
-        "scope": "WU032 mutation buttons and external-pack commands honor parent unknown-outcome fence. Refresh uses existing resource and never clears uncertainty or dispatches duplicate commands. Local editing/navigation retained.",
-        "checks": "PASS: scope-workspace.spec.ts 23/23 and external-packs.spec.ts 5/5; Angular build PASS, existing commercial SCSS budget warning. Logs .local/autonomous/evidence/wu032-frontend/. No interactive browser/full-suite claim.",
-        "remaining": "Exact original-command receipt recovery, broader group-control browser acceptance and current-source CI."
+        "remaining": "Exact receipt recovery and broader group/browser acceptance remain open."
       },
       "archiveCopyProtocol": {
         "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.archiveCopyProtocol",
@@ -1104,6 +1103,12 @@
         "status": "PASS_LOCAL_SLICE",
         "evidence": ".local/autonomous/evidence/run003-dispatch-json/",
         "result": "Observed gh URL prefix brokeJSON; childstdout nowcaptured, stderrpreserved. Red/green tests also prove greenrun/matchingsource cannotpassfullCI without canonical successfulaggregate (absent/skipped/wrongworkflow=>UNKNOWN).9focusedCI-module testsPASS. Existing39903345685 reused; no duplicate dispatch. Raworiginal retained release-889-dispatch.raw.log."
+      },
+      "deploymentBindings": {
+        "status": "PARTIAL_OFFLINE_ENGINEERING",
+        "evidence": ".local/autonomous/evidence/wu024-deployment-bindings/",
+        "result": "Routed WU02432assertionsPASS; Plan+standalone resultverifierPASS; actionlint/docs/whitespacePASS. HEAD/Composeblob, explicitAcceptance/selectedcapabilities, all-service keyisolation and redactedpublicexport. NoDocker/.env/credential/provider/deploy calls.",
+        "remaining": "Operator-provided model/artifact provenance, runtime environment/mounts, DBschema, workerreadiness, egress and rollback unobserved; no VERIFIED/liveacceptance."
       }
     },
     "developmentFeedback20261023": {

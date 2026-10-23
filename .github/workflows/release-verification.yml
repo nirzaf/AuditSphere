@@ -465,6 +465,8 @@ jobs:
             pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-021 -Offline
           bash scripts/release/run-verification-step.sh "Offline mail permission-model plan boundaries" \
             pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-022 -Offline
+          bash scripts/release/run-verification-step.sh "Offline deployment credential binding boundaries" \
+            pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-024 -Offline
           bash scripts/release/run-verification-step.sh "Offline M365 readiness evidence boundaries" \
             pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-025 -Offline
           bash scripts/release/run-verification-step.sh "UI source discovery drift" \

@@ -204,6 +204,7 @@ jobs:
           pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-020 -Offline
           pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-021 -Offline
           pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-022 -Offline
+          pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-024 -Offline
           pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-025 -Offline
 
       - name: Check UI source discovery drift
