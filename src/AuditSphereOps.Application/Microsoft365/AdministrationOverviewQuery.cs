@@ -100,10 +100,6 @@ public static class AdministrationOverviewQuery
       .Where(x => x.FirmId == firmId && !x.Disabled && db.RoleGrants.Any(g => g.UserId == x.Id && g.RevokedAt == null))
       .Select(x => new { x.TenantId, x.Subject }).ToListAsync(ct);
     var disabledInMicrosoftWithAccess = usersWithAccess.Count(u => disabledInMicrosoft.Contains((u.TenantId, u.Subject)));
-    var mailRows = await db.TenantCapabilityVerifications.AsNoTracking()
-      .Where(x => x.FirmId == firmId && x.TenantId == tenantId && x.Capability == Microsoft365Capabilities.OutboundMail)
-      .OrderByDescending(x => x.ObservedAt).Take(20).ToListAsync(ct);
-
     // Re-check before returning any counts (a grant may have been revoked during the read).
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))
       return TenantAdministration.Denied<AdministrationOverview>();
@@ -126,15 +122,17 @@ public static class AdministrationOverviewQuery
       LastVerification: evidence.Where(x => x.ResourceKind is "SITE" or "DRIVE" or "ROOT").Select(x => (DateTimeOffset?)x.ObservedAt).FirstOrDefault());
 
     var mailCap = Cap(Microsoft365Capabilities.OutboundMail);
+    var mailHasFailure = mailCap.State is CapabilityVerificationStates.NotGranted or CapabilityVerificationStates.Failed or
+      CapabilityVerificationStates.BlockedExternal or TenantCapabilityService.Stale ||
+      mailCap.DiagnosticCode == TenantCapabilityService.MailAuthorizationEvidenceRequired;
     var mail = new MailStatus(
       string.IsNullOrWhiteSpace(mailSender) ? "Not configured" : mailSender,
       TransportState: !options.OutboundMailEnabled ? "DISABLED" :
         string.IsNullOrWhiteSpace(mailSender) ? "NOT_CONFIGURED" :
         draft?.MailState == "CONFIGURED" ? "CONFIGURED" : "NOT_CONFIGURED",
       PermissionState: mailCap.State,
-      LastVerification: mailRows.Select(x => (DateTimeOffset?)x.ObservedAt).FirstOrDefault(),
-      LastFailure: mailRows.FirstOrDefault(x => x.State != CapabilityVerificationStates.Verified) is { } failure
-        ? $"{failure.State} ({failure.DiagnosticCode}) at {failure.ObservedAt:yyyy-MM-dd HH:mm} UTC" : null);
+      LastVerification: mailCap.LastVerifiedAt,
+      LastFailure: mailHasFailure ? $"{mailCap.State} ({mailCap.DiagnosticCode})" : null);
 
     var directoryCap = Cap(Microsoft365Capabilities.DirectoryRead);
     var nonAdminAssignments = activeGrants.Count(x => x.Role != "Administrator");

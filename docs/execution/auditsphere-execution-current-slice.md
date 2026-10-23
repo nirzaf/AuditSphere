@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Mail scope evidence projection (2026-10-23)
+
+Generic capability verification no longer probes or promotes outbound mail from a role-only result. Enabled mail stays unverified until model-bound evidence is implemented; the overview uses that evaluated state and cannot reuse a historical verification timestamp. Focused PostgreSQL checks passed with source hashes retained in `status.json`. This correction does not gate the Graph sender: typed signed receipts, runtime token/send checks and live sender/control acceptance remain engineering and external work respectively.
+
 ## Deployment binding inventory (2026-10-23)
 
 The approved Acceptance Compose target has a read-only binding checker and safe public-settings exporter. Exact source, environment declarations, selected capability identities and all-service credential isolation have focused offline evidence; Apply is refused. Model provenance, running mounts, schema, readiness, egress and rollback remain unobserved. Existing CI routes include the cohort. See the local M365 automation guide and `status.json`; no deployment or live acceptance is claimed.

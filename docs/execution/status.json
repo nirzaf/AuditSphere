@@ -1038,17 +1038,15 @@
         "status": "Focused technical evidence retained; broader release acceptance separate."
       },
       "mailPlanBoundaries": {
-        "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.mailPlanBoundaries",
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.mailPlanBoundaries",
         "status": "PARTIAL_OFFLINE_ENGINEERING",
         "remaining": "Signed runtime binding, RBAC verifier/runtime/migration and live acceptance remain open; retained snapshot source hashes are not runtime approval."
       },
       "resultStructure": "PASS: 6 focused Python tests; new malformed-envelope regression fails old source. Shape/counters only; freshness/provider acceptance separate. Fast CI39882506372 PASS on e576; not full regression.",
       "contentReviewIdentity": {
         "status": "PARTIAL",
-        "checks": "Angular content-review.spec.ts: 4 PASS; actual persisted revision/hash/reviewer/review IDs displayed. No approval semantics change.",
-        "build": "PASS: agent corrected Angular build includes this component; existing SCSS warning. Initial concurrent correction union failure repaired. No browser/full-suite claim.",
-        "readAuthority": "PASS: 2 focused PostgreSQL race cases after fix (before: revoked-read case FAILED, retained-read case PASS). Final read auth denies revocation without suppressing valid read-only access; TRX .local/autonomous/evidence/wu011-review-authority/after.trx.",
-        "sourceCurrentness": "PASS: 3 ContentReviewRead_ PostgreSQL cases and 5 Angular content-review specs; targeted emitter Release build and OpenAPI drift. SourceIsCurrent uses established source validation; a returned source disables review while historical approval/digest remain. Evidence .local/autonomous/evidence/wu011-review-currentness/. Angular build passed with existing commercial SCSS warning; browser NOT_RUN."
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.contentReviewIdentity",
+        "remaining": "Broader reporting/browser/professional acceptance."
       },
       "correctionLineage": {
         "status": "PARTIAL",
@@ -1056,7 +1054,7 @@
         "checks": "PASS: main TRX 1/1 .local/autonomous/evidence/wu013-correction-lineage/correction-lineage.trx; agent Angular36, corrected build (SCSS warning), EF model and OpenAPI checks passed. Migration null-pointer downgrade/reapply and retained-lineage downgrade refusal covered.",
         "remaining": "Owned correction browser PASS 1/1: .local/autonomous/evidence/wu013-correction-browser/ComponentCorrectionHandoff.retry2.trx; exact source IDs persisted and approved pin/pack/run retained. Current-source CI and broader group release remain open; no universal supersession policy required."
       },
-      "ciObserved": "FAST_CI_PASS39902421493/images39902421491 at889bde7e58c1c74d9fe52cfbb99565b779676f2f. Full39903345685 RUNNING; sourceartifact MATCH889; AngularPASS, Domain/API/E2E/buildverify running05:02Z. Prior368fullFAIL preserved; no FULL_CI_PASS.",
+      "ciObserved": "Full39903345685 exact889bde7e58c1c74d9fe52cfbb99565b779676f2f artifactMATCH; Angular/Domain/buildPASS; API/E2E running. Fast39905138989 at8baadfed257dd096de0708be8b2596f121368871 PASS. Not currentHEAD FULL_CI_PASS.",
       "scopeUnknownOutcome": {
         "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.scopeUnknownOutcome",
         "status": "PARTIAL",
@@ -1109,6 +1107,13 @@
         "evidence": ".local/autonomous/evidence/wu024-deployment-bindings/",
         "result": "Routed WU02432assertionsPASS; Plan+standalone resultverifierPASS; actionlint/docs/whitespacePASS. HEAD/Composeblob, explicitAcceptance/selectedcapabilities, all-service keyisolation and redactedpublicexport. NoDocker/.env/credential/provider/deploy calls.",
         "remaining": "Operator-provided model/artifact provenance, runtime environment/mounts, DBschema, workerreadiness, egress and rollback unobserved; no VERIFIED/liveacceptance."
+      },
+      "mailRoleEvidenceGuard": {
+        "status": "PARTIAL",
+        "base": "8baadfed257dd096de0708be8b2596f121368871",
+        "evidence": ".local/autonomous/evidence/wu022-mail-overview-8baadfed-20261023",
+        "checks": "2 PostgreSQL PASS; exact three source hashes match. Generic/historical Mail.Send evidence cannot verify mailbox scope or supply overview timestamp. No provider calls.",
+        "remaining": "Typed signed model-bound evidence, runtime token/send gate, import/migration and live acceptance."
       }
     },
     "developmentFeedback20261023": {

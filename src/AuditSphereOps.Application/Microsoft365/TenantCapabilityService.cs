@@ -45,8 +45,12 @@ public static class TenantCapabilityService
   public const string Stale = "STALE";
   public const string NotVerified = "NOT_VERIFIED";
   public const string Disabled = "DISABLED";
+  public const string MailAuthorizationEvidenceRequired = "mail-authorization-bound-evidence-required";
 
-  /// <summary>Verifies every capability independently and appends one row per capability.</summary>
+  /// <summary>
+  /// Verifies generic role-based capabilities independently and appends one row per capability. Outbound mail is
+  /// excluded until model-bound authorization evidence can prove the approved Legacy AAP or Exchange RBAC scope.
+  /// </summary>
   public static async Task<CommandResult<IReadOnlyList<CapabilityStatus>>> VerifyAsync(
     IAuditSphereDbContext db, ActorContext actor, IMicrosoftTenantConsentVerifier verifier,
     TenantAdministrationOptions options, DateTimeOffset now, CancellationToken ct = default)
@@ -63,7 +67,8 @@ public static class TenantCapabilityService
       .OrderByDescending(x => x.ConsentVerifiedAt).FirstOrDefaultAsync(ct);
 
     var probes = Microsoft365PermissionMatrix.Rows
-      .Where(x => x.Capability is not (Microsoft365Capabilities.SignIn or Microsoft365Capabilities.SelectedSite) &&
+      .Where(x => x.Capability is not (Microsoft365Capabilities.SignIn or Microsoft365Capabilities.SelectedSite or
+          Microsoft365Capabilities.OutboundMail) &&
         options.IsEnabled(x.Capability))
       .Select(x => new CapabilityProbe(x.Capability, x.Permission)).ToList();
     IReadOnlyList<CapabilityProbeResult> results;
@@ -115,7 +120,10 @@ public static class TenantCapabilityService
       await StatusesAsync(db, actor.FirmId, options, now, ct));
   }
 
-  /// <summary>Current per-capability state derived only from persisted verification rows.</summary>
+  /// <summary>
+  /// Current per-capability state derived from persisted verification rows, except enabled outbound mail, which
+  /// remains unverified until typed model-bound authorization evidence is available.
+  /// </summary>
   public static async Task<IReadOnlyList<CapabilityStatus>> StatusesAsync(
     IAuditSphereDbContext db, Guid firmId, TenantAdministrationOptions options, DateTimeOffset now,
     CancellationToken ct = default)
@@ -136,6 +144,12 @@ public static class TenantCapabilityService
       if (!enabled)
         return new CapabilityStatus(row.Capability, row.DisplayName, row.Permission, false, Disabled,
           latest?.ObservedAt, false, "capability-disabled");
+      // A Mail.Send role alone proves neither the restrictive Legacy AAP boundary nor the combined Entra and
+      // Exchange resource scope required by RBAC. Ignore all generic and historical mail rows until typed evidence
+      // is integrated; never project their timestamps as current mail verification.
+      if (row.Capability == Microsoft365Capabilities.OutboundMail)
+        return new CapabilityStatus(row.Capability, row.DisplayName, row.Permission, true,
+          NotVerified, null, false, MailAuthorizationEvidenceRequired);
       if (latest is null)
         return new CapabilityStatus(row.Capability, row.DisplayName, row.Permission, true, NotVerified,
           null, false, "not-verified");

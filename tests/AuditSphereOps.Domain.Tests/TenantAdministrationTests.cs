@@ -117,6 +117,48 @@ public sealed class TenantAdministrationTests
   }
 
   [Fact]
+  public async Task OutboundMail_GenericRoleEvidenceCannotProveLegacyAapOrExchangeRbacScope()
+  {
+    await using var f = await TenantAdministrationFixture.CreateAsync();
+    await f.ConnectAndVerifyAsync();
+    await using var db = f.Db();
+    var now = DateTimeOffset.UtcNow;
+    var consent = await db.TenantConsentAttempts.SingleAsync(x => x.State == TenantConsentAttemptStates.ConsentVerified);
+
+    // WU-022 requires Legacy Mail.Send plus a restrictive AAP, or RBAC scope plus no overlapping unscoped Entra grant;
+    // both require a positive sender probe and a denied control probe. A generic role row proves none of those bounds.
+    foreach (var observedAt in new[] { now, now.AddDays(-30) })
+      db.TenantCapabilityVerifications.Add(new TenantCapabilityVerification
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, ConnectionRevisionId = f.ConnectionId,
+        ConsentAttemptId = consent.Id, TenantId = f.TenantId, Capability = Microsoft365Capabilities.OutboundMail,
+        Permission = "Mail.Send", State = CapabilityVerificationStates.Verified,
+        DiagnosticCode = "generic-role-present", ObservedByUserId = f.Admin.Id, ObservedAt = observedAt
+      });
+    await db.SaveChangesAsync();
+
+    var verifier = new GenericRoleOnlyMailVerifier(f.Microsoft);
+    var options = f.Options with { OutboundMailEnabled = true };
+    Assert.True((await TenantCapabilityService.VerifyAsync(db, f.AdminActor, verifier, options, now)).Succeeded);
+
+    Assert.DoesNotContain(Microsoft365Capabilities.OutboundMail, verifier.RequestedCapabilities);
+    Assert.Equal(2, await db.TenantCapabilityVerifications.CountAsync(x =>
+      x.Capability == Microsoft365Capabilities.OutboundMail)); // no fresh generic row was appended
+    var statuses = await TenantCapabilityService.StatusesAsync(db, f.FirmId, options, now);
+    var mail = statuses.Single(x => x.Capability == Microsoft365Capabilities.OutboundMail);
+    Assert.Equal(TenantCapabilityService.NotVerified, mail.State);
+    Assert.Equal("mail-authorization-bound-evidence-required", mail.DiagnosticCode);
+    Assert.Null(mail.LastVerifiedAt);
+    Assert.False(mail.Stale);
+    Assert.Equal(CapabilityVerificationStates.Verified,
+      statuses.Single(x => x.Capability == Microsoft365Capabilities.TenantUserProvisioning).State);
+    var gate = await TenantCapabilityService.RequireVerifiedAsync(db, f.FirmId, options,
+      Microsoft365Capabilities.OutboundMail, now);
+    Assert.False(gate.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, gate.ErrorCode);
+  }
+
+  [Fact]
   public async Task CapabilityRows_AreAppendOnlyInPostgres()
   {
     await using var f = await TenantAdministrationFixture.CreateAsync();
@@ -398,6 +440,29 @@ public sealed class TenantAdministrationTests
     Assert.Equal("VERIFIED", after.Cards.Single(x => x.Key == "tenant").State);
     Assert.Equal(7, after.Progress.Count);
     Assert.Equal(Microsoft365PermissionMatrix.Rows.Count, after.PermissionMatrix.Count);
+
+    var consent = await db.TenantConsentAttempts.SingleAsync(x => x.State == TenantConsentAttemptStates.ConsentVerified);
+    var observedAt = DateTimeOffset.UtcNow;
+    foreach (var rowObservedAt in new[] { observedAt, observedAt.AddDays(-30) })
+      db.TenantCapabilityVerifications.Add(new TenantCapabilityVerification
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, ConnectionRevisionId = f.ConnectionId,
+        ConsentAttemptId = consent.Id, TenantId = f.TenantId, Capability = Microsoft365Capabilities.OutboundMail,
+        Permission = "Mail.Send", State = CapabilityVerificationStates.Verified,
+        DiagnosticCode = "generic-role-present", ObservedByUserId = f.Admin.Id, ObservedAt = rowObservedAt
+      });
+    await db.SaveChangesAsync();
+
+    var mailEnabledOptions = f.Options with { OutboundMailEnabled = true };
+    var mailOverview = (await AdministrationOverviewQuery.GetAsync(db, f.AdminActor, mailEnabledOptions,
+      "sender@example.test", observedAt)).Value!;
+    var mailCapability = mailOverview.Capabilities.Single(x => x.Capability == Microsoft365Capabilities.OutboundMail);
+    Assert.Equal(TenantCapabilityService.NotVerified, mailOverview.Mail.PermissionState);
+    Assert.Null(mailOverview.Mail.LastVerification);
+    Assert.Equal("NOT_VERIFIED (mail-authorization-bound-evidence-required)", mailOverview.Mail.LastFailure);
+    Assert.Equal(TenantCapabilityService.NotVerified, mailCapability.State);
+    Assert.Null(mailCapability.LastVerifiedAt);
+    Assert.Equal(ProgressStates.Pending, mailOverview.Progress.Single(x => x.Key == "mail").State);
   }
 
   [Fact]
@@ -445,5 +510,25 @@ public sealed class TenantAdministrationTests
     public Task<IReadOnlyList<CapabilityProbeResult>> VerifyCapabilitiesAsync(string tenantId,
       IReadOnlyList<CapabilityProbe> capabilities, CancellationToken ct) =>
       Task.FromResult<IReadOnlyList<CapabilityProbeResult>>([]);
+  }
+
+  private sealed class GenericRoleOnlyMailVerifier(IMicrosoftTenantConsentVerifier inner) : IMicrosoftTenantConsentVerifier
+  {
+    public IReadOnlyList<string> RequestedCapabilities { get; private set; } = [];
+    public bool IsConfigured => inner.IsConfigured;
+    public Uri BuildIdentityChallenge(string tenantId, string state, string nonce) =>
+      inner.BuildIdentityChallenge(tenantId, state, nonce);
+    public Task<ConsentingAdministrator> RedeemIdentityAsync(string tenantId, string code, CancellationToken ct) =>
+      inner.RedeemIdentityAsync(tenantId, code, ct);
+
+    public async Task<IReadOnlyList<CapabilityProbeResult>> VerifyCapabilitiesAsync(string tenantId,
+      IReadOnlyList<CapabilityProbe> capabilities, CancellationToken ct)
+    {
+      RequestedCapabilities = capabilities.Select(x => x.Capability).ToArray();
+      var results = await inner.VerifyCapabilitiesAsync(tenantId, capabilities, ct);
+      // Simulate a generic provider's Mail.Send role-only success even though no scoped mail check was made.
+      return results.Append(new CapabilityProbeResult(Microsoft365Capabilities.OutboundMail,
+        CapabilityVerificationStates.Verified, "generic-role-present")).ToArray();
+    }
   }
 }
