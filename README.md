@@ -198,7 +198,7 @@ acceptance. Exact results and source revisions live in the [evidence ledger](doc
 | ☑ Completed | Client-site review/local-intent API and worker safeguards | Administrator, stale-authority and persisted-cutoff checks have focused Application/API evidence. Existing worker owns effects/receipts, rechecks authority and preserves uncertain-create fences; queued requests are not provider success. |
 | ☑ Completed | Managed-only site membership removal and residual auditing | Unmanaged access is preserved; residual references retained in receipts/audit. Focused provider/PostgreSQL checks pass. |
 | ☑ Completed | Autonomous evidence integrity | Supervisor checks hashes/size and refuses missing, changed or symlinked evidence. Existing checkpoints still need attributable revalidation. |
-| ☐ Partially pending | Client-site CLI intent/status integration | Final integration/review remains unfinished; duplicate provider path is blocked. Live tenant acceptance remains separate. |
+| ☑ Completed | Client-site CLI intent/status integration — offline engineering | Signed approval, current session/CSRF, bounded polling and exact worker receipts have focused offline evidence. The duplicate provider path is removed; current-source CI and live tenant acceptance remain separate. |
 | ☐ Partially pending | Development performance/configured startup | Warm compilation is incremental; identity/database readiness, cold-cache/frontend comparisons and session/CSRF acceptance remain open. No overall speedup claimed. |
 
 ### Angular quality and accessibility follow-up

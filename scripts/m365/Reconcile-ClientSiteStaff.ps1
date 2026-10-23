@@ -1,11 +1,11 @@
 #Requires -Version 7.4
 <#
 .SYNOPSIS
-  WU-021: Reconcile SharePoint client site managed staff group, Full Control role, and exact member identities.
+  Submit approved managed-staff intents to AuditSphere and verify worker-published receipts.
 .DESCRIPTION
-  Defaults to offline Plan. Live modes require authenticated Graph and SharePoint module bindings.
-  Apply additionally requires a detached CMS approval signed by an independently trusted certificate,
-  an exact plan hash, ShouldProcess for each mutation, and the local intent journal.
+  Defaults to offline Plan. Apply preserves detached CMS approval and asks for
+  ShouldProcess approval before each reviewed server intent. The isolated worker
+  remains the only owner of staff membership and SharePoint permission effects.
 #>
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
@@ -18,7 +18,8 @@ param(
   [string] $ApprovalPath,
   [string] $ApprovalSignaturePath,
   [string] $ApprovalSignerSha256,
-  [string] $StateDirectory
+  [string] $StateDirectory,
+  [Alias('SessionCookieEnv')] [string] $SessionCookieEnvironmentVariable
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -27,7 +28,9 @@ Import-Module (Join-Path $PSScriptRoot 'AuditSphere.M365.Common.psm1') -Force
 $offline = $DryRun.IsPresent -or $WhatIfPreference -or $Mode -eq 'Plan'
 Set-M365OfflineMode $offline
 $result = New-M365Result ($(if ($offline) { 'Plan' } else { $Mode }))
-$lockStream = $null
+$client = $null
+$cookie = $null
+$transport = $null
 
 try {
   $plan = Read-M365Plan $PlanPath (Join-Path $PSScriptRoot 'm365-plan.schema.json')
@@ -37,15 +40,12 @@ try {
   if ($ExpectedPlanSha256 -and $ExpectedPlanSha256 -cne $result.planSha256) { throw 'INVALID_OR_UNSAFE' }
 
   Import-Module (Join-Path $PSScriptRoot 'AuditSphere.M365.Entra.psm1') -Force
-  Import-Module (Join-Path $PSScriptRoot 'AuditSphere.M365.Sites.psm1') -Force
   Import-Module (Join-Path $PSScriptRoot 'AuditSphere.M365.ClientSites.psm1') -Force
+  Import-Module (Join-Path $PSScriptRoot 'AuditSphere.M365.ClientSiteIntentHttp.psm1') -Force
   Assert-ClientSitesPlan $plan
 
   if ($offline) {
-    foreach ($site in $plan.sites) {
-      Add-M365Check $result "plan:staff-group:$($site.siteUrl)" 'PLANNED' 'managed staff group AuditSphere Assigned Staff' 'planned-group-and-full-control'
-      Add-M365Check $result "plan:staff-membership:$($site.siteUrl)" 'PLANNED' 'managed staff group membership' 'planned-membership-reconciliation'
-    }
+    Add-M365Check $result 'plan:client-site-staff' 'PLANNED' 'server-owned staff membership operation' 'offline-plan'
     exit (Complete-M365Result $result 'PLANNED' $OutputPath)
   }
 
@@ -77,68 +77,44 @@ try {
   }
 
   if (-not $ExpectedPlanSha256) { throw 'INVALID_OR_UNSAFE' }
-  # The historical draft below is not an approved second provider. Live work must
-  # submit current-authorized intents to AuditSphere and let its isolated worker
-  # publish the real receipt. Keep this engineering gap explicit until that adapter exists.
-  throw 'BLOCKED_BOOTSTRAP'
-
-  $module = (Get-Content -Raw (Join-Path $PSScriptRoot 'modules.lock.json') | ConvertFrom-Json -AsHashtable).modules |
-    Where-Object name -eq 'Microsoft.Graph.Authentication'
-  $loaded = Get-Module -Name $module.name
-  if (-not $loaded -or $loaded.Version.ToString() -ne $module.version -or
-      (Get-FileHash -LiteralPath (Join-Path $loaded.ModuleBase $module.manifestFile) -Algorithm SHA256).Hash.ToLowerInvariant() -cne $module.manifestSha256) { throw 'PREREQUISITE_MISSING' }
   if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'PREREQUISITE_MISSING' }
   $repository = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
   $source = & git -C $repository rev-parse HEAD 2>$null
   if ($LASTEXITCODE -ne 0 -or $source -cne $plan.repositoryCommit) { throw 'INVALID_OR_UNSAFE' }
   $dirty = & git -C $repository status --porcelain -- scripts/m365 2>$null
   if ($LASTEXITCODE -ne 0 -or $dirty) { throw 'INVALID_OR_UNSAFE' }
+  if (-not $SessionCookieEnvironmentVariable) { throw 'BLOCKED_BOOTSTRAP' }
 
-  $contextCommand = Get-Command Get-MgContext -Module $module.name
-  $graphCommand = Get-Command Invoke-MgGraphRequest -Module $module.name
-  $providerCommand = Get-Command Invoke-M365ProviderRequest
-  $getRequestContext = Get-Command Get-MgRequestContext -Module $module.name
-  $setRequestContext = Get-Command Set-MgRequestContext -Module $module.name
-
-  if ($Mode -eq 'Apply') { $StateDirectory = Get-EntraStateDirectory $StateDirectory }
-  $journalPath = Get-ClientSitesJournalPath $plan $StateDirectory
-  $journal = @{}
-  if (Test-Path -LiteralPath $journalPath) {
-    $journal = Get-Content -Raw -LiteralPath $journalPath | ConvertFrom-Json -AsHashtable
+  Import-Module (Join-Path $PSScriptRoot 'AuditSphere.M365.Enrollment.psm1') -Force
+  $cookie = Get-M365SessionCookie $SessionCookieEnvironmentVariable
+  $http = New-M365EnrollmentHttpClient
+  $client = $http.Client
+  $providerCommand = Get-Command Invoke-M365ProviderRequest -ErrorAction Stop
+  $providerDispatch = { param($request) & $providerCommand $request }.GetNewClosure()
+  $clientIds = if ($plan.clientSites.ContainsKey('clientIds')) {
+    @($plan.clientSites.clientIds)
+  } else {
+    @($plan.sites | Where-Object { $_.ContainsKey('clientId') } | ForEach-Object { $_.clientId })
   }
-  if ($Mode -eq 'Apply') {
-    $lockPath = "$journalPath.lock"
-    $lockStream = [System.IO.FileStream]::new($lockPath, [System.IO.FileMode]::OpenOrCreate,
-      [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
-  }
-
-  $context = & $contextCommand
-  if (-not (Test-EntraOperatorContext $context $plan)) { throw 'BLOCKED_BOOTSTRAP' }
-  $graphTransport = New-EntraGraphTransport $providerCommand $graphCommand $getRequestContext $setRequestContext
-  $sharePointTransport = $graphTransport
-  $directoryTransport = $graphTransport
-
-  $approve = {
-    param($method, $path, $body)
-    if ($Mode -ne 'Apply') { return $false }
-    if (-not $PSCmdlet.ShouldProcess($path, "$method client site staff")) { return $false }
-    Save-ClientSitesMutationIntent $journal $journalPath $method $path $body $result.planSha256
-    return $true
+  $transport = New-M365ClientSiteIntentTransport $client ([uri] $plan.publicBaseUri) $cookie $clientIds $providerDispatch
+  $requestApproval = {
+    param($clientId)
+    $PSCmdlet.ShouldProcess("client:$clientId", 'Submit reviewed managed-staff intent to AuditSphere')
   }.GetNewClosure()
 
-  $confirm = {
-    param($path, $body)
-    if ($Mode -eq 'Apply') { Confirm-ClientSitesMutationIntent $journal $journalPath $path $body }
-  }.GetNewClosure()
-
-  Invoke-ClientSiteStaffReconciliation $plan $result $Mode $sharePointTransport $approve $confirm $directoryTransport
-  $status = if ($result.mutationsConfirmed -gt 0) { 'APPLIED_AND_VERIFIED' } else { 'VERIFIED' }
+  $requested = Invoke-ClientSiteStaffReconciliation $plan $result $Mode $transport $requestApproval
+  $status = if ($requested) { 'APPLIED_AND_VERIFIED' } else { 'VERIFIED' }
 } catch {
-  $known = @('DRIFT','INVALID_OR_UNSAFE','PROVIDER_FAILURE','BLOCKED_APPROVAL','BLOCKED_BOOTSTRAP','RESULT_UNCERTAIN','PREREQUISITE_MISSING','INCOMPLETE_EVIDENCE')
-  $status = if ($_.Exception.Message -cin $known) { $_.Exception.Message } else { 'INVALID_OR_UNSAFE' }
+  $known = @('DRIFT','INVALID_OR_UNSAFE','PROVIDER_FAILURE','BLOCKED_APPROVAL','BLOCKED_BOOTSTRAP',
+    'RESULT_UNCERTAIN','PREREQUISITE_MISSING','INCOMPLETE_EVIDENCE','BLOCKED_EXTERNAL')
+  $status = if ($_.Exception.Message -cin $known) { $_.Exception.Message }
+    elseif ($_.Exception.GetType().Name -ceq 'M365PlanException') { 'INVALID_OR_UNSAFE' }
+    else { 'PROVIDER_FAILURE' }
   $result.errorCode = "client-site-staff-$($status.ToLowerInvariant())"
 } finally {
-  if ($lockStream) { $lockStream.Dispose() }
+  $cookie = $null
+  $transport = $null
+  if ($client) { $client.Dispose() }
 }
 
 exit (Complete-M365Result $result $status $OutputPath)

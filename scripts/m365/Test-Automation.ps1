@@ -13,7 +13,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $Offline) { throw 'Test-Automation runs offline only; pass -Offline.' }
 if ($Unit -eq 'WU-021') {
-  & (Join-Path $PSScriptRoot 'tests/ClientSites.Tests.ps1') -Offline
+  $engine = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
+  & $engine -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot 'tests/ClientSiteIntentHttp.Tests.ps1') -Offline
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  & $engine -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot 'tests/ClientSites.Tests.ps1') -Offline
   exit $LASTEXITCODE
 }
 if ($Unit -eq 'WU-020') {

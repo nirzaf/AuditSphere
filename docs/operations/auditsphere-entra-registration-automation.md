@@ -236,18 +236,18 @@ python3 scripts/m365/verify-result.py /approved/operator/sites-plan.json --expec
 ## SharePoint client site provisioning and managed staff Full Control (WU-021)
 
 `Configure-SharePointClientSites.ps1` and `Reconcile-ClientSiteStaff.ps1`
-currently support **offline planning only**. Live modes stop with
-`BLOCKED_BOOTSTRAP` after approval validation: the authenticated Application intent
-adapter is unfinished. This is an engineering gap, not a request for broader
-Microsoft consent. The draft PowerShell transport must not execute a second
-SPSiteManager/membership workflow or use a Graph token for SharePoint.
+are thin authenticated Application clients. Their default
+`Plan`, `-DryRun` and `-WhatIf` paths remain entirely offline. Focused offline integration evidence is recorded in the execution ledger;
+these instructions do not establish live tenant acceptance.
+No command in this procedure grants Microsoft consent or performs a second
+SPSiteManager/membership algorithm.
 
 The existing isolated .NET `client-sites` worker remains the effect/receipt owner.
 It derives URLs using `ClientSharePointSites.SiteSlug(clientName, clientId)`,
 verifies the exact firm/client marker, uses the persisted rollout boundary, and
 builds staff authority from current Application assignments. Caller-declared
-`staffAssignments` or migration flags in a plan are not authorization. The pending
-CLI must request exact-client intents and observe durable published receipts,
+`staffAssignments` or migration flags in a plan are not authorization. The
+CLI requests exact-client intents and observes durable published receipts,
 without mounting the privileged worker certificate in the API or CLI.
 
 ```powershell
@@ -282,8 +282,64 @@ remain in its existing repository.
 
 The API needs the non-secret `ClientSites:SiteHost`, tenant identity and explicit
 rollout boundary to match the persisted tenant configuration. Privileged worker
-certificates remain in the isolated worker. CLI integration is still pending;
-this API description does not enable the blocked draft scripts.
+certificates remain in the isolated worker. Live tenant acceptance and exact-source CI remain separate gates in the execution ledger.
+
+### Reviewed terminal execution
+
+1. Use a clean, reviewed checkout. The non-secret plan's `repositoryCommit` must
+   equal `git rev-parse HEAD`; live entry points refuse modified M365 scripts.
+   Put exact new-client IDs in `clientSites.clientIds` (unique GUIDs, bounded
+   batch). Legacy plans may provide `sites[].clientId`; their URLs, staff lists
+   and migration claims do not override Application authority.
+2. Set `clientSites.host` and `rolloutCutoffUtc` to the approved server values.
+   The server checks the persisted boundary and rejects historical conversion.
+   The existing `custodianObjectId` describes worker setup; the CLI cannot change
+   the worker's custodian or credentials.
+3. Compute the plan digest with `Get-M365PlanSha256` from the common module.
+   For Apply, obtain the detached CMS approval described above, binding the
+   exact digest, tenant, operator client, reference, fixed state directory,
+   bounded expiry and action `CONFIGURE_SHAREPOINT_CLIENT_SITES` or
+   `RECONCILE_CLIENT_SITE_STAFF`. Trust the signer fingerprint through an
+   independently approved channel. A plan flag is not approval.
+4. Supply the existing authenticated staff session cookie privately through an
+   environment variable. Never put its value in command arguments, plans,
+   transcripts, screenshots or Git. The CLI refreshes same-origin CSRF material;
+   redirects, changed sessions and cross-origin responses are refused. Normal
+   human sign-in/MFA remains required; this does not create an administrator.
+
+```powershell
+# Replace placeholders with reviewed non-secret paths, digest and signer hash.
+$env:AUDITSPHERE_OPERATOR_COOKIE = Read-Host 'AuditSphere staff session cookie (hidden)' -MaskInput
+try {
+  pwsh -NoProfile -NonInteractive -File scripts/m365/Configure-SharePointClientSites.ps1 `
+    -PlanPath /approved/operator/target-plan.json -Mode Apply `
+    -ExpectedPlanSha256 $reviewedPlanSha256 -ApprovalReference $approvalReference `
+    -ApprovalPath /approved/operator/client-sites-approval.json `
+    -ApprovalSignaturePath /approved/operator/client-sites-approval.p7s `
+    -ApprovalSignerSha256 $approvedSignerSha256 `
+    -SessionCookieEnvironmentVariable AUDITSPHERE_OPERATOR_COOKIE `
+    -OutputPath /approved/operator/client-sites-result.json -Confirm:$false
+} finally {
+  Remove-Item Env:AUDITSPHERE_OPERATOR_COOKIE -ErrorAction SilentlyContinue
+}
+```
+
+`-Confirm:$false` is appropriate only after the exact signed approval is reviewed;
+it does not bypass CMS, session, CSRF or server authorization. Use
+`Reconcile-ClientSiteStaff.ps1` with its separately signed action for staff-only
+reconciliation on an existing site. For observation/resume, use `-Mode ReadOnly`
+with the exact plan digest and privately supplied cookie; do not resubmit an
+uncertain POST automatically. ReadOnly cannot create an intent.
+
+Bounded polling may end `BLOCKED_EXTERNAL` while discovery or the worker is still
+pending. Inspect the original operation through Administration/Operations and
+rerun ReadOnly after progress. `RESULT_UNCERTAIN` means the POST may have been
+accepted: recover its server state first. A queued request, stale receipt,
+residual access or changed staff generation cannot produce verified success.
+Provider mutations belong to the worker receipt; terminal mutation counts refer
+only to local Application intent submissions. No privileged worker certificate
+is mounted in the CLI. Live positive provisioning, idempotent rerun and negative
+cross-client acceptance still require the separately approved tenant run.
 
 ## Offline engineering checks
 

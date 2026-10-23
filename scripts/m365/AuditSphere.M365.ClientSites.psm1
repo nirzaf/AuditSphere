@@ -1,325 +1,323 @@
 #Requires -Version 7.4
-# Automated SharePoint client site provisioning and managed staff Full Control reconciliation.
-# Preserves client isolation, strict ownership markers, rollout cutoffs, and exact staff group membership.
+# Thin operator orchestration for server-owned client-site intents. The isolated
+# AuditSphere worker remains the only owner of SharePoint and membership effects.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'AuditSphere.M365.ClientSiteIntentHttp.psm1') -Force
+
+function ConvertTo-ClientSiteGuid([object] $Value, [string] $FailureCode = 'INVALID_OR_UNSAFE') {
+  $parsed = [guid]::Empty
+  if ($Value -isnot [string] -or -not [guid]::TryParseExact($Value, 'D', [ref] $parsed) -or $parsed -eq [guid]::Empty) {
+    throw $FailureCode
+  }
+  return $parsed.ToString('D')
+}
+
+function Get-ClientSiteTargets($Plan) {
+  if ($Plan -isnot [System.Collections.IDictionary] -or -not $Plan.Contains('clientSites') -or
+      $Plan.clientSites -isnot [System.Collections.IDictionary]) { throw 'INVALID_OR_UNSAFE' }
+  $clientSites = $Plan.clientSites
+  if ($clientSites.Contains('clientIds')) {
+    $source = $clientSites.clientIds
+    if ($source -isnot [System.Collections.IList] -or $source -is [string]) { throw 'INVALID_OR_UNSAFE' }
+  }
+  else {
+    if (-not $Plan.Contains('sites') -or $Plan.sites -isnot [System.Collections.IList]) { throw 'INVALID_OR_UNSAFE' }
+    $source = @($Plan.sites | Where-Object { $_ -is [System.Collections.IDictionary] -and $_.Contains('clientId') } |
+      ForEach-Object { $_.clientId })
+  }
+  if ($source.Count -lt 1 -or $source.Count -gt 50) { throw 'INVALID_OR_UNSAFE' }
+  $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+  $targets = [System.Collections.Generic.List[string]]::new()
+  foreach ($value in $source) {
+    $clientId = ConvertTo-ClientSiteGuid $value
+    if (-not $seen.Add($clientId)) { throw 'INVALID_OR_UNSAFE' }
+    $targets.Add($clientId)
+  }
+  return ,$targets.ToArray()
+}
+
+function ConvertTo-ClientSiteCutoff($Value, [string] $FailureCode) {
+  if ($Value -is [DateTimeOffset]) { return $Value.ToUniversalTime() }
+  if ($Value -is [datetime]) {
+    if ($Value.Kind -eq [DateTimeKind]::Unspecified) {
+      $Value = [DateTime]::SpecifyKind($Value, [DateTimeKind]::Utc)
+    }
+    return [DateTimeOffset]::new($Value.ToUniversalTime())
+  }
+  $parsed = [DateTimeOffset]::MinValue
+  if ($Value -is [string] -and [DateTimeOffset]::TryParse($Value,
+      [System.Globalization.CultureInfo]::InvariantCulture,
+      [System.Globalization.DateTimeStyles]::RoundtripKind, [ref] $parsed)) {
+    return $parsed.ToUniversalTime()
+  }
+  throw $FailureCode
+}
 
 function Assert-ClientSitesPlan($Plan) {
-  if (-not $Plan.ContainsKey('clientSites') -or $null -eq $Plan.clientSites) { throw 'INVALID_OR_UNSAFE' }
-  $cs = $Plan.clientSites
-  if (-not $cs.ContainsKey('host') -or -not $cs.ContainsKey('custodianObjectId') -or -not $cs.ContainsKey('rolloutCutoffUtc')) { throw 'INVALID_OR_UNSAFE' }
-  if ($cs.host -cnotmatch '^[a-z0-9-]+\.sharepoint\.com$') { throw 'INVALID_OR_UNSAFE' }
-  $custodian = [guid]::Empty
-  if (-not [guid]::TryParseExact($cs.custodianObjectId, 'D', [ref]$custodian) -or $custodian -eq [guid]::Empty) { throw 'INVALID_OR_UNSAFE' }
-  $cutoff = [DateTimeOffset]::MinValue
-  $parsedCutoff = if ($cs.rolloutCutoffUtc -is [datetime]) { $cutoff = [DateTimeOffset]$cs.rolloutCutoffUtc; $true }
-                  else { [DateTimeOffset]::TryParse([string]$cs.rolloutCutoffUtc, [ref]$cutoff) }
-  if (-not $parsedCutoff) { throw 'INVALID_OR_UNSAFE' }
+  if ($Plan -isnot [System.Collections.IDictionary] -or
+      @('firmId','tenantId','publicBaseUri','clientSites' | Where-Object { -not $Plan.Contains($_) }).Count -gt 0 -or
+      $Plan.clientSites -isnot [System.Collections.IDictionary] -or
+      @('host','custodianObjectId','rolloutCutoffUtc' | Where-Object { -not $Plan.clientSites.Contains($_) }).Count -gt 0) {
+    throw 'INVALID_OR_UNSAFE'
+  }
+  $null = ConvertTo-ClientSiteGuid $Plan.firmId
+  $null = ConvertTo-ClientSiteGuid $Plan.tenantId
+  $null = ConvertTo-ClientSiteGuid $Plan.clientSites.custodianObjectId
+  if ($Plan.clientSites.host -isnot [string] -or $Plan.clientSites.host -cnotmatch '\A[a-z0-9-]+\.sharepoint\.com\z') {
+    throw 'INVALID_OR_UNSAFE'
+  }
+  $null = ConvertTo-ClientSiteCutoff $Plan.clientSites.rolloutCutoffUtc 'INVALID_OR_UNSAFE'
+  $base = $null
+  if ($Plan.publicBaseUri -isnot [string] -or -not [uri]::TryCreate($Plan.publicBaseUri, [System.UriKind]::Absolute, [ref] $base) -or
+      $base.Scheme -cne 'https' -or $base.UserInfo -or $base.Query -or $base.Fragment -or $base.AbsolutePath -cne '/' -or
+      $base.OriginalString.IndexOfAny([char[]] "`r`n\") -ge 0) { throw 'INVALID_OR_UNSAFE' }
+  $null = Get-ClientSiteTargets $Plan
+}
 
-  if (-not $Plan.ContainsKey('sites') -or -not $Plan.sites.Count -or $Plan.sites.Count -gt 50) { throw 'INVALID_OR_UNSAFE' }
-  $firmId = [guid]::Empty
-  if (-not [guid]::TryParseExact($Plan.firmId, 'D', [ref]$firmId) -or $firmId -eq [guid]::Empty) { throw 'INVALID_OR_UNSAFE' }
+function Assert-ClientSiteReviewBinding($Plan, [string] $ClientId, $View) {
+  $required = @('clientId','tenantId','rolloutBoundary','url','ownershipMarker','reviewToken',
+    'staffAuthorizationDigest','staffObjectIds','eligible','requiredAction','state','membershipState',
+    'operationId','operationState','receiptState','publishedReceipt')
+  if ($View -isnot [System.Collections.IDictionary] -or @($required | Where-Object { -not $View.Contains($_) }).Count -gt 0) {
+    throw 'INCOMPLETE_EVIDENCE'
+  }
+  $client = ConvertTo-ClientSiteGuid $ClientId 'INCOMPLETE_EVIDENCE'
+  $tenant = ConvertTo-ClientSiteGuid $Plan.tenantId
+  if ((ConvertTo-ClientSiteGuid $View.clientId 'INCOMPLETE_EVIDENCE') -cne $client -or
+      (ConvertTo-ClientSiteGuid $View.tenantId 'INCOMPLETE_EVIDENCE') -cne $tenant -or
+      $View.ownershipMarker -isnot [string] -or
+      $View.ownershipMarker -cne "AuditSphere:$(ConvertTo-ClientSiteGuid $Plan.firmId):$client") { throw 'INVALID_OR_UNSAFE' }
 
-  $documents = @($Plan.capabilities | Where-Object kind -CEQ 'DOCUMENTS')
-  if ($documents.Count -ne 1 -or -not $documents[0].clientId) { throw 'INVALID_OR_UNSAFE' }
+  $viewCutoff = ConvertTo-ClientSiteCutoff $View.rolloutBoundary 'DRIFT'
+  $plannedCutoff = ConvertTo-ClientSiteCutoff $Plan.clientSites.rolloutCutoffUtc 'INVALID_OR_UNSAFE'
+  if ($viewCutoff.UtcTicks -ne $plannedCutoff.UtcTicks) { throw 'DRIFT' }
 
-  $seenClients = @{}
-  foreach ($site in $Plan.sites) {
-    if (-not $site.ContainsKey('siteId') -or -not $site.ContainsKey('siteUrl') -or
-        -not $site.ContainsKey('ownershipMarker') -or $site.permission -cne 'write') { throw 'INVALID_OR_UNSAFE' }
-    $id = Get-SitesId $site.siteId
-    if ($id.host -cne $cs.host) { throw 'INVALID_OR_UNSAFE' }
-    $uri = [uri]$site.siteUrl
-    if ($uri.Scheme -cne 'https' -or $uri.Host -cne $cs.host -or -not $uri.IsDefaultPort -or
-        $uri.UserInfo -or $uri.Query -or $uri.Fragment -or -not $uri.AbsolutePath.StartsWith('/sites/')) { throw 'INVALID_OR_UNSAFE' }
+  $host = $Plan.clientSites.host
+  $siteUri = $null
+  if ($View.url -isnot [string] -or $View.url.Length -gt 2048 -or
+      -not [uri]::TryCreate($View.url, [System.UriKind]::Absolute, [ref] $siteUri) -or
+      $siteUri.Scheme -cne 'https' -or -not $siteUri.IsDefaultPort -or $siteUri.UserInfo -or
+      $siteUri.Query -or $siteUri.Fragment -or $siteUri.Host -cne $host -or
+      $siteUri.AbsolutePath -cnotmatch "\A/sites/[a-z0-9]+(?:-[a-z0-9]+)*-$($client.Replace('-',''))\z") {
+    throw 'INVALID_OR_UNSAFE'
+  }
+  if ($View.reviewToken -isnot [string] -or $View.reviewToken -cnotmatch '\A[0-9a-fA-F]{64}\z' -or
+      $View.staffAuthorizationDigest -isnot [string] -or $View.staffAuthorizationDigest -cnotmatch '\A[0-9a-fA-F]{64}\z' -or
+      $View.eligible -isnot [bool] -or $View.state -isnot [string] -or
+      $View.membershipState -isnot [string] -or $View.receiptState -isnot [string] -or
+      ($null -ne $View.operationState -and $View.operationState -isnot [string])) { throw 'INCOMPLETE_EVIDENCE' }
+  if ($View.staffObjectIds -isnot [System.Collections.IList] -or $View.staffObjectIds -is [string] -or $View.staffObjectIds.Count -gt 200) {
+    throw 'INCOMPLETE_EVIDENCE'
+  }
+  $staff = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+  foreach ($staffId in $View.staffObjectIds) {
+    if (-not $staff.Add((ConvertTo-ClientSiteGuid $staffId 'INCOMPLETE_EVIDENCE'))) { throw 'INCOMPLETE_EVIDENCE' }
+  }
+  if ($null -ne $View.operationId) { $null = ConvertTo-ClientSiteGuid $View.operationId 'INCOMPLETE_EVIDENCE' }
+  return $true
+}
 
-    if ($site.ContainsKey('clientId')) {
-      $clientGuid = [guid]::Empty
-      if (-not [guid]::TryParseExact($site.clientId, 'D', [ref]$clientGuid) -or $clientGuid -eq [guid]::Empty) { throw 'INVALID_OR_UNSAFE' }
-      $clientKey = $clientGuid.ToString('D')
-      if ($seenClients.ContainsKey($clientKey)) { throw 'INVALID_OR_UNSAFE' }
-      $seenClients[$clientKey] = $true
+function Test-ClientSiteWorkerPending($View) {
+  if ($View.state -cin @('REQUESTED','PENDING_DISCOVERY')) { return $true }
+  if ($null -ne $View.operationId -and $View.operationState -notin @('COMPLETED','CANCELLED_WITH_DISPOSITION')) { return $true }
+  return $false
+}
 
-      $expectedMarker = "AuditSphere:$($Plan.firmId.ToLowerInvariant()):$clientKey"
-      if ($site.ownershipMarker -cne $expectedMarker) { throw 'INVALID_OR_UNSAFE' }
-      $expectedSuffix = '-' + $clientGuid.ToString('N')
-      if (-not $uri.AbsolutePath.EndsWith($expectedSuffix, [StringComparison]::Ordinal)) { throw 'INVALID_OR_UNSAFE' }
+function Test-ClientSitePublished($Plan, [string] $ClientId, $View) {
+  try {
+    Assert-M365ClientSitePublished $Plan $ClientId $View | Out-Null
+    return $true
+  }
+  catch {
+    if ($_.Exception.Message -ceq 'INCOMPLETE_EVIDENCE') { return $false }
+    throw
+  }
+}
 
-      if ($site.ContainsKey('onboardedAtUtc') -and $null -ne $site.onboardedAtUtc) {
-        $onboarded = [DateTimeOffset]::MinValue
-        $parsedOnboarded = if ($site.onboardedAtUtc -is [datetime]) { $onboarded = [DateTimeOffset]$site.onboardedAtUtc; $true }
-                           else { [DateTimeOffset]::TryParse([string]$site.onboardedAtUtc, [ref]$onboarded) }
-        if ($parsedOnboarded -and $onboarded -lt $cutoff) {
-          if (-not $site.ContainsKey('migrationApproved') -or -not $site.migrationApproved) {
-            # Pre-cutoff clients cannot be silently converted to dedicated sites without explicit approval record.
-            throw 'INVALID_OR_UNSAFE'
+function Add-ClientSitePublishedCheck($Result, [string] $ClientId, $View) {
+  $operationId = ConvertTo-ClientSiteGuid $View.operationId 'INCOMPLETE_EVIDENCE'
+  $receiptOperationId = ConvertTo-ClientSiteGuid $View.publishedReceipt.operationId 'INCOMPLETE_EVIDENCE'
+  $digest = $View.publishedReceipt.digest
+  if ($digest -isnot [string] -or $digest -cnotmatch '\A[0-9a-fA-F]{64}\z' -or $receiptOperationId -cne $operationId) {
+    throw 'INCOMPLETE_EVIDENCE'
+  }
+  $completedAt = [DateTimeOffset]::Parse($View.publishedReceipt.completedAt,
+    [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+  Add-M365Check $Result "client-site:${ClientId}:published" 'PASS' `
+    'current dedicated site and exact staff membership in a worker-published receipt' 'verified server state'
+  $Result.checks[-1].capability = 'CLIENT_SITES'
+  $Result.checks[-1].resourceId = "client:$ClientId"
+  $Result.checks[-1].expiresAtUtc = $completedAt.AddMinutes(15).ToString('o')
+  $Result.checks[-1].evidenceReference = "client-site-operation:$operationId`:sha256:$($digest.ToLowerInvariant())"
+}
+
+function Get-ClientSiteFailureCode($ErrorRecord) {
+  $known = @('DRIFT','INVALID_OR_UNSAFE','PROVIDER_FAILURE','BLOCKED_APPROVAL','BLOCKED_BOOTSTRAP',
+    'RESULT_UNCERTAIN','PREREQUISITE_MISSING','INCOMPLETE_EVIDENCE','BLOCKED_EXTERNAL')
+  if ($ErrorRecord.Exception.Message -cin $known) { return $ErrorRecord.Exception.Message }
+  if ($ErrorRecord.Exception.GetType().Name -ceq 'M365PlanException') { return 'INVALID_OR_UNSAFE' }
+  return 'PROVIDER_FAILURE'
+}
+
+function Invoke-ClientSiteIntentWorkflow($Plan, $Result, [ValidateSet('ReadOnly','Apply')] [string] $Mode,
+    [ValidateSet('review','staff-review')] [string] $ReviewRoute, [bool] $ReconcileOnly,
+    [scriptblock] $Transport, [scriptblock] $RequestApproval,
+    [scriptblock] $Delay, [int] $PollAttempts = 6, [int] $PollIntervalMilliseconds = 1000) {
+  if ($Transport -isnot [scriptblock] -or $PollAttempts -lt 1 -or $PollAttempts -gt 10 -or
+      $PollIntervalMilliseconds -lt 0 -or $PollIntervalMilliseconds -gt 5000) { throw 'INVALID_OR_UNSAFE' }
+  Assert-ClientSitesPlan $Plan
+  $targets = Get-ClientSiteTargets $Plan
+  if ($null -eq $Delay) { $Delay = { param([int] $Milliseconds) Start-Sleep -Milliseconds $Milliseconds } }
+  if ($Delay -isnot [scriptblock]) { throw 'INVALID_OR_UNSAFE' }
+
+  $failureCode = $null
+  $before = $null
+  $requested = $false
+  $verified = [System.Collections.Generic.Dictionary[string,object]]::new([System.StringComparer]::Ordinal)
+  $changeIndexByClient = [System.Collections.Generic.Dictionary[string,int]]::new([System.StringComparer]::Ordinal)
+  $sessionClosed = $false
+  try {
+    $before = & $Transport 'GET' '/api/ui/session' $null
+    # Bind the caller to the signed plan before any review reads or intent POST.
+    Assert-M365ClientSiteSession $Plan $before $before | Out-Null
+    foreach ($clientId in $targets) {
+      $reviewPath = "/api/ui/administration/microsoft365/client-sites/$clientId/$ReviewRoute"
+      $view = & $Transport 'GET' $reviewPath $null
+      Assert-ClientSiteReviewBinding $Plan $clientId $view | Out-Null
+      if (Test-ClientSitePublished $Plan $clientId $view) {
+        $verified[$clientId] = @{
+          OperationId = ConvertTo-ClientSiteGuid $view.operationId 'INCOMPLETE_EVIDENCE'
+          Digest = $view.publishedReceipt.digest.ToLowerInvariant()
+        }
+        continue
+      }
+
+      if ($Mode -eq 'ReadOnly') {
+        if (Test-ClientSiteWorkerPending $view) { throw 'BLOCKED_EXTERNAL' }
+        throw 'INCOMPLETE_EVIDENCE'
+      }
+
+      if (-not (Test-ClientSiteWorkerPending $view)) {
+        if (-not $view.eligible) { throw 'BLOCKED_EXTERNAL' }
+        if ($RequestApproval -isnot [scriptblock] -or -not (& $RequestApproval $clientId)) { throw 'BLOCKED_APPROVAL' }
+        $requestPath = "/api/ui/administration/microsoft365/client-sites/$clientId/request"
+        $body = @{
+          reviewToken = $view.reviewToken
+          reviewed = $true
+          reason = "WU-021 signed plan $($Result.planSha256)"
+          reconcileOnly = $ReconcileOnly
+        }
+        # This counts the local AuditSphere intent POST attempt. The worker owns
+        # all downstream SharePoint and membership effects.
+        $Result.mutationsAttempted++
+        try { $ack = & $Transport 'POST' $requestPath $body }
+        catch { throw (Get-ClientSiteFailureCode $_) }
+        if ($ack -isnot [System.Collections.IDictionary] -or $ack.Count -ne 1 -or -not $ack.Contains('value') -or
+            $ack.value -isnot [System.Collections.IDictionary] -or
+            @('clientId','state','operationId' | Where-Object { -not $ack.value.Contains($_) }).Count -gt 0 -or
+            (ConvertTo-ClientSiteGuid $ack.value.clientId 'RESULT_UNCERTAIN') -cne $clientId -or
+            $ack.value.state -cnotin @('PENDING_DISCOVERY','ALREADY_QUEUED')) { throw 'RESULT_UNCERTAIN' }
+        if ($ack.value.state -ceq 'ALREADY_QUEUED') {
+          if ($null -eq $ack.value.operationId) { throw 'RESULT_UNCERTAIN' }
+          $expectedOperationId = ConvertTo-ClientSiteGuid $ack.value.operationId 'RESULT_UNCERTAIN'
+        }
+        else {
+          if ($null -ne $ack.value.operationId) { throw 'RESULT_UNCERTAIN' }
+          $expectedOperationId = $null
+        }
+        $Result.mutationsConfirmed++
+        $Result.changes += [ordered]@{
+          target = "client:$clientId"
+          action = 'REQUEST_CLIENT_SITE_INTENT'
+          previousState = $view.state
+          requestState = $ack.value.state
+          correlationOperationId = $expectedOperationId
+          receiptOperationId = $null
+          receiptDigest = $null
+        }
+        $changeIndexByClient[$clientId] = $Result.changes.Count - 1
+        $requested = $true
+      }
+      else {
+        $expectedOperationId = if ($null -ne $view.operationId) { ConvertTo-ClientSiteGuid $view.operationId 'INCOMPLETE_EVIDENCE' } else { $null }
+      }
+
+      $published = $false
+      for ($poll = 1; $poll -le $PollAttempts; $poll++) {
+        if ($PollIntervalMilliseconds -gt 0) { & $Delay $PollIntervalMilliseconds }
+        $candidate = & $Transport 'GET' $reviewPath $null
+        Assert-ClientSiteReviewBinding $Plan $clientId $candidate | Out-Null
+        if ($null -ne $expectedOperationId -and $candidate.operationId -ne $expectedOperationId) { continue }
+        if (Test-ClientSitePublished $Plan $clientId $candidate) {
+          $verified[$clientId] = @{
+            OperationId = ConvertTo-ClientSiteGuid $candidate.operationId 'INCOMPLETE_EVIDENCE'
+            Digest = $candidate.publishedReceipt.digest.ToLowerInvariant()
           }
+          $published = $true
+          break
         }
       }
+      if (-not $published) { throw 'BLOCKED_EXTERNAL' }
+    }
+
+    # Fence the complete review/write phase, then reread every client so an
+    # earlier receipt cannot mask drift while a later target is processed.
+    $afterWorkflow = & $Transport 'GET' '/api/ui/session' $null
+    Assert-M365ClientSiteSession $Plan $before $afterWorkflow | Out-Null
+    foreach ($clientId in $targets) {
+      $reviewPath = "/api/ui/administration/microsoft365/client-sites/$clientId/$ReviewRoute"
+      $finalView = & $Transport 'GET' $reviewPath $null
+      Assert-ClientSiteReviewBinding $Plan $clientId $finalView | Out-Null
+      if (-not (Test-ClientSitePublished $Plan $clientId $finalView)) {
+        if (Test-ClientSiteWorkerPending $finalView) { throw 'BLOCKED_EXTERNAL' }
+        throw 'INCOMPLETE_EVIDENCE'
+      }
+      $finalOperationId = ConvertTo-ClientSiteGuid $finalView.operationId 'INCOMPLETE_EVIDENCE'
+      $finalDigest = $finalView.publishedReceipt.digest.ToLowerInvariant()
+      if (-not $verified.ContainsKey($clientId) -or
+          $verified[$clientId].OperationId -cne $finalOperationId -or
+          $verified[$clientId].Digest -cne $finalDigest) { throw 'DRIFT' }
+
+      Add-ClientSitePublishedCheck $Result $clientId $finalView
+      if ($changeIndexByClient.ContainsKey($clientId)) {
+        $change = $Result.changes[$changeIndexByClient[$clientId]]
+        $change.receiptOperationId = $finalOperationId
+        $change.receiptDigest = $finalDigest
+      }
+    }
+    $afterFinalRead = & $Transport 'GET' '/api/ui/session' $null
+    Assert-M365ClientSiteSession $Plan $before $afterFinalRead | Out-Null
+    $sessionClosed = $true
+  }
+  catch { $failureCode = Get-ClientSiteFailureCode $_ }
+
+  if ($null -ne $before -and -not $sessionClosed) {
+    try {
+      $after = & $Transport 'GET' '/api/ui/session' $null
+      Assert-M365ClientSiteSession $Plan $before $after | Out-Null
+    }
+    catch {
+      if (-not $failureCode) { $failureCode = Get-ClientSiteFailureCode $_ }
     }
   }
-
-  if ($Plan.ContainsKey('staffAssignments') -and $null -ne $Plan.staffAssignments) {
-    $sa = $Plan.staffAssignments
-    if (-not $sa.ContainsKey('manifestId') -or -not $sa.ContainsKey('generation') -or
-        -not $sa.ContainsKey('observedAtUtc') -or -not $sa.ContainsKey('expiresAtUtc') -or
-        -not $sa.ContainsKey('assignments')) { throw 'INVALID_OR_UNSAFE' }
-    $manifestGuid = [guid]::Empty
-    if (-not [guid]::TryParseExact($sa.manifestId, 'D', [ref]$manifestGuid) -or $manifestGuid -eq [guid]::Empty) { throw 'INVALID_OR_UNSAFE' }
-    if ($sa.generation -lt 1) { throw 'INVALID_OR_UNSAFE' }
-    $expires = [DateTimeOffset]::MinValue
-    $parsedExpires = if ($sa.expiresAtUtc -is [datetime]) { $expires = [DateTimeOffset]$sa.expiresAtUtc; $true }
-                     else { [DateTimeOffset]::TryParse([string]$sa.expiresAtUtc, [ref]$expires) }
-    if (-not $parsedExpires -or $expires.ToUniversalTime() -lt [DateTimeOffset]::UtcNow) {
-      throw 'INCOMPLETE_EVIDENCE'
-    }
-  }
-}
-
-function Get-ClientSitesJournalPath($Plan, [string] $StateDirectory = $null) {
-  return Join-Path (Get-EntraStateDirectory $StateDirectory) "$($Plan.tenantId.ToLowerInvariant())-$($Plan.ownershipTag.ToLowerInvariant())-client-sites.json"
-}
-
-function Save-ClientSitesMutationIntent($Journal, [string] $JournalPath, [string] $Method, [string] $Path, $Body, [string] $PlanSha256) {
-  Save-EntraMutationIntent $Journal $JournalPath $Method $Path $Body $PlanSha256
-}
-
-function Confirm-ClientSitesMutationIntent($Journal, [string] $JournalPath, [string] $Path, $Body) {
-  Confirm-EntraMutationIntent $Journal $JournalPath $Path $Body
+  if ($failureCode) { throw $failureCode }
+  return $requested
 }
 
 function Invoke-SharePointClientSitesReconciliation($Plan, $Result, [ValidateSet('ReadOnly','Apply')] [string] $Mode,
-    [scriptblock] $Transport, [scriptblock] $Approve, [scriptblock] $Confirm, [scriptblock] $GraphTransport) {
-  Assert-ClientSitesPlan $Plan
-  $documents = @($Plan.capabilities | Where-Object kind -CEQ 'DOCUMENTS')[0]
-  $cs = $Plan.clientSites
-
-  foreach ($site in $Plan.sites) {
-    $siteUrl = $site.siteUrl.TrimEnd('/')
-    $statusUrl = "/_api/SPSiteManager/status?url='$([uri]::EscapeDataString($siteUrl))'"
-    $statusResponse = & $Transport 'GET' $statusUrl $null
-    if ($null -eq $statusResponse -or -not $statusResponse.ContainsKey('SiteStatus')) { throw 'PROVIDER_FAILURE' }
-    $siteStatus = [int]$statusResponse.SiteStatus
-
-    if ($siteStatus -eq 0) {
-      # Site does not exist
-      if ($Mode -eq 'ReadOnly') { throw 'DRIFT' }
-      $createPath = '/_api/SPSiteManager/create'
-      $createBody = @{
-        request = @{
-          Title = "AuditSphere Client $($site.clientId)"
-          Url = $siteUrl
-          Lcid = 1033
-          ShareByEmailEnabled = $false
-          Description = $site.ownershipMarker
-          WebTemplate = 'STS#3'
-          Owner = $cs.custodianObjectId
-        }
-      }
-      if (-not (& $Approve 'POST' $createPath $createBody)) { throw 'BLOCKED_APPROVAL' }
-      $Result.mutationsAttempted++
-      try {
-        $created = & $Transport 'POST' $createPath $createBody
-        $siteStatus = [int]$created.SiteStatus
-      } catch {
-        throw 'RESULT_UNCERTAIN'
-      }
-      & $Confirm $createPath $createBody | Out-Null
-      $Result.mutationsConfirmed++
-      $Result.changes += @{ target = $siteUrl; action = 'CREATE_CLIENT_SITE'; template = 'STS#3'; owner = $cs.custodianObjectId }
-    }
-
-    if ($siteStatus -eq 1) { throw 'RESULT_UNCERTAIN' } # Provisioning pending
-    if ($siteStatus -notin @(2, 4)) { throw 'PROVIDER_FAILURE' }
-
-    # Validate web metadata and ownership marker
-    $webResponse = & $Transport 'GET' "$siteUrl/_api/web?`$select=Id,Url,Description" $null
-    if ($null -eq $webResponse -or -not $webResponse.ContainsKey('Description') -or -not $webResponse.ContainsKey('Url')) { throw 'PROVIDER_FAILURE' }
-    if ($webResponse.Description -cne $site.ownershipMarker) { throw 'INVALID_OR_UNSAFE' }
-    if (-not [string]::Equals($webResponse.Url.TrimEnd('/'), $siteUrl, [StringComparison]::OrdinalIgnoreCase)) { throw 'INVALID_OR_UNSAFE' }
-
-    Add-M365Check $Result "site:$siteUrl:status" 'PASS' 'SharePoint client site provisioned and active' "status:$siteStatus"
-    $Result.checks[-1].capability = 'CLIENT_SITES'; $Result.checks[-1].resourceId = $siteUrl
-    $Result.checks[-1].expiresAtUtc = [DateTimeOffset]::UtcNow.AddMinutes(15).ToString('o')
-    $Result.checks[-1].evidenceReference = "sharepoint-site:$siteUrl"
-
-    Add-M365Check $Result "site:$siteUrl:ownership" 'PASS' 'exact ownership marker verified on site web' $site.ownershipMarker
-    $Result.checks[-1].capability = 'CLIENT_SITES'; $Result.checks[-1].resourceId = $siteUrl
-    $Result.checks[-1].expiresAtUtc = [DateTimeOffset]::UtcNow.AddMinutes(15).ToString('o')
-    $Result.checks[-1].evidenceReference = "sharepoint-web-description:$siteUrl"
-
-    # Validate Graph site ID and DOCUMENTS worker grant
-    $id = (Get-SitesId $site.siteId).id
-    $permissionsUrl = "/v1.0/sites/$id/permissions"
-    $permissions = Get-SitesPermissions $GraphTransport $id
-    $grant = Get-DocumentsSiteGrant $permissions $documents.clientId
-    if (-not $grant.Count) {
-      if ($Mode -eq 'ReadOnly') { throw 'DRIFT' }
-      $grantBody = @{ roles = @('write'); grantedToIdentities = @(@{ application = @{ id = $documents.clientId } }) }
-      if (-not (& $Approve 'POST' $permissionsUrl $grantBody)) { throw 'BLOCKED_APPROVAL' }
-      $Result.mutationsAttempted++
-      try { & $GraphTransport 'POST' $permissionsUrl $grantBody | Out-Null } catch { throw 'RESULT_UNCERTAIN' }
-      $grant = Get-DocumentsSiteGrant (Get-SitesPermissions $GraphTransport $id) $documents.clientId
-      if ($grant.Count -ne 1) { throw 'RESULT_UNCERTAIN' }
-      & $Confirm $permissionsUrl $grantBody | Out-Null
-      $Result.mutationsConfirmed++
-      $Result.changes += @{ target = $id; action = 'GRANT_DOCUMENT_APPLICATION_WRITE'; clientId = $documents.clientId }
-    }
-
-    Add-M365Check $Result "site:$id:worker-grant" 'PASS' 'DOCUMENTS application write grant present on client site' "grant:$($grant[0].id)"
-    $Result.checks[-1].capability = 'DOCUMENTS'; $Result.checks[-1].resourceId = $id
-    $Result.checks[-1].expiresAtUtc = [DateTimeOffset]::UtcNow.AddMinutes(15).ToString('o')
-    $Result.checks[-1].evidenceReference = "graph-site-permission:$id/$($grant[0].id)"
-  }
+    [scriptblock] $Transport, [scriptblock] $RequestApproval, [scriptblock] $Delay,
+    [int] $PollAttempts = 6, [int] $PollIntervalMilliseconds = 1000) {
+  return Invoke-ClientSiteIntentWorkflow $Plan $Result $Mode 'review' $false $Transport $RequestApproval $Delay `
+    $PollAttempts $PollIntervalMilliseconds
 }
 
 function Invoke-ClientSiteStaffReconciliation($Plan, $Result, [ValidateSet('ReadOnly','Apply')] [string] $Mode,
-    [scriptblock] $Transport, [scriptblock] $Approve, [scriptblock] $Confirm, [scriptblock] $DirectoryTransport) {
-  Assert-ClientSitesPlan $Plan
-  $groupTitle = 'AuditSphere Assigned Staff'
-
-  foreach ($site in $Plan.sites) {
-    $siteUrl = $site.siteUrl.TrimEnd('/')
-    $escapedTitle = [uri]::EscapeDataString('AuditSphere Assigned Staff')
-    $groupUrl = "$siteUrl/_api/web/sitegroups/getbyname('$escapedTitle')"
-    $group = & $Transport 'GET' $groupUrl $null
-
-    if ($null -eq $group -or -not $group.ContainsKey('Id')) {
-      if ($Mode -eq 'ReadOnly') { throw 'DRIFT' }
-      $createGroupPath = "$siteUrl/_api/web/sitegroups"
-      $createGroupBody = @{ Title = 'AuditSphere Assigned Staff'; Description = $site.ownershipMarker }
-      if (-not (& $Approve 'POST' $createGroupPath $createGroupBody)) { throw 'BLOCKED_APPROVAL' }
-      $Result.mutationsAttempted++
-      try {
-        $created = & $Transport 'POST' $createGroupPath $createGroupBody
-        $group = & $Transport 'GET' $groupUrl $null
-      } catch {
-        throw 'RESULT_UNCERTAIN'
-      }
-      & $Confirm $createGroupPath $createGroupBody | Out-Null
-      $Result.mutationsConfirmed++
-      $Result.changes += @{ target = $siteUrl; action = 'CREATE_STAFF_GROUP'; title = 'AuditSphere Assigned Staff' }
-    }
-
-    if ($null -eq $group -or $group.Description -cne $site.ownershipMarker) { throw 'INVALID_OR_UNSAFE' }
-    $groupId = [int]$group.Id
-
-    Add-M365Check $Result "site:$siteUrl:staff-group" 'PASS' 'dedicated managed staff group verified with ownership marker' "group-id:$groupId"
-    $Result.checks[-1].capability = 'CLIENT_SITES'; $Result.checks[-1].resourceId = $siteUrl
-    $Result.checks[-1].expiresAtUtc = [DateTimeOffset]::UtcNow.AddMinutes(15).ToString('o')
-    $Result.checks[-1].evidenceReference = "sharepoint-group:$siteUrl/$groupId"
-
-    # Full Control role assignment (role type 5)
-    $roleDef = & $Transport 'GET' "$siteUrl/_api/web/roledefinitions/getbytype(5)?`$select=Id,RoleTypeKind" $null
-    if ($null -eq $roleDef -or [int]$roleDef.RoleTypeKind -ne 5) { throw 'PROVIDER_FAILURE' }
-    $roleId = [int]$roleDef.Id
-
-    $roleUrl = "$siteUrl/_api/web/roleassignments/getbyprincipalid($groupId)/roledefinitionbindings"
-    $roles = @(& $Transport 'GET' $roleUrl $null)
-    $hasFullControl = @($roles | Where-Object { [int]$_.Id -eq $roleId }).Count -gt 0
-    if (-not $hasFullControl) {
-      if ($Mode -eq 'ReadOnly') { throw 'DRIFT' }
-      $addRolePath = "$siteUrl/_api/web/roleassignments/addroleassignment(principalid=$groupId,roledefid=$roleId)"
-      if (-not (& $Approve 'POST' $addRolePath $null)) { throw 'BLOCKED_APPROVAL' }
-      $Result.mutationsAttempted++
-      try { & $Transport 'POST' $addRolePath $null | Out-Null } catch { throw 'RESULT_UNCERTAIN' }
-      & $Confirm $addRolePath $null | Out-Null
-      $Result.mutationsConfirmed++
-      $Result.changes += @{ target = $siteUrl; action = 'GRANT_STAFF_GROUP_FULL_CONTROL'; groupId = $groupId; roleId = $roleId }
-    }
-
-    Add-M365Check $Result "site:$siteUrl:staff-full-control" 'PASS' 'Full Control role definition bound to managed staff group' "role-def:$roleId"
-    $Result.checks[-1].capability = 'CLIENT_SITES'; $Result.checks[-1].resourceId = $siteUrl
-    $Result.checks[-1].expiresAtUtc = [DateTimeOffset]::UtcNow.AddMinutes(15).ToString('o')
-    $Result.checks[-1].evidenceReference = "sharepoint-role-assignment:$siteUrl/$groupId/$roleId"
-
-    # Member reconciliation
-    $desiredStaffOids = @()
-    if ($site.ContainsKey('staffObjectIds') -and $null -ne $site.staffObjectIds) {
-      $desiredStaffOids = @($site.staffObjectIds)
-    } elseif ($Plan.ContainsKey('staffAssignments') -and $null -ne $Plan.staffAssignments) {
-      $assignment = @($Plan.staffAssignments.assignments | Where-Object { $_.clientId -eq $site.clientId })
-      if ($assignment.Count -eq 1) { $desiredStaffOids = @($assignment[0].staffObjectIds) }
-    }
-
-    $desiredMap = @{}
-    foreach ($oid in $desiredStaffOids) {
-      $upn = & $DirectoryTransport 'GET' "/v1.0/users/$oid`?`$select=id,userPrincipalName" $null
-      if ($null -ne $upn -and $upn.ContainsKey('userPrincipalName')) {
-        $login = 'i:0#.f|membership|' + $upn.userPrincipalName.ToLowerInvariant()
-        $desiredMap[$login] = $oid
-      }
-    }
-
-    $usersUrl = "$siteUrl/_api/web/sitegroups($groupId)/users"
-    $currentMembers = @(& $Transport 'GET' $usersUrl $null)
-
-    # Remove obsolete members
-    foreach ($member in $currentMembers) {
-      $login = $member.LoginName
-      if (-not $desiredMap.ContainsKey($login)) {
-        if ($Mode -eq 'ReadOnly') { throw 'DRIFT' }
-        $removePath = "$siteUrl/_api/web/sitegroups($groupId)/users/removebyid($($member.Id))"
-        if (-not (& $Approve 'POST' $removePath $null)) { throw 'BLOCKED_APPROVAL' }
-        $Result.mutationsAttempted++
-        try { & $Transport 'POST' $removePath $null | Out-Null } catch { throw 'RESULT_UNCERTAIN' }
-        & $Confirm $removePath $null | Out-Null
-        $Result.mutationsConfirmed++
-        $Result.changes += @{ target = $siteUrl; action = 'REMOVE_STAFF_MEMBER'; userId = $member.Id; login = $login }
-      }
-    }
-
-    # Add missing members
-    foreach ($login in $desiredMap.Keys) {
-      $oid = $desiredMap[$login]
-      $exists = @($currentMembers | Where-Object { [string]::Equals($_.LoginName, $login, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
-      if (-not $exists) {
-        if ($Mode -eq 'ReadOnly') { throw 'DRIFT' }
-        $ensurePath = "$siteUrl/_api/web/ensureuser"
-        $ensureBody = @{ logonName = $login }
-        if (-not (& $Approve 'POST' $ensurePath $ensureBody)) { throw 'BLOCKED_APPROVAL' }
-        $Result.mutationsAttempted++
-        $ensured = $null
-        try {
-          $ensured = & $Transport 'POST' $ensurePath $ensureBody
-        } catch {
-          throw 'RESULT_UNCERTAIN'
-        }
-        & $Confirm $ensurePath $ensureBody | Out-Null
-        $Result.mutationsConfirmed++
-
-        # Verify AadObjectId matches
-        $userCheck = & $Transport 'GET' "$siteUrl/_api/web/siteusers/getbyid($($ensured.Id))?`$select=Id,LoginName,AadObjectId" $null
-        $observedOid = $null
-        if ($null -ne $userCheck -and $userCheck.ContainsKey('AadObjectId') -and $null -ne $userCheck.AadObjectId) {
-          if ($userCheck.AadObjectId -is [System.Collections.IDictionary] -and $userCheck.AadObjectId.ContainsKey('NameId')) {
-            $observedOid = [string]$userCheck.AadObjectId.NameId
-          } else {
-            $observedOid = [string]$userCheck.AadObjectId
-          }
-        }
-        if ($observedOid -cne $oid) {
-          throw 'INVALID_OR_UNSAFE'
-        }
-
-        # Add to group
-        $addPath = "$siteUrl/_api/web/sitegroups($groupId)/users"
-        $addBody = @{ LoginName = $login }
-        if (-not (& $Approve 'POST' $addPath $addBody)) { throw 'BLOCKED_APPROVAL' }
-        $Result.mutationsAttempted++
-        try { & $Transport 'POST' $addPath $addBody | Out-Null } catch { throw 'RESULT_UNCERTAIN' }
-        & $Confirm $addPath $addBody | Out-Null
-        $Result.mutationsConfirmed++
-        $Result.changes += @{ target = $siteUrl; action = 'ADD_STAFF_MEMBER'; oid = $oid; login = $login }
-      }
-    }
-
-    Add-M365Check $Result "site:$siteUrl:staff-membership" 'PASS' 'managed staff members reconciled exactly with approved manifest' "$($desiredMap.Count) members"
-    $Result.checks[-1].capability = 'CLIENT_SITES'; $Result.checks[-1].resourceId = $siteUrl
-    $Result.checks[-1].expiresAtUtc = [DateTimeOffset]::UtcNow.AddMinutes(15).ToString('o')
-    $Result.checks[-1].evidenceReference = "sharepoint-staff-membership:$siteUrl/$groupId"
-  }
+    [scriptblock] $Transport, [scriptblock] $RequestApproval, [scriptblock] $Delay,
+    [int] $PollAttempts = 6, [int] $PollIntervalMilliseconds = 1000) {
+  return Invoke-ClientSiteIntentWorkflow $Plan $Result $Mode 'staff-review' $true $Transport $RequestApproval $Delay `
+    $PollAttempts $PollIntervalMilliseconds
 }
 
-Export-ModuleMember -Function Assert-ClientSitesPlan, Get-ClientSitesJournalPath, Save-ClientSitesMutationIntent,
-  Confirm-ClientSitesMutationIntent, Invoke-SharePointClientSitesReconciliation, Invoke-ClientSiteStaffReconciliation
+Export-ModuleMember -Function Assert-ClientSitesPlan, Invoke-SharePointClientSitesReconciliation,
+  Invoke-ClientSiteStaffReconciliation

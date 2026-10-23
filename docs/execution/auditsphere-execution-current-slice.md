@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Client-site terminal intent integration (2026-10-23)
+
+The terminal scripts now submit reviewed local Application intents and observe exact worker-published receipts. The duplicate PowerShell provisioning algorithm is removed. Signed CMS approval, source pinning, current staff session, CSRF, persisted rollout boundary, bounded polling and final per-target rereads preserve the existing worker's authority. Historical staff evidence projects pending membership, never verified access. Focused PostgreSQL, HTTP and offline terminal checks passed; exact evidence is in `status.json`. Current-source CI and separately approved live tenant acceptance remain open. No tenant permission or provider effect was performed by this engineering run.
+
 ## Client-site managed membership and residual evidence (2026-10-23)
 
 The existing worker removes only immutable identities retained in the prior managed receipt. Unknown memberships in its group remain untouched and appear in the durable receipt and append-only administration events; membership stays `PARTIAL`. Focused provider/PostgreSQL checks passed; evidence is recorded in `clientSiteManagedMembership` in `status.json`. This does not certify unrelated groups or direct site ACLs. The authenticated terminal intent/status adapter remains unfinished; the duplicate draft's live entry points stay blocked. No live tenant effects were performed.

@@ -53,6 +53,7 @@
     "clientSites": {
       "type": "object", "additionalProperties": false, "required": ["host", "custodianObjectId", "rolloutCutoffUtc"],
       "properties": {
+        "clientIds": { "type": "array", "minItems": 1, "maxItems": 50, "uniqueItems": true, "items": { "$ref": "#/$defs/guid" } },
         "host": { "type": "string", "pattern": "^[a-z0-9-]+\\.sharepoint\\.com$" },
         "custodianObjectId": { "$ref": "#/$defs/guid" },
         "rolloutCutoffUtc": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }
