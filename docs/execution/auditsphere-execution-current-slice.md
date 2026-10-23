@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Accounting mode and period navigation (2026-10-23)
+
+Unsupported inline source-mode changes are locked when periods exist, including beyond the displayed page. Period links retain exact IDs. Definite profile rejections differ from unresolved outcomes; parent setup actions stay fenced for that client after unknown results. Focused Angular checks/build passed. Native child workflows are unchanged; source-currentness projection and broader browser acceptance remain open. Evidence is in `status.json`.
+
 ## Archive secondary-copy protocol (2026-10-23)
 
 The existing client-sites worker now hosts client-bound copy intents, exact per-file receipts and read-only staff ACL observations. A real PostgreSQL store/dispatcher cohort passed with a fake provider boundary, including unknown reconciliation, stale publication guards, malformed evidence, append-only database protection and safe downgrade refusal. EF drift passed. Real SharePoint adapters, shared-site archive-library binding and live custody acceptance remain open; adapter stubs fail closed. Evidence is in `status.json`.
@@ -331,11 +335,7 @@ Built-in browser verification confirms the clean preview serves the current Angu
 
 ## Accounting and browser-journey repair (2026-10-18)
 
-Commit `d5c5ca7ee436c86647c18115acae063a299273c1` fixes the saved purchase-invoice draft preview path: the preparer can supply and validate the approved AP role ID required by preview, and stale preview/assent state is cleared when the role or draft changes. The purchase-invoice draft query now uses a SQL-translatable latest-draft predicate. Search suggestions remain closed while loading, after results, or on errors; long audit-record textareas are constrained to their workspace. Several browser journeys and fixtures were aligned with the current accessible labels and current workflow contracts, without skipping tests.
-
-Focused verification on the pushed source passed: purchase-invoice workflow Angular spec (9/9), workspace search Angular spec (4/4), Angular production build (existing `commercial/settings.scss` stylesheet budget warning), the sales invoice/supplier purchase-credit browser journey (1/1), and General Ledger acceptance journeys (2/2). The built-in browser smoke check used the current Angular dev server on port 4301 with the existing local API on port 5029 and synthetic data: workspace search returned two authorized Doha results, showed no overlapping suggestion list, and reported no console errors. It was read-only; no business records or access settings were changed. The long-running API/static bundle on port 5029 was left untouched.
-
-The full unfiltered release workflow was dispatched against the exact pushed SHA; its run and result are recorded in `status.json`. This focused evidence does not replace full release verification or live-provider acceptance.
+Retained checks and limitations are in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#accounting-and-browser-journey-repair-2026-10-18).
 
 ## PBC exact-version reviewer acceptance
 

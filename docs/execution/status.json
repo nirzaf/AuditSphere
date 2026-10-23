@@ -1022,32 +1022,12 @@
         "note": "Worker authority/preflight/uncertain-retry evidence retained; not live acceptance."
       },
       "clientSiteManagedMembership": {
-        "implementation": "PRESENT",
-        "scope": "WU-021 existing worker/provider managed-membership removal and residual evidence only",
-        "verification": "15 focused SharePointClientSiteProviderTests passed; 2 selected PostgreSQL ClientSharePointSitesTests passed, including preserved residual membership/audit/receipt and ordinary verified isolation. No full local suites.",
-        "evidence": [
-          ".local/autonomous/evidence/wu021-managed/wu021-managed.trx",
-          ".local/autonomous/evidence/wu021-residual/wu021-residual.trx"
-        ],
-        "behavior": "Only prior published managed object IDs may be removed; preserve unrelated managed-group members, publish exact residual references, audit and mark membership PARTIAL. Other groups/direct permissions are not certified by this check.",
-        "remaining": "WU-021 authenticated exact-client Application intent/status adapter remains pending; live tenant acceptance and full current-candidate CI not established."
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.clientSiteManagedMembership",
+        "status": "Focused evidence retained; live tenant and release acceptance remain separate."
       },
       "clientSiteOperatorIntents": {
-        "status": "PARTIALLY_VERIFIED",
-        "behavior": "Exact current-client review and local intent request reuse existing worker discovery; published receipts remain separate from pending acknowledgments. Review binds resolved staff and clock-effective authority; connection is captured before token validation. Retained receipts with changed current staff authority project HISTORICAL and PENDING, not verified membership.",
-        "checks": {
-          "applicationReviewFixes": "PASS: 2 focused PostgreSQL tests; .local/autonomous/evidence/wu021-review-fixes/review-fixes.trx",
-          "applicationIntentCohort": "PASS: 4 focused tests before final review fixes; .local/autonomous/evidence/wu021-intents/wu021-intents.trx",
-          "httpDenials": "PASS: 1 focused API test before final review fixes; .local/autonomous/evidence/wu021-intent-http/wu021-intent-http.trx",
-          "openapi": "PASS: emitter build and contract drift check before internal review fixes; no subsequent DTO changes",
-          "documentation": "PASS: markdown validator and narrative metrics",
-          "receiptFreshness": "PASS: 2 focused PostgreSQL tests after historical-receipt projection correction; .local/autonomous/evidence/wu021-receipt-freshness/receipt-freshness.trx"
-        },
-        "remaining": [
-          "Exact-source CI",
-          "Live tenant provisioning acceptance"
-        ],
-        "fullLocalSuites": "NOT_RUN"
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.clientSiteOperatorIntents",
+        "status": "Focused evidence retained; live tenant and release acceptance remain separate."
       },
       "componentCurrentness": {
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.componentCurrentness",
@@ -1085,7 +1065,7 @@
         "checks": "PASS: main TRX 1/1 .local/autonomous/evidence/wu013-correction-lineage/correction-lineage.trx; agent Angular36, corrected build (SCSS warning), EF model and OpenAPI checks passed. Migration null-pointer downgrade/reapply and retained-lineage downgrade refusal covered.",
         "remaining": "Owned correction browser PASS 1/1: .local/autonomous/evidence/wu013-correction-browser/ComponentCorrectionHandoff.retry2.trx; exact source IDs persisted and approved pin/pack/run retained. Current-source CI and broader group release remain open; no universal supersession policy required."
       },
-      "ciObserved": "FAST_CI_PASS39895242021 atf7fe5137ec6a2a6f38221f40c98811adf8e8f755. Full39886113863 resolved368eada2cc2e169d11767055c4d39cbe7c96c960: Angular+Domain1522+API399PASS; verifyFAILfixturefixed6f; E2ERUNNING at2026-10-23T03:29:18+00:00. NOT_FULL_CI_PASS.",
+      "ciObserved": "FAST_CI_PASS39897494295 and image39897494301 at95399f2f1e5f4998108f04f5108cf75e0040241b. Full39886113863 source368eada2: Angular/Domain1522/API399PASS; verifyFAILfixed6f; E2ElastRUNNING03:29. No current full pass.",
       "scopeUnknownOutcome": {
         "status": "PARTIAL",
         "scope": "WU032 mutation buttons and external-pack commands honor parent unknown-outcome fence. Refresh uses existing resource and never clears uncertainty or dispatches duplicate commands. Local editing/navigation retained.",
@@ -1097,6 +1077,12 @@
         "scope": "Client-bound secondary-copy protocol in existing client-sites worker; exact source manifest/bundle/release/checkpoint, version/hash/readback and staff READ ACL evidence. No primary-custody or provider acceptance claim.",
         "checks": "PASS: 1 real PostgreSQL store/dispatcher cohort, fresh Release build; TRX .local/autonomous/evidence/wu023-archive-copy-protocol-final/WU023-ArchiveCopy-Protocol-EmptyDownReapply.trx. Unknown reconciliation, malformed results, bytes/version/ACL mismatch, stale target/authority, append-only UPDATE/DELETE/TRUNCATE, empty Down/reapply and retained Down refusal. EF drift PASS.",
         "remaining": "Real SharePoint adapter methods and verified shared-site/client-owned archive-library target; records-profile approval policy and live custody/denial acceptance. Current-source full CI NOT_RUN; no live calls."
+      },
+      "accountingWorkspaceMode": {
+        "status": "PARTIAL",
+        "scope": "WU030: existing-period/has-more-period inline source-mode changes refused by UI and handler; exact period-ID links; only proven precommit400/401/403 rejected, unknown/malformed success stays fenced per client. Native child workflows unchanged.",
+        "checks": "7 workspace.spec tests PASS; .local/autonomous/evidence/wu030-workspace/workspace-spec.log. Main final Angular build PASS aftercopychange, existing SCSS warning. No browser/full-suite claim.",
+        "remaining": "Server-owned exact-context currentness summary; full native/cutover and browser acceptance."
       }
     },
     "developmentFeedback20261023": {

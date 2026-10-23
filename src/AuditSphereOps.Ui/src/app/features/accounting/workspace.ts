@@ -1,4 +1,5 @@
-import { Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { PeriodLifecycle } from './lifecycle';
@@ -113,8 +114,23 @@ export function decodeWorkspace(value: unknown): Workspace {
   }
   return v as unknown as Workspace;
 }
+function isDefiniteProfileRejection(status: number): boolean {
+  // The profile endpoint returns these before committing a profile revision.
+  return status === 400 || status === 401 || status === 403;
+}
+function isProfileSaveAcknowledgement(value: unknown, profile: Profile | null): boolean {
+  try {
+    const result = record(value);
+    if (!profile) return typeof result['id'] === 'string' && guidPattern.test(result['id']);
+    const revision = result['revision'];
+    return typeof revision === 'string' && /^[1-9]\d{0,18}$/.test(revision) &&
+      BigInt(revision) === BigInt(profile.revision) + 1n;
+  } catch {
+    return false;
+  }
+}
 @Component({
-  selector: 'audit-accounting', imports: [AccountingCharts, SalesInvoiceDrafts, PurchaseInvoiceWorkflow, PurchaseCreditNoteWorkflow, OpenItemAllocations, ClientAccountRoles, ClientCounterparties, ClientOperationalJournals, ClientOperationalOpeningBalances, PeriodLifecycle, FormsModule, MatButtonModule, MatProgressBarModule],
+  selector: 'audit-accounting', imports: [RouterLink, AccountingCharts, SalesInvoiceDrafts, PurchaseInvoiceWorkflow, PurchaseCreditNoteWorkflow, OpenItemAllocations, ClientAccountRoles, ClientCounterparties, ClientOperationalJournals, ClientOperationalOpeningBalances, PeriodLifecycle, FormsModule, MatButtonModule, MatProgressBarModule],
   template: `
     <p class="eyebrow">Client-owned books · Explicit client scope</p><h1>Accounting workspace</h1>
     <p>Import-first preparation and reporting. Firm books and group consolidation remain separate.</p>
@@ -166,12 +182,18 @@ export function decodeWorkspace(value: unknown): Workspace {
           <label>Fiscal start day <input name="day" type="number" [(ngModel)]="form.day" required min="1" max="31" /></label>
           <label>Source system <input name="source" [(ngModel)]="form.source" required maxlength="100" /></label>
           <label>Source identifier <input name="identifier" [(ngModel)]="form.identifier" maxlength="200" /></label>
-          <label>Book source mode <select name="sourceMode" [(ngModel)]="form.sourceMode" [disabled]="w.profile?.sourceMode === 'NATIVE_BOOKKEEPING'">
+          <label>Book source mode <select name="sourceMode" [(ngModel)]="form.sourceMode" [disabled]="sourceModeSelectionDisabled(w)">
             <option value="EXTERNAL_SOURCE">External source</option><option value="NATIVE_BOOKKEEPING">Native client bookkeeping</option></select></label>
-          <p>Native mode requires an accepted client-level BOOKKEEPING service decision. Once reporting periods exist, changing currency, fiscal calendar, source identity, jurisdiction or source mode requires a reviewed cutover. VAT/tax and ancillary modules remain optional.</p>
+          @if (w.periods.length || w.hasMorePeriods) {
+            <p>Native mode requires an accepted client-level BOOKKEEPING service decision. The source mode is locked while reporting periods exist because a reviewed cutover is not configured. VAT/tax and ancillary modules remain optional.</p>
+          } @else {
+            <p>Native mode requires an accepted client-level BOOKKEEPING service decision. Changing currency, fiscal calendar, source identity, jurisdiction or source mode after periods exist requires a reviewed cutover. VAT/tax and ancillary modules remain optional.</p>
+          }
           <label><input name="reviewed" type="checkbox" [(ngModel)]="reviewed" /> I reviewed this client profile and revision {{ w.profile?.revision ?? '0' }}.</label>
-          <button matButton type="submit" [disabled]="profileForm.invalid || !reviewed || saving() || uncertain()">Save profile</button>
-          @if (uncertain()) { <p role="alert">The outcome is unconfirmed. Refresh the client and review persisted setup before another change.</p> }
+          <button matButton type="submit" [disabled]="profileForm.invalid || !reviewed || saving() || writeBlocked()">Save profile</button>
+          @if (profileOutcomeUnknown()) {
+            <p role="alert">The profile save outcome remains unresolved. Refreshing shows persisted setup but does not confirm that the request settled; profile, period, roll-forward, book, opening-bridge and dimension submissions in this workspace stay disabled.</p>
+          } @else if (uncertain()) { <p role="alert">The outcome is unconfirmed. Refresh the client and review persisted setup before another change.</p> }
         </form>
         @if (w.profile?.sourceMode === 'NATIVE_BOOKKEEPING') {
           <audit-client-operational-opening-balances [clientId]="w.clientId" [currency]="w.profile.currency" [periods]="w.periods" />
@@ -194,10 +216,10 @@ export function decodeWorkspace(value: unknown): Workspace {
             @for (p of w.periods; track p.id) { <option [value]="p.id">{{ p.code }} · {{ p.basis }} · {{ p.end }}</option> }</select></label>
           <p>This creates period setup only. Opening balances require their separate evidence and review workflow.</p>
           <label><input name="periodReviewed" type="checkbox" [(ngModel)]="periodReviewed" /> I reviewed this client, dates, basis, currency and prior period.</label>
-          <button matButton type="submit" [disabled]="periodForm.invalid || !periodReviewed || saving() || uncertain()">Create period</button>
+          <button matButton type="submit" [disabled]="periodForm.invalid || !periodReviewed || saving() || writeBlocked()">Create period</button>
         </form>
         <div class="table-scroll"><table><caption>Latest reporting periods</caption><thead><tr><th>Period</th><th>Dates</th><th>Basis</th><th>Currency</th><th>Status / revision</th></tr></thead>
-          <tbody>@for (p of w.periods; track p.id) { <tr><td>{{ p.code }}</td><td>{{ p.start }} – {{ p.end }}</td><td>{{ p.basis }}</td><td>{{ p.currency }}</td><td>{{ p.status }} / {{ p.revision }}</td></tr> }</tbody></table></div>
+          <tbody>@for (p of w.periods; track p.id) { <tr><td><a [routerLink]="['/app/accounting/periods', p.id]">{{ p.code }}</a></td><td>{{ p.start }} – {{ p.end }}</td><td>{{ p.basis }}</td><td>{{ p.currency }}</td><td>{{ p.status }} / {{ p.revision }}</td></tr> }</tbody></table></div>
         <h3>Period decisions</h3>
         @for (p of w.periods; track p.id) { <button matButton (click)="decisionPeriod.set(p.id)">{{ p.code }} · close/reopen</button>
           @if (decisionPeriod() === p.id) { <audit-period-lifecycle [clientId]="w.clientId" [periodId]="p.id" [revision]="p.revision" [code]="p.code" (changed)="select(w.clientId)" /> }
@@ -223,7 +245,7 @@ export function decodeWorkspace(value: unknown): Workspace {
           <label>Opening evidence reference <input name="rollEvidence" [(ngModel)]="roll.evidence" required maxlength="2000" /></label>
           <p>Choose a validated source package or provide external source evidence. Draft books are copied; approvals are not. Opening-balance review remains separate.</p>
           <label><input name="rollReviewed" type="checkbox" [(ngModel)]="rollReviewed" /> I reviewed the closed prior period, opening amounts and exact source evidence.</label>
-          <button matButton type="submit" [disabled]="rollForm.invalid || !rollReviewed || saving() || uncertain()">Create next draft period</button>
+          <button matButton type="submit" [disabled]="rollForm.invalid || !rollReviewed || saving() || writeBlocked()">Create next draft period</button>
         </form>
         <h3>Opening-balance evidence</h3>
         @if (!w.openingBridges.length) { <p>No opening bridges for displayed periods.</p> }
@@ -233,7 +255,7 @@ export function decodeWorkspace(value: unknown): Workspace {
             <dt>Approved by / UTC</dt><dd>{{ b.approvedBy ?? 'Not approved' }} / {{ b.approvedAt ?? 'Not approved' }}</dd></dl>
           @if (b.status === 'RECONCILED' && w.canReviewOpening) {
             <label><input type="checkbox" [checked]="openingReviewed === b.id" (change)="openingReviewed = $any($event.target).checked ? b.id : ''" /> I reviewed this opening bridge and exact source evidence.</label>
-            <button matButton [disabled]="openingReviewed !== b.id || saving() || uncertain()" (click)="approveOpening(b)">Approve opening bridge</button>
+            <button matButton [disabled]="openingReviewed !== b.id || saving() || writeBlocked()" (click)="approveOpening(b)">Approve opening bridge</button>
           }
         </section> }
         <h3>Period amendment history</h3>
@@ -254,7 +276,7 @@ export function decodeWorkspace(value: unknown): Workspace {
           <label>Inclusion rule <input name="bookInclusion" [(ngModel)]="book.inclusionRule" required maxlength="200" /></label>
           <label>Currency <input name="bookCurrency" [(ngModel)]="book.currency" required pattern="[A-Z]{3}" maxlength="3" /></label>
           <label><input name="bookReviewed" type="checkbox" [(ngModel)]="bookReviewed" /> I reviewed the client, period and book configuration.</label>
-          <button matButton type="submit" [disabled]="bookForm.invalid || !bookReviewed || saving() || uncertain()">Create book</button>
+          <button matButton type="submit" [disabled]="bookForm.invalid || !bookReviewed || saving() || writeBlocked()">Create book</button>
         </form>
         @if (w.hasMorePeriods) { <p>Showing the latest 100 periods. Older periods are not included in this view.</p> }
         <h3>Accounting dimensions</h3>
@@ -278,7 +300,7 @@ export function decodeWorkspace(value: unknown): Workspace {
           <label>Code <input name="dimCode" [(ngModel)]="dim.code" (ngModelChange)="dimReviewed = false" required maxlength="100" /></label>
           <label>Name <input name="dimName" [(ngModel)]="dim.name" (ngModelChange)="dimReviewed = false" required maxlength="300" /></label>
           <label><input name="dimReviewed" type="checkbox" [(ngModel)]="dimReviewed" /> I reviewed this dimension definition for this client.</label>
-          <button matButton type="submit" [disabled]="dimForm.invalid || dimensions() === null || dimensionsLoading() || !dimReviewed || saving() || uncertain()">Add dimension</button>
+          <button matButton type="submit" [disabled]="dimForm.invalid || dimensions() === null || dimensionsLoading() || !dimReviewed || saving() || writeBlocked()">Add dimension</button>
         </form>
       </section>
     }
@@ -295,6 +317,11 @@ export class AccountingWorkspace {
   readonly saving = signal(false);
   readonly decisionPeriod = signal('');
   readonly uncertain = signal(false);
+  private readonly profileOutcomeUnknownClients = signal<ReadonlySet<string>>(new Set());
+  readonly profileOutcomeUnknown = computed(() => {
+    const clientId = this.workspace()?.clientId;
+    return clientId !== undefined && this.profileOutcomeUnknownClients().has(clientId);
+  });
   reviewed = false;
   readonly sources = signal<SourcePackage[] | null>(null);
   readonly moreSources = signal(false);
@@ -382,7 +409,7 @@ export class AccountingWorkspace {
   }
   addDimension(): void {
     const w = this.workspace();
-    if (!w || this.dimensions() === null || !this.dimReviewed || this.saving() || this.uncertain()) return;
+    if (!w || this.dimensions() === null || !this.dimReviewed || this.saving() || this.writeBlocked()) return;
     const generation = this.session.invalidation();
     this.saving.set(true); this.error.set('');
     this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/dimensions', {
@@ -393,9 +420,34 @@ export class AccountingWorkspace {
       error: failure => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.dimReviewed = false; this.uncertain.set(true); this.error.set('Dimension not confirmed. Refresh the client before another change.'); if (failure.status === 401) this.session.clear(); },
     });
   }
+
+  sourceModeSelectionDisabled(w: Workspace): boolean {
+    return w.profile?.sourceMode === 'NATIVE_BOOKKEEPING' || w.periods.length > 0 || w.hasMorePeriods;
+  }
+
+  writeBlocked(): boolean { return this.uncertain() || this.profileOutcomeUnknown(); }
+
+  private markProfileOutcomeUnknown(clientId: string): void {
+    this.profileOutcomeUnknownClients.update(current => new Set(current).add(clientId));
+  }
+
+  private clearProfileOutcomeUnknown(clientId: string): void {
+    this.profileOutcomeUnknownClients.update(current => {
+      const next = new Set(current);
+      next.delete(clientId);
+      return next;
+    });
+  }
+
+  private sourceModeChangeBlocked(w: Workspace): boolean {
+    const persistedMode = w.profile?.sourceMode ?? 'EXTERNAL_SOURCE';
+    return this.form.sourceMode !== persistedMode &&
+      (w.periods.length > 0 || w.hasMorePeriods || w.profile?.sourceMode === 'NATIVE_BOOKKEEPING');
+  }
+
   saveProfile(): void {
     const w = this.workspace();
-    if (!w || !this.reviewed || this.saving() || this.uncertain()) return;
+    if (!w || !this.reviewed || this.saving() || this.writeBlocked() || this.sourceModeChangeBlocked(w)) return;
     const generation = this.session.invalidation();
     this.saving.set(true); this.error.set('');
     this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/profile', {
@@ -403,14 +455,38 @@ export class AccountingWorkspace {
       currency: this.form.currency, fiscalMonth: this.form.month, fiscalDay: this.form.day,
       sourceSystem: this.form.source, sourceIdentifier: this.form.identifier, sourceMode: this.form.sourceMode, reviewed: true,
     }).pipe(timeout(15000)).subscribe({
-      next: () => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.select(w.clientId); },
+      next: value => {
+        if (generation !== this.session.invalidation()) return;
+        this.saving.set(false);
+        if (!isProfileSaveAcknowledgement(value, w.profile)) {
+          this.reviewed = false;
+          this.markProfileOutcomeUnknown(w.clientId);
+          this.error.set('Profile save outcome is unknown because the API response was not recognized. Refresh to inspect persisted setup; do not retry while the outcome is unresolved.');
+          return;
+        }
+        this.clearProfileOutcomeUnknown(w.clientId);
+        this.select(w.clientId);
+      },
       error: failure => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.reviewed = false;
-        this.uncertain.set(true); this.error.set('Profile save was not confirmed. Select the client again to refresh persisted state.'); if (failure.status === 401) this.session.clear(); },
+        if (isDefiniteProfileRejection(failure.status)) {
+          this.clearProfileOutcomeUnknown(w.clientId);
+          this.uncertain.set(false);
+          this.error.set(failure.status === 400
+            ? 'Profile change was rejected by current accounting or cutover rules. Review the current profile before retrying.'
+            : failure.status === 403
+              ? 'Profile change was denied by request verification or current accounting authority.'
+              : 'Your session expired before the profile change was applied.');
+          if (failure.status === 401) this.session.clear();
+          return;
+        }
+        this.markProfileOutcomeUnknown(w.clientId);
+        this.error.set('Profile save outcome is unknown. Refresh to inspect persisted setup; do not retry while the outcome is unresolved.');
+      },
     });
   }
   createPeriod(): void {
     const w = this.workspace();
-    if (!w || !this.periodReviewed || this.saving() || this.uncertain()) return;
+    if (!w || !this.periodReviewed || this.saving() || this.writeBlocked()) return;
     if (this.period.prior && !w.periods.some(p => p.id === this.period.prior)) return;
     const generation = this.session.invalidation();
     this.saving.set(true); this.error.set('');
@@ -425,7 +501,7 @@ export class AccountingWorkspace {
   }
   createBook(): void {
     const w = this.workspace();
-    if (!w || !this.bookReviewed || this.saving() || this.uncertain() || !w.periods.some(p => p.id === this.book.periodId && p.status !== 'CLOSED')) return;
+    if (!w || !this.bookReviewed || this.saving() || this.writeBlocked() || !w.periods.some(p => p.id === this.book.periodId && p.status !== 'CLOSED')) return;
     const generation = this.session.invalidation();
     this.saving.set(true); this.error.set('');
     this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/books', { ...this.book, reviewed: true }).pipe(timeout(15000)).subscribe({
@@ -437,7 +513,7 @@ export class AccountingWorkspace {
 
   rollforward(): void {
     const w = this.workspace(); const prior = w?.periods.find(p => p.id === this.roll.prior && p.status === 'CLOSED');
-    if (!w || !prior || !this.rollReviewed || this.saving() || this.uncertain()) return;
+    if (!w || !prior || !this.rollReviewed || this.saving() || this.writeBlocked()) return;
     if (this.selectedSource && !this.sources()?.some(p => p.id === this.selectedSource && p.hash === this.roll.hash)) return;
     const generation = this.session.invalidation(); this.saving.set(true); this.error.set('');
     this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/rollforward', {
@@ -453,7 +529,7 @@ export class AccountingWorkspace {
 
   approveOpening(bridge: Opening): void {
     const w = this.workspace();
-    if (!w?.canReviewOpening || !w.openingBridges.some(b => b.id === bridge.id) || this.openingReviewed !== bridge.id || this.saving() || this.uncertain()) return;
+    if (!w?.canReviewOpening || !w.openingBridges.some(b => b.id === bridge.id) || this.openingReviewed !== bridge.id || this.saving() || this.writeBlocked()) return;
     const generation = this.session.invalidation(); this.saving.set(true);
     this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/opening-bridges/' + bridge.id + '/approve', { sourceHash: bridge.sourceHash, reviewed: true }).pipe(timeout(15000)).subscribe({
       next: () => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.select(w.clientId); },
