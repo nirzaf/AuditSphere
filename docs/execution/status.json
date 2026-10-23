@@ -1112,8 +1112,9 @@
         "status": "PARTIAL",
         "scope": "Nullable immutable same-firm/group/period correction source scope+component pair; ordinary/roll-forward basis preserved; no inferred supersession staleness.",
         "checks": "PASS: main TRX 1/1 .local/autonomous/evidence/wu013-correction-lineage/correction-lineage.trx; agent Angular36, corrected build (SCSS warning), EF model and OpenAPI checks passed. Migration null-pointer downgrade/reapply and retained-lineage downgrade refusal covered.",
-        "remaining": "Current-source CI, owned correction browser journey and approved supersession policy; broader WU013/group release remains open."
-      }
+        "remaining": "Owned correction browser PASS 1/1: .local/autonomous/evidence/wu013-correction-browser/ComponentCorrectionHandoff.retry2.trx; exact source IDs persisted and approved pin/pack/run retained. Current-source CI and broader group release remain open; no universal supersession policy required."
+      },
+      "ciObserved": "FAST_CI_PASS39886871334 at6f69c97a20e332a6e457ce2326874bc782cd2091. Full39886113863 resolved368eada2cc2e169d11767055c4d39cbe7c96c960: Angular+Domain1522/1522PASS; verifyFAILfixturefixed6f; API/E2ERUNNING at2026-10-23T02:59:34+00:00. NOT_FULL_CI_PASS."
     },
     "developmentFeedback20261023": {
       "status": "PARTIAL",

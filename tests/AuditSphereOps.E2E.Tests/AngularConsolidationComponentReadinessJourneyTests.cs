@@ -14,6 +14,7 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
 {
   private const string CaseId = "AS-PAR-002-ANG-CONSOL-COMPONENT-READINESS-01";
   private const string ScopeCaseId = "AS-PAR-002-ANG-CONSOL-SCOPE-READINESS-01";
+  private const string CorrectionLineageCaseId = "AS-PAR-002-ANG-CONSOL-CORRECTION-LINEAGE-01";
 
   [Fact]
   [Trait("CaseId", CaseId)]
@@ -148,6 +149,233 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
     }
 
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "consolidation-component-readiness");
+  }
+
+  [Fact]
+  [Trait("CaseId", CorrectionLineageCaseId)]
+  [Trait("CompletionUnit", "WU-013")]
+  public async Task ComponentCorrectionHandoffPersistsExactSourceAndPreservesApprovedPinAndRun()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: CorrectionLineageCaseId);
+    var f = host.Fixture;
+    var seeded = await SeedReadinessFixtureAsync(host);
+    var preparer = PbcSeed.Actor(f.Staff, "AccountingPreparer");
+    var reviewer = PbcSeed.Actor(f.Reviewer, "AccountingReviewer");
+    var methodOwner = PbcSeed.User(f.FirmId, "Staff");
+    Guid periodId;
+    Guid runId;
+    Guid externalPackId;
+    Guid approvedByUserId;
+    DateTimeOffset approvedAt;
+    long originalGroupRevision;
+    string componentPackageHash;
+    string externalPackDigest;
+    string runHash;
+    Guid[] originalRunLineIds;
+
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(methodOwner);
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, GroupId = seeded.GroupId, UserId = methodOwner.Id,
+        Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = f.Admin.Id
+      });
+      await db.SaveChangesAsync();
+
+      var groupCapability = await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+        new CapabilityProfileRequest(null, seeded.GroupId, AccountingCapabilityServiceKinds.GroupReporting,
+          "IFRS", "2026", "ANNUAL", "QAR", "STATUTORY", ConsolidationCalculator.RestrictedMethod,
+          "PARTNER", "GROUP"));
+      Assert.True(groupCapability.Succeeded, groupCapability.Message);
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, reviewer, groupCapability.Value,
+        AccountingCapabilityAcceptanceStages.LocalConstruction, "synthetic-correction-lineage-local")).Succeeded);
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db,
+        PbcSeed.Actor(methodOwner, "Partner"), groupCapability.Value,
+        AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "synthetic-correction-lineage-method-owner")).Succeeded);
+
+      var componentApproval = await ConsolidationService.ApproveComponentAsync(db, reviewer, seeded.ComponentId);
+      Assert.True(componentApproval.Succeeded, componentApproval.Message);
+      var scopeApproval = await ConsolidationService.ApproveScopeAsync(db, reviewer, seeded.ScopeId);
+      Assert.True(scopeApproval.Succeeded, scopeApproval.Message);
+      var run = await ConsolidationService.RunAsync(db, preparer, seeded.ScopeId);
+      Assert.True(run.Succeeded, run.Message);
+      runId = run.Value;
+      var runApproval = await ConsolidationService.ApproveRunAsync(db, reviewer, runId);
+      Assert.True(runApproval.Succeeded, runApproval.Message);
+
+      var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleAsync(x => x.Id == seeded.ScopeId);
+      periodId = scope.PeriodId;
+      originalGroupRevision = scope.GroupRevision;
+      var component = await db.ConsolidationComponents.AsNoTracking().SingleAsync(x => x.Id == seeded.ComponentId);
+      Assert.NotNull(component.ExternalComponentPackId);
+      externalPackId = component.ExternalComponentPackId!.Value;
+      componentPackageHash = component.PackageHash;
+      Assert.NotNull(component.ApprovedByUserId);
+      Assert.NotNull(component.ApprovedAt);
+      approvedByUserId = component.ApprovedByUserId!.Value;
+      approvedAt = component.ApprovedAt!.Value;
+      externalPackDigest = await db.ExternalComponentPacks.AsNoTracking()
+        .Where(x => x.Id == externalPackId).Select(x => x.PackDigest).SingleAsync();
+      var approvedRun = await db.ConsolidationRuns.AsNoTracking().SingleAsync(x => x.Id == runId);
+      runHash = approvedRun.RunHash;
+      originalRunLineIds = await db.ConsolidationRunLines.AsNoTracking().Where(x => x.RunId == runId)
+        .OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+      Assert.NotEmpty(originalRunLineIds);
+    }
+
+    var settings = new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = "true"
+    };
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH") is { Length: > 0 } buildPath)
+      settings["AngularUi__BuildPath"] = buildPath;
+    var origin = await host.StartApiForIdentityAsync(f.Staff, settings);
+    var sourcePath = $"/app/consolidation/scopes/{seeded.ScopeId:D}";
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var pageErrors = new List<string>();
+    page.PageError += (_, error) => pageErrors.Add(error);
+    var sourceWorkspaceResponse = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && new Uri(request.Url).AbsolutePath == $"/api/ui/consolidation/scopes/{seeded.ScopeId:D}",
+      () => page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(sourcePath)));
+    Assert.Equal(200, sourceWorkspaceResponse.Status);
+    using (var sourceWorkspace = JsonDocument.Parse(sourceWorkspaceResponse.Body))
+    {
+      var scope = sourceWorkspace.RootElement.GetProperty("scope");
+      Assert.Equal(seeded.ScopeId, scope.GetProperty("id").GetGuid());
+      Assert.Equal(seeded.GroupId, scope.GetProperty("groupId").GetGuid());
+      Assert.Equal(periodId, scope.GetProperty("periodId").GetGuid());
+      Assert.Equal(JsonValueKind.Null, scope.GetProperty("supersedesScopeVersionId").ValueKind);
+      Assert.Equal(JsonValueKind.Null, scope.GetProperty("supersedesComponentId").ValueKind);
+      var component = sourceWorkspace.RootElement.GetProperty("components").EnumerateArray()
+        .Single(x => x.GetProperty("id").GetGuid() == seeded.ComponentId);
+      Assert.Equal("APPROVED", component.GetProperty("status").GetString());
+      Assert.Equal(externalPackId, component.GetProperty("externalComponentPackId").GetGuid());
+      Assert.Equal(componentPackageHash, component.GetProperty("packageHash").GetString());
+    }
+
+    var componentRow = page.Locator("#components").GetByRole(AriaRole.Row).Filter(new() { HasText = "PBC TEST CLIENT" });
+    await Assertions.Expect(componentRow).ToHaveCountAsync(1);
+    var correctionSourceRead = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
+      new Uri(response.Url).AbsolutePath == $"/api/ui/consolidation/scopes/{seeded.ScopeId:D}" &&
+      new Uri(response.Url).Query.Contains($"selectedComponentId={seeded.ComponentId:D}", StringComparison.OrdinalIgnoreCase));
+    await componentRow.GetByRole(AriaRole.Button, new() { Name = "Correct source", Exact = true }).ClickAsync();
+    var correctionSourceResponse = await correctionSourceRead;
+    Assert.Equal(200, correctionSourceResponse.Status);
+    var correctionSource = page.Locator("section[aria-labelledby='component-correction-heading']");
+    await Assertions.Expect(correctionSource.GetByRole(AriaRole.Heading,
+      new() { Name = "Correct this component", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(correctionSource).ToContainTextAsync(seeded.ScopeId.ToString("D"));
+    await Assertions.Expect(correctionSource).ToContainTextAsync(seeded.ComponentId.ToString("D"));
+    await correctionSource.GetByRole(AriaRole.Link,
+      new() { Name = "Open the authorized new-scope correction handoff", Exact = true }).ClickAsync();
+
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Correct a component in a new scope version", Exact = true })).ToBeVisibleAsync();
+    Assert.Contains($"correctionScopeId={seeded.ScopeId:D}", new Uri(page.Url).Query, StringComparison.OrdinalIgnoreCase);
+    Assert.Contains($"correctionGroupId={seeded.GroupId:D}", new Uri(page.Url).Query, StringComparison.OrdinalIgnoreCase);
+    Assert.Contains($"correctionComponentId={seeded.ComponentId:D}", new Uri(page.Url).Query, StringComparison.OrdinalIgnoreCase);
+    await Assertions.Expect(page.Locator("section[aria-labelledby='component-correction-heading']"))
+      .ToContainTextAsync(seeded.ScopeId.ToString("D"));
+    await page.GetByRole(AriaRole.Link,
+      new() { Name = "Continue to the existing new-scope form", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Start or roll forward a consolidation scope", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("Group revision 1")).ToBeVisibleAsync();
+    var scopeForm = page.Locator("form").Filter(new()
+      { Has = page.GetByRole(AriaRole.Button, new() { Name = "Create scope version", Exact = true }) });
+    var periodSelector = scopeForm.Locator("select[name='scopePeriod']");
+    await Assertions.Expect(periodSelector).ToBeVisibleAsync();
+    await periodSelector.SelectOptionAsync(periodId.ToString("D"));
+    await scopeForm.Locator("select[name='scopeMethod']").SelectOptionAsync(ConsolidationCalculator.RestrictedMethod);
+    await scopeForm.Locator("select[name='scopeCurrency']").SelectOptionAsync("QAR");
+    await scopeForm.Locator("select[name='scopeOpeningBasis']").SelectOptionAsync("INITIAL");
+
+    var createResponseTask = page.WaitForResponseAsync(response => response.Request.Method == "POST" &&
+      new Uri(response.Url).AbsolutePath == "/api/ui/consolidation/scopes");
+    var newScopeReadbackTask = page.WaitForResponseAsync(response =>
+    {
+      var path = new Uri(response.Url).AbsolutePath;
+      return response.Request.Method == "GET" &&
+        path.StartsWith("/api/ui/consolidation/scopes/", StringComparison.Ordinal) &&
+        path.Split('/', StringSplitOptions.RemoveEmptyEntries).Length == 5 &&
+        path != $"/api/ui/consolidation/scopes/{seeded.ScopeId:D}";
+    });
+    await page.GetByRole(AriaRole.Button, new() { Name = "Create scope version", Exact = true }).ClickAsync();
+    var createResponse = await createResponseTask;
+    Assert.Equal(200, createResponse.Status);
+    using var createRequest = JsonDocument.Parse(createResponse.Request.PostData ?? throw new InvalidOperationException("The scope request body was not captured."));
+    var createInput = createRequest.RootElement;
+    Assert.Equal(seeded.GroupId, createInput.GetProperty("groupId").GetGuid());
+    Assert.Equal(periodId, createInput.GetProperty("periodId").GetGuid());
+    Assert.Equal(originalGroupRevision, createInput.GetProperty("expectedGroupRevision").GetInt64());
+    Assert.Equal(ConsolidationCalculator.RestrictedMethod, createInput.GetProperty("method").GetString());
+    Assert.Equal("QAR", createInput.GetProperty("reportingCurrency").GetString());
+    Assert.Equal("INITIAL_CONSOLIDATION", createInput.GetProperty("openingBasis").GetString());
+    Assert.Equal(seeded.ScopeId, createInput.GetProperty("supersedesScopeVersionId").GetGuid());
+    Assert.Equal(seeded.ComponentId, createInput.GetProperty("supersedesComponentId").GetGuid());
+    Assert.Equal(JsonValueKind.Null, createInput.GetProperty("priorScopeVersionId").ValueKind);
+    using var createReceipt = JsonDocument.Parse(await createResponse.TextAsync());
+    var newScopeId = createReceipt.RootElement.GetProperty("value").GetGuid();
+    var newScopeReadback = await newScopeReadbackTask;
+    Assert.Equal(200, newScopeReadback.Status);
+    Assert.Equal($"/api/ui/consolidation/scopes/{newScopeId:D}", new Uri(newScopeReadback.Url).AbsolutePath);
+    using (var readback = JsonDocument.Parse(await newScopeReadback.TextAsync()))
+    {
+      var scope = readback.RootElement.GetProperty("scope");
+      Assert.Equal(newScopeId, scope.GetProperty("id").GetGuid());
+      Assert.Equal(seeded.GroupId, scope.GetProperty("groupId").GetGuid());
+      Assert.Equal(periodId, scope.GetProperty("periodId").GetGuid());
+      Assert.Equal(2, scope.GetProperty("version").GetInt32());
+      Assert.Equal(seeded.ScopeId, scope.GetProperty("supersedesScopeVersionId").GetGuid());
+      Assert.Equal(seeded.ComponentId, scope.GetProperty("supersedesComponentId").GetGuid());
+    }
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = $"{seeded.GroupName} ({seeded.GroupCode}) · v2", Exact = true })).ToBeVisibleAsync();
+    var createdScopeSummary = page.Locator("section[aria-labelledby='scope-heading']");
+    await Assertions.Expect(createdScopeSummary).ToContainTextAsync("Correction source scope");
+    await Assertions.Expect(createdScopeSummary).ToContainTextAsync(seeded.ScopeId.ToString("D"));
+    await Assertions.Expect(createdScopeSummary).ToContainTextAsync("Correction source component");
+    await Assertions.Expect(createdScopeSummary).ToContainTextAsync(seeded.ComponentId.ToString("D"));
+
+    await using (var proof = host.CreateDbContext())
+    {
+      var sourceScope = await proof.ConsolidationScopeVersions.AsNoTracking().SingleAsync(x => x.Id == seeded.ScopeId);
+      Assert.Equal(1, sourceScope.Version);
+      Assert.Equal(originalGroupRevision, sourceScope.GroupRevision);
+      Assert.Equal(AccountingWorkflowStates.Approved, sourceScope.Status);
+      Assert.Null(sourceScope.SupersedesScopeVersionId);
+      Assert.Null(sourceScope.SupersedesComponentId);
+      var createdScope = await proof.ConsolidationScopeVersions.AsNoTracking().SingleAsync(x => x.Id == newScopeId);
+      Assert.Equal(seeded.ScopeId, createdScope.SupersedesScopeVersionId);
+      Assert.Equal(seeded.ComponentId, createdScope.SupersedesComponentId);
+      Assert.Empty(await proof.ConsolidationComponents.AsNoTracking().Where(x => x.ScopeVersionId == newScopeId).ToListAsync());
+      Assert.Empty(await proof.ConsolidationRuns.AsNoTracking().Where(x => x.ScopeVersionId == newScopeId).ToListAsync());
+
+      var sourceComponent = await proof.ConsolidationComponents.AsNoTracking().SingleAsync(x => x.Id == seeded.ComponentId);
+      Assert.Equal(AccountingWorkflowStates.Approved, sourceComponent.Status);
+      Assert.Equal(externalPackId, sourceComponent.ExternalComponentPackId);
+      Assert.Equal(componentPackageHash, sourceComponent.PackageHash);
+      Assert.Equal(approvedByUserId, sourceComponent.ApprovedByUserId);
+      Assert.Equal(approvedAt, sourceComponent.ApprovedAt);
+      var sourcePack = await proof.ExternalComponentPacks.AsNoTracking().SingleAsync(x => x.Id == externalPackId);
+      Assert.Equal(ExternalComponentPackStates.Approved, sourcePack.Status);
+      Assert.Equal(externalPackDigest, sourcePack.PackDigest);
+
+      var retainedRun = await proof.ConsolidationRuns.AsNoTracking().SingleAsync(x => x.Id == runId);
+      Assert.Equal(seeded.ScopeId, retainedRun.ScopeVersionId);
+      Assert.Equal(AccountingWorkflowStates.Approved, retainedRun.Status);
+      Assert.Equal(runHash, retainedRun.RunHash);
+      var retainedRunLineIds = await proof.ConsolidationRunLines.AsNoTracking().Where(x => x.RunId == runId)
+        .OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+      Assert.Equal(originalRunLineIds, retainedRunLineIds);
+    }
+    Assert.Empty(pageErrors);
   }
 
   [Theory]

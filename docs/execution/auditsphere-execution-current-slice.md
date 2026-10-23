@@ -20,7 +20,7 @@ The content-review screen exposes the actual presentation revision, full snapsho
 
 ## Immutable consolidation correction lineage (2026-10-23)
 
-New-scope correction requests retain the exact source scope/component pair in the same firm, group and reporting period. Ordinary creation remains nullable; roll-forward uses its existing independent pointer. Application checks, composite foreign keys and a trigger protect provenance; downgrade refuses to discard retained lineage. Angular preserves these pins through handoff/recovery and displays authorized source identities. Focused PostgreSQL, Angular, build, EF and OpenAPI checks passed; exact evidence is in `status.json`. This records correction provenance, not automatic supersession or professional approval. Browser and broader release acceptance remain open.
+New-scope correction requests retain the exact source scope/component pair in the same firm, group and reporting period. Ordinary creation remains nullable; roll-forward uses its existing independent pointer. Application checks, composite foreign keys and a trigger protect provenance; downgrade refuses to discard retained lineage. Angular preserves these pins through handoff/recovery and displays authorized source identities. Focused PostgreSQL, Angular, build, EF and OpenAPI checks passed; exact evidence is in `status.json`. This records correction provenance, not automatic supersession or professional approval. An owned synthetic browser journey passed the correction handoff, exact request/readback and preservation of the approved source pack/run. This is automated browser evidence, not interactive or professional approval; broader release acceptance remains open.
 
 ## Explicit mail-model plan boundaries (2026-10-23)
 
