@@ -167,6 +167,80 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     Assert.Equal("REFUSED SqlState=23503 Constraint=fk_staff_cost_rate_user_scope", crossFirmOutcome);
   }
 
+  [Fact]
+  public async Task FirmExpenses_RejectForeignFirmAccounts()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    var accounts = new[]
+    {
+      new FirmAccount { Id = Guid.NewGuid(), FirmId = own.FirmId, Code = "6100", Name = "Own expense", AccountType = LedgerStates.AccountExpense, NormalSide = LedgerStates.Debit },
+      new FirmAccount { Id = Guid.NewGuid(), FirmId = own.FirmId, Code = "1000", Name = "Own bank", AccountType = LedgerStates.AccountAsset, NormalSide = LedgerStates.Debit },
+      new FirmAccount { Id = Guid.NewGuid(), FirmId = foreign.FirmId, Code = "6100", Name = "Foreign expense", AccountType = LedgerStates.AccountExpense, NormalSide = LedgerStates.Debit },
+      new FirmAccount { Id = Guid.NewGuid(), FirmId = foreign.FirmId, Code = "1000", Name = "Foreign bank", AccountType = LedgerStates.AccountAsset, NormalSide = LedgerStates.Debit }
+    };
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.FirmAccounts.AddRange(accounts);
+      await db.SaveChangesAsync();
+    }
+
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+    var evidence = "synthetic expense receipt"u8.ToArray();
+    var evidenceHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(evidence)).ToLowerInvariant();
+
+    async Task<string> InsertExpenseAsync(Guid expenseAccountId, Guid paymentAccountId)
+    {
+      await new NpgsqlCommand("SAVEPOINT expense_probe", connection, transaction).ExecuteNonQueryAsync();
+      string outcome;
+      try
+      {
+        await using var command = new NpgsqlCommand("""
+          INSERT INTO firm_expenses
+            (id, firm_id, expense_date, category, payee, description, amount, currency,
+             expense_account_id, payment_account_id, evidence_file_name, evidence_content_type,
+             evidence_content, evidence_sha256, status, prepared_by_user_id, created_at)
+          VALUES
+            (@id, @firm_id, @expense_date, 'OTHER', 'Synthetic payee', 'Scope probe', 1.00, 'QAR',
+             @expense_account_id, @payment_account_id, 'receipt.pdf', 'application/pdf',
+             @evidence_content, @evidence_sha256, 'DRAFT', @prepared_by_user_id, @created_at)
+          """, connection, transaction);
+        command.Parameters.AddWithValue("id", Guid.NewGuid());
+        command.Parameters.AddWithValue("firm_id", own.FirmId);
+        command.Parameters.AddWithValue("expense_date", new DateOnly(2026, 10, 23));
+        command.Parameters.AddWithValue("expense_account_id", expenseAccountId);
+        command.Parameters.AddWithValue("payment_account_id", paymentAccountId);
+        command.Parameters.AddWithValue("evidence_content", evidence);
+        command.Parameters.AddWithValue("evidence_sha256", evidenceHash);
+        command.Parameters.AddWithValue("prepared_by_user_id", own.Admin.Id);
+        command.Parameters.AddWithValue("created_at", DateTimeOffset.UtcNow);
+        var rows = await command.ExecuteNonQueryAsync();
+        outcome = $"ACCEPTED rows={rows}";
+      }
+      catch (PostgresException exception)
+      {
+        outcome = $"REFUSED SqlState={exception.SqlState} Constraint={exception.ConstraintName ?? "(none)"}";
+      }
+      await new NpgsqlCommand("ROLLBACK TO SAVEPOINT expense_probe", connection, transaction).ExecuteNonQueryAsync();
+      return outcome;
+    }
+
+    var ownControl = await InsertExpenseAsync(accounts[0].Id, accounts[1].Id);
+    var foreignExpenseAccount = await InsertExpenseAsync(accounts[2].Id, accounts[1].Id);
+    var foreignPaymentAccount = await InsertExpenseAsync(accounts[0].Id, accounts[3].Id);
+    output.WriteLine($"SAME_FIRM_ACCOUNTS: {ownControl}");
+    output.WriteLine($"FOREIGN_EXPENSE_ACCOUNT: {foreignExpenseAccount}");
+    output.WriteLine($"FOREIGN_PAYMENT_ACCOUNT: {foreignPaymentAccount}");
+    await transaction.RollbackAsync();
+
+    Assert.Equal("ACCEPTED rows=1", ownControl);
+    Assert.Equal("REFUSED SqlState=23503 Constraint=fk_firm_expense_expense_account_scope", foreignExpenseAccount);
+    Assert.Equal("REFUSED SqlState=23503 Constraint=fk_firm_expense_payment_account_scope", foreignPaymentAccount);
+  }
+
   [Theory]
   [InlineData("ENGAGEMENT")]
   [InlineData("USER")]

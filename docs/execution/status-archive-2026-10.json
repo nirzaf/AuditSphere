@@ -23836,6 +23836,15 @@
         "checks": "Actualforeign-firmuserinsertaccepted RED; scopedFK23503 GREEN, positivecontrol/rollback, existingcostanalytics:2PASS;EFnodrift. No row/index/trigger rewrites.",
         "remaining": "Bad-existing-row upgrade refusal notseparatelyrun; broaderkeyinventory/fullCI remain."
       }
+    },
+    "targetedVerification.autonomousCompletion20261022.domainCiFixtureRepairBeforeWorktreeIntegration20261023": {
+      "status": "PASS_LOCAL_SLICE",
+      "failedSource": "d4bf3e254255dd09a4190c77c7574b6817d1db24",
+      "failureEvidence": ".local/autonomous/evidence/release-39944364261-artifacts/domain-repair/failures.json",
+      "historyEvidence": ".local/autonomous/evidence/ci-domain-history-repair-d4",
+      "reasonEvidence": ".local/autonomous/evidence/wu015-profile-reason.Cewcn6",
+      "checks": "2history+2reason focusedPASS. Legacyprofile seeded without futurehistorycommand; fullSundayupgrade keepsrealparents/FKs. Explicitrevisionreasons preservecutover/stale assertions andretainedreason. No product/migration guard weakened.",
+      "remaining": "Combined exact-source fullCI; profileReason API/UI adapter has focused evidence separately."
     }
   },
   "archivedTargetedVerification": {

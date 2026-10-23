@@ -37,10 +37,17 @@ public sealed partial class AuditSphereDbContext
     b.Entity<FirmExpense>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.ExpenseDate });
+      // Preserve the existing account lookup indexes as the FKs become firm-scoped composites.
+      e.HasIndex(x => x.ExpenseAccountId);
+      e.HasIndex(x => x.PaymentAccountId);
       e.HasIndex(x => new { x.FirmId, x.PreparedByUserId, x.CreateRequestId }).IsUnique()
         .HasFilter("create_request_id IS NOT NULL");
-      e.HasOne<FirmAccount>().WithMany().HasForeignKey(x => x.ExpenseAccountId).OnDelete(DeleteBehavior.Restrict);
-      e.HasOne<FirmAccount>().WithMany().HasForeignKey(x => x.PaymentAccountId).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<FirmAccount>().WithMany().HasForeignKey(x => new { x.FirmId, x.ExpenseAccountId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_firm_expense_expense_account_scope");
+      e.HasOne<FirmAccount>().WithMany().HasForeignKey(x => new { x.FirmId, x.PaymentAccountId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_firm_expense_payment_account_scope");
       e.Property(x => x.Amount).HasPrecision(18, 2);
       e.Property(x => x.CreateRequestHash).HasMaxLength(64);
       e.ToTable("firm_expenses", t => t.HasCheckConstraint("ck_firm_expense_values",

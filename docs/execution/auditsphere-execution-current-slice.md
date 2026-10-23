@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Subworktree integration (2026-10-23)
+
+Unique GL and expense-account scope corrections were reconciled into the main checkout with signed-mail enrollment. The expense migration was regenerated after the mail migration; neither prior snapshot overwrote the other. Scoped foreign-parent refusal, ledger behavior, GL races and the authenticated mail workflow passed the combined focused checks. Older resolver work was already integrated; newer request-correlated diagnostics were retained. Original scratch sources/evidence are preserved locally for cleanup. Exact verification and deferred CI/live gates remain in `status.json`; no whole-project completion or deployment is claimed.
+
 ## Signed Legacy mail evidence enrollment (2026-10-23)
 
 Firm-wide administrators can enroll exact public CMS evidence through the authenticated API/Angular workflow. Append-only receipts are replay-safe, rechecked against current deployment/connection/consent and expiry, and read by the Graph mail worker only when explicitly configured as `ENROLLED`; `FILE` remains the default. Generic role-only rows never qualify. The CLI reads safe receipt metadata. Downgrade refuses to discard retained bytes. Focused evidence and source limits are in `status.json`; issuer tooling, broader runtime readiness, interactive/current-source full CI, live provider and rollout acceptance remain open. No live effect or deployment was performed.
