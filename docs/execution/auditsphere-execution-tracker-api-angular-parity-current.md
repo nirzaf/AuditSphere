@@ -104,3 +104,5 @@ The existing Angular regression cohorts now assert these boundaries and saved nu
 ## Contract semantic verification in fast CI
 
 The fast workflow now runs the existing `OpenApiContractTests` class after its Release solution build and retains its TRX output with the fast guard artifacts. This bounded in-process contract cohort exercises actual emitted response schemas, command envelopes, download media, nullable/decimal types and documented refusal outcomes for T035–T051. It does not provision PostgreSQL or invoke the wider authenticated API/browser suites. Local test cases remain unrun at the owner's request. Current-source semantic results belong under `apiAngularParity.contractSemanticsCI` in `status.json`; adding the gate alone does not establish a pass.
+
+Manual fast-CI dispatches retain their dispatched source independently of subsequent push runs. A merged M365 contract change exposed a test-fixture compilation omission; the operations capability fixture now explicitly supplies null authorization evidence for a non-mail capability. This preserves the decoder requirement and the existing capability-denial assertions. No local test cases ran.

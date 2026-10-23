@@ -4,12 +4,14 @@ on:
   push:
     branches: [master]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: auditsphere-ci-${{ github.workflow }}-${{ github.ref }}
+  # Manual verification retains its dispatched SHA while new pushes replace push runs.
+  group: auditsphere-ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:

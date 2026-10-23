@@ -3,7 +3,7 @@ import { decode } from '../../core/decode';
 
 describe('Tenant operation boundary contracts', () => {
   const capability = { capability: 'TENANT_USER_PROVISIONING', displayName: 'Create users', permission: 'User.Create', enabled: true,
-    state: 'VERIFIED', lastVerifiedAt: '2026-10-02T00:00:00Z', stale: false, diagnosticCode: 'verified' };
+    state: 'VERIFIED', lastVerifiedAt: '2026-10-02T00:00:00Z', stale: false, diagnosticCode: 'verified', authorizationEvidence: null };
   it('offers provisioning only when explicitly enabled with a fresh verified capability', () => {
     expect(capabilityAvailable([capability], capability.capability)).toBe(true);
     for (const changed of [{ enabled: false }, { state: 'NOT_GRANTED' }, { stale: true }, { state: 'BLOCKED_EXTERNAL' }])
