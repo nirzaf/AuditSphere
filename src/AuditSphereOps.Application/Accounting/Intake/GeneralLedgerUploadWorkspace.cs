@@ -44,7 +44,8 @@ public static class GeneralLedgerUploadWorkspace
         if (period is null) return CommandResult<Plan>.Fail(ErrorCodes.Accounting.ImportRejected, "The file's reporting period is unavailable for this client.");
         var book = parsed.BookCode.Length == 0 ? null : await db.ClientReportingBooks.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.PeriodId == period.Id && x.Code == parsed.BookCode, ct);
         if (parsed.BookCode.Length > 0 && book is null) return CommandResult<Plan>.Fail(ErrorCodes.Accounting.ImportRejected, "The file's reporting book is unavailable for this client period.");
-        var context = await ClientAccountingService.ResolveGeneralLedgerImportContextAsync(db, actor, clientId, period.Id, book?.Id, parsed.Currency, ct);
+        var context = await ClientAccountingService.ResolveGeneralLedgerImportContextAsync(db, actor, clientId, engagementId,
+          period.Id, book?.Id, parsed.Currency, ct);
         if (!context.Succeeded) return CommandResult<Plan>.Fail(context.ErrorCode!, context.Message!);
         var valid = ClientAccountingService.ValidateGeneralLedgerTransactions(parsed.Transactions, period, parsed.Currency, context.Value!.Accounts, context.Value.DimensionCodes, GeneralLedgerCsvProfile.MaxJournals, GeneralLedgerCsvProfile.MaxLines);
         if (!valid.Succeeded) return CommandResult<Plan>.Fail(valid.ErrorCode!, valid.Message!);

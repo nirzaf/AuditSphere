@@ -16,6 +16,61 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed partial class ClientAccountingTests
 {
   [Fact]
+  [Trait("ReportingScope", "Database")]
+  public async Task ReportingScopeResolver_RequiresExactFirmClientEngagementPeriodAndBook()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var (periodA, bookA) = await CreateGlFixtureAsync(pg, scope, preparer);
+
+    Guid periodB;
+    Guid bookB;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.True((await ClientAccountingService.CreateProfileAsync(db, preparer,
+        new ClientAccountingProfileRequest(scope.ClientB, "QA", "QAR", 1, 1, "LEDGER-B", "B-1"))).Succeeded);
+      periodB = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientB, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR"))).Value;
+      var createdBook = await ClientAccountingService.CreateBookAsync(db, preparer,
+        new ReportingBookRequest(scope.ClientB, periodB, "STAT", "STATUTORY", "STATUTORY_ONLY", "QAR"));
+      Assert.True(createdBook.Succeeded, createdBook.Message);
+      bookB = await db.ClientReportingBooks.Where(x => x.ClientId == scope.ClientB && x.PeriodId == periodB)
+        .Select(x => x.Id).SingleAsync();
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var exact = await ReportingScopeResolver.ResolveAsync(verify, scope.FirmId, scope.ClientA, scope.EngagementA,
+      periodA, bookA);
+    Assert.True(exact.Succeeded, exact.Message);
+    Assert.Equal(scope.FirmId, exact.Value!.FirmId);
+    Assert.Equal(scope.ClientA, exact.Value.ClientId);
+    Assert.Equal(scope.EngagementA, exact.Value.EngagementId);
+    Assert.Equal(periodA, exact.Value!.Period.Id);
+    Assert.Equal(bookA, exact.Value.Book!.Id);
+
+    var otherFirm = await ReportingScopeResolver.ResolveAsync(verify, Guid.NewGuid(), scope.ClientA,
+      scope.EngagementA, periodA, bookA);
+    Assert.False(otherFirm.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, otherFirm.ErrorCode);
+
+    var siblingEngagement = await ReportingScopeResolver.ResolveAsync(verify, scope.FirmId, scope.ClientA,
+      scope.EngagementB, periodA, bookA);
+    Assert.False(siblingEngagement.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, siblingEngagement.ErrorCode);
+
+    var siblingPeriod = await ReportingScopeResolver.ResolveAsync(verify, scope.FirmId, scope.ClientA,
+      scope.EngagementA, periodB, bookB);
+    Assert.False(siblingPeriod.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, siblingPeriod.ErrorCode);
+
+    var siblingBook = await ReportingScopeResolver.ResolveAsync(verify, scope.FirmId, scope.ClientA,
+      scope.EngagementA, periodA, bookB);
+    Assert.False(siblingBook.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, siblingBook.ErrorCode);
+  }
+
+  [Fact]
   [Trait("Profile", "Database")]
   public async Task GlImport_RejectsUndefinedClientDimensionValue()
   {

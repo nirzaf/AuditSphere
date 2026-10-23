@@ -16,7 +16,7 @@ newer exact-source CI and slice evidence live under `targetedVerification`.
 
 ## Scoped accounting and staffing persistence (2026-10-23)
 
-Profile/dimension snapshots retain scoped history without backfilling legacy gaps. Staffing keys bind firm, client, engagement, user and grant owner. Focused PostgreSQL checks and model drift pass; context activation/adapters and wider key inventory remain open. See `status.json`.
+Profile/dimension history retains scoped revisions without legacy backfill. TB/GL resolve exact client, engagement, period and book IDs. Staffing keys bind owners. Focused PostgreSQL/model checks pass; immutable context activation and wider key inventory remain open. See `status.json`.
 
 ## Scope-denial HTTP responses (2026-10-23)
 

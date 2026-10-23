@@ -37,27 +37,14 @@ public static partial class ClientAccountingService
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.Id == request.PeriodId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct);
-    if (period is null)
-      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The reporting period is outside the client scope.");
-    if (period.Status == AccountingWorkflowStates.Closed)
-      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "A closed period cannot receive a GL import.");
-    if (!string.Equals(period.Currency, currency, StringComparison.Ordinal))
-      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, "The GL currency does not match the selected reporting period.");
-    if (request.BookId.HasValue && !await db.ClientReportingBooks.AnyAsync(x => x.Id == request.BookId &&
-        x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.PeriodId == request.PeriodId, ct))
-      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The reporting book is outside the client period.");
-    var chart = await db.ClientChartVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
-      x.Status == AccountingWorkflowStates.Approved && x.EffectiveFrom <= period.EndDate &&
-      (x.EffectiveTo == null || x.EffectiveTo >= period.StartDate)).OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
-    if (chart is null)
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A published client chart is required before GL import.");
-    var accounts = await db.ClientAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.ChartVersionId == chart.Id)
-      .ToDictionaryAsync(x => x.AccountCode, StringComparer.OrdinalIgnoreCase, ct);
-    var dimensionCodes = await LoadDimensionCodesAsync(db, actor.FirmId, request.ClientId, ct);
+    var context = await ResolveGeneralLedgerImportContextAsync(db, actor, request.ClientId, request.EngagementId,
+      request.PeriodId, request.BookId, currency, ct);
+    if (!context.Succeeded)
+      return CommandResult<Guid>.Fail(context.ErrorCode!, context.Message!);
+    var resolvedContext = context.Value!;
+    var period = resolvedContext.Period;
     var validation = ValidateGeneralLedgerTransactions(request.Transactions, period, currency,
-      accounts, dimensionCodes, MaxGlTransactions, MaxGlLines);
+      resolvedContext.Accounts, resolvedContext.DimensionCodes, MaxGlTransactions, MaxGlLines);
     if (!validation.Succeeded)
       return CommandResult<Guid>.Fail(validation.ErrorCode!, validation.Message!);
     var normalizedHash = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(
@@ -95,7 +82,7 @@ public static partial class ClientAccountingService
         {
           Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
           ImportBatchId = batch.Id, TransactionId = transaction.Id, StableLineId = line.StableLineId.Trim(),
-          AccountCode = line.AccountCode.Trim(), ClientAccountId = accounts[line.AccountCode.Trim()].Id,
+          AccountCode = line.AccountCode.Trim(), ClientAccountId = resolvedContext.Accounts[line.AccountCode.Trim()].Id,
           Debit = MoneyPolicy.Normalize(line.Debit), Credit = MoneyPolicy.Normalize(line.Credit),
           OriginalCurrency = line.OriginalCurrency.Trim().ToUpperInvariant(), OriginalAmount = MoneyPolicy.Normalize(line.OriginalAmount),
           FunctionalAmount = MoneyPolicy.Normalize(line.FunctionalAmount), PartyIdentifier = line.PartyIdentifier.Trim(),
@@ -131,8 +118,8 @@ public static partial class ClientAccountingService
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    var context = await ResolveGeneralLedgerImportContextAsync(db, actor, request.ClientId, request.PeriodId,
-      request.BookId, currency, ct);
+    var context = await ResolveGeneralLedgerImportContextAsync(db, actor, request.ClientId, request.EngagementId,
+      request.PeriodId, request.BookId, currency, ct);
     if (!context.Succeeded)
       return CommandResult<Guid>.Fail(context.ErrorCode!, context.Message!);
     var rawHash = request.RawFileSha256Hex.Trim().ToLowerInvariant();
@@ -186,8 +173,8 @@ public static partial class ClientAccountingService
       return CommandResult<GeneralLedgerImportBatchSummary>.Fail(ErrorCodes.Accounting.ImportRejected,
         "The GL chunk does not match the declared import batch.");
     var currency = batch.Currency.Trim().ToUpperInvariant();
-    var context = await ResolveGeneralLedgerImportContextAsync(db, actor, batch.ClientId, batch.PeriodId,
-      batch.BookId, currency, ct);
+    var context = await ResolveGeneralLedgerImportContextAsync(db, actor, batch.ClientId, batch.EngagementId,
+      batch.PeriodId, batch.BookId, currency, ct);
     if (!context.Succeeded)
       return CommandResult<GeneralLedgerImportBatchSummary>.Fail(context.ErrorCode!, context.Message!);
     var validation = ValidateGeneralLedgerTransactions(request.Transactions, context.Value!.Period, currency,
@@ -333,21 +320,18 @@ public static partial class ClientAccountingService
     IReadOnlyDictionary<string, IReadOnlySet<string>> DimensionCodes);
 
   internal static async Task<CommandResult<GeneralLedgerImportContext>> ResolveGeneralLedgerImportContextAsync(
-    IClientAccountingDbContext db, ActorContext actor, Guid clientId, Guid periodId, Guid? bookId,
+    IClientAccountingDbContext db, ActorContext actor, Guid clientId, Guid engagementId, Guid periodId, Guid? bookId,
     string currency, CancellationToken ct)
   {
-    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.Id == periodId && x.FirmId == actor.FirmId && x.ClientId == clientId, ct);
-    if (period is null)
-      return CommandResult<GeneralLedgerImportContext>.Fail(ErrorCodes.ScopeDenied, "The reporting period is outside the client scope.");
+    var scope = await ReportingScopeResolver.ResolveAsync(db, actor.FirmId, clientId, engagementId, periodId, bookId, ct);
+    if (!scope.Succeeded)
+      return CommandResult<GeneralLedgerImportContext>.Fail(scope.ErrorCode!, scope.Message!);
+    var period = scope.Value!.Period;
     if (period.Status == AccountingWorkflowStates.Closed)
       return CommandResult<GeneralLedgerImportContext>.Fail(ErrorCodes.ProtectedState, "A closed period cannot receive a GL import.");
     if (!string.Equals(period.Currency, currency, StringComparison.Ordinal))
       return CommandResult<GeneralLedgerImportContext>.Fail(ErrorCodes.Accounting.ImportRejected,
         "The GL currency does not match the selected reporting period.");
-    if (bookId.HasValue && !await db.ClientReportingBooks.AnyAsync(x => x.Id == bookId && x.FirmId == actor.FirmId &&
-        x.ClientId == clientId && x.PeriodId == periodId, ct))
-      return CommandResult<GeneralLedgerImportContext>.Fail(ErrorCodes.ScopeDenied, "The reporting book is outside the client period.");
     var chart = await db.ClientChartVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId &&
       x.Status == AccountingWorkflowStates.Approved && x.EffectiveFrom <= period.EndDate &&
       (x.EffectiveTo == null || x.EffectiveTo >= period.StartDate)).OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);

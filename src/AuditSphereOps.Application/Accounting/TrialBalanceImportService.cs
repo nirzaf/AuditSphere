@@ -154,7 +154,7 @@ public static class TrialBalanceImportService
       new AuthorizationRequest(engagement.FirmId, clientId, engagementId), ct);
     if (!auth.Succeeded)
       return CommandResult<IReadOnlyList<Guid>>.Fail(auth.ErrorCode!, auth.Message!);
-    var source = await ResolveSourceContextAsync(db, actor, clientId, sourceContext, parsed.Currency, ct);
+    var source = await ResolveSourceContextAsync(db, actor, clientId, engagementId, sourceContext, parsed.Currency, ct);
     if (!source.Succeeded)
       return CommandResult<IReadOnlyList<Guid>>.Fail(source.ErrorCode!, source.Message!);
 
@@ -262,7 +262,7 @@ public static class TrialBalanceImportService
       new AuthorizationRequest(engagement.FirmId, clientId, engagementId), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    var source = await ResolveSourceContextAsync(db, actor, clientId, sourceContext, parsed.Currency, ct);
+    var source = await ResolveSourceContextAsync(db, actor, clientId, engagementId, sourceContext, parsed.Currency, ct);
     if (!source.Succeeded)
       return CommandResult<Guid>.Fail(source.ErrorCode!, source.Message!);
 
@@ -279,7 +279,7 @@ public static class TrialBalanceImportService
     // Fence period closure and changed currency/basis at the actual per-period publication boundary.
     await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {sourceContext.PeriodId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
-    source = await ResolveSourceContextAsync(db, actor, clientId, sourceContext, parsed.Currency, ct);
+    source = await ResolveSourceContextAsync(db, actor, clientId, engagementId, sourceContext, parsed.Currency, ct);
     if (!source.Succeeded) return CommandResult<Guid>.Fail(source.ErrorCode!, source.Message!);
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(engagement.FirmId, clientId, engagementId), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -368,6 +368,7 @@ public static class TrialBalanceImportService
     IClientAccountingDbContext db,
     ActorContext actor,
     Guid clientId,
+    Guid engagementId,
     TrialBalanceImportContext? sourceContext,
     string currency,
     CancellationToken ct)
@@ -376,11 +377,13 @@ public static class TrialBalanceImportService
     if (sourceContext is null || sourceContext.PeriodId == Guid.Empty || basis.Length == 0)
       return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.Accounting.ImportRejected,
         "A trial-balance import must identify a reporting period and basis.");
-    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.Id == sourceContext.PeriodId && x.FirmId == actor.FirmId && x.ClientId == clientId, ct);
-    if (period is null)
-      return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.ScopeDenied,
-        "The reporting period is outside the client scope.");
+    var scope = await ReportingScopeResolver.ResolveAsync(db, actor.FirmId, clientId, engagementId,
+      sourceContext.PeriodId, sourceContext.BookId, ct);
+    if (!scope.Succeeded)
+      return CommandResult<ResolvedTrialBalanceContext>.Fail(scope.ErrorCode!,
+        scope.Message!);
+    var resolvedScope = scope.Value!;
+    var period = resolvedScope.Period;
     if (sourceContext.ExpectedPeriodRevision is { } expected && expected != TrialBalanceUploadWorkspace.PeriodRevision(period))
       return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.StaleRevision, "The reviewed reporting period changed. Preview the upload again.");
     if (period.Status == AccountingWorkflowStates.Closed)
@@ -390,19 +393,14 @@ public static class TrialBalanceImportService
         !string.Equals(period.Basis, basis, StringComparison.OrdinalIgnoreCase))
       return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.Accounting.ImportRejected,
         "The trial-balance currency and basis must match the selected reporting period.");
-    if (sourceContext.BookId is { } bookId)
+    if (resolvedScope.Book is { } book)
     {
-      var book = await db.ClientReportingBooks.AsNoTracking().SingleOrDefaultAsync(x =>
-        x.Id == bookId && x.FirmId == actor.FirmId && x.ClientId == clientId && x.PeriodId == period.Id, ct);
-      if (book is null)
-        return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.ScopeDenied,
-          "The reporting book is outside the selected period.");
       if (!string.Equals(book.Currency, currency, StringComparison.OrdinalIgnoreCase) ||
           !string.Equals(book.Basis, basis, StringComparison.OrdinalIgnoreCase))
         return CommandResult<ResolvedTrialBalanceContext>.Fail(ErrorCodes.Accounting.ImportRejected,
           "The trial-balance currency and basis must match the selected reporting book.");
     }
-    return CommandResult<ResolvedTrialBalanceContext>.Ok(new(period.Id, sourceContext.BookId, basis));
+    return CommandResult<ResolvedTrialBalanceContext>.Ok(new(period.Id, resolvedScope.Book?.Id, basis));
   }
 
   private sealed record ResolvedTrialBalanceContext(Guid PeriodId, Guid? BookId, string Basis);

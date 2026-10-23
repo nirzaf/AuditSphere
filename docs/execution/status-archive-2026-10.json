@@ -23809,6 +23809,43 @@
       "result": "PASS",
       "scopeStatus": "PARTIAL",
       "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAccessNotAssignedBrowser"
+    },
+    "sharePointClientSitesAutomation": {
+      "status": "PARTIALLY_VERIFIED",
+      "authority": "ADR-0006; R18-R19; WU-021",
+      "code": [
+        "scripts/m365/AuditSphere.M365.ClientSites.psm1",
+        "scripts/m365/Configure-SharePointClientSites.ps1",
+        "scripts/m365/Reconcile-ClientSiteStaff.ps1",
+        "scripts/m365/AuditSphere.M365.ClientSiteIntentHttp.psm1"
+      ],
+      "tests": [
+        "scripts/m365/tests/ClientSites.Tests.ps1",
+        "scripts/m365/tests/ClientSiteIntentHttp.Tests.ps1"
+      ],
+      "verification": {
+        "offlineAutomation": "PASS: integrated WU-021 entry point runs 45 transport assertions and 63 orchestration/approval assertions",
+        "checksPassed": 108,
+        "dryRunStatus": "PLANNED: documented command and verify-result.py passed; zero network calls and mutations",
+        "reconciliation": "Synthetic only: local intent request, pending/unknown recovery, exact current receipts and idempotent read-back; live tenant NOT_RUN",
+        "evidence": ".local/autonomous/evidence/wu021-cli-integrated/offline.log",
+        "fullLocalSuites": "NOT_RUN",
+        "exactSourceCi": {
+          "status": "FAST_CI_PASS",
+          "sourceCommit": "e73478be28afd57e12d90ec7a56bac470301caa0",
+          "runId": 39875838003,
+          "scope": "Docs health, Angular build/spec gate and .NET Release fast workflow; not full release verification"
+        }
+      },
+      "invariants": {
+        "requiredOwner": "Existing isolated .NET client-sites worker; deterministic name-plus-client-ID SiteSlug; persisted cutoff and current server staffing authority",
+        "draftDisposition": "Duplicate PowerShell provider removed. CLI uses reviewed same-origin Application intents; isolated worker remains effect and receipt owner.",
+        "approval": "CMS action/tenant/operator/digest/reference/state-directory/expiry binding; live source pin and clean scripts checked before private cookie access",
+        "truthfulResult": "Current session before/after, final all-target reread, operation-plus-receipt digest identity; local POST counts distinguish attempted and confirmed; pending/stale/residual/unknown cannot be verified"
+      },
+      "externalGates": [
+        "GATE-M365-LIVE-TARGET"
+      ]
     }
   },
   "lastUpdatedOn": "2026-10-23"
