@@ -1010,7 +1010,10 @@
         "note": "Offline engineering evidence retained; live acceptance remains separate."
       },
       "m365PlanPermissionBoundary": "WU-017 correction: exact resource/role matrix, capability certificate isolation, required MAIL/CLIENT_SITES config, redirect-origin match and Exchange RBAC no-unscoped-Graph-role guard. Offline Test-Automation: 33 PASS, zero failures. Prerequisite DryRun + verify-result PLANNED PASS with zero network/mutations. Live WU-018..025 engineering and external acceptance remain open.",
-      "runnerEvidenceIntegrity": "RUN-008 correction: supervisor hashes and size-bounds evidence; final verify/run/resume reject missing or changed artifacts and directory symlinks. Focused completion runner/state cohort: 34 PASS; descriptor-relative reads and same-byte validation/hash close independent-review race findings. Historical checkpoints lacking digests require real revalidation, not automatic backfill. Full current-candidate CI NOT_RUN.",
+      "runnerEvidenceIntegrity": {
+        "status": "PASS_LOCAL_SLICE",
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.runnerEvidenceIntegrity"
+      },
       "openFindings": [
         "Original audit identified flat400 scope-denial mappings; four Acceptance routes corrected, remaining inventory needs re-audit.",
         "Single-column scoped keys and authenticated sibling/revocation coverage remain incompletely probed."
@@ -1052,7 +1055,7 @@
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.correctionLineage",
         "remaining": "Exact receipt recovery, broader group/release acceptance."
       },
-      "ciObserved": "FULL_CI_PASS39903345685 exact889bde7e58c1c74d9fe52cfbb99565b779676f2f: all7/source/TRX verified. 08aFAST_CI_PASS39929029353/images39929029403. 5aaFAST_CI_FAIL39932652527 stepEFdrift; additiveprofilehistory repair underverification.",
+      "ciObserved": "Full889 PASS39903345685 (source/aggregate/TRX). 08afast/imagesPASS. 5aafastFAIL39932652527 EFdrift; profilehistory repair9tests+isolatednodriftPASS, next exactCI pending.",
       "scopeUnknownOutcome": {
         "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.scopeUnknownOutcome",
         "status": "PARTIAL",
@@ -1102,10 +1105,7 @@
       },
       "dependencySecurityPatch": {
         "status": "PASS_LOCAL_SLICE",
-        "base": "7e727942c9145bd5ebb98b0b1e1f5301f5652286",
-        "evidence": ".local/autonomous/evidence/wu038-scans",
-        "checks": "Vite8.3.3; npm before1high+1low/after0, isolatedci/build+4specPASS. NuGet CLI9projects reportsnone; sparse structured proof remainsUNKNOWN. Gitleaks2source-reviewed falsepositives, rawexit1 retained; no history/rule suppression.",
-        "remaining": "Currentcommit CI, operational targets/performance/recovery acceptance."
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.dependencySecurityPatch"
       },
       "archiveProviderApiCli": {
         "status": "PARTIAL",
@@ -1131,6 +1131,13 @@
         "evidence": ".local/autonomous/evidence/wu015-acceptance-final",
         "checks": "AuthenticatedAPI: Acceptance4, relationships/routings4, charts3, engagement3, billing3PASS. OnlyScopeDenied=>403; othererrors400, success/CSRF retained; denied writes zeroeffects. Proof .local/autonomous/evidence/wu015-*; overlayhashes retained.",
         "remaining": "Other scope-status mappings and full authenticated denial/race coverage; current HEAD fullCI."
+      },
+      "profileDimensionHistory": {
+        "status": "PARTIAL",
+        "base": "eef3735d8011be4282ecfeafa5cf898ac0e23a97",
+        "evidence": ".local/autonomous/evidence/wu005-profile-history",
+        "checks": "9focusedPASS; profilehistory/authorFK/immutablelineage, typedscoperefs anddimensiondigest/publication. Additive20261023092814 fixesprofileEFdrift; no pendingmodel isolated. M20unchanged.",
+        "remaining": "Contextpins/adapters andbroaderacceptance; staffingFKproposal excluded."
       }
     },
     "developmentFeedback20261023": {

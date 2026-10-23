@@ -1,5 +1,6 @@
 // Immutable historical snapshots for the existing mutable client accounting profile head.
 using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Infrastructure.Persistence;
@@ -43,5 +44,10 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.ProfileId, x.Id })
       .OnDelete(DeleteBehavior.Restrict)
       .HasConstraintName("fk_client_accounting_profile_revision_previous");
+    revision.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict)
+      .HasConstraintName("fk_client_accounting_profile_revision_created_by");
   }
 }

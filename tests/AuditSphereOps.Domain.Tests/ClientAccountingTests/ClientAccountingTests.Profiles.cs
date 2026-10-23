@@ -3,6 +3,8 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
+using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -64,6 +66,52 @@ public sealed partial class ClientAccountingTests
     var foreignClient = await ClientAccountingService.ResolveProfileRevisionAsync(db, preparer, scope.ClientB, firstRef);
     Assert.False(foreignClient.Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, foreignClient.ErrorCode);
+
+    var foreignFirmId = Guid.CreateVersion7();
+    var foreignAuthor = User(foreignFirmId, "foreign-profile-author");
+    await using (var foreignUserDb = new AuditSphereDbContext(pg.Options))
+    {
+      foreignUserDb.FirmSafetyStates.Add(new FirmSafetyState { Id = foreignFirmId });
+      foreignUserDb.Users.Add(foreignAuthor);
+      await foreignUserDb.SaveChangesAsync();
+    }
+
+    var foreignAuthorClientId = Guid.CreateVersion7();
+    await using (var clientSeedDb = new AuditSphereDbContext(pg.Options))
+    {
+      clientSeedDb.PracticeClients.Add(new PracticeClient
+      {
+        Id = foreignAuthorClientId, FirmId = scope.FirmId, LegalName = "PROFILE FK TEST CLIENT",
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      clientSeedDb.ClientSafetyStates.Add(new ClientSafetyState { Id = foreignAuthorClientId, FirmId = scope.FirmId });
+      await clientSeedDb.SaveChangesAsync();
+    }
+
+    var foreignAuthorProfile = new ClientAccountingProfile
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = foreignAuthorClientId,
+      Jurisdiction = "QA", FunctionalCurrency = "QAR", FiscalYearStartMonth = 1, FiscalYearStartDay = 1,
+      SourceSystem = "LEDGER", SourceSystemIdentifier = "FOREIGN-AUTHOR-CASE",
+      CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+    };
+    await using (var profileSeedDb = new AuditSphereDbContext(pg.Options))
+    {
+      profileSeedDb.ClientAccountingProfiles.Add(foreignAuthorProfile);
+      await profileSeedDb.SaveChangesAsync();
+    }
+
+    var foreignAuthoredSnapshot = ClientAccountingProfileRevisionRecord.FromProfile(
+      foreignAuthorProfile, Guid.CreateVersion7(), null, null, foreignAuthor.Id, DateTimeOffset.UtcNow);
+    await using (var invalidActorDb = new AuditSphereDbContext(pg.Options))
+    {
+      invalidActorDb.ClientAccountingProfileRevisionRecords.Add(foreignAuthoredSnapshot);
+      var foreignAuthorUpdate = await Assert.ThrowsAsync<DbUpdateException>(() =>
+        invalidActorDb.SaveChangesAsync());
+      var foreignAuthorFailure = Assert.IsType<Npgsql.PostgresException>(foreignAuthorUpdate.InnerException);
+      Assert.Equal("23503", foreignAuthorFailure.SqlState);
+      Assert.Equal("fk_client_accounting_profile_revision_created_by", foreignAuthorFailure.ConstraintName);
+    }
 
     await using (var tamperDb = new AuditSphereDbContext(pg.Options))
     {

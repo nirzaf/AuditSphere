@@ -23745,7 +23745,15 @@
       "evidence": ".local/autonomous/evidence/wu022-mail-overview-8baadfed-20261023",
       "checks": "2 PostgreSQL PASS; exact three source hashes match. Generic/historical Mail.Send evidence cannot verify mailbox scope or supply overview timestamp. No provider calls.",
       "remaining": "Typed signed model-bound evidence, runtime token/send gate, import/migration and live acceptance."
-    }
+    },
+    "targetedVerification.autonomousCompletion20261022.dependencySecurityPatch": {
+      "status": "PASS_LOCAL_SLICE",
+      "base": "7e727942c9145bd5ebb98b0b1e1f5301f5652286",
+      "evidence": ".local/autonomous/evidence/wu038-scans",
+      "checks": "Vite8.3.3; npm before1high+1low/after0, isolatedci/build+4specPASS. NuGet CLI9projects reportsnone; sparse structured proof remainsUNKNOWN. Gitleaks2source-reviewed falsepositives, rawexit1 retained; no history/rule suppression.",
+      "remaining": "Currentcommit CI, operational targets/performance/recovery acceptance."
+    },
+    "targetedVerification.autonomousCompletion20261022.runnerEvidenceIntegrity": "RUN-008 correction: supervisor hashes and size-bounds evidence; final verify/run/resume reject missing or changed artifacts and directory symlinks. Focused completion runner/state cohort: 34 PASS; descriptor-relative reads and same-byte validation/hash close independent-review race findings. Historical checkpoints lacking digests require real revalidation, not automatic backfill. Full current-candidate CI NOT_RUN."
   },
   "archivedTargetedVerification": {
     "ste22EndToEndIncrement1": {

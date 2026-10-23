@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Profile and dimension revision foundations (2026-10-23)
+
+Immutable snapshots, exact scoped identities and dimension publication passed focused PostgreSQL checks. The additive profile-history migration removes the reproduced EF drift; legacy gaps stay unavailable. Context activation/adapters remain open; staffing-key repair is separate. See `status.json`.
+
 ## Scope-denial HTTP responses (2026-10-23)
 
 Acceptance, relationship/routing, chart, engagement and invoice mutations return forbidden for scope denial; validation and success behavior remain unchanged. Authenticated checks cover foreign-firm, sibling and wrong-route denials with unchanged records. Broader authority/race coverage remains open; see `status.json`.
@@ -24,10 +28,8 @@ Key/hash receipts survive page recreation without storing raw text. Replay/readb
 
 ## Development dependency advisory repair (2026-10-23)
 
-The Vite patch passed fresh audit, isolated install/build and focused session checks; servers were preserved. NuGet reported no findings. History scan false positives were source-reviewed without rewriting history or suppressing rules. Raw reports and remaining operational/release gates are in `status.json`.
+The verified dependency repair and scan review are retained in the [slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#development-dependency-advisory-repair-2026-10-23) and `status.json`.
 
-
-Operational evidence guards reject invented scan/metric summaries; absent targets and approval remain unverified.
 ## Mail scope evidence projection (2026-10-23)
 
 Role-only rows cannot verify mail or reuse a verification timestamp. The Graph worker now requires signed source/model/tenant/sender/control evidence, current connection/consent, and model-specific token claims before dispatch; authority is rechecked after evidence I/O. Focused tests and compilation passed; Compose uses immutable sender IDs. Receipt enrollment, persisted API readiness, migration and live acceptance remain open. Evidence is in `status.json`.

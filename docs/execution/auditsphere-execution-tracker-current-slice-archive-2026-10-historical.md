@@ -7915,3 +7915,10 @@ The screen shows persisted presentation/review IDs and full snapshot digest, wit
 ## Group report review-currentness guard (2026-10-23)
 
 Group run creation, approval and current report readback now reuse the established package evidence checks after exact approved component-pin validation. A later returned review makes the report stale without rewriting its approved run or stored lines. A final group authorization check denies a grant revoked during the report read; group-only readers still cannot fetch raw client artifacts. The UI explains stale/unreviewed/unavailable report states instead of silently hiding the report. Focused PostgreSQL and Angular checks passed; exact results are in `status.json`. No new source-selection policy or final group export/archive workflow is implied. Current-source CI and broader release acceptance remain separate.
+
+## Development dependency advisory repair (2026-10-23)
+
+The Vite patch passed fresh audit, isolated install/build and focused session checks; servers were preserved. NuGet reported no findings. History scan false positives were source-reviewed without rewriting history or suppressing rules. Raw reports and remaining operational/release gates are in `status.json`.
+
+
+Operational evidence guards reject invented scan/metric summaries; absent targets and approval remain unverified.
