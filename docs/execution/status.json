@@ -1149,7 +1149,12 @@
         "base": "74044e961d7ce7de5866a29735993450095bb538+5fileoverlay",
         "evidence": ".local/autonomous/evidence/wu004-staffing-scope",
         "checks": "5 actual invalid staffing parent writes RED before repair; 10 focused PASS after scoped FKs, including existing review/concurrency and trigger inventory. EF no-drift PASS. Migration validates rows, preserves indexes and rewrites no history.",
-        "remaining": "Wider scoped-key inventory and exact-source full CI; no live migration applied."
+        "remaining": "Wider scoped-key inventory and exact-source full CI; no live migration applied.",
+        "resources": {
+          "base": "593b728d+5fileoverlay",
+          "evidence": ".local/autonomous/evidence/wu004-resource-scope",
+          "checks": "6 actual foreign resource writes RED; 12PASS after scoped profile/certification/availability subject keys and allocation firm/client/engagement/user keys, including reviewed receipts/replay, grid and stale-update refusal. EF no-drift PASS. Existing rows/indexes retained; broader keys and full CI pending."
+        }
       }
     },
     "developmentFeedback20261023": {

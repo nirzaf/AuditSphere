@@ -26962,7 +26962,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("FirmId", "UserId");
+
                     b.HasIndex("FirmId", "WeekStart");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId");
 
                     b.HasIndex("FirmId", "EngagementId", "UserId", "WeekStart", "Phase", "RiskArea")
                         .IsUnique();
@@ -37315,35 +37319,43 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffAllocation", b =>
                 {
-                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
-                        .WithMany()
-                        .HasForeignKey("EngagementId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
-                        .HasForeignKey("UserId")
+                        .HasForeignKey("FirmId", "UserId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_staff_allocation_user_scope");
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_staff_allocation_engagement_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffAvailability", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
-                        .HasForeignKey("UserId")
+                        .HasForeignKey("FirmId", "UserId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_staff_availability_user_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffCertification", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
-                        .HasForeignKey("UserId")
+                        .HasForeignKey("FirmId", "UserId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_staff_certification_user_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffCertificationReview", b =>
@@ -37390,9 +37402,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
-                        .HasForeignKey("UserId")
+                        .HasForeignKey("FirmId", "UserId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_staff_profile_user_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffingChange", b =>

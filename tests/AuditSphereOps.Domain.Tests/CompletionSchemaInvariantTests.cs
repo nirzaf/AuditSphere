@@ -164,6 +164,64 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     Assert.Equal(1, await proof.EngagementStaffAssignments.CountAsync(x => x.FirmId == own.FirmId));
   }
 
+  [Theory]
+  [InlineData("PROFILE", "staff_profiles", "fk_staff_profile_user_scope")]
+  [InlineData("CERTIFICATION", "staff_certifications", "fk_staff_certification_user_scope")]
+  [InlineData("AVAILABILITY", "staff_availabilities", "fk_staff_availability_user_scope")]
+  [InlineData("ALLOCATION_USER", "staff_allocations", "fk_staff_allocation_user_scope")]
+  [InlineData("ALLOCATION_ENGAGEMENT", "staff_allocations", "fk_staff_allocation_engagement_scope")]
+  [InlineData("ALLOCATION_CLIENT", "staff_allocations", "fk_staff_allocation_engagement_scope")]
+  public async Task ResourceRecords_RefuseMismatchedScopedParents(string kind, string table, string constraint)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    var now = DateTimeOffset.UtcNow;
+    var sunday = new DateOnly(2026, 10, 25);
+    object Row(Guid id, bool invalid)
+    {
+      var user = invalid && kind is not ("ALLOCATION_ENGAGEMENT" or "ALLOCATION_CLIENT")
+        ? foreign.Admin.Id : invalid ? own.Admin.Id : own.Staff.Id;
+      return kind switch
+      {
+        "PROFILE" => new StaffProfile { Id = id, FirmId = own.FirmId, UserId = user,
+          Department = "AUDIT", WeeklyCapacityMinutes = 2400, TargetUtilizationPercent = 75,
+          UpdatedAt = now, UpdatedByUserId = own.Admin.Id },
+        "CERTIFICATION" => new StaffCertification { Id = id, FirmId = own.FirmId, UserId = user,
+          Name = "SYNTHETIC CPA", RecordedAt = now, RecordedByUserId = own.Admin.Id },
+        "AVAILABILITY" => new StaffAvailability { Id = id, FirmId = own.FirmId, UserId = user,
+          StartDate = sunday, EndDate = sunday, MinutesPerDay = 480,
+          RecordedAt = now, RecordedByUserId = own.Admin.Id },
+        _ => new StaffAllocation { Id = id, FirmId = own.FirmId, UserId = user,
+          ClientId = invalid && kind == "ALLOCATION_CLIENT" ? foreign.ClientId : own.ClientId,
+          EngagementId = invalid && kind == "ALLOCATION_ENGAGEMENT" ? foreign.EngagementId : own.EngagementId,
+          WeekStart = sunday, PlannedMinutes = 480, UpdatedAt = now, UpdatedByUserId = own.Admin.Id }
+      };
+    }
+
+    var validId = Guid.NewGuid();
+    var invalidId = Guid.NewGuid();
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.Add(Row(validId, false));
+    await db.SaveChangesAsync(); // Distinct valid subject avoids a unique-index false refusal.
+    db.Add(Row(invalidId, true));
+    var failure = await Record.ExceptionAsync(() => db.SaveChangesAsync());
+    if (failure is null) output.WriteLine($"ACCEPTED_FOREIGN_RESOURCE_PARENT:{kind}");
+    var rejected = Assert.IsType<DbUpdateException>(failure);
+    var postgres = Assert.IsType<PostgresException>(rejected.InnerException);
+    Assert.Equal("23503", postgres.SqlState);
+    Assert.Equal(constraint, postgres.ConstraintName);
+
+    // Table identifiers are fixed InlineData above, never caller input.
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using var count = new NpgsqlCommand($"SELECT count(*) FROM {table} WHERE id = @id", connection);
+    count.Parameters.AddWithValue("id", invalidId);
+    Assert.Equal(0L, await count.ExecuteScalarAsync());
+    count.Parameters["id"].Value = validId;
+    Assert.Equal(1L, await count.ExecuteScalarAsync());
+  }
+
   private static HashSet<string> ExpectedTriggers()
   {
     var root = AppContext.BaseDirectory;

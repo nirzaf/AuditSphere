@@ -36,7 +36,10 @@ public sealed partial class AuditSphereDbContext
     b.Entity<StaffProfile>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.UserId }).IsUnique();
-      e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => x.UserId);
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.UserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_staff_profile_user_scope");
       e.Property(x => x.TargetUtilizationPercent).HasPrecision(5, 2);
       e.ToTable("staff_profiles", t => t.HasCheckConstraint("ck_staff_profile_values",
         "weekly_capacity_minutes BETWEEN 0 AND 4800 AND target_utilization_percent BETWEEN 0 AND 100 AND length(department) > 0"));
@@ -45,7 +48,10 @@ public sealed partial class AuditSphereDbContext
     {
       e.HasAlternateKey(x => new { x.FirmId, x.Id });
       e.HasIndex(x => new { x.FirmId, x.UserId });
-      e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => x.UserId);
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.UserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_staff_certification_user_scope");
       e.ToTable("staff_certifications", t => t.HasCheckConstraint("ck_staff_certification_values", "length(name) > 0"));
     });
     b.Entity<StaffCertificationReview>(e =>
@@ -70,7 +76,10 @@ public sealed partial class AuditSphereDbContext
     b.Entity<StaffAvailability>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.UserId, x.StartDate });
-      e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => x.UserId);
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.UserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_staff_availability_user_scope");
       e.ToTable("staff_availabilities", t => t.HasCheckConstraint("ck_staff_availability_values",
         "end_date >= start_date AND minutes_per_day BETWEEN 1 AND 1440 AND kind IN ('LEAVE','TRAINING','PUBLIC_HOLIDAY')"));
     });
@@ -78,8 +87,14 @@ public sealed partial class AuditSphereDbContext
     {
       e.HasIndex(x => new { x.FirmId, x.EngagementId, x.UserId, x.WeekStart, x.Phase, x.RiskArea }).IsUnique();
       e.HasIndex(x => new { x.FirmId, x.WeekStart });
-      e.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Restrict);
-      e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => x.EngagementId);
+      e.HasIndex(x => x.UserId);
+      e.HasOne<Engagement>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
+        .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_staff_allocation_engagement_scope");
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.UserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_staff_allocation_user_scope");
       e.Property(x => x.Phase).HasMaxLength(30).HasDefaultValue(BudgetPhases.Unassigned);
       e.Property(x => x.RiskArea).HasMaxLength(100).HasDefaultValue(string.Empty);
       e.ToTable("staff_allocations", t => t.HasCheckConstraint("ck_staff_allocation_values",
