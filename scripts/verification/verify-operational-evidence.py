@@ -51,14 +51,14 @@ HOST_RE = re.compile(
 LOCALE_RE = re.compile(r"^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$")
 
 SCAN_TOOL_NAMES = {
-    "nuget": "dotnet list solution package --vulnerable --include-transitive --format json --no-restore",
+    "nuget": "dotnet list AuditSphereOps.slnx package --vulnerable --include-transitive --format json --no-restore",
     "npm": "npm audit --json",
     "gitleaks": "gitleaks git --redact=100 --report-format json",
 }
 SCAN_EXECUTABLES = {"nuget": "dotnet", "npm": "npm", "gitleaks": "gitleaks"}
 SCAN_ARGV = {
     "nuget": [
-        "dotnet", "list", "solution", "package", "--vulnerable",
+        "dotnet", "list", "AuditSphereOps.slnx", "package", "--vulnerable",
         "--include-transitive", "--format", "json", "--no-restore",
     ],
     "npm": ["npm", "audit", "--json"],

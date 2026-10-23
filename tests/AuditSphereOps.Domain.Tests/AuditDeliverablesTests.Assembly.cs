@@ -739,7 +739,7 @@ public sealed partial class AuditDeliverablesTests
         Assert.Equal(16, included.Value!.EntryCount);
       }
 
-      const string tenantId = "tenant-del";
+      const string tenantId = "7e90d7b4-8aec-4ef7-9f8d-2f57f733f023";
       const string staffGroupId = "42";
       var clientSiteId = Guid.CreateVersion7();
       var connectionId = Guid.CreateVersion7();

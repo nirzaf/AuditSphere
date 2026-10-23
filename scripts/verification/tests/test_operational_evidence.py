@@ -8,7 +8,12 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
+import signal
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -20,6 +25,132 @@ SPEC = importlib.util.spec_from_file_location("verify_operational_evidence", SCR
 verify = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(verify)
+CAPTURE_SCRIPT = ROOT / "scripts" / "verification" / "capture-operational-scan.py"
+CAPTURE_SPEC = importlib.util.spec_from_file_location("capture_operational_scan", CAPTURE_SCRIPT)
+capture = importlib.util.module_from_spec(CAPTURE_SPEC)
+assert CAPTURE_SPEC.loader is not None
+CAPTURE_SPEC.loader.exec_module(capture)
+
+
+class OperationalScanCaptureTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "posix", "capture process-group checks require POSIX")
+    def test_output_limits_and_timeout_reap_scanner_processes(self) -> None:
+        original_popen = subprocess.Popen
+        launched: list[subprocess.Popen[bytes]] = []
+
+        def recording_popen(*args: object, **kwargs: object) -> subprocess.Popen[bytes]:
+            process = original_popen(*args, **kwargs)
+            launched.append(process)
+            return process
+
+        cases = (
+            (
+                [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'x' * (20 * 1024 * 1024 + 1))"],
+                "scan-output-too-large",
+                5,
+            ),
+            (
+                [sys.executable, "-c", "import sys; sys.stderr.buffer.write(b'x' * (1024 * 1024 + 1))"],
+                "scan-output-too-large",
+                5,
+            ),
+            ([sys.executable, "-c", "import time; time.sleep(30)"], "scan-timeout", 0.1),
+        )
+        for argv, expected_code, timeout in cases:
+            with self.subTest(expected_code=expected_code, stream=argv[-1]):
+                launched.clear()
+                with patch.object(capture.subprocess, "Popen", new=recording_popen):
+                    with self.assertRaises(capture.CaptureError) as caught:
+                        capture._run_bounded(argv, ROOT, timeout)
+                self.assertEqual(expected_code, caught.exception.code)
+                self.assertEqual(1, len(launched))
+                self.assertIsNotNone(launched[0].poll())
+
+    def test_bounded_capture_preserves_actual_exit_and_stderr_hash(self) -> None:
+        stdout = b"{}"
+        stderr = b"private-error-sentinel"
+        argv = [
+            sys.executable,
+            "-c",
+            "import sys;sys.stdout.buffer.write(bytes.fromhex(sys.argv[1]));"
+            "sys.stderr.buffer.write(bytes.fromhex(sys.argv[2]));sys.exit(int(sys.argv[3]))",
+            stdout.hex(),
+            stderr.hex(),
+            "23",
+        ]
+
+        exit_code, actual_stdout, stderr_sha256, stderr_bytes = capture._run_bounded(argv, ROOT, 5)
+
+        self.assertEqual(23, exit_code)
+        self.assertEqual(stdout, actual_stdout)
+        self.assertEqual(hashlib.sha256(stderr).hexdigest(), stderr_sha256)
+        self.assertEqual(len(stderr), stderr_bytes)
+
+    @unittest.skipUnless(os.name == "posix", "capture process-group checks require POSIX")
+    def test_keyboard_interrupt_kills_descendant_after_leader_exit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / "child-started"
+            survivor = Path(directory) / "survivor-ran"
+            child_code = (
+                "import pathlib,sys,time; time.sleep(0.6); "
+                "pathlib.Path(sys.argv[1]).write_text('survived')"
+            )
+            parent_code = (
+                "import pathlib,subprocess,sys; "
+                "subprocess.Popen([sys.executable,'-c',sys.argv[1],sys.argv[3]]); "
+                "pathlib.Path(sys.argv[2]).write_text('ready')"
+            )
+            argv = [sys.executable, "-c", parent_code, child_code, str(marker), str(survivor)]
+            original_popen = subprocess.Popen
+            launched: list[subprocess.Popen[bytes]] = []
+
+            def recording_popen(*args: object, **kwargs: object) -> subprocess.Popen[bytes]:
+                process = original_popen(*args, **kwargs)
+                launched.append(process)
+                return process
+
+            class InterruptingSelector:
+                def __init__(self) -> None:
+                    self.entries: dict[object, object] = {}
+
+                def register(self, fileobj: object, event: object) -> None:
+                    self.entries[fileobj] = event
+
+                def get_map(self) -> dict[object, object]:
+                    return self.entries
+
+                def select(self, timeout: float | None = None) -> list[object]:
+                    deadline = time.monotonic() + 3
+                    while not marker.exists() and time.monotonic() < deadline:
+                        time.sleep(0.01)
+                    if not marker.exists():
+                        raise AssertionError("scanner leader did not start its descendant")
+                    raise KeyboardInterrupt
+
+                def close(self) -> None:
+                    self.entries.clear()
+
+            try:
+                with (
+                    patch.object(capture.subprocess, "Popen", new=recording_popen),
+                    patch.object(capture.selectors, "DefaultSelector", new=InterruptingSelector),
+                ):
+                    with self.assertRaises(KeyboardInterrupt):
+                        capture._run_bounded(argv, ROOT, 5)
+                self.assertEqual(1, len(launched))
+                self.assertIsNotNone(launched[0].poll())
+                time.sleep(0.8)
+                self.assertFalse(survivor.exists(), "descendant survived interrupted capture")
+            finally:
+                for process in launched:
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except OSError:
+                        pass
+                    try:
+                        process.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        pass
 
 
 class OperationalEvidenceTests(unittest.TestCase):

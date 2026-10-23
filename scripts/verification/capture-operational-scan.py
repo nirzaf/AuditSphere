@@ -176,20 +176,34 @@ def _run_bounded(argv: list[str], cwd: Path, timeout_seconds: int) -> tuple[int,
     except OSError:
         raise CaptureError("tool-unavailable") from None
 
-    def stop_process() -> None:
-        if process.poll() is None:
-            if os.name == "posix":
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except OSError:
-                    process.kill()
-            else:
+    def stop_process(*, terminate_group: bool) -> None:
+        if terminate_group and os.name == "posix":
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except OSError:
+                if process.poll() is None:
+                    try:
+                        process.kill()
+                    except OSError:
+                        pass
+        elif process.poll() is None:
+            try:
                 process.kill()
+            except OSError:
+                pass
+
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            if process.poll() is None:
+                try:
+                    process.kill()
+                except OSError:
+                    pass
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
+                pass
 
     assert process.stdout is not None and process.stderr is not None
     selector = selectors.DefaultSelector()
@@ -230,17 +244,28 @@ def _run_bounded(argv: list[str], cwd: Path, timeout_seconds: int) -> tuple[int,
             raise CaptureError("scan-exited-by-signal")
         return exit_code, bytes(stdout), stderr_digest.hexdigest(), stderr_bytes
     except CaptureError:
-        stop_process()
+        stop_process(terminate_group=True)
         raise
     except OSError:
-        stop_process()
+        stop_process(terminate_group=True)
         raise CaptureError("scan-execution-failed") from None
+    except BaseException:
+        # The leader may have exited while a descendant still holds either
+        # pipe. Kill the session group on every exceptional exit, including
+        # KeyboardInterrupt, instead of relying on closing our pipe handles.
+        stop_process(terminate_group=True)
+        raise
     finally:
-        selector.close()
-        for stream in streams:
-            if not stream.closed:
-                stream.close()
-        stop_process()
+        try:
+            selector.close()
+            for stream in streams:
+                if not stream.closed:
+                    stream.close()
+        except BaseException:
+            stop_process(terminate_group=True)
+            raise
+        if process.poll() is None:
+            stop_process(terminate_group=True)
 
 
 def _tool_version(scan_id: str, cwd: Path) -> str:
