@@ -1012,9 +1012,8 @@
       "m365PlanPermissionBoundary": "WU-017 correction: exact resource/role matrix, capability certificate isolation, required MAIL/CLIENT_SITES config, redirect-origin match and Exchange RBAC no-unscoped-Graph-role guard. Offline Test-Automation: 33 PASS, zero failures. Prerequisite DryRun + verify-result PLANNED PASS with zero network/mutations. Live WU-018..025 engineering and external acceptance remain open.",
       "runnerEvidenceIntegrity": "RUN-008 correction: supervisor hashes and size-bounds evidence; final verify/run/resume reject missing or changed artifacts and directory symlinks. Focused completion runner/state cohort: 34 PASS; descriptor-relative reads and same-byte validation/hash close independent-review race findings. Historical checkpoints lacking digests require real revalidation, not automatic backfill. Full current-candidate CI NOT_RUN.",
       "openFindings": [
-        "42 command endpoints map scope.denied to 400 (WU-015)",
-        "63 single-column scoped keys not probed for lack of seeded rows (WU-015)",
-        "Browser journeys missing for parity rows T008-T010,T016,T025,T026,T028 (WU-028/WU-032)"
+        "Original audit identified flat400 scope-denial mappings; four Acceptance routes corrected, remaining inventory needs re-audit.",
+        "Single-column scoped keys and authenticated sibling/revocation coverage remain incompletely probed."
       ],
       "clientSiteAuthorityFence": {
         "status": "PASS_LOCAL_SLICE",
@@ -1053,7 +1052,7 @@
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.correctionLineage",
         "remaining": "Exact receipt recovery, broader group/release acceptance."
       },
-      "ciObserved": "Full39903345685 exact889bde7e58c1c74d9fe52cfbb99565b779676f2f artifactMATCH; Angular/Domain/buildPASS; API/E2E running. Fast39905138989 at8baadfed257dd096de0708be8b2596f121368871 PASS. Not currentHEAD FULL_CI_PASS.",
+      "ciObserved": "e6b5d6eb76a5f99b985da9181980c7e4c8a73ae4 FAST_CI_PASS39912380278/images39912380202. Full39903345685 exact889bde7e58c1c74d9fe52cfbb99565b779676f2f artifactMATCH: Angular/Domain/build/E2EPASS, APIrunning; no currentFULL_CI_PASS.",
       "scopeUnknownOutcome": {
         "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.scopeUnknownOutcome",
         "status": "PARTIAL",
@@ -1085,8 +1084,7 @@
       },
       "ciDispatchJson": {
         "status": "PASS_LOCAL_SLICE",
-        "evidence": ".local/autonomous/evidence/run003-dispatch-json/",
-        "result": "Observed gh URL prefix brokeJSON; childstdout nowcaptured, stderrpreserved. Red/green tests also prove greenrun/matchingsource cannotpassfullCI without canonical successfulaggregate (absent/skipped/wrongworkflow=>UNKNOWN).9focusedCI-module testsPASS. Existing39903345685 reused; no duplicate dispatch. Raworiginal retained release-889-dispatch.raw.log."
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.ciDispatchJson"
       },
       "deploymentBindings": {
         "status": "PARTIAL_OFFLINE_ENGINEERING",
@@ -1127,6 +1125,13 @@
         "evidence": ".local/autonomous/evidence/wu034-reply-final",
         "checks": "4API+10Angular+1ownedE2E PASS; Angularbuild, EF/OpenAPI drift and emitter0warnings PASS. Key/hash-only UI recovery; replay/readback currentowner reloaded, samekey/body replay or409; retainedDown55000 and emptyDown/reapply. Browser lostcommitack+navigate/recreate recoveredonepersistedreply; originalsuccesscopy retained. Initialnewbrowserassert expecteddisabled wheredesignhidesform; correctedassertion+read-onlyrecovery, failedTRXretained.",
         "remaining": "Broader portal/PBC role, boundary, responsive/human and exact-current-source full CI acceptance; no liveprovider claim."
+      },
+      "acceptanceScopeStatus": {
+        "status": "PASS_LOCAL_SLICE",
+        "base": "e6b5d6eb76a5f99b985da9181980c7e4c8a73ae4",
+        "evidence": ".local/autonomous/evidence/wu015-acceptance-final",
+        "checks": "4token-bearing API cases PASS in publishedArchive+PBC snapshot. Wrong-firm/sibling scope =>403, zeroeffects; invalidgeneration400/CSRF403 retained. Conditional onlyScopeDenied avoids unreviewed409 mappings.",
+        "remaining": "Other scope-status mappings and authenticated surface/denial/race coverage."
       }
     },
     "developmentFeedback20261023": {

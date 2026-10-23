@@ -7911,3 +7911,7 @@ Focused PBC Domain and PostgreSQL guard regressions passed, as did the PBC Angul
 ## Statement content-review identity display (2026-10-23)
 
 The screen shows persisted presentation/review IDs and full snapshot digest, with source currentness separate from historical approval. The server reuses exact package/layout/source validation and disables review of stale or unavailable source; Angular labels any retained approval historical. Returning a linked source preserves the original decision and draft hash. Focused PostgreSQL and Angular checks, targeted Release compilation and contract drift passed. Read-authority race checks still pass. Broader reporting, browser and professional acceptance remain separate; evidence is in `status.json`.
+
+## Group report review-currentness guard (2026-10-23)
+
+Group run creation, approval and current report readback now reuse the established package evidence checks after exact approved component-pin validation. A later returned review makes the report stale without rewriting its approved run or stored lines. A final group authorization check denies a grant revoked during the report read; group-only readers still cannot fetch raw client artifacts. The UI explains stale/unreviewed/unavailable report states instead of silently hiding the report. Focused PostgreSQL and Angular checks passed; exact results are in `status.json`. No new source-selection policy or final group export/archive workflow is implied. Current-source CI and broader release acceptance remain separate.

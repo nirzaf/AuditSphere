@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using Microsoft.AspNetCore.Antiforgery;
@@ -44,7 +45,7 @@ public static partial class UiEndpoints
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await AcceptanceChecklistService.RequestClearanceAsync(db, actor, id, input.Area, input.Specialist, http.RequestAborted, generation);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == ErrorCodes.ScopeDenied ? 403 : 400);
     }).WithSummary("Request acceptance specialist review")
       .WithDescription("Requests a specialist clearance review for the current client assessment; success returns no body.");
     WithUiNoContentResponse(requestReview);
@@ -61,7 +62,7 @@ public static partial class UiEndpoints
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await AcceptanceWorkspaceQuery.RecordReviewAsync(db, actor, id, reviewId, input.Status, input.Evidence, input.Conditions, generation, input.ExpectedStatus, http.RequestAborted);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == ErrorCodes.ScopeDenied ? 403 : 400);
     }).WithSummary("Record acceptance specialist review")
       .WithDescription("Records the specialist decision and evidence for this client assessment; success returns no body.");
     WithUiNoContentResponse(recordReview);
@@ -78,7 +79,7 @@ public static partial class UiEndpoints
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await AcceptanceDecisionService.RecordAsync(db, actor, new(id, null, input.ServiceRoute, input.Decision, input.Rationale, input.Conditions, generation), http.RequestAborted);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == ErrorCodes.ScopeDenied ? 403 : 400);
     }).WithSummary("Record a client acceptance decision")
       .WithDescription("Records the submitted client acceptance decision; success returns no body.");
     WithUiNoContentResponse(decision);
@@ -95,7 +96,7 @@ public static partial class UiEndpoints
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await AcceptanceChecklistService.StartContinuanceAsync(db, actor, id, http.RequestAborted, generation);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == ErrorCodes.ScopeDenied ? 403 : 400);
     }).WithSummary("Start a client continuance assessment")
       .WithDescription("Starts the next client acceptance evaluation generation; success returns no body.");
     WithUiNoContentResponse(continuance);

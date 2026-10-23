@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Acceptance scope-denial responses (2026-10-23)
+
+Four Acceptance commands return the declared forbidden status for scope denial. Token-bearing sibling/foreign-firm checks preserve zero effects, validation and CSRF behavior. Other mapping and authority/race coverage remains open; see `status.json`.
+
 ## PBC reply recovery and current-owner fence (2026-10-23)
 
 Key/hash receipts survive page recreation without storing raw text. Replay/readback reload current ownership. Focused API/Angular, migration, contract and owned lost-acknowledgement/navigation checks passed. Broader portal and current-source release acceptance remain open; see `status.json`.
@@ -68,7 +72,7 @@ MAIL plans require exact model-specific scope/sender/control identities. ReadOnl
 
 ## Group report review-currentness guard (2026-10-23)
 
-Group run creation, approval and current report readback now reuse the established package evidence checks after exact approved component-pin validation. A later returned review makes the report stale without rewriting its approved run or stored lines. A final group authorization check denies a grant revoked during the report read; group-only readers still cannot fetch raw client artifacts. The UI explains stale/unreviewed/unavailable report states instead of silently hiding the report. Focused PostgreSQL and Angular checks passed; exact results are in `status.json`. No new source-selection policy or final group export/archive workflow is implied. Current-source CI and broader release acceptance remain separate.
+The verified slice and remaining acceptance are retained in the [slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#group-report-review-currentness-guard-2026-10-23) and `status.json`.
 
 ## Per-component consolidation currentness (2026-10-23)
 

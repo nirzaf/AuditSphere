@@ -23726,6 +23726,11 @@
       "source": "git-archive base plus exact E2E fixture patch; separate outputs, existing main Angular dist",
       "evidence": ".local/autonomous/evidence/foreign-grant-ci-repair/foreign-grant-ci-repair-with-ui.trx",
       "result": "1/1 pass; firm-scoped FK23503 rejection, Staff403/no tracker, foreign grant absent and own grant/session unchanged. Initial snapshot UI bootstrap failed before assertions; fixed BuildPath only. Full suites CI-only."
+    },
+    "targetedVerification.autonomousCompletion20261022.ciDispatchJson": {
+      "status": "PASS_LOCAL_SLICE",
+      "evidence": ".local/autonomous/evidence/run003-dispatch-json/",
+      "result": "Observed gh URL prefix brokeJSON; childstdout nowcaptured, stderrpreserved. Red/green tests also prove greenrun/matchingsource cannotpassfullCI without canonical successfulaggregate (absent/skipped/wrongworkflow=>UNKNOWN).9focusedCI-module testsPASS. Existing39903345685 reused; no duplicate dispatch. Raworiginal retained release-889-dispatch.raw.log."
     }
   },
   "archivedTargetedVerification": {
