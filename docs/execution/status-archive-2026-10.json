@@ -23886,6 +23886,34 @@
       "fixRun": 38932257972,
       "fixAngular": "PASS",
       "fixRemaining": "NET/browser pending"
+    },
+    "pkcsSecurityPatch": {
+      "baseCommit": "5ac3e1f8",
+      "date": "2026-10-14",
+      "change": "Pin existing PDFsharp transitive PKCS dependency to 8.0.2; all nine tracked resolutions verified. No audit suppression.",
+      "checks": [
+        "locked restore PASS",
+        "full Release build: 0 warnings/errors",
+        "OpenAPI drift PASS",
+        "EF model drift PASS",
+        "docs gates PASS"
+      ],
+      "tests": {
+        "passed": 46,
+        "failed": 0,
+        "skipped": 0,
+        "cohort": "schedule manifest, presentation, PostgreSQL pin/export, certificate signing",
+        "trx": "/private/tmp/auditsphere-pkcs-reporting-tests/_Mac_2026-10-14_14_00_14_net10.0.trx"
+      },
+      "omitted": [
+        "full test suites",
+        "browser acceptance",
+        "live deployment"
+      ],
+      "advisories": [
+        "GHSA-846f-f764-76mx",
+        "GHSA-2fmv-rv2c-59x7"
+      ]
     }
   },
   "lastUpdatedOn": "2026-10-23"

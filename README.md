@@ -101,7 +101,7 @@ Criteria/evidence: [product crosswalk](docs/execution/auditsphere-execution-trac
 | Checklist | Module | Implemented → remaining |
 | --- | --- | --- |
 | ☐ Partially pending | Practice & commercial | Leads, clients/contacts, pricing, proposals, fees, activation → acceptance, layouts/policy, provider delivery. |
-| ☐ Partially pending | Workflow & tasks | Seven phases, eleven derived states; tasks, milestones, dependencies, reminders/queues, Required/Optional labels, NR-12 off matrix, atomic bounds, persistent 403 → legal mapping, required-task semantics, recurrence/automation, off-state and role/accessibility acceptance. |
+| ☐ Partially pending | Workflow & tasks | Seven phases, eleven derived states; tasks, milestones, dependencies, reminders/queues, Required/Optional labels, NR-12 off matrix, atomic bounds, persistent 403 → legal mapping, required-task semantics, recurrence/automation, review-point recovery diagnosis and off-state/role/accessibility acceptance. |
 | ☐ Partially pending | Client collaboration | Scoped PBC, uploads/comments, package review, invoices; posted/sent, cash/credit, due dates, UTC aging → write/evidence gates, client browser acceptance, invoice provider delivery. |
 | ☐ Partially pending | People & time | Staffing/capacity, leave/training/holidays, phase/risk allocation, task time, budgets/rates/utilization → role, responsive/accessibility and release acceptance. |
 | ☐ Partially pending | Firm finance | Billing, settlements, receipts, expenses, ledger, aging, WIP/profitability → end-to-end acceptance, firm pricing and professional end-of-service configuration. |

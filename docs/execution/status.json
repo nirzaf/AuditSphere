@@ -279,32 +279,8 @@
       "key": "targetedVerification.reportingScheduleSourceManifest"
     },
     "pkcsSecurityPatch": {
-      "baseCommit": "5ac3e1f8",
-      "date": "2026-10-14",
-      "change": "Pin existing PDFsharp transitive PKCS dependency to 8.0.2; all nine tracked resolutions verified. No audit suppression.",
-      "checks": [
-        "locked restore PASS",
-        "full Release build: 0 warnings/errors",
-        "OpenAPI drift PASS",
-        "EF model drift PASS",
-        "docs gates PASS"
-      ],
-      "tests": {
-        "passed": 46,
-        "failed": 0,
-        "skipped": 0,
-        "cohort": "schedule manifest, presentation, PostgreSQL pin/export, certificate signing",
-        "trx": "/private/tmp/auditsphere-pkcs-reporting-tests/_Mac_2026-10-14_14_00_14_net10.0.trx"
-      },
-      "omitted": [
-        "full test suites",
-        "browser acceptance",
-        "live deployment"
-      ],
-      "advisories": [
-        "GHSA-846f-f764-76mx",
-        "GHSA-2fmv-rv2c-59x7"
-      ]
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.pkcsSecurityPatch",
+      "scope": "Historical focused verification; current release and professional/provider acceptance remain separate."
     },
     "clientSitesDefaultRollout": {
       "sourceCommit": "74a21cf7961b39a9fdfc4684848639b0da11d1b5",
@@ -1160,6 +1136,14 @@
         "reasonEvidence": ".local/autonomous/evidence/wu015-profile-reason.Cewcn6",
         "checks": "2history+2reason focusedPASS. Legacyprofile seeded without futurehistorycommand; fullSundayupgrade keepsrealparents/FKs. Explicitrevisionreasons preservecutover/stale assertions andretainedreason. No product/migration guard weakened.",
         "remaining": "Current-source fullCI; profileReason API/UI adapter underimplementation."
+      },
+      "reviewPointCiDiagnosis": {
+        "status": "UNRESOLVED_NOT_REPRODUCED",
+        "failedRun": 39917840742,
+        "base": "daa16db3+diagnostic overlay; historical5feb CI UIbundle",
+        "evidence": ".local/autonomous/evidence/39917840742-reviewpoint-diagnostic-request-bound",
+        "checks": "1fresh selectedCLEAR/lostcommitted PASS. State capture bindsrequestafterlookupintent, boundedtypedfields/status/panel; same originaltimeout/assertions. Earlier3passes retained. No productguard changed.",
+        "remaining": "Historical no-receipt cause unknown; diagnosticfailurebranchnotexercised. Needrecurrenceevidence/current-sourceCI; not a productionfix."
       }
     },
     "developmentFeedback20261023": {

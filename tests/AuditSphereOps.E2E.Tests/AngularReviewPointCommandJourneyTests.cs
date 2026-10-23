@@ -71,9 +71,111 @@ public sealed class AngularReviewPointCommandJourneyTests
       await Assertions.Expect(recovery).ToBeVisibleAsync(); await page.UnrouteAsync(pattern); await page.ReloadAsync();
       await Assertions.Expect(recovery).ToContainTextAsync(identities[0].Id); await Assertions.Expect(recovery).ToContainTextAsync(identities[0].Hash);
       await Assertions.Expect(preview).ToHaveCountAsync(0);
-      var (lookupStatus, lookupBody) = await PlaywrightResponseCapture.RunAsync(page,
-        request => request.Method == "GET" && request.Url.Contains($"/api/ui/reviews/{pointId:D}/commands/receipts/{identities[0].Id}?requestHash={identities[0].Hash}", StringComparison.Ordinal),
-        () => recovery.GetByRole(AriaRole.Button, new() { Name = "Look up exact disposition receipt", Exact = true }).ClickAsync());
+      var recoveryStateStatus = -1;
+      var recoveryStateCaptureArmed = 0;
+      var recoveryStateCaptureStarted = 0;
+      IRequest? recoveryStateRequest = null;
+      const int maxRecoveryStateBodyCharacters = 32_768;
+      var recoveryStateBody = new TaskCompletionSource<(string? Body, string? CaptureError)>(
+        TaskCreationOptions.RunContinuationsAsynchronously);
+      page.Request += (_, request) =>
+      {
+        if (Volatile.Read(ref recoveryStateCaptureArmed) == 0 || request.Method != "GET" ||
+            !request.Url.EndsWith($"/api/ui/reviews/{pointId:D}/commands/state", StringComparison.Ordinal)) return;
+        Interlocked.CompareExchange(ref recoveryStateRequest, request, null);
+      };
+      page.Response += async (_, response) =>
+      {
+        try
+        {
+          if (!ReferenceEquals(response.Request, Volatile.Read(ref recoveryStateRequest))) return;
+          if (Interlocked.CompareExchange(ref recoveryStateCaptureStarted, 1, 0) != 0) return;
+          Volatile.Write(ref recoveryStateStatus, response.Status);
+          try
+          {
+            var body = await response.TextAsync();
+            recoveryStateBody.TrySetResult(body.Length <= maxRecoveryStateBodyCharacters
+              ? (body, null)
+              : (null, "body exceeded capture limit"));
+          }
+          catch (Exception exception) { recoveryStateBody.TrySetResult((null, exception.GetType().Name)); }
+        }
+        catch (Exception exception)
+        {
+          recoveryStateBody.TrySetResult((null, exception.GetType().Name));
+        }
+      };
+      int lookupStatus; string lookupBody;
+      try
+      {
+        (lookupStatus, lookupBody) = await PlaywrightResponseCapture.RunAsync(page,
+          request => request.Method == "GET" && request.Url.Contains($"/api/ui/reviews/{pointId:D}/commands/receipts/{identities[0].Id}?requestHash={identities[0].Hash}", StringComparison.Ordinal),
+          () =>
+          {
+            Volatile.Write(ref recoveryStateCaptureArmed, 1);
+            return recovery.GetByRole(AriaRole.Button, new() { Name = "Look up exact disposition receipt", Exact = true }).ClickAsync();
+          });
+      }
+      catch (TimeoutException exception)
+      {
+        static bool TryProperty(JsonElement parent, string name, out JsonElement value)
+        {
+          value = default;
+          return parent.ValueKind == JsonValueKind.Object && parent.TryGetProperty(name, out value);
+        }
+        static string Clip(string value, int limit) => value.Length <= limit ? value : value[..Math.Max(0, limit - 1)] + "…";
+        static string RawValue(JsonElement value, int limit) => value.ValueKind switch
+        {
+          JsonValueKind.String => Clip(value.GetString() ?? "null", limit),
+          JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False or JsonValueKind.Null => Clip(value.GetRawText(), limit),
+          JsonValueKind.Object => "<object>",
+          JsonValueKind.Array => "<array>",
+          _ => "<undefined>"
+        };
+        static string RawProperty(JsonElement parent, string name, int limit = 120) =>
+          TryProperty(parent, name, out var value) ? RawValue(value, limit) : "<missing>";
+        static string SummarizeState(int status, string? body, string? captureError)
+        {
+          if (body is null)
+            return $"HTTP {status}; body unavailable ({Clip(captureError ?? "capture pending", 80)})";
+          try
+          {
+            using var stateDocument = JsonDocument.Parse(body);
+            var root = stateDocument.RootElement;
+            if (TryProperty(root, "value", out var wrapped) && wrapped.ValueKind == JsonValueKind.Object) root = wrapped;
+            if (!TryProperty(root, "reviewPoint", out var point) || point.ValueKind != JsonValueKind.Object)
+              return $"HTTP {status}; responseCode={RawProperty(root, "code", 80)}";
+
+            var blockers = "<missing>";
+            if (TryProperty(root, "blockers", out var blockerItems) && blockerItems.ValueKind == JsonValueKind.Array)
+            {
+              var values = blockerItems.EnumerateArray().Take(3).Select(item => RawValue(item, 120)).ToArray();
+              var omitted = blockerItems.GetArrayLength() - values.Length;
+              blockers = "[" + string.Join(" | ", values) + (omitted > 0 ? $" | +{omitted} more" : "") + "]";
+            }
+            return $"HTTP {status}; point={RawProperty(point, "reviewPointId", 80)}; engagement={RawProperty(point, "engagementId", 80)}; target={RawProperty(point, "targetKind", 80)}/{RawProperty(point, "targetId", 80)}@{RawProperty(point, "targetRevision", 80)}; dispositionRevision={RawProperty(point, "dispositionRevision", 80)}; cleared={RawProperty(point, "cleared", 16)}; canChangeDisposition={RawProperty(root, "canChangeDisposition", 16)}; blockers={Clip(blockers, 420)}";
+          }
+          catch (Exception exception)
+          {
+            return $"HTTP {status}; state summary unavailable ({Clip(exception.GetType().Name, 60)}); body length={body.Length}";
+          }
+        }
+        var status = Volatile.Read(ref recoveryStateStatus);
+        (string? Body, string? CaptureError) capture = (null, null);
+        if (recoveryStateBody.Task.IsCompletedSuccessfully)
+          capture = await recoveryStateBody.Task;
+        else if (status >= 0)
+        {
+          var completed = await Task.WhenAny(recoveryStateBody.Task, Task.Delay(TimeSpan.FromMilliseconds(250)));
+          if (completed == recoveryStateBody.Task) capture = await recoveryStateBody.Task;
+          else capture = (null, "capture pending");
+        }
+        var stateSummary = status < 0 ? "command-state response status not captured" : SummarizeState(status, capture.Body, capture.CaptureError);
+        string recoveryText;
+        try { recoveryText = Clip(await recovery.InnerTextAsync(), 320); }
+        catch (Exception panelException) { recoveryText = $"unavailable ({Clip(panelException.GetType().Name, 60)})"; }
+        throw new TimeoutException($"{Clip(exception.Message, 400)} Reconcile state: {stateSummary}; recovery panel: {recoveryText}", exception);
+      }
       Assert.True(lookupStatus == 200, $"Exact synthetic receipt lookup returned HTTP {lookupStatus}: {lookupBody}");
       using var lookupDocument = JsonDocument.Parse(lookupBody);
       Assert.Equal(mode == "lost-committed", lookupDocument.RootElement.GetProperty("found").GetBoolean());
