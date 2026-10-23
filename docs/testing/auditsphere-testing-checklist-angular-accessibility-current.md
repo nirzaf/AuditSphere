@@ -36,6 +36,19 @@ Do not submit financial, audit, access or approval commands as part of an access
 
 Use native browser zoom for the zoom checks; changing device scale alone is not equivalent. Record the resulting CSS viewport alongside the zoom percentage. At narrow widths, activate the skip link and Tab to the first content control: its focus indication and control must remain visible, including below a wrapped header. Check horizontal tables with the keyboard as well as the pointer. Restore browser zoom, viewport and media emulation after inspection.
 
+### Reuse the existing synthetic browser handoffs
+
+The existing owned E2E journeys can pause their isolated API/database for a built-in browser inspection. Select only the relevant journey and set `AUDITSPHERE_BROWSER_FIXTURE_TARGET`, plus unique temporary-file basenames in `AUDITSPHERE_BROWSER_FIXTURE_READY_FILE` and `AUDITSPHERE_BROWSER_FIXTURE_RELEASE_FILE`. The ready JSON supplies the actual origin, route and expiry; use normal synthetic sign-in on that origin. Inspect without confirming business commands, then create the release file so the journey can finish its own assertions and dispose its resources.
+
+| Handoff target | Existing journey | Read-only inspection |
+| --- | --- | --- |
+| `planning-budget-accessibility` | `AngularBudgetPreparationJourneyTests.ExactReviewLostResponseReloadAndRetainedReceiptNeverDuplicateBudget` | Exact rates, review focus, cancellation and return focus. |
+| `evidence-action-pre-dispatch` | `AngularEvidenceActionsJourneyTests.KeyboardReviewPreviewCancelAndFreshAssentPreserveFocusOwnership` | Allowed selection, rationale, review/cancel and fresh-assent controls. |
+| `consolidation-intercompany` | `AngularConsolidationIntercompanyJourneyTests.RegularScopeRetainsExactOutsidePerimeterMatchForKeyboardReview` | Named pagers, retained amounts, scoped review controls and table scrolling. |
+| `fieldwork-populated-accessibility` | `AngularAuditFieldworkParityJourneyTests.AdoptedProgramReviewedFieldworkAndFrozenWorkpaperSurviveReload` | Programme/procedure context, tabs, evidence and review controls. |
+
+The handoff expires after 90 seconds. A closed server or cleared session after teardown is a fixture limit, not evidence of an application failure. Record only interactions completed before expiry. Different loopback ports share host cookies; use isolated browser contexts for simultaneous actors, or inspect actors sequentially through normal sign-in. Never treat separate ports as cookie isolation. Automated journey results and built-in observations remain separate evidence; neither replaces human assistive-technology review.
+
 ## Automated accessibility evidence (AUTOMATED_A11Y_ACCEPTANCE)
 
 Agent-run Playwright (Chromium, headless) on 22 October 2026, UI source 6969a469 (unchanged by the test-only commit that records this), synthetic administrator fixture from `OwnedHost`, loopback API. This is automated evidence only; it is not a human assessor result and not a compliance certification.

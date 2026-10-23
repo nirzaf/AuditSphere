@@ -981,6 +981,11 @@ describe('Consolidation Scope Workspace Contracts', () => {
     const { fixture, component } = open(initial);
     await fixture.whenStable();
 
+    for (const name of ['Component pages', 'Readiness pages', 'Intercompany member pages', 'Intercompany match pages']) {
+      expect(fixture.nativeElement.querySelector(`nav[aria-label="${name}"]`),
+        `The ${name} controls need a named navigation landmark`).not.toBeNull();
+    }
+
     expect(fixture.nativeElement.textContent).toContain('report.read-denied');
     expect(fixture.nativeElement.textContent).toContain('Report read was refused.');
     expect(fixture.nativeElement.textContent).toContain('match.read-denied');

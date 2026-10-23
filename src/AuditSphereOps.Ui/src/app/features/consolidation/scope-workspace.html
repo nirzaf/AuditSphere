@@ -173,11 +173,11 @@
             </tbody>
           </table>
         </div>
-        <div class="actions" aria-label="Component pages">
+        <nav class="actions" aria-label="Component pages">
           <button matButton="outlined" type="button" (click)="previousComponentsPage()" [disabled]="w.componentPaging.page <= 1 || ws.loading()">Previous</button>
           <span>{{ w.componentPaging.totalCount }} components · Page {{ w.componentPaging.page }} of {{ Math.max(1, Math.ceil(w.componentPaging.totalCount / w.componentPaging.pageSize)) }}</span>
           <button matButton="outlined" type="button" (click)="nextComponentsPage(w.componentPaging)" [disabled]="w.componentPaging.page * w.componentPaging.pageSize >= w.componentPaging.totalCount || ws.loading()">Next</button>
-        </div>
+        </nav>
         @if (selectedComponentCorrectionFor(w); as correction) {
           <audit-consolidation-component-correction
             [scopeId]="w.scope.id"
@@ -518,11 +518,11 @@
           </table>
         </div>
         @if (w.readinessPaging; as paging) {
-          <div class="actions" aria-label="Readiness pages">
+          <nav class="actions" aria-label="Readiness pages">
             <button matButton="outlined" type="button" (click)="previousReadinessPage()" [disabled]="paging.page <= 1 || ws.loading()">Previous</button>
             <span>{{ paging.totalCount }} members · Page {{ paging.page }} of {{ Math.max(1, Math.ceil(paging.totalCount / paging.pageSize)) }}</span>
             <button matButton="outlined" type="button" (click)="nextReadinessPage(paging)" [disabled]="paging.page * paging.pageSize >= paging.totalCount || ws.loading()">Next</button>
-          </div>
+          </nav>
         }
       </section>
 
@@ -565,11 +565,11 @@
           </label>
           @if (!options.membershipBlocker) {
           @let paging = options.memberPaging;
-            <div class="actions" aria-label="Intercompany member pages">
+            <nav class="actions" aria-label="Intercompany member pages">
               <button matButton="outlined" type="button" (click)="previousIntercompanyMembersPage()" [disabled]="paging.page <= 1 || intercompanyMatchOptions.loading()">Previous</button>
               <span>{{ paging.totalCount }} members · Page {{ paging.page }} of {{ Math.max(1, Math.ceil(paging.totalCount / paging.pageSize)) }}</span>
               <button matButton="outlined" type="button" (click)="nextIntercompanyMembersPage(paging)" [disabled]="paging.page * paging.pageSize >= paging.totalCount || intercompanyMatchOptions.loading()">Next</button>
-            </div>
+            </nav>
           }
           @if (options.taxonomyCodesTruncated) {
             <p role="status">Taxonomy suggestions are bounded. Enter the exact approved taxonomy code if it is not shown.</p>
@@ -738,11 +738,11 @@
               </tbody>
             </table>
           </div>
-          <div class="actions" aria-label="Intercompany match pages">
+          <nav class="actions" aria-label="Intercompany match pages">
             <button matButton="outlined" type="button" (click)="previousIntercompanyPage()" [disabled]="matchPage.page <= 1 || intercompanyMatches.loading()">Previous</button>
             <span>Page {{ matchPage.page }} of {{ Math.max(1, Math.ceil(matchPage.totalCount / matchPage.pageSize)) }}</span>
             <button matButton="outlined" type="button" (click)="nextIntercompanyPage(matchPage)" [disabled]="matchPage.page * matchPage.pageSize >= matchPage.totalCount || intercompanyMatches.loading()">Next</button>
-          </div>
+          </nav>
         }
       </section>
     }

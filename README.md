@@ -143,7 +143,7 @@ These are recorded, scoped checks—not current-source full CI or whole-product 
 | ☑ Completed | Debug hot reload, Vite security patch, CI, bounded scan capture and evidence guards | Prior checkpoints require revalidation. |
 | ☐ Partially pending | Development performance/configured startup | Readiness, cold-cache/frontend comparisons and session/CSRF acceptance; no overall speedup claimed. |
 
-**Angular quality/accessibility remains partial:** strict typing, capability splits, owner/recovery guards and lint are implemented; journal row focus and unreadable tailoring checkpoints have focused regression protection. Rendered states, native zoom and human screen-reader review remain in the [accessibility checklist](docs/testing/auditsphere-testing-checklist-angular-accessibility-current.md). [Routes](src/AuditSphereOps.Ui/src/app/app.routes.ts) locate screens but do not prove parity.
+**Angular quality/accessibility remains partial:** strict typing, capability splits, owner/recovery guards and lint are implemented. Journal/evidence focus and previews, fieldwork tabs/validation, budget review/cancel and named consolidation pagers have scoped automated or built-in browser evidence in the [ledger](docs/execution/status.json). Wider rendered states, native zoom and human screen-reader review stay open in the [accessibility checklist](docs/testing/auditsphere-testing-checklist-angular-accessibility-current.md), which lists existing synthetic handoffs. [Routes](src/AuditSphereOps.Ui/src/app/app.routes.ts) locate screens but do not prove parity.
 
 ## Documentation & contributing
 
