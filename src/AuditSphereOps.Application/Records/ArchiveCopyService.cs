@@ -17,7 +17,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Records;
 
 /// <summary>Commands and readback for the secondary copy protocol; this does not change RecordsAction or Archive state.</summary>
-public static class ArchiveCopyService
+public static partial class ArchiveCopyService
 {
   private static readonly string[] CustodianRoles = ["Administrator", "Partner", "RecordsCustodian"];
   private static readonly IOperationHandler QueueOnlyHandler = new QueueOnlyArchiveCopyHandler();

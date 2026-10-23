@@ -1110,8 +1110,8 @@
         "status": "PARTIAL",
         "base": "889bde7e58c1c74d9fe52cfbb99565b779676f2f",
         "evidence": ".local/autonomous/evidence/wu023-archive-api",
-        "checks": "Exactmigration/provider4PASS; final scopedreadback1PG+1API PASS, emitter0warnings/OpenAPIdriftPASS, EFdriftPASS; routedCLI23offlineassertions+PLANNEDenvelopePASS. Shared target uses libraryroot, exactstaffREAD/inheritedpath; retainedDown55000; queue withoutcert; finalauthority recheck. No tenant effects.",
-        "remaining": "Expected operation-plan export, connected actual provider/custody/denied-editor/recovery acceptance; no WORM/admin-proof claim."
+        "checks": "Provider/migration4+readback1PG/API1+CLI23PASS; planexport current5feboverlay: Domain4/API1PASS, emitter/OpenAPIdelta onlynewGET+2schemas. No DBtx across checkpointIO; source/target/session races blocked. Proof .local/autonomous/evidence/wu023-verification-plan-current. No tenant effects.",
+        "remaining": "Connected provider/custody/denied-editor/recovery acceptance; no WORM/admin-proof claim."
       },
       "operationalEvidenceGuard": {
         "status": "PARTIAL",

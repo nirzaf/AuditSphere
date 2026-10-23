@@ -122,6 +122,9 @@ public sealed class RecordsArchivePagingApiTests
     }
     using var noEvidence = await client.GetAsync($"/api/ui/records/archive-copies/{Guid.NewGuid():D}/evidence");
     Assert.Equal(HttpStatusCode.Forbidden, noEvidence.StatusCode);
+    using var noVerificationPlan = await client.GetAsync(
+      $"/api/ui/records/archive-copies/{Guid.NewGuid():D}/verification-plan");
+    Assert.Equal(HttpStatusCode.Forbidden, noVerificationPlan.StatusCode);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       Assert.False(await db.ArchiveCopyTargetRevisions.AnyAsync());

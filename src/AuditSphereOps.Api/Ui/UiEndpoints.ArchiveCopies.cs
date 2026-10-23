@@ -1,3 +1,4 @@
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Records;
 
@@ -18,5 +19,9 @@ public static partial class UiEndpoints
     group.MapGet("/records/archive-copies/{operationId:guid}/evidence", (Guid operationId, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => ArchiveCopyService.ReadEvidenceAsync(db, actor, operationId, ct)))
       .WithUiResponse<ArchiveCopyEvidenceReadback>(includeConflict: true);
+    group.MapGet("/records/archive-copies/{operationId:guid}/verification-plan", (Guid operationId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => ArchiveCopyService.GetVerificationPlanAsync(db,
+        http.RequestServices.GetRequiredService<IReleaseCheckpointStore>(), actor, operationId, ct)))
+      .WithUiResponse<ArchiveCopyVerificationPlan>(includeConflict: true);
   }
 }

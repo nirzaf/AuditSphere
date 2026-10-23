@@ -35,6 +35,77 @@ public sealed partial class AuditDeliverablesTests
       Task.FromResult<IAuditSphereDbContext>(new AuditSphereDbContext(options));
   }
 
+  private sealed class ArchiveCopyCorruptCheckpointReadStore(IReleaseCheckpointStore inner) : IReleaseCheckpointStore
+  {
+    public Task<CheckpointReceipt> WriteAsync(string manifestDigest, byte[] manifestBytes, CancellationToken ct = default) =>
+      inner.WriteAsync(manifestDigest, manifestBytes, ct);
+    public Task<CheckpointReceipt?> VerifyAsync(string reference, string expectedDigest, CancellationToken ct = default) =>
+      inner.VerifyAsync(reference, expectedDigest, ct);
+    public Task<CheckpointReceipt?> ProbeAsync(string manifestDigest, CancellationToken ct = default) =>
+      inner.ProbeAsync(manifestDigest, ct);
+
+    public async Task<CheckpointContent?> ReadVerifiedAsync(string reference, string expectedDigest, CancellationToken ct = default)
+    {
+      var content = await inner.ReadVerifiedAsync(reference, expectedDigest, ct);
+      if (content is null) return null;
+      var bytes = content.Bytes.ToArray();
+      if (bytes.Length == 0) bytes = [0];
+      else bytes[0] ^= 0xff;
+      return content with { Bytes = bytes };
+    }
+  }
+
+  private sealed class ArchiveCopyCheckpointReadBoundaryStore(
+    IReleaseCheckpointStore inner,
+    Func<bool> transactionOpen,
+    Func<CancellationToken, Task>? beforeRead = null) : IReleaseCheckpointStore
+  {
+    public bool ReadObserved { get; private set; }
+    public bool TransactionOpenObserved { get; private set; }
+    public Task<CheckpointReceipt> WriteAsync(string manifestDigest, byte[] manifestBytes, CancellationToken ct = default) =>
+      inner.WriteAsync(manifestDigest, manifestBytes, ct);
+    public Task<CheckpointReceipt?> VerifyAsync(string reference, string expectedDigest, CancellationToken ct = default) =>
+      inner.VerifyAsync(reference, expectedDigest, ct);
+    public Task<CheckpointReceipt?> ProbeAsync(string manifestDigest, CancellationToken ct = default) =>
+      inner.ProbeAsync(manifestDigest, ct);
+
+    public async Task<CheckpointContent?> ReadVerifiedAsync(string reference, string expectedDigest, CancellationToken ct = default)
+    {
+      ReadObserved = true;
+      TransactionOpenObserved = transactionOpen();
+      if (beforeRead is not null) await beforeRead(ct);
+      return await inner.ReadVerifiedAsync(reference, expectedDigest, ct);
+    }
+  }
+
+  private sealed class ArchiveCopyChangeSessionOnCheckpointReadStore(
+    IReleaseCheckpointStore inner,
+    DbContextOptions<AuditSphereDbContext> options,
+    Guid firmId,
+    Guid userId) : IReleaseCheckpointStore
+  {
+    public bool SessionChanged { get; private set; }
+    public Task<CheckpointReceipt> WriteAsync(string manifestDigest, byte[] manifestBytes, CancellationToken ct = default) =>
+      inner.WriteAsync(manifestDigest, manifestBytes, ct);
+    public Task<CheckpointReceipt?> VerifyAsync(string reference, string expectedDigest, CancellationToken ct = default) =>
+      inner.VerifyAsync(reference, expectedDigest, ct);
+    public Task<CheckpointReceipt?> ProbeAsync(string manifestDigest, CancellationToken ct = default) =>
+      inner.ProbeAsync(manifestDigest, ct);
+
+    public async Task<CheckpointContent?> ReadVerifiedAsync(string reference, string expectedDigest, CancellationToken ct = default)
+    {
+      if (!SessionChanged)
+      {
+        await using var db = new AuditSphereDbContext(options);
+        var user = await db.Users.SingleAsync(x => x.FirmId == firmId && x.Id == userId, ct);
+        user.SessionEpoch++;
+        await db.SaveChangesAsync(ct);
+        SessionChanged = true;
+      }
+      return await inner.ReadVerifiedAsync(reference, expectedDigest, ct);
+    }
+  }
+
   private sealed class ArchiveCopyRevokeOnPermissionReadInterceptor(
     string connectionString, Guid firmId, Guid userId) : DbCommandInterceptor
   {
@@ -807,6 +878,78 @@ public sealed partial class AuditDeliverablesTests
       var target1 = await CreateTargetAsync();
       var first = await EnqueueAsync(target1.TargetRevisionId);
       Assert.Equal(first.OperationId, (await EnqueueAsync(target1.TargetRevisionId)).OperationId);
+
+      ArchiveCopyVerificationPlan firstPlan;
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var pending = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == first.OperationId);
+        Assert.Null(pending.ResultIdentity);
+        var checkpointReadBoundary = new ArchiveCopyCheckpointReadBoundaryStore(
+          checkpointStore, () => db.Database.CurrentTransaction is not null);
+        var exported = await ArchiveCopyService.GetVerificationPlanAsync(db, checkpointReadBoundary, partner, first.OperationId);
+        Assert.True(checkpointReadBoundary.ReadObserved);
+        Assert.False(checkpointReadBoundary.TransactionOpenObserved);
+        Assert.True(exported.Succeeded, $"{exported.ErrorCode}: {exported.Message}");
+        firstPlan = exported.Value!;
+      }
+
+      Assert.Equal(first.OperationId, firstPlan.OperationId);
+      Assert.Equal(w.FirmId, firstPlan.FirmId);
+      Assert.Equal(w.ClientId, firstPlan.ClientId);
+      Assert.Equal(w.EngagementId, firstPlan.EngagementId);
+      Assert.Equal(target1.TargetRevisionId, firstPlan.TargetRevisionId);
+      Assert.Equal(18, firstPlan.Files.Count);
+      var checkpointPlanFile = Assert.Single(firstPlan.Files,
+        x => x.SourceKind == ArchiveCopySourceKinds.CheckpointManifest);
+      Assert.Equal(firstPlan.CheckpointId, checkpointPlanFile.SourceId);
+      Assert.Equal(checkpointPlanFile.SourceSha256, checkpointPlanFile.SourceVersion);
+      Assert.True(checkpointPlanFile.SourceByteCount > 0);
+      Assert.Equal(16, firstPlan.Files.Count(x => x.SourceKind == ArchiveCopySourceKinds.ReviewedManifestEntry));
+      CheckpointContent? checkpointContent;
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var checkpoint = await db.ReleaseCheckpoints.AsNoTracking().Where(x => x.Id == firstPlan.CheckpointId)
+          .Select(x => new { x.StoredReference, x.ReadBackDigest }).SingleAsync();
+        checkpointContent = await checkpointStore.ReadVerifiedAsync(checkpoint.StoredReference, checkpoint.ReadBackDigest);
+      }
+      Assert.NotNull(checkpointContent);
+      Assert.Equal(checkpointContent.Bytes.LongLength, checkpointPlanFile.SourceByteCount);
+      var planJson = JsonSerializer.SerializeToElement(firstPlan, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+      Assert.Equal(new[]
+      {
+        "schemaVersion", "operationId", "firmId", "tenantId", "clientId", "engagementId", "archiveId",
+        "manifestId", "manifestVersion", "manifestSha256", "recordsProfileId", "recordsProfileVersion",
+        "releaseId", "releasedArtifactId", "checkpointId", "clientSharePointSiteId", "targetRevisionId",
+        "targetRevision", "targetConfigurationSha256", "authorizedStaffSha256", "destinationTenantId",
+        "destinationSiteId", "destinationDriveId", "destinationLibraryRootItemId", "staffGroupId",
+        "expectedPermissionsSha256", "files"
+      }.Order(StringComparer.Ordinal), planJson.EnumerateObject().Select(x => x.Name).Order(StringComparer.Ordinal));
+      var fileProperties = planJson.GetProperty("files")[0].EnumerateObject().Select(x => x.Name).Order(StringComparer.Ordinal);
+      Assert.Equal(new[]
+      {
+        "sourceKind", "sourceKeySha256", "sourceId", "manifestEntryId", "sourceVersion", "sourceSha256",
+        "sourceByteCount", "relativePath"
+      }.Order(StringComparer.Ordinal), fileProperties);
+      Assert.DoesNotContain("content", planJson.ToString(), StringComparison.OrdinalIgnoreCase);
+      Assert.DoesNotContain("credential", planJson.ToString(), StringComparison.OrdinalIgnoreCase);
+
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var wrongFirm = await ArchiveCopyService.GetVerificationPlanAsync(db, checkpointStore,
+          partner with { FirmId = Guid.CreateVersion7() }, first.OperationId);
+        Assert.False(wrongFirm.Succeeded);
+        Assert.Equal(ErrorCodes.ScopeDenied, wrongFirm.ErrorCode);
+
+        var corruptCheckpointBoundary = new ArchiveCopyCheckpointReadBoundaryStore(
+          new ArchiveCopyCorruptCheckpointReadStore(checkpointStore), () => db.Database.CurrentTransaction is not null);
+        var wrongCheckpointBytes = await ArchiveCopyService.GetVerificationPlanAsync(db,
+          corruptCheckpointBoundary, partner, first.OperationId);
+        Assert.True(corruptCheckpointBoundary.ReadObserved);
+        Assert.False(corruptCheckpointBoundary.TransactionOpenObserved);
+        Assert.False(wrongCheckpointBytes.Succeeded);
+        Assert.Equal("archive-copy-checkpoint-content-mismatch", wrongCheckpointBytes.ErrorCode);
+      }
+
       Assert.True(await dispatcher.ProcessNextAsync());
       Assert.Equal(OperationState.RESULT_UNCERTAIN, (await OperationCountsAsync(first.OperationId)).Status);
       await using (var db = new AuditSphereDbContext(pg.Options))
@@ -874,6 +1017,12 @@ public sealed partial class AuditDeliverablesTests
       }
 
       var target2 = await CreateTargetAsync();
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var stalePlan = await ArchiveCopyService.GetVerificationPlanAsync(db, checkpointStore, partner, first.OperationId);
+        Assert.False(stalePlan.Succeeded);
+        Assert.Equal(ErrorCodes.ScopeDenied, stalePlan.ErrorCode);
+      }
       provider.CorruptNextReadback = true;
       provider.StaffWriteOnFinalRead = true;
       var mismatch = await EnqueueAsync(target2.TargetRevisionId);
@@ -1121,6 +1270,70 @@ public sealed partial class AuditDeliverablesTests
           await db.Archives.Where(x => x.Id == archiveId).Select(x => x.Status).SingleAsync());
       }
 
+      var targetChangeTarget = await CreateTargetAsync();
+      var targetChangeOperation = await EnqueueAsync(targetChangeTarget.TargetRevisionId);
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var targetChangeStore = new ArchiveCopyCheckpointReadBoundaryStore(checkpointStore,
+          () => db.Database.CurrentTransaction is not null,
+          async cancellationToken => { _ = await CreateTargetAsync(); });
+        var targetChangedPlan = await ArchiveCopyService.GetVerificationPlanAsync(
+          db, targetChangeStore, partner, targetChangeOperation.OperationId);
+        Assert.True(targetChangeStore.ReadObserved);
+        Assert.False(targetChangeStore.TransactionOpenObserved);
+        Assert.False(targetChangedPlan.Succeeded);
+        Assert.Equal(ErrorCodes.ScopeDenied, targetChangedPlan.ErrorCode);
+        Assert.Null(targetChangedPlan.Value);
+      }
+
+      var sourceChangeTarget = await CreateTargetAsync();
+      var sourceChangeOperation = await EnqueueAsync(sourceChangeTarget.TargetRevisionId);
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var sourceChangeStore = new ArchiveCopyCheckpointReadBoundaryStore(checkpointStore,
+          () => db.Database.CurrentTransaction is not null,
+          async cancellationToken =>
+          {
+            await using var mutationDb = new AuditSphereDbContext(pg.Options);
+            var changed = await mutationDb.Archives.Where(x => x.FirmId == w.FirmId && x.Id == archiveId)
+              .ExecuteUpdateAsync(update => update.SetProperty(x => x.Status, ArchiveStates.AssemblyInProgress), cancellationToken);
+            Assert.Equal(1, changed);
+          });
+        var sourceChangedPlan = await ArchiveCopyService.GetVerificationPlanAsync(
+          db, sourceChangeStore, partner, sourceChangeOperation.OperationId);
+        Assert.True(sourceChangeStore.ReadObserved);
+        Assert.False(sourceChangeStore.TransactionOpenObserved);
+        Assert.False(sourceChangedPlan.Succeeded);
+        Assert.Equal("archive-copy-profile-or-archive-stale", sourceChangedPlan.ErrorCode);
+        Assert.Null(sourceChangedPlan.Value);
+      }
+      await using (var restoreDb = new AuditSphereDbContext(pg.Options))
+        await restoreDb.Archives.Where(x => x.FirmId == w.FirmId && x.Id == archiveId)
+          .ExecuteUpdateAsync(update => update.SetProperty(x => x.Status, ArchiveStates.AssemblyReviewed));
+
+      var sessionFenceTarget = await CreateTargetAsync();
+      var sessionFenceOperation = await EnqueueAsync(sessionFenceTarget.TargetRevisionId);
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var checkpointReadBoundary = new ArchiveCopyCheckpointReadBoundaryStore(
+          checkpointStore, () => db.Database.CurrentTransaction is not null);
+        var sessionChangingStore = new ArchiveCopyChangeSessionOnCheckpointReadStore(
+          checkpointReadBoundary, pg.Options, w.FirmId, partner.UserId);
+        var sessionFencedPlan = await ArchiveCopyService.GetVerificationPlanAsync(
+          db, sessionChangingStore, partner, sessionFenceOperation.OperationId);
+        Assert.True(sessionChangingStore.SessionChanged);
+        Assert.True(checkpointReadBoundary.ReadObserved);
+        Assert.False(checkpointReadBoundary.TransactionOpenObserved);
+        Assert.False(sessionFencedPlan.Succeeded);
+        Assert.Null(sessionFencedPlan.Value);
+      }
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var currentEpoch = await db.Users.AsNoTracking().Where(x => x.FirmId == w.FirmId && x.Id == partner.UserId)
+          .Select(x => x.SessionEpoch).SingleAsync();
+        partner = partner with { SessionEpoch = currentEpoch };
+      }
+
       await using (var db = new AuditSphereDbContext(pg.Options))
       {
         var operation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == first.OperationId);
@@ -1147,6 +1360,11 @@ public sealed partial class AuditDeliverablesTests
         Assert.False(revokedDuringRead.Succeeded);
         Assert.Equal(ErrorCodes.ScopeDenied, revokedDuringRead.ErrorCode);
         Assert.Null(revokedDuringRead.Value);
+
+        var revokedPlan = await ArchiveCopyService.GetVerificationPlanAsync(db, checkpointStore, partner, first.OperationId);
+        Assert.False(revokedPlan.Succeeded);
+        Assert.Equal(ErrorCodes.ScopeDenied, revokedPlan.ErrorCode);
+        Assert.Null(revokedPlan.Value);
       }
     }
     finally

@@ -11,8 +11,8 @@
 
 **Chronology:** Sections are newest first. An older section describes the state
 when it was written; where a later section supersedes it, the later section is
-current. The top-level `verifiedCommit` in `status.json` names the last commit on
-which the full suite was run; per-slice records carry their own evidence.
+current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
+newer exact-source CI and slice evidence live under `targetedVerification`.
 
 ## Acceptance and relationship scope-denial responses (2026-10-23)
 
@@ -52,7 +52,7 @@ Unsupported inline source-mode changes are locked when periods exist, including 
 
 ## Archive secondary-copy protocol (2026-10-23)
 
-The client-sites provider now copies exact versioned bytes to a separate client-bound library and checks ownership, staff READ and inherited-path grants. API local intents/readback need no worker certificate; the CLI compares pinned historical evidence without claiming custody. PostgreSQL, mocked provider/API, offline CLI, migration and contract checks passed. Expected-plan export and connected live custody/control/recovery acceptance remain open. Evidence is in `status.json`.
+The provider copies pinned versions to a separate client library with exact staff READ/path grants. API intents/readback need no worker certificate; source-derived plan export verifies checkpoint bytes outside DB transactions and rechecks current authority. Focused PostgreSQL/API, CLI and contract checks passed. Historical matches do not prove custody; connected control/recovery acceptance remains open. Evidence is in `status.json`.
 
 ## Consolidation unknown-outcome controls (2026-10-23)
 

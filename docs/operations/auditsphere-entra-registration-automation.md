@@ -486,6 +486,7 @@ Use the authenticated same-origin API with its normal staff cookie and XSRF toke
 | `POST /records/archive-copy-targets` | `clientId`, `archiveLibraryDriveId`, `libraryRootItemId`, and one binding variant below. Creates an immutable local target revision; grants no Microsoft permission. |
 | `POST /records/archive-copies` | `archiveId`, `releaseId`, `targetRevisionId`. Captures approved source identities and queues the existing durable operation. Retry the same reviewed intent; queued is not copied. |
 | `GET /records/archive-copies/{operationId}/evidence` | Reads the exact operation's server-bound firm/client/engagement IDs, persisted result, file receipts and ACL observations under current authority. No copy or live provider probe occurs. |
+| `GET /records/archive-copies/{operationId}/verification-plan` | Exports the exact expected source/target plan for the authorized operation; verifies pinned checkpoint bytes outside database transactions, then rechecks current sources, target and authority. No provider copy or live custody verification. |
 
 Target variants are mutually exclusive:
 
@@ -506,7 +507,21 @@ python3 scripts/m365/verify-result.py artifacts/completion/WU-023.json --expect 
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-023 -Offline
 ```
 
-For authenticated readback, prepare an expected operation plan from the approved release/checkpoint/archive sources. Its exact schema is validated by `Read-M365ArchiveCopyOperationPlan` in `scripts/m365/AuditSphere.M365.ArchiveCopies.psm1`: scope/operation/source IDs, manifest/profile/target revisions and digests, destination IDs, staff group, expected READ-grant digest and every source file's identity/version/hash/byte count/path. Do not copy an untrusted observed result into the expected plan and call that independent verification. Expected-plan export and connected live acceptance remain separate work.
+Export the expected plan with `GET /api/ui/records/archive-copies/{operationId}/verification-plan` using the existing approved staff session. This is a source-derived plan, not a projection of the observed copy result. It contains scope/source IDs, pinned revisions/digests, destination and staff-group identities, and every expected file's version/hash/byte count/path; no file bytes or credentials. A changed target/source or revoked session blocks export.
+
+For an already-established `$approvedStaffSession` (`WebRequestSession`) and reviewed HTTPS `$approvedBaseUrl`, save the successful JSON response locally without printing session credentials:
+
+```powershell
+$uri = "$approvedBaseUrl/api/ui/records/archive-copies/$operationId/verification-plan"
+$response = Invoke-WebRequest -Uri $uri -WebSession $approvedStaffSession -MaximumRedirection 0
+[System.IO.File]::WriteAllText($approvedOperationPlan, $response.Content, [System.Text.UTF8Encoding]::new($false))
+Import-Module ./scripts/m365/AuditSphere.M365.Common.psm1 -Force
+Import-Module ./scripts/m365/AuditSphere.M365.ArchiveCopies.psm1 -Force
+$expected = Read-M365ArchiveCopyOperationPlan $approvedOperationPlan
+$operationPlanSha256 = Get-M365PlanSha256 $expected
+```
+
+Confirm the exact operation/firm/source identities before using that digest. `Read-M365ArchiveCopyOperationPlan` rejects unsupported or malformed plans. Do not generate expected values by copying an untrusted observed result. Export does not prove connected custody or independent acceptance.
 
 Use the existing private same-tenant session bootstrap; the environment variable below contains the staff cookie privately, never in a command argument, log, committed plan or output artifact. Supply reviewed plan digests and the exact operation ID:
 

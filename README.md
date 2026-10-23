@@ -110,7 +110,7 @@ Criteria/evidence: [product crosswalk](docs/execution/auditsphere-execution-trac
 | ☐ Partially pending | Financial reporting (24–25) | Statements/comparatives, cash/equity, disclosures, packages, PDF/DOCX/XLSX → indirect classifications, source-backed schedules/composition, release acceptance. |
 | ☐ Partially pending | Consolidation (26) | Groups/scopes, ownership, components, intercompany matching, eliminations/FX → authorization, concurrency, browser acceptance and methodology. |
 | ☐ Partially pending | Audit planning & execution | Programs, materiality/risk, procedures, sampling, confirmations, workpapers/review → methodology, terminal-evidence mapping and full review journeys. |
-| ☐ Partially pending | Completion, release & records | SRM/readiness, human decisions, artifacts/signing hooks, archive lineage, secondary-copy API/CLI → expected-plan export, signing/legal policy, custody/recovery, independent acceptance. |
+| ☐ Partially pending | Completion, release & records | SRM/readiness, human decisions, artifacts/signing hooks, archive lineage, secondary-copy API/CLI → signing/legal policy, custody/recovery, independent acceptance. |
 | ☐ Partially pending | Administration & security | Setup, users/grants, tenant capabilities, search, operations/progress, scoped Acceptance/relationship denials → application-wide isolation/revocation and operator readiness. |
 | ☐ Partially pending | M365 & client sites | Isolated identities/workers, exact grants, client sites/staff reconciliation, intents/status → mail RBAC runtime/readback/migration, rollout and live positive/negative acceptance. |
 | ☐ Partially pending | Knowledge library | Technical pages and reusable programs → authorization, authoring, workflow acceptance. |
@@ -132,7 +132,7 @@ These are recorded, scoped checks—not current-source full CI or whole-product 
 | ☑ Completed | Assigned-task time, scoped paging, Audit Plan milestones and budget-review keyboard flow | Broader browser/legal acceptance. |
 | ☑ Completed | Purchase/credit preview recovery, accounting-mode lock and exact-period navigation | Native/currentness acceptance; rejection remains distinct from unknown outcome. |
 | ☑ Completed | Full statement/completion evidence IDs, release guards and pinned group/component currentness | Broader release acceptance; no group-only raw access, automatic re-pin or component-book writes. |
-| ☑ Completed | Secondary archive provider, queue/API and read-only CLI | Expected-plan export and live custody/recovery; historical matches do not prove current custody. |
+| ☑ Completed | Secondary archive provider, queue/API, expected-plan export and read-only CLI | Live custody/recovery; historical matches do not prove current custody. |
 | ☑ Completed | Immutable consolidation correction lineage and unknown-outcome controls | Exact receipt recovery; refresh is not completion. |
 | ☑ Completed | Entra registration/certificates, roles, enrollment and mail readback — offline | Typed runtime/send gate, live consent/custody and migration acceptance; role-only mail evidence rejected. |
 | ☑ Completed | M365 deployment boundaries, selected-site grants, DOCUMENTS probe and readiness inventory — offline | Runtime evidence; DOCUMENTS requires namespace reads and unrelated-site HTTP 403. |

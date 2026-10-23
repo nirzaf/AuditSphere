@@ -393,6 +393,12 @@ public sealed class ArchiveCopyHandler(
     return files;
   }
 
+  internal static IReadOnlyList<ArchiveCopyVerificationPlanFile> ExpectedFilesForVerification(
+    ArchiveCopySourceSet sources, ArchiveCopyOperationPayload payload) =>
+    ExpectedFiles(sources, payload).Select(file => new ArchiveCopyVerificationPlanFile(
+      file.SourceKind, file.SourceKeySha256, file.SourceId, file.ManifestEntryId, file.SourceVersion,
+      file.ExpectedSha256, file.ExpectedByteCount, file.RelativePath)).ToArray();
+
   private static List<PlannedFile> BuildFilePlan(ArchiveCopySourceSet sources, ArchiveCopyOperationPayload payload,
     byte[] checkpointBytes, byte[] releasedArtifactBytes)
   {
