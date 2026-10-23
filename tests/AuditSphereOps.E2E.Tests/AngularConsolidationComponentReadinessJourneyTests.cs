@@ -296,16 +296,11 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
     await scopeForm.Locator("select[name='scopeCurrency']").SelectOptionAsync("QAR");
     await scopeForm.Locator("select[name='scopeOpeningBasis']").SelectOptionAsync("INITIAL");
 
-    var newScopeReadbackTask = page.WaitForResponseAsync(response =>
-    {
-      var path = new Uri(response.Url).AbsolutePath;
-      return response.Request.Method == "GET" &&
-        path.StartsWith("/api/ui/consolidation/scopes/", StringComparison.Ordinal) &&
-        path.Split('/', StringSplitOptions.RemoveEmptyEntries).Length == 5 &&
-        path != $"/api/ui/consolidation/scopes/{seeded.ScopeId:D}";
-    });
+    string? newScopeReadbackPath = null;
     string? createRequestPostData = null;
-    var (createResponseStatus, createReceiptBody) = await PlaywrightResponseCapture.RunAsync(page,
+    // Retain both bodies before the creation handoff can navigate away from the form.
+    var handoffResponses = await PlaywrightResponseCapture.RunMultipleAsync(page,
+    [
       request =>
       {
         if (request.Method != "POST" || new Uri(request.Url).AbsolutePath != "/api/ui/consolidation/scopes")
@@ -313,7 +308,20 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
         createRequestPostData = request.PostData;
         return true;
       },
+      request =>
+      {
+        var path = new Uri(request.Url).AbsolutePath;
+        if (request.Method != "GET" ||
+          !path.StartsWith("/api/ui/consolidation/scopes/", StringComparison.Ordinal) ||
+          path.Split('/', StringSplitOptions.RemoveEmptyEntries).Length != 5 ||
+          path == $"/api/ui/consolidation/scopes/{seeded.ScopeId:D}")
+          return false;
+        newScopeReadbackPath = path;
+        return true;
+      }
+    ],
       () => page.GetByRole(AriaRole.Button, new() { Name = "Create scope version", Exact = true }).ClickAsync());
+    var (createResponseStatus, createReceiptBody) = handoffResponses[0];
     Assert.Equal(200, createResponseStatus);
     using var createRequest = JsonDocument.Parse(createRequestPostData ?? throw new InvalidOperationException("The scope request body was not captured."));
     var createInput = createRequest.RootElement;
@@ -328,10 +336,10 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
     Assert.Equal(JsonValueKind.Null, createInput.GetProperty("priorScopeVersionId").ValueKind);
     using var createReceipt = JsonDocument.Parse(createReceiptBody);
     var newScopeId = createReceipt.RootElement.GetProperty("value").GetGuid();
-    var newScopeReadback = await newScopeReadbackTask;
+    var newScopeReadback = handoffResponses[1];
     Assert.Equal(200, newScopeReadback.Status);
-    Assert.Equal($"/api/ui/consolidation/scopes/{newScopeId:D}", new Uri(newScopeReadback.Url).AbsolutePath);
-    using (var readback = JsonDocument.Parse(await newScopeReadback.TextAsync()))
+    Assert.Equal($"/api/ui/consolidation/scopes/{newScopeId:D}", newScopeReadbackPath);
+    using (var readback = JsonDocument.Parse(newScopeReadback.Body))
     {
       var scope = readback.RootElement.GetProperty("scope");
       Assert.Equal(newScopeId, scope.GetProperty("id").GetGuid());
