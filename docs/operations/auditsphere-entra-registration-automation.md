@@ -537,7 +537,7 @@ run `Verify-M365Readiness.ps1` using the reviewed plan. The receipt exposes exac
 IDs, envelope/binding/provider hashes, source/plan identities and signed expiry;
 it exposes no payload/CMS bytes. Matching current receipts are replay-safe.
 After a timeout, inspect persisted status before resubmitting the same files;
-retain an unresolved result when readback cannot establish the outcome.
+retain an unresolved result when readback cannot establish the outcome. The browser's **Refresh persisted status** uses GET-only recovery for the same session and exact envelope hash, plus the receipt ID when acknowledged. Stale, disabled or mismatched receipts stay blocked; denied reads hide protected status. Pending identity/files are memory-only and are lost on page recreation, so inspect persisted status before any further enrollment.
 
 Old generic `Mail.Send` rows remain ineligible. Expiry, changed consent,
 connection or deployment binding removes the current status; the worker also

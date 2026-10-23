@@ -7944,3 +7944,8 @@ Unique GL and expense-account scope corrections were reconciled into the main ch
 ## Mail scope evidence projection (2026-10-23)
 
 Role-only rows cannot verify mail or reuse a verification timestamp. The Graph worker now requires signed source/model/tenant/sender/control evidence, current connection/consent, and model-specific token claims before dispatch; authority is rechecked after evidence I/O. Focused tests and compilation passed; Compose uses immutable sender IDs. The newer enrollment section supersedes the earlier receipt/API metadata gap; broader readiness, migration/rollout and live acceptance remain open. Evidence is in `status.json`.
+
+
+## Signed Legacy mail evidence enrollment before recovery (2026-10-23)
+
+Firm-wide administrators can enroll exact public CMS evidence through the authenticated API/Angular workflow. Append-only receipts are replay-safe, rechecked against current deployment/connection/consent and expiry, and read by the Graph mail worker only when explicitly configured as `ENROLLED`; `FILE` remains the default. Generic role-only rows never qualify. The CLI reads safe receipt metadata. Downgrade refuses to discard retained bytes. Focused evidence and source limits are in `status.json`; issuer tooling, broader runtime readiness, interactive/current-source full CI, live provider and rollout acceptance remain open. No live effect or deployment was performed.

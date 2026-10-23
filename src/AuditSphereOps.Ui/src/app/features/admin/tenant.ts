@@ -11,12 +11,15 @@ import { SharePointAdministration } from './sharepoint';
 import { TenantSetupEditor } from './tenant-setup-editor';
 import { WorkspaceAdministration } from './workspaces';
 
+type MailEvidenceRecovery = { actorKey: string; attestationSha256: string; receiptId: string | null };
+type MailEvidenceWorkspaceOverride = { actorKey: string; workspace: ReturnType<typeof tenantWorkspace> | null };
+
 @Component({ selector: 'audit-tenant-connection', imports: [TenantSetupEditor, ReactiveFormsModule, RouterLink, MatButtonModule, SharePointAdministration, WorkspaceAdministration, ...SHARED], template: `
   <audit-page-header title="Microsoft tenant connection" description="Microsoft authenticates the tenant administrator and asks for consent. AuditSphere verifies the exact tenant and each capability separately." />
   <nav class="actions" aria-label="Microsoft administration"><a matButton routerLink="/app/administration">Administration overview</a><a matButton routerLink="/app/administration/users">Users & Access</a></nav>
   <button matButton (click)="refresh()" [disabled]="busy()">Refresh persisted status</button>
   <audit-state [loading]="ws.loading()" [error]="ws.error()" label="Microsoft tenant connection" />
-  @if (ws.data(); as w) {
+  @if (workspaceSnapshot(); as w) {
     @if(w.simulation) { <p role="status" class="notice">Simulation: these checks exercise the configured test provider. They do not prove live Microsoft consent.</p> }
     <section class="panel"><h2>Configured tenant</h2>
       @if(w.workspace.setupMetadata?.tenantDisplayName; as name) { <p>{{ name }}</p><p>Friendly setup label only; Microsoft tenant ID remains the identity boundary.</p> }
@@ -96,6 +99,7 @@ import { WorkspaceAdministration } from './workspaces';
       <li>Client template approved: {{ p.clientTemplateApproved ? 'Yes' : 'Pending' }}</li><li>Workspace activated: {{ p.workspaceActivated ? 'Yes' : 'Pending' }}</li></ul></section> }
   }
   <audit-command-message [message]="message()" [failed]="failed()" />
+  @if (!workspaceSnapshot() && uncertain() && mailEvidenceMessage()) { <p role="alert">{{ mailEvidenceMessage() }}</p> }
   <audit-sharepoint-administration (changed)="refreshAfterSharePointChange()" />
   <audit-workspace-administration />
 `,
@@ -108,11 +112,26 @@ export class TenantConnection {
     if (this.setupEditor() && !(await this.setupEditor()!.confirmNavigation())) return false;
     return this.sharePointEditor()?.confirmNavigation() ?? true;
   }
-  async refresh() { if(this.busy() || !(await this.confirmNavigation())) return; this.ws.reload(); }
-  refreshAfterSharePointChange() { this.ws.reload(); }
+  async refresh() {
+    if (this.busy() || !(await this.confirmNavigation())) return;
+    const pending = this.pendingMailEvidenceRecovery;
+    if (pending) {
+      this.busy.set(true);
+      try { await this.readBackMailAuthorizationEvidence(pending); }
+      finally { this.busy.set(false); }
+    } else this.reloadWorkspace();
+  }
+  refreshAfterSharePointChange() { this.reloadWorkspace(); }
   canEditSetup(draft: string | null, connection: string | null) { return !!draft && ![draft, connection].some(x => x === 'ACTIVE' || x === 'SUSPENDED' || x === 'BLOCKED'); }
   private readonly api = inject(Api); private readonly session = inject(SessionService);
   readonly ws = this.api.resource(() => '/api/ui/administration/microsoft365', tenantWorkspace, 'Current firm-wide Administrator access is required.');
+  private readonly mailEvidenceWorkspaceOverride = signal<MailEvidenceWorkspaceOverride | null>(null);
+  private pendingMailEvidenceRecovery: MailEvidenceRecovery | null = null;
+  workspaceSnapshot() {
+    const override = this.mailEvidenceWorkspaceOverride();
+    if (override) return override.actorKey === this.currentMailEvidenceActorKey() ? override.workspace : null;
+    return this.ws.data();
+  }
   readonly form = inject(FormBuilder).nonNullable.group({ reviewed: [false, Validators.requiredTrue] });
   readonly prepareReviewed = inject(FormBuilder).nonNullable.control(false);
   readonly mailPayloadFile = signal<File | null>(null);
@@ -129,9 +148,14 @@ export class TenantConnection {
   }
   constructor() {
     effect(() => {
-      const session = this.session.current(), epoch = this.session.invalidation(), workspace = this.ws.data();
-      const actorKey = session ? `${session.firmId}:${session.userId}:${session.generation}:${session.staff}:${epoch}` : `anonymous:${epoch}`;
-      if (actorKey !== this.mailEvidenceActorKey) { this.mailEvidenceActorKey = actorKey; this.resetMailAuthorizationEvidence(); }
+      const actorKey = this.currentMailEvidenceActorKey(), workspace = this.workspaceSnapshot();
+      if (actorKey !== this.mailEvidenceActorKey) {
+        const hadPendingMailRecovery = this.pendingMailEvidenceRecovery !== null;
+        this.mailEvidenceActorKey = actorKey;
+        this.mailEvidenceWorkspaceOverride.set(null);
+        this.resetMailAuthorizationEvidence();
+        if (hadPendingMailRecovery) this.uncertain.set(false);
+      }
       if (!workspace) { this.form.reset(); this.prepareReviewed.reset(); this.message.set(''); }
     });
   }
@@ -151,11 +175,11 @@ export class TenantConnection {
     input.value = '';
   }
   async enrollMailAuthorizationEvidence(): Promise<void> {
-    const workspace = this.ws.data();
+    const workspace = this.workspaceSnapshot();
     const payload = this.mailPayloadFile(), signature = this.mailSignatureFile();
     if (!workspace?.mailAuthorizationEnrollmentAvailable || !payload || !signature || !this.mailAuthorizationReviewed() ||
         this.busy() || this.uncertain() || this.mailEvidenceReading()) return;
-    const generation = this.session.invalidation();
+    const generation = this.session.invalidation(), actorKey = this.currentMailEvidenceActorKey();
     const readVersion = ++this.mailEvidenceReadVersion;
     let submitted = false;
     this.mailEvidenceReading.set(true);
@@ -164,50 +188,109 @@ export class TenantConnection {
     this.mailEvidenceMessage.set('Reading the selected files without changing their bytes…');
     try {
       const [payloadBuffer, signatureBuffer] = await Promise.all([payload.arrayBuffer(), signature.arrayBuffer()]);
-      if (generation !== this.session.invalidation() || readVersion !== this.mailEvidenceReadVersion || this.ws.data() !== workspace) return;
+      if (generation !== this.session.invalidation() || readVersion !== this.mailEvidenceReadVersion || this.workspaceSnapshot() !== workspace) return;
       const payloadBytes = new Uint8Array(payloadBuffer), signatureBytes = new Uint8Array(signatureBuffer);
       if (payloadBytes.byteLength < 1 || payloadBytes.byteLength > 1_048_576 || signatureBytes.byteLength < 1 || signatureBytes.byteLength > 65_536) {
         this.mailEvidenceFailed.set(true);
         this.mailEvidenceMessage.set('The selected file bytes do not match the allowed size bounds. Select the files again.');
         return;
       }
+      const attestationSha256 = await this.mailEvidenceEnvelopeDigest(payloadBytes, signatureBytes);
+      if (generation !== this.session.invalidation() || actorKey !== this.currentMailEvidenceActorKey() ||
+          readVersion !== this.mailEvidenceReadVersion || this.workspaceSnapshot() !== workspace) return;
       this.mailEvidenceMessage.set('Submitting the exact files for server-side signature and current-binding verification…');
       const request = {
         canonicalPayloadBase64: this.bytesToBase64(payloadBytes),
         detachedCmsBase64: this.bytesToBase64(signatureBytes),
         reviewed: true,
       };
+      const recovery: MailEvidenceRecovery = { actorKey, attestationSha256, receiptId: null };
+      this.pendingMailEvidenceRecovery = recovery;
       submitted = true;
       const result = await this.api.command('/api/ui/administration/microsoft365/mail-authorization-evidence/enroll', request);
-      if (generation !== this.session.invalidation() || readVersion !== this.mailEvidenceReadVersion) return;
+      if (generation !== this.session.invalidation() || actorKey !== this.currentMailEvidenceActorKey() ||
+          readVersion !== this.mailEvidenceReadVersion) return;
       if (!result.ok) {
         this.mailEvidenceFailed.set(true);
         if (result.unknown) {
           this.uncertain.set(true);
           this.mailEvidenceMessage.set('The server outcome is unknown. Persisted status is refreshing; do not submit again until that status is reviewed.');
-          this.ws.reload();
-        } else this.mailEvidenceMessage.set(result.message);
+          await this.readBackMailAuthorizationEvidence(recovery);
+        } else {
+          this.pendingMailEvidenceRecovery = null;
+          this.mailEvidenceMessage.set(result.message);
+        }
         return;
       }
-      const receiptId = decode(guid, result.value);
+      recovery.receiptId = decode(guid, result.value);
+      this.uncertain.set(true);
       this.mailEvidenceFailed.set(false);
-      this.mailEvidenceMessage.set(`Evidence receipt ${receiptId} acknowledged. Refreshing persisted authorization status…`);
-      this.mailPayloadFile.set(null);
-      this.mailSignatureFile.set(null);
-      this.mailAuthorizationReviewed.set(false);
-      this.ws.reload();
+      this.mailEvidenceMessage.set(`Evidence receipt ${recovery.receiptId} acknowledged. Checking the exact persisted receipt…`);
+      await this.readBackMailAuthorizationEvidence(recovery);
     } catch {
-      if (generation === this.session.invalidation() && readVersion === this.mailEvidenceReadVersion) {
+      if (generation === this.session.invalidation() && actorKey === this.currentMailEvidenceActorKey() &&
+          readVersion === this.mailEvidenceReadVersion) {
         this.mailEvidenceFailed.set(true);
         if (submitted) {
           this.uncertain.set(true);
           this.mailEvidenceMessage.set('The server outcome is unknown. Persisted status is refreshing; do not submit again until that status is reviewed.');
-          this.ws.reload();
-        } else this.mailEvidenceMessage.set('The selected evidence could not be read. Select the files again and retry.');
+          if (this.pendingMailEvidenceRecovery) await this.readBackMailAuthorizationEvidence(this.pendingMailEvidenceRecovery);
+        } else this.mailEvidenceMessage.set('The selected evidence could not be prepared safely. Select the files again and retry.');
       }
     } finally {
       if (readVersion === this.mailEvidenceReadVersion) this.mailEvidenceReading.set(false);
       this.busy.set(false);
+    }
+  }
+  private async mailEvidenceEnvelopeDigest(payload: Uint8Array, cms: Uint8Array): Promise<string> {
+    // Mirrors MailAuthorizationRuntimeGate.ComputeAttestationDigest: big-endian Int32 lengths frame each byte segment.
+    const envelope = new Uint8Array(8 + payload.byteLength + cms.byteLength);
+    const view = new DataView(envelope.buffer);
+    view.setInt32(0, payload.byteLength, false);
+    envelope.set(payload, 4);
+    const cmsLengthOffset = 4 + payload.byteLength;
+    view.setInt32(cmsLengthOffset, cms.byteLength, false);
+    envelope.set(cms, cmsLengthOffset + 4);
+    const exactEnvelope = new ArrayBuffer(envelope.byteLength);
+    new Uint8Array(exactEnvelope).set(envelope);
+    const digest = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', exactEnvelope));
+    return Array.from(digest, value => value.toString(16).padStart(2, '0')).join('');
+  }
+  private async readBackMailAuthorizationEvidence(recovery: MailEvidenceRecovery): Promise<void> {
+    const generation = this.session.invalidation();
+    const isCurrent = () => generation === this.session.invalidation() &&
+      recovery.actorKey === this.currentMailEvidenceActorKey() && this.pendingMailEvidenceRecovery === recovery;
+    try {
+      const refreshed = await this.api.get('/api/ui/administration/microsoft365', tenantWorkspace);
+      if (!isCurrent()) return;
+      this.mailEvidenceWorkspaceOverride.set({ actorKey: recovery.actorKey, workspace: refreshed });
+      const capability = refreshed.workspace.capabilities.find(item => item.capability === 'OUTBOUND_MAIL');
+      const evidence = capability?.authorizationEvidence;
+      const exactReceipt = refreshed.mailAuthorizationEnrollmentAvailable === true && capability?.enabled === true &&
+        capability.state === 'VERIFIED' && capability.stale === false &&
+        evidence?.model === 'LEGACY_APPLICATION_ACCESS_POLICY' &&
+        evidence.attestationSha256.toLowerCase() === recovery.attestationSha256 &&
+        (!recovery.receiptId || evidence.receiptId.toLowerCase() === recovery.receiptId.toLowerCase());
+      if (!exactReceipt || !evidence) {
+        this.mailEvidenceFailed.set(true);
+        this.mailEvidenceMessage.set('No exact current receipt matches the submitted files. The outcome remains unknown; refresh persisted status before taking any further action. No new enrollment was sent.');
+        return;
+      }
+      this.pendingMailEvidenceRecovery = null;
+      this.uncertain.set(false);
+      this.mailEvidenceFailed.set(false);
+      this.mailPayloadFile.set(null);
+      this.mailSignatureFile.set(null);
+      this.mailAuthorizationReviewed.set(false);
+      this.mailEvidenceMessage.set(recovery.receiptId
+        ? `Evidence receipt ${evidence.receiptId} is persisted for the exact submitted files. No second enrollment was sent.`
+        : `Evidence receipt ${evidence.receiptId} matches the exact submitted files after the acknowledgment was lost. No second enrollment was sent.`);
+    } catch {
+      if (!isCurrent()) return;
+      this.mailEvidenceWorkspaceOverride.set({ actorKey: recovery.actorKey, workspace: null });
+      this.ws.reload();
+      this.mailEvidenceFailed.set(true);
+      this.mailEvidenceMessage.set('Persisted status could not be confirmed. The outcome remains unknown; refresh persisted status before taking any further action. No new enrollment was sent.');
     }
   }
   private bytesToBase64(bytes: Uint8Array): string {
@@ -218,6 +301,7 @@ export class TenantConnection {
   }
   private resetMailAuthorizationEvidence(): void {
     ++this.mailEvidenceReadVersion;
+    this.pendingMailEvidenceRecovery = null;
     this.mailPayloadFile.set(null);
     this.mailSignatureFile.set(null);
     this.mailAuthorizationReviewed.set(false);
@@ -225,17 +309,26 @@ export class TenantConnection {
     this.mailEvidenceMessage.set('');
     this.mailEvidenceFailed.set(false);
   }
+  private currentMailEvidenceActorKey(): string {
+    const session = this.session.current(), epoch = this.session.invalidation();
+    return session ? `${session.firmId}:${session.userId}:${session.generation}:${session.staff}:${epoch}` : `anonymous:${epoch}`;
+  }
+  private reloadWorkspace(): void {
+    const pending = this.pendingMailEvidenceRecovery;
+    this.mailEvidenceWorkspaceOverride.set(pending ? { actorKey: pending.actorKey, workspace: null } : null);
+    this.ws.reload();
+  }
   async prepare(): Promise<void> {
-    const w = this.ws.data(); if (!w?.workspace.connection.draftId || !w.workspace.draftRevision || !w.preparationConfigured || !this.prepareReviewed.value || this.busy() || this.uncertain()) return;
+    const w = this.workspaceSnapshot(); if (!w?.workspace.connection.draftId || !w.workspace.draftRevision || !w.preparationConfigured || !this.prepareReviewed.value || this.busy() || this.uncertain()) return;
     const generation = this.session.invalidation(); this.busy.set(true);
     try { const result = await this.api.command('/api/ui/administration/microsoft365/prepare', { draftId: w.workspace.connection.draftId, expectedRevision: w.workspace.draftRevision, reviewed: true });
       if (generation !== this.session.invalidation()) return;
       this.failed.set(!result.ok); this.message.set(result.ok ? 'Tenant connection prepared. Microsoft administrator consent and independent capability verification are still required.' : result.message);
-      if (result.ok) this.ws.reload(); else if (result.unknown) this.uncertain.set(true);
+      if (result.ok) this.reloadWorkspace(); else if (result.unknown) this.uncertain.set(true);
     } finally { this.busy.set(false); }
   }
   async connect(): Promise<void> {
-    const w = this.ws.data(), draftId = w?.workspace.connection.draftId, tenant = w?.workspace.connection.expectedTenantId;
+    const w = this.workspaceSnapshot(), draftId = w?.workspace.connection.draftId, tenant = w?.workspace.connection.expectedTenantId;
     if (!w || !draftId || !tenant || !w.consentConfigured || this.form.invalid || this.busy() || this.uncertain()) return;
     const generation = this.session.invalidation(); this.busy.set(true);
     try {
@@ -250,7 +343,7 @@ export class TenantConnection {
     if (this.busy() || this.uncertain()) return; const generation = this.session.invalidation(); this.busy.set(true);
     try { const result = await this.api.command('/api/ui/administration/microsoft365/verify'); if(generation !== this.session.invalidation()) return;
       this.failed.set(!result.ok); this.message.set(result.ok ? 'Verification results were recorded independently. Review each capability below.' : result.message);
-      if(result.ok) this.ws.reload(); else if(result.unknown) this.uncertain.set(true);
+      if(result.ok) this.reloadWorkspace(); else if(result.unknown) this.uncertain.set(true);
     } finally { this.busy.set(false); }
   }
 }

@@ -1130,12 +1130,17 @@
       },
       "expenseActorScope": {
         "status": "PARTIAL_FOCUSED_PASS",
-        "base": "edb690b2 + five-file model/migration/test overlay",
-        "evidence": ".local/autonomous/evidence/ci-continuation-20261023/expense-user-scope",
-        "checks": "Actual RED: foreign preparer and reviewer accepted. GREEN2PASS: own references accepted, all foreign account/actor refs23503, probe rollback verified; existing expense ledger workflow passes. Fresh API Release0warnings and EF no drift PASS.",
-        "migration": "20261023144036_FirmExpenseActorFirmScope: restrict same-firm user keys, reviewer stays nullable, existing indexes preserved; no row rewrite. Invalid historical rows refuse upgrade validation.",
-        "index": "Only convention reviewer index added. Scoped reviewer referential-lookup EXPLAIN/BUFFERS, synthetic temp-table storage/write tradeoff retained; no production throughput/WAL claim.",
-        "remaining": "Broader key/race inventory and current full CI/live migration acceptance; no professional role/approval change."
+        "commit": "2406ec9472a19db5023ac6479200e1c411c281d5",
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.expenseActorScopeBeforeMailRecovery20261023",
+        "remaining": "Broader key/race inventory, current full CI and live migration acceptance."
+      },
+      "mailEvidenceRecovery": {
+        "status": "PARTIAL_FOCUSED_PASS",
+        "base": "2406ec94 + tenant.ts/spec overlay, hashes in evidence",
+        "evidence": ".local/autonomous/evidence/ci-continuation-20261023/mail-recovery",
+        "checks": "Final Angular9PASS; build/lintPASS; independent Python length-prefixed SHA256 vector MATCH unchanged backend. Parent corrected a test vector so disabled/stale/unavailable states are the sole rejection reason; current matching control then recovers without POST.",
+        "behavior": "Same-session exact-envelope GET recovery, acknowledged ID check, enabled/VERIFIED/nonstale gate, failed reads hide old protected state with visible generic notice; unknown does not re-POST. Public files/digest remain memory-only.",
+        "limits": "No browser/API integration or live provider workflow for this UI change. Reload loses in-memory pending identity; broader recovery and operator issuer/readiness remain open. Existing unrelated commercial/settings.scss style-budget warning remains. Exact combined full CI pending."
       }
     },
     "developmentFeedback20261023": {

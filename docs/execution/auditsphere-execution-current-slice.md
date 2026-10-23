@@ -24,7 +24,7 @@ The prior source-bounded verification and remaining gates are retained in the [s
 
 ## Signed Legacy mail evidence enrollment (2026-10-23)
 
-Firm-wide administrators can enroll exact public CMS evidence through the authenticated API/Angular workflow. Append-only receipts are replay-safe, rechecked against current deployment/connection/consent and expiry, and read by the Graph mail worker only when explicitly configured as `ENROLLED`; `FILE` remains the default. Generic role-only rows never qualify. The CLI reads safe receipt metadata. Downgrade refuses to discard retained bytes. Focused evidence and source limits are in `status.json`; issuer tooling, broader runtime readiness, interactive/current-source full CI, live provider and rollout acceptance remain open. No live effect or deployment was performed.
+Firm-wide administrators enroll exact public CMS evidence. Replay-safe receipts match current deployment, consent and expiry. Same-session lost acknowledgements recover through exact-envelope GET readback; mismatched, stale or disabled receipts stay blocked. Failed reads hide protected status with a generic notice. `FILE` remains default; the worker explicitly opts into `ENROLLED`. Role-only rows cannot qualify, retained bytes block downgrade, and files are never browser-persisted. Focused evidence is in `status.json`; issuer tooling, broader readiness/browser/full CI, live provider and rollout acceptance remain open. No live effect or deployment occurred.
 
 ## Retained parity UI corrections (2026-10-23)
 
