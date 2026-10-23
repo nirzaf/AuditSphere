@@ -1,5 +1,8 @@
 using System.Text.RegularExpressions;
 using Npgsql;
+using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -104,6 +107,61 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     await transaction.RollbackAsync();
     output.WriteLine($"Single-column scoped-key probes: {probes.Count}; accepted cross-firm: {accepted.Count}");
     Assert.True(accepted.Count == 0, "Cross-firm references accepted: " + string.Join(", ", accepted));
+  }
+
+  [Theory]
+  [InlineData("ENGAGEMENT")]
+  [InlineData("USER")]
+  [InlineData("ROLE_GRANT")]
+  [InlineData("CLIENT")]
+  [InlineData("OTHER_USER_GRANT")]
+  public async Task StaffingReferences_RefuseForeignFirmParents(string parent)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var staffGrant = await db.RoleGrants.SingleAsync(x => x.FirmId == own.FirmId &&
+      x.UserId == own.Staff.Id && x.Role == "Staff");
+    var ownAdminGrant = PbcSeed.Grant(own.FirmId, own.Admin, "Staff", own.ClientId, own.EngagementId);
+    var foreignAdminGrant = PbcSeed.Grant(foreign.FirmId, foreign.Admin, "Staff", foreign.ClientId, foreign.EngagementId);
+    db.RoleGrants.AddRange(ownAdminGrant, foreignAdminGrant);
+    db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+    {
+      Id = Guid.NewGuid(), FirmId = own.FirmId, ClientId = own.ClientId,
+      EngagementId = own.EngagementId, UserId = own.Staff.Id, RoleGrantId = staffGrant.Id,
+      StaffingLevel = StaffingLevels.StaffAssociate, AssignedByUserId = own.Admin.Id,
+      AssignedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync(); // All-owned control is valid; candidate uses a different local user.
+
+    var candidate = new EngagementStaffAssignment
+    {
+      Id = Guid.NewGuid(), FirmId = own.FirmId,
+      ClientId = parent == "CLIENT" ? foreign.ClientId : own.ClientId,
+      EngagementId = parent == "ENGAGEMENT" ? foreign.EngagementId : own.EngagementId,
+      UserId = parent == "USER" ? foreign.Admin.Id : own.Admin.Id,
+      RoleGrantId = parent == "ROLE_GRANT" ? foreignAdminGrant.Id :
+        parent == "OTHER_USER_GRANT" ? staffGrant.Id : ownAdminGrant.Id,
+      StaffingLevel = StaffingLevels.StaffAssociate, AssignedByUserId = own.Admin.Id,
+      AssignedAt = DateTimeOffset.UtcNow
+    };
+    db.EngagementStaffAssignments.Add(candidate);
+    var failure = await Record.ExceptionAsync(() => db.SaveChangesAsync());
+    if (failure is null) output.WriteLine($"ACCEPTED_FOREIGN_STAFFING_PARENT:{parent}");
+    var rejected = Assert.IsType<DbUpdateException>(failure);
+    var postgres = Assert.IsType<PostgresException>(rejected.InnerException);
+    Assert.Equal("23503", postgres.SqlState);
+    var expectedConstraints = parent switch
+    {
+      "ENGAGEMENT" or "CLIENT" => new[] { "fk_staff_assignment_engagement_scope" },
+      "USER" => new[] { "fk_staff_assignment_user_scope", "fk_staff_assignment_grant_scope" },
+      _ => new[] { "fk_staff_assignment_grant_scope" }
+    };
+    Assert.Contains(postgres.ConstraintName, expectedConstraints);
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.False(await proof.EngagementStaffAssignments.AnyAsync(x => x.Id == candidate.Id));
+    Assert.Equal(1, await proof.EngagementStaffAssignments.CountAsync(x => x.FirmId == own.FirmId));
   }
 
   private static HashSet<string> ExpectedTriggers()

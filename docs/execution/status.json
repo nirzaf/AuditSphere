@@ -1055,7 +1055,7 @@
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.correctionLineage",
         "remaining": "Exact receipt recovery, broader group/release acceptance."
       },
-      "ciObserved": "Full889 PASS39903345685 (source/aggregate/TRX). 08afast/imagesPASS. 5aafastFAIL39932652527 EFdrift; profilehistory repair9tests+isolatednodriftPASS, next exactCI pending.",
+      "ciObserved": "Full889 PASS39903345685 (exactsource/aggregate/TRX). Fast74044e96 PASS39938028959 after profileEFrepair; image run separate. New staffing slice10PASS/EFnodrift; latest source fullCI pending.",
       "scopeUnknownOutcome": {
         "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.scopeUnknownOutcome",
         "status": "PARTIAL",
@@ -1075,10 +1075,8 @@
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.foreignGrantCiRepair"
       },
       "m365ReadinessInventory": {
-        "status": "PARTIAL_OFFLINE_ENGINEERING",
-        "evidence": ".local/autonomous/wu025-readiness-final-environment-truth-20261023.log",
-        "result": "47 assertions pass; real API-key mapping, stable session, UTC metadata, expected vs unobserved environment, simulation and missing-evidence blockers. Plan/WhatIf offline; Verify=ReadOnly GETs; Apply refuses before network. Cannot emit VERIFIED.",
-        "remaining": "Runtime identity/grants/resources/expiry/probes/config/resume projection and client-sites owner still engineering; live tenant acceptance separate."
+        "status": "PARTIAL",
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.m365ReadinessInventory"
       },
       "completionEvidenceDisplay": {
         "status": "PASS_LOCAL_SLICE",
@@ -1131,11 +1129,8 @@
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.pbcReplyRecovery"
       },
       "acceptanceScopeStatus": {
-        "status": "PASS_LOCAL_SLICE",
-        "base": "e6b5d6eb76a5f99b985da9181980c7e4c8a73ae4",
-        "evidence": ".local/autonomous/evidence/wu015-acceptance-final",
-        "checks": "AuthenticatedAPI: Acceptance4, relationships/routings4, charts3, engagement3, billing3PASS. OnlyScopeDenied=>403; othererrors400, success/CSRF retained; denied writes zeroeffects. Proof .local/autonomous/evidence/wu015-*; overlayhashes retained.",
-        "remaining": "Other scope-status mappings and full authenticated denial/race coverage; current HEAD fullCI."
+        "status": "PARTIAL",
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.acceptanceScopeStatus"
       },
       "profileDimensionHistory": {
         "status": "PARTIAL",
@@ -1143,6 +1138,13 @@
         "evidence": ".local/autonomous/evidence/wu005-profile-history",
         "checks": "9focusedPASS; profilehistory/authorFK/immutablelineage, typedscoperefs anddimensiondigest/publication. Additive20261023092814 fixesprofileEFdrift; no pendingmodel isolated. M20unchanged.",
         "remaining": "Contextpins/adapters andbroaderacceptance; staffingFKproposal excluded."
+      },
+      "staffingScopedParents": {
+        "status": "PASS_LOCAL_SLICE",
+        "base": "74044e961d7ce7de5866a29735993450095bb538+5fileoverlay",
+        "evidence": ".local/autonomous/evidence/wu004-staffing-scope",
+        "checks": "5 actual invalid staffing parent writes RED before repair; 10 focused PASS after scoped FKs, including existing review/concurrency and trigger inventory. EF no-drift PASS. Migration validates rows, preserves indexes and rewrites no history.",
+        "remaining": "Wider scoped-key inventory and exact-source full CI; no live migration applied."
       }
     },
     "developmentFeedback20261023": {

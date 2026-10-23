@@ -23753,7 +23753,20 @@
       "checks": "Vite8.3.3; npm before1high+1low/after0, isolatedci/build+4specPASS. NuGet CLI9projects reportsnone; sparse structured proof remainsUNKNOWN. Gitleaks2source-reviewed falsepositives, rawexit1 retained; no history/rule suppression.",
       "remaining": "Currentcommit CI, operational targets/performance/recovery acceptance."
     },
-    "targetedVerification.autonomousCompletion20261022.runnerEvidenceIntegrity": "RUN-008 correction: supervisor hashes and size-bounds evidence; final verify/run/resume reject missing or changed artifacts and directory symlinks. Focused completion runner/state cohort: 34 PASS; descriptor-relative reads and same-byte validation/hash close independent-review race findings. Historical checkpoints lacking digests require real revalidation, not automatic backfill. Full current-candidate CI NOT_RUN."
+    "targetedVerification.autonomousCompletion20261022.runnerEvidenceIntegrity": "RUN-008 correction: supervisor hashes and size-bounds evidence; final verify/run/resume reject missing or changed artifacts and directory symlinks. Focused completion runner/state cohort: 34 PASS; descriptor-relative reads and same-byte validation/hash close independent-review race findings. Historical checkpoints lacking digests require real revalidation, not automatic backfill. Full current-candidate CI NOT_RUN.",
+    "targetedVerification.autonomousCompletion20261022.acceptanceScopeStatus": {
+      "status": "PASS_LOCAL_SLICE",
+      "base": "e6b5d6eb76a5f99b985da9181980c7e4c8a73ae4",
+      "evidence": ".local/autonomous/evidence/wu015-acceptance-final",
+      "checks": "AuthenticatedAPI: Acceptance4, relationships/routings4, charts3, engagement3, billing3PASS. OnlyScopeDenied=>403; othererrors400, success/CSRF retained; denied writes zeroeffects. Proof .local/autonomous/evidence/wu015-*; overlayhashes retained.",
+      "remaining": "Other scope-status mappings and full authenticated denial/race coverage; current HEAD fullCI."
+    },
+    "targetedVerification.autonomousCompletion20261022.m365ReadinessInventory": {
+      "status": "PARTIAL_OFFLINE_ENGINEERING",
+      "evidence": ".local/autonomous/wu025-readiness-final-environment-truth-20261023.log",
+      "result": "47 assertions pass; real API-key mapping, stable session, UTC metadata, expected vs unobserved environment, simulation and missing-evidence blockers. Plan/WhatIf offline; Verify=ReadOnly GETs; Apply refuses before network. Cannot emit VERIFIED.",
+      "remaining": "Runtime identity/grants/resources/expiry/probes/config/resume projection and client-sites owner still engineering; live tenant acceptance separate."
+    }
   },
   "archivedTargetedVerification": {
     "ste22EndToEndIncrement1": {

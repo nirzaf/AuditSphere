@@ -128,7 +128,7 @@ These are recorded, scoped checks—not current-source full CI or whole-product 
 | ☑ Completed | Journal/evidence/sampling previews; consolidation journal controls and retained-match scrolling | Unknown/stale outcomes and human review; recording stays off before assent. |
 | ☑ Completed | Pinned task context, Required/Optional labels and atomic graph bounds | Manual tasks stay unlabeled; labels grant no completion approval. |
 | ☑ Completed | Net-allocated advance gate, expense paging/recovery and monthly P&L boundaries | Full commercial, receipt, reporting and export acceptance. |
-| ☑ Completed | Resource/capacity ranges, phase/risk allocation and certification evidence | Broader roles, dates and concurrency; expiry is not verification. |
+| ☑ Completed | Scoped staffing parents; resource/capacity, phase/risk allocation and certification evidence | Wider key inventory, roles and date/concurrency acceptance; expiry is not verification. |
 | ☑ Completed | Assigned-task time, scoped paging, Audit Plan milestones and budget-review keyboard flow | Broader browser/legal acceptance. |
 | ☑ Completed | Purchase/credit preview recovery, accounting-mode lock and exact-period navigation | Native/currentness acceptance; rejection remains distinct from unknown outcome. |
 | ☑ Completed | Full statement/completion evidence IDs, release guards and pinned group/component currentness | Broader release acceptance; no group-only raw access, automatic re-pin or component-book writes. |

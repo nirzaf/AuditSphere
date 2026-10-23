@@ -14,9 +14,9 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
-## Profile and dimension revision foundations (2026-10-23)
+## Scoped accounting and staffing persistence (2026-10-23)
 
-Immutable snapshots, exact scoped identities and dimension publication passed focused PostgreSQL checks. The additive profile-history migration removes the reproduced EF drift; legacy gaps stay unavailable. Context activation/adapters remain open; staffing-key repair is separate. See `status.json`.
+Profile/dimension snapshots retain scoped history without backfilling legacy gaps. Staffing keys bind firm, client, engagement, user and grant owner. Focused PostgreSQL checks and model drift pass; context activation/adapters and wider key inventory remain open. See `status.json`.
 
 ## Scope-denial HTTP responses (2026-10-23)
 

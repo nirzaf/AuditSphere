@@ -16,9 +16,20 @@ public sealed partial class AuditSphereDbContext
       e.HasIndex(x => new { x.FirmId, x.EngagementId, x.UserId }).IsUnique().HasFilter("revoked_at IS NULL");
       e.HasIndex(x => new { x.FirmId, x.EngagementId }).IsUnique().HasFilter("revoked_at IS NULL AND staffing_level = 'ENGAGEMENT_PARTNER'")
         .HasDatabaseName("ix_engagement_staff_assignments_single_partner");
-      e.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Restrict);
-      e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
-      e.HasOne<RoleGrant>().WithMany().HasForeignKey(x => x.RoleGrantId).OnDelete(DeleteBehavior.Restrict);
+      // Retain the existing lookup indexes while enforcing ownership through scoped parent keys.
+      e.HasIndex(x => x.EngagementId);
+      e.HasIndex(x => x.UserId);
+      e.HasIndex(x => x.RoleGrantId);
+      e.HasOne<Engagement>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
+        .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id })
+        .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_staff_assignment_engagement_scope");
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.UserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id })
+        .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_staff_assignment_user_scope");
+      e.HasOne<RoleGrant>().WithMany().HasForeignKey(x => new { x.FirmId, x.UserId, x.RoleGrantId })
+        .HasPrincipalKey(x => new { x.FirmId, x.UserId, x.Id })
+        .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_staff_assignment_grant_scope");
       e.ToTable("engagement_staff_assignments", t => t.HasCheckConstraint("ck_engagement_staff_assignment_values",
         "staffing_level IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE') AND ((revoked_at IS NULL) = (revoked_by_user_id IS NULL))"));
     });
