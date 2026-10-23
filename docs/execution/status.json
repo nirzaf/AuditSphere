@@ -1056,7 +1056,7 @@
         "checks": "PASS: main TRX 1/1 .local/autonomous/evidence/wu013-correction-lineage/correction-lineage.trx; agent Angular36, corrected build (SCSS warning), EF model and OpenAPI checks passed. Migration null-pointer downgrade/reapply and retained-lineage downgrade refusal covered.",
         "remaining": "Owned correction browser PASS 1/1: .local/autonomous/evidence/wu013-correction-browser/ComponentCorrectionHandoff.retry2.trx; exact source IDs persisted and approved pin/pack/run retained. Current-source CI and broader group release remain open; no universal supersession policy required."
       },
-      "ciObserved": "FAST_CI_PASS39901528961 at59515acd1b7a286f0da42ed68ed1e71d30fc3165; images39901528985 last RUNNING. Full39886113863 source368 FAILED; Domain1522/API399/AngularPASS,E2E333/334; fixture repaired504. No current FULL_CI_PASS.",
+      "ciObserved": "FAST_CI_PASS39902421493/images39902421491 at889bde7e58c1c74d9fe52cfbb99565b779676f2f. Full39903345685 RUNNING; sourceartifact MATCH889; AngularPASS, Domain/API/E2E/buildverify running05:02Z. Prior368fullFAIL preserved; no FULL_CI_PASS.",
       "scopeUnknownOutcome": {
         "status": "PARTIAL",
         "scope": "WU032 mutation buttons and external-pack commands honor parent unknown-outcome fence. Refresh uses existing resource and never clears uncertainty or dispatches duplicate commands. Local editing/navigation retained.",
@@ -1064,10 +1064,9 @@
         "remaining": "Exact original-command receipt recovery, broader group-control browser acceptance and current-source CI."
       },
       "archiveCopyProtocol": {
+        "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.archiveCopyProtocol",
         "status": "PARTIAL",
-        "scope": "Client-bound secondary-copy protocol in existing client-sites worker; exact source manifest/bundle/release/checkpoint, version/hash/readback and staff READ ACL evidence. No primary-custody or provider acceptance claim.",
-        "checks": "PASS: 1 real PostgreSQL store/dispatcher cohort, fresh Release build; TRX .local/autonomous/evidence/wu023-archive-copy-protocol-final/WU023-ArchiveCopy-Protocol-EmptyDownReapply.trx. Unknown reconciliation, malformed results, bytes/version/ACL mismatch, stale target/authority, append-only UPDATE/DELETE/TRUNCATE, empty Down/reapply and retained Down refusal. EF drift PASS.",
-        "remaining": "Real SharePoint adapter methods and verified shared-site/client-owned archive-library target; records-profile approval policy and live custody/denial acceptance. Current-source full CI NOT_RUN; no live calls."
+        "remaining": "Real library-level provider/shared-site binding, reachable producer/API/CLI and live custody acceptance are in progress."
       },
       "accountingWorkspaceMode": {
         "status": "PARTIAL",
@@ -1097,8 +1096,14 @@
           "status": "PASS_LOCAL_SLICE",
           "base": "59515acd1b7a286f0da42ed68ed1e71d30fc3165",
           "evidence": ".local/autonomous/evidence/wu035-release-currentness/",
-          "result": "Isolated patched595 snapshot: PG2PASS, Angular18PASS/buildPASS, emitterRelease0warnings and generated OpenAPI. Existing release validator demotes retained approval to RECORDED_APPROVAL and disables prepare when source returned/Partner authority lost; exact issued release/decisions unchanged. SharedUI build hit peerPBC WIP; isolated own-source buildpassed. Final OpenAPI drift PASS."
+          "result": "Isolated patched595 snapshot: PG2PASS, Angular18PASS/buildPASS, emitterRelease0warnings and generated OpenAPI. Existing release validator demotes retained approval to RECORDED_APPROVAL and disables prepare when source returned/Partner authority lost; exact issued release/decisions unchanged. SharedUI build hit peerPBC WIP; isolated own-source buildpassed. Final OpenAPI drift PASS.",
+          "browser": "Existing owned PartnerReviewsReadinessLocksScheduledFileAndLifecycleKeepsProviderStateSeparate:1PASS, completion-file-records.trx; no interactive/humanAT/fullproduct acceptance."
         }
+      },
+      "ciDispatchJson": {
+        "status": "PASS_LOCAL_SLICE",
+        "evidence": ".local/autonomous/evidence/run003-dispatch-json/",
+        "result": "Observed gh printed run URL beforeJSON. Focused regression failsbeforefix; 8CIobserver-module testsPASSaftercapturing childstdout, stderr preserved. Existing39903345685 reused; no duplicate dispatch. Original mixedstdout retained release-889-dispatch.raw.log."
       }
     },
     "developmentFeedback20261023": {

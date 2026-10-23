@@ -16,11 +16,11 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Completion evidence identities (2026-10-23)
 
-Completion exposes persisted artifact IDs and full hashes. The existing release validator now separates recorded approvals from current package evidence and blocks prepare after source return or lost Partner authority; issued history is preserved. Focused PostgreSQL/Angular, build and contract checks are recorded in `status.json`. Interactive and full completion acceptance remain open.
+Completion exposes persisted artifact IDs and full hashes. The existing release validator now separates recorded approvals from current package evidence and blocks prepare after source return or lost Partner authority; issued history is preserved. Focused PostgreSQL/Angular, build and contract checks are recorded in `status.json`. The owned early-lock journey passed; interactive and full completion acceptance remain open.
 
 ## CI fixture repair and read-only readiness inventory (2026-10-23)
 
-The tracker authorization fixture now asserts the firm-scoped database rejection before browser denial; it no longer requires impossible cross-firm grant data. The isolated owned PostgreSQL/browser rerun passed. Full regression remains failed at its recorded source until corrected-candidate CI runs.
+The tracker fixture asserts database cross-firm rejection before browser denial; its owned rerun passed. CI dispatch now captures child stdout to preserve JSON-only output, with focused regression evidence. Corrected-candidate full CI is running; no full pass is claimed.
 
 M365 readiness now inventories authenticated GET metadata with exact plan/API key mapping, stable-session checks and explicit missing-evidence blockers. Offline checks passed; setup status never becomes runtime proof. Runtime evidence projection and live acceptance remain open. CLI usage is in the local M365 automation guide; exact results are in `status.json`.
 

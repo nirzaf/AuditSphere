@@ -176,8 +176,9 @@ def dispatch(repo: str, candidate: str, workflow: str, state_path: Path | None) 
         raise GhError("--candidate must be a full 40-character commit SHA")
     correlation = f"as-{candidate[:12]}-{secrets.token_hex(4)}"
     started = now() - dt.timedelta(seconds=5)
+    # gh may print the created run URL. Keep the automation stdout contract JSON-only.
     subprocess.run(["gh", "workflow", "run", workflow, "-R", repo, "--ref", "master",
-                    "-f", f"ref={candidate}", "-f", f"correlation={correlation}"], check=True)
+                    "-f", f"ref={candidate}", "-f", f"correlation={correlation}"], check=True, stdout=subprocess.PIPE)
     run = None
     for _ in range(30):
         time.sleep(4)

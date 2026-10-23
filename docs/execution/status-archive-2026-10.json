@@ -23675,6 +23675,12 @@
         "checks": "65 offline assertions PASS, including dependency drift after collection and normalized bounded actual Graph/Exchange fields. Log .local/autonomous/mail-runtime-draft/mailaccess-tests.log.",
         "limit": "Unsigned readback only; CMS producer/import, runtime gating, reviewed migration and live verification remain pending."
       }
+    },
+    "targetedVerification.autonomousCompletion20261022.archiveCopyProtocol": {
+      "status": "PARTIAL",
+      "scope": "Client-bound secondary-copy protocol in existing client-sites worker; exact source manifest/bundle/release/checkpoint, version/hash/readback and staff READ ACL evidence. No primary-custody or provider acceptance claim.",
+      "checks": "PASS: 1 real PostgreSQL store/dispatcher cohort, fresh Release build; TRX .local/autonomous/evidence/wu023-archive-copy-protocol-final/WU023-ArchiveCopy-Protocol-EmptyDownReapply.trx. Unknown reconciliation, malformed results, bytes/version/ACL mismatch, stale target/authority, append-only UPDATE/DELETE/TRUNCATE, empty Down/reapply and retained Down refusal. EF drift PASS.",
+      "remaining": "Real SharePoint adapter methods and verified shared-site/client-owned archive-library target; records-profile approval policy and live custody/denial acceptance. Current-source full CI NOT_RUN; no live calls."
     }
   },
   "archivedTargetedVerification": {

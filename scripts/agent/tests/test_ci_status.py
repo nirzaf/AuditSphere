@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import importlib.util
+import io
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 AGENT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(AGENT))
@@ -70,6 +73,27 @@ class CiStatusTests(unittest.TestCase):
     def observe(self, run, jobs, source):
         ci.gh = FakeGh(run, jobs, source)
         return ci.observe("nirzaf/AuditSphere", run["id"], CANDIDATE, self.workflow)
+
+    def test_dispatch_keeps_stdout_json_when_gh_prints_a_run_url(self):
+        run = {"id": 42, "run_attempt": 1, "head_sha": CANDIDATE,
+               "display_title": f"release as-{CANDIDATE[:12]}-fixed", "created_at": NOW.isoformat()}
+
+        def noisy_dispatch(*args, **kwargs):
+            if not kwargs.get("capture_output") and kwargs.get("stdout") not in (ci.subprocess.PIPE, ci.subprocess.DEVNULL):
+                print("https://github.com/nirzaf/AuditSphere/actions/runs/42")
+            return ci.subprocess.CompletedProcess(args[0], 0, stdout=b"run URL\n", stderr=b"")
+
+        output = io.StringIO()
+        with patch.object(ci.subprocess, "run", side_effect=noisy_dispatch) as invoked, \
+                patch.object(ci, "gh", return_value={"workflow_runs": [run]}), \
+                patch.object(ci.secrets, "token_hex", return_value="fixed"), \
+                patch.object(ci.time, "sleep"), contextlib.redirect_stdout(output):
+            code = ci.main(["dispatch", "--repo", "nirzaf/AuditSphere", "--candidate", CANDIDATE])
+        evidence = json.loads(output.getvalue())
+        self.assertEqual((code, evidence["runId"], evidence["requestedRef"], evidence["status"]),
+                         (11, 42, CANDIDATE, "QUEUED"))
+        self.assertIsNone(evidence["resolvedSha"])
+        invoked.assert_called_once()
 
     def test_running_api_and_e2e_waits_and_continues(self):
         run = {"id": 7, "status": "in_progress", "conclusion": None, "head_sha": OTHER}
