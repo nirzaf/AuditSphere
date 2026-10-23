@@ -24,7 +24,12 @@
       "manifestFile": "ExchangeOnlineManagement.psd1",
       "manifestSha256": "eb95a50c48a545c8efc46ca4e3f1e6597e113d226c15f65015e4b6b542e70022",
       "cmdlets": ["Connect-ExchangeOnline"],
-      "sessionLoadedCmdlets": ["Get-ApplicationAccessPolicy"]
+      "sessionLoadedCmdlets": [
+        "Get-ConnectionInformation", "Get-EXOMailbox", "Get-ServicePrincipal", "Get-ManagementScope",
+        "Get-ManagementRoleAssignment", "Get-DistributionGroup", "Get-DistributionGroupMember",
+        "Get-EXORecipient", "Get-ApplicationAccessPolicy", "Test-ApplicationAccessPolicy",
+        "Test-ServicePrincipalAuthorization"
+      ]
     }
   ]
 }

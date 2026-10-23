@@ -24,7 +24,7 @@ New-scope correction requests retain the exact source scope/component pair in th
 
 ## Explicit mail-model plan boundaries (2026-10-23)
 
-MAIL plans now require model-specific scope identifiers, approved senders and a distinct negative-control mailbox. An RBAC plan cannot include an unrestricted Entra Mail.Send grant. Offline planning is implemented and the common/mail focused checks passed; a plan without MAIL clearly skips mail readiness. The new entrypoint cannot configure or verify a tenant yet: ReadOnly/Apply return an explicit engineering prerequisite with no provider effects. Exchange/Entra readback, RBAC runtime support and reviewed migration remain executable engineering work, followed by separately approved live acceptance. WU-022 remains partial; exact evidence is in `status.json`.
+MAIL plans require exact model-specific scope/sender/control identities. ReadOnly now inspects independent Entra grants and Exchange authorization through existing pinned app-only operator sessions, with bounded counted reads and post-read session checks. It never signs in, grants, sends or activates a runtime. Offline checks passed; live result shapes remain unverified. Provider matches still leave incomplete evidence: legacy needs actual API capability evidence; RBAC needs its runtime implementation. Apply refuses until reviewed migration/rollback exists. The local operator guide describes same-process bootstrap/readback and the remaining gates; WU-022 stays partial. Exact evidence and earlier plan-only history are in `status.json`.
 
 ## Group report review-currentness guard (2026-10-23)
 

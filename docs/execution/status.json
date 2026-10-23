@@ -1094,26 +1094,12 @@
       },
       "mailPlanBoundaries": {
         "status": "PARTIAL",
-        "scope": "WU-022 step1: explicit per-model scope/control target validation and zero-effect plan entrypoint; no live adapter/runtime completion",
-        "checks": {
-          "mailOffline": "PASS: 23 assertions, 0 failed; .local/autonomous/evidence/wu022-plan/offline.log",
-          "commonOffline": "PASS: agent executed WU-017 cohort, 40 assertions, 0 failed after fixture updates",
-          "documentedDryRun": "PASS: Configure-MailAccess synthetic fixture PLANNED; verify-result.py valid; no MAIL configured so readiness explicitly skipped",
-          "publishedOffline": "PASS: published27fa scripts snapshot, 23 assertions, 0 failed; .local/autonomous/evidence/wu022-plan/published-offline.log"
-        },
-        "readOnlyApply": "PREREQUISITE_MISSING / adapter-not-implemented; zero authentication/network/mutations. Engineering gap, not external-consent blocker.",
-        "remaining": [
-          "Exchange and Entra independent authorization readback",
-          "Mail-specific RBAC runtime verifier and focused token/capability tests",
-          "Reviewed legacy/RBAC migration and rollback",
-          "Approved live mailbox positive/negative and synthetic-send evidence"
-        ],
-        "fullLocalSuites": "NOT_RUN",
-        "fastCi": {
-          "runId": 39881069973,
-          "sha": "27fa046934c68501a306bf0ec6dac4b04c7feb50",
-          "result": "FAST_CI_PASS; not full regression or live MAIL verification"
-        }
+        "scope": "Plan plus read-only Exchange/Entra adapter; exact app-only operator sessions, additive grant/scope/membership checks, sender/control probes, counted bounded reads. No sign-in/write/send or runtime activation.",
+        "checks": "PASS: main WU022 offline cohort54; agent same54, parser/JSON checks. Evidence .local/autonomous/evidence/wu022-readback/offline.log. No live provider run.",
+        "remaining": "RBAC runtime verifier and reviewed migration/rollback; existing legacy API capability evidence; real readback output-shape confirmation and approved live transport acceptance.",
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.mailPlanBoundariesStep1",
+        "readOnlyApply": "ReadOnly remains INCOMPLETE_EVIDENCE even if provider checks match; model-specific remaining gate. Apply refuses missing migration before network.",
+        "fullLocalSuites": "NOT_RUN"
       },
       "resultStructure": "PASS: 6 focused Python tests; new malformed-envelope regression fails old source. Shape/counters only; freshness/provider acceptance separate. Fast CI39882506372 PASS on e576; not full regression.",
       "contentReviewIdentity": {

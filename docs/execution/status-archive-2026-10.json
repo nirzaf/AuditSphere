@@ -23567,6 +23567,29 @@
       "evidence": "The test observes the source-review command waiting on the package lock, revokes the reviewer role while the user retains a non-review grant, releases the lock, and verifies ScopeDenied with no source-review row persisted.",
       "disposition": "CLOSES the prior F-02 post-lock revocation timing-test blocker for this current candidate. F-02 source-kind/provenance and broader story acceptance remain open.",
       "unrelatedJobs": "API and Playwright E2E jobs in the same release run were still in progress when recorded."
+    },
+    "targetedVerification.autonomousCompletion20261022.mailPlanBoundariesStep1": {
+      "status": "PARTIAL",
+      "scope": "WU-022 step1: explicit per-model scope/control target validation and zero-effect plan entrypoint; no live adapter/runtime completion",
+      "checks": {
+        "mailOffline": "PASS: 23 assertions, 0 failed; .local/autonomous/evidence/wu022-plan/offline.log",
+        "commonOffline": "PASS: agent executed WU-017 cohort, 40 assertions, 0 failed after fixture updates",
+        "documentedDryRun": "PASS: Configure-MailAccess synthetic fixture PLANNED; verify-result.py valid; no MAIL configured so readiness explicitly skipped",
+        "publishedOffline": "PASS: published27fa scripts snapshot, 23 assertions, 0 failed; .local/autonomous/evidence/wu022-plan/published-offline.log"
+      },
+      "readOnlyApply": "PREREQUISITE_MISSING / adapter-not-implemented; zero authentication/network/mutations. Engineering gap, not external-consent blocker.",
+      "remaining": [
+        "Exchange and Entra independent authorization readback",
+        "Mail-specific RBAC runtime verifier and focused token/capability tests",
+        "Reviewed legacy/RBAC migration and rollback",
+        "Approved live mailbox positive/negative and synthetic-send evidence"
+      ],
+      "fullLocalSuites": "NOT_RUN",
+      "fastCi": {
+        "runId": 39881069973,
+        "sha": "27fa046934c68501a306bf0ec6dac4b04c7feb50",
+        "result": "FAST_CI_PASS; not full regression or live MAIL verification"
+      }
     }
   },
   "archivedTargetedVerification": {

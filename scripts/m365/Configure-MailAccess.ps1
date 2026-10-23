@@ -4,8 +4,11 @@
   Plans an explicit AuditSphere Exchange mail permission model.
 .DESCRIPTION
   Plan, -DryRun and -WhatIf validate only local input and write a PLANNED result envelope.
-  ReadOnly and Apply report PREREQUISITE_MISSING until the Exchange/Entra read-back adapter is implemented.
-  This script never connects to a tenant or changes permissions.
+  ReadOnly checks the approved source and plan, then reads state through pre-authenticated app-only
+  Graph and Exchange sessions using the same operator.clientId and tenant. The operator must establish
+  those sessions beforehand with a custom application and least-privilege grants. Overall readiness
+  remains incomplete pending model-specific application capability evidence. This script never
+  authenticates or changes provider state.
 #>
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
@@ -19,8 +22,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'AuditSphere.M365.Common.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'MailAccess.psm1') -Force
 
-# This first WU-022 slice has no Exchange/Entra adapter. Keep the shared provider gate closed in every mode.
+# Keep the shared provider gate closed until the exact ReadOnly source and plan are approved.
 Set-M365OfflineMode $true
 $offline = $DryRun.IsPresent -or $WhatIfPreference -or $Mode -eq 'Plan'
 $result = New-M365Result $(if ($offline) { 'Plan' } else { $Mode })
@@ -51,14 +55,72 @@ if ($mailCapability.Count -eq 0) {
 }
 
 $model = $plan.mail.permissionModel
-Add-M365Check $result 'mail-plan-contract' 'PASS' 'model-specific sender, control and scope fields; exact model role set' `
-  "$model plan contract valid; no Exchange or Entra state was read."
+Add-M365Check $result 'mail-plan-contract' 'PASS' `
+  'model-specific sender, control and scope fields; exact model role set' `
+  "Explicit $model plan contract validated offline."
 
 if ($offline) { exit (Complete-M365Result $result 'PLANNED' $OutputPath) }
 
-$result.blockedPrerequisites += 'engineering:exchange-entra-readback-adapter-not-implemented'
-$result.errorCode = 'adapter-not-implemented'
-Add-M365Check $result 'mail-provider-readiness' 'PREREQUISITE_MISSING' `
-  'implemented Exchange/Entra read-back adapter for scope authorization and application grants' `
-  'Engineering prerequisite: the Exchange/Entra read-back adapter is not implemented; no provider state was read.' $result.errorCode
-exit (Complete-M365Result $result 'PREREQUISITE_MISSING' $OutputPath)
+if ($Mode -eq 'Apply') {
+  $result.blockedPrerequisites += 'engineering:reviewed-mail-migration-not-implemented'
+  $result.errorCode = 'mail-apply-migration-not-implemented'
+  Add-M365Check $result 'mail-apply' 'PREREQUISITE_MISSING' `
+    'reviewed migration for the selected Exchange authorization model' `
+    'Engineering prerequisite: no MAIL permission migration is implemented; no provider state was read or changed.' `
+    $result.errorCode
+  exit (Complete-M365Result $result 'PREREQUISITE_MISSING' $OutputPath)
+}
+
+try {
+  if (-not $ExpectedPlanSha256) { throw 'mail-plan-sha256-required' }
+  if ($plan.repositoryCommit -notmatch '^[0-9a-fA-F]{40}$') { throw 'mail-plan-repository-commit-invalid' }
+  if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'mail-git-unavailable' }
+  $repository = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+  $head = & git -C $repository rev-parse HEAD 2>$null
+  if ($LASTEXITCODE -ne 0 -or [string] $head -ine [string] $plan.repositoryCommit) { throw 'mail-source-head-mismatch' }
+  $dirty = & git -C $repository status --porcelain -- scripts/m365 2>$null
+  if ($LASTEXITCODE -ne 0) { throw 'mail-source-status-unavailable' }
+  if ($dirty) { throw 'mail-source-tree-dirty' }
+
+  Set-M365OfflineMode $false
+  $snapshot = Get-M365MailReadOnlyEvidence $plan
+  $result.networkCalls = Get-M365NetworkCallCount
+  $status = Add-M365MailRuntimeGate $result $snapshot
+  exit (Complete-M365Result $result $status $OutputPath)
+} catch {
+  $result.networkCalls = Get-M365NetworkCallCount
+  Set-M365OfflineMode $true
+  $thrown = [string] $_.Exception.Message
+  $known = @('INVALID_OR_UNSAFE','BLOCKED_BOOTSTRAP','DRIFT','INCOMPLETE_EVIDENCE','PREREQUISITE_MISSING','PROVIDER_FAILURE')
+  if ($thrown -cin $known) {
+    $status = $thrown
+    $errorCode = switch ($thrown) {
+      'INVALID_OR_UNSAFE' { 'mail-readonly-source-or-plan-invalid' }
+      'BLOCKED_BOOTSTRAP' { 'mail-operator-session-not-bound' }
+      'DRIFT' { 'mail-provider-state-drift' }
+      'INCOMPLETE_EVIDENCE' { 'mail-provider-evidence-incomplete' }
+      'PREREQUISITE_MISSING' { 'mail-pinned-runtime-unavailable' }
+      default { 'mail-provider-readback-failed' }
+    }
+  } elseif ($thrown -in @('mail-plan-sha256-required','mail-plan-repository-commit-invalid',
+      'mail-source-head-mismatch','mail-source-tree-dirty')) {
+    $status = 'INVALID_OR_UNSAFE'
+    $errorCode = $thrown
+  } elseif ($thrown -in @('mail-git-unavailable','mail-source-status-unavailable')) {
+    $status = 'PREREQUISITE_MISSING'
+    $errorCode = $thrown
+  } else {
+    $status = 'PROVIDER_FAILURE'
+    $errorCode = 'mail-readonly-operation-failed'
+  }
+  $result.errorCode = $errorCode
+  $observed = if ($status -ceq 'BLOCKED_BOOTSTRAP') {
+    "No provider connection was created. ReadOnly requires existing Graph AuthType=AppOnly and Exchange CertificateAuthentication=true sessions for the same tenant and operator.clientId. Operator setup must grant Graph Application.Read.All and Exchange.ManageAsApp with an Exchange custom role group limited to this adapter's read cmdlets; this script creates no connection, consent, or grant."
+  } else {
+    'Read-only readiness could not be established; consult the stable error code.'
+  }
+  Add-M365Check $result 'mail-provider-readiness' $status `
+    'pre-authenticated Graph and Exchange app-only sessions and current provider state bound to the plan tenant and operator client' `
+    $observed $errorCode
+  exit (Complete-M365Result $result $status $OutputPath)
+}

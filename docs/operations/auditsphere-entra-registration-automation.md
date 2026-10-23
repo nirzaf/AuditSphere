@@ -343,12 +343,18 @@ cross-client acceptance still require the separately approved tenant run.
 
 ## Mail permission-model planning (WU-022)
 
-`Configure-MailAccess.ps1` currently implements **plan validation only**. A MAIL
-plan must select `LEGACY_APPLICATION_ACCESS_POLICY` (exact Graph `Mail.Send` and
+`Configure-MailAccess.ps1` validates plans and can read existing Exchange/Entra
+configuration. It never signs in, grants permissions, sends mail or changes the
+runtime. `Apply` remains blocked pending reviewed migration/rollback support.
+
+Select `LEGACY_APPLICATION_ACCESS_POLICY` (exact Graph `Mail.Send` plus
 `policyScopeGroupId`) or `EXCHANGE_RBAC_RESOURCE_SCOPE` (`scopeName`, no unscoped
-Entra `Mail.Send`). Both require unique `senderObjectIds` and a distinct
-`controlMailboxObjectId`. These are reviewed target identities, not proof of
-Exchange authorization. Existing legacy runtime configuration is unchanged.
+Entra application grants). Both need exact unique `senderObjectIds` and a
+separate controlled `controlMailboxObjectId`. The adapter checks actual grants,
+exact scope membership, sender allowance and control denial; overlapping grants
+fail closed. Existing legacy runtime configuration remains unchanged.
+
+### Offline plan
 
 ```powershell
 pwsh -NoProfile -NonInteractive -File scripts/m365/Configure-MailAccess.ps1 `
@@ -358,15 +364,78 @@ python3 scripts/m365/verify-result.py /approved/operator/mail-plan.json --expect
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-022 -Offline
 ```
 
-A generic plan with no MAIL capability records that mail readiness was skipped;
-`PLANNED` never means configured or verified. ReadOnly and Apply currently return
-`PREREQUISITE_MISSING` / `adapter-not-implemented` without authentication, provider
-calls or permission changes. This is remaining engineering work, not a request
-for broader consent. Independent Exchange positive/control-mailbox readback,
-Entra overlapping-grant inspection, mail-specific RBAC runtime verification and
-reviewed migration/rollback remain required before activation. Actual send
-probes additionally require an approved synthetic recipient and retained provider
-evidence. Do not activate RBAC or remove legacy grants based on this plan result.
+A plan without MAIL records readiness as skipped. A real plan must pin the exact
+published repository commit; ReadOnly refuses dirty M365 scripts and a different
+HEAD before provider access. Supply its exact canonical digest through
+`ExpectedPlanSha256`. The synthetic fixture is for offline checks only.
+
+### Separately approved operator bootstrap
+
+Use the pinned modules from `modules.lock.json`. An already-approved operator
+application needs Graph application `Application.Read.All` for these directory
+reads, Exchange app-only connection permission, and a restricted Exchange custom
+role group exposing the required read/test cmdlets. This operator is distinct
+from the runtime MAIL identity. This guide supplies no consent or role grant;
+missing bootstrap is `BLOCKED_BOOTSTRAP` or `PREREQUISITE_MISSING`.
+
+Both sessions must use the plan's **same operator client ID and tenant**: Graph
+app-only authentication and Exchange certificate app-only authentication. Normal delegated Graph and Exchange
+PowerShell sessions often use different client IDs and will be refused. Microsoft
+documents certificate authentication for [Graph PowerShell](https://learn.microsoft.com/en-us/powershell/microsoftgraph/authentication-commands)
+and [Exchange PowerShell/custom role groups](https://learn.microsoft.com/en-us/powershell/exchange/app-only-auth-powershell-v2).
+Using one approved registration for both is a composition of those supported
+flows; it has not been verified against a live customer tenant here.
+
+In an existing PowerShell process, resolve `$operatorCertificate` as an
+`X509Certificate2` from the approved protected store. Never serialize its private
+key or embed a credential in a command. Set `$primaryTenantDomain` to the exact
+approved primary `.onmicrosoft.com` domain, then establish the sessions manually:
+
+```powershell
+$planPath = '/approved/operator/mail-plan-input.json'
+& ./scripts/m365/Configure-MailAccess.ps1 -PlanPath $planPath -DryRun `
+  -OutputPath /approved/operator/mail-reviewed-plan.json
+if ($LASTEXITCODE -ne 0) { throw 'Review the rejected plan before connecting.' }
+$plan = Get-Content -LiteralPath $planPath -Raw | ConvertFrom-Json
+Connect-MgGraph -TenantId $plan.tenantId -ClientId $plan.operator.clientId `
+  -Certificate $operatorCertificate -ContextScope Process -NoWelcome
+Connect-ExchangeOnline -AppId $plan.operator.clientId `
+  -Certificate $operatorCertificate -Organization $primaryTenantDomain
+```
+
+[Connection metadata](https://learn.microsoft.com/en-us/powershell/module/exchangepowershell/get-connectioninformation?view=exchange-ps)
+is checked before and after reads, including tenant, application, certificate
+mode, connection identity and active token state. Ambiguous or changed sessions
+are refused. Connections alone do not establish authorization.
+
+### Read-only verification in that same process
+
+Run the entrypoint with `&` in the authenticated process; a new `pwsh -File`
+process would lose those process-bound sessions. First generate the local plan
+result and review its digest:
+
+```powershell
+& ./scripts/m365/Configure-MailAccess.ps1 -PlanPath $planPath -DryRun `
+  -OutputPath /approved/operator/mail-reviewed-plan.json
+$reviewedPlan = Get-Content /approved/operator/mail-reviewed-plan.json -Raw | ConvertFrom-Json
+& ./scripts/m365/Configure-MailAccess.ps1 -PlanPath $planPath -Mode ReadOnly `
+  -ExpectedPlanSha256 $reviewedPlan.planSha256 `
+  -OutputPath /approved/operator/mail-readback.json
+```
+
+The result counts attempted provider reads even after partial failure; mutation
+counts remain zero. Missing/unknown provider fields give incomplete evidence.
+The legacy `Test-ApplicationAccessPolicy` identity/result field shape still needs
+confirmation in an approved live run; absence is not a successful denial.
+
+Even matching provider checks yield **INCOMPLETE_EVIDENCE**, not overall MAIL
+readiness: legacy still needs actual API capability evidence, and RBAC still
+needs its runtime implementation. A successful scope simulation also does not
+prove transport delivery. Inspect stable check/error codes and retain the
+redacted result; use `verify-result.py --expect INCOMPLETE_EVIDENCE` only when
+that is the actual expected outcome. Do not enable RBAC or remove legacy grants
+from this result. Reviewed migration/rollback and an approved controlled
+recipient/send probe remain separate requirements.
 
 ## Offline engineering checks
 
