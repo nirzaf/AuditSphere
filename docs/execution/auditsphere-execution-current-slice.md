@@ -24,7 +24,7 @@ Mutation controls, including external-pack actions, now reflect the existing unk
 
 ## Statement content-review identity display (2026-10-23)
 
-The content-review screen exposes the actual presentation revision, full snapshot digest, review IDs and reviewer IDs already returned by the API. Returned decisions remain unapproved; no review or source-currentness policy changes. Read authority is rechecked after review fetch: revocation denies content, while a retained read grant still allows read-only access. The focused Angular component checks and corrected build passed. Full source-backed presentation closure, browser acceptance and professional decisions remain separate; evidence is in `status.json`.
+The screen shows persisted presentation/review IDs and full snapshot digest, with source currentness separate from historical approval. The server reuses exact package/layout/source validation and disables review of stale or unavailable source; Angular labels any retained approval historical. Returning a linked source preserves the original decision and draft hash. Focused PostgreSQL and Angular checks, targeted Release compilation and contract drift passed. Read-authority race checks still pass. Broader reporting, browser and professional acceptance remain separate; evidence is in `status.json`.
 
 ## Immutable consolidation correction lineage (2026-10-23)
 

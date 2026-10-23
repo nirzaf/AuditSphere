@@ -1076,7 +1076,8 @@
         "status": "PARTIAL",
         "checks": "Angular content-review.spec.ts: 4 PASS; actual persisted revision/hash/reviewer/review IDs displayed. No approval semantics change.",
         "build": "PASS: agent corrected Angular build includes this component; existing SCSS warning. Initial concurrent correction union failure repaired. No browser/full-suite claim.",
-        "readAuthority": "PASS: 2 focused PostgreSQL race cases after fix (before: revoked-read case FAILED, retained-read case PASS). Final read auth denies revocation without suppressing valid read-only access; TRX .local/autonomous/evidence/wu011-review-authority/after.trx."
+        "readAuthority": "PASS: 2 focused PostgreSQL race cases after fix (before: revoked-read case FAILED, retained-read case PASS). Final read auth denies revocation without suppressing valid read-only access; TRX .local/autonomous/evidence/wu011-review-authority/after.trx.",
+        "sourceCurrentness": "PASS: 3 ContentReviewRead_ PostgreSQL cases and 5 Angular content-review specs; targeted emitter Release build and OpenAPI drift. SourceIsCurrent uses established source validation; a returned source disables review while historical approval/digest remain. Evidence .local/autonomous/evidence/wu011-review-currentness/. Angular build passed with existing commercial SCSS warning; browser NOT_RUN."
       },
       "correctionLineage": {
         "status": "PARTIAL",
@@ -1084,7 +1085,7 @@
         "checks": "PASS: main TRX 1/1 .local/autonomous/evidence/wu013-correction-lineage/correction-lineage.trx; agent Angular36, corrected build (SCSS warning), EF model and OpenAPI checks passed. Migration null-pointer downgrade/reapply and retained-lineage downgrade refusal covered.",
         "remaining": "Owned correction browser PASS 1/1: .local/autonomous/evidence/wu013-correction-browser/ComponentCorrectionHandoff.retry2.trx; exact source IDs persisted and approved pin/pack/run retained. Current-source CI and broader group release remain open; no universal supersession policy required."
       },
-      "ciObserved": "FAST_CI_PASS39892704014 atd5f425c3d94ceb63794ee71c254d013ccfeb1ccd. Full39886113863 resolved368eada2cc2e169d11767055c4d39cbe7c96c960: Angular+Domain1522+API399PASS; verifyFAILfixturefixed6f; E2ERUNNING at2026-10-23T03:09:27+00:00. NOT_FULL_CI_PASS.",
+      "ciObserved": "FAST_CI_PASS39895242021 atf7fe5137ec6a2a6f38221f40c98811adf8e8f755. Full39886113863 resolved368eada2cc2e169d11767055c4d39cbe7c96c960: Angular+Domain1522+API399PASS; verifyFAILfixturefixed6f; E2ERUNNING at2026-10-23T03:29:18+00:00. NOT_FULL_CI_PASS.",
       "scopeUnknownOutcome": {
         "status": "PARTIAL",
         "scope": "WU032 mutation buttons and external-pack commands honor parent unknown-outcome fence. Refresh uses existing resource and never clears uncertainty or dispatches duplicate commands. Local editing/navigation retained.",

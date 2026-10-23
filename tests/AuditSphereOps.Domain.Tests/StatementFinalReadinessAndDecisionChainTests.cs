@@ -103,6 +103,46 @@ public sealed class StatementFinalReadinessAndDecisionChainTests
   }
 
   [Fact]
+  [Trait("CompletionUnit", "WU-011")]
+  public async Task ContentReviewRead_PreservesHistoricalApprovalButDemotesReturnedSource()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var s = await StatementCandidatePromotionTests.SeedPresentableAsync(pg);
+    var preparer = StatementCandidatePromotionTests.Actor(s.Preparer, "AccountingPreparer");
+    var reviewer = StatementCandidatePromotionTests.Actor(s.Reviewer, "AccountingReviewer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var pin = await FinancialStatementService.PinPresentationAsync(db, preparer, s.PackageId, s.LayoutId);
+    Assert.True(pin.Succeeded, pin.Message);
+    var draftId = pin.Value!.RevisionId;
+    var review = await StatementContentReviewCall.RecordAsync(db, reviewer, s.PackageId, draftId);
+    Assert.True(review.Succeeded, review.Message);
+    var before = await FinancialStatementService.GetStatementContentReviewAsync(db, reviewer, s.PackageId, draftId);
+    Assert.True(before.Succeeded, before.Message);
+    Assert.True(before.Value!.Approved);
+    Assert.True(before.Value.SourceIsCurrent);
+    Assert.True(before.Value.CanReview);
+
+    // Use the real review workflow: returning the linked source invalidates currentness,
+    // without rewriting the independent historical content decision or draft bytes.
+    var returned = await CashFlowSourceReviewCall.RecordAsync(db, reviewer, s.PackageId, "RETURNED",
+      "Synthetic reviewer requires correction of the retained source allocation.");
+    Assert.True(returned.Succeeded, returned.Message);
+    var after = await FinancialStatementService.GetStatementContentReviewAsync(db, reviewer, s.PackageId, draftId);
+    Assert.True(after.Succeeded, after.Message);
+    Assert.False(after.Value!.SourceIsCurrent);
+    Assert.False(after.Value.CanReview);
+    Assert.True(after.Value.Approved);
+    Assert.Equal(review.Value, after.Value.LatestReviewId);
+    Assert.Equal(before.Value.Reviews, after.Value.Reviews);
+    Assert.Equal(before.Value.SnapshotSha256Hex, after.Value.SnapshotSha256Hex);
+    var refused = await StatementContentReviewCall.RecordAsync(db, reviewer, s.PackageId, draftId);
+    Assert.Equal(ErrorCodes.StaleRevision, refused.ErrorCode);
+    Assert.Equal(1, await db.FinancialStatementContentReviews.CountAsync(x => x.PresentationRevisionId == draftId));
+    Assert.Equal(pin.Value.SnapshotSha256Hex,
+      await db.FinancialStatementPresentationRevisions.Where(x => x.Id == draftId).Select(x => x.SnapshotSha256Hex).SingleAsync());
+  }
+
+  [Fact]
   public async Task CandidatePromotion_RequiresAnIndependentContentReviewOfTheExactDraft()
   {
     await using var pg = await PgTestSchema.CreateAsync();

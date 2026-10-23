@@ -10,7 +10,7 @@ const snapshot = 'a'.repeat(64);
 
 function state(latestReviewId: string | null = null) {
   return decodeStatementContentReview({
-    financialPackageId: id1, presentationRevisionId: id2, snapshotSha256Hex: snapshot, approved: false, canReview: true,
+    financialPackageId: id1, presentationRevisionId: id2, snapshotSha256Hex: snapshot, approved: false, canReview: true, sourceIsCurrent: true,
     latestReviewId, reviewedChecks: ['NOTE_CONTENT', 'EQUITY_SOURCE_LINEAGE'], reviews: [],
   }, 'review');
 }
@@ -50,6 +50,29 @@ describe('statement content review contract (F-03)', () => {
     expect(cells).toContain(review);
     expect(root.querySelector('[role="status"]')?.textContent).toContain('Not approved');
     expect(root.querySelector('form')).toBeNull();
+  });
+
+  it('keeps historical approval distinct from stale source and refuses another decision', async () => {
+    const reviewId = '44444444-4444-4444-8444-444444444444';
+    const data = signal(decodeStatementContentReview({ ...state(reviewId), approved: true, canReview: false,
+      sourceIsCurrent: false, reviews: [{ id: reviewId, decision: 'APPROVED', reason: '',
+        reviewedByUserId: '33333333-3333-4333-8333-333333333333',
+        reviewedAt: '2026-10-15T00:00:00Z', snapshotSha256Hex: snapshot }] }, 'review'));
+    const command = vi.fn();
+    TestBed.configureTestingModule({ imports: [StatementContentReview], providers: [{ provide: Api, useValue: {
+      resource: () => ({ data, loading: signal(false), error: signal(''), reload: vi.fn() }), command,
+    } }] });
+    const fixture = TestBed.createComponent(StatementContentReview);
+    fixture.componentRef.setInput('packageId', id1);
+    fixture.componentRef.setInput('revisionId', id2);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('Historical approval:');
+    expect(root.querySelector('.source-currentness')?.textContent).toContain('Source stale or unavailable');
+    expect(root.querySelector('form')).toBeNull();
+    await fixture.componentInstance.record(data());
+    expect(command).not.toHaveBeenCalled();
+    expect(() => decodeStatementContentReview({ ...state(), sourceIsCurrent: undefined }, 'review')).toThrow();
   });
 
   it('refuses an unknown decision or a malformed snapshot digest', () => {

@@ -14,11 +14,11 @@ public sealed record StatementContentReviewEntry(Guid Id, string Decision, strin
 
 /// <summary>
 /// The independent content review of one draft presentation. Approved is true only when the latest decision on this exact draft snapshot is
-/// an approval. ReviewedChecks names the presentation checks an approval satisfies; every other check must pass on its own.
+/// an approval, independently of whether its source remains current. ReviewedChecks names the presentation checks an approval satisfies; every other check must pass on its own.
 /// </summary>
 public sealed record StatementContentReviewState(Guid FinancialPackageId, Guid PresentationRevisionId, string SnapshotSha256Hex,
   bool Approved, bool CanReview, Guid? LatestReviewId, IReadOnlyList<string> ReviewedChecks,
-  IReadOnlyList<StatementContentReviewEntry> Reviews);
+  IReadOnlyList<StatementContentReviewEntry> Reviews, bool SourceIsCurrent);
 
 /// <summary>
 /// Final-content readiness for a signing candidate (CP-12–14/17, F-03). A draft presentation may be incomplete. A signing candidate may be
@@ -202,8 +202,9 @@ public static partial class FinancialStatementService
       .ToListAsync(ct);
     var reviewAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, draft.ClientId, draft.EngagementId, CashFlowSourceReviewRoles, InternalOnly: true), ct);
-    var canReview = reviewAuth.Succeeded && draft.Status == FinancialStatementPresentationRevisionStatuses.UnapprovedDraft &&
-      draft.CreatedByUserId != actor.UserId;
+    var sourceIsCurrent = await PresentationSourceIsCurrentAsync(db, draft, ct);
+    var canReview = reviewAuth.Succeeded && sourceIsCurrent &&
+      draft.Status == FinancialStatementPresentationRevisionStatuses.UnapprovedDraft && draft.CreatedByUserId != actor.UserId;
     var approved = reviews.Count > 0 && reviews[0].Decision == FinancialStatementContentReviewDecisions.Approved &&
       reviews[0].SnapshotSha256Hex == draft.SnapshotSha256Hex;
     // Review permission and read permission are independent. A failed review check must not
@@ -213,6 +214,6 @@ public static partial class FinancialStatementService
     if (!auth.Succeeded)
       return CommandResult<StatementContentReviewState>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<StatementContentReviewState>.Ok(new(draft.FinancialPackageId, draft.Id, draft.SnapshotSha256Hex, approved,
-      canReview, reviews.Count > 0 ? reviews[0].Id : null, ContentReviewedChecks, reviews));
+      canReview, reviews.Count > 0 ? reviews[0].Id : null, ContentReviewedChecks, reviews, sourceIsCurrent));
   }
 }

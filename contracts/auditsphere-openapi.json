@@ -139649,7 +139649,8 @@
           "canReview",
           "latestReviewId",
           "reviewedChecks",
-          "reviews"
+          "reviews",
+          "sourceIsCurrent"
         ],
         "type": "object",
         "properties": {
@@ -139688,6 +139689,9 @@
             "items": {
               "$ref": "#/components/schemas/StatementContentReviewEntry"
             }
+          },
+          "sourceIsCurrent": {
+            "type": "boolean"
           }
         }
       },

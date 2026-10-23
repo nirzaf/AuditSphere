@@ -7,7 +7,7 @@ import { SHARED } from '../../core/ui';
 
 /** Independent content review of one exact draft presentation (CP-13/14). The server decides every rule; this only renders the result. */
 export const decodeStatementContentReview = obj({
-  financialPackageId: guid, presentationRevisionId: guid, snapshotSha256Hex: sha256, approved: bool, canReview: bool,
+  financialPackageId: guid, presentationRevisionId: guid, snapshotSha256Hex: sha256, approved: bool, canReview: bool, sourceIsCurrent: bool,
   latestReviewId: nullable(guid), reviewedChecks: arr(text, 20),
   reviews: arr(obj({ id: guid, decision: oneOf('APPROVED', 'RETURNED'), reason: text, reviewedByUserId: guid, reviewedAt: instant,
     snapshotSha256Hex: sha256 }), 50),
@@ -37,8 +37,13 @@ export function contentDecisionRequest(state: StatementContentReviewState, decis
       <audit-state [loading]="state.loading()" [error]="state.error()" label="the content review" />
       @if (state.data(); as s) {
         <p role="status">{{ s.approved
-          ? 'Approved: the note, disclosure and equity content of this exact draft snapshot was approved by an independent reviewer.'
+          ? (s.sourceIsCurrent
+            ? 'Approved: the note, disclosure and equity content of this exact draft snapshot was approved by an independent reviewer.'
+            : 'Historical approval: an independent reviewer approved this exact snapshot, but its source is no longer current or available.')
           : 'Not approved. This draft cannot become a signing candidate until an independent reviewer approves its note, disclosure and equity content.' }}</p>
+        <p class="source-currentness" role="status">{{ s.sourceIsCurrent
+          ? 'Source current: this draft matches its package, layout and supporting source evidence.'
+          : 'Source stale or unavailable. Recorded content decisions remain historical; pin a new draft from current source before review or signing.' }}</p>
         <dl class="review-identity">
           <dt>Presentation revision</dt><dd><code>{{ s.presentationRevisionId }}</code></dd>
           <dt>Snapshot SHA-256</dt><dd><code>{{ s.snapshotSha256Hex }}</code></dd>
@@ -49,7 +54,7 @@ export function contentDecisionRequest(state: StatementContentReviewState, decis
             <thead><tr><th scope="col">Decision</th><th scope="col">Reason</th><th scope="col">Reviewer ID</th><th scope="col">Review ID</th><th scope="col">Reviewed at</th></tr></thead>
             <tbody>@for (r of s.reviews; track r.id) { <tr><td><audit-status [value]="r.decision" /></td><td>{{ r.reason || 'No reason recorded' }}</td><td><code>{{ r.reviewedByUserId }}</code></td><td><code>{{ r.id }}</code></td><td><time [attr.datetime]="r.reviewedAt">{{ r.reviewedAt }}</time></td></tr> }</tbody></table></div>
         }
-        @if (s.canReview) {
+        @if (s.canReview && s.sourceIsCurrent) {
           <form class="inline-form" (submit)="$event.preventDefault(); record(s)">
             <label>Decision <select name="contentDecision" [(ngModel)]="decision"><option value="APPROVED">APPROVED</option><option value="RETURNED">RETURNED</option></select></label>
             <label>Reason <textarea name="contentReason" [(ngModel)]="reason" maxlength="2000" rows="2"></textarea></label>
@@ -82,7 +87,7 @@ export class StatementContentReview {
   private pending: PendingContentDecision | null = null;
 
   async record(s: StatementContentReviewState): Promise<void> {
-    if (this.busy() || this.uncertain()) return;
+    if (!s.canReview || !s.sourceIsCurrent || this.busy() || this.uncertain()) return;
     const reason = this.reason.trim() || null;
     const intent = contentDecisionIntent(this.pending, s, this.decision, reason, crypto.randomUUID());
     this.pending = intent;
