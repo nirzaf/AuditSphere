@@ -1052,7 +1052,7 @@
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.correctionLineage",
         "remaining": "Exact receipt recovery, broader group/release acceptance."
       },
-      "ciObserved": "FULL_CI_PASS39903345685 exact889bde7e58c1c74d9fe52cfbb99565b779676f2f: artifactMATCH, all7PASS, canonicalaggregate/TRX verified (Domain1525/API399/E2E335 zero skips). fff6a787 FAST_CI_PASS39927606952. Later HEAD not full-verified.",
+      "ciObserved": "FULL_CI_PASS39903345685 exact889bde7e58c1c74d9fe52cfbb99565b779676f2f: all7/source/TRX verified. 08aFAST_CI_PASS39929029353/images39929029403. 5aaFAST_CI_FAIL39932652527 stepEFdrift; additiveprofilehistory repair underverification.",
       "scopeUnknownOutcome": {
         "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.scopeUnknownOutcome",
         "status": "PARTIAL",
@@ -1116,9 +1116,9 @@
       },
       "operationalEvidenceGuard": {
         "status": "PARTIAL",
-        "evidence": ".local/autonomous/evidence/wu038-verifier",
-        "checks": "8 focused Python PASS; tracked template INCOMPLETE exit2. Actual Git identity, raw scan/metric comparisons, positive sample counts, hash/size/path/symlink and RPO0 guards; approval refs never authenticated.",
-        "remaining": "Known sparse NuGet shape/capture/feed provenance; approved targets, measured capacity/performance/custody/recovery and production acceptance."
+        "evidence": ".local/autonomous/evidence/wu038-capture-final",
+        "checks": "13PythonPASS; boundedcapture/source+inputs+feed/reporthashes; Nugetstderr/nesteddiagnostics cannotclear. Actual5aaNugetexit0/no records, DIRTY =>INCOMPLETE/SOURCE_UNKNOWN. Prior8guardproof retained wu038-verifier.",
+        "remaining": "Clean-source scans/triage, approved targets, measured performance/custody/recovery and production acceptance."
       },
       "pbcReplyRecovery": {
         "status": "PARTIAL",

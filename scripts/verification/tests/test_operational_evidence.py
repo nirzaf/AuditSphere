@@ -451,6 +451,113 @@ class OperationalEvidenceTests(unittest.TestCase):
             self.assertEqual("NO_FINDINGS", status)
             self.assertEqual(set(), errors)
 
+            envelope_path = root / scan["evidence"]["path"]
+            envelope = json.loads(envelope_path.read_text(encoding="utf-8"))
+
+            def persist_envelope() -> None:
+                envelope_bytes = json.dumps(envelope, separators=(",", ":")).encode()
+                envelope_path.write_bytes(envelope_bytes)
+                scan["evidence"]["sha256"] = hashlib.sha256(envelope_bytes).hexdigest()
+
+            diagnostic = b"NU1900: vulnerability data unavailable"
+            envelope["invocation"]["stderrBytes"] = len(diagnostic)
+            envelope["invocation"]["stderrSha256"] = hashlib.sha256(diagnostic).hexdigest()
+            persist_envelope()
+            blockers = set()
+            status = verify._scan_status(
+                "nuget", scan, commit, True, root, set(), blockers, {},
+            )
+            self.assertEqual("UNKNOWN", status)
+            self.assertIn("SCAN_DIAGNOSTICS_UNKNOWN_NUGET", blockers)
+
+            envelope["invocation"]["stderrBytes"] = 0
+            envelope["invocation"]["stderrSha256"] = hashlib.sha256(b"").hexdigest()
+            report_path = root / envelope["report"]["path"]
+            original_report_bytes = report_path.read_bytes()
+            report_with_problem = json.loads(original_report_bytes)
+            report_with_problem["problems"] = [{
+                "level": "warning",
+                "message": "NU1900: vulnerability data unavailable",
+            }]
+            report_bytes = json.dumps(report_with_problem, separators=(",", ":")).encode()
+            report_path.write_bytes(report_bytes)
+            report_sha256 = hashlib.sha256(report_bytes).hexdigest()
+            envelope["report"]["sha256"] = report_sha256
+            envelope["invocation"]["stdoutSha256"] = report_sha256
+            persist_envelope()
+            blockers = set()
+            status = verify._scan_status(
+                "nuget", scan, commit, True, root, set(), blockers, {},
+            )
+            self.assertEqual("UNKNOWN", status)
+            self.assertIn("SCAN_REPORT_PARSER_UNAVAILABLE_NUGET", blockers)
+
+            report_with_warning = json.loads(original_report_bytes)
+            report_with_warning["warnings"] = ["NU1905: vulnerability data unavailable"]
+            warning_bytes = json.dumps(report_with_warning, separators=(",", ":")).encode()
+            report_path.write_bytes(warning_bytes)
+            warning_sha256 = hashlib.sha256(warning_bytes).hexdigest()
+            envelope["report"]["sha256"] = warning_sha256
+            envelope["invocation"]["stdoutSha256"] = warning_sha256
+            persist_envelope()
+            blockers = set()
+            status = verify._scan_status(
+                "nuget", scan, commit, True, root, set(), blockers, {},
+            )
+            self.assertEqual("UNKNOWN", status)
+            self.assertIn("SCAN_REPORT_PARSER_UNAVAILABLE_NUGET", blockers)
+
+            report_with_empty_diagnostics = json.loads(original_report_bytes)
+            report_with_empty_diagnostics["diagnostics"] = []
+            report_with_empty_diagnostics["projects"][1]["diagnostics"] = []
+            empty_project = report_with_empty_diagnostics["projects"][0]
+            empty_project["problems"] = []
+            empty_project["frameworks"] = [{
+                "framework": "net10.0",
+                "topLevelPackages": [],
+                "transitivePackages": [],
+                "warnings": [],
+                "diagnostics": [],
+            }]
+            self.assertIsNotNone(verify._parse_scan_report(
+                "nuget", report_with_empty_diagnostics, allow_sparse_nuget=True,
+            ))
+
+            for node, field in (
+                ("project", "problems"),
+                ("framework", "warnings"),
+                ("framework", "diagnostics"),
+            ):
+                report_with_nested_diagnostic = json.loads(original_report_bytes)
+                project = report_with_nested_diagnostic["projects"][0]
+                framework = {
+                    "framework": "net10.0",
+                    "topLevelPackages": [],
+                    "transitivePackages": [],
+                }
+                project["frameworks"] = [framework]
+                diagnostic_node = project if node == "project" else framework
+                diagnostic_node[field] = ["NU1900: vulnerability data unavailable"]
+                nested_bytes = json.dumps(
+                    report_with_nested_diagnostic, separators=(",", ":"),
+                ).encode()
+                report_path.write_bytes(nested_bytes)
+                nested_sha256 = hashlib.sha256(nested_bytes).hexdigest()
+                envelope["report"]["sha256"] = nested_sha256
+                envelope["invocation"]["stdoutSha256"] = nested_sha256
+                persist_envelope()
+                blockers = set()
+                status = verify._scan_status(
+                    "nuget", scan, commit, True, root, set(), blockers, {},
+                )
+                self.assertEqual("UNKNOWN", status, f"{node}.{field}")
+                self.assertIn("SCAN_REPORT_PARSER_UNAVAILABLE_NUGET", blockers)
+
+            report_path.write_bytes(original_report_bytes)
+            envelope["report"]["sha256"] = hashlib.sha256(original_report_bytes).hexdigest()
+            envelope["invocation"]["stdoutSha256"] = envelope["report"]["sha256"]
+            persist_envelope()
+
             input_path = root / "src/Project.csproj"
             input_path.write_text("changed", encoding="utf-8")
             blockers = set()

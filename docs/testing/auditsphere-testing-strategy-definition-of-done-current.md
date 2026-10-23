@@ -71,8 +71,15 @@ A full automated CI PASS **does not** certify Entra tenant consent, Graph/ShareP
 
 Use `docs/spec/completion-operational-evidence.json` as the incomplete starting record. Copy it into ignored `artifacts/completion/` before collecting current-candidate evidence; populating a tracked template in place makes the checkout dirty and cannot prove a clean source. Record actual source, tool versions, exits, feeds, scan output and measurements rather than editing a summary to imply success.
 
+Run an existing scanner through the bounded capture helper from the repository root with the pinned SDK/Node and already-restored dependencies. It does not install packages, restore projects, change configuration or perform recovery:
+
 ```bash
+mkdir -p artifacts/completion
+python3 scripts/verification/capture-operational-scan.py --scan nuget > artifacts/completion/nuget-capture-result.json
+# Other fixed adapters: --scan npm or --scan gitleaks.
 python3 scripts/verification/verify-operational-evidence.py artifacts/completion/operational-evidence.json
 ```
+
+Copy the capture result's `scanRecord` into the matching `securityScans` entry of your ignored record copy; retain its referenced envelope/report files. `CAPTURED` means the actual invocation/report was retained, not that security acceptance passed. The helper binds source/input/configuration hashes, tool version, actual exit and feed identity where available, with bounded output/time and child cleanup. It stores stderr's hash/count, not its potentially sensitive text. Dirty/changed source, unavailable tools/feeds, unsupported reports and diagnostic uncertainty remain unverified; npm's audit JSON does not establish registry identity. NuGet audit-source warnings must not become a zero-findings pass ([warning definitions](https://github.com/NuGet/docs.microsoft.com-nuget/blob/main/docs/concepts/Auditing-Packages.md#warning-codes)). Never replace an unknown result with an older clean scan.
 
 The verifier performs read-only Git/source and bounded, hash-bound JSON checks. It compares supported scanner findings and typed measurement artifacts with the declared record, rejects unsafe paths/symlinks and vacuous counts, and preserves local restore as local-only. Exit codes are `0` for a structurally complete evidence record, `1` for invalid input and `2` for incomplete evidence. A matching reference does not authenticate a human approval or establish operational/production acceptance. Unsupported report shapes or absent feed/capture provenance remain unknown; approved targets, measured recovery and independent custody stay separate gates. Actual findings and focused verification belong in `docs/execution/status.json`.

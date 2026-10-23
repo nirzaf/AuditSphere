@@ -83,6 +83,9 @@ MAX_CAPTURE_INPUT_BYTES = 67_108_864
 MAX_CAPTURE_FILE_BYTES = 20_971_520
 MAX_CAPTURE_RUNTIME_SECONDS = 180
 MAX_CAPTURE_STDERR_BYTES = 1_048_576
+MAX_NUGET_REPORT_NODES = 200_000
+MAX_NUGET_REPORT_DEPTH = 128
+NUGET_DIAGNOSTIC_FIELDS = frozenset({"problems", "warnings", "diagnostics"})
 FINDING_IDENTITY_RULES = {
     "npm": "NPM-SHA256(package-name-casefold + NUL + advisory-source)",
     "nuget": "NUGET-SHA256(package-id-casefold + NUL + resolved-version + NUL + advisory-url)",
@@ -660,12 +663,45 @@ def _feed_host(value: Any) -> str | None:
         return None
 
 
+def _nuget_diagnostics_are_unambiguous(report: Any) -> bool:
+    pending = [(report, 0)]
+    visited = 0
+    while pending:
+        value, depth = pending.pop()
+        visited += 1
+        if visited > MAX_NUGET_REPORT_NODES or depth > MAX_NUGET_REPORT_DEPTH:
+            return False
+        if type(value) is dict:
+            for key, child in value.items():
+                if type(key) is str and key.casefold() in NUGET_DIAGNOSTIC_FIELDS:
+                    if type(child) is not list or child:
+                        return False
+                if visited + len(pending) >= MAX_NUGET_REPORT_NODES:
+                    return False
+                pending.append((child, depth + 1))
+        elif type(value) is list:
+            for child in value:
+                if visited + len(pending) >= MAX_NUGET_REPORT_NODES:
+                    return False
+                pending.append((child, depth + 1))
+    return True
+
+
 def _nuget_report(
     report: Any,
     *,
     allow_sparse_projects: bool = False,
 ) -> tuple[dict[str, tuple[str, str]], list[str] | None] | None:
-    if type(report) is not dict or type(report.get("version")) is not int or report["version"] != 1:
+    required_fields = {"version", "parameters", "sources", "projects"}
+    allowed_fields = required_fields | NUGET_DIAGNOSTIC_FIELDS
+    if (
+        type(report) is not dict
+        or not required_fields.issubset(report)
+        or not set(report).issubset(allowed_fields)
+        or not _nuget_diagnostics_are_unambiguous(report)
+        or type(report.get("version")) is not int
+        or report["version"] != 1
+    ):
         return None
     parameters = report.get("parameters")
     sources = report.get("sources")
@@ -698,7 +734,10 @@ def _nuget_report(
         if type(project) is not dict or type(project.get("path")) is not str or not project["path"]:
             return None
         if frameworks is None:
-            if not allow_sparse_projects or set(project) != {"path"}:
+            if (
+                not allow_sparse_projects
+                or not set(project).issubset({"path"} | NUGET_DIAGNOSTIC_FIELDS)
+            ):
                 return None
             sparse_projects = True
             continue
@@ -878,7 +917,7 @@ def _capture_envelope_report(
     root: Path,
     errors: set[str],
     blockers: set[str],
-) -> tuple[Any, list[str] | None, int | None] | None:
+) -> tuple[Any, list[str] | None, int, int] | None:
     unknown = f"SCAN_CAPTURE_UNKNOWN_{scan_id.upper()}"
     keys = {
         "schemaVersion", "scanId", "source", "inputHashes", "invocation",
@@ -1005,7 +1044,7 @@ def _capture_envelope_report(
     if report_reference["sha256"] != invocation["stdoutSha256"]:
         blockers.add(f"SCAN_REPORT_HASH_UNKNOWN_{scan_id.upper()}")
         return None
-    return report, feed["identities"], invocation["exitCode"]
+    return report, feed["identities"], invocation["exitCode"], invocation["stderrBytes"]
 
 
 def _scan_status(
@@ -1115,7 +1154,13 @@ def _scan_status(
     )
     if capture is None:
         return "UNKNOWN"
-    report, captured_feeds, exit_code = capture
+    report, captured_feeds, exit_code, stderr_bytes = capture
+    if scan_id == "nuget" and stderr_bytes > 0:
+        # NuGet can report vulnerability-feed failures as warnings while
+        # returning success and an empty report. Stderr is not retained, so
+        # its diagnostics cannot be classified safely after the fact.
+        blockers.add("SCAN_DIAGNOSTICS_UNKNOWN_NUGET")
+        return "UNKNOWN"
     captured_exact = captured_exact and scan["capturedAtUtc"] == envelope["capturedAtUtc"]
     parsed_report = _parse_scan_report(
         scan_id, report,
