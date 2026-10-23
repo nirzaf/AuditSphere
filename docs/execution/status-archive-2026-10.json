@@ -23731,6 +23731,20 @@
       "status": "PASS_LOCAL_SLICE",
       "evidence": ".local/autonomous/evidence/run003-dispatch-json/",
       "result": "Observed gh URL prefix brokeJSON; childstdout nowcaptured, stderrpreserved. Red/green tests also prove greenrun/matchingsource cannotpassfullCI without canonical successfulaggregate (absent/skipped/wrongworkflow=>UNKNOWN).9focusedCI-module testsPASS. Existing39903345685 reused; no duplicate dispatch. Raworiginal retained release-889-dispatch.raw.log."
+    },
+    "targetedVerification.autonomousCompletion20261022.pbcReplyRecovery": {
+      "status": "PASS_LOCAL_SLICE",
+      "base": "75b2fb6da5ea3085d0dede7ffb2e38f66e1fdfa2",
+      "evidence": ".local/autonomous/evidence/wu034-reply-final",
+      "checks": "4API+10Angular+1ownedE2E PASS; Angularbuild, EF/OpenAPI drift and emitter0warnings PASS. Key/hash-only UI recovery; replay/readback currentowner reloaded, samekey/body replay or409; retainedDown55000 and emptyDown/reapply. Browser lostcommitack+navigate/recreate recoveredonepersistedreply; originalsuccesscopy retained. Initialnewbrowserassert expecteddisabled wheredesignhidesform; correctedassertion+read-onlyrecovery, failedTRXretained.",
+      "remaining": "Broader portal/PBC role, boundary, responsive/human and exact-current-source full CI acceptance; no liveprovider claim."
+    },
+    "targetedVerification.autonomousCompletion20261022.mailRoleEvidenceGuard": {
+      "status": "PARTIAL",
+      "base": "8baadfed257dd096de0708be8b2596f121368871",
+      "evidence": ".local/autonomous/evidence/wu022-mail-overview-8baadfed-20261023",
+      "checks": "2 PostgreSQL PASS; exact three source hashes match. Generic/historical Mail.Send evidence cannot verify mailbox scope or supply overview timestamp. No provider calls.",
+      "remaining": "Typed signed model-bound evidence, runtime token/send gate, import/migration and live acceptance."
     }
   },
   "archivedTargetedVerification": {

@@ -30,7 +30,7 @@ The Vite patch passed fresh audit, isolated install/build and focused session ch
 Operational evidence guards reject invented scan/metric summaries; absent targets and approval remain unverified.
 ## Mail scope evidence projection (2026-10-23)
 
-Generic capability verification no longer probes or promotes outbound mail from a role-only result. Enabled mail stays unverified until model-bound evidence is implemented; the overview uses that evaluated state and cannot reuse a historical verification timestamp. Focused PostgreSQL checks passed with source hashes retained in `status.json`. This correction does not gate the Graph sender: typed signed receipts, runtime token/send checks and live sender/control acceptance remain engineering and external work respectively.
+Role-only rows cannot verify mail or reuse a verification timestamp. The Graph worker now requires signed source/model/tenant/sender/control evidence, current connection/consent, and model-specific token claims before dispatch; authority is rechecked after evidence I/O. Focused tests and compilation passed; Compose uses immutable sender IDs. Receipt enrollment, persisted API readiness, migration and live acceptance remain open. Evidence is in `status.json`.
 
 ## Deployment binding inventory (2026-10-23)
 

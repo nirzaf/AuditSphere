@@ -14,11 +14,12 @@ import importlib.util
 import json
 import os
 import re
+import selectors
 import shutil
 import signal
 import subprocess
 import sys
-import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -163,42 +164,83 @@ def _configuration_hashes(scan_id: str) -> dict[str, str]:
 
 
 def _run_bounded(argv: list[str], cwd: Path, timeout_seconds: int) -> tuple[int, bytes, str, int]:
-    with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
-        try:
-            process = subprocess.Popen(
-                argv,
-                cwd=cwd,
-                stdin=subprocess.DEVNULL,
-                stdout=stdout_file,
-                stderr=stderr_file,
-                start_new_session=(os.name == "posix"),
-            )
-        except OSError:
-            raise CaptureError("tool-unavailable") from None
-        try:
-            exit_code = process.wait(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired:
+    try:
+        process = subprocess.Popen(
+            argv,
+            cwd=cwd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=(os.name == "posix"),
+        )
+    except OSError:
+        raise CaptureError("tool-unavailable") from None
+
+    def stop_process() -> None:
+        if process.poll() is None:
             if os.name == "posix":
                 try:
                     os.killpg(process.pid, signal.SIGKILL)
                 except OSError:
-                    pass
+                    process.kill()
             else:
                 process.kill()
-            process.wait()
-            raise CaptureError("scan-timeout") from None
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
 
-        stdout_size = stdout_file.seek(0, os.SEEK_END)
-        stderr_size = stderr_file.seek(0, os.SEEK_END)
-        if stdout_size > VERIFY.MAX_CAPTURE_FILE_BYTES or stderr_size > VERIFY.MAX_CAPTURE_STDERR_BYTES:
-            raise CaptureError("scan-output-too-large")
-        stdout_file.seek(0)
-        stdout = stdout_file.read(VERIFY.MAX_CAPTURE_FILE_BYTES + 1)
-        stderr_file.seek(0)
-        stderr_digest = hashlib.sha256()
-        for chunk in iter(lambda: stderr_file.read(65_536), b""):
-            stderr_digest.update(chunk)
-        return exit_code, stdout, stderr_digest.hexdigest(), stderr_size
+    assert process.stdout is not None and process.stderr is not None
+    selector = selectors.DefaultSelector()
+    streams = {process.stdout: "stdout", process.stderr: "stderr"}
+    for stream in streams:
+        os.set_blocking(stream.fileno(), False)
+        selector.register(stream, selectors.EVENT_READ)
+    stdout = bytearray()
+    stderr_digest = hashlib.sha256()
+    stderr_bytes = 0
+    deadline = time.monotonic() + timeout_seconds
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise CaptureError("scan-timeout")
+            for key, _ in selector.select(min(remaining, 0.25)):
+                stream = key.fileobj
+                chunk = os.read(stream.fileno(), 65_536)
+                if not chunk:
+                    selector.unregister(stream)
+                    stream.close()
+                    continue
+                if streams[stream] == "stdout":
+                    if len(stdout) + len(chunk) > VERIFY.MAX_CAPTURE_FILE_BYTES:
+                        raise CaptureError("scan-output-too-large")
+                    stdout.extend(chunk)
+                else:
+                    stderr_bytes += len(chunk)
+                    if stderr_bytes > VERIFY.MAX_CAPTURE_STDERR_BYTES:
+                        raise CaptureError("scan-output-too-large")
+                    stderr_digest.update(chunk)
+        try:
+            exit_code = process.wait(timeout=max(0.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            raise CaptureError("scan-timeout") from None
+        if not 0 <= exit_code <= 255:
+            raise CaptureError("scan-exited-by-signal")
+        return exit_code, bytes(stdout), stderr_digest.hexdigest(), stderr_bytes
+    except CaptureError:
+        stop_process()
+        raise
+    except OSError:
+        stop_process()
+        raise CaptureError("scan-execution-failed") from None
+    finally:
+        selector.close()
+        for stream in streams:
+            if not stream.closed:
+                stream.close()
+        stop_process()
 
 
 def _tool_version(scan_id: str, cwd: Path) -> str:
