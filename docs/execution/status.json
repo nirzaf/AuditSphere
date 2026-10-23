@@ -1053,7 +1053,12 @@
       "correctionLineage": {
         "status": "PARTIAL",
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.correctionLineage",
-        "remaining": "Exact receipt recovery, broader group/release acceptance."
+        "remaining": "Exact receipt recovery, broader group/release acceptance.",
+        "browserCapture": {
+          "base": "d4bf3e25+testoverlay",
+          "evidence": ".local/autonomous/evidence/wu032-consolidation-response-capture-d4bf3e25",
+          "checks": "1fresh-build E2E PASS with source-bound CI UI; actual create response captured before navigation. Payload/readback/UI/DB assertions retained. Historical399178 failure preserved. Broader browser/current-source full CI pending."
+        }
       },
       "ciObserved": "Full889 PASS39903345685 (exactsource/aggregate/TRX). Fast593b728d PASS39940525745 after staffing migration; focused staffing10/EFnodrift and archive1/realCLI PASS. Latest combined source and latest fullCI pending.",
       "scopeUnknownOutcome": {

@@ -134,7 +134,7 @@ These are recorded, scoped checks—not current-source full CI or whole-product 
 | ☑ Completed | Full statement/completion evidence IDs, release guards and pinned group/component currentness | Broader release acceptance; no group-only raw access, automatic re-pin or component-book writes. |
 | ☑ Completed | Immutable profile history, dimension revisions and exact TB/GL import scope — backend | Exact context activation/adapters and professional acceptance remain; legacy history is not invented. |
 | ☑ Completed | Secondary archive provider, queue/API, expected-plan export and service-to-CLI handoff | Live custody/recovery; historical matches do not prove current custody. |
-| ☑ Completed | Immutable consolidation correction lineage and unknown-outcome controls | Exact receipt recovery; refresh is not completion. |
+| ☑ Completed | Consolidation correction lineage/handoff and client unknown-outcome controls | Source-bound handoff checked; broader stale/receipt-recovery browser acceptance remains. |
 | ☑ Completed | Entra registration/certificates, roles, enrollment, mail readback and signed runtime gate — offline | Receipt enrollment, persisted readiness, live consent/custody and migration acceptance; role-only mail evidence rejected. |
 | ☑ Completed | M365 deployment boundaries, selected-site grants, DOCUMENTS probe and readiness inventory — offline | Runtime evidence; DOCUMENTS requires namespace reads and unrelated-site HTTP 403. |
 | ☑ Completed | Client reply receipt/navigation recovery | Lost-acknowledgement recovery and owner reauthorization checked; broader portal acceptance remains. Raw reply text is not stored for recovery. |

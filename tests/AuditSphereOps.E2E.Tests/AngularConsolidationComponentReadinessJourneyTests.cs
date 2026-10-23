@@ -296,8 +296,6 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
     await scopeForm.Locator("select[name='scopeCurrency']").SelectOptionAsync("QAR");
     await scopeForm.Locator("select[name='scopeOpeningBasis']").SelectOptionAsync("INITIAL");
 
-    var createResponseTask = page.WaitForResponseAsync(response => response.Request.Method == "POST" &&
-      new Uri(response.Url).AbsolutePath == "/api/ui/consolidation/scopes");
     var newScopeReadbackTask = page.WaitForResponseAsync(response =>
     {
       var path = new Uri(response.Url).AbsolutePath;
@@ -306,10 +304,18 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
         path.Split('/', StringSplitOptions.RemoveEmptyEntries).Length == 5 &&
         path != $"/api/ui/consolidation/scopes/{seeded.ScopeId:D}";
     });
-    await page.GetByRole(AriaRole.Button, new() { Name = "Create scope version", Exact = true }).ClickAsync();
-    var createResponse = await createResponseTask;
-    Assert.Equal(200, createResponse.Status);
-    using var createRequest = JsonDocument.Parse(createResponse.Request.PostData ?? throw new InvalidOperationException("The scope request body was not captured."));
+    string? createRequestPostData = null;
+    var (createResponseStatus, createReceiptBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request =>
+      {
+        if (request.Method != "POST" || new Uri(request.Url).AbsolutePath != "/api/ui/consolidation/scopes")
+          return false;
+        createRequestPostData = request.PostData;
+        return true;
+      },
+      () => page.GetByRole(AriaRole.Button, new() { Name = "Create scope version", Exact = true }).ClickAsync());
+    Assert.Equal(200, createResponseStatus);
+    using var createRequest = JsonDocument.Parse(createRequestPostData ?? throw new InvalidOperationException("The scope request body was not captured."));
     var createInput = createRequest.RootElement;
     Assert.Equal(seeded.GroupId, createInput.GetProperty("groupId").GetGuid());
     Assert.Equal(periodId, createInput.GetProperty("periodId").GetGuid());
@@ -320,7 +326,7 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
     Assert.Equal(seeded.ScopeId, createInput.GetProperty("supersedesScopeVersionId").GetGuid());
     Assert.Equal(seeded.ComponentId, createInput.GetProperty("supersedesComponentId").GetGuid());
     Assert.Equal(JsonValueKind.Null, createInput.GetProperty("priorScopeVersionId").ValueKind);
-    using var createReceipt = JsonDocument.Parse(await createResponse.TextAsync());
+    using var createReceipt = JsonDocument.Parse(createReceiptBody);
     var newScopeId = createReceipt.RootElement.GetProperty("value").GetGuid();
     var newScopeReadback = await newScopeReadbackTask;
     Assert.Equal(200, newScopeReadback.Status);
