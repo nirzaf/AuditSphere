@@ -451,7 +451,7 @@
         </section>
 
         @if (procedure.procedureSelectedId()) {
-          <section class="panel" aria-labelledby="procedure-command-heading">
+          <section #procedurePanel class="panel" aria-labelledby="procedure-command-heading">
             <h2 id="procedure-command-heading">Procedure execution and review</h2>
             @if (procedure.procedureCommandState(); as state) {
               <p><strong>{{ state.basis.sourceProcedureId }} · {{ state.basis.title }}</strong></p>
@@ -494,7 +494,7 @@
                 }
               }
               @if (state.basis.canSubmit) {
-                <form (submit)="$event.preventDefault(); procedure.prepareProcedureCommand('SUBMIT_RESULT')">
+                <form (submit)="$event.preventDefault(); previewProcedure('SUBMIT_RESULT')">
                   <h3>Record performed work</h3>
                   <label>Work performed <textarea name="procedure-work" [(ngModel)]="procedure.procedureWork" (ngModelChange)="procedure.procedureInputChanged()" maxlength="100000" rows="4" required></textarea></label>
                   <label>Conclusion <textarea name="procedure-conclusion" [(ngModel)]="procedure.procedureConclusion" (ngModelChange)="procedure.procedureInputChanged()" maxlength="20000" rows="3" required></textarea></label>
@@ -520,12 +520,12 @@
                   <label>Decision <select name="procedure-decision" [(ngModel)]="procedure.procedureDecision" (ngModelChange)="procedure.procedureInputChanged()">
                     <option value="REVIEWED">Reviewed</option><option value="CHANGES_REQUIRED">Changes required</option></select></label>
                   <label>Review comment (required when returning) <textarea name="procedure-comment" [(ngModel)]="procedure.procedureComment" (ngModelChange)="procedure.procedureInputChanged()" maxlength="20000" rows="3"></textarea></label>
-                  <button matButton="filled" (click)="procedure.prepareProcedureCommand('REVIEW_RESULT')" [disabled]="fieldworkCommandBlocked() || procedure.procedureCommandBusy() || (procedure.procedureDecision === 'CHANGES_REQUIRED' && !procedure.procedureComment.trim())">Preview exact review</button>
+                  <button matButton="filled" (click)="previewProcedure('REVIEW_RESULT')" [disabled]="fieldworkCommandBlocked() || procedure.procedureCommandBusy() || (procedure.procedureDecision === 'CHANGES_REQUIRED' && !procedure.procedureComment.trim())">Preview exact review</button>
                 </section>
               }
               @if (procedure.procedureCommandPreview(); as preview) {
                 <section class="panel" aria-labelledby="procedure-preview-heading">
-                  <h3 id="procedure-preview-heading">Exact command preview</h3>
+                  <h3 #procedurePreviewHeading id="procedure-preview-heading" tabindex="-1">Exact command preview</h3>
                   <p>{{ preview.action === 'SUBMIT_RESULT' ? 'Submit this exact work and evidence snapshot.' : 'Record this exact independent review.' }}</p>
                   <p>Request SHA-256 <code>{{ preview.requestHash }}</code></p>
                   <p>Basis: definition revision {{ preview.basis.definitionRevision }} · input generation {{ preview.basis.inputGeneration }} · current result revision {{ preview.basis.currentResultRevision }}</p>
@@ -542,7 +542,7 @@
                 <button matButton (click)="procedure.recoverProcedureCommand()" [disabled]="procedure.procedureCommandBusy()">Check original outcome</button>
               }
               @if (procedure.procedureCommandError()) { <p role="alert" class="error-text">{{ procedure.procedureCommandError() }}</p> }
-            } @else if (procedure.procedureCommandBusy()) { <p role="status">Loading exact procedure state…</p> }
+            } @else if (procedure.procedureStateLoading() || procedure.procedureCommandBusy()) { <p role="status">Loading exact procedure state…</p> }
             @else { <p role="alert">{{ procedure.procedureCommandError() || 'Procedure command state is unavailable.' }}</p> }
           </section>
         }

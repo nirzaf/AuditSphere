@@ -23,6 +23,7 @@ export class FieldworkProcedureState {
   readonly procedureCommandReceipt = signal<ReturnType<typeof decodeProcedureCommandReceipt> | null>(null);
   readonly procedureCommandError = signal('');
   readonly procedureCommandBusy = signal(false);
+  readonly procedureStateLoading = signal(false);
   readonly procedureUnknown = signal<PendingProcedureCommand | null>(null);
   private readonly procedureUnknowns = signal<PendingProcedureCommand[]>([]);
   private readonly procedureReceiptStorageProblem = signal<ProcedureReceiptOwner | null>(null);
@@ -85,7 +86,7 @@ export class FieldworkProcedureState {
     this.captureOwner = context.captureOwner; this.destroyRef = context.destroyRef;
     this.destroyRef.onDestroy(() => {
       this.reviewDestroyed = true; ++this.reviewRequest; ++this.selectionGeneration; ++this.commandGeneration; ++this.previewGeneration; ++this.tailoringGeneration;
-      this.review.set(null); this.reviewError.set(''); this.procedureCommandBusy.set(false); this.tailoringBusy.set(false);
+      this.review.set(null); this.reviewError.set(''); this.procedureCommandBusy.set(false); this.procedureStateLoading.set(false); this.tailoringBusy.set(false);
     });
   }
 
@@ -101,7 +102,7 @@ export class FieldworkProcedureState {
     this.e = { procedure: '', upload: '', note: '' };
     this.n = { field: 'WORK_PERFORMED', excerpt: '', body: '', reply: '' };
     this.procedureSelectedLinks.clear(); this.procedureSelectedPhysical.clear();
-    this.procedureCommandBusy.set(false); this.tailoringBusy.set(false);
+    this.procedureCommandBusy.set(false); this.procedureStateLoading.set(false); this.tailoringBusy.set(false);
     this.selectedProgramVersionId.set('');
     if (!this.tailoringPending()) {
       this.tailoringProcedureId.set(''); this.tailoringTitle = ''; this.tailoringWording = ''; this.tailoringRationale = '';
@@ -355,6 +356,7 @@ export class FieldworkProcedureState {
         this.procedureSelectedId.set(''); this.procedureCommandState.set(null); this.procedureCommandPreview.set(null);
         this.procedureCommandReceipt.set(null); this.procedurePendingRequest = null; this.procedureAssent = false; this.procedureCommandError.set('');
         this.procedureCommandBusy.set(false);
+        this.procedureStateLoading.set(false);
       }
       this.procedureSelectedLinks.clear(); this.procedureSelectedPhysical.clear();
     }
@@ -441,11 +443,15 @@ export class FieldworkProcedureState {
   }
   private async loadProcedureCommandState(procedureId: string, generation = this.selectionGeneration): Promise<void> {
     const owner = this.captureOwner();
+    const current = () => owner() && generation === this.selectionGeneration && this.procedureSelectedId() === procedureId;
+    this.procedureStateLoading.set(true);
     try {
       const state = await this.api.get(`/api/ui/procedures/${procedureId}/commands/state`, decodeProcedureCommandState);
-      if (owner() && generation === this.selectionGeneration && this.procedureSelectedId() === procedureId) this.procedureCommandState.set(state);
+      if (current()) this.procedureCommandState.set(state);
     } catch (e) {
-      if (owner() && generation === this.selectionGeneration && this.procedureSelectedId() === procedureId) this.procedureCommandError.set((e as Error).message);
+      if (current()) this.procedureCommandError.set((e as Error).message);
+    } finally {
+      if (current()) this.procedureStateLoading.set(false);
     }
   }
   private procedureEvidenceSelections(): unknown[] {

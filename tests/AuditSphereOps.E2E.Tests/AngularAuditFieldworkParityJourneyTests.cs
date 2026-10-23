@@ -299,6 +299,63 @@ public sealed class AngularAuditFieldworkParityJourneyTests
         await page.UnrouteAsync("**/sampling/preview");
       }
     }
+    var stateReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var stateRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    await page.RouteAsync("**/commands/state", async route =>
+    {
+      stateReached.TrySetResult();
+      await stateRelease.Task;
+      await route.ContinueAsync();
+    });
+    var procedurePanel = page.GetByRole(AriaRole.Region, new() { Name = "Procedure execution and review", Exact = true });
+    try
+    {
+      await procedureRow.GetByRole(AriaRole.Button, new() { Name = "Open procedure", Exact = true }).PressAsync("Enter");
+      await stateReached.Task.WaitAsync(TimeSpan.FromSeconds(20));
+      await Assertions.Expect(procedurePanel.GetByRole(AriaRole.Status)).ToHaveTextAsync("Loading exact procedure state…");
+      await Assertions.Expect(procedurePanel.GetByRole(AriaRole.Alert)).ToHaveCountAsync(0);
+    }
+    finally
+    {
+      stateRelease.TrySetResult();
+      await page.UnrouteAsync("**/commands/state");
+    }
+    var procedureWork = procedurePanel.GetByLabel("Work performed", new() { Exact = true });
+    await procedureWork.FillAsync("Synthetic accessibility preview only; no procedure result is recorded.");
+    await procedurePanel.GetByLabel("Conclusion", new() { Exact = true }).FillAsync("Synthetic keyboard inspection.");
+    await procedurePanel.GetByLabel("Manual reference", new() { Exact = true }).FillAsync("SYN-A11Y-PREVIEW");
+    await procedurePanel.GetByLabel("What was observed", new() { Exact = true }).FillAsync("Disposable synthetic fixture only.");
+    var procedurePreview = procedurePanel.GetByRole(AriaRole.Button, new() { Name = "Preview exact submission", Exact = true });
+    await procedurePreview.PressAsync("Enter");
+    await Assertions.Expect(procedurePanel.GetByRole(AriaRole.Heading, new() { Name = "Exact command preview", Exact = true })).ToBeFocusedAsync();
+    await Assertions.Expect(procedurePanel.GetByRole(AriaRole.Button, new() { Name = "Record exact outcome", Exact = true })).ToBeDisabledAsync();
+    await Assertions.Expect(procedurePanel.GetByRole(AriaRole.Checkbox)).Not.ToBeCheckedAsync();
+
+    var previewReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var previewRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    await page.RouteAsync("**/commands/preview", async route =>
+    {
+      previewReached.TrySetResult();
+      await previewRelease.Task;
+      await route.ContinueAsync();
+    });
+    try
+    {
+      await procedureWork.FillAsync("Updated synthetic preview only.");
+      await procedurePreview.PressAsync("Enter");
+      await previewReached.Task.WaitAsync(TimeSpan.FromSeconds(20));
+      var portfolio = page.GetByRole(AriaRole.Navigation, new() { Name = "Breadcrumb", Exact = true })
+        .GetByRole(AriaRole.Link, new() { Name = "Portfolio", Exact = true });
+      await portfolio.FocusAsync();
+      previewRelease.TrySetResult();
+      await Assertions.Expect(procedurePanel.GetByRole(AriaRole.Heading, new() { Name = "Exact command preview", Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(portfolio).ToBeFocusedAsync();
+    }
+    finally
+    {
+      previewRelease.TrySetResult();
+      await page.UnrouteAsync("**/commands/preview");
+    }
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, fieldworkPath, "fieldwork-populated-accessibility");
     Assert.Empty(errors);
   }

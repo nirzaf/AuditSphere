@@ -30,6 +30,8 @@ export class AuditFieldwork {
   private readonly samplingPreviewTrigger = viewChild<unknown, ElementRef<HTMLButtonElement>>('samplingPreviewTrigger', { read: ElementRef });
   private readonly renderInjector = inject(Injector);
   private readonly samplingPreviewHeading = viewChild<ElementRef<HTMLElement>>('samplingPreviewHeading');
+  private readonly procedurePanel = viewChild<ElementRef<HTMLElement>>('procedurePanel');
+  private readonly procedurePreviewHeading = viewChild<ElementRef<HTMLElement>>('procedurePreviewHeading');
   private focusInteraction = 0;
   readonly id = routeGuid();
   readonly statementFocus = { line: this.route.snapshot?.queryParamMap.get('line') ?? null, area: this.route.snapshot?.queryParamMap.get('area') ?? null };
@@ -142,6 +144,22 @@ export class AuditFieldwork {
           this.sampling.samplingPreview() !== preview || !this.sampling.previewMatchesInputs() ||
           (document.activeElement !== origin && document.activeElement !== document.body)) return;
       this.samplingPreviewHeading()?.nativeElement.focus();
+    }, { injector: this.renderInjector });
+  }
+
+  async previewProcedure(action: 'SUBMIT_RESULT' | 'REVIEW_RESULT'): Promise<void> {
+    const panel = this.procedurePanel()?.nativeElement;
+    const document = panel?.ownerDocument, origin = document?.activeElement;
+    const ownsFocus = !!origin && !!panel?.contains(origin);
+    const interaction = this.focusInteraction, current = this.captureOwner();
+    await this.procedure.prepareProcedureCommand(action);
+    const preview = this.procedure.procedureCommandPreview();
+    if (!document || !ownsFocus || !preview) return;
+    afterNextRender(() => {
+      if (!current() || interaction !== this.focusInteraction ||
+          this.procedure.procedureCommandPreview() !== preview ||
+          (document.activeElement !== origin && document.activeElement !== document.body)) return;
+      this.procedurePreviewHeading()?.nativeElement.focus();
     }, { injector: this.renderInjector });
   }
 
