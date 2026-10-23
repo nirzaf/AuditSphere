@@ -33,6 +33,14 @@ CAPTURE_SPEC.loader.exec_module(capture)
 
 
 class OperationalScanCaptureTests(unittest.TestCase):
+    def test_gitleaks_capture_uses_documented_stdout_without_a_device_file(self) -> None:
+        # Gitleaks documents '-' as stdout; opening /dev/stdout fails on macOS pipes.
+        argv = capture.VERIFY.SCAN_ARGV["gitleaks"]
+        self.assertEqual("-", argv[argv.index("--report-path") + 1])
+        self.assertIn("--redact=100", argv)
+        self.assertEqual("json", argv[argv.index("--report-format") + 1])
+        self.assertEqual(verify.SCAN_ARGV["gitleaks"], argv)
+
     @unittest.skipUnless(os.name == "posix", "capture process-group checks require POSIX")
     def test_output_limits_and_timeout_reap_scanner_processes(self) -> None:
         original_popen = subprocess.Popen

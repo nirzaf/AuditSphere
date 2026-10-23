@@ -64,7 +64,7 @@ SCAN_ARGV = {
     "npm": ["npm", "audit", "--json"],
     "gitleaks": [
         "gitleaks", "git", "--redact=100", "--report-format", "json",
-        "--report-path", "/dev/stdout",
+        "--report-path", "-",
     ],
 }
 SCAN_WORKING_DIRECTORIES = {"nuget": ".", "npm": "src/AuditSphereOps.Ui", "gitleaks": "."}
