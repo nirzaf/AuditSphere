@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Domain.Accounting;
@@ -9,6 +11,8 @@ using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace AuditSphereOps.Api.Tests;
 
@@ -62,7 +66,7 @@ public sealed class PortalActionCenterApiTests
     Assert.False(workspace.HasMorePackages);
 
     using var reply = await Post(client, csrf, $"/api/ui/portal/requests/{requestId}/reply",
-      new { Body = "The clarified item is ready for review." });
+      new { RequestId = Guid.CreateVersion7(), Body = "The clarified item is ready for review." });
     Assert.Equal(HttpStatusCode.OK, reply.StatusCode);
     using (var resubmittedResponse = await client.GetAsync("/api/ui/portal?page=0&pageSize=50"))
     {
@@ -112,6 +116,160 @@ public sealed class PortalActionCenterApiTests
     await using var afterRead = new AuditSphereDbContext(pg.Options);
     Assert.Equal(revision, await afterRead.PbcRequests.Where(x => x.Id == requestId).Select(x => x.Revision).SingleAsync());
     Assert.Empty(await afterRead.PbcUploadIntents.Where(x => x.PbcRequestId == requestId).ToListAsync());
+  }
+
+  [Fact]
+  public async Task PortalReplyReceiptReplaysAfterCloseAndRechecksCurrentParticipantAuthority()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-PORTAL-REPLY-RECEIPT");
+    var f = await PbcSeed.SeedAsync(pg);
+    var actor = PbcSeed.Actor(f.Client, "ClientUser");
+    var requestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, f, PbcSeed.Actor(f.Staff, "Staff"), actor);
+    var otherRequestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, f, PbcSeed.Actor(f.Staff, "Staff"), actor);
+    using var factory = Factory(pg, f.Client);
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    var csrf = await SignIn(client);
+    var operationId = Guid.CreateVersion7();
+    const string canonicalBody = "Exact recovery reply";
+    var expectedHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalBody))).ToLowerInvariant();
+
+    using (var absent = await client.GetAsync($"/api/ui/portal/requests/{requestId}/reply-receipts/{operationId}"))
+    {
+      Assert.Equal(HttpStatusCode.OK, absent.StatusCode);
+      using var absentJson = JsonDocument.Parse(await absent.Content.ReadAsStringAsync());
+      Assert.Equal(JsonValueKind.Null, absentJson.RootElement.ValueKind);
+    }
+
+    using var first = await Post(client, csrf, $"/api/ui/portal/requests/{requestId}/reply",
+      new { RequestId = operationId, Body = $"  {canonicalBody}  " });
+    Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+    using var firstJson = JsonDocument.Parse(await first.Content.ReadAsStringAsync());
+    var firstReceipt = firstJson.RootElement.GetProperty("value");
+    Assert.Equal(operationId, firstReceipt.GetProperty("requestId").GetGuid());
+    Assert.Equal(requestId, firstReceipt.GetProperty("pbcRequestId").GetGuid());
+    Assert.Equal(expectedHash, firstReceipt.GetProperty("bodySha256").GetString());
+    var communicationId = firstReceipt.GetProperty("communicationId").GetGuid();
+
+    using var replay = await Post(client, csrf, $"/api/ui/portal/requests/{requestId}/reply",
+      new { RequestId = operationId, Body = canonicalBody });
+    Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+    using (var replayJson = JsonDocument.Parse(await replay.Content.ReadAsStringAsync()))
+      Assert.Equal(communicationId, replayJson.RootElement.GetProperty("value").GetProperty("communicationId").GetGuid());
+
+    using var changedBody = await Post(client, csrf, $"/api/ui/portal/requests/{requestId}/reply",
+      new { RequestId = operationId, Body = "Different reply" });
+    Assert.Equal(HttpStatusCode.Conflict, changedBody.StatusCode);
+    using var changedTarget = await Post(client, csrf, $"/api/ui/portal/requests/{otherRequestId}/reply",
+      new { RequestId = operationId, Body = canonicalBody });
+    Assert.Equal(HttpStatusCode.Conflict, changedTarget.StatusCode);
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      await db.PbcRequests.Where(x => x.Id == requestId).ExecuteUpdateAsync(s => s.SetProperty(x => x.State, PbcStates.Closed));
+    using (var recovered = await client.GetAsync($"/api/ui/portal/requests/{requestId}/reply-receipts/{operationId}"))
+    {
+      Assert.Equal(HttpStatusCode.OK, recovered.StatusCode);
+      using var recoveredJson = JsonDocument.Parse(await recovered.Content.ReadAsStringAsync());
+      Assert.Equal(communicationId, recoveredJson.RootElement.GetProperty("communicationId").GetGuid());
+      Assert.Equal(expectedHash, recoveredJson.RootElement.GetProperty("bodySha256").GetString());
+    }
+    using (var closedReplay = await Post(client, csrf, $"/api/ui/portal/requests/{requestId}/reply",
+      new { RequestId = operationId, Body = canonicalBody }))
+    {
+      Assert.Equal(HttpStatusCode.OK, closedReplay.StatusCode);
+      using var closedJson = JsonDocument.Parse(await closedReplay.Content.ReadAsStringAsync());
+      Assert.Equal(communicationId, closedJson.RootElement.GetProperty("value").GetProperty("communicationId").GetGuid());
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      await db.RoleGrants.Where(x => x.FirmId == f.FirmId && x.UserId == f.Client.Id && x.Role == "ClientUser")
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+    using var deniedRead = await client.GetAsync($"/api/ui/portal/requests/{requestId}/reply-receipts/{operationId}");
+    Assert.Equal(HttpStatusCode.Forbidden, deniedRead.StatusCode);
+    using var deniedReplay = await Post(client, csrf, $"/api/ui/portal/requests/{requestId}/reply",
+      new { RequestId = operationId, Body = canonicalBody });
+    Assert.Equal(HttpStatusCode.Forbidden, deniedReplay.StatusCode);
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var persisted = await verify.PbcCommunications.AsNoTracking().SingleAsync(x => x.Id == communicationId);
+    Assert.Equal(canonicalBody, persisted.Body);
+    Assert.Equal(operationId, persisted.ClientRequestId);
+    Assert.Equal(expectedHash, persisted.ClientRequestSha256);
+    Assert.Equal(1, await verify.PbcCommunications.CountAsync(x => x.FirmId == f.FirmId &&
+      x.AuthorUserId == f.Client.Id && x.ClientRequestId == operationId));
+
+    var migrations = verify.Database.GetMigrations().ToArray();
+    var receiptMigration = Assert.Single(migrations, x => x.EndsWith("_PbcReplyReceipts", StringComparison.Ordinal));
+    var receiptMigrationIndex = Array.IndexOf(migrations, receiptMigration);
+    Assert.True(receiptMigrationIndex > 0);
+    var downgradeFailure = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+      verify.GetService<IMigrator>().MigrateAsync(migrations[receiptMigrationIndex - 1]));
+    var downgradeRefusal = Assert.IsType<Npgsql.PostgresException>(downgradeFailure.InnerException);
+    Assert.Equal("55000", downgradeRefusal.SqlState);
+    Assert.Equal(1, await verify.PbcCommunications.CountAsync(x => x.Id == communicationId));
+
+    var invalidPairs = new (Guid? RequestId, string? Hash)[]
+    {
+      (Guid.CreateVersion7(), null),
+      (null, new string('a', 64)),
+      (Guid.Empty, new string('a', 64)),
+    };
+    foreach (var (requestKey, hash) in invalidPairs)
+    {
+      await using var invalidPair = new AuditSphereDbContext(pg.Options);
+      invalidPair.PbcCommunications.Add(new PbcCommunication
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        PbcRequestId = requestId, AuthorUserId = f.Client.Id, Kind = PbcCommunicationKinds.ClientMessage,
+        Body = "Invalid idempotency pair", ClientRequestId = requestKey, ClientRequestSha256 = hash,
+        CreatedAt = DateTimeOffset.UtcNow,
+      });
+      var checkFailure = await Assert.ThrowsAsync<DbUpdateException>(() => invalidPair.SaveChangesAsync());
+      var checkViolation = Assert.IsType<Npgsql.PostgresException>(checkFailure.InnerException);
+      Assert.Equal("23514", checkViolation.SqlState);
+      Assert.Equal("ck_pbc_communication_values", checkViolation.ConstraintName);
+    }
+  }
+
+  [Fact]
+  public async Task PortalReplyReceiptMigrationPreservesHistoryAndAllowsEmptyDowngradeAndReapply()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-PORTAL-REPLY-MIGRATION");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await db.PbcCommunications.AsNoTracking().ToListAsync());
+
+    var migrations = db.Database.GetMigrations().ToArray();
+    var receiptMigration = Assert.Single(migrations, x => x.EndsWith("_PbcReplyReceipts", StringComparison.Ordinal));
+    var receiptMigrationIndex = Array.IndexOf(migrations, receiptMigration);
+    Assert.True(receiptMigrationIndex > 0);
+    var migrator = db.GetService<IMigrator>();
+    var previousMigration = migrations[receiptMigrationIndex - 1];
+
+    await migrator.MigrateAsync(previousMigration);
+    await migrator.MigrateAsync(receiptMigration);
+
+    Assert.Contains(receiptMigration, await db.Database.GetAppliedMigrationsAsync());
+    Assert.Empty(await db.PbcCommunications.AsNoTracking().ToListAsync());
+
+    var f = await PbcSeed.SeedAsync(pg);
+    var requestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, f,
+      PbcSeed.Actor(f.Staff, "Staff"), PbcSeed.Actor(f.Client, "ClientUser"));
+    var legacyActionId = Guid.CreateVersion7();
+    await using (var write = new AuditSphereDbContext(pg.Options))
+    {
+      write.PbcCommunications.Add(new PbcCommunication
+      {
+        Id = legacyActionId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        PbcRequestId = requestId, AuthorUserId = f.Client.Id, Kind = PbcCommunicationKinds.ClientAction,
+        Body = "Retained legacy action", CreatedAt = DateTimeOffset.UtcNow,
+      });
+      await write.SaveChangesAsync();
+    }
+
+    await migrator.MigrateAsync(previousMigration);
+    await migrator.MigrateAsync(receiptMigration);
+
+    var retainedAction = await db.PbcCommunications.AsNoTracking().SingleAsync(x => x.Id == legacyActionId);
+    Assert.Equal("Retained legacy action", retainedAction.Body);
   }
 
   [Fact]

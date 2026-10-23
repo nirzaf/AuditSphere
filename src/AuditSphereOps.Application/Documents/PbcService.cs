@@ -77,7 +77,7 @@ public sealed record PbcDownload(string FileName, string ContentType, long ByteC
 /// Local PBC and upload boundary. It records bounded transfer intent/chunk receipts
 /// and never marks evidence received until a trusted completion boundary verifies it.
 /// </summary>
-public static class PbcService
+public static partial class PbcService
 {
   private sealed record VerifiedPbcSubmission(PbcUploadIntent Upload, DurableOperation Operation,
     DateTimeOffset ProviderRegisteredAt);
@@ -315,51 +315,6 @@ public static class PbcService
     {
       request.State = PbcStates.ClarificationRequired;
       request.ClarificationReason = body;
-      request.Revision++;
-      request.UpdatedAt = now;
-    }
-    await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
-    return CommandResult.Ok();
-  }
-
-  public static async Task<CommandResult> ReplyAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid requestId, string body,
-    CancellationToken ct = default)
-  {
-    body = body.Trim();
-    if (requestId == Guid.Empty || body.Length is 0 or > 4000)
-      return CommandResult.Fail("pbc.message.invalid", "A message of up to 4,000 characters is required.");
-    var current = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.Id == requestId && x.FirmId == actor.FirmId, ct);
-    if (current is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await AuthorizeClientAsync(db, actor, current, ct);
-    if (!auth.Succeeded) return auth;
-    if (current.State is PbcStates.Draft or PbcStates.Accepted or PbcStates.Closed)
-      return CommandResult.Fail("pbc.message-state", "This request is not open for replies.");
-
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
-    // Same firm/client/engagement lock order as final release: a client reply cannot cross the release commit.
-    _ = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-    _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {current.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-    _ = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {current.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-    var request = await db.PbcRequests.FromSqlInterpolated($"""
-      SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {requestId} FOR UPDATE
-      """).SingleAsync(ct);
-    await db.PbcRequests.Attach(request).ReloadAsync(ct);
-    if (request.ClientId != current.ClientId || request.EngagementId != current.EngagementId)
-      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    auth = await AuthorizeClientAsync(db, actor, request, ct);
-    if (!auth.Succeeded) return auth;
-    var window = await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct);
-    if (!window.Succeeded) return window;
-    if (request.State is PbcStates.Draft or PbcStates.Accepted or PbcStates.Closed)
-      return CommandResult.Fail("pbc.message-state", "This request is not open for replies.");
-    var now = DateTimeOffset.UtcNow;
-    db.PbcCommunications.Add(Message(request, actor.UserId, PbcCommunicationKinds.ClientMessage, body, now));
-    if (request.State == PbcStates.ClarificationRequired)
-    {
-      request.State = PbcStates.Resubmitted;
       request.Revision++;
       request.UpdatedAt = now;
     }

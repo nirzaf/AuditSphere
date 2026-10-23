@@ -15,7 +15,7 @@ namespace AuditSphereOps.Api.Ui;
 public static partial class UiEndpoints
 {
   public sealed record PortalFirstSignInInput(bool Acknowledged);
-  public sealed record PortalReplyInput(string Body);
+  public sealed record PortalReplyInput(Guid RequestId, string Body);
   public sealed record PortalDocumentCommentInput(Guid RequestId, string Body);
   public sealed record PortalDelegateInput(Guid UserId);
   public sealed record PortalUploadInput(string FileName, string ContentType, string ByteCount, string Sha256);
@@ -201,8 +201,11 @@ public static partial class UiEndpoints
       (db, actor, ct) => ClientPortalService.CompleteFirstSignInAsync(db, actor, i.Acknowledged, ct)))
       .WithUiResponse<UiValueResponse<bool>>();
     group.MapPost("/portal/requests/{id:guid}/reply", (Guid id, PortalReplyInput i, HttpContext http) => CommandAsync(http,
-      (db, actor, ct) => PbcService.ReplyAsync(db, actor, id, i.Body ?? "", ct)))
-      .WithUiResponse<UiValueResponse<bool>>();
+      (db, actor, ct) => PbcService.ReplyAsync(db, actor, id, i.RequestId, i.Body ?? "", ct)))
+      .WithUiResponse<UiValueResponse<PbcReplyReceipt>>(includeConflict: true);
+    group.MapGet("/portal/requests/{id:guid}/reply-receipts/{requestId:guid}", (Guid id, Guid requestId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => PbcService.GetReplyReceiptAsync(db, actor, id, requestId, ct)))
+      .WithUiResponse<PbcReplyReceipt?>(includeConflict: true);
     group.MapPost("/portal/requests/{id:guid}/delegations", (Guid id, PortalDelegateInput i, HttpContext http) => CommandAsync(http,
       (db, actor, ct) => ClientPortalService.DelegateRequestAsync(db, actor, id, i.UserId, ct)))
       .WithUiResponse<UiValueResponse<Guid>>();

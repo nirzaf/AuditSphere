@@ -1,10 +1,10 @@
 import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators, type ValidatorFn } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Api, routeGuid, UNKNOWN_OUTCOME } from '../../core/api';
-import { decode, guid, nat, obj, sha256, text } from '../../core/decode';
+import { decode, guid, nat, nullable, obj, sha256, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { clientUtcTime } from '../clients/client-contracts';
@@ -13,11 +13,28 @@ import { clientRequestStatusLabel, portalRequest, portalRequestHistory } from '.
 const startReceipt = obj({ uploadIntentId: guid, pbcRequestId: guid, receivedByteCount: nat, capability: sha256 });
 const resumeReceipt = obj({ uploadIntentId: guid, pbcRequestId: guid, state: text, receivedByteCount: nat,
   nextChunkIndex: nat, capability: sha256 });
+const replyReceipt = obj({ requestId: guid, pbcRequestId: guid, communicationId: guid, bodySha256: sha256 });
+const nullableReplyReceipt = nullable(replyReceipt);
+const savedReplyOperation = obj({ requestId: guid, bodySha256: sha256 });
+type SavedReplyOperation = ReturnType<typeof savedReplyOperation>;
+type ReplyRecoveryState = 'none' | 'checking' | 'absent' | 'unknown' | 'confirmed' | 'unavailable' | 'conflict' | 'sending';
 type PortalUploadRow = { id: string; fileName: string; receivedByteCount: string; declaredByteCount: string; state: string; sha256: string };
 const MAX_FILE = 250 * 1024 * 1024;
 const CHUNK = 8 * 1024 * 1024;
+// Match .NET char.IsWhiteSpace/string.Trim; JavaScript trim omits U+0085 and includes U+FEFF.
+const serverWhitespaceCharacter = /[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/;
+const trimServerWhitespace = (value: string): string => {
+  let start = 0;
+  let end = value.length;
+  while (start < end && serverWhitespaceCharacter.test(value.charAt(start))) start++;
+  while (end > start && serverWhitespaceCharacter.test(value.charAt(end - 1))) end--;
+  return value.slice(start, end);
+};
+const replyBodyRequiredAfterTrim: ValidatorFn = control =>
+  trimServerWhitespace(typeof control.value === 'string' ? control.value : '').length > 0 ? null : { required: true };
 const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
   Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), b => b.toString(16).padStart(2, '0')).join('');
+const fingerprintText = (value: string): Promise<string> => fingerprint(new TextEncoder().encode(value).buffer as ArrayBuffer);
 
 @Component({ selector: 'audit-client-request', imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatProgressBarModule, ...SHARED],
   template: `
@@ -114,12 +131,43 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
             <button matButton (click)="nextConversationPage(h.hasMoreConversation)" [disabled]="!h.hasMoreConversation || history.loading()">Next messages</button>
           </nav>
         }
+        @if (replyRecoveryBlocked()) {
+          <aside class="panel reply-recovery" role="alert">
+            <h3>Reply recovery needs attention</h3>
+            <p>The saved recovery details could not be read. No new reply was sent. Keep this request open and contact the audit team before trying again.</p>
+          </aside>
+        }
+        @if (replyPending(); as pending) {
+          <aside class="panel reply-recovery" aria-labelledby="reply-recovery-heading">
+            <h3 id="reply-recovery-heading">Reply delivery recovery</h3>
+            @switch (replyRecovery()) {
+              @case ('checking') { <p role="status">Checking the saved reply receipt…</p> }
+              @case ('sending') { <p role="status">Sending this reply with its saved operation key…</p> }
+              @case ('absent') {
+                <p role="status">No receipt is currently recorded for this operation. You may re-enter the exact reply text to retry with the same key.</p>
+                @if (w.canReply && replyTextSha256() && replyTextSha256() !== pending.bodySha256) {
+                  <p role="status">The entered text does not match the saved reply fingerprint, so retry is disabled.</p>
+                }
+                @if (!w.canReply) { <p>The request is not open for replies, so the saved operation remains fenced.</p> }
+              }
+              @case ('unavailable') { <p role="alert">Receipt lookup failed. The saved reply remains fenced; check again after access is available.</p> }
+              @case ('conflict') { <p role="alert">The saved operation does not match the returned receipt. Do not send another reply with a new key.</p> }
+              @case ('confirmed') { <p role="status">The saved reply receipt has been confirmed.</p> }
+              @default { <p role="status">The reply outcome is not confirmed. Check its saved receipt before trying again.</p> }
+            }
+            <dl class="acceptance-details">
+              <div><dt>Operation key</dt><dd><code>{{ pending.requestId }}</code></dd></div>
+              <div><dt>Reply SHA-256</dt><dd><code>{{ pending.bodySha256 }}</code></dd></div>
+            </dl>
+            <button matButton (click)="reconcileReplyReceipt()" [disabled]="busy() || replyChecking()">Check saved reply receipt</button>
+          </aside>
+        }
         @if (w.canReply) { <form [formGroup]="reply" (ngSubmit)="sendReply()">
           @let replyInvalid = reply.controls.body.touched && reply.controls.body.invalid;
           <label for="portal-reply">Reply to the audit team</label><textarea id="portal-reply" formControlName="body" maxlength="4000"
             [attr.aria-invalid]="replyInvalid ? 'true' : null" [attr.aria-describedby]="replyInvalid ? 'portal-reply-error' : null"></textarea>
           @if (replyInvalid) { <p id="portal-reply-error" role="alert">Enter a reply of up to 4000 characters.</p> }
-          <button matButton="filled" [disabled]="reply.invalid || busy() || uncertain()">Send reply</button>
+          <button matButton="filled" [disabled]="reply.invalid || busy() || replyChecking() || (uncertain() && !canRetryReply())">{{ replyPending() ? 'Retry saved reply' : 'Send reply' }}</button>
         </form> }
       </section>
       @if (requestHistory(); as h) {
@@ -140,7 +188,7 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
       </section>
       }
     }
-  `, styles: `input[type=file], button, select { min-height: 44px; } textarea { width: 100%; min-height: 7rem; } .fingerprint { overflow-wrap: anywhere; } .acceptance-evidence { min-width: 0; } .acceptance-details { display: grid; gap: .6rem; margin-block: .75rem; min-width: 0; } .acceptance-details > div { display: grid; grid-template-columns: minmax(9rem, .7fr) minmax(0, 1.3fr); gap: .5rem 1rem; min-width: 0; } .acceptance-details dt { font-weight: 600; } .acceptance-details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; } .acceptance-details code { white-space: normal; overflow-wrap: anywhere; } .conversation { padding-left: 1.25rem; overflow-wrap: anywhere; } .history-pages { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-block: .75rem; } time { display: block; font-size: .875rem; } .receipt { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } .drop-zone { border: 2px dashed var(--mat-sys-outline-variant); border-radius: 8px; padding: 1.25rem 1rem; text-align: center; margin-block: .75rem; cursor: pointer; display: grid; gap: .35rem; } .drop-zone:focus-visible, .drop-zone-active { border-color: var(--mat-sys-primary); background: color-mix(in srgb, var(--mat-sys-primary) 6%, transparent); outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; } .drop-zone-choose { color: var(--mat-sys-primary); text-decoration: underline; } .drop-zone-disabled { cursor: not-allowed; opacity: .65; } @media (max-width: 40rem) { .acceptance-details > div { grid-template-columns: minmax(0, 1fr); gap: .15rem; } }`
+  `, styles: `input[type=file], button, select { min-height: 44px; } textarea { width: 100%; min-height: 7rem; } .fingerprint { overflow-wrap: anywhere; } .acceptance-evidence { min-width: 0; } .acceptance-details { display: grid; gap: .6rem; margin-block: .75rem; min-width: 0; } .acceptance-details > div { display: grid; grid-template-columns: minmax(9rem, .7fr) minmax(0, 1.3fr); gap: .5rem 1rem; min-width: 0; } .acceptance-details dt { font-weight: 600; } .acceptance-details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; } .acceptance-details code { white-space: normal; overflow-wrap: anywhere; } .conversation { padding-left: 1.25rem; overflow-wrap: anywhere; } .history-pages { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-block: .75rem; } .reply-recovery { margin-block: .75rem; } time { display: block; font-size: .875rem; } .receipt { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } .drop-zone { border: 2px dashed var(--mat-sys-outline-variant); border-radius: 8px; padding: 1.25rem 1rem; text-align: center; margin-block: .75rem; cursor: pointer; display: grid; gap: .35rem; } .drop-zone:focus-visible, .drop-zone-active { border-color: var(--mat-sys-primary); background: color-mix(in srgb, var(--mat-sys-primary) 6%, transparent); outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; } .drop-zone-choose { color: var(--mat-sys-primary); text-decoration: underline; } .drop-zone-disabled { cursor: not-allowed; opacity: .65; } @media (max-width: 40rem) { .acceptance-details > div { grid-template-columns: minmax(0, 1fr); gap: .15rem; } }`
 })
 export class ClientPbcRequest {
   private readonly api = inject(Api); private readonly session = inject(SessionService);
@@ -152,8 +200,13 @@ export class ClientPbcRequest {
     ? `/api/ui/portal/requests/${this.id()}/history?uploadPage=${this.uploadPage()}&conversationPage=${this.conversationPage()}&pageSize=25`
     : null, portalRequestHistory, 'This request history is unavailable in your current access scope.');
   private readonly fb = inject(FormBuilder);
-  readonly reply = this.fb.nonNullable.group({ body: ['', [Validators.required, Validators.maxLength(4000), Validators.pattern(/\S/)]] });
+  readonly reply = this.fb.nonNullable.group({ body: ['', [replyBodyRequiredAfterTrim, Validators.maxLength(4000)]] });
   readonly delegation = this.fb.nonNullable.group({ userId: ['', Validators.required] });
+  readonly replyPending = signal<SavedReplyOperation | null>(null);
+  readonly replyRecovery = signal<ReplyRecoveryState>('none');
+  readonly replyChecking = signal(false);
+  readonly replyRecoveryBlocked = signal(false);
+  readonly replyTextSha256 = signal('');
   readonly file = signal<File | null>(null); readonly hash = signal(''); readonly sent = signal(0);
   readonly dragOver = signal(false);
   readonly busy = signal(false); readonly uncertain = signal(false); readonly uploadUncertain = signal(false);
@@ -161,8 +214,21 @@ export class ClientPbcRequest {
   private abort = new AbortController(); private selection = 0;
   private lastRequestId: string | null = null;
   private lastDraftContext: { identity: string; authorization: string } | null = null;
+  private replyStorageScope: string | null = null;
+  private replyReceiptLookupStarted = '';
+  private replyTextHashSequence = 0;
   statusLabel(state: string): string { return clientRequestStatusLabel(state); }
   constructor() {
+    const destroyRef = inject(DestroyRef);
+    const replyHashSubscription = this.reply.controls.body.valueChanges.subscribe(value => {
+      const sequence = ++this.replyTextHashSequence;
+      const canonical = trimServerWhitespace(value);
+      if (!canonical) { this.replyTextSha256.set(''); return; }
+      void fingerprintText(canonical).then(hash => {
+        if (sequence === this.replyTextHashSequence) this.replyTextSha256.set(hash);
+      }).catch(() => { if (sequence === this.replyTextHashSequence) this.replyTextSha256.set(''); });
+    });
+    destroyRef.onDestroy(() => replyHashSubscription.unsubscribe());
     effect(() => {
       const requestId = this.id();
       if (requestId !== this.lastRequestId) {
@@ -199,23 +265,133 @@ export class ClientPbcRequest {
       }
       this.lastDraftContext = { identity, authorization };
     });
+    effect(() => {
+      const requestId = this.id();
+      this.session.invalidation();
+      const actor = this.session.current();
+      const scope = actor && requestId
+        ? `${actor.firmId}:${actor.userId}:${actor.generation}:${requestId}` : null;
+      if (scope !== this.replyStorageScope) {
+        this.replyStorageScope = scope;
+        this.replyReceiptLookupStarted = '';
+        this.replyPending.set(null);
+        this.replyRecovery.set('none');
+        this.replyRecoveryBlocked.set(false);
+        if (!scope) {
+          this.uncertain.set(false);
+        } else {
+          try {
+            const raw = sessionStorage.getItem(this.replyStorageKey(scope));
+            if (raw !== null) {
+              const saved = decode(savedReplyOperation, JSON.parse(raw));
+              this.replyPending.set({ requestId: saved.requestId.toLowerCase(), bodySha256: saved.bodySha256.toLowerCase() });
+              this.replyRecovery.set('checking');
+              this.uncertain.set(true);
+            } else this.uncertain.set(false);
+          } catch {
+            this.replyRecoveryBlocked.set(true);
+            this.replyRecovery.set('unavailable');
+            this.uncertain.set(true);
+          }
+        }
+      }
+
+      const pending = this.replyPending();
+      const workspace = this.ws.data();
+      if (scope && pending && this.replyRecovery() === 'checking' && this.replyReceiptLookupStarted !== scope &&
+          workspace?.id === requestId && !this.ws.loading() && !this.ws.error()) {
+        this.replyReceiptLookupStarted = scope;
+        void this.lookupReplyReceipt(scope, pending);
+      }
+    });
     const interval = setInterval(() => {
       if (!this.busy() && !this.ws.loading() && this.session.current()) {
         this.ws.reload();
       }
     }, 30_000);
-    inject(DestroyRef).onDestroy(() => { this.abort.abort(); clearInterval(interval); });
+    destroyRef.onDestroy(() => { this.abort.abort(); clearInterval(interval); });
   }
   private clearDrafts(): void {
     this.abort.abort(); this.abort = new AbortController(); this.selection++;
     this.file.set(null); this.hash.set(''); this.sent.set(0); this.dragOver.set(false);
     this.reply.reset(); this.delegation.reset();
-    this.uploadUncertain.set(false); this.uncertain.set(false);
+    this.uploadUncertain.set(false); this.uncertain.set(!!this.replyPending());
   }
   private currentWorkspace(): { id: string; canUpload: boolean; canReply: boolean; canManageDelegations: boolean; canDelegate: boolean; firstSignIn: { completed: boolean } } | null {
     const workspace = this.ws.data();
     return this.session.current() && !this.ws.error() && !this.history.error() && !this.ws.loading() && workspace?.id === this.id()
       ? workspace : null;
+  }
+  canRetryReply(): boolean {
+    const pending = this.replyPending();
+    return !!pending && this.replyRecovery() === 'absent' && !this.replyRecoveryBlocked() &&
+      this.replyTextSha256() === pending.bodySha256 && this.currentWorkspace()?.canReply === true;
+  }
+  private replyScopeForCurrentContext(): string | null {
+    const actor = this.session.current(), requestId = this.id();
+    return actor && requestId ? `${actor.firmId}:${actor.userId}:${actor.generation}:${requestId}` : null;
+  }
+  private replyStorageKey(scope: string): string { return `auditsphere.pbc-reply:${scope}`; }
+  private saveReplyOperation(scope: string, pending: SavedReplyOperation): boolean {
+    try {
+      sessionStorage.setItem(this.replyStorageKey(scope), JSON.stringify({ requestId: pending.requestId, bodySha256: pending.bodySha256 }));
+      return true;
+    } catch { return false; }
+  }
+  private removeReplyOperation(scope: string): void {
+    try { sessionStorage.removeItem(this.replyStorageKey(scope)); } catch { /* A confirmed receipt remains safe to re-read. */ }
+  }
+  private async lookupReplyReceipt(scope: string, pending: SavedReplyOperation): Promise<void> {
+    const requestId = this.id();
+    if (!requestId || scope !== this.replyScopeForCurrentContext()) return;
+    const generation = this.session.invalidation();
+    this.replyChecking.set(true);
+    try {
+      const receipt = await this.api.get(`/api/ui/portal/requests/${requestId}/reply-receipts/${pending.requestId}`, nullableReplyReceipt);
+      if (generation !== this.session.invalidation() || scope !== this.replyScopeForCurrentContext()) return;
+      if (receipt === null) {
+        this.replyRecovery.set('absent');
+        this.uncertain.set(true);
+        this.failed.set(false);
+        this.message.set('No reply receipt is currently recorded. Re-enter the exact reply text before retrying with the saved operation key.');
+        return;
+      }
+      if (receipt.requestId !== pending.requestId || receipt.pbcRequestId !== requestId || receipt.bodySha256 !== pending.bodySha256) {
+        this.replyRecovery.set('conflict');
+        this.uncertain.set(true);
+        this.failed.set(true);
+        this.message.set('The reply receipt did not match the saved operation. Do not send another reply with a new key.');
+        return;
+      }
+      this.confirmReplyReceipt(scope);
+      this.ws.reload();
+      if (this.historyActive()) this.history.reload();
+    } catch {
+      if (generation !== this.session.invalidation() || scope !== this.replyScopeForCurrentContext()) return;
+      this.replyRecovery.set('unavailable');
+      this.replyRecoveryBlocked.set(false);
+      this.uncertain.set(true);
+      this.failed.set(true);
+      this.message.set('Reply receipt lookup failed. The saved reply remains fenced; check again after access is available.');
+    } finally { this.replyChecking.set(false); }
+  }
+  private confirmReplyReceipt(scope: string): void {
+    this.removeReplyOperation(scope);
+    this.replyPending.set(null);
+    this.replyRecoveryBlocked.set(false);
+    this.replyRecovery.set('confirmed');
+    this.uncertain.set(false);
+    this.failed.set(false);
+    this.reply.reset();
+    this.message.set('The saved reply receipt was confirmed.');
+  }
+  reconcileReplyReceipt(): void {
+    const pending = this.replyPending(), scope = this.replyScopeForCurrentContext();
+    if (!pending || !scope || !this.session.current() || this.ws.error() || this.ws.data()?.id !== this.id() ||
+        this.busy() || this.replyChecking()) return;
+    this.replyReceiptLookupStarted = scope;
+    this.replyRecovery.set('checking');
+    void this.lookupReplyReceipt(scope, pending);
   }
   authorizedRequest() { return this.ws.error() || this.history.error() ? null : this.ws.data(); }
   requestHistory() {
@@ -240,6 +416,7 @@ export class ClientPbcRequest {
   }
   refresh(): void {
     if (this.busy() || this.ws.loading() || this.history.loading()) return;
+    if (this.replyPending()) this.reconcileReplyReceipt();
     this.ws.reload();
     if (this.historyActive()) this.history.reload();
     /* unknown mutations remain fenced; verify with the audit team before repeating */
@@ -307,9 +484,99 @@ export class ClientPbcRequest {
       this.ws.reload();
     } finally { this.busy.set(false); }
   }
-  sendReply(): void { if (this.reply.invalid || !this.reply.controls.body.value.trim()) return;
-    if (!this.currentWorkspace()?.canReply) return;
-    void this.command(`/api/ui/portal/requests/${this.id()}/reply`, this.reply.getRawValue(), 'Reply added to the request timeline.'); }
+  async sendReply(): Promise<void> {
+    const canonicalBody = trimServerWhitespace(this.reply.controls.body.value);
+    const current = this.currentWorkspace();
+    if (this.reply.invalid || !canonicalBody || !current?.canReply || this.busy() || this.replyChecking() || this.replyRecoveryBlocked()) return;
+    const existing = this.replyPending();
+    if (existing && this.replyRecovery() !== 'absent' || !existing && this.uncertain()) return;
+    const scope = this.replyScopeForCurrentContext();
+    if (!scope || scope !== this.replyStorageScope) return;
+
+    const generation = this.session.invalidation();
+    this.busy.set(true); this.failed.set(false); this.message.set('');
+    let pending = existing;
+    let sent = false;
+    let refreshWorkspace = false;
+    try {
+      const bodySha256 = await fingerprintText(canonicalBody);
+      if (generation !== this.session.invalidation()) return;
+      if (existing) {
+        if (existing.bodySha256 !== bodySha256) {
+          this.failed.set(true);
+          this.message.set('The entered reply does not match the saved SHA-256. Nothing was sent; re-enter the exact original reply to retry.');
+          return;
+        }
+      } else {
+        pending = { requestId: crypto.randomUUID().toLowerCase(), bodySha256 };
+        if (!this.saveReplyOperation(scope, pending)) {
+          this.replyRecoveryBlocked.set(true); this.replyRecovery.set('unavailable'); this.uncertain.set(true);
+          this.failed.set(true); this.message.set('Recovery details could not be saved, so the reply was not sent.');
+          return;
+        }
+        this.replyPending.set(pending);
+        this.replyReceiptLookupStarted = scope;
+      }
+
+      if (!pending) return;
+      const operation = pending;
+      this.replyRecovery.set('sending'); this.uncertain.set(true);
+      sent = true;
+      refreshWorkspace = true;
+      const outcome = await this.api.command(`/api/ui/portal/requests/${this.id()}/reply`, {
+        requestId: operation.requestId, body: canonicalBody,
+      });
+      if (generation !== this.session.invalidation()) return;
+      if (outcome.ok) {
+        let receipt: ReturnType<typeof replyReceipt>;
+        try { receipt = decode(replyReceipt, outcome.value); }
+        catch {
+          this.replyRecovery.set('unknown'); this.uncertain.set(true); this.reply.reset();
+          this.failed.set(true); this.message.set(UNKNOWN_OUTCOME);
+          return;
+        }
+        if (receipt.requestId !== operation.requestId || receipt.pbcRequestId !== this.id() || receipt.bodySha256 !== operation.bodySha256) {
+          this.replyRecovery.set('conflict'); this.uncertain.set(true); this.reply.reset();
+          this.failed.set(true); this.message.set('The reply receipt did not match the saved operation. Check its receipt before any further reply.');
+          return;
+        }
+        this.confirmReplyReceipt(scope);
+        this.message.set('Reply added to the request timeline.');
+        return;
+      }
+
+      this.failed.set(true); this.message.set(outcome.message);
+      if (outcome.unknown) {
+        this.replyRecovery.set('unknown'); this.uncertain.set(true); this.reply.reset();
+      } else if (!existing && outcome.code !== 'idempotency.conflict') {
+        this.removeReplyOperation(scope); this.replyPending.set(null);
+        this.replyRecovery.set('none'); this.uncertain.set(false);
+      } else {
+        this.replyRecovery.set(outcome.code === 'idempotency.conflict' ? 'conflict' : 'unknown');
+        this.uncertain.set(true);
+      }
+    } catch {
+      if (generation !== this.session.invalidation()) return;
+      if (!sent) {
+        if (!existing && pending) {
+          this.removeReplyOperation(scope); this.replyPending.set(null);
+          this.replyRecovery.set('none'); this.uncertain.set(false);
+        } else if (existing) {
+          this.replyRecovery.set('absent'); this.uncertain.set(true);
+        }
+        this.failed.set(true); this.message.set('The reply could not be fingerprinted or prepared, so no request was sent.');
+      } else {
+        this.replyRecovery.set('unknown'); this.uncertain.set(true); this.reply.reset();
+        this.failed.set(true); this.message.set(UNKNOWN_OUTCOME);
+      }
+    } finally {
+      this.busy.set(false);
+      if (refreshWorkspace && generation === this.session.invalidation()) {
+        this.ws.reload();
+        if (this.historyActive()) this.history.reload();
+      }
+    }
+  }
   delegate(): void { if (this.delegation.invalid || !this.currentWorkspace()?.canDelegate) return;
     void this.command(`/api/ui/portal/requests/${this.id()}/delegations`, this.delegation.getRawValue(), 'Delegation recorded.'); }
   revoke(id: string): void { if (!this.currentWorkspace()?.canManageDelegations) return;

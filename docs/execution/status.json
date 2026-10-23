@@ -1066,16 +1066,11 @@
       },
       "accountingWorkspaceMode": {
         "status": "PARTIAL",
-        "scope": "WU030: existing-period/has-more-period inline source-mode changes refused by UI and handler; exact period-ID links; only proven precommit400/401/403 rejected, unknown/malformed success stays fenced per client. Native child workflows unchanged.",
-        "checks": "7 workspace.spec tests PASS; .local/autonomous/evidence/wu030-workspace/workspace-spec.log. Main final Angular build PASS aftercopychange, existing SCSS warning. No browser/full-suite claim.",
-        "remaining": "Server-owned exact-context currentness summary; full native/cutover and browser acceptance."
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.accountingWorkspaceMode"
       },
       "foreignGrantCiRepair": {
         "status": "PASS_LOCAL_SLICE",
-        "base": "9491516129721813a4763d00d0968ba01166e674",
-        "source": "git-archive base plus exact E2E fixture patch; separate outputs, existing main Angular dist",
-        "evidence": ".local/autonomous/evidence/foreign-grant-ci-repair/foreign-grant-ci-repair-with-ui.trx",
-        "result": "1/1 pass; firm-scoped FK23503 rejection, Staff403/no tracker, foreign grant absent and own grant/session unchanged. Initial snapshot UI bootstrap failed before assertions; fixed BuildPath only. Full suites CI-only."
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.foreignGrantCiRepair"
       },
       "m365ReadinessInventory": {
         "status": "PARTIAL_OFFLINE_ENGINEERING",
@@ -1125,6 +1120,13 @@
         "evidence": ".local/autonomous/evidence/wu038-verifier",
         "checks": "8 focused Python PASS; tracked template INCOMPLETE exit2. Actual Git identity, raw scan/metric comparisons, positive sample counts, hash/size/path/symlink and RPO0 guards; approval refs never authenticated.",
         "remaining": "Known sparse NuGet shape/capture/feed provenance; approved targets, measured capacity/performance/custody/recovery and production acceptance."
+      },
+      "pbcReplyRecovery": {
+        "status": "PASS_LOCAL_SLICE",
+        "base": "75b2fb6da5ea3085d0dede7ffb2e38f66e1fdfa2",
+        "evidence": ".local/autonomous/evidence/wu034-reply-final",
+        "checks": "4API+10Angular+1ownedE2E PASS; Angularbuild, EF/OpenAPI drift and emitter0warnings PASS. Key/hash-only UI recovery; replay/readback currentowner reloaded, samekey/body replay or409; retainedDown55000 and emptyDown/reapply. Browser lostcommitack+navigate/recreate recoveredonepersistedreply; originalsuccesscopy retained. Initialnewbrowserassert expecteddisabled wheredesignhidesform; correctedassertion+read-onlyrecovery, failedTRXretained.",
+        "remaining": "Broader portal/PBC role, boundary, responsive/human and exact-current-source full CI acceptance; no liveprovider claim."
       }
     },
     "developmentFeedback20261023": {

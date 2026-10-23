@@ -23713,6 +23713,19 @@
         "result": "Isolated patched595 snapshot: PG2PASS, Angular18PASS/buildPASS, emitterRelease0warnings and generated OpenAPI. Existing release validator demotes retained approval to RECORDED_APPROVAL and disables prepare when source returned/Partner authority lost; exact issued release/decisions unchanged. SharedUI build hit peerPBC WIP; isolated own-source buildpassed. Final OpenAPI drift PASS.",
         "browser": "Existing owned PartnerReviewsReadinessLocksScheduledFileAndLifecycleKeepsProviderStateSeparate:1PASS, completion-file-records.trx; no interactive/humanAT/fullproduct acceptance."
       }
+    },
+    "targetedVerification.autonomousCompletion20261022.accountingWorkspaceMode": {
+      "status": "PARTIAL",
+      "scope": "WU030: existing-period/has-more-period inline source-mode changes refused by UI and handler; exact period-ID links; only proven precommit400/401/403 rejected, unknown/malformed success stays fenced per client. Native child workflows unchanged.",
+      "checks": "7 workspace.spec tests PASS; .local/autonomous/evidence/wu030-workspace/workspace-spec.log. Main final Angular build PASS aftercopychange, existing SCSS warning. No browser/full-suite claim.",
+      "remaining": "Server-owned exact-context currentness summary; full native/cutover and browser acceptance."
+    },
+    "targetedVerification.autonomousCompletion20261022.foreignGrantCiRepair": {
+      "status": "PASS_LOCAL_SLICE",
+      "base": "9491516129721813a4763d00d0968ba01166e674",
+      "source": "git-archive base plus exact E2E fixture patch; separate outputs, existing main Angular dist",
+      "evidence": ".local/autonomous/evidence/foreign-grant-ci-repair/foreign-grant-ci-repair-with-ui.trx",
+      "result": "1/1 pass; firm-scoped FK23503 rejection, Staff403/no tracker, foreign grant absent and own grant/session unchanged. Initial snapshot UI bootstrap failed before assertions; fixed BuildPath only. Full suites CI-only."
     }
   },
   "archivedTargetedVerification": {

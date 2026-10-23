@@ -62,8 +62,11 @@ public sealed class UiPortalContractTests
     Assert.Equal(requestId, workspace.GetProperty("requests")[0].GetProperty("id").GetGuid());
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/portal?page=0&pageSize=20")).StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/ui/portal/requests/{Guid.NewGuid()}")).StatusCode);
-    Assert.Equal(HttpStatusCode.Forbidden, (await PostAsync(client, $"/api/ui/portal/requests/{requestId}/reply", new { body = "Ready for review" })).StatusCode);
-    Assert.Equal(HttpStatusCode.OK, (await PostAsync(client, $"/api/ui/portal/requests/{requestId}/reply", new { body = "Ready for review" }, csrf)).StatusCode);
+    var replyOperationId = Guid.CreateVersion7();
+    Assert.Equal(HttpStatusCode.Forbidden, (await PostAsync(client, $"/api/ui/portal/requests/{requestId}/reply",
+      new { requestId = replyOperationId, body = "Ready for review" })).StatusCode);
+    Assert.Equal(HttpStatusCode.OK, (await PostAsync(client, $"/api/ui/portal/requests/{requestId}/reply",
+      new { requestId = replyOperationId, body = "Ready for review" }, csrf)).StatusCode);
     var detail = await client.GetFromJsonAsync<JsonElement>($"/api/ui/portal/requests/{requestId}");
     Assert.Contains(detail.GetProperty("conversation").EnumerateArray(), x => x.GetProperty("body").GetString() == "Ready for review");
     using var started = await PostAsync(client, $"/api/ui/portal/requests/{requestId}/uploads", new { fileName = "statement.txt", contentType = "text/plain", byteCount = "1", sha256 = new string('a', 64) }, csrf);
@@ -299,6 +302,91 @@ public sealed class UiPortalContractTests
     Assert.Equal(expectedCode, error.RootElement.GetProperty("code").GetString());
     Assert.DoesNotContain("Bank statements", body, StringComparison.Ordinal);
     Assert.DoesNotContain("Complete period with readable account identity.", body, StringComparison.Ordinal);
+  }
+
+  [Fact]
+  public async Task PortalReplyReplayAndReceiptRead_RecheckOwnerAfterOperationLookup()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-PORTAL-REPLY-OWNER-RACE");
+    var seed = await PbcSeed.SeedAsync(pg);
+    var requestId = await CreateSentRequestAsync(pg, seed);
+    var operationId = Guid.CreateVersion7();
+    const string replyBody = "Recoverable client reply";
+    var originalActor = PbcSeed.Actor(seed.Client, "ClientUser");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var created = await PbcService.ReplyAsync(db, originalActor, requestId, operationId, replyBody);
+      Assert.True(created.Succeeded, created.Message);
+    }
+
+    var replacementOwner = PbcSeed.User(seed.FirmId, "Client");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(replacementOwner);
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, replacementOwner, "ClientUser",
+        clientId: seed.ClientId, engagementId: seed.EngagementId));
+      await db.SaveChangesAsync();
+    }
+
+    async Task<int> ReassignOwnerAsync()
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      return await db.PbcRequests.Where(x => x.FirmId == seed.FirmId && x.ClientId == seed.ClientId &&
+          x.EngagementId == seed.EngagementId && x.Id == requestId)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.ClientOwnerUserId, replacementOwner.Id)
+          .SetProperty(x => x.Revision, x => x.Revision + 1));
+    }
+
+    var readAffectedRows = 0;
+    var readInterceptor = new AfterPbcCommunicationsRead(async () =>
+      readAffectedRows = await ReassignOwnerAsync());
+    using (var factory = InterceptingFactory(pg.ConnectionString, seed.Client.Subject,
+      seed.Client.TenantId, pg.Options, readInterceptor))
+    using (var client = factory.CreateClient(new() { AllowAutoRedirect = false }))
+    {
+      await SignInAsync(client);
+      readInterceptor.Arm();
+      using var response = await client.GetAsync($"/api/ui/portal/requests/{requestId}/reply-receipts/{operationId}");
+      Assert.True(readInterceptor.Fired, "The request owner must change after the receipt lookup.");
+      Assert.Equal(1, readAffectedRows);
+      Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    using (var replacementFactory = Factory(pg.ConnectionString, replacementOwner.Subject, replacementOwner.TenantId))
+    using (var replacementClient = replacementFactory.CreateClient(new() { AllowAutoRedirect = false }))
+    {
+      await SignInAsync(replacementClient);
+      using var currentOwnerRead = await replacementClient.GetAsync(
+        $"/api/ui/portal/requests/{requestId}/reply-receipts/{operationId}");
+      Assert.Equal(HttpStatusCode.OK, currentOwnerRead.StatusCode);
+      using var receiptJson = JsonDocument.Parse(await currentOwnerRead.Content.ReadAsStringAsync());
+      Assert.Equal(JsonValueKind.Null, receiptJson.RootElement.ValueKind);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      Assert.Equal(1, await db.PbcRequests.Where(x => x.FirmId == seed.FirmId && x.Id == requestId)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.ClientOwnerUserId, seed.Client.Id)
+          .SetProperty(x => x.Revision, x => x.Revision + 1)));
+
+    var replayAffectedRows = 0;
+    var replayInterceptor = new AfterPbcCommunicationsRead(async () =>
+      replayAffectedRows = await ReassignOwnerAsync());
+    using (var factory = InterceptingFactory(pg.ConnectionString, seed.Client.Subject,
+      seed.Client.TenantId, pg.Options, replayInterceptor))
+    using (var client = factory.CreateClient(new() { AllowAutoRedirect = false }))
+    {
+      var csrf = await SignInAsync(client);
+      replayInterceptor.Arm();
+      using var response = await PostAsync(client, $"/api/ui/portal/requests/{requestId}/reply",
+        new { requestId = operationId, body = replyBody }, csrf);
+      Assert.True(replayInterceptor.Fired, "The request owner must change after the replay lookup.");
+      Assert.Equal(1, replayAffectedRows);
+      Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(1, await verify.PbcCommunications.CountAsync(x => x.FirmId == seed.FirmId &&
+      x.AuthorUserId == seed.Client.Id && x.ClientRequestId == operationId));
   }
 
   private static async Task<Guid> CreateSentRequestAsync(OwnedPostgresDatabase pg, PbcSeed.Fixture seed)

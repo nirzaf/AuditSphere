@@ -164,6 +164,9 @@ public sealed class PbcCommunication
   public string? PortalUrl { get; set; }
   public string? DeliveryState { get; set; }
   public string? ProviderCorrelationId { get; set; }
+  // Present only for idempotent client replies; legacy and staff messages remain null.
+  public Guid? ClientRequestId { get; set; }
+  public string? ClientRequestSha256 { get; set; }
   public DateTimeOffset? DeliveredAt { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }

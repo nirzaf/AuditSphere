@@ -60,6 +60,49 @@ public sealed class AngularClientPortalJourneyTests
       await reply.FillAsync("Please advise if further details are required.");
       await page.GetByRole(AriaRole.Button, new() { Name = "Send reply", Exact = true }).ClickAsync();
       await Assertions.Expect(page.GetByText("Reply added to the request timeline.", new() { Exact = true })).ToBeVisibleAsync();
+      // The server commits a reply, but the browser loses its acknowledgement. Navigation must recover
+      // the retained operation receipt rather than submit a new message or rely on visible timeline text.
+      const string lostReply = "Synthetic reply with a lost acknowledgement.";
+      var replyRoute = $"**/api/ui/portal/requests/{host.RequestId:D}/reply";
+      var replyPosts = 0;
+      await page.RouteAsync(replyRoute, async route =>
+      {
+        if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
+        Interlocked.Increment(ref replyPosts);
+        await using var accepted = await route.FetchAsync();
+        Assert.Equal(200, accepted.Status);
+        await route.AbortAsync("failed");
+      });
+      await reply.FillAsync(lostReply);
+      await page.GetByRole(AriaRole.Button, new() { Name = "Send reply", Exact = true }).ClickAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+        new() { Name = "Reply delivery recovery", Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(page.GetByText("The reply outcome is not confirmed. Check its saved receipt before trying again.",
+        new() { Exact = true })).ToBeVisibleAsync();
+      // The pending-reply form is withheld until receipt lookup proves an authorized retry is safe.
+      await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Send reply", Exact = true })).ToHaveCountAsync(0);
+      await Assertions.Expect(page.GetByRole(AriaRole.Button,
+        new() { Name = "Check saved reply receipt", Exact = true })).ToBeEnabledAsync();
+      await using (var persisted = host.CreateDbContext())
+      {
+        var receipt = await persisted.PbcCommunications.AsNoTracking().SingleAsync(x =>
+          x.FirmId == f.FirmId && x.PbcRequestId == host.RequestId && x.Body == lostReply);
+        Assert.NotNull(receipt.ClientRequestId);
+        Assert.Equal(Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(lostReply)), receipt.ClientRequestSha256);
+      }
+      await page.GotoAsync(origin + "/ui/portal");
+      await Assertions.Expect(replyLink).ToBeVisibleAsync();
+      await replyLink.ClickAsync();
+      await Assertions.Expect(page.GetByText("The saved reply receipt was confirmed.", new() { Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+        new() { Name = "Reply delivery recovery", Exact = true })).ToHaveCountAsync(0);
+      await Assertions.Expect(page.GetByText(lostReply, new() { Exact = true })).ToHaveCountAsync(1);
+      Assert.Equal(1, replyPosts);
+      await page.UnrouteAsync(replyRoute);
+      await using (var persisted = host.CreateDbContext())
+        Assert.Equal(1, await persisted.PbcCommunications.CountAsync(x =>
+          x.FirmId == f.FirmId && x.PbcRequestId == host.RequestId && x.Body == lostReply));
+
       await using (var db = host.CreateDbContext())
       {
         Assert.Equal(PbcStates.UnderReview, (await db.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == host.RequestId)).State);

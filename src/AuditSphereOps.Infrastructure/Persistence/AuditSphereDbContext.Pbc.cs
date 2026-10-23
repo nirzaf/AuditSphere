@@ -134,9 +134,14 @@ public sealed partial class AuditSphereDbContext
     communication.Property(x => x.PortalUrl).HasMaxLength(2000);
     communication.Property(x => x.DeliveryState).HasMaxLength(16);
     communication.Property(x => x.ProviderCorrelationId).HasMaxLength(500);
+    communication.Property(x => x.ClientRequestSha256).HasMaxLength(64);
     communication.HasIndex(x => new { x.FirmId, x.PbcRequestId, x.CreatedAt });
+    communication.HasIndex(x => new { x.FirmId, x.AuthorUserId });
+    communication.HasIndex(x => new { x.FirmId, x.AuthorUserId, x.ClientRequestId })
+      .IsUnique().HasFilter("kind = 'CLIENT_MESSAGE' AND client_request_id IS NOT NULL")
+      .HasDatabaseName("UX_pbc_communications_client_reply_request");
     communication.ToTable("pbc_communications", t => t.HasCheckConstraint("ck_pbc_communication_values",
-      "kind IN ('REQUEST','STAFF_MESSAGE','CLIENT_MESSAGE','CLIENT_ACTION','EMAIL') AND length(trim(body)) > 0 AND (delivery_state IS NULL OR delivery_state IN ('QUEUED','SENT','FAILED','UNCERTAIN')) AND ((kind = 'EMAIL' AND recipient_email IS NOT NULL AND subject IS NOT NULL AND portal_url IS NOT NULL AND delivery_state IS NOT NULL) OR (kind <> 'EMAIL' AND recipient_email IS NULL AND subject IS NULL AND portal_url IS NULL AND delivery_state IS NULL))"));
+      "kind IN ('REQUEST','STAFF_MESSAGE','CLIENT_MESSAGE','CLIENT_ACTION','EMAIL') AND length(trim(body)) > 0 AND (delivery_state IS NULL OR delivery_state IN ('QUEUED','SENT','FAILED','UNCERTAIN')) AND ((kind = 'EMAIL' AND recipient_email IS NOT NULL AND subject IS NOT NULL AND portal_url IS NOT NULL AND delivery_state IS NOT NULL) OR (kind <> 'EMAIL' AND recipient_email IS NULL AND subject IS NULL AND portal_url IS NULL AND delivery_state IS NULL)) AND ((client_request_id IS NULL AND client_request_sha256 IS NULL) OR (kind = 'CLIENT_MESSAGE' AND client_request_id IS NOT NULL AND client_request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND client_request_sha256 IS NOT NULL AND client_request_sha256 ~ '^[0-9a-f]{64}$'))"));
     communication.HasIndex(x => new { x.FirmId, x.DeliveredAt, x.PbcRequestId })
       .HasFilter("kind = 'EMAIL' AND delivery_state = 'SENT' AND delivered_at IS NOT NULL")
       .HasDatabaseName("IX_pbc_communications_sent_delivery");

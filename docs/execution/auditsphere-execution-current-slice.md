@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## PBC reply recovery and current-owner fence (2026-10-23)
+
+Key/hash receipts survive page recreation without storing raw text. Replay/readback reload current ownership. Focused API/Angular, migration, contract and owned lost-acknowledgement/navigation checks passed. Broader portal and current-source release acceptance remain open; see `status.json`.
+
 ## Development dependency advisory repair (2026-10-23)
 
 The Vite patch passed fresh audit, isolated install/build and focused session checks; servers were preserved. NuGet reported no findings. History scan false positives were source-reviewed without rewriting history or suppressing rules. Raw reports and remaining operational/release gates are in `status.json`.
@@ -52,7 +56,7 @@ Mutation controls, including external-pack actions, now reflect the existing unk
 
 ## Statement content-review identity display (2026-10-23)
 
-The screen shows persisted presentation/review IDs and full snapshot digest, with source currentness separate from historical approval. The server reuses exact package/layout/source validation and disables review of stale or unavailable source; Angular labels any retained approval historical. Returning a linked source preserves the original decision and draft hash. Focused PostgreSQL and Angular checks, targeted Release compilation and contract drift passed. Read-authority race checks still pass. Broader reporting, browser and professional acceptance remain separate; evidence is in `status.json`.
+Verified scope and remaining acceptance are retained in the [slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#statement-content-review-identity-display-2026-10-23) and `status.json`.
 
 ## Immutable consolidation correction lineage (2026-10-23)
 

@@ -21,6 +21,7 @@ describe('Client request draft polling', () => {
   let http: HttpTestingController;
 
   beforeEach(() => {
+    sessionStorage.clear();
     TestBed.configureTestingModule({
       imports: [ClientPbcRequest],
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
@@ -31,7 +32,79 @@ describe('Client request draft polling', () => {
   });
 
   afterEach(() => {
-    try { http.verify(); } finally { TestBed.resetTestingModule(); vi.useRealTimers(); }
+    try { http.verify(); } finally { sessionStorage.clear(); TestBed.resetTestingModule(); vi.useRealTimers(); }
+  });
+
+  it('recovers an unknown reply by exact receipt key and only retries re-entered matching text', async () => {
+    const fixture = TestBed.createComponent(ClientPbcRequest);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne(`/api/ui/portal/requests/${id}`).flush(requestWorkspace());
+    TestBed.tick(); fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    const originalBody = 'Exact reply to recover';
+    const reenteredBody = `\u0085  ${originalBody}\u0085`;
+    const expectedHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(originalBody))),
+      byte => byte.toString(16).padStart(2, '0')).join('');
+    component.reply.controls.body.setValue(reenteredBody);
+    await vi.waitFor(() => expect(component.replyTextSha256()).toBe(expectedHash));
+
+    const firstSend = component.sendReply();
+    await vi.waitFor(() => expect(component.replyRecovery()).toBe('sending'));
+    const firstPost = http.expectOne(`/api/ui/portal/requests/${id}/reply`);
+    expect(firstPost.request.body.body).toBe(originalBody);
+    const operationId = firstPost.request.body.requestId as string;
+    expect(operationId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(sessionStorage.length).toBe(1);
+    const storageKey = sessionStorage.key(0)!;
+    expect(storageKey).toContain('auditsphere.pbc-reply:');
+    expect(storageKey).toContain('40000000-0000-4000-8000-000000000002');
+    const saved = sessionStorage.getItem(storageKey)!;
+    expect(JSON.parse(saved)).toEqual({ requestId: operationId, bodySha256: expectedHash });
+    expect(saved).not.toContain(originalBody);
+    expect(saved).not.toContain(reenteredBody);
+    firstPost.error(new ProgressEvent('error'));
+    await firstSend;
+    expect(component.uncertain()).toBe(true);
+    expect(component.reply.controls.body.value).toBe('');
+    http.expectOne(`/api/ui/portal/requests/${id}`).flush(requestWorkspace());
+    TestBed.tick(); fixture.detectChanges();
+    fixture.destroy();
+
+    const recoveredFixture = TestBed.createComponent(ClientPbcRequest);
+    recoveredFixture.detectChanges(); TestBed.tick();
+    http.expectOne(`/api/ui/portal/requests/${id}`).flush(requestWorkspace());
+    TestBed.tick(); recoveredFixture.detectChanges();
+    const receiptLookup = http.expectOne(`/api/ui/portal/requests/${id}/reply-receipts/${operationId}`);
+    receiptLookup.flush(null);
+    await vi.waitFor(() => expect(recoveredFixture.componentInstance.replyRecovery()).toBe('absent'));
+    expect(recoveredFixture.componentInstance.uncertain()).toBe(true);
+
+    const recovered = recoveredFixture.componentInstance;
+    recovered.reply.controls.body.setValue('Different reply');
+    await vi.waitFor(() => expect(recovered.replyTextSha256()).not.toBe(''));
+    await recovered.sendReply();
+    http.expectNone(request => request.method === 'POST');
+    expect(sessionStorage.getItem(storageKey)).toBe(saved);
+    expect(recovered.uncertain()).toBe(true);
+
+    recovered.reply.controls.body.setValue(reenteredBody);
+    await vi.waitFor(() => expect(recovered.replyTextSha256()).toBe(expectedHash));
+    const retry = recovered.sendReply();
+    await vi.waitFor(() => expect(recovered.replyRecovery()).toBe('sending'));
+    const retryPost = http.expectOne(`/api/ui/portal/requests/${id}/reply`);
+    expect(retryPost.request.body).toEqual({ requestId: operationId, body: originalBody });
+    retryPost.flush({ value: { requestId: operationId, pbcRequestId: id,
+      communicationId: '40000000-0000-4000-8000-000000000041', bodySha256: expectedHash } });
+    await retry;
+    expect(recovered.replyPending()).toBeNull();
+    expect(recovered.uncertain()).toBe(false);
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+    expect(recovered.replyRecovery()).toBe('confirmed');
+    expect(recovered.message()).toBe('Reply added to the request timeline.');
+    http.expectOne(`/api/ui/portal/requests/${id}`).flush(requestWorkspace());
+    TestBed.tick(); recoveredFixture.detectChanges();
+    recoveredFixture.destroy();
   });
 
   it('associates reply validation with its error and blocks whitespace-only submission', () => {
@@ -57,7 +130,7 @@ describe('Client request draft polling', () => {
     expect(input.getAttribute('aria-invalid')).toBeNull();
     expect(input.getAttribute('aria-describedby')).toBeNull();
     expect(root.querySelector('#portal-reply-error')).toBeNull();
-    fixture.componentInstance.reply.controls.body.setValue(' \t\n  '); fixture.detectChanges();
+    fixture.componentInstance.reply.controls.body.setValue(' \t\n\u0085  '); fixture.detectChanges();
     expect(fixture.componentInstance.reply.controls.body.invalid).toBe(true);
     expect(send.disabled).toBe(true);
     expect(input.getAttribute('aria-invalid')).toBe('true');

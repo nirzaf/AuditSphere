@@ -20125,6 +20125,15 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("client_id");
 
+                    b.Property<Guid?>("ClientRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_request_id");
+
+                    b.Property<string>("ClientRequestSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("client_request_sha256");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -20183,6 +20192,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "AuthorUserId");
 
+                    b.HasIndex("FirmId", "AuthorUserId", "ClientRequestId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_pbc_communications_client_reply_request")
+                        .HasFilter("kind = 'CLIENT_MESSAGE' AND client_request_id IS NOT NULL");
+
                     b.HasIndex("FirmId", "DeliveredAt", "PbcRequestId")
                         .HasDatabaseName("IX_pbc_communications_sent_delivery")
                         .HasFilter("kind = 'EMAIL' AND delivery_state = 'SENT' AND delivered_at IS NOT NULL");
@@ -20193,7 +20207,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("pbc_communications", null, t =>
                         {
-                            t.HasCheckConstraint("ck_pbc_communication_values", "kind IN ('REQUEST','STAFF_MESSAGE','CLIENT_MESSAGE','CLIENT_ACTION','EMAIL') AND length(trim(body)) > 0 AND (delivery_state IS NULL OR delivery_state IN ('QUEUED','SENT','FAILED','UNCERTAIN')) AND ((kind = 'EMAIL' AND recipient_email IS NOT NULL AND subject IS NOT NULL AND portal_url IS NOT NULL AND delivery_state IS NOT NULL) OR (kind <> 'EMAIL' AND recipient_email IS NULL AND subject IS NULL AND portal_url IS NULL AND delivery_state IS NULL))");
+                            t.HasCheckConstraint("ck_pbc_communication_values", "kind IN ('REQUEST','STAFF_MESSAGE','CLIENT_MESSAGE','CLIENT_ACTION','EMAIL') AND length(trim(body)) > 0 AND (delivery_state IS NULL OR delivery_state IN ('QUEUED','SENT','FAILED','UNCERTAIN')) AND ((kind = 'EMAIL' AND recipient_email IS NOT NULL AND subject IS NOT NULL AND portal_url IS NOT NULL AND delivery_state IS NOT NULL) OR (kind <> 'EMAIL' AND recipient_email IS NULL AND subject IS NULL AND portal_url IS NULL AND delivery_state IS NULL)) AND ((client_request_id IS NULL AND client_request_sha256 IS NULL) OR (kind = 'CLIENT_MESSAGE' AND client_request_id IS NOT NULL AND client_request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND client_request_sha256 IS NOT NULL AND client_request_sha256 ~ '^[0-9a-f]{64}$'))");
                         });
                 });
 
