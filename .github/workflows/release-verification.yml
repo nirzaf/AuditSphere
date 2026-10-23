@@ -163,10 +163,43 @@ jobs:
           cache-dependency-path: src/AuditSphereOps.Ui/package-lock.json
 
       - name: Angular install, production build and full specs
+        env:
+          REQUESTED_REF: ${{ inputs.ref || github.event.repository.default_branch }}
+          RESOLVED_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
         run: |
           set -euo pipefail
           bash scripts/release/run-verification-step.sh "npm ci (Angular)" \
             npm --prefix src/AuditSphereOps.Ui ci
+
+          # This is an evidence-only capture, not a security gate. Preserve the helper's exact
+          # result and exit status while allowing the existing Angular checks to run unchanged.
+          scan_evidence=artifacts/completion/wu038-scans
+          mkdir -p "$scan_evidence"
+          helper_stderr="$scan_evidence/npm-helper-stderr.txt"
+          set +e
+          python3 scripts/verification/capture-operational-scan.py --scan npm \
+            > "$scan_evidence/npm-helper-result.json" 2> "$helper_stderr"
+          helper_exit=$?
+          set -e
+          helper_stderr_bytes=$(wc -c < "$helper_stderr" | tr -d '[:space:]')
+          helper_stderr_truncated=false
+          if (( helper_stderr_bytes > 16384 )); then
+            head -c 16384 "$helper_stderr" > "$helper_stderr.tmp"
+            mv "$helper_stderr.tmp" "$helper_stderr"
+            helper_stderr_truncated=true
+          fi
+          helper_stderr_retained_bytes=$(wc -c < "$helper_stderr" | tr -d '[:space:]')
+          helper_stderr_sha256=$(sha256sum "$helper_stderr" | cut -d' ' -f1)
+          jq -n --arg requestedRef "$REQUESTED_REF" --arg resolvedCommit "$RESOLVED_COMMIT" \
+            --arg helperStderrPath "$helper_stderr" --arg helperStderrSha256 "$helper_stderr_sha256" \
+            --argjson helperExitCode "$helper_exit" --argjson helperStderrBytes "$helper_stderr_bytes" \
+            --argjson helperStderrRetainedBytes "$helper_stderr_retained_bytes" \
+            --argjson helperStderrTruncated "$helper_stderr_truncated" \
+            '{requestedRef:$requestedRef,resolvedCommit:$resolvedCommit,helperExitCode:$helperExitCode,helperStderrPath:$helperStderrPath,helperStderrSha256:$helperStderrSha256,helperStderrBytes:$helperStderrBytes,helperStderrRetainedBytes:$helperStderrRetainedBytes,helperStderrTruncated:$helperStderrTruncated,securityAssessment:"NOT_ASSESSED"}' \
+            > "$scan_evidence/npm-workflow-metadata.json"
+          echo "Operational npm helper exitCode=$helper_exit; helper diagnostic retained in the scan artifact; securityAssessment=NOT_ASSESSED." \
+            >> "$GITHUB_STEP_SUMMARY"
+
           bash scripts/release/run-verification-step.sh "Angular production lint" \
             npm --prefix src/AuditSphereOps.Ui run lint:ci
           bash scripts/release/run-verification-step.sh "Angular production build" \
@@ -180,6 +213,16 @@ jobs:
           name: angular-ui-browser
           path: src/AuditSphereOps.Ui/dist/auditsphere-ui/browser
           retention-days: 1
+
+      - name: Upload npm operational scan evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-operational-scan-npm-${{ needs.resolve-ref.outputs.commit }}
+          path: artifacts/completion/wu038-scans
+          if-no-files-found: warn
+          retention-days: 30
+          overwrite: true
 
       - name: Upload Angular verification logs
         if: ${{ always() }}
@@ -412,6 +455,39 @@ jobs:
           bash scripts/release/run-verification-step.sh "dotnet build (Release, one MSBuild node)" \
             dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1
 
+      - name: Capture NuGet operational scan evidence
+        env:
+          REQUESTED_REF: ${{ inputs.ref || github.event.repository.default_branch }}
+          RESOLVED_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          scan_evidence=artifacts/completion/wu038-scans
+          mkdir -p "$scan_evidence"
+          helper_stderr="$scan_evidence/nuget-helper-stderr.txt"
+          set +e
+          python3 scripts/verification/capture-operational-scan.py --scan nuget \
+            > "$scan_evidence/nuget-helper-result.json" 2> "$helper_stderr"
+          helper_exit=$?
+          set -e
+          helper_stderr_bytes=$(wc -c < "$helper_stderr" | tr -d '[:space:]')
+          helper_stderr_truncated=false
+          if (( helper_stderr_bytes > 16384 )); then
+            head -c 16384 "$helper_stderr" > "$helper_stderr.tmp"
+            mv "$helper_stderr.tmp" "$helper_stderr"
+            helper_stderr_truncated=true
+          fi
+          helper_stderr_retained_bytes=$(wc -c < "$helper_stderr" | tr -d '[:space:]')
+          helper_stderr_sha256=$(sha256sum "$helper_stderr" | cut -d' ' -f1)
+          jq -n --arg requestedRef "$REQUESTED_REF" --arg resolvedCommit "$RESOLVED_COMMIT" \
+            --arg helperStderrPath "$helper_stderr" --arg helperStderrSha256 "$helper_stderr_sha256" \
+            --argjson helperExitCode "$helper_exit" --argjson helperStderrBytes "$helper_stderr_bytes" \
+            --argjson helperStderrRetainedBytes "$helper_stderr_retained_bytes" \
+            --argjson helperStderrTruncated "$helper_stderr_truncated" \
+            '{requestedRef:$requestedRef,resolvedCommit:$resolvedCommit,helperExitCode:$helperExitCode,helperStderrPath:$helperStderrPath,helperStderrSha256:$helperStderrSha256,helperStderrBytes:$helperStderrBytes,helperStderrRetainedBytes:$helperStderrRetainedBytes,helperStderrTruncated:$helperStderrTruncated,securityAssessment:"NOT_ASSESSED"}' \
+            > "$scan_evidence/nuget-workflow-metadata.json"
+          echo "Operational NuGet helper exitCode=$helper_exit; helper diagnostic retained in the scan artifact; securityAssessment=NOT_ASSESSED." \
+            >> "$GITHUB_STEP_SUMMARY"
+
       - name: EF model drift and OpenAPI contract drift
         run: |
           set -euo pipefail
@@ -484,6 +560,16 @@ jobs:
           path: ${{ runner.temp }}/release-verification/logs
           if-no-files-found: warn
           retention-days: 30
+
+      - name: Upload NuGet operational scan evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-operational-scan-nuget-${{ needs.resolve-ref.outputs.commit }}
+          path: artifacts/completion/wu038-scans
+          if-no-files-found: warn
+          retention-days: 30
+          overwrite: true
 
       - name: Record build and contract outcome
         if: ${{ always() }}

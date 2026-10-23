@@ -1055,7 +1055,7 @@
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.correctionLineage",
         "remaining": "Exact receipt recovery, broader group/release acceptance."
       },
-      "ciObserved": "Full889 PASS39903345685 (exactsource/aggregate/TRX). Fast593b728d PASS39940525745 after staffing migration; focused staffing10/EFnodrift and archive1/realCLI PASS. New pricing candidate and latest fullCI pending.",
+      "ciObserved": "Full889 PASS39903345685 (exactsource/aggregate/TRX). Fast593b728d PASS39940525745 after staffing migration; focused staffing10/EFnodrift and archive1/realCLI PASS. Latest combined source and latest fullCI pending.",
       "scopeUnknownOutcome": {
         "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.scopeUnknownOutcome",
         "status": "PARTIAL",
@@ -1116,7 +1116,13 @@
         "status": "PARTIAL",
         "evidence": ".local/autonomous/evidence/wu038-capture-final",
         "checks": "13PythonPASS; boundedcapture/source+inputs+feed/reporthashes; Nugetstderr/nesteddiagnostics cannotclear. Actual5aaNugetexit0/no records, DIRTY =>INCOMPLETE/SOURCE_UNKNOWN. Prior8guardproof retained wu038-verifier.",
-        "remaining": "Clean-source scans/triage, approved targets, measured performance/custody/recovery and production acceptance."
+        "remaining": "Clean-source scans/triage, approved targets, measured performance/custody/recovery and production acceptance.",
+        "workflowCapture": {
+          "status": "PENDING_CI",
+          "base": "b8cb1303+workflow overlay",
+          "workflowSha256": "5b5648e52ff72b852707952e81a492b1a951a132975d1eee91a2a538ffd60f11",
+          "checks": "Agent actionlint/placement/artifact checks and focused capture3PASS; parent diff review. Full-only NuGet/npm captures retain ref/SHA, exits and capped helper diagnostics. NOT_ASSESSED; no security pass or fast-gate change."
+        }
       },
       "pbcReplyRecovery": {
         "status": "PARTIAL",

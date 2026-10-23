@@ -114,7 +114,7 @@ Criteria/evidence: [product crosswalk](docs/execution/auditsphere-execution-trac
 | ☐ Partially pending | Administration & security | Setup, users/grants, tenant capabilities, search, operations/progress, scoped Acceptance/relationship/chart/engagement/invoice/pricing denials → application-wide isolation/revocation and operator readiness. |
 | ☐ Partially pending | M365 & client sites | Isolated identities/workers, exact grants, client sites/staff reconciliation, intents/status → mail attestation enrollment/readiness/migration, rollout and live positive/negative acceptance. |
 | ☐ Partially pending | Knowledge library | Technical pages and reusable programs → authorization, authoring, workflow acceptance. |
-| ☐ Partially pending | Platform & durable operations | API, Angular, PostgreSQL, retries/idempotency/reconciliation → current-SHA full CI, recovery, capacity, observability, deployment acceptance. |
+| ☐ Partially pending | Platform & durable operations | API, Angular, PostgreSQL, retries/idempotency/reconciliation → current-SHA full CI/scan-artifact review, recovery, capacity, observability, deployment acceptance. |
 | ☐ Pending | Professional acceptance | Qualified methodology owner and independent reviewer must approve policies/fixtures. |
 | ☐ Pending | Production acceptance | Live identity/providers, custody, restore/RPO/RTO and independent sign-off; earlier evidence retained separately. |
 
