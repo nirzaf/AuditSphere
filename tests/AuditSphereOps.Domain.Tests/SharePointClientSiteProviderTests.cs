@@ -9,7 +9,7 @@ using AuditSphereOps.Infrastructure.Providers;
 
 namespace AuditSphereOps.Domain.Tests;
 
-public sealed class SharePointClientSiteProviderTests : IDisposable
+public sealed partial class SharePointClientSiteProviderTests : IDisposable
 {
   private const string Tenant = "11111111-1111-1111-1111-111111111111";
   private const string Host = "example.sharepoint.com";

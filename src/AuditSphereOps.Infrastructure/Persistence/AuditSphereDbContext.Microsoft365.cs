@@ -168,6 +168,8 @@ public sealed partial class AuditSphereDbContext
     invitation.HasOne<RoleGrant>().WithMany().HasForeignKey(x => new { x.FirmId, x.RoleGrantId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     var capability = b.Entity<TenantCapabilityVerification>();
+    capability.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_m365_tenant_capability_verifications_firm_id_id");
     capability.Property(x => x.TenantId).HasMaxLength(200);
     capability.Property(x => x.Capability).HasMaxLength(60);
     capability.Property(x => x.Permission).HasMaxLength(200);

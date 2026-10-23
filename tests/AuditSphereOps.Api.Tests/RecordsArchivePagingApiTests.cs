@@ -1,4 +1,6 @@
 using System.Net;
+using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Records;
@@ -92,6 +94,40 @@ public sealed class RecordsArchivePagingApiTests
     Assert.Equal(HttpStatusCode.Forbidden, guessedResponse.StatusCode);
     Assert.Equal(await foreignResponse.Content.ReadAsStringAsync(), await guessedResponse.Content.ReadAsStringAsync());
     Assert.DoesNotContain("FOREIGN-ARCHIVE-MARKER", await foreignResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+    // A reader of the archive is not a custodian. Exposing local copy intents must not widen this grant
+    // or require the API to instantiate the certificate-bearing worker handler.
+    using var session = await client.GetAsync("/api/ui/session");
+    var csrf = Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie")
+      .Single(x => x.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..]);
+    foreach (var (path, body) in new (string, object)[]
+    {
+      ("/api/ui/records/archive-copy-targets", new
+      {
+        clientId = f.ClientId, clientSharePointSiteId = Guid.NewGuid(),
+        archiveLibraryDriveId = "separate-archive-drive", libraryRootItemId = "archive-root"
+      }),
+      ("/api/ui/records/archive-copies", new
+      {
+        archiveId, releaseId = Guid.NewGuid(), targetRevisionId = Guid.NewGuid()
+      })
+    })
+    {
+      using var noCsrf = await client.PostAsJsonAsync(path, body);
+      Assert.Equal(HttpStatusCode.Forbidden, noCsrf.StatusCode);
+      using var command = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(body) };
+      command.Headers.Add("X-XSRF-TOKEN", csrf);
+      using var denied = await client.SendAsync(command);
+      Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+    }
+    using var noEvidence = await client.GetAsync($"/api/ui/records/archive-copies/{Guid.NewGuid():D}/evidence");
+    Assert.Equal(HttpStatusCode.Forbidden, noEvidence.StatusCode);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.False(await db.ArchiveCopyTargetRevisions.AnyAsync());
+      Assert.False(await db.DurableOperations.AnyAsync(x => x.FirmId == f.FirmId));
+    }
+
   }
 
   private static async Task<JsonElement> GetArchive(HttpClient client, Guid id, int? afterOrdinal = null)

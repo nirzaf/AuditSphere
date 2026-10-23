@@ -40351,6 +40351,390 @@
         ]
       }
     },
+    "/api/ui/records/archive-copy-targets": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateArchiveCopyTargetRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiValueResponseOfArchiveCopyTargetRevisionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/records/archive-copies": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnqueueArchiveCopyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiValueResponseOfArchiveCopyQueued"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/records/archive-copies/{operationId}/evidence": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "operationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveCopyEvidenceReadback"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/engagements/{id}/pbc": {
       "get": {
         "tags": [
@@ -92510,6 +92894,589 @@
           }
         }
       },
+      "ArchiveCopyEvidenceReadback": {
+        "required": [
+          "operationId",
+          "firmId",
+          "clientId",
+          "engagementId",
+          "operationStatus",
+          "operationResultDigest",
+          "result",
+          "fileReceipts",
+          "permissionObservations"
+        ],
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firmId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "engagementId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operationStatus": {
+            "type": "string"
+          },
+          "operationResultDigest": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "result": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ArchiveCopyOperationResult"
+              }
+            ]
+          },
+          "fileReceipts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchiveCopyFileReceiptView"
+            }
+          },
+          "permissionObservations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchiveCopyPermissionObservationView"
+            }
+          }
+        }
+      },
+      "ArchiveCopyFileReceiptView": {
+        "required": [
+          "receiptId",
+          "attemptToken",
+          "sourceKind",
+          "sourceKeySha256",
+          "sourceId",
+          "manifestEntryId",
+          "sourceVersion",
+          "sourceSha256",
+          "sourceByteCount",
+          "relativePath",
+          "destinationTenantId",
+          "destinationSiteId",
+          "destinationDriveId",
+          "destinationLibraryRootItemId",
+          "hasExactTargetBinding",
+          "destinationItemId",
+          "destinationVersion",
+          "readBackSha256",
+          "readBackByteCount",
+          "verificationOutcome",
+          "readBackAt"
+        ],
+        "type": "object",
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attemptToken": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "sourceKind": {
+            "type": "string"
+          },
+          "sourceKeySha256": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "manifestEntryId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceVersion": {
+            "type": "string"
+          },
+          "sourceSha256": {
+            "type": "string"
+          },
+          "sourceByteCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "relativePath": {
+            "type": "string"
+          },
+          "destinationTenantId": {
+            "type": "string"
+          },
+          "destinationSiteId": {
+            "type": "string"
+          },
+          "destinationDriveId": {
+            "type": "string"
+          },
+          "destinationLibraryRootItemId": {
+            "type": "string"
+          },
+          "hasExactTargetBinding": {
+            "type": "boolean"
+          },
+          "destinationItemId": {
+            "type": "string"
+          },
+          "destinationVersion": {
+            "type": "string"
+          },
+          "readBackSha256": {
+            "type": "string"
+          },
+          "readBackByteCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "verificationOutcome": {
+            "type": "string"
+          },
+          "readBackAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ArchiveCopyFileResult": {
+        "required": [
+          "sourceKind",
+          "sourceKeySha256",
+          "sourceId",
+          "manifestEntryId",
+          "sourceVersion",
+          "sourceSha256",
+          "sourceByteCount",
+          "relativePath",
+          "destinationTenantId",
+          "destinationSiteId",
+          "destinationDriveId",
+          "destinationLibraryRootItemId",
+          "hasExactTargetBinding",
+          "destinationItemId",
+          "destinationVersion",
+          "readBackSha256",
+          "readBackByteCount",
+          "verificationOutcome",
+          "readBackAt"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceKind": {
+            "type": "string"
+          },
+          "sourceKeySha256": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "manifestEntryId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceVersion": {
+            "type": "string"
+          },
+          "sourceSha256": {
+            "type": "string"
+          },
+          "sourceByteCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "relativePath": {
+            "type": "string"
+          },
+          "destinationTenantId": {
+            "type": "string"
+          },
+          "destinationSiteId": {
+            "type": "string"
+          },
+          "destinationDriveId": {
+            "type": "string"
+          },
+          "destinationLibraryRootItemId": {
+            "type": "string"
+          },
+          "hasExactTargetBinding": {
+            "type": "boolean"
+          },
+          "destinationItemId": {
+            "type": "string"
+          },
+          "destinationVersion": {
+            "type": "string"
+          },
+          "readBackSha256": {
+            "type": "string"
+          },
+          "readBackByteCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "verificationOutcome": {
+            "type": "string"
+          },
+          "readBackAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ArchiveCopyOperationResult": {
+        "required": [
+          "operationId",
+          "attemptToken",
+          "archiveId",
+          "clientId",
+          "manifestId",
+          "manifestVersion",
+          "manifestSha256",
+          "recordsProfileId",
+          "recordsProfileVersion",
+          "releaseId",
+          "checkpointId",
+          "clientSharePointSiteId",
+          "targetRevisionId",
+          "targetRevision",
+          "targetConfigurationSha256",
+          "authorizedStaffSha256",
+          "protocolOutcome",
+          "files",
+          "permissions"
+        ],
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attemptToken": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "archiveId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "manifestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "manifestVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "manifestSha256": {
+            "type": "string"
+          },
+          "recordsProfileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recordsProfileVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "releaseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "checkpointId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientSharePointSiteId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "targetRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "targetConfigurationSha256": {
+            "type": "string"
+          },
+          "authorizedStaffSha256": {
+            "type": "string"
+          },
+          "protocolOutcome": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchiveCopyFileResult"
+            }
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/ArchiveCopyPermissionResult"
+          }
+        }
+      },
+      "ArchiveCopyPermissionObservationView": {
+        "required": [
+          "observationId",
+          "attemptToken",
+          "expectedPermissionsJson",
+          "expectedPermissionsSha256",
+          "observedPermissionsJson",
+          "observedPermissionsSha256",
+          "hasUniquePermissionScope",
+          "hasExactTargetBinding",
+          "observedStaffSha256",
+          "observedTenantId",
+          "observedSiteId",
+          "observedDriveId",
+          "observedLibraryRootItemId",
+          "comparisonOutcome",
+          "observedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "observationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attemptToken": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "expectedPermissionsJson": {
+            "type": "string"
+          },
+          "expectedPermissionsSha256": {
+            "type": "string"
+          },
+          "observedPermissionsJson": {
+            "type": "string"
+          },
+          "observedPermissionsSha256": {
+            "type": "string"
+          },
+          "hasUniquePermissionScope": {
+            "type": "boolean"
+          },
+          "hasExactTargetBinding": {
+            "type": "boolean"
+          },
+          "observedStaffSha256": {
+            "type": "string"
+          },
+          "observedTenantId": {
+            "type": "string"
+          },
+          "observedSiteId": {
+            "type": "string"
+          },
+          "observedDriveId": {
+            "type": "string"
+          },
+          "observedLibraryRootItemId": {
+            "type": "string"
+          },
+          "comparisonOutcome": {
+            "type": "string"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ArchiveCopyPermissionResult": {
+        "required": [
+          "expectedPermissionsJson",
+          "expectedPermissionsSha256",
+          "observedPermissionsJson",
+          "observedPermissionsSha256",
+          "hasUniquePermissionScope",
+          "hasExactTargetBinding",
+          "observedStaffSha256",
+          "observedTenantId",
+          "observedSiteId",
+          "observedDriveId",
+          "observedLibraryRootItemId",
+          "comparisonOutcome",
+          "observedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedPermissionsJson": {
+            "type": "string"
+          },
+          "expectedPermissionsSha256": {
+            "type": "string"
+          },
+          "observedPermissionsJson": {
+            "type": "string"
+          },
+          "observedPermissionsSha256": {
+            "type": "string"
+          },
+          "hasUniquePermissionScope": {
+            "type": "boolean"
+          },
+          "hasExactTargetBinding": {
+            "type": "boolean"
+          },
+          "observedStaffSha256": {
+            "type": "string"
+          },
+          "observedTenantId": {
+            "type": "string"
+          },
+          "observedSiteId": {
+            "type": "string"
+          },
+          "observedDriveId": {
+            "type": "string"
+          },
+          "observedLibraryRootItemId": {
+            "type": "string"
+          },
+          "comparisonOutcome": {
+            "type": "string"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ArchiveCopyQueued": {
+        "required": [
+          "operationId",
+          "idempotencyKey"
+        ],
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        }
+      },
+      "ArchiveCopyTargetRevisionView": {
+        "required": [
+          "clientId",
+          "targetRevisionId",
+          "revision",
+          "configurationSha256",
+          "expectedPermissionsSha256"
+        ],
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "configurationSha256": {
+            "type": "string"
+          },
+          "expectedPermissionsSha256": {
+            "type": "string"
+          }
+        }
+      },
       "ArchiveEntryView": {
         "required": [
           "ordinal",
@@ -107351,6 +108318,47 @@
           }
         }
       },
+      "CreateArchiveCopyTargetRevisionRequest": {
+        "required": [
+          "clientId",
+          "clientSharePointSiteId",
+          "archiveLibraryDriveId",
+          "libraryRootItemId"
+        ],
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientSharePointSiteId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "archiveLibraryDriveId": {
+            "type": "string"
+          },
+          "libraryRootItemId": {
+            "type": "string"
+          },
+          "selectedResourceDraftId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "staffGroupId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CreateConsolidationGroupInput": {
         "required": [
           "code",
@@ -111206,6 +112214,28 @@
             ],
             "format": "int32",
             "default": 10
+          }
+        }
+      },
+      "EnqueueArchiveCopyRequest": {
+        "required": [
+          "archiveId",
+          "releaseId",
+          "targetRevisionId"
+        ],
+        "type": "object",
+        "properties": {
+          "archiveId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "releaseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetRevisionId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -143454,6 +144484,42 @@
               },
               {
                 "$ref": "#/components/schemas/AnalyticalPreparationReceipt"
+              }
+            ]
+          }
+        }
+      },
+      "UiValueResponseOfArchiveCopyQueued": {
+        "required": [
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ArchiveCopyQueued"
+              }
+            ]
+          }
+        }
+      },
+      "UiValueResponseOfArchiveCopyTargetRevisionView": {
+        "required": [
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ArchiveCopyTargetRevisionView"
               }
             ]
           }

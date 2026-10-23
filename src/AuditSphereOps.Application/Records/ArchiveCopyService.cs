@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -19,14 +20,47 @@ namespace AuditSphereOps.Application.Records;
 public static class ArchiveCopyService
 {
   private static readonly string[] CustodianRoles = ["Administrator", "Partner", "RecordsCustodian"];
+  private static readonly IOperationHandler QueueOnlyHandler = new QueueOnlyArchiveCopyHandler();
+
+  private sealed class QueueOnlyArchiveCopyHandler : IOperationHandler
+  {
+    public OperationDefinition Definition { get; } = new(ArchiveCopyHandler.Kind, OperationMode.LIVE,
+      OperationAuthority.LIVE_PROVIDER, Group: ArchiveCopyHandler.Group);
+
+    public string NormalizePayload(OperationRequest request) => ArchiveCopyPayloadRules.Normalize(request);
+
+    public Task LockTargetAsync(IAuditSphereDbContext db, DurableOperation operation, CancellationToken ct) =>
+      throw new InvalidOperationException("The queue-only archive descriptor cannot run in a worker.");
+
+    public Task<OperationResult> PublishAsync(IAuditSphereDbContext db, DurableOperation operation,
+      OperationResult? verifiedRemoteResult, CancellationToken ct) =>
+      throw new InvalidOperationException("The queue-only archive descriptor cannot publish worker results.");
+
+    public Task<OperationResult> ExecuteEffectAsync(DurableOperation operation, CancellationToken ct) =>
+      throw new InvalidOperationException("The queue-only archive descriptor cannot execute provider effects.");
+
+    public Task<OperationResult> ReconcileAsync(DurableOperation operation, CancellationToken ct) =>
+      throw new InvalidOperationException("The queue-only archive descriptor cannot reconcile provider effects.");
+  }
 
   public static async Task<CommandResult<ArchiveCopyTargetRevisionView>> CreateTargetRevisionAsync(
     IRecordsArchiveCopyDbContext db, ActorContext actor, CreateArchiveCopyTargetRevisionRequest request,
     CancellationToken ct = default)
   {
-    if (request is null || request.ClientId == Guid.Empty || request.ClientSharePointSiteId == Guid.Empty ||
-        string.IsNullOrWhiteSpace(request.ArchiveLibraryDriveId) || string.IsNullOrWhiteSpace(request.LibraryRootItemId))
-      return CommandResult<ArchiveCopyTargetRevisionView>.Fail("archive-copy-target.invalid", "Select an exact client-owned site and separate archive library.");
+    if (request is null)
+      return CommandResult<ArchiveCopyTargetRevisionView>.Fail("archive-copy-target.invalid", "Select one exact client-owned archive site or verified shared library namespace.");
+    var archiveDriveId = request.ArchiveLibraryDriveId?.Trim();
+    var libraryRootItemId = request.LibraryRootItemId?.Trim();
+    var requestedStaffGroupId = request.StaffGroupId?.Trim();
+    var legacySiteBinding = request.ClientSharePointSiteId is { } clientSiteId && clientSiteId != Guid.Empty &&
+      request.SelectedResourceDraftId is null && string.IsNullOrWhiteSpace(request.StaffGroupId);
+    var selectedResourceBinding = request.ClientSharePointSiteId is null &&
+      request.SelectedResourceDraftId is { } selectedDraftId && selectedDraftId != Guid.Empty &&
+      !string.IsNullOrWhiteSpace(requestedStaffGroupId) && requestedStaffGroupId.Length <= 20;
+    if (request.ClientId == Guid.Empty || legacySiteBinding == selectedResourceBinding ||
+        string.IsNullOrWhiteSpace(archiveDriveId) || archiveDriveId.Length > 2000 ||
+        string.IsNullOrWhiteSpace(libraryRootItemId) || libraryRootItemId.Length > 2000)
+      return CommandResult<ArchiveCopyTargetRevisionView>.Fail("archive-copy-target.invalid", "Select one exact client-owned archive site or verified shared library namespace.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     await db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
@@ -40,42 +74,103 @@ public static class ArchiveCopyService
     if (!authorization.Succeeded)
       return CommandResult<ArchiveCopyTargetRevisionView>.Fail(authorization.ErrorCode!, authorization.Message!);
 
-    var site = await db.ClientSharePointSites.FromSqlInterpolated($"""
-      SELECT * FROM client_share_point_sites
-      WHERE firm_id = {actor.FirmId} AND client_id = {request.ClientId} AND id = {request.ClientSharePointSiteId}
-      FOR UPDATE
-      """).AsNoTracking().SingleOrDefaultAsync(ct);
-    if (site is null || site.State != "READY" || site.MembershipState != "VERIFIED" || site.VerifiedAt is null ||
-        string.IsNullOrWhiteSpace(site.SiteId) || string.IsNullOrWhiteSpace(site.DriveId) ||
-        string.IsNullOrWhiteSpace(site.RootItemId) || string.IsNullOrWhiteSpace(site.StaffGroupId))
-      return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
-        "A current verified client-owned SharePoint site and staff group are required.");
+    ClientSharePointSite? site = null;
+    Microsoft365SetupDraft? selectedDraft = null;
+    Microsoft365ConnectionRevision? connection;
+    string staffGroupId;
+    string tenantId;
+    string siteId;
+    string driveId;
+    string staffDigest;
+    SelectedResourceProof? selectedProof = null;
+    if (legacySiteBinding)
+    {
+      site = await db.ClientSharePointSites.FromSqlInterpolated($"""
+        SELECT * FROM client_share_point_sites
+        WHERE firm_id = {actor.FirmId} AND client_id = {request.ClientId} AND id = {request.ClientSharePointSiteId}
+        FOR UPDATE
+        """).AsNoTracking().SingleOrDefaultAsync(ct);
+      if (site is null || site.State != "READY" || site.MembershipState != "VERIFIED" || site.VerifiedAt is null ||
+          string.IsNullOrWhiteSpace(site.SiteId) || string.IsNullOrWhiteSpace(site.DriveId) ||
+          string.IsNullOrWhiteSpace(site.RootItemId) || string.IsNullOrWhiteSpace(site.StaffGroupId))
+        return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
+          "A current verified client-owned SharePoint site and staff group are required.");
+      connection = await db.Microsoft365ConnectionRevisions.FromSqlInterpolated($"""
+        SELECT * FROM m365_connection_revisions WHERE firm_id = {actor.FirmId} AND id = {site.ConnectionRevisionId} FOR SHARE
+        """).AsNoTracking().SingleOrDefaultAsync(ct);
+      if (connection is null || connection.State != Microsoft365RevisionStates.Active || connection.ConsentState != "VERIFIED" ||
+          !string.Equals(connection.TenantId, site.TenantId, StringComparison.OrdinalIgnoreCase))
+        return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
+          "The client-owned site must remain bound to its active verified tenant connection.");
+      if (string.Equals(archiveDriveId, site.DriveId, StringComparison.Ordinal) ||
+          string.Equals(libraryRootItemId, site.RootItemId, StringComparison.Ordinal))
+        return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
+          "The secondary archive must use a separate library, not the client's working documents library.");
+      staffGroupId = site.StaffGroupId;
+      tenantId = site.TenantId;
+      siteId = site.SiteId;
+      driveId = archiveDriveId;
+      var currentStaff = await ClientSharePointSites.DesiredStaffAsync(db, actor.FirmId, request.ClientId, tenantId, ct);
+      var observedStaff = DeserializeObjectIds(site.MemberObjectIdsJson);
+      staffDigest = ClientSharePointSites.Digest(currentStaff);
+      if (currentStaff.Count == 0 || site.DesiredDigest != staffDigest || !currentStaff.SequenceEqual(observedStaff) ||
+          await ClientSharePointSites.HasUnverifiedStaffAsync(db, actor.FirmId, request.ClientId, tenantId, ct))
+        return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
+          "The current authorized client staff group is not verified against the persisted site membership.");
+    }
+    else
+    {
+      selectedDraft = await db.Microsoft365SetupDrafts.FromSqlInterpolated($"""
+        SELECT * FROM m365_setup_drafts
+        WHERE firm_id = {actor.FirmId} AND id = {request.SelectedResourceDraftId}
+        FOR SHARE
+        """).AsNoTracking().SingleOrDefaultAsync(ct);
+      if (selectedDraft is null || selectedDraft.State != Microsoft365RevisionStates.Active ||
+          selectedDraft.ConnectionRevisionId is null || selectedDraft.Revision < 1 ||
+          string.IsNullOrWhiteSpace(selectedDraft.ExpectedTenantId) || string.IsNullOrWhiteSpace(selectedDraft.SiteId) ||
+          string.IsNullOrWhiteSpace(selectedDraft.DriveId) || string.IsNullOrWhiteSpace(selectedDraft.RootFolderId) ||
+          !IsExactSharePointSiteUrl(selectedDraft.SiteUrl))
+        return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
+          "An active, exact selected SharePoint resource is required for a shared archive namespace.");
+      connection = await db.Microsoft365ConnectionRevisions.FromSqlInterpolated($"""
+        SELECT * FROM m365_connection_revisions WHERE firm_id = {actor.FirmId} AND id = {selectedDraft.ConnectionRevisionId} FOR SHARE
+        """).AsNoTracking().SingleOrDefaultAsync(ct);
+      if (connection is null || connection.State != Microsoft365RevisionStates.Active || connection.ConsentState != "VERIFIED" ||
+          !string.Equals(connection.TenantId, selectedDraft.ExpectedTenantId, StringComparison.OrdinalIgnoreCase))
+        return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
+          "The selected archive resource must remain bound to its active verified tenant connection.");
+      try
+      {
+        selectedProof = await ArchiveCopySourceGuard.ResolveSelectedResourceProofAsync(db, actor.FirmId,
+          selectedDraft, connection.Id, DateTimeOffset.UtcNow, lockRows: true, ct);
+      }
+      catch (OperationBlockedException)
+      {
+        return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
+          "Fresh exact selected-resource verification evidence is required.");
+      }
+      if (!string.Equals(archiveDriveId, selectedDraft.DriveId, StringComparison.Ordinal) ||
+          !string.Equals(libraryRootItemId, selectedDraft.RootFolderId, StringComparison.Ordinal))
+        return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
+          "The client-owned archive binding must identify the exact verified separate library root.");
+      staffGroupId = requestedStaffGroupId!;
+      tenantId = connection.TenantId;
+      siteId = selectedDraft.SiteId;
+      driveId = selectedDraft.DriveId;
+      var currentStaff = await ClientSharePointSites.DesiredStaffAsync(db, actor.FirmId, request.ClientId, tenantId, ct);
+      staffDigest = ArchiveCopyPermissionEncoding.StaffDigest(currentStaff);
+      if (currentStaff.Count == 0 || currentStaff.Count > 200 ||
+          await ClientSharePointSites.HasUnverifiedStaffAsync(db, actor.FirmId, request.ClientId, tenantId, ct))
+        return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
+          "The current authorized client staff roster is unavailable or unverified.");
+    }
 
-    var connection = await db.Microsoft365ConnectionRevisions.FromSqlInterpolated($"""
-      SELECT * FROM m365_connection_revisions
-      WHERE firm_id = {actor.FirmId} AND id = {site.ConnectionRevisionId}
-      FOR SHARE
-      """).AsNoTracking().SingleOrDefaultAsync(ct);
-    if (connection is null || connection.State != Microsoft365RevisionStates.Active || connection.ConsentState != "VERIFIED" ||
-        !string.Equals(connection.TenantId, site.TenantId, StringComparison.OrdinalIgnoreCase))
+    if (await UsesKnownWorkingDriveAsync(db, actor.FirmId, driveId, ct))
       return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
-        "The client-owned site must remain bound to its active verified tenant connection.");
-
-    if (string.Equals(request.ArchiveLibraryDriveId.Trim(), site.DriveId, StringComparison.Ordinal) ||
-        string.Equals(request.LibraryRootItemId.Trim(), site.RootItemId, StringComparison.Ordinal))
-      return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
-        "The secondary archive must use a separate library, not the client's working documents library.");
-
-    var currentStaff = await ClientSharePointSites.DesiredStaffAsync(db, actor.FirmId, request.ClientId, site.TenantId, ct);
-    var observedStaff = DeserializeObjectIds(site.MemberObjectIdsJson);
-    var staffDigest = ClientSharePointSites.Digest(currentStaff);
-    if (currentStaff.Count == 0 || site.DesiredDigest != staffDigest || !currentStaff.SequenceEqual(observedStaff) ||
-        await ClientSharePointSites.HasUnverifiedStaffAsync(db, actor.FirmId, request.ClientId, site.TenantId, ct))
-      return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
-        "The current authorized client staff group is not verified against the persisted site membership.");
+        "The secondary archive library must be separate from configured client working libraries.");
 
     (string Json, string Sha256) permissions;
-    try { permissions = ArchiveCopyPermissionEncoding.Encode(ArchiveCopyPermissionEncoding.ClientStaffRead(site.StaffGroupId)); }
+    try { permissions = ArchiveCopyPermissionEncoding.Encode(ArchiveCopyPermissionEncoding.ClientStaffRead(staffGroupId)); }
     catch (OperationBlockedException exception)
     {
       return CommandResult<ArchiveCopyTargetRevisionView>.Fail(exception.Code, "The client staff group identity is invalid.");
@@ -90,9 +185,16 @@ public static class ArchiveCopyService
     ArchiveCopyTargetRevision revision;
     try
     {
-      revision = ArchiveCopyTargetRevision.Create(Guid.CreateVersion7(), actor.FirmId, request.ClientId, site.Id,
-        site.StaffGroupId!, currentRevision + 1, connection.Id, connection.TenantId, site.SiteId!, request.ArchiveLibraryDriveId,
-        request.LibraryRootItemId, permissions.Json, permissions.Sha256, staffDigest, actor.UserId, DateTimeOffset.UtcNow);
+      revision = selectedDraft is null
+        ? ArchiveCopyTargetRevision.Create(Guid.CreateVersion7(), actor.FirmId, request.ClientId, site!.Id,
+          staffGroupId, currentRevision + 1, connection!.Id, connection.TenantId, siteId, driveId,
+          libraryRootItemId, permissions.Json, permissions.Sha256, staffDigest, actor.UserId, DateTimeOffset.UtcNow)
+        : ArchiveCopyTargetRevision.CreateSharedSelectedResource(Guid.CreateVersion7(), actor.FirmId,
+          request.ClientId, staffGroupId, currentRevision + 1, connection!.Id, connection.TenantId,
+          siteId, driveId, libraryRootItemId, selectedDraft.Id, selectedDraft.Revision,
+          selectedProof!.Verification.Id, selectedDraft.SiteUrl!, selectedDraft.RootFolderId!,
+          selectedProof.EvidenceSha256, permissions.Json, permissions.Sha256, staffDigest,
+          actor.UserId, DateTimeOffset.UtcNow);
     }
     catch (ArgumentException)
     {
@@ -106,9 +208,33 @@ public static class ArchiveCopyService
       revision.ConfigurationSha256, revision.ExpectedPermissionsSha256));
   }
 
-  public static async Task<CommandResult<ArchiveCopyQueued>> EnqueueAsync(
+  internal static bool IsExactSharePointSiteUrl(string? value) =>
+    value is { Length: > 0 and <= 2000 } && Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+    uri.Scheme == Uri.UriSchemeHttps && uri.IsDefaultPort && uri.UserInfo.Length == 0 &&
+    uri.Query.Length == 0 && uri.Fragment.Length == 0 &&
+    uri.IdnHost.EndsWith(".sharepoint.com", StringComparison.OrdinalIgnoreCase) && uri.AbsolutePath != "/" &&
+    string.Equals(uri.AbsoluteUri.TrimEnd('/'), value.TrimEnd('/'), StringComparison.Ordinal);
+
+  internal static async Task<bool> UsesKnownWorkingDriveAsync(
+    IRecordsArchiveCopyDbContext db, Guid firmId, string driveId, CancellationToken ct) =>
+    await db.ClientSharePointSites.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.DriveId == driveId, ct) ||
+    await db.ClientWorkspaces.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.DriveId == driveId, ct) ||
+    await db.FirmWorkspaceConfigurations.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.DriveId == driveId, ct) ||
+    await db.RepositoryBindings.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.DriveId == driveId, ct);
+
+  public static Task<CommandResult<ArchiveCopyQueued>> EnqueueAsync(
+    IRecordsArchiveCopyDbContext db, IOperationStore store, ActorContext actor,
+    EnqueueArchiveCopyRequest request, CancellationToken ct = default) =>
+    EnqueueCoreAsync(db, store, QueueOnlyHandler, actor, request, ct);
+
+  public static Task<CommandResult<ArchiveCopyQueued>> EnqueueAsync(
     IRecordsArchiveCopyDbContext db, IOperationStore store, ArchiveCopyHandler handler,
-    ActorContext actor, EnqueueArchiveCopyRequest request, CancellationToken ct = default)
+    ActorContext actor, EnqueueArchiveCopyRequest request, CancellationToken ct = default) =>
+    EnqueueCoreAsync(db, store, handler, actor, request, ct);
+
+  private static async Task<CommandResult<ArchiveCopyQueued>> EnqueueCoreAsync(
+    IRecordsArchiveCopyDbContext db, IOperationStore store, IOperationHandler handler,
+    ActorContext actor, EnqueueArchiveCopyRequest request, CancellationToken ct)
   {
     if (request is null || request.ArchiveId == Guid.Empty || request.ReleaseId == Guid.Empty || request.TargetRevisionId == Guid.Empty)
       return CommandResult<ArchiveCopyQueued>.Fail("archive-copy-request.invalid", "Select an archive, issued release and target revision.");
@@ -161,50 +287,78 @@ public static class ArchiveCopyService
   {
     if (operationId == Guid.Empty)
       return CommandResult<ArchiveCopyEvidenceReadback>.Fail("archive-copy-readback.invalid", "Select an exact archive-copy operation.");
-    var operation = await db.DurableOperations.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.Id == operationId && x.FirmId == actor.FirmId && x.OperationKind == ArchiveCopyHandler.Kind, ct);
-    if (operation is null) return CommandResult<ArchiveCopyEvidenceReadback>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<ArchiveCopyEvidenceReadback>.Fail(ErrorCodes.GateBlocked,
+        "Archive-copy evidence requires an independent read snapshot.");
+
     ArchiveCopyOperationPayload payload;
-    try
+    ArchiveCopyEvidenceReadback readback;
+    await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
     {
-      payload = JsonSerializer.Deserialize<ArchiveCopyOperationPayload>(operation.PayloadJson)
-        ?? throw new JsonException();
-    }
-    catch (JsonException)
-    {
-      return CommandResult<ArchiveCopyEvidenceReadback>.Fail("archive-copy-readback.invalid", "Operation evidence is unavailable.");
+      var operation = await db.DurableOperations.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == operationId && x.FirmId == actor.FirmId && x.OperationKind == ArchiveCopyHandler.Kind, ct);
+      if (operation is null) return CommandResult<ArchiveCopyEvidenceReadback>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+      try
+      {
+        var request = new OperationRequest(operation.FirmId, operation.ClientId, operation.EngagementId,
+          operation.OperationKind, operation.TargetId, operation.ExpectedRevision, operation.IdempotencyKey,
+          operation.PayloadJson, operation.OriginatorId);
+        var normalizedPayload = ArchiveCopyPayloadRules.Normalize(request);
+        if (!OperationEncoding.Matches(operation, QueueOnlyHandler))
+          return CommandResult<ArchiveCopyEvidenceReadback>.Fail("archive-copy-readback.invalid", "Operation evidence is unavailable.");
+        payload = JsonSerializer.Deserialize<ArchiveCopyOperationPayload>(normalizedPayload)
+          ?? throw new JsonException();
+      }
+      catch (Exception exception) when (exception is JsonException or OperationBlockedException or NotSupportedException)
+      {
+        return CommandResult<ArchiveCopyEvidenceReadback>.Fail("archive-copy-readback.invalid", "Operation evidence is unavailable.");
+      }
+
+      if (payload.FirmId != operation.FirmId || payload.ClientId != operation.ClientId ||
+          payload.EngagementId != operation.EngagementId)
+        return CommandResult<ArchiveCopyEvidenceReadback>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+      var authorization = await AuthorizeArchiveAsync(db, actor, payload.ClientId, payload.EngagementId, ct);
+      if (!authorization.Succeeded)
+        return CommandResult<ArchiveCopyEvidenceReadback>.Fail(authorization.ErrorCode!, authorization.Message!);
+
+      ArchiveCopyOperationResult? result = null;
+      if (operation.ResultIdentity is not null && operation.ResultDigest is not null &&
+          string.Equals(operation.ResultDigest, Hashing.Sha256Hex(Encoding.UTF8.GetBytes(operation.ResultIdentity)), StringComparison.Ordinal))
+      {
+        try { result = JsonSerializer.Deserialize<ArchiveCopyOperationResult>(operation.ResultIdentity); }
+        catch (JsonException) { }
+      }
+      var receipts = await db.ArchiveCopyFileReceipts.AsNoTracking().Where(x =>
+          x.FirmId == actor.FirmId && x.ClientId == payload.ClientId && x.EngagementId == payload.EngagementId && x.OperationId == operation.Id)
+        .OrderBy(x => x.AttemptToken).ThenBy(x => x.SourceKeySha256)
+        .Select(x => new ArchiveCopyFileReceiptView(x.Id, x.AttemptToken, x.SourceKind, x.SourceKeySha256,
+          x.SourceId, x.ManifestEntryId, x.SourceVersion, x.SourceSha256, x.SourceByteCount, x.RelativePath,
+          x.DestinationTenantId, x.DestinationSiteId, x.DestinationDriveId, x.DestinationLibraryRootItemId,
+          x.HasExactTargetBinding, x.DestinationItemId, x.DestinationVersion, x.ReadBackSha256, x.ReadBackByteCount,
+          x.VerificationOutcome, x.ReadBackAt)).ToListAsync(ct);
+      var permissions = await db.ArchiveCopyPermissionObservations.AsNoTracking().Where(x =>
+          x.FirmId == actor.FirmId && x.ClientId == payload.ClientId && x.EngagementId == payload.EngagementId && x.OperationId == operation.Id)
+        .OrderBy(x => x.AttemptToken)
+        .Select(x => new ArchiveCopyPermissionObservationView(x.Id, x.AttemptToken, x.ExpectedPermissionsJson,
+          x.ExpectedPermissionsSha256, x.ObservedPermissionsJson, x.ObservedPermissionsSha256,
+          x.HasUniquePermissionScope, x.HasExactTargetBinding, x.ObservedStaffSha256, x.ObservedTenantId, x.ObservedSiteId,
+          x.ObservedDriveId, x.ObservedLibraryRootItemId, x.ComparisonOutcome, x.ObservedAt)).ToListAsync(ct);
+      readback = new(operation.Id, payload.FirmId, payload.ClientId, payload.EngagementId, operation.Status.ToString(), operation.ResultDigest, result, receipts, permissions);
+      await snapshot.CommitAsync(ct);
     }
 
-    var authorization = await AuthorizeArchiveAsync(db, actor, payload.ClientId, payload.EngagementId, ct);
-    if (payload.FirmId != actor.FirmId)
+    var currentArchive = await db.Archives.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && x.Id == payload.ArchiveId)
+      .Select(x => new { x.ClientId, x.EngagementId }).SingleOrDefaultAsync(ct);
+    if (currentArchive is null || currentArchive.ClientId != payload.ClientId || currentArchive.EngagementId != payload.EngagementId)
       return CommandResult<ArchiveCopyEvidenceReadback>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (!authorization.Succeeded)
-      return CommandResult<ArchiveCopyEvidenceReadback>.Fail(authorization.ErrorCode!, authorization.Message!);
 
-    ArchiveCopyOperationResult? result = null;
-    if (operation.ResultIdentity is not null && operation.ResultDigest is not null &&
-        string.Equals(operation.ResultDigest, Hashing.Sha256Hex(Encoding.UTF8.GetBytes(operation.ResultIdentity)), StringComparison.Ordinal))
-    {
-      try { result = JsonSerializer.Deserialize<ArchiveCopyOperationResult>(operation.ResultIdentity); }
-      catch (JsonException) { }
-    }
-    var receipts = await db.ArchiveCopyFileReceipts.AsNoTracking().Where(x =>
-        x.FirmId == actor.FirmId && x.ClientId == payload.ClientId && x.EngagementId == payload.EngagementId && x.OperationId == operation.Id)
-      .OrderBy(x => x.AttemptToken).ThenBy(x => x.SourceKeySha256)
-      .Select(x => new ArchiveCopyFileReceiptView(x.Id, x.AttemptToken, x.SourceKind, x.SourceKeySha256,
-        x.SourceId, x.ManifestEntryId, x.SourceVersion, x.SourceSha256, x.SourceByteCount, x.RelativePath,
-        x.DestinationTenantId, x.DestinationSiteId, x.DestinationDriveId, x.DestinationLibraryRootItemId,
-        x.HasExactTargetBinding, x.DestinationItemId, x.DestinationVersion, x.ReadBackSha256, x.ReadBackByteCount,
-        x.VerificationOutcome, x.ReadBackAt)).ToListAsync(ct);
-    var permissions = await db.ArchiveCopyPermissionObservations.AsNoTracking().Where(x =>
-        x.FirmId == actor.FirmId && x.ClientId == payload.ClientId && x.EngagementId == payload.EngagementId && x.OperationId == operation.Id)
-      .OrderBy(x => x.AttemptToken)
-      .Select(x => new ArchiveCopyPermissionObservationView(x.Id, x.AttemptToken, x.ExpectedPermissionsJson,
-        x.ExpectedPermissionsSha256, x.ObservedPermissionsJson, x.ObservedPermissionsSha256,
-        x.HasUniquePermissionScope, x.HasExactTargetBinding, x.ObservedStaffSha256, x.ObservedTenantId, x.ObservedSiteId,
-        x.ObservedDriveId, x.ObservedLibraryRootItemId, x.ComparisonOutcome, x.ObservedAt)).ToListAsync(ct);
-    return CommandResult<ArchiveCopyEvidenceReadback>.Ok(new(operation.Id, operation.Status.ToString(),
-      operation.ResultDigest, result, receipts, permissions));
+    var currentAuthorization = await AuthorizeArchiveAsync(db, actor, payload.ClientId, payload.EngagementId, ct);
+    if (!currentAuthorization.Succeeded)
+      return CommandResult<ArchiveCopyEvidenceReadback>.Fail(currentAuthorization.ErrorCode!, currentAuthorization.Message!);
+    return CommandResult<ArchiveCopyEvidenceReadback>.Ok(readback);
   }
 
   private static Task<CommandResult> AuthorizeArchiveAsync(
@@ -240,15 +394,113 @@ internal sealed record ArchiveCopySourceSet(
   Release Release,
   ReleaseCheckpoint Checkpoint,
   FinancialPackageArtifact Artifact,
-  ClientSharePointSite ClientSite,
+  ClientSharePointSite? ClientSite,
   ArchiveCopyTargetRevision Target,
   IReadOnlyDictionary<Guid, ArchiveCopyDocumentSnapshotSource> DocumentSnapshots,
   IReadOnlyDictionary<Guid, ArchiveCopyPersistedByteSource> PersistedByteSources,
   byte[]? ReleasedArtifactBytes);
 
+internal sealed record SelectedResourceProof(
+  TenantCapabilityVerification Verification,
+  IReadOnlyList<IntegrationVerificationEvidence> Evidence,
+  string EvidenceSha256);
+
 internal static class ArchiveCopySourceGuard
 {
   private static readonly string[] CustodianRoles = ["Administrator", "Partner", "RecordsCustodian"];
+
+  public static async Task<SelectedResourceProof> ResolveSelectedResourceProofAsync(
+    IRecordsArchiveCopyDbContext db, Guid firmId, Microsoft365SetupDraft draft, Guid connectionRevisionId,
+    DateTimeOffset now, bool lockRows, CancellationToken ct)
+  {
+    if (lockRows && db.Database.CurrentTransaction is null)
+      throw new InvalidOperationException("Selected-resource proof locks require an operation transaction.");
+    if (draft.FirmId != firmId || draft.State != Microsoft365RevisionStates.Active ||
+        draft.ConnectionRevisionId != connectionRevisionId || draft.Revision < 1 ||
+        string.IsNullOrWhiteSpace(draft.ExpectedTenantId) || string.IsNullOrWhiteSpace(draft.SiteId) ||
+        string.IsNullOrWhiteSpace(draft.DriveId) || string.IsNullOrWhiteSpace(draft.RootFolderId) ||
+        !ArchiveCopyService.IsExactSharePointSiteUrl(draft.SiteUrl))
+      throw new OperationBlockedException("archive-copy-selected-resource-invalid", authorization: true);
+
+    var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == firmId && x.Id == connectionRevisionId, ct);
+    if (connection is null || connection.State != Microsoft365RevisionStates.Active || connection.ConsentState != "VERIFIED" ||
+        !string.Equals(connection.TenantId, draft.ExpectedTenantId, StringComparison.Ordinal))
+      throw new OperationBlockedException("archive-copy-selected-resource-connection-stale", authorization: true);
+
+    var latest = await db.TenantCapabilityVerifications.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.TenantId == connection.TenantId &&
+        x.Capability == Microsoft365Capabilities.SelectedSite)
+      .OrderByDescending(x => x.ObservedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    if (latest is null || latest.ConnectionRevisionId != connectionRevisionId ||
+        latest.Permission != "Sites.Selected" || latest.State != CapabilityVerificationStates.Verified ||
+        latest.DiagnosticCode != "exact-resource-and-control-denial" || latest.ObservedAt > now ||
+        latest.ObservedAt < now.AddHours(-24) || latest.ConsentAttemptId is not Guid consentAttemptId)
+      throw new OperationBlockedException("archive-copy-selected-resource-proof-stale", authorization: true);
+
+    var consent = await db.TenantConsentAttempts.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == firmId && x.Id == consentAttemptId && x.SetupDraftId == draft.Id &&
+      x.ExpectedTenantId == connection.TenantId && x.State == TenantConsentAttemptStates.ConsentVerified, ct);
+    if (consent is null)
+      throw new OperationBlockedException("archive-copy-selected-resource-consent-stale", authorization: true);
+
+    var resourceIds = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+      ["SITE"] = draft.SiteId,
+      ["DRIVE"] = draft.DriveId,
+      ["ROOT"] = draft.RootFolderId
+    };
+    var proofEvidence = new List<IntegrationVerificationEvidence>(resourceIds.Count);
+    foreach (var (kind, resourceId) in resourceIds.OrderBy(x => x.Key, StringComparer.Ordinal))
+    {
+      IntegrationVerificationEvidence? evidence;
+      if (lockRows)
+      {
+        evidence = await db.IntegrationVerificationEvidences.FromSqlInterpolated($"""
+          SELECT * FROM m365_verification_evidence
+          WHERE firm_id = {firmId} AND setup_draft_id = {draft.Id} AND resource_kind = {kind}
+          ORDER BY observed_at DESC, id DESC LIMIT 1 FOR SHARE
+          """).AsNoTracking().SingleOrDefaultAsync(ct);
+      }
+      else
+      {
+        evidence = await db.IntegrationVerificationEvidences.AsNoTracking().Where(x =>
+            x.FirmId == firmId && x.SetupDraftId == draft.Id && x.ResourceKind == kind)
+          .OrderByDescending(x => x.ObservedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+      }
+      if (evidence is null || evidence.ConnectionRevisionId != connectionRevisionId ||
+          evidence.ResourceId != resourceId || evidence.Operation != "GRAPH_BOUNDARY_READ" ||
+          evidence.IdentityReference != connection.RuntimeCredentialReference || evidence.Result != "PASS" ||
+          evidence.ObservedAt != latest.ObservedAt)
+        throw new OperationBlockedException("archive-copy-selected-resource-evidence-stale", authorization: true);
+      proofEvidence.Add(evidence);
+    }
+
+    if (lockRows)
+    {
+      var locked = await db.TenantCapabilityVerifications.FromSqlInterpolated($"""
+        SELECT * FROM m365_tenant_capability_verifications WHERE firm_id = {firmId} AND id = {latest.Id} FOR SHARE
+        """).AsNoTracking().SingleOrDefaultAsync(ct);
+      if (locked is null) throw new OperationBlockedException("archive-copy-selected-resource-proof-stale", authorization: true);
+    }
+
+    var evidenceHash = Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      verification = new
+      {
+        latest.Id, latest.FirmId, latest.ConnectionRevisionId, latest.ConsentAttemptId, latest.TenantId,
+        latest.Capability, latest.Permission, latest.State, latest.DiagnosticCode, latest.ObservedByUserId,
+        observedAt = latest.ObservedAt.ToUniversalTime()
+      },
+      evidence = proofEvidence.Select(x => new
+      {
+        x.Id, x.FirmId, x.SetupDraftId, x.ConnectionRevisionId, x.ResourceKind, x.ResourceId,
+        x.Operation, x.IdentityReference, x.Result, x.EvidenceReference,
+        observedAt = x.ObservedAt.ToUniversalTime()
+      })
+    }));
+    return new SelectedResourceProof(latest, proofEvidence, evidenceHash);
+  }
 
   public static async Task<ArchiveCopyOperationPayload> CapturePayloadAsync(
     IRecordsArchiveCopyDbContext db, Archive archive, Guid releaseId, Guid targetRevisionId,
@@ -302,8 +554,9 @@ internal static class ArchiveCopySourceGuard
     await db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
     _ = await db.Archives.FromSqlInterpolated($"SELECT * FROM archives WHERE firm_id = {firmId} AND id = {payload.ArchiveId} FOR UPDATE")
       .AsNoTracking().ToListAsync(ct);
-    _ = await db.ClientSharePointSites.FromSqlInterpolated($"SELECT * FROM client_share_point_sites WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND id = {payload.ClientSharePointSiteId} FOR SHARE")
-      .AsNoTracking().ToListAsync(ct);
+    if (payload.ClientSharePointSiteId is Guid clientSiteId)
+      _ = await db.ClientSharePointSites.FromSqlInterpolated($"SELECT * FROM client_share_point_sites WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND id = {clientSiteId} FOR SHARE")
+        .AsNoTracking().ToListAsync(ct);
     _ = await db.RecordsProfiles.FromSqlInterpolated($"SELECT * FROM records_profiles WHERE firm_id = {firmId} AND id = {payload.RecordsProfileId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
     _ = await db.ArchiveManifests.FromSqlInterpolated($"SELECT * FROM archive_manifests WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {payload.ManifestId} FOR SHARE")
@@ -379,10 +632,23 @@ internal static class ArchiveCopySourceGuard
       _ = await db.RepresentationLetterVerifications.FromSqlInterpolated($"SELECT * FROM representation_letter_verifications WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND signed_letter_id = {signedRepresentationId} FOR SHARE")
         .AsNoTracking().ToListAsync(ct);
     }
-    _ = await db.ArchiveCopyTargetRevisions.FromSqlInterpolated($"SELECT * FROM archive_copy_target_revisions WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND id = {payload.TargetRevisionId} FOR SHARE")
+    var lockedTargets = await db.ArchiveCopyTargetRevisions.FromSqlInterpolated($"SELECT * FROM archive_copy_target_revisions WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND id = {payload.TargetRevisionId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
-    _ = await db.Microsoft365ConnectionRevisions.FromSqlInterpolated($"SELECT * FROM m365_connection_revisions WHERE firm_id = {firmId} AND id IN (SELECT connection_revision_id FROM archive_copy_target_revisions WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND id = {payload.TargetRevisionId}) FOR SHARE")
+    if (lockedTargets.Count != 1 || lockedTargets[0].ClientSharePointSiteId != payload.ClientSharePointSiteId)
+      throw new OperationBlockedException("archive-copy-target-client-scope-mismatch", authorization: true);
+    _ = await db.Microsoft365ConnectionRevisions.FromSqlInterpolated($"SELECT * FROM m365_connection_revisions WHERE firm_id = {firmId} AND id = {lockedTargets[0].ConnectionRevisionId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
+    if (lockedTargets[0].UsesSharedSelectedResource)
+    {
+      if (lockedTargets[0].SelectedResourceDraftId is not Guid draftId)
+        throw new OperationBlockedException("archive-copy-selected-resource-invalid", authorization: true);
+      var draft = await db.Microsoft365SetupDrafts.FromSqlInterpolated($"SELECT * FROM m365_setup_drafts WHERE firm_id = {firmId} AND id = {draftId} FOR SHARE")
+        .AsNoTracking().SingleOrDefaultAsync(ct);
+      if (draft is null)
+        throw new OperationBlockedException("archive-copy-selected-resource-invalid", authorization: true);
+      _ = await ArchiveCopySourceGuard.ResolveSelectedResourceProofAsync(db, firmId, draft,
+        lockedTargets[0].ConnectionRevisionId, DateTimeOffset.UtcNow, lockRows: true, ct);
+    }
   }
 
   public static async Task<ArchiveCopySourceSet> ResolveAsync(
@@ -504,38 +770,70 @@ internal static class ArchiveCopySourceGuard
         target.ConfigurationSha256 != payload.TargetConfigurationSha256 ||
         target.ExpectedPermissionsSha256 != payload.ExpectedPermissionsSha256 || !target.HasValidDigests())
       throw new OperationBlockedException("archive-copy-target-configuration-stale", authorization: true);
-    var clientSite = await db.ClientSharePointSites.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.Id == target.ClientSharePointSiteId, ct);
-    if (clientSite is null || clientSite.Id != payload.ClientSharePointSiteId || clientSite.State != "READY" ||
-        clientSite.MembershipState != "VERIFIED" || clientSite.VerifiedAt is null ||
-        string.IsNullOrWhiteSpace(clientSite.SiteId) || string.IsNullOrWhiteSpace(clientSite.DriveId) ||
-        string.IsNullOrWhiteSpace(clientSite.RootItemId) || string.IsNullOrWhiteSpace(clientSite.StaffGroupId) ||
-        string.IsNullOrWhiteSpace(clientSite.OwnershipMarker) ||
-        target.ConnectionRevisionId != clientSite.ConnectionRevisionId || target.SiteId != clientSite.SiteId ||
-        target.TenantId != clientSite.TenantId || target.StaffGroupId != clientSite.StaffGroupId ||
-        string.Equals(target.DriveId, clientSite.DriveId, StringComparison.Ordinal) ||
-        string.Equals(target.LibraryRootItemId, clientSite.RootItemId, StringComparison.Ordinal))
-      throw new OperationBlockedException("archive-copy-client-site-or-library-stale", authorization: true);
+    if (await ArchiveCopyService.UsesKnownWorkingDriveAsync(db, archive.FirmId, target.DriveId, ct))
+      throw new OperationBlockedException("archive-copy-target-overlaps-working-library", authorization: true);
 
-    var currentStaff = await ClientSharePointSites.DesiredStaffAsync(db, archive.FirmId, archive.ClientId, clientSite.TenantId, ct);
-    var observedStaff = ArchiveCopyService.DeserializeObjectIds(clientSite.MemberObjectIdsJson);
+    ClientSharePointSite? clientSite = null;
+    string authorizedTenantId;
+    if (target.ClientSharePointSiteId is Guid siteId)
+    {
+      clientSite = await db.ClientSharePointSites.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.Id == siteId, ct);
+      if (clientSite is null || clientSite.Id != payload.ClientSharePointSiteId || clientSite.State != "READY" ||
+          clientSite.MembershipState != "VERIFIED" || clientSite.VerifiedAt is null ||
+          string.IsNullOrWhiteSpace(clientSite.SiteId) || string.IsNullOrWhiteSpace(clientSite.DriveId) ||
+          string.IsNullOrWhiteSpace(clientSite.RootItemId) || string.IsNullOrWhiteSpace(clientSite.StaffGroupId) ||
+          string.IsNullOrWhiteSpace(clientSite.OwnershipMarker) ||
+          target.ConnectionRevisionId != clientSite.ConnectionRevisionId || target.SiteId != clientSite.SiteId ||
+          target.TenantId != clientSite.TenantId || target.StaffGroupId != clientSite.StaffGroupId ||
+          string.Equals(target.DriveId, clientSite.DriveId, StringComparison.Ordinal) ||
+          string.Equals(target.LibraryRootItemId, clientSite.RootItemId, StringComparison.Ordinal))
+        throw new OperationBlockedException("archive-copy-client-site-or-library-stale", authorization: true);
+      authorizedTenantId = clientSite.TenantId;
+    }
+    else
+    {
+      if (payload.ClientSharePointSiteId is not null || target.SelectedResourceDraftId is not Guid selectedDraftId ||
+          target.SelectedResourceDraftRevision is not long selectedDraftRevision ||
+          target.SelectedResourceVerificationId is not Guid selectedVerificationId ||
+          target.SelectedResourceSiteUrl is not { } selectedSiteUrl ||
+          target.SelectedResourceRootFolderId is not { } selectedRoot ||
+          target.SelectedResourceEvidenceSha256 is not { } selectedEvidenceSha256)
+        throw new OperationBlockedException("archive-copy-selected-resource-invalid", authorization: true);
+      var selectedDraft = await db.Microsoft365SetupDrafts.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == archive.FirmId && x.Id == selectedDraftId, ct);
+      if (selectedDraft is null || selectedDraft.State != Microsoft365RevisionStates.Active ||
+          selectedDraft.Revision != selectedDraftRevision || selectedDraft.ConnectionRevisionId != target.ConnectionRevisionId ||
+          selectedDraft.SiteId != target.SiteId || selectedDraft.DriveId != target.DriveId ||
+          selectedDraft.RootFolderId != selectedRoot || selectedDraft.SiteUrl != selectedSiteUrl ||
+          target.LibraryRootItemId != selectedRoot)
+        throw new OperationBlockedException("archive-copy-selected-resource-stale", authorization: true);
+      var proof = await ResolveSelectedResourceProofAsync(db, archive.FirmId, selectedDraft,
+        target.ConnectionRevisionId, DateTimeOffset.UtcNow, lockRows: false, ct);
+      if (proof.Verification.Id != selectedVerificationId || proof.EvidenceSha256 != selectedEvidenceSha256)
+        throw new OperationBlockedException("archive-copy-selected-resource-proof-changed", authorization: true);
+      authorizedTenantId = selectedDraft.ExpectedTenantId!;
+    }
+
+    var currentStaff = await ClientSharePointSites.DesiredStaffAsync(db, archive.FirmId, archive.ClientId, authorizedTenantId, ct);
     var staffDigest = ClientSharePointSites.Digest(currentStaff);
     var expectedStaffPermissions = ArchiveCopyPermissionEncoding.Encode(
-      ArchiveCopyPermissionEncoding.ClientStaffRead(clientSite.StaffGroupId));
-    if (currentStaff.Count == 0 || staffDigest != target.AuthorizedStaffSha256 || staffDigest != clientSite.DesiredDigest ||
-        !currentStaff.SequenceEqual(observedStaff) ||
-        await ClientSharePointSites.HasUnverifiedStaffAsync(db, archive.FirmId, archive.ClientId, clientSite.TenantId, ct) ||
+      ArchiveCopyPermissionEncoding.ClientStaffRead(target.StaffGroupId));
+    if (currentStaff.Count is 0 or > 200 || staffDigest != target.AuthorizedStaffSha256 ||
+        await ClientSharePointSites.HasUnverifiedStaffAsync(db, archive.FirmId, archive.ClientId, authorizedTenantId, ct) ||
         expectedStaffPermissions.Json != target.ExpectedPermissionsJson ||
         expectedStaffPermissions.Sha256 != target.ExpectedPermissionsSha256 ||
-        target.ClientSharePointSiteId != payload.ClientSharePointSiteId ||
         target.AuthorizedStaffSha256 != payload.AuthorizedStaffSha256)
+      throw new OperationBlockedException("archive-copy-client-staff-or-permission-policy-stale", authorization: true);
+    if (clientSite is not null && (staffDigest != clientSite.DesiredDigest ||
+        !currentStaff.SequenceEqual(ArchiveCopyService.DeserializeObjectIds(clientSite.MemberObjectIdsJson))))
       throw new OperationBlockedException("archive-copy-client-staff-or-permission-policy-stale", authorization: true);
 
     _ = ArchiveCopyPermissionEncoding.Decode(target.ExpectedPermissionsJson);
     var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == target.FirmId && x.Id == target.ConnectionRevisionId, ct);
     if (connection is null || connection.State != Microsoft365RevisionStates.Active || connection.ConsentState != "VERIFIED" ||
-        !string.Equals(connection.TenantId, clientSite.TenantId, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(connection.TenantId, authorizedTenantId, StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(connection.TenantId, target.TenantId, StringComparison.OrdinalIgnoreCase))
       throw new OperationBlockedException("archive-copy-target-connection-stale", authorization: true);
 
@@ -557,6 +855,7 @@ internal static class ArchiveCopySourceGuard
           x.Id == reference.RepositoryBindingId, ct);
         if (snapshot is null || reference is null || binding is null || !string.Equals(reference.Provider, "SharePoint", StringComparison.OrdinalIgnoreCase) ||
             snapshot.DriveId != reference.DriveId || snapshot.ItemId != reference.ItemId || snapshot.DriveId != binding.DriveId ||
+            snapshot.DriveId == target.DriveId ||
             string.IsNullOrWhiteSpace(binding.TenantId) || string.IsNullOrWhiteSpace(binding.SiteId) ||
             entry.ContentHash != snapshot.Sha256Hex || entry.ByteCount != snapshot.ByteCount ||
             !SnapshotMetadataMatches(entry.MetadataJson, snapshot))
@@ -575,7 +874,7 @@ internal static class ArchiveCopySourceGuard
   }
 
   internal static void EnsureTargetClientBinding(Archive archive, ArchiveCopyTargetRevision? target,
-    Guid expectedClientSharePointSiteId)
+    Guid? expectedClientSharePointSiteId)
   {
     if (target is null || target.FirmId != archive.FirmId || target.ClientId != archive.ClientId ||
         target.ClientSharePointSiteId != expectedClientSharePointSiteId)

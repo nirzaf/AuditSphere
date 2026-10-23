@@ -1062,7 +1062,7 @@
       "archiveCopyProtocol": {
         "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.archiveCopyProtocol",
         "status": "PARTIAL",
-        "remaining": "Real library-level provider/shared-site binding, reachable producer/API/CLI and live custody acceptance are in progress."
+        "remaining": "Provider/API/read-onlyCLI implemented with focused evidence in archiveProviderApiCli; expected-plan export and connected live custody/control/recovery acceptance remain."
       },
       "accountingWorkspaceMode": {
         "status": "PARTIAL",
@@ -1084,17 +1084,9 @@
         "remaining": "Runtime identity/grants/resources/expiry/probes/config/resume projection and client-sites owner still engineering; live tenant acceptance separate."
       },
       "completionEvidenceDisplay": {
-        "status": "PASS_LOCAL_UI_SLICE",
-        "evidence": ".local/autonomous/evidence/wu035-completion-identities/",
-        "result": "completion.spec18PASS and AngularbuildPASS; exact report/scan/bundle hashes with identical prefixes remain distinguishable; persisted package/document/scan/source/bundle IDs displayed. Initial assertion selector fixed, no production logic changed. Existing commercial CSS budget warning remains.",
-        "remaining": "No interactive/browser/AT approval; complete currentness/review identities, archive integration, professional/live/final-release acceptance remain open.",
-        "currentness": {
-          "status": "PASS_LOCAL_SLICE",
-          "base": "59515acd1b7a286f0da42ed68ed1e71d30fc3165",
-          "evidence": ".local/autonomous/evidence/wu035-release-currentness/",
-          "result": "Isolated patched595 snapshot: PG2PASS, Angular18PASS/buildPASS, emitterRelease0warnings and generated OpenAPI. Existing release validator demotes retained approval to RECORDED_APPROVAL and disables prepare when source returned/Partner authority lost; exact issued release/decisions unchanged. SharedUI build hit peerPBC WIP; isolated own-source buildpassed. Final OpenAPI drift PASS.",
-          "browser": "Existing owned PartnerReviewsReadinessLocksScheduledFileAndLifecycleKeepsProviderStateSeparate:1PASS, completion-file-records.trx; no interactive/humanAT/fullproduct acceptance."
-        }
+        "status": "PASS_LOCAL_SLICE",
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.completionEvidenceDisplay",
+        "remaining": "Broader completion/release, interactive/human and current-source full CI gates."
       },
       "ciDispatchJson": {
         "status": "PASS_LOCAL_SLICE",
@@ -1120,6 +1112,13 @@
         "evidence": ".local/autonomous/evidence/wu038-scans",
         "checks": "Vite override8.3.3; npm before1high+1low/after0; isolated npmci/build+4session specsPASS. NuGet9projects nofindings; gitleaks2falsepositives source-reviewed, rawexit1 retained. No history/rule suppression.",
         "remaining": "Currentcommit CI, operational targets/performance/recovery acceptance."
+      },
+      "archiveProviderApiCli": {
+        "status": "PARTIAL",
+        "base": "889bde7e58c1c74d9fe52cfbb99565b779676f2f",
+        "evidence": ".local/autonomous/evidence/wu023-archive-api",
+        "checks": "Exactmigration/provider4PASS; final scopedreadback1PG+1API PASS, emitter0warnings/OpenAPIdriftPASS, EFdriftPASS; routedCLI23offlineassertions+PLANNEDenvelopePASS. Shared target uses libraryroot, exactstaffREAD/inheritedpath; retainedDown55000; queue withoutcert; finalauthority recheck. No tenant effects.",
+        "remaining": "Expected operation-plan export, connected actual provider/custody/denied-editor/recovery acceptance; no WORM/admin-proof claim."
       }
     },
     "developmentFeedback20261023": {

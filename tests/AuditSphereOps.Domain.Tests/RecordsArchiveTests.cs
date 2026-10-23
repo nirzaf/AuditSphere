@@ -9,6 +9,7 @@ using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Text.Json;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -410,6 +411,7 @@ public sealed class RecordsArchiveTests
     Assert.Equal(v1.Value!.Digest, v2.Value!.Digest);
   }
 
+  [Trait("CompletionUnit", "WU-023")]
   [Fact]
   public void ArchiveCopyTargetAndPermissionReadback_RejectCrossClientAndStaffWriteEvenWithMatchingHashes()
   {
@@ -448,6 +450,42 @@ public sealed class RecordsArchiveTests
     Assert.Throws<ArgumentException>(() => MakeObservation(observedWrite, observedWrite));
   }
 
+  [Trait("CompletionUnit", "WU-023")]
+  [Fact]
+  public void ArchiveCopyTargetRevision_EnforcesLegacyOrSharedProofXor_WithoutChangingLegacyHash()
+  {
+    var firmId = Guid.CreateVersion7();
+    var clientId = Guid.CreateVersion7();
+    var siteId = Guid.CreateVersion7();
+    var legacy = CreateArchiveCopyTarget(firmId, clientId, siteId);
+    Assert.True(legacy.HasValidDigests());
+    var legacyHash = Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      targetCode = "SECONDARY_ARCHIVE", firmId, clientId, clientSharePointSiteId = siteId,
+      staffGroupId = legacy.StaffGroupId, revision = legacy.Revision,
+      connectionRevisionId = legacy.ConnectionRevisionId, tenant = legacy.TenantId,
+      site = legacy.SiteId, drive = legacy.DriveId, root = legacy.LibraryRootItemId,
+      expectedPermissionsSha256 = legacy.ExpectedPermissionsSha256,
+      authorizedStaffSha256 = legacy.AuthorizedStaffSha256
+    }));
+    Assert.Equal(legacyHash, legacy.ConfigurationSha256);
+
+    var shared = CreateSharedArchiveCopyTarget(firmId, clientId);
+    Assert.True(shared.HasValidDigests());
+    var sharedWithFolderSubstitution = CreateSharedArchiveCopyTarget(firmId, clientId);
+    typeof(ArchiveCopyTargetRevision).GetProperty(nameof(ArchiveCopyTargetRevision.SelectedResourceRootFolderId))!
+      .SetValue(sharedWithFolderSubstitution, "child-folder-is-not-library-root");
+    Assert.False(sharedWithFolderSubstitution.HasValidDigests());
+    typeof(ArchiveCopyTargetRevision).GetProperty(nameof(ArchiveCopyTargetRevision.ClientSharePointSiteId))!
+      .SetValue(shared, siteId);
+    Assert.False(shared.HasValidDigests());
+
+    var legacyWithPartialProof = CreateArchiveCopyTarget(firmId, clientId, siteId);
+    typeof(ArchiveCopyTargetRevision).GetProperty(nameof(ArchiveCopyTargetRevision.SelectedResourceDraftId))!
+      .SetValue(legacyWithPartialProof, Guid.NewGuid());
+    Assert.False(legacyWithPartialProof.HasValidDigests());
+  }
+
   private static ArchiveCopyTargetRevision CreateArchiveCopyTarget(Guid firmId, Guid clientId, Guid clientSiteId)
   {
     var permissions = ArchiveCopyPermissionEncoding.Encode(
@@ -457,5 +495,17 @@ public sealed class RecordsArchiveTests
       permissions.Json, permissions.Sha256,
       Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes("authorized-client-staff")),
       Guid.CreateVersion7(), DateTimeOffset.UtcNow);
+  }
+
+  private static ArchiveCopyTargetRevision CreateSharedArchiveCopyTarget(Guid firmId, Guid clientId)
+  {
+    var permissions = ArchiveCopyPermissionEncoding.Encode(
+      ArchiveCopyPermissionEncoding.ClientStaffRead("43"));
+    return ArchiveCopyTargetRevision.CreateSharedSelectedResource(Guid.CreateVersion7(), firmId, clientId,
+      "43", 1, Guid.CreateVersion7(), "tenant-a", "example.sharepoint.com,site,web", "archive-drive",
+      "archive-library-root", Guid.CreateVersion7(), 1, Guid.CreateVersion7(),
+      "https://example.sharepoint.com/sites/archive", "archive-library-root",
+      Hashing.Sha256Hex("selected-resource-proof"), permissions.Json, permissions.Sha256,
+      Hashing.Sha256Hex("authorized-client-staff"), Guid.CreateVersion7(), DateTimeOffset.UtcNow);
   }
 }

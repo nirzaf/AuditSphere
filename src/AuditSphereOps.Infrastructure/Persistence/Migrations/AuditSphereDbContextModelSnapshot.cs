@@ -22462,6 +22462,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_m365_tenant_capability_verifications_firm_id_id");
+
                     b.HasIndex("FirmId", "ConnectionRevisionId");
 
                     b.HasIndex("FirmId", "ObservedByUserId");
@@ -29331,7 +29334,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("client_id");
 
-                    b.Property<Guid>("ClientSharePointSiteId")
+                    b.Property<Guid?>("ClientSharePointSiteId")
                         .HasColumnType("uuid")
                         .HasColumnName("client_share_point_site_id");
 
@@ -29384,6 +29387,33 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("revision");
 
+                    b.Property<Guid?>("SelectedResourceDraftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("selected_resource_draft_id");
+
+                    b.Property<long?>("SelectedResourceDraftRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("selected_resource_draft_revision");
+
+                    b.Property<string>("SelectedResourceEvidenceSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("selected_resource_evidence_sha256");
+
+                    b.Property<string>("SelectedResourceRootFolderId")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("selected_resource_root_folder_id");
+
+                    b.Property<string>("SelectedResourceSiteUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("selected_resource_site_url");
+
+                    b.Property<Guid?>("SelectedResourceVerificationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("selected_resource_verification_id");
+
                     b.Property<string>("SiteId")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -29420,6 +29450,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "CreatedByUserId");
 
+                    b.HasIndex("FirmId", "SelectedResourceDraftId");
+
+                    b.HasIndex("FirmId", "SelectedResourceVerificationId");
+
                     b.HasIndex("FirmId", "ClientId", "ClientSharePointSiteId");
 
                     b.HasIndex("FirmId", "ClientId", "TargetCode", "Revision")
@@ -29428,7 +29462,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("archive_copy_target_revisions", null, t =>
                         {
-                            t.HasCheckConstraint("ck_archive_copy_target_revision_values", "target_code = 'SECONDARY_ARCHIVE' AND revision >= 1 AND length(trim(tenant_id)) > 0 AND length(trim(site_id)) > 0 AND length(trim(drive_id)) > 0 AND length(trim(library_root_item_id)) > 0 AND length(trim(expected_permissions_json)) > 0 AND expected_permissions_sha256 ~ '^[0-9a-f]{64}$' AND staff_group_id ~ '^[1-9][0-9]*$' AND authorized_staff_sha256 ~ '^[0-9a-f]{64}$' AND configuration_sha256 ~ '^[0-9a-f]{64}$'");
+                            t.HasCheckConstraint("ck_archive_copy_target_revision_values", "target_code = 'SECONDARY_ARCHIVE' AND revision >= 1 AND length(trim(tenant_id)) > 0 AND length(trim(site_id)) > 0 AND length(trim(drive_id)) > 0 AND length(trim(library_root_item_id)) > 0 AND length(trim(expected_permissions_json)) > 0 AND expected_permissions_sha256 ~ '^[0-9a-f]{64}$' AND staff_group_id ~ '^[1-9][0-9]*$' AND authorized_staff_sha256 ~ '^[0-9a-f]{64}$' AND configuration_sha256 ~ '^[0-9a-f]{64}$' AND ((client_share_point_site_id IS NOT NULL AND selected_resource_draft_id IS NULL AND selected_resource_draft_revision IS NULL AND selected_resource_verification_id IS NULL AND selected_resource_site_url IS NULL AND selected_resource_root_folder_id IS NULL AND selected_resource_evidence_sha256 IS NULL) OR (client_share_point_site_id IS NULL AND selected_resource_draft_id IS NOT NULL AND selected_resource_draft_revision IS NOT NULL AND selected_resource_draft_revision >= 1 AND selected_resource_verification_id IS NOT NULL AND selected_resource_site_url IS NOT NULL AND selected_resource_root_folder_id IS NOT NULL AND selected_resource_evidence_sha256 IS NOT NULL AND length(trim(selected_resource_site_url)) > 0 AND length(trim(selected_resource_root_folder_id)) > 0 AND selected_resource_root_folder_id = library_root_item_id AND selected_resource_evidence_sha256 ~ '^[0-9a-f]{64}$'))");
                         });
                 });
 
@@ -37645,12 +37679,23 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("AuditSphereOps.Domain.Microsoft365.Microsoft365SetupDraft", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "SelectedResourceDraftId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Microsoft365.TenantCapabilityVerification", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "SelectedResourceVerificationId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AuditSphereOps.Domain.Microsoft365.ClientSharePointSite", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "ClientSharePointSiteId")
                         .HasPrincipalKey("FirmId", "ClientId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Records.ArchiveManifest", b =>

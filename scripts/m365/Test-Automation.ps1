@@ -6,7 +6,7 @@
   pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-017 -Offline
 #>
 param(
-  [ValidateSet('WU-017', 'WU-018', 'WU-019', 'WU-020', 'WU-021', 'WU-022', 'WU-024', 'WU-025')] [string] $Unit = 'WU-017',
+  [ValidateSet('WU-017', 'WU-018', 'WU-019', 'WU-020', 'WU-021', 'WU-022', 'WU-023', 'WU-024', 'WU-025')] [string] $Unit = 'WU-017',
   [switch] $Offline
 )
 Set-StrictMode -Version Latest
@@ -15,6 +15,11 @@ if (-not $Offline) { throw 'Test-Automation runs offline only; pass -Offline.' }
 if ($Unit -eq 'WU-022') {
   $engine = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
   & $engine -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot 'tests/MailAccess.Tests.ps1') -Offline
+  exit $LASTEXITCODE
+}
+if ($Unit -eq 'WU-023') {
+  $engine = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
+  & $engine -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot 'tests/ArchiveCopies.Tests.ps1') -Offline
   exit $LASTEXITCODE
 }
 if ($Unit -eq 'WU-024') {

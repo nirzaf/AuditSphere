@@ -34,6 +34,9 @@ public sealed partial class AuditSphereDbContext
     archiveCopyTarget.Property(x => x.SiteId).HasMaxLength(2000);
     archiveCopyTarget.Property(x => x.DriveId).HasMaxLength(2000);
     archiveCopyTarget.Property(x => x.LibraryRootItemId).HasMaxLength(2000);
+    archiveCopyTarget.Property(x => x.SelectedResourceSiteUrl).HasMaxLength(2000);
+    archiveCopyTarget.Property(x => x.SelectedResourceRootFolderId).HasMaxLength(2000);
+    archiveCopyTarget.Property(x => x.SelectedResourceEvidenceSha256).HasMaxLength(64);
     archiveCopyTarget.Property(x => x.ExpectedPermissionsJson).HasColumnType("text");
     archiveCopyTarget.Property(x => x.ExpectedPermissionsSha256).HasMaxLength(64);
     archiveCopyTarget.Property(x => x.AuthorizedStaffSha256).HasMaxLength(64);
@@ -46,7 +49,18 @@ public sealed partial class AuditSphereDbContext
       "length(trim(expected_permissions_json)) > 0 AND expected_permissions_sha256 ~ '^[0-9a-f]{64}$' AND " +
       "staff_group_id ~ '^[1-9][0-9]*$' AND " +
       "authorized_staff_sha256 ~ '^[0-9a-f]{64}$' AND " +
-      "configuration_sha256 ~ '^[0-9a-f]{64}$'"));
+      "configuration_sha256 ~ '^[0-9a-f]{64}$' AND " +
+      "((client_share_point_site_id IS NOT NULL AND selected_resource_draft_id IS NULL AND " +
+      "selected_resource_draft_revision IS NULL AND selected_resource_verification_id IS NULL AND " +
+      "selected_resource_site_url IS NULL AND selected_resource_root_folder_id IS NULL AND " +
+      "selected_resource_evidence_sha256 IS NULL) OR " +
+      "(client_share_point_site_id IS NULL AND selected_resource_draft_id IS NOT NULL AND " +
+      "selected_resource_draft_revision IS NOT NULL AND selected_resource_draft_revision >= 1 AND " +
+      "selected_resource_verification_id IS NOT NULL AND selected_resource_site_url IS NOT NULL AND " +
+      "selected_resource_root_folder_id IS NOT NULL AND selected_resource_evidence_sha256 IS NOT NULL AND " +
+      "length(trim(selected_resource_site_url)) > 0 AND length(trim(selected_resource_root_folder_id)) > 0 AND " +
+      "selected_resource_root_folder_id = library_root_item_id AND " +
+      "selected_resource_evidence_sha256 ~ '^[0-9a-f]{64}$'))"));
     archiveCopyTarget.HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -55,6 +69,12 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     archiveCopyTarget.HasOne<Microsoft365ConnectionRevision>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ConnectionRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    archiveCopyTarget.HasOne<Microsoft365SetupDraft>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.SelectedResourceDraftId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    archiveCopyTarget.HasOne<TenantCapabilityVerification>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.SelectedResourceVerificationId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     archiveCopyTarget.HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })

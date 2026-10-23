@@ -473,6 +473,54 @@ work. No CMS import/signing command is available from this slice. A matching
 snapshot, valid JSON envelope or zero exit from an offline check cannot replace
 those gates or prove delivery.
 
+## Secondary archive copies and evidence readback (WU-023)
+
+**Authority:** ADR-0009. The release/archive store remains authoritative. A SharePoint secondary copy with staff READ access is neither WORM nor administrator-proof immutability. Signing +60-day freeze, early-lock review and immutable amendments remain unchanged.
+
+### Local intent and worker boundary
+
+Use the authenticated same-origin API with its normal staff cookie and XSRF token. Current Administrator, Partner or RecordsCustodian authority is required in the exact client/engagement scope; a reader or client participant cannot configure or queue a copy.
+
+| Endpoint under `/api/ui` | Input / purpose |
+| --- | --- |
+| `POST /records/archive-copy-targets` | `clientId`, `archiveLibraryDriveId`, `libraryRootItemId`, and one binding variant below. Creates an immutable local target revision; grants no Microsoft permission. |
+| `POST /records/archive-copies` | `archiveId`, `releaseId`, `targetRevisionId`. Captures approved source identities and queues the existing durable operation. Retry the same reviewed intent; queued is not copied. |
+| `GET /records/archive-copies/{operationId}/evidence` | Reads the exact operation's server-bound firm/client/engagement IDs, persisted result, file receipts and ACL observations under current authority. No copy or live provider probe occurs. |
+
+Target variants are mutually exclusive:
+
+- Dedicated client site: supply its verified `clientSharePointSiteId`; omit selected-resource fields. The archive library must differ from its working library.
+- Shared selected site: omit `clientSharePointSiteId`; supply the active `selectedResourceDraftId` and exact client-owned archive `staffGroupId`. The verified selected root must be the separate archive **library root**, not a working folder. The library description must equal `AuditSphere:{firmId}:{clientId}`; its staff group has the same marker and title `AuditSphere Archive Staff {clientId:N}`. Existing working-library bindings are refused.
+
+The API needs no client-sites certificate to queue. Only the already isolated worker copies via its approved identity. It verifies current source/target authority, exact library ownership, staff roster, inherited descendant permissions and exact versioned bytes. Create-if-absent paths reconcile lost responses without overwriting conflicting content. This introduces no tenant scope or consent grant. Downgrade refuses to discard retained shared-binding evidence.
+
+### CLI comparison
+
+Offline planning requires no cookie, provider or operation record:
+
+```powershell
+pwsh -NoProfile -NonInteractive -File scripts/m365/Verify-ArchiveCopies.ps1 `
+  -PlanPath scripts/m365/tests/fixtures/plan.synthetic.json -DryRun `
+  -OutputPath artifacts/completion/WU-023.json
+python3 scripts/m365/verify-result.py artifacts/completion/WU-023.json --expect PLANNED
+pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-023 -Offline
+```
+
+For authenticated readback, prepare an expected operation plan from the approved release/checkpoint/archive sources. Its exact schema is validated by `Read-M365ArchiveCopyOperationPlan` in `scripts/m365/AuditSphere.M365.ArchiveCopies.psm1`: scope/operation/source IDs, manifest/profile/target revisions and digests, destination IDs, staff group, expected READ-grant digest and every source file's identity/version/hash/byte count/path. Do not copy an untrusted observed result into the expected plan and call that independent verification. Expected-plan export and connected live acceptance remain separate work.
+
+Use the existing private same-tenant session bootstrap; the environment variable below contains the staff cookie privately, never in a command argument, log, committed plan or output artifact. Supply reviewed plan digests and the exact operation ID:
+
+```powershell
+pwsh -NoProfile -NonInteractive -File scripts/m365/Verify-ArchiveCopies.ps1 `
+  -PlanPath $approvedTenantPlan -ExpectedPlanSha256 $tenantPlanSha256 `
+  -OperationPlanPath $approvedOperationPlan -ExpectedOperationPlanSha256 $operationPlanSha256 `
+  -OperationId $operationId -Mode ReadOnly `
+  -SessionCookieEnvironmentVariable AUDITSPHERE_SESSION_COOKIE `
+  -OutputPath artifacts/completion/archive-copy-readback.json
+```
+
+ReadOnly/Verify performs only session → exact evidence → session GETs and checks unchanged staff/session/firm identity, source/configuration pins, receipt attempts, bytes/versions and exact READ grants. Matching historical API evidence still returns `INCOMPLETE_EVIDENCE`: fresh destination readback, ordinary-editor denied edit/delete, privileged custodian residual capability, independent authoritative custody and recovery evidence are not established by that GET. Missing records remain pending; mismatches are drift. Apply is refused before credentials/network; DryRun/WhatIf stays offline. No live effect was performed by the offline cohort.
+
 ## Deployment bindings and safe settings export (WU-024)
 
 The selected owner is `infra/hostinger-acceptance/compose.yaml`. The optional
@@ -610,6 +658,7 @@ pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-020 -Offline
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-021 -Offline
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-022 -Offline
+pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-023 -Offline
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-024 -Offline
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-025 -Offline
 ```

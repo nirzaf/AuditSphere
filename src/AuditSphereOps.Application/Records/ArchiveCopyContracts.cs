@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Shared;
@@ -11,9 +12,11 @@ public sealed record ArchiveCopyQueued(Guid OperationId, string IdempotencyKey);
 
 public sealed record CreateArchiveCopyTargetRevisionRequest(
   Guid ClientId,
-  Guid ClientSharePointSiteId,
+  Guid? ClientSharePointSiteId,
   string ArchiveLibraryDriveId,
-  string LibraryRootItemId);
+  string LibraryRootItemId,
+  Guid? SelectedResourceDraftId = null,
+  string? StaffGroupId = null);
 
 public sealed record ArchiveCopyTargetRevisionView(
   Guid ClientId, Guid TargetRevisionId, long Revision, string ConfigurationSha256, string ExpectedPermissionsSha256);
@@ -54,7 +57,7 @@ public sealed record ArchiveCopyOperationPayload(
   DateTimeOffset ReleaseReleasedAt,
   Guid ReleaseReleasedByUserId,
   Guid TargetRevisionId,
-  Guid ClientSharePointSiteId,
+  Guid? ClientSharePointSiteId,
   long TargetRevision,
   string TargetConfigurationSha256,
   string ExpectedPermissionsSha256,
@@ -104,7 +107,7 @@ public static class ArchiveCopyPermissionEncoding
       .ThenBy(x => x.Role, StringComparer.Ordinal)
       .ToArray();
 
-    if (canonicalRows.Length == 0 || canonicalRows.Distinct().Count() != canonicalRows.Length)
+    if (canonicalRows.Distinct().Count() != canonicalRows.Length)
       throw new OperationBlockedException("archive-copy-permission-set-invalid", authorization: true);
     return canonicalRows;
   }
@@ -112,6 +115,18 @@ public static class ArchiveCopyPermissionEncoding
   /// <summary>Expected archive-library ACL is fixed to the exact current client staff group at read level.</summary>
   public static IReadOnlyList<ArchiveCopyPermissionGrant> ClientStaffRead(string staffGroupId) =>
     Canonicalize([new ArchiveCopyPermissionGrant("SHAREPOINT_GROUP", staffGroupId, "READ")]);
+
+  /// <summary>Canonical digest of the authorized client staff Entra object IDs.</summary>
+  public static string StaffDigest(IEnumerable<string> objectIds)
+  {
+    if (objectIds is null) throw new OperationBlockedException("archive-copy-staff-set-invalid", authorization: true);
+    var ids = objectIds.Select(x => Guid.TryParse(x, out var id) ? id.ToString("D") :
+        throw new OperationBlockedException("archive-copy-staff-set-invalid", authorization: true))
+      .Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    if (ids.Length is 0 or > 200)
+      throw new OperationBlockedException("archive-copy-staff-set-invalid", authorization: true);
+    return Hashing.Sha256Hex(Encoding.UTF8.GetBytes(string.Join("\u001f", ids)));
+  }
 
   public static bool IsExactClientStaffReadGrant(IEnumerable<ArchiveCopyPermissionGrant> grants, string staffGroupId)
   {
@@ -155,8 +170,9 @@ public static class ArchiveCopyPermissionEncoding
 }
 
 public sealed record ArchiveCopyProviderTarget(
+  Guid FirmId,
   Guid ClientId,
-  Guid ClientSharePointSiteId,
+  Guid? ClientSharePointSiteId,
   Guid ConnectionRevisionId,
   Guid TargetRevisionId,
   long TargetRevision,
@@ -168,7 +184,12 @@ public sealed record ArchiveCopyProviderTarget(
   string LibraryRootItemId,
   string StaffGroupId,
   string AuthorizedStaffSha256,
-  string ExpectedPermissionsSha256);
+  string ExpectedPermissionsSha256,
+  string SiteUrl = "",
+  string? SelectedResourceRootFolderId = null)
+{
+  public bool UsesSharedSelectedResource => ClientSharePointSiteId is null && SelectedResourceRootFolderId is not null;
+}
 
 public sealed record ArchiveCopySnapshotReadRequest(
   Guid FirmId,
@@ -227,7 +248,8 @@ public sealed record ArchiveCopyPermissionReadback(
 
 /// <summary>
 /// Implemented by the existing client-sites SharePoint provider. It must resolve and verify the
-/// ownership marker, exact client site, archive drive and library root before any effect. The
+/// ownership marker, exact site, archive drive and library namespace before any effect. Shared
+/// namespaces are client-marked folders under an already verified selected-resource root. The
 /// library ACL must have a unique scope and exactly the authorized client staff SharePoint group
 /// with READ; readback also binds its live member digest to the authorized staff digest. Staff
 /// WRITE/FULL_CONTROL or any unbound residual grant cannot match. File writes are create-if-absent
@@ -290,7 +312,7 @@ public sealed record ArchiveCopyOperationResult(
   long RecordsProfileVersion,
   Guid ReleaseId,
   Guid CheckpointId,
-  Guid ClientSharePointSiteId,
+  Guid? ClientSharePointSiteId,
   Guid TargetRevisionId,
   long TargetRevision,
   string TargetConfigurationSha256,
@@ -301,6 +323,9 @@ public sealed record ArchiveCopyOperationResult(
 
 public sealed record ArchiveCopyEvidenceReadback(
   Guid OperationId,
+  Guid FirmId,
+  Guid ClientId,
+  Guid EngagementId,
   string OperationStatus,
   string? OperationResultDigest,
   ArchiveCopyOperationResult? Result,
@@ -345,7 +370,6 @@ public static class ArchiveCopyPayloadRules
           payload.ReleasedArtifactId == Guid.Empty || string.IsNullOrWhiteSpace(payload.ReleasedArtifactVersion) ||
           payload.ReleasedArtifactByteCount < 0 || payload.ReleaseReleasedAt == default ||
           payload.ReleaseReleasedByUserId == Guid.Empty || payload.TargetRevisionId == Guid.Empty || payload.TargetRevision < 1 ||
-          payload.ClientSharePointSiteId == Guid.Empty ||
           !AllHashes(payload.ManifestSha256, payload.ProfileSha256, payload.ReleaseManifestSha256,
             payload.CheckpointManifestSha256, payload.CheckpointReadBackSha256, payload.ReleasedArtifactSha256,
             payload.TargetConfigurationSha256, payload.ExpectedPermissionsSha256, payload.AuthorizedStaffSha256))

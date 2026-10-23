@@ -67,7 +67,7 @@ administrator is asked to accept.
 `RoleManagement.ReadWrite.Directory`, so AuditSphere refuses them (and treats an
 unknown `isAssignableToRole` as privileged). Dynamic-membership groups are refused.
 
-The isolated client-sites worker has the separately owner-approved [client-site provisioning exception](auditsphere-client-sharepoint-sites-current.md), using Graph and SharePoint `Sites.FullControl.All` only for site creation, exact document-worker grants and site-local staff administration. Every other runtime retains the prohibition below.
+The isolated client-sites worker has the separately owner-approved [client-site provisioning exception](auditsphere-client-sharepoint-sites-current.md), using Graph and SharePoint `Sites.FullControl.All` for site creation, exact document-worker grants and site-local staff administration. [ADR-0009](adr/auditsphere-architecture-adr-0009-archive-authority-release-store-approved.md) also authorizes that existing isolated capability to copy released evidence to a separately configured, client-bound read-only archive library and verify its exact bytes and grants. This adds no Microsoft permission: working-site Full Control, secondary-copy staff READ, and authoritative release-store custody remain separate boundaries. Provider implementation and live acceptance are tracked separately. Every other runtime retains the prohibition below.
 
 No other AuditSphere runtime may request `Directory.ReadWrite.All`, `User.ReadWrite.All`,
 `RoleManagement.ReadWrite.Directory`, `Sites.ReadWrite.All`, `Sites.FullControl.All`,

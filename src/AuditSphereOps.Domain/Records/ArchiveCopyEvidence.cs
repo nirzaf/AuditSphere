@@ -25,7 +25,13 @@ public sealed class ArchiveCopyTargetRevision
   public Guid Id { get; private set; }
   public Guid FirmId { get; private set; }
   public Guid ClientId { get; private set; }
-  public Guid ClientSharePointSiteId { get; private set; }
+  public Guid? ClientSharePointSiteId { get; private set; }
+  public Guid? SelectedResourceDraftId { get; private set; }
+  public long? SelectedResourceDraftRevision { get; private set; }
+  public Guid? SelectedResourceVerificationId { get; private set; }
+  public string? SelectedResourceSiteUrl { get; private set; }
+  public string? SelectedResourceRootFolderId { get; private set; }
+  public string? SelectedResourceEvidenceSha256 { get; private set; }
   public string StaffGroupId { get; private set; } = "";
   public string TargetCode { get; private set; } = "";
   public long Revision { get; private set; }
@@ -41,13 +47,36 @@ public sealed class ArchiveCopyTargetRevision
   public Guid CreatedByUserId { get; private set; }
   public DateTimeOffset CreatedAt { get; private set; }
 
-  public bool HasValidDigests() =>
-    IsSharePointGroupId(StaffGroupId) && HasExactStaffReadExpectation(ExpectedPermissionsJson, StaffGroupId) &&
-    string.Equals(Hashing.Sha256Hex(Encoding.UTF8.GetBytes(ExpectedPermissionsJson)), ExpectedPermissionsSha256, StringComparison.Ordinal) &&
-    IsSha256(AuthorizedStaffSha256) &&
-    string.Equals(ComputeConfigurationSha256(FirmId, Revision, ConnectionRevisionId, TenantId, SiteId, DriveId,
-      LibraryRootItemId, ClientId, ClientSharePointSiteId, StaffGroupId, ExpectedPermissionsSha256, AuthorizedStaffSha256),
-      ConfigurationSha256, StringComparison.Ordinal);
+  public bool UsesSharedSelectedResource => ClientSharePointSiteId is null;
+
+  public bool HasValidDigests()
+  {
+    if (!IsSharePointGroupId(StaffGroupId) || !HasExactStaffReadExpectation(ExpectedPermissionsJson, StaffGroupId) ||
+        !string.Equals(Hashing.Sha256Hex(Encoding.UTF8.GetBytes(ExpectedPermissionsJson)), ExpectedPermissionsSha256, StringComparison.Ordinal) ||
+        !IsSha256(AuthorizedStaffSha256)) return false;
+
+    var hasSharedBindingFields = SelectedResourceDraftId.HasValue || SelectedResourceDraftRevision.HasValue ||
+      SelectedResourceVerificationId.HasValue || SelectedResourceSiteUrl is not null ||
+      SelectedResourceRootFolderId is not null || SelectedResourceEvidenceSha256 is not null;
+    // The nullable site FK is the immutable variant discriminator. A shared binding may
+    // never carry a legacy client-site id, and a legacy binding may never carry any of
+    // the selected-resource proof tuple. Keep the original legacy hash shape unchanged.
+    var expectedConfiguration = ClientSharePointSiteId is { } clientSiteId && clientSiteId != Guid.Empty && !hasSharedBindingFields
+      ? ComputeConfigurationSha256(FirmId, Revision, ConnectionRevisionId, TenantId, SiteId, DriveId,
+        LibraryRootItemId, ClientId, clientSiteId, StaffGroupId, ExpectedPermissionsSha256, AuthorizedStaffSha256)
+      : ClientSharePointSiteId is null &&
+        SelectedResourceDraftId is { } draftId && SelectedResourceDraftRevision is { } draftRevision &&
+        SelectedResourceVerificationId is { } verificationId && SelectedResourceSiteUrl is { } siteUrl &&
+        SelectedResourceRootFolderId is { } selectedRoot &&
+        string.Equals(selectedRoot, LibraryRootItemId, StringComparison.Ordinal) &&
+        SelectedResourceEvidenceSha256 is { } evidenceSha256
+          ? ComputeSharedConfigurationSha256(FirmId, ClientId, StaffGroupId, Revision, ConnectionRevisionId,
+            TenantId, SiteId, DriveId, LibraryRootItemId, draftId, draftRevision, verificationId,
+            siteUrl, selectedRoot, evidenceSha256, ExpectedPermissionsSha256, AuthorizedStaffSha256)
+          : null;
+
+    return expectedConfiguration is not null && string.Equals(expectedConfiguration, ConfigurationSha256, StringComparison.Ordinal);
+  }
 
   public static ArchiveCopyTargetRevision Create(
     Guid id, Guid firmId, Guid clientId, Guid clientSharePointSiteId, string staffGroupId, long revision, Guid connectionRevisionId,
@@ -96,6 +125,68 @@ public sealed class ArchiveCopyTargetRevision
     };
   }
 
+  public static ArchiveCopyTargetRevision CreateSharedSelectedResource(
+    Guid id, Guid firmId, Guid clientId, string staffGroupId, long revision, Guid connectionRevisionId,
+    string tenantId, string siteId, string driveId, string libraryRootItemId,
+    Guid selectedResourceDraftId, long selectedResourceDraftRevision, Guid selectedResourceVerificationId,
+    string selectedResourceSiteUrl, string selectedResourceRootFolderId, string selectedResourceEvidenceSha256,
+    string expectedPermissionsJson, string expectedPermissionsSha256, string authorizedStaffSha256,
+    Guid createdByUserId, DateTimeOffset createdAt)
+  {
+    if (id == Guid.Empty || firmId == Guid.Empty || clientId == Guid.Empty || !IsSharePointGroupId(staffGroupId) ||
+        revision < 1 || connectionRevisionId == Guid.Empty || selectedResourceDraftId == Guid.Empty ||
+        selectedResourceDraftRevision < 1 || selectedResourceVerificationId == Guid.Empty ||
+        createdByUserId == Guid.Empty || createdAt == default ||
+        string.IsNullOrWhiteSpace(tenantId) || tenantId.Length > 200 ||
+        string.IsNullOrWhiteSpace(siteId) || siteId.Length > 2000 ||
+        string.IsNullOrWhiteSpace(driveId) || driveId.Length > 2000 ||
+        string.IsNullOrWhiteSpace(libraryRootItemId) || libraryRootItemId.Length > 2000 ||
+        string.IsNullOrWhiteSpace(selectedResourceSiteUrl) || selectedResourceSiteUrl.Length > 2000 ||
+        string.IsNullOrWhiteSpace(selectedResourceRootFolderId) || selectedResourceRootFolderId.Length > 2000 ||
+        !string.Equals(libraryRootItemId.Trim(), selectedResourceRootFolderId.Trim(), StringComparison.Ordinal) ||
+        !IsExactSharePointSiteUrl(selectedResourceSiteUrl) ||
+        !IsSha256(selectedResourceEvidenceSha256) ||
+        string.IsNullOrWhiteSpace(expectedPermissionsJson) || expectedPermissionsJson.Length > 8192 ||
+        !IsSha256(expectedPermissionsSha256) || !IsSha256(authorizedStaffSha256))
+      throw new ArgumentException("Shared archive-copy target revision is incomplete.");
+
+    var tenant = tenantId.Trim();
+    var site = siteId.Trim();
+    var drive = driveId.Trim();
+    var root = libraryRootItemId.Trim();
+    var siteUrl = selectedResourceSiteUrl.Trim();
+    var selectedRoot = selectedResourceRootFolderId.Trim();
+    var groupId = int.Parse(staffGroupId, System.Globalization.CultureInfo.InvariantCulture)
+      .ToString(System.Globalization.CultureInfo.InvariantCulture);
+    var permissionHash = expectedPermissionsSha256.ToLowerInvariant();
+    var evidenceHash = selectedResourceEvidenceSha256.ToLowerInvariant();
+    var staffHash = authorizedStaffSha256.ToLowerInvariant();
+    if (!HasExactStaffReadExpectation(expectedPermissionsJson, groupId) ||
+        !string.Equals(Hashing.Sha256Hex(Encoding.UTF8.GetBytes(expectedPermissionsJson)), permissionHash, StringComparison.Ordinal))
+      throw new ArgumentException("Archive-copy target must bind the exact client staff group read grant and its digest.", nameof(expectedPermissionsSha256));
+
+    const string targetCode = "SECONDARY_ARCHIVE";
+    var configurationHash = ComputeSharedConfigurationSha256(firmId, clientId, groupId, revision,
+      connectionRevisionId, tenant, site, drive, root, selectedResourceDraftId, selectedResourceDraftRevision,
+      selectedResourceVerificationId, siteUrl, selectedRoot, evidenceHash, permissionHash, staffHash);
+    return new ArchiveCopyTargetRevision
+    {
+      Id = id, FirmId = firmId, ClientId = clientId, ClientSharePointSiteId = null,
+      SelectedResourceDraftId = selectedResourceDraftId,
+      SelectedResourceDraftRevision = selectedResourceDraftRevision,
+      SelectedResourceVerificationId = selectedResourceVerificationId,
+      SelectedResourceSiteUrl = siteUrl,
+      SelectedResourceRootFolderId = selectedRoot,
+      SelectedResourceEvidenceSha256 = evidenceHash,
+      StaffGroupId = groupId, TargetCode = targetCode, Revision = revision,
+      ConnectionRevisionId = connectionRevisionId, TenantId = tenant, SiteId = site,
+      DriveId = drive, LibraryRootItemId = root, ExpectedPermissionsJson = expectedPermissionsJson,
+      ExpectedPermissionsSha256 = permissionHash, AuthorizedStaffSha256 = staffHash,
+      ConfigurationSha256 = configurationHash, CreatedByUserId = createdByUserId,
+      CreatedAt = createdAt.ToUniversalTime()
+    };
+  }
+
   private static string ComputeConfigurationSha256(Guid firmId, long revision, Guid connectionRevisionId,
     string tenantId, string siteId, string driveId, string libraryRootItemId, Guid clientId,
     Guid clientSharePointSiteId, string staffGroupId, string expectedPermissionsSha256, string authorizedStaffSha256) =>
@@ -104,6 +195,20 @@ public sealed class ArchiveCopyTargetRevision
       targetCode = "SECONDARY_ARCHIVE", firmId, clientId, clientSharePointSiteId, staffGroupId, revision, connectionRevisionId,
       tenant = tenantId, site = siteId, drive = driveId, root = libraryRootItemId,
       expectedPermissionsSha256, authorizedStaffSha256
+    }));
+
+  private static string ComputeSharedConfigurationSha256(Guid firmId, Guid clientId, string staffGroupId,
+    long revision, Guid connectionRevisionId, string tenantId, string siteId, string driveId,
+    string libraryRootItemId, Guid selectedResourceDraftId, long selectedResourceDraftRevision,
+    Guid selectedResourceVerificationId, string selectedResourceSiteUrl, string selectedResourceRootFolderId,
+    string selectedResourceEvidenceSha256, string expectedPermissionsSha256, string authorizedStaffSha256) =>
+    Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      targetCode = "SECONDARY_ARCHIVE", bindingKind = "SHARED_SELECTED_RESOURCE", firmId, clientId,
+      staffGroupId, revision, connectionRevisionId, tenant = tenantId, site = siteId, drive = driveId,
+      root = libraryRootItemId, selectedResourceDraftId, selectedResourceDraftRevision,
+      selectedResourceVerificationId, selectedResourceSiteUrl, selectedResourceRootFolderId,
+      selectedResourceEvidenceSha256, expectedPermissionsSha256, authorizedStaffSha256
     }));
 
   private static bool IsSharePointGroupId(string? value) =>
@@ -121,6 +226,12 @@ public sealed class ArchiveCopyTargetRevision
   }
 
   private static bool IsSha256(string? value) => value is { Length: 64 } && value.All(char.IsAsciiHexDigit);
+
+  private static bool IsExactSharePointSiteUrl(string value) =>
+    Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps && uri.IsDefaultPort &&
+    uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0 &&
+    uri.IdnHost.EndsWith(".sharepoint.com", StringComparison.OrdinalIgnoreCase) && uri.AbsolutePath != "/" &&
+    string.Equals(uri.AbsoluteUri.TrimEnd('/'), value.TrimEnd('/'), StringComparison.Ordinal);
 }
 
 /// <summary>Append-only destination readback for one exact source file and operation attempt.</summary>

@@ -90,6 +90,7 @@ public static partial class UiEndpoints
     MapFieldworkEndpoints(group);
     MapConfirmationEndpoints(group);
     MapCompletionEndpoints(group);
+    MapArchiveCopyEndpoints(group);
     MapPbcEndpoints(group);
     MapPortalEndpoints(group);
     MapAdministrationEndpoints(group);

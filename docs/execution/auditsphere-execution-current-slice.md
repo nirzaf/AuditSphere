@@ -42,7 +42,7 @@ Unsupported inline source-mode changes are locked when periods exist, including 
 
 ## Archive secondary-copy protocol (2026-10-23)
 
-The existing client-sites worker now hosts client-bound copy intents, exact per-file receipts and read-only staff ACL observations. A real PostgreSQL store/dispatcher cohort passed with a fake provider boundary, including unknown reconciliation, stale publication guards, malformed evidence, append-only database protection and safe downgrade refusal. EF drift passed. Real SharePoint adapters, shared-site archive-library binding and live custody acceptance remain open; adapter stubs fail closed. Evidence is in `status.json`.
+The client-sites provider now copies exact versioned bytes to a separate client-bound library and checks ownership, staff READ and inherited-path grants. API local intents/readback need no worker certificate; the CLI compares pinned historical evidence without claiming custody. PostgreSQL, mocked provider/API, offline CLI, migration and contract checks passed. Expected-plan export and connected live custody/control/recovery acceptance remain open. Evidence is in `status.json`.
 
 ## Consolidation unknown-outcome controls (2026-10-23)
 

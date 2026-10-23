@@ -58,7 +58,7 @@ internal sealed class SharePointProvisioningTokenSource(HttpClient http, ClientS
 /// Supported SPSiteManager provider; no beta APIs, no user passwords and no credentials in receipts.
 /// All URLs are derived from the configured SharePoint host and stored firm/client marker.
 /// </summary>
-public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider, IClientSharePointArchiveCopyProvider
+public sealed partial class SharePointClientSiteProvider : IClientSharePointSiteProvider, IClientSharePointArchiveCopyProvider, IDisposable
 {
   private readonly AsyncLocal<Guid?> clientCorrelation = new();
   private readonly AsyncLocal<Func<CancellationToken, Task>?> authorizationGuard = new();
@@ -68,8 +68,10 @@ public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
   private readonly ClientSiteProviderOptions options;
   private readonly SharePointProvisioningTokenSource sharePointTokens;
   private readonly GraphCapabilityTokenSource graphTokens, directoryTokens;
+  private readonly GraphPreauthenticatedTransport transferTransport;
+  private readonly bool ownsTransferTransport;
   public SharePointClientSiteProvider(HttpClient http, HttpClient tokenHttp, ClientSiteProviderOptions options,
-    GraphCapabilityTokenSource directoryTokens)
+    GraphCapabilityTokenSource directoryTokens, GraphPreauthenticatedTransport? transferTransport = null)
   {
     options.Validate();
     if (string.Equals(directoryTokens.Options.ClientId, options.ProvisionerClientId, StringComparison.OrdinalIgnoreCase) || directoryTokens.Options.RequiredRole != "User.Read.All" ||
@@ -77,21 +79,16 @@ public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
         string.Equals(directoryTokens.Options.ClientId, options.DocumentWorkerClientId, StringComparison.OrdinalIgnoreCase) ||
         directoryTokens.Options.AllowedRoles.Count != 1 || !directoryTokens.Options.AllowedRoles.Contains("User.Read.All")) throw new OperationBlockedException("client-site-reader-boundary-invalid", authorization: true);
     this.http = http; this.options = options; this.directoryTokens = directoryTokens;
+    this.transferTransport = transferTransport ?? new GraphPreauthenticatedTransport();
+    ownsTransferTransport = transferTransport is null;
     sharePointTokens = new(tokenHttp, options);
     graphTokens = new(tokenHttp, new(true, options.TenantId, options.ProvisionerClientId, options.CertificatePath, options.PrivateKeyPath, "Sites.FullControl.All"));
   }
 
-  // The isolated client-sites identity and certificate boundary are the approved host for this
-  // protocol. Its exact-version copy/readback adapter remains unimplemented and fails closed.
-  // These failures are surfaced as provider-blocked durable operations, never successful receipts.
-  public Task<ArchiveCopySnapshotContent> ReadExactSnapshotAsync(ArchiveCopySnapshotReadRequest request, CancellationToken ct) =>
-    Task.FromException<ArchiveCopySnapshotContent>(new OperationBlockedException("archive-copy-provider-adapter-missing"));
-
-  public Task<ArchiveCopyFileReadback> CreateOrReadExactFileAsync(ArchiveCopyFileWriteRequest request, CancellationToken ct) =>
-    Task.FromException<ArchiveCopyFileReadback>(new OperationBlockedException("archive-copy-provider-adapter-missing"));
-
-  public Task<ArchiveCopyPermissionReadback> ReadTargetPermissionsAsync(ArchiveCopyPermissionReadRequest request, CancellationToken ct) =>
-    Task.FromException<ArchiveCopyPermissionReadback>(new OperationBlockedException("archive-copy-provider-adapter-missing"));
+  public void Dispose()
+  {
+    if (ownsTransferTransport) transferTransport.Dispose();
+  }
 
   public async Task<ClientSiteReceipt> ReconcileAsync(ClientSiteRequest request, bool mayCreate, CancellationToken ct)
   {

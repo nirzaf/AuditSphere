@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Data.Common;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -18,6 +19,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
@@ -31,6 +33,35 @@ public sealed partial class AuditDeliverablesTests
   {
     public Task<IAuditSphereDbContext> CreateAsync(CancellationToken ct = default) =>
       Task.FromResult<IAuditSphereDbContext>(new AuditSphereDbContext(options));
+  }
+
+  private sealed class ArchiveCopyRevokeOnPermissionReadInterceptor(
+    string connectionString, Guid firmId, Guid userId) : DbCommandInterceptor
+  {
+    public bool RevocationApplied { get; private set; }
+
+    public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+      DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (!RevocationApplied && command.CommandText.Contains("archive_copy_permission_observations", StringComparison.OrdinalIgnoreCase))
+      {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var revoke = new NpgsqlCommand("""
+          UPDATE role_grants SET revoked_at = NOW()
+          WHERE firm_id = @firm_id AND user_id = @user_id AND revoked_at IS NULL
+            AND role IN ('Administrator', 'Partner', 'RecordsCustodian')
+          """, connection);
+        revoke.Parameters.AddWithValue("firm_id", firmId);
+        revoke.Parameters.AddWithValue("user_id", userId);
+        if (await revoke.ExecuteNonQueryAsync(cancellationToken) < 1)
+          throw new InvalidOperationException("The archive readback revoke fixture found no active custodian grant.");
+        RevocationApplied = true;
+      }
+
+      return result;
+    }
   }
 
   private sealed class ArchiveCopyInterposedOperationStore(IOperationStore inner) : IOperationStore
@@ -74,11 +105,13 @@ public sealed partial class AuditDeliverablesTests
   {
     private sealed record StoredFile(byte[] Content, string RelativePath, string ItemId, string VersionId);
     private readonly Dictionary<string, StoredFile> files = new(StringComparer.Ordinal);
+    private readonly Dictionary<Guid, int> permissionReadsByTarget = [];
     public readonly List<string> IdempotencyKeys = [];
     public readonly List<string> SnapshotVersions = [];
     public bool LoseAfterNextCreate { get; set; }
     public bool CorruptNextReadback { get; set; }
     public bool StaffWrite { get; set; }
+    public bool StaffWriteOnFinalRead { get; set; }
     public bool WrongSnapshotVersion { get; set; }
     public int StoredFileCount => files.Count;
 
@@ -127,7 +160,10 @@ public sealed partial class AuditDeliverablesTests
       ArchiveCopyPermissionReadRequest request, CancellationToken ct)
     {
       if (request.RecheckAuthorization is not null) await request.RecheckAuthorization(ct);
-      var role = StaffWrite ? "WRITE" : "READ";
+      var readIndex = permissionReadsByTarget.GetValueOrDefault(request.Target.TargetRevisionId);
+      permissionReadsByTarget[request.Target.TargetRevisionId] = readIndex + 1;
+      var role = StaffWrite || (StaffWriteOnFinalRead && readIndex > 0) ? "WRITE" : "READ";
+      if (StaffWriteOnFinalRead && readIndex > 0) StaffWriteOnFinalRead = false;
       return new([new("SHAREPOINT_GROUP", request.Target.StaffGroupId, role)], true,
         request.Target.AuthorizedStaffSha256, request.Target.TenantId, request.Target.SiteId,
         request.Target.DriveId, request.Target.LibraryRootItemId, DateTimeOffset.UtcNow);
@@ -533,19 +569,31 @@ public sealed partial class AuditDeliverablesTests
     }
   }
 
+  [Trait("CompletionUnit", "WU-023")]
   [Fact]
   public async Task ArchiveCopyDurableHandler_ReconcilesUnknownAndPublishesOnlyExactReadbackEvidence()
   {
+    const string sharedArchiveMigrationId = "20261023042015_ArchiveCopySharedSelectedResource";
     await using var pg = await PgTestSchema.CreateAsync();
     await using (var migrationDb = new AuditSphereDbContext(pg.Options))
     {
       var migrations = migrationDb.Database.GetMigrations().ToArray();
       var archiveCopyMigration = Array.FindIndex(migrations,
         x => x.EndsWith("_ArchiveCopyClientScopeAndReadback", StringComparison.Ordinal));
-      Assert.Equal(migrations.Length - 1, archiveCopyMigration);
+      var sharedResourceMigration = Array.FindIndex(migrations,
+        x => x.EndsWith("_ArchiveCopySharedSelectedResource", StringComparison.Ordinal));
+      Assert.Equal(sharedArchiveMigrationId, migrations[sharedResourceMigration]);
+      Assert.Equal(archiveCopyMigration + 1, sharedResourceMigration);
       var migrator = migrationDb.GetService<IMigrator>();
       await migrator.MigrateAsync(migrations[archiveCopyMigration - 1]);
       await migrator.MigrateAsync(migrations[archiveCopyMigration]);
+      await migrator.MigrateAsync(migrations[sharedResourceMigration]);
+      Assert.Equal(0, await migrationDb.ArchiveCopyTargetRevisions.CountAsync());
+      await migrator.MigrateAsync(migrations[sharedResourceMigration - 1]);
+      Assert.DoesNotContain(sharedArchiveMigrationId, await migrationDb.Database.GetAppliedMigrationsAsync());
+      await migrator.MigrateAsync(migrations[sharedResourceMigration]);
+      Assert.Contains(sharedArchiveMigrationId, await migrationDb.Database.GetAppliedMigrationsAsync());
+      await migrator.MigrateAsync();
     }
 
     var w = await SeedAsync(pg);
@@ -624,6 +672,14 @@ public sealed partial class AuditDeliverablesTests
       const string staffGroupId = "42";
       var clientSiteId = Guid.CreateVersion7();
       var connectionId = Guid.CreateVersion7();
+      var selectedDraftId = Guid.CreateVersion7();
+      var selectedVerificationId = Guid.CreateVersion7();
+      var consentAttemptId = Guid.CreateVersion7();
+      var selectedSiteUrl = "https://example.sharepoint.com/sites/shared-archive-copy-test";
+      var selectedSiteId = $"example.sharepoint.com,{Guid.CreateVersion7():D},{Guid.CreateVersion7():D}";
+      const string selectedArchiveDriveId = "shared-archive-drive";
+      const string selectedArchiveRootId = "shared-library-root";
+      var selectedProofObservedAt = DateTimeOffset.UtcNow.AddMinutes(-1);
       await using (var db = new AuditSphereDbContext(pg.Options))
       {
         var assignedUserIds = await db.EngagementStaffAssignments.AsNoTracking()
@@ -658,6 +714,57 @@ public sealed partial class AuditDeliverablesTests
           MembershipState = "VERIFIED", MemberObjectIdsJson = JsonSerializer.Serialize(staff), DesiredDigest = staffDigest,
           Reason = "Synthetic test fixture", CreatedAt = now, VerifiedAt = now, LastMembershipSyncAt = now
         });
+
+        var partnerUser = await db.Users.AsNoTracking().SingleAsync(x => x.FirmId == w.FirmId && x.Id == partner.UserId);
+        var setupSessionId = Guid.CreateVersion7();
+        db.Microsoft365SetupSessions.Add(new Microsoft365SetupSession
+        {
+          Id = setupSessionId, FirmId = w.FirmId, InstallationId = "archive-copy-" + Guid.CreateVersion7().ToString("N"),
+          BootstrapProofHash = new string('a', 64), CapabilityHash = new string('b', 64),
+          State = Microsoft365SetupStates.Active, Revision = 1, ClaimedByUserId = partner.UserId,
+          ClaimedAt = selectedProofObservedAt.AddMinutes(-10), ExpiresAt = selectedProofObservedAt.AddDays(1)
+        });
+        db.Microsoft365SetupDrafts.Add(new Microsoft365SetupDraft
+        {
+          Id = selectedDraftId, FirmId = w.FirmId, SetupSessionId = setupSessionId, Revision = 1,
+          State = Microsoft365RevisionStates.Active, ExpectedTenantId = tenantId,
+          SiteUrl = selectedSiteUrl, SiteId = selectedSiteId, DriveId = selectedArchiveDriveId,
+          RootFolderId = selectedArchiveRootId, ConnectionRevisionId = connectionId,
+          CreatedAt = selectedProofObservedAt.AddMinutes(-10), UpdatedAt = selectedProofObservedAt
+        });
+        db.TenantConsentAttempts.Add(new TenantConsentAttempt
+        {
+          Id = consentAttemptId, FirmId = w.FirmId, SetupDraftId = selectedDraftId,
+          InitiatedByUserId = partner.UserId, InitiatingSessionEpoch = partnerUser.SessionEpoch,
+          InitiatorObjectId = Guid.CreateVersion7().ToString("D"), ExpectedTenantId = tenantId,
+          ApplicationClientId = "archive-copy-test-application",
+          StateHash = Hashing.Sha256Hex("archive-copy-consent-state"),
+          State = TenantConsentAttemptStates.ConsentVerified,
+          CreatedAt = selectedProofObservedAt.AddMinutes(-5), ExpiresAt = selectedProofObservedAt.AddHours(1),
+          ReturnedAt = selectedProofObservedAt, ReturnedTenantId = tenantId,
+          ConsentingTenantId = tenantId, ConsentingObjectId = Guid.CreateVersion7().ToString("D"),
+          ConsentVerifiedAt = selectedProofObservedAt
+        });
+        db.TenantCapabilityVerifications.Add(new TenantCapabilityVerification
+        {
+          Id = selectedVerificationId, FirmId = w.FirmId, ConnectionRevisionId = connectionId,
+          ConsentAttemptId = consentAttemptId, TenantId = tenantId, Capability = Microsoft365Capabilities.SelectedSite,
+          Permission = "Sites.Selected", State = CapabilityVerificationStates.Verified,
+          DiagnosticCode = "exact-resource-and-control-denial", ObservedByUserId = partner.UserId,
+          ObservedAt = selectedProofObservedAt
+        });
+        foreach (var (kind, resourceId) in new[]
+        {
+          ("SITE", selectedSiteId), ("DRIVE", selectedArchiveDriveId), ("ROOT", selectedArchiveRootId)
+        })
+          db.IntegrationVerificationEvidences.Add(new IntegrationVerificationEvidence
+          {
+            Id = Guid.CreateVersion7(), FirmId = w.FirmId, SetupDraftId = selectedDraftId,
+            ConnectionRevisionId = connectionId, ResourceKind = kind, ResourceId = resourceId,
+            Operation = "GRAPH_BOUNDARY_READ", IdentityReference = "test-only", Result = "PASS",
+            EvidenceReference = "archive-copy-selected-resource-test:" + kind,
+            ObservedAt = selectedProofObservedAt
+          });
         await db.SaveChangesAsync();
       }
 
@@ -683,7 +790,7 @@ public sealed partial class AuditDeliverablesTests
       async Task<ArchiveCopyQueued> EnqueueAsync(Guid targetRevisionId)
       {
         await using var db = new AuditSphereDbContext(pg.Options);
-        var queued = await ArchiveCopyService.EnqueueAsync(db, operationStore, handler, partner,
+        var queued = await ArchiveCopyService.EnqueueAsync(db, operationStore, partner,
           new(archiveId, releaseId, targetRevisionId));
         Assert.True(queued.Succeeded, $"{queued.ErrorCode}: {queued.Message}");
         return queued.Value!;
@@ -718,6 +825,10 @@ public sealed partial class AuditDeliverablesTests
       await using (var db = new AuditSphereDbContext(pg.Options))
       {
         var readback = await ArchiveCopyService.ReadEvidenceAsync(db, partner, first.OperationId);
+        Assert.True(readback.Succeeded, readback.Message);
+        Assert.Equal(w.FirmId, readback.Value!.FirmId);
+        Assert.Equal(w.ClientId, readback.Value.ClientId);
+        Assert.Equal(w.EngagementId, readback.Value.EngagementId);
         Assert.True(readback.Succeeded, readback.Message);
         evidence1 = readback.Value!;
       }
@@ -764,7 +875,7 @@ public sealed partial class AuditDeliverablesTests
 
       var target2 = await CreateTargetAsync();
       provider.CorruptNextReadback = true;
-      provider.StaffWrite = true;
+      provider.StaffWriteOnFinalRead = true;
       var mismatch = await EnqueueAsync(target2.TargetRevisionId);
       Assert.True(await dispatcher.ProcessNextAsync());
       var mismatchCounts = await OperationCountsAsync(mismatch.OperationId);
@@ -819,9 +930,42 @@ public sealed partial class AuditDeliverablesTests
       var staleAuthorityCounts = await OperationCountsAsync(staleAuthority.OperationId);
       Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, staleAuthorityCounts.Status);
       Assert.Equal((0, 0), (staleAuthorityCounts.ReceiptCount, staleAuthorityCounts.PermissionCount));
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var refreshedEpoch = await db.Users.AsNoTracking()
+          .Where(x => x.FirmId == w.FirmId && x.Id == partner.UserId)
+          .Select(x => x.SessionEpoch).SingleAsync();
+        partner = partner with { SessionEpoch = refreshedEpoch };
+      }
 
       await using (var db = new AuditSphereDbContext(pg.Options))
       {
+        var migrations = db.Database.GetMigrations().ToArray();
+        var foundationIndex = Array.FindIndex(migrations,
+          x => x.EndsWith("_ArchiveCopyClientScopeAndReadback", StringComparison.Ordinal));
+        var sharedIndex = Array.FindIndex(migrations,
+          x => x.EndsWith("_ArchiveCopySharedSelectedResource", StringComparison.Ordinal));
+        Assert.Equal(sharedArchiveMigrationId, migrations[sharedIndex]);
+        Assert.Equal(foundationIndex + 1, sharedIndex);
+        var legacyHashes = await db.ArchiveCopyTargetRevisions.AsNoTracking()
+          .Where(x => x.FirmId == w.FirmId && x.ClientId == w.ClientId)
+          .Select(x => new { x.Id, x.Revision, x.ConfigurationSha256, x.ExpectedPermissionsSha256 })
+          .OrderBy(x => x.Revision).ToArrayAsync();
+        Assert.NotEmpty(legacyHashes);
+
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync(migrations[foundationIndex]);
+        var refusedFoundationDown = await Assert.ThrowsAnyAsync<Exception>(() =>
+          migrator.MigrateAsync(migrations[foundationIndex - 1]));
+        Assert.Equal("55000", Assert.IsType<PostgresException>(refusedFoundationDown.GetBaseException()).SqlState);
+        await migrator.MigrateAsync(migrations[sharedIndex]);
+        await migrator.MigrateAsync();
+        var restoredLegacyHashes = await db.ArchiveCopyTargetRevisions.AsNoTracking()
+          .Where(x => x.FirmId == w.FirmId && x.ClientId == w.ClientId)
+          .Select(x => new { x.Id, x.Revision, x.ConfigurationSha256, x.ExpectedPermissionsSha256 })
+          .OrderBy(x => x.Revision).ToArrayAsync();
+        Assert.Equal(legacyHashes, restoredLegacyHashes);
+
         async Task AssertAppendOnlyAsync(string sql)
         {
           await using var tx = await db.Database.BeginTransactionAsync();
@@ -843,13 +987,129 @@ public sealed partial class AuditDeliverablesTests
           "TRUNCATE archive_copy_permission_observations"
         }) await AssertAppendOnlyAsync(sql);
 
-        var migrations = db.Database.GetMigrations().ToArray();
-        var migrationIndex = Array.FindIndex(migrations,
-          x => x.EndsWith("_ArchiveCopyClientScopeAndReadback", StringComparison.Ordinal));
-        Assert.Equal(migrations.Length - 1, migrationIndex);
         var refused = await Assert.ThrowsAnyAsync<Exception>(() =>
-          db.GetService<IMigrator>().MigrateAsync(migrations[migrationIndex - 1]));
+          migrator.MigrateAsync(migrations[foundationIndex - 1]));
         Assert.Equal("55000", Assert.IsType<PostgresException>(refused.GetBaseException()).SqlState);
+        await migrator.MigrateAsync(migrations[sharedIndex]);
+        await migrator.MigrateAsync();
+      }
+
+      ArchiveCopyTargetRevisionView sharedTargetA;
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var previousRevision = await db.ArchiveCopyTargetRevisions.AsNoTracking()
+          .Where(x => x.FirmId == w.FirmId && x.ClientId == w.ClientId && x.TargetCode == "SECONDARY_ARCHIVE")
+          .Select(x => (long?)x.Revision).MaxAsync() ?? 0;
+        var created = await ArchiveCopyService.CreateTargetRevisionAsync(db, partner,
+          new(w.ClientId, null, selectedArchiveDriveId, selectedArchiveRootId, selectedDraftId, "77"));
+        Assert.True(created.Succeeded, $"{created.ErrorCode}: {created.Message}");
+        sharedTargetA = created.Value!;
+        Assert.Equal(previousRevision + 1, sharedTargetA.Revision);
+        var persisted = await db.ArchiveCopyTargetRevisions.AsNoTracking()
+          .SingleAsync(x => x.FirmId == w.FirmId && x.Id == sharedTargetA.TargetRevisionId);
+        Assert.Null(persisted.ClientSharePointSiteId);
+        Assert.True(persisted.UsesSharedSelectedResource);
+        Assert.True(persisted.HasValidDigests());
+      }
+
+      var clientBId = Guid.CreateVersion7();
+      var clientBEngagementId = Guid.CreateVersion7();
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var targetA = await db.ArchiveCopyTargetRevisions.AsNoTracking()
+          .SingleAsync(x => x.FirmId == w.FirmId && x.Id == sharedTargetA.TargetRevisionId);
+        var staffPermissions = ArchiveCopyPermissionEncoding.Encode(ArchiveCopyPermissionEncoding.ClientStaffRead("78"));
+        var clientB = new PracticeClient
+        {
+          Id = clientBId, FirmId = w.FirmId, LegalName = "Synthetic second archive-copy client",
+          Status = "ACTIVE", CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.PracticeClients.Add(clientB);
+        db.Engagements.Add(new Engagement
+        {
+          Id = clientBEngagementId, FirmId = w.FirmId, PracticeClientId = clientBId,
+          Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+        });
+        var sharedTargetB = ArchiveCopyTargetRevision.CreateSharedSelectedResource(
+          Guid.CreateVersion7(), w.FirmId, clientBId, "78", 1, connectionId, tenantId, selectedSiteId,
+          "shared-archive-drive-b", "shared-library-root-b", selectedDraftId, 1, selectedVerificationId,
+          selectedSiteUrl, "shared-library-root-b", targetA.SelectedResourceEvidenceSha256!,
+          staffPermissions.Json, staffPermissions.Sha256, targetA.AuthorizedStaffSha256,
+          partner.UserId, DateTimeOffset.UtcNow);
+        Assert.True(sharedTargetB.HasValidDigests());
+        db.ArchiveCopyTargetRevisions.Add(sharedTargetB);
+        await db.SaveChangesAsync();
+        Assert.Equal(1, await db.ArchiveCopyTargetRevisions.AsNoTracking()
+          .Where(x => x.FirmId == w.FirmId && x.ClientId == clientBId && x.TargetCode == "SECONDARY_ARCHIVE")
+          .Select(x => x.Revision).SingleAsync());
+      }
+
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var mixed = ArchiveCopyTargetRevision.CreateSharedSelectedResource(
+          Guid.CreateVersion7(), w.FirmId, w.ClientId, "77", sharedTargetA.Revision + 1, connectionId,
+          tenantId, selectedSiteId, selectedArchiveDriveId, selectedArchiveRootId, selectedDraftId,
+          1, selectedVerificationId, selectedSiteUrl, selectedArchiveRootId,
+          Hashing.Sha256Hex("synthetic selected-resource proof for xor test"),
+          ArchiveCopyPermissionEncoding.Encode(ArchiveCopyPermissionEncoding.ClientStaffRead("77")).Json,
+          ArchiveCopyPermissionEncoding.Encode(ArchiveCopyPermissionEncoding.ClientStaffRead("77")).Sha256,
+          Hashing.Sha256Hex("synthetic authorized staff digest"), partner.UserId, DateTimeOffset.UtcNow);
+        typeof(ArchiveCopyTargetRevision).GetProperty(nameof(ArchiveCopyTargetRevision.ClientSharePointSiteId))!
+          .SetValue(mixed, clientSiteId);
+        Assert.False(mixed.HasValidDigests());
+        db.ArchiveCopyTargetRevisions.Add(mixed);
+        var rejected = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        var postgresFailure = Assert.IsType<PostgresException>(rejected.GetBaseException());
+        Assert.Equal("23514", postgresFailure.SqlState);
+        Assert.Equal("ck_archive_copy_target_revision_values", postgresFailure.ConstraintName);
+      }
+
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var migrations = db.Database.GetMigrations().ToArray();
+        var foundationIndex = Array.FindIndex(migrations,
+          x => x.EndsWith("_ArchiveCopyClientScopeAndReadback", StringComparison.Ordinal));
+        Assert.Equal(sharedArchiveMigrationId, migrations[foundationIndex + 1]);
+        var retainedSharedProofs = await db.ArchiveCopyTargetRevisions.AsNoTracking()
+          .Where(x => x.FirmId == w.FirmId && x.ClientSharePointSiteId == null)
+          .OrderBy(x => x.ClientId)
+          .Select(x => new
+          {
+            x.Id,
+            x.ClientId,
+            x.SelectedResourceDraftId,
+            x.SelectedResourceDraftRevision,
+            x.SelectedResourceVerificationId,
+            x.SelectedResourceSiteUrl,
+            x.SelectedResourceRootFolderId,
+            x.SelectedResourceEvidenceSha256,
+            x.ConfigurationSha256
+          }).ToArrayAsync();
+        Assert.Equal(2, retainedSharedProofs.Length);
+        Assert.Contains(sharedArchiveMigrationId, await db.Database.GetAppliedMigrationsAsync());
+        var refused = await Assert.ThrowsAnyAsync<Exception>(() =>
+          db.GetService<IMigrator>().MigrateAsync(migrations[foundationIndex]));
+        Assert.Equal("55000", Assert.IsType<PostgresException>(refused.GetBaseException()).SqlState);
+
+        await using var verifyDb = new AuditSphereDbContext(pg.Options);
+        Assert.Contains(sharedArchiveMigrationId, await verifyDb.Database.GetAppliedMigrationsAsync());
+        var retainedSharedProofsAfterRefusal = await verifyDb.ArchiveCopyTargetRevisions.AsNoTracking()
+          .Where(x => x.FirmId == w.FirmId && x.ClientSharePointSiteId == null)
+          .OrderBy(x => x.ClientId)
+          .Select(x => new
+          {
+            x.Id,
+            x.ClientId,
+            x.SelectedResourceDraftId,
+            x.SelectedResourceDraftRevision,
+            x.SelectedResourceVerificationId,
+            x.SelectedResourceSiteUrl,
+            x.SelectedResourceRootFolderId,
+            x.SelectedResourceEvidenceSha256,
+            x.ConfigurationSha256
+          }).ToArrayAsync();
+        Assert.Equal(retainedSharedProofs, retainedSharedProofsAfterRefusal);
+        await verifyDb.GetService<IMigrator>().MigrateAsync();
       }
 
       await using (var db = new AuditSphereDbContext(pg.Options))
@@ -859,6 +1119,34 @@ public sealed partial class AuditDeliverablesTests
         Assert.NotEmpty(await db.ArchiveCopyTargetRevisions.ToListAsync());
         Assert.Equal(ArchiveStates.AssemblyReviewed,
           await db.Archives.Where(x => x.Id == archiveId).Select(x => x.Status).SingleAsync());
+      }
+
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var operation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == first.OperationId);
+        operation.ClientId = clientBId;
+        operation.EngagementId = clientBEngagementId;
+        Assert.Throws<OperationBlockedException>(() => OperationEncoding.Matches(operation, handler));
+        operation.ClientId = w.ClientId;
+        operation.EngagementId = w.EngagementId;
+
+        var originalPayloadJson = operation.PayloadJson;
+        var wrongFirmPayload = JsonNode.Parse(originalPayloadJson)!.AsObject();
+        wrongFirmPayload["FirmId"] = Guid.CreateVersion7().ToString("D");
+        operation.PayloadJson = wrongFirmPayload.ToJsonString();
+        Assert.Throws<OperationBlockedException>(() => OperationEncoding.Matches(operation, handler));
+      }
+
+      var revokeInterceptor = new ArchiveCopyRevokeOnPermissionReadInterceptor(pg.ConnectionString, w.FirmId, partner.UserId);
+      var revokedReadOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+        .AddInterceptors(revokeInterceptor).Options;
+      await using (var db = new AuditSphereDbContext(revokedReadOptions))
+      {
+        var revokedDuringRead = await ArchiveCopyService.ReadEvidenceAsync(db, partner, first.OperationId);
+        Assert.True(revokeInterceptor.RevocationApplied);
+        Assert.False(revokedDuringRead.Succeeded);
+        Assert.Equal(ErrorCodes.ScopeDenied, revokedDuringRead.ErrorCode);
+        Assert.Null(revokedDuringRead.Value);
       }
     }
     finally

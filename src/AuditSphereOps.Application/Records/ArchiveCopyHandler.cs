@@ -182,6 +182,10 @@ public sealed class ArchiveCopyHandler(
     var files = new List<ArchiveCopyFileResult>(plan.Count);
     async Task Recheck(CancellationToken token) => await RecheckAuthorityAsync(operation, payload, token);
 
+    var permissionPreflight = await ReadPermissionResultAsync(target, sources.Target, Recheck, ct);
+    if (permissionPreflight.ComparisonOutcome != ArchiveCopyVerificationOutcomes.Match)
+      throw new OperationBlockedException("archive-copy-target-permission-preflight-failed", authorization: true);
+
     foreach (var source in plan)
     {
       await Recheck(ct);
@@ -222,27 +226,7 @@ public sealed class ArchiveCopyHandler(
     }
 
     await Recheck(ct);
-    var permissionReadback = await provider.ReadTargetPermissionsAsync(new ArchiveCopyPermissionReadRequest(target, Recheck), ct);
-    if (permissionReadback is null || permissionReadback.ReadBackAt == default)
-      throw new OperationBlockedException("archive-copy-permission-readback-unavailable");
-    var observedPermissions = ArchiveCopyPermissionEncoding.CanonicalReadback(permissionReadback.Grants);
-    var expectedPermissions = ArchiveCopyPermissionEncoding.Decode(sources.Target.ExpectedPermissionsJson);
-    var expectedEncoded = ArchiveCopyPermissionEncoding.Encode(expectedPermissions);
-    var exactPermissionTarget = string.Equals(permissionReadback.TenantId, target.TenantId, StringComparison.OrdinalIgnoreCase) &&
-      permissionReadback.SiteId == target.SiteId && permissionReadback.DriveId == target.DriveId &&
-      permissionReadback.LibraryRootItemId == target.LibraryRootItemId;
-    var exactStaffReadGrant = ArchiveCopyPermissionEncoding.IsExactClientStaffReadGrant(
-      observedPermissions.Grants, sources.Target.StaffGroupId);
-    var permissionOutcome = permissionReadback.HasUniquePermissionScope && exactPermissionTarget && exactStaffReadGrant &&
-      permissionReadback.ObservedStaffSha256 == target.AuthorizedStaffSha256 &&
-      string.Equals(expectedEncoded.Sha256, observedPermissions.Sha256, StringComparison.Ordinal)
-      ? ArchiveCopyVerificationOutcomes.Match : ArchiveCopyVerificationOutcomes.Mismatch;
-    var permissionResult = new ArchiveCopyPermissionResult(expectedEncoded.Json, expectedEncoded.Sha256,
-      observedPermissions.Json, observedPermissions.Sha256, permissionReadback.HasUniquePermissionScope,
-      exactPermissionTarget, permissionReadback.ObservedStaffSha256, permissionReadback.TenantId,
-      permissionReadback.SiteId, permissionReadback.DriveId,
-      permissionReadback.LibraryRootItemId,
-      permissionOutcome, permissionReadback.ReadBackAt.ToUniversalTime());
+    var permissionResult = await ReadPermissionResultAsync(target, sources.Target, Recheck, ct);
     var allMatch = files.All(x => x.VerificationOutcome == ArchiveCopyVerificationOutcomes.Match) &&
       permissionResult.ComparisonOutcome == ArchiveCopyVerificationOutcomes.Match;
     await Recheck(ct);
@@ -255,6 +239,32 @@ public sealed class ArchiveCopyHandler(
       files, permissionResult);
     var identity = JsonSerializer.Serialize(result);
     return new OperationResult(identity, Hashing.Sha256Hex(Encoding.UTF8.GetBytes(identity)));
+  }
+
+  private async Task<ArchiveCopyPermissionResult> ReadPermissionResultAsync(
+    ArchiveCopyProviderTarget target, ArchiveCopyTargetRevision persistedTarget,
+    Func<CancellationToken, Task> recheck, CancellationToken ct)
+  {
+    await recheck(ct);
+    var readback = await provider.ReadTargetPermissionsAsync(new ArchiveCopyPermissionReadRequest(target, recheck), ct);
+    if (readback is null || readback.Grants is null || !IsSupportedEvidenceTime(readback.ReadBackAt))
+      throw new OperationBlockedException("archive-copy-permission-readback-unavailable");
+    var observed = ArchiveCopyPermissionEncoding.CanonicalReadback(readback.Grants);
+    var expected = ArchiveCopyPermissionEncoding.Encode(
+      ArchiveCopyPermissionEncoding.Decode(persistedTarget.ExpectedPermissionsJson));
+    var exactTarget = string.Equals(readback.TenantId, target.TenantId, StringComparison.OrdinalIgnoreCase) &&
+      readback.SiteId == target.SiteId && readback.DriveId == target.DriveId &&
+      readback.LibraryRootItemId == target.LibraryRootItemId;
+    var exactStaffRead = ArchiveCopyPermissionEncoding.IsExactClientStaffReadGrant(
+      observed.Grants, persistedTarget.StaffGroupId);
+    var outcome = readback.HasUniquePermissionScope && exactTarget && exactStaffRead &&
+      readback.ObservedStaffSha256 == target.AuthorizedStaffSha256 && expected.Sha256 == observed.Sha256
+      ? ArchiveCopyVerificationOutcomes.Match : ArchiveCopyVerificationOutcomes.Mismatch;
+    if (!ArchiveCopyPayloadRules.IsSha256(readback.ObservedStaffSha256))
+      throw new OperationBlockedException("archive-copy-permission-readback-invalid");
+    return new ArchiveCopyPermissionResult(expected.Json, expected.Sha256, observed.Json, observed.Sha256,
+      readback.HasUniquePermissionScope, exactTarget, readback.ObservedStaffSha256, readback.TenantId,
+      readback.SiteId, readback.DriveId, readback.LibraryRootItemId, outcome, readback.ReadBackAt.ToUniversalTime());
   }
 
   private async Task RecheckAuthorityAsync(DurableOperation operation, ArchiveCopyOperationPayload payload, CancellationToken ct)
@@ -403,11 +413,20 @@ public sealed class ArchiveCopyHandler(
       source.Snapshot.Sha256Hex, source.Snapshot.ByteCount);
   }
 
-  private static ArchiveCopyProviderTarget ToProviderTarget(ArchiveCopyTargetRevision target, ClientSharePointSite clientSite) =>
-    new(target.ClientId, target.ClientSharePointSiteId, target.ConnectionRevisionId, target.Id, target.Revision,
-      target.ConfigurationSha256, clientSite.OwnershipMarker, target.TenantId, target.SiteId,
+  private static ArchiveCopyProviderTarget ToProviderTarget(ArchiveCopyTargetRevision target, ClientSharePointSite? clientSite)
+  {
+    if (target.ClientSharePointSiteId is not null && clientSite is null)
+      throw new OperationBlockedException("archive-copy-client-site-or-library-stale", authorization: true);
+    if (target.UsesSharedSelectedResource &&
+        (target.SelectedResourceSiteUrl is null || target.SelectedResourceRootFolderId is null))
+      throw new OperationBlockedException("archive-copy-selected-resource-invalid", authorization: true);
+    var marker = clientSite?.OwnershipMarker ?? $"AuditSphere:{target.FirmId:D}:{target.ClientId:D}";
+    return new(target.FirmId, target.ClientId, target.ClientSharePointSiteId, target.ConnectionRevisionId,
+      target.Id, target.Revision, target.ConfigurationSha256, marker, target.TenantId, target.SiteId,
       target.DriveId, target.LibraryRootItemId, target.StaffGroupId, target.AuthorizedStaffSha256,
-      target.ExpectedPermissionsSha256);
+      target.ExpectedPermissionsSha256, clientSite?.RequestedUrl ?? target.SelectedResourceSiteUrl ?? "",
+      target.SelectedResourceRootFolderId);
+  }
 
   private static string EncodeManifestPath(string path)
   {
@@ -415,7 +434,8 @@ public sealed class ArchiveCopyHandler(
         path.Any(char.IsControl))
       throw new OperationBlockedException("archive-copy-manifest-path-invalid");
     var segments = path.Split('/');
-    if (segments.Any(x => x.Length == 0 || x is "." or ".."))
+    if (segments.Length is < 1 or > 32 || segments.Any(x => x.Length is 0 or > 255 || x is "." or ".." ||
+          x.Any(c => c is ':' or '*' or '?' or '<' or '>' or '|' or '"')))
       throw new OperationBlockedException("archive-copy-manifest-path-invalid");
     return string.Join('/', segments.Select(Uri.EscapeDataString));
   }
