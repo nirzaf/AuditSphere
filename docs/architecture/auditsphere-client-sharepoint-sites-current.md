@@ -43,7 +43,7 @@ Required worker configuration:
 - `ClientSites:ClientsCreatedAfter`: explicit fixed UTC rollout timestamp, supplied as `CLIENT_SITES_CLIENTS_CREATED_AFTER` to both the API and worker. The worker persists it in the firm workspace configuration before creating any new-client intent; changing it silently is refused. Existing clients before that boundary retain their repositories and need a separately reviewed migration if sites are later requested.
 - `Identity:ClientId` (separation check), `SelectedSite:ClientId` (the different document worker receiving exact-site write), `DirectoryReader:ClientId`, `CertificatePath`, `PrivateKeyPath` (the existing isolated User.Read.All reader). Supply any configured tenant-administration/mail app IDs too so startup checks their separation.
 
-The worker service starts with the standard Compose stack and keeps reporting readiness. Missing certificate files, consent, the explicit boundary, or resource configuration remain visible as blocked/pending in Administration; they do not report success or enqueue a site. Its provisioning certificate and the separate User.Read.All directory-reader certificate are mounted read-only from separate host subdirectories. Neither is mounted in the API or PBC worker. Keep the `pbc` worker on its existing certificate and credential reference. Verify the client site's READY state, separate staff membership state, document-worker exact write grant, and existing disposable upload/readback evidence before testing a real upload. The console or an Operations row alone is not proof of Microsoft acceptance.
+The worker service starts with the standard Compose stack and keeps reporting readiness. Missing certificate files, consent, the explicit boundary, or resource configuration remain visible as blocked/pending in Administration; they do not report success or enqueue a site. Its provisioning certificate and separate User.Read.All directory-reader certificate are mounted read-only from separate host subdirectories. The privileged provisioning certificate is never mounted in API or PBC; the API separately mounts its approved directory-reader capability credential. Keep the `pbc` worker on its existing certificate and credential reference. Verify the client site's READY state, separate staff membership state, document-worker exact write grant, and existing disposable upload/readback evidence before testing a real upload. The console or an Operations row alone is not proof of Microsoft acceptance.
 
 ## Current-authority and provider-outcome fences
 
@@ -70,9 +70,13 @@ create. Only a proven preflight failure before any provider write may clear the
 creation-dispatch fence. Authorization failure after any possible write does not
 clear it. Protected key custody and real tenant acceptance remain operator gates.
 
-The terminal intent/status adapter is still pending engineering. Do not replace
-this worker path with a second PowerShell SPSiteManager or membership writer,
-and do not use the shared PBC-workspace provisioning route as a client-site intent.
+The terminal adapters are `scripts/m365/Configure-SharePointClientSites.ps1` and
+`scripts/m365/Reconcile-ClientSiteStaff.ps1`. Their default Plan mode is offline;
+authorized Apply submits the reviewed intent through the existing authenticated
+API, while ReadOnly checks worker-published status/receipts. They never become a
+second SPSiteManager or membership writer. See the [operator workflow](../operations/auditsphere-entra-registration-automation.md#sharepoint-client-site-provisioning-and-managed-staff-full-control-wu-021)
+for exact prerequisites and command examples. Do not use shared PBC-workspace
+provisioning as a client-site intent; queued or historical evidence is not live acceptance.
 
 Administration → Microsoft 365 → Client and engagement workspaces shows the policy flag, configured and persisted boundary, eligible and outside-rollout counts, tenant consent, worker heartbeat/readiness, latest successful site permission verification, per-client URL and state, staff membership reconciliation, durable operation state and allowlisted error code. Use Operations to review or recover durable work; uncertain creates must be reconciled, never replaced with a second create.
 
