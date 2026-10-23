@@ -28,7 +28,7 @@ Firm-wide administrators can enroll exact public CMS evidence through the authen
 
 ## Retained parity UI corrections (2026-10-23)
 
-Workpaper responses and recovery remain bound to the initiating engagement and identity. Context changes clear milestone drafts. Saved statements retain visible refusals, numeric note schedules and saved checks. Build/static evidence and deferred acceptance are recorded under `apiAngularParity.retainedUiT015T033T034` in `status.json`; no local test cases ran.
+Workpaper replies and recovery remain bound to engagement and identity; context changes clear milestone drafts. Saved statements show refusals, numeric notes and saved checks. CI evidence and open acceptance are under `apiAngularParity` in `status.json`. Fast CI includes database-free OpenAPI semantics; manual runs survive newer pushes. No local test cases ran.
 
 ## Scoped accounting and staffing persistence (2026-10-23)
 

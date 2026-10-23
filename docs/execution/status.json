@@ -1532,11 +1532,11 @@
     "taskStatusSummary": {
       "count": 51,
       "implementationStatus": "51 IMPLEMENTED",
-      "acceptanceStatus": "T001-T007 verified; T008-T011 focused/browser pending; T012-T026 mixed; T027 API/Playwright passed; T028 API/Angular passed; T029-T051 partial."
+      "acceptanceStatus": "T001-T007 verified; T008-T032 mixed/browser pending; T033-T034 fast CI/browser pending; T035-T051 semantic fast CI PASS."
     },
     "tracker": "docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md",
     "workingTreeBase": "150c7671762ac93f87b2b539cb53f688fb90557e",
-    "currentCommitReleaseVerification": "CI 39669142742 PASS@5d52d434; T027 API1/1 and Playwright2/2.",
+    "currentCommitReleaseVerification": "NOT_RUN for this parity slice; prior T027 source evidence is retained under intercompanyMatchingT027.",
     "pendingBrowserAcceptance": [
       "501-member fixture",
       "Other independent approval journeys",
@@ -1581,9 +1581,11 @@
       "sourceCommit": "a2e26a433be288448482825b4f628c428344b0c1"
     },
     "contractSemanticsCI": {
-      "result": "PENDING",
-      "cohort": "ci.yml/OpenApiContractTests",
-      "repair": "Nullable capability fixture; spec compile PASS; local tests NOT_RUN."
+      "result": "FAST_CI_PASS",
+      "sourceCommit": "0cad9ae97f02b42d27a4acb0c18cf63d8daac8b6",
+      "runId": 39969211569,
+      "openApi": "11/11 PASS; artifact 12508302987",
+      "localTests": "NOT_RUN per owner."
     }
   },
   "completePracticeManagement": {
