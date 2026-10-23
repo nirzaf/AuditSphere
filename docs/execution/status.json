@@ -1561,10 +1561,10 @@
       "archive": "status-archive-2026-10.json#keys.apiAngularParityExternalPacksT02820261022"
     },
     "retainedUiT015T033T034": {
-      "sourceBase": "7d9642515125003e409288509ca24a148bac455f",
       "implementation": "T015/T033/T034 context, refusal and saved schedule corrections; see parity tracker.",
-      "localVerification": "Angular build and spec compilation PASS; local tests NOT_RUN per owner; lint unavailable (eslint missing).",
-      "ci": "PENDING"
+      "localVerification": "Angular build/spec compilation PASS; local tests NOT_RUN per owner.",
+      "ci": "FAST_CI_PASS; run 39965230613. Full release/browser/human acceptance OPEN.",
+      "sourceCommit": "a2e26a433be288448482825b4f628c428344b0c1"
     }
   },
   "completePracticeManagement": {
