@@ -1093,10 +1093,9 @@
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.ciDispatchJson"
       },
       "deploymentBindings": {
-        "status": "PARTIAL_OFFLINE_ENGINEERING",
-        "evidence": ".local/autonomous/evidence/wu024-deployment-bindings/",
-        "result": "Routed WU02432assertionsPASS; Plan+standalone resultverifierPASS; actionlint/docs/whitespacePASS. HEAD/Composeblob, explicitAcceptance/selectedcapabilities, all-service keyisolation and redactedpublicexport. NoDocker/.env/credential/provider/deploy calls.",
-        "remaining": "Operator-provided model/artifact provenance, runtime environment/mounts, DBschema, workerreadiness, egress and rollback unobserved; no VERIFIED/liveacceptance."
+        "status": "PARTIAL",
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.deploymentBindings",
+        "remaining": "Running bindings/schema/readiness/egress/rollback unverified; no deployment."
       },
       "mailRoleEvidenceGuard": {
         "status": "PARTIAL",
@@ -1171,6 +1170,13 @@
           "evidence": ".local/autonomous/evidence/wu004-resource-scope",
           "checks": "6 actual foreign resource writes RED; 12PASS after scoped profile/certification/availability subject keys and allocation firm/client/engagement/user keys, including reviewed receipts/replay, grid and stale-update refusal. EF no-drift PASS. Existing rows/indexes retained; broader keys and full CI pending."
         }
+      },
+      "proposalLifecycleHandoff": {
+        "status": "PASS_LOCAL_SLICE",
+        "base": "74044e96+retainedoverlays; lifecycleownersmatchd4/47",
+        "evidence": ".local/autonomous/evidence/wu015-proposal-lifecycle",
+        "checks": "1fresh E2E PASS: actual lifecycle200 stages2/3, queued proposal and DBstatus/time/offerhash. Deferredplaceholder scroll+realHTTPcapture; alloldassertions retained. tee log wrapper failed; completedTRX passed.",
+        "remaining": "ExactcandidatefullCI; historical defer/chunk trigger unproved. No actual mail delivery or client acceptance claim."
       }
     },
     "developmentFeedback20261023": {

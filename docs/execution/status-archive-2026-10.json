@@ -23778,6 +23778,12 @@
         "result": "1 PASS; actual service JSON accepted by existing PS parser/digest. Combined current-source CI pending; no live custody.",
         "evidence": ".local/autonomous/evidence/wu023-archive-cli-08a19-proof-20261023T095844Z"
       }
+    },
+    "targetedVerification.autonomousCompletion20261022.deploymentBindings": {
+      "status": "PARTIAL_OFFLINE_ENGINEERING",
+      "evidence": ".local/autonomous/evidence/wu024-deployment-bindings/",
+      "result": "Routed WU02432assertionsPASS; Plan+standalone resultverifierPASS; actionlint/docs/whitespacePASS. HEAD/Composeblob, explicitAcceptance/selectedcapabilities, all-service keyisolation and redactedpublicexport. NoDocker/.env/credential/provider/deploy calls.",
+      "remaining": "Operator-provided model/artifact provenance, runtime environment/mounts, DBschema, workerreadiness, egress and rollback unobserved; no VERIFIED/liveacceptance."
     }
   },
   "archivedTargetedVerification": {

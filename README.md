@@ -127,6 +127,7 @@ These are recorded, scoped checks—not current-source full CI or whole-product 
 | ☑ Completed | Angular host/Blazor retirement; sidebar toggle and mobile shell | Migration/parity and server isolation acceptance. |
 | ☑ Completed | Journal/evidence/sampling previews; consolidation journal controls and retained-match scrolling | Unknown/stale outcomes and human review; recording stays off before assent. |
 | ☑ Completed | Pinned task context, Required/Optional labels and atomic graph bounds | Manual tasks stay unlabeled; labels grant no completion approval. |
+| ☑ Completed | Proposal dispatch to canonical lifecycle handoff — synthetic browser/API/DB | Client acceptance, provider delivery and full commercial acceptance remain. |
 | ☑ Completed | Net-allocated advance gate, expense paging/recovery and monthly P&L boundaries | Full commercial, receipt, reporting and export acceptance. |
 | ☑ Completed | Scoped staffing/resource parents; resource/capacity, phase/risk allocation and certification evidence | Wider key inventory, roles and date/concurrency acceptance; expiry is not verification. |
 | ☑ Completed | Assigned-task time, scoped paging, Audit Plan milestones and budget-review keyboard flow | Broader browser/legal acceptance. |

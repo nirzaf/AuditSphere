@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
@@ -97,10 +98,20 @@ public sealed class AngularProposalWorkflowJourneyTests
     var page = await context.NewPageAsync();
     var errors = new List<string>();
     page.PageError += (_, error) => errors.Add(error);
+
     var engagementPath = $"/app/engagements/{fixture.EngagementId:D}";
-    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(engagementPath));
+    var lifecycleUrl = $"/api/ui/engagements/{fixture.EngagementId:D}/lifecycle";
+    var (stage2Status, stage2Body) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && Uri.TryCreate(request.Url, UriKind.Absolute, out var uri) && uri.AbsolutePath == lifecycleUrl,
+      async () =>
+      {
+        await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(engagementPath));
+        await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
+      });
+    Assert.Equal(200, stage2Status);
+    using (var body = JsonDocument.Parse(stage2Body))
+      Assert.Equal(2, body.RootElement.GetProperty("summary").GetProperty("stageIndex").GetInt32());
     var lifecycle = page.GetByRole(AriaRole.Region, new() { Name = "Engagement lifecycle progression", Exact = true });
-    await page.Locator("details.technical-lifecycle").ScrollIntoViewIfNeededAsync();
     await Assertions.Expect(lifecycle).ToContainTextAsync("Stage 2 of 11: Proposal Generation");
 
     await page.GotoAsync(origin + $"/app/practice/proposals/{proposalId:D}");
@@ -114,8 +125,16 @@ public sealed class AngularProposalWorkflowJourneyTests
     await Assertions.Expect(page.GetByText(
       "Email queued for lifecycle@example.test; awaiting the isolated mail worker.", new() { Exact = true })).ToBeVisibleAsync();
 
-    await page.GotoAsync(origin + engagementPath);
-    await page.Locator("details.technical-lifecycle").ScrollIntoViewIfNeededAsync();
+    var (stage3Status, stage3Body) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && Uri.TryCreate(request.Url, UriKind.Absolute, out var uri) && uri.AbsolutePath == lifecycleUrl,
+      async () =>
+      {
+        await page.GotoAsync(origin + engagementPath);
+        await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
+      });
+    Assert.Equal(200, stage3Status);
+    using (var body = JsonDocument.Parse(stage3Body))
+      Assert.Equal(3, body.RootElement.GetProperty("summary").GetProperty("stageIndex").GetInt32());
     await Assertions.Expect(lifecycle).ToContainTextAsync("Stage 3 of 11: Dual-Key Acceptance Pending");
     await Assertions.Expect(lifecycle).ToContainTextAsync("Client commercial acceptance of proposal required");
     await using (var db = host.CreateDbContext())
