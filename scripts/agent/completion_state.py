@@ -419,7 +419,15 @@ def select_next(state: dict) -> dict:
         return {"taskId": waiting[0] if waiting else None, "nextAction": "POLL_CI"}
     if engineering_complete(state):
         return {"taskId": None, "nextAction": "VERIFY_ENGINEERING_COMPLETION"}
-    if any(v["scheduling"] in ("BLOCKED_EXTERNAL", "BLOCKED_ENVIRONMENT") for v in tasks.values()):
+    # A RUNNING checkpoint is not evidence that a child is alive or that work is externally blocked.
+    # Reconcile its session/diff before dispatching another writer or declaring an external wait.
+    running = sorted((t for t, v in tasks.items() if v["scheduling"] == "RUNNING"),
+                     key=lambda t: _priority(t, tasks[t]))
+    if running:
+        active = state.get("activeTaskId")
+        return {"taskId": active if active in running else running[0], "nextAction": "RESUME_REQUIRED"}
+    unfinished = [v for v in tasks.values() if v["scheduling"] != "ENGINEERING_VERIFIED"]
+    if unfinished and all(v["scheduling"] in ("BLOCKED_EXTERNAL", "BLOCKED_ENVIRONMENT") for v in unfinished):
         return {"taskId": None, "nextAction": "WAITING_EXTERNAL"}
     return {"taskId": None, "nextAction": "RESUME_REQUIRED"}
 

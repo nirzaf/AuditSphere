@@ -91,6 +91,13 @@ class SelectionTests(unittest.TestCase):
         s = state({"WU-018": task(implementation="PRESENT", localVerification="PASS", scheduling="BLOCKED_EXTERNAL")})
         self.assertEqual(cs.select_next(s)["nextAction"], "WAITING_EXTERNAL")
 
+    def test_external_leaf_does_not_hide_running_or_unresolved_engineering(self):
+        external = task(implementation="PRESENT", localVerification="PASS", scheduling="BLOCKED_EXTERNAL")
+        s = state({"WU-018": external, "WU-013": task(scheduling="RUNNING")}, activeTaskId="WU-013")
+        self.assertEqual(cs.select_next(s), {"taskId": "WU-013", "nextAction": "RESUME_REQUIRED"})
+        s["tasks"]["WU-013"] = task(scheduling="BLOCKED_DEPENDENCY", blockedBy=["R2R:T007"])
+        self.assertEqual(cs.select_next(s), {"taskId": None, "nextAction": "RESUME_REQUIRED"})
+
     def test_engineering_completion_requires_exact_source_ci_pass(self):
         s = state({"RUN-001": verified()}, ci={"status": "PASS", "resolvedSha": "0" * 40})
         self.assertNotEqual(cs.select_next(s)["nextAction"], "VERIFY_ENGINEERING_COMPLETION")
