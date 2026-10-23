@@ -473,6 +473,75 @@ work. No CMS import/signing command is available from this slice. A matching
 snapshot, valid JSON envelope or zero exit from an offline check cannot replace
 those gates or prove delivery.
 
+## Read-only readiness inventory (WU-025)
+
+`Verify-M365Readiness.ps1` inventories the existing authenticated Administration
+workspace. It performs only same-origin `GET /api/ui/session`,
+`GET /api/ui/administration/microsoft365`, and a second session GET. It does not
+invoke capability verification POSTs, modify database records, obtain consent,
+repair grants, send mail or provision resources.
+
+| Mode | Effects and result |
+| --- | --- |
+| `Plan`, `-DryRun` or `-WhatIf` | Offline plan validation and planned checks; no credential lookup or HTTP. |
+| `ReadOnly` or `Verify` | `Verify` aliases `ReadOnly`; source/plan/session-bound GET inventory only. |
+| `Apply` | Refused before credential lookup/network as `INVALID_OR_UNSAFE`, `readiness-apply-not-supported`. With `-WhatIf` it remains offline planning. |
+
+Use the reviewed plan and digest from the earlier plan procedure. Online reads
+require `plan.repositoryCommit` to match this checkout, unchanged M365 scripts,
+the exact expected plan hash, and an existing staff session for the planned firm.
+Normal sign-in/MFA remains necessary; this collector cannot bootstrap access.
+
+```powershell
+pwsh -NoProfile -NonInteractive -File scripts/m365/Verify-M365Readiness.ps1 `
+  -PlanPath /approved/operator/target-plan.json -Mode Plan `
+  -OutputPath /approved/operator/readiness-plan.json
+
+$env:AUDITSPHERE_OPERATOR_COOKIE = Read-Host 'AuditSphere staff session cookie (hidden)' -MaskInput
+try {
+  pwsh -NoProfile -NonInteractive -File scripts/m365/Verify-M365Readiness.ps1 `
+    -PlanPath /approved/operator/target-plan.json -Mode Verify `
+    -ExpectedPlanSha256 $reviewedPlanSha256 `
+    -SessionCookieEnvironmentVariable AUDITSPHERE_OPERATOR_COOKIE `
+    -OutputPath /approved/operator/readiness-result.json
+  # Inspect the structured result and process exit code; incomplete evidence is nonzero.
+} finally {
+  Remove-Item Env:AUDITSPHERE_OPERATOR_COOKIE -ErrorAction SilentlyContinue
+}
+```
+
+Keep cookies out of command arguments, transcripts and result files. The output
+contains non-secret identity/resource expectations: retain it with restricted
+operator evidence, not public logs.
+
+Plan kinds are translated to their actual API capability keys:
+`LOGIN → SIGN_IN`, `DIRECTORY_READER → DIRECTORY_READ`,
+`DOCUMENTS → SELECTED_SITE`, `MAIL → OUTBOUND_MAIL`,
+`USER_CREATE → TENANT_USER_PROVISIONING`, `INVITATIONS → GUEST_INVITATION`,
+and `GROUP_MEMBERSHIP → GROUP_MEMBERSHIP`. `CLIENT_SITES` has a separate owner;
+absence from this matrix is an explicit blocker, not an inferred match.
+
+**Current inventory is not runtime readiness verification.** Even an API row
+labelled verified is retained only as descriptive setup metadata. The collector
+cannot emit `VERIFIED` while runtime client/application/service-principal IDs,
+observed roles/resources, evidence expiry, positive/negative probes,
+configuration digest and exact resume receipts are not projected by their
+Application owners. Missing values remain null with source-owned blockers;
+operator expectations never become observations. `expectedEnvironment` comes
+from the plan, while `observedEnvironment` remains null. The API simulation flag
+is retained as bool/null; simulation is explicitly not live runtime evidence.
+Source timestamps require a timezone and are normalized to UTC; no expiry is
+invented.
+
+Inspect `checks`, `sourceOwnedBlockers`, `blockedPrerequisites`, `errorCode` and
+status before proceeding. `BLOCKED_BOOTSTRAP` identifies unavailable staff
+access; `DRIFT` identifies changed source, plan, tenant or session;
+`PROVIDER_FAILURE` identifies inaccessible readback; `INCOMPLETE_EVIDENCE`
+identifies missing/malformed or insufficient evidence. Never patch database
+status, substitute a consent screenshot or treat this inventory as permission
+to enable a capability. Enrich the owning API contracts and verify the exact
+runtime separately; live/provider acceptance remains a distinct gate.
+
 ## Offline engineering checks
 
 ```powershell
@@ -480,6 +549,8 @@ pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-019 -Offline
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-020 -Offline
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-021 -Offline
+pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-022 -Offline
+pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-025 -Offline
 ```
 
 The transport is synthetic and has no tenant connection. Current observed results and remaining live prerequisites belong in the execution ledger, not this procedure. No simulated result establishes Microsoft provider acceptance.

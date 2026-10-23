@@ -1065,7 +1065,7 @@
         "checks": "PASS: main TRX 1/1 .local/autonomous/evidence/wu013-correction-lineage/correction-lineage.trx; agent Angular36, corrected build (SCSS warning), EF model and OpenAPI checks passed. Migration null-pointer downgrade/reapply and retained-lineage downgrade refusal covered.",
         "remaining": "Owned correction browser PASS 1/1: .local/autonomous/evidence/wu013-correction-browser/ComponentCorrectionHandoff.retry2.trx; exact source IDs persisted and approved pin/pack/run retained. Current-source CI and broader group release remain open; no universal supersession policy required."
       },
-      "ciObserved": "FAST_CI_PASS39897494295 and image39897494301 at95399f2f1e5f4998108f04f5108cf75e0040241b. Full39886113863 source368eada2: Angular/Domain1522/API399PASS; verifyFAILfixed6f; E2ElastRUNNING03:29. No current full pass.",
+      "ciObserved": "FAST_CI_PASS39898403067/images39898403065 at9491516129721813a4763d00d0968ba01166e674. Full39886113863 at368eada2 FAILED: Domain1522/API399/AngularPASS, E2E333/334; foreign-grant fixture repaired locally, oldverifyfixture fixed6f. No current FULL_CI_PASS.",
       "scopeUnknownOutcome": {
         "status": "PARTIAL",
         "scope": "WU032 mutation buttons and external-pack commands honor parent unknown-outcome fence. Refresh uses existing resource and never clears uncertainty or dispatches duplicate commands. Local editing/navigation retained.",
@@ -1083,6 +1083,19 @@
         "scope": "WU030: existing-period/has-more-period inline source-mode changes refused by UI and handler; exact period-ID links; only proven precommit400/401/403 rejected, unknown/malformed success stays fenced per client. Native child workflows unchanged.",
         "checks": "7 workspace.spec tests PASS; .local/autonomous/evidence/wu030-workspace/workspace-spec.log. Main final Angular build PASS aftercopychange, existing SCSS warning. No browser/full-suite claim.",
         "remaining": "Server-owned exact-context currentness summary; full native/cutover and browser acceptance."
+      },
+      "foreignGrantCiRepair": {
+        "status": "PASS_LOCAL_SLICE",
+        "base": "9491516129721813a4763d00d0968ba01166e674",
+        "source": "git-archive base plus exact E2E fixture patch; separate outputs, existing main Angular dist",
+        "evidence": ".local/autonomous/evidence/foreign-grant-ci-repair/foreign-grant-ci-repair-with-ui.trx",
+        "result": "1/1 pass; firm-scoped FK23503 rejection, Staff403/no tracker, foreign grant absent and own grant/session unchanged. Initial snapshot UI bootstrap failed before assertions; fixed BuildPath only. Full suites CI-only."
+      },
+      "m365ReadinessInventory": {
+        "status": "PARTIAL_OFFLINE_ENGINEERING",
+        "evidence": ".local/autonomous/wu025-readiness-final-environment-truth-20261023.log",
+        "result": "47 assertions pass; real API-key mapping, stable session, UTC metadata, expected vs unobserved environment, simulation and missing-evidence blockers. Plan/WhatIf offline; Verify=ReadOnly GETs; Apply refuses before network. Cannot emit VERIFIED.",
+        "remaining": "Runtime identity/grants/resources/expiry/probes/config/resume projection and client-sites owner still engineering; live tenant acceptance separate."
       }
     },
     "developmentFeedback20261023": {

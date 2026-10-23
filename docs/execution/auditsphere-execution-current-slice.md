@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## CI fixture repair and read-only readiness inventory (2026-10-23)
+
+The tracker authorization fixture now asserts the firm-scoped database rejection before browser denial; it no longer requires impossible cross-firm grant data. The isolated owned PostgreSQL/browser rerun passed. Full regression remains failed at its recorded source until corrected-candidate CI runs.
+
+M365 readiness now inventories authenticated GET metadata with exact plan/API key mapping, stable-session checks and explicit missing-evidence blockers. Offline checks passed; setup status never becomes runtime proof. Runtime evidence projection and live acceptance remain open. CLI usage is in the local M365 automation guide; exact results are in `status.json`.
+
 ## Accounting mode and period navigation (2026-10-23)
 
 Unsupported inline source-mode changes are locked when periods exist, including beyond the displayed page. Period links retain exact IDs. Definite profile rejections differ from unresolved outcomes; parent setup actions stay fenced for that client after unknown results. Focused Angular checks/build passed. Native child workflows are unchanged; source-currentness projection and broader browser acceptance remain open. Evidence is in `status.json`.
