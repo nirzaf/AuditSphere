@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { contentDecisionIntent, contentDecisionRequest, decodeStatementContentReview } from './content-review';
+import { signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { describe, expect, it, vi } from 'vitest';
+import { Api } from '../../core/api';
+import { contentDecisionIntent, contentDecisionRequest, decodeStatementContentReview, StatementContentReview } from './content-review';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
@@ -24,6 +27,29 @@ describe('statement content review contract (F-03)', () => {
     expect(contentDecisionIntent(first, state(), 'APPROVED', null, 'request-2')).toBe(first);
     expect(contentDecisionIntent(first, state(), 'RETURNED', 'Missing lease note', 'request-2').requestId).toBe('request-2');
     expect(contentDecisionIntent(first, state(id1), 'APPROVED', null, 'request-3').requestId).toBe('request-3');
+  });
+
+  it('renders the exact revision, snapshot and retained reviewer identities without inventing approval', () => {
+    const reviewer = '33333333-3333-4333-8333-333333333333';
+    const review = '44444444-4444-4444-8444-444444444444';
+    const data = signal(decodeStatementContentReview({ ...state(review), canReview: false,
+      reviews: [{ id: review, decision: 'RETURNED', reason: 'Source note needs correction', reviewedByUserId: reviewer,
+        reviewedAt: '2026-10-15T00:00:00Z', snapshotSha256Hex: snapshot }] }, 'review'));
+    TestBed.configureTestingModule({ imports: [StatementContentReview], providers: [{ provide: Api, useValue: {
+      resource: () => ({ data, loading: signal(false), error: signal(''), reload: vi.fn() }),
+    } }] });
+    const fixture = TestBed.createComponent(StatementContentReview);
+    fixture.componentRef.setInput('packageId', id1);
+    fixture.componentRef.setInput('revisionId', id2);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.review-identity')?.textContent).toContain(id2);
+    expect(root.querySelector('.review-identity')?.textContent).toContain(snapshot);
+    const cells = [...root.querySelectorAll('tbody td')].map(cell => cell.textContent?.trim());
+    expect(cells).toContain(reviewer);
+    expect(cells).toContain(review);
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('Not approved');
+    expect(root.querySelector('form')).toBeNull();
   });
 
   it('refuses an unknown decision or a malformed snapshot digest', () => {

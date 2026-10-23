@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Statement content-review identity display (2026-10-23)
+
+The content-review screen exposes the actual presentation revision, full snapshot digest, review IDs and reviewer IDs already returned by the API. Returned decisions remain unapproved; no review or source-currentness policy changes. The focused Angular component checks and corrected build passed. Full source-backed presentation closure, browser acceptance and professional decisions remain separate; evidence is in `status.json`.
+
 ## Immutable consolidation correction lineage (2026-10-23)
 
 New-scope correction requests retain the exact source scope/component pair in the same firm, group and reporting period. Ordinary creation remains nullable; roll-forward uses its existing independent pointer. Application checks, composite foreign keys and a trigger protect provenance; downgrade refuses to discard retained lineage. Angular preserves these pins through handoff/recovery and displays authorized source identities. Focused PostgreSQL, Angular, build, EF and OpenAPI checks passed; exact evidence is in `status.json`. This records correction provenance, not automatic supersession or professional approval. Browser and broader release acceptance remain open.

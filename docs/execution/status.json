@@ -1116,6 +1116,11 @@
         }
       },
       "resultStructure": "PASS: 6 focused Python tests; new malformed-envelope regression fails old source. Shape/counters only; freshness/provider acceptance separate. Fast CI39882506372 PASS on e576; not full regression.",
+      "contentReviewIdentity": {
+        "status": "PARTIAL",
+        "checks": "Angular content-review.spec.ts: 4 PASS; actual persisted revision/hash/reviewer/review IDs displayed. No approval semantics change.",
+        "build": "PASS: agent corrected Angular build includes this component; existing SCSS warning. Initial concurrent correction union failure repaired. No browser/full-suite claim."
+      },
       "correctionLineage": {
         "status": "PARTIAL",
         "scope": "Nullable immutable same-firm/group/period correction source scope+component pair; ordinary/roll-forward basis preserved; no inferred supersession staleness.",

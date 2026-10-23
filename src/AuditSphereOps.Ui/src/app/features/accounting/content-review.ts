@@ -39,11 +39,15 @@ export function contentDecisionRequest(state: StatementContentReviewState, decis
         <p role="status">{{ s.approved
           ? 'Approved: the note, disclosure and equity content of this exact draft snapshot was approved by an independent reviewer.'
           : 'Not approved. This draft cannot become a signing candidate until an independent reviewer approves its note, disclosure and equity content.' }}</p>
+        <dl class="review-identity">
+          <dt>Presentation revision</dt><dd><code>{{ s.presentationRevisionId }}</code></dd>
+          <dt>Snapshot SHA-256</dt><dd><code>{{ s.snapshotSha256Hex }}</code></dd>
+        </dl>
         <p><small>An approval covers only this snapshot (<code>{{ s.snapshotSha256Hex.slice(0, 12) }}</code>). Equity evidence stays labelled as reviewed manual evidence, not ledger-derived. This is not a formal statement approval.</small></p>
         @if (s.reviews.length) {
           <div class="table-scroll"><table><caption class="sr-only">Content review decisions, newest first</caption>
-            <thead><tr><th scope="col">Decision</th><th scope="col">Reason</th><th scope="col">Reviewed at</th></tr></thead>
-            <tbody>@for (r of s.reviews; track r.id) { <tr><td><audit-status [value]="r.decision" /></td><td>{{ r.reason || 'No reason recorded' }}</td><td><time [attr.datetime]="r.reviewedAt">{{ r.reviewedAt }}</time></td></tr> }</tbody></table></div>
+            <thead><tr><th scope="col">Decision</th><th scope="col">Reason</th><th scope="col">Reviewer ID</th><th scope="col">Review ID</th><th scope="col">Reviewed at</th></tr></thead>
+            <tbody>@for (r of s.reviews; track r.id) { <tr><td><audit-status [value]="r.decision" /></td><td>{{ r.reason || 'No reason recorded' }}</td><td><code>{{ r.reviewedByUserId }}</code></td><td><code>{{ r.id }}</code></td><td><time [attr.datetime]="r.reviewedAt">{{ r.reviewedAt }}</time></td></tr> }</tbody></table></div>
         }
         @if (s.canReview) {
           <form class="inline-form" (submit)="$event.preventDefault(); record(s)">
@@ -56,6 +60,10 @@ export function contentDecisionRequest(state: StatementContentReviewState, decis
         @if (message()) { <p role="status" aria-live="polite">{{ message() }}</p> }
       }
     </section>
+  `,
+  styles: `
+    .review-identity dd { margin-inline-start: 0; overflow-wrap: anywhere; }
+    td code { overflow-wrap: anywhere; }
   `,
 })
 export class StatementContentReview {
