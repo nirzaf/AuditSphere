@@ -1114,7 +1114,8 @@
         "checks": {
           "mailOffline": "PASS: 23 assertions, 0 failed; .local/autonomous/evidence/wu022-plan/offline.log",
           "commonOffline": "PASS: agent executed WU-017 cohort, 40 assertions, 0 failed after fixture updates",
-          "documentedDryRun": "PASS: Configure-MailAccess synthetic fixture PLANNED; verify-result.py valid; no MAIL configured so readiness explicitly skipped"
+          "documentedDryRun": "PASS: Configure-MailAccess synthetic fixture PLANNED; verify-result.py valid; no MAIL configured so readiness explicitly skipped",
+          "publishedOffline": "PASS: published27fa scripts snapshot, 23 assertions, 0 failed; .local/autonomous/evidence/wu022-plan/published-offline.log"
         },
         "readOnlyApply": "PREREQUISITE_MISSING / adapter-not-implemented; zero authentication/network/mutations. Engineering gap, not external-consent blocker.",
         "remaining": [
@@ -1123,7 +1124,12 @@
           "Reviewed legacy/RBAC migration and rollback",
           "Approved live mailbox positive/negative and synthetic-send evidence"
         ],
-        "fullLocalSuites": "NOT_RUN"
+        "fullLocalSuites": "NOT_RUN",
+        "fastCi": {
+          "runId": 39881069973,
+          "sha": "27fa046934c68501a306bf0ec6dac4b04c7feb50",
+          "result": "FAST_CI_PASS; not full regression or live MAIL verification"
+        }
       }
     },
     "developmentFeedback20261023": {
