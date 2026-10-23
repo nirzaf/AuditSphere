@@ -24006,7 +24006,7 @@
     "targetedVerification.angularQualityCiAccessibilityContinuation20261023": {
       "result": "PARTIAL_ACCEPTANCE",
       "source": "ee87a7b0f36ef7e24dc47ef97905756b950c85ab",
-      "observedAtUtc": "2026-10-23T17:27:23.840272+00:00",
+      "observedAtUtc": "2026-10-23T17:34:22.243128+00:00",
       "priorSnapshot": "targetedVerification.angularQualityBeforeCiAccessibilityContinuation20261023",
       "implementation": "Tasks01-06 implemented/revalidated. Task07 corrective slice changes four consolidation pager containers to named semantic navigation without changing commands or paging. One existing paging test now protects all four landmarks.",
       "ci": {
@@ -24017,10 +24017,10 @@
         "fastRunId": 39991047096,
         "fastResult": "FAST_CI_PASS",
         "angular": "Full Angular job PASS; current-run count not extracted",
-        "domain": "IN_PROGRESS",
+        "domain": "PASS; exact311 job completed2026-10-23T17:24:43Z; count not extracted",
         "api": "IN_PROGRESS",
         "e2e": "IN_PROGRESS",
-        "limits": "The following documentation-only record commit is not the tested code candidate."
+        "limits": "Run311 predates published fieldwork2958e826 and the subsequent GL API test-fixture correction; not final acceptance."
       },
       "planning": {
         "automated": "Existing exact-review/lost-response/reload/receipt journey, both canonical route variants:2PASS/0FAIL/0SKIP; fresh test compilation and owned isolated PostgreSQL/API/UI. No full local suite.",
@@ -24030,7 +24030,7 @@
       },
       "otherRendered": "Prior builtin journal removal/reflow, staff/client navigation and fieldwork tabs/empty-program/invalid sampling alert are retained under .local/autonomous/evidence/angular-quality-reattached-20261023/rendered-followup/observations.json. Loopback ports share host cookies; actors were inspected sequentially after observing authority clearing.",
       "remaining": [
-        "Full unfiltered backend jobs and canonical aggregate on311841a9; precedingEE API/E2E still monitored for shared failures",
+        "Replacement code-candidate full unfiltered CI and aggregate; continue older API/E2E runs for shared failures",
         "Wider per-surface/state rendered matrix",
         "Native200/400zoom: browser has viewport only, native Codex app control refused; no bypass",
         "Actual qualified human screen-reader/browser versions and workflow observations"
@@ -24084,7 +24084,7 @@
           "expected": "generation.stale",
           "actual": "idempotency.conflict",
           "evidence": ".local/autonomous/evidence/angular-quality-followup-20261023/ci-api-ee87/trx/api.trx",
-          "repair": "Under investigation; not silently skipped."
+          "repair": "Test setup corrected; original generation.stale and rollback assertions retained. Focused2PASS; replacement full CI still required."
         },
         "e2e": "IN_PROGRESS"
       },
@@ -24100,16 +24100,35 @@
         "overlayEvidence": ".local/autonomous/evidence/angular-quality-followup-20261023/verified-overlay.json",
         "observedDefects": "The previously immediate unavailable notice was transient during a successful state load; the exact procedure preview then left BODY focused. No persistent state failure claimed.",
         "fix": "Separate generation/owner-fenced read-loading status; page-host preview heading focus guarded by current owner, exact preview, focus and user interaction. Assent, command state, amounts and authority unchanged.",
-        "automated": "Affected Angular spec30PASS; changed-file lint and production build PASS. One existing owned fieldwork journey extended with delayed read/status and preview focus/non-stealing assertions:1PASS. No full local suite.",
+        "automated": "Affected Angular spec30PASS; changed-file lint and production build PASS. One existing owned fieldwork journey extended with delayed read/status and preview focus/non-stealing assertions:1PASS. No full local suite. Built-in reinspection reused the same extended case:1PASS/0FAIL/0SKIP (a repeat, not an additional scenario).",
         "builtIn": "Settled source-backed procedure and synthetic exact preview exercised. H3 receives focus, Tab reaches unchecked assent, Record exact outcome stays disabled. No outcome recorded; console warn/error empty.",
         "evidence": ".local/autonomous/evidence/angular-quality-followup-20261023/fieldwork-fixed.json",
         "warning": "Existing commercial/settings.scss budget warning retained.",
-        "remaining": "Wider states, native zoom and actual human AT review; final code-candidate full CI."
+        "remaining": "Wider states, native zoom and actual human AT review; final code-candidate full CI.",
+        "publishedSource": "2958e826065afc2cef80b93b76aa5684c36bcbfa"
       },
       "documentationCi": {
         "sha": "1893a938525fae9029755e51e2796572bea0a186",
         "runId": 39992702884,
         "result": "FAST_CI_PASS; documentation-only"
+      },
+      "consolidationScrollFollowup": {
+        "source": "2958e826065afc2cef80b93b76aa5684c36bcbfa",
+        "automated": "Existing retained-match owned journey1PASS/0FAIL/0SKIP; no new suite.",
+        "builtIn": "At390x844 CSS px, native journal disclosure opens with Enter. Tab reveals line debit (scrollLeft111) and description (scrollLeft512), with description wholly within viewport; document375px. Named controls remain usable and Submit disabled. No mutation, captured warn/error or speculative wrapper change. Viewport reset; fixture disposed.",
+        "evidence": ".local/autonomous/evidence/angular-quality-followup-20261023/consolidation-scroll.json",
+        "limits": "Viewport reflow is not native zoom or human AT."
+      },
+      "glUploadCiRepair": {
+        "failedRunId": 39982432220,
+        "failedSource": "ee87a7b0f36ef7e24dc47ef97905756b950c85ab",
+        "failedCase": "EpochRevokedAfterSourceSaveRollsBackAllRows",
+        "rootCause": "Second-connection epoch UPDATE waits on the importer user FOR SHARE lock; PostgreSQL log confirms cancellation on users tuple. This was an invalid injected interleaving, not evidence that import should release its lock.",
+        "change": "Test-only SavedChangesInterceptor injects a same-transaction epoch change after source batch/lines exist. Final generation.stale expectation retained; transactions, lines, batch and epoch rollback asserted; injection must run and affect exactly one actor. No application behavior or expected error relaxed.",
+        "limits": "The deterministic injected change does not prove an external revocation can commit through the held lock.",
+        "verification": "Focused API2PASS/0FAIL/0SKIP: late authority-fence rollback and exact concurrent upload/idempotent readback. No full local suite.",
+        "testSha256": "810b69b63bfb030505d2c01d352c46ae9ec9e14d26cd8b80c7799960836b4c2a",
+        "evidence": ".local/autonomous/evidence/angular-quality-followup-20261023/api-fixed-results/GeneralLedgerUploadRepair.trx"
       }
     }
   },
