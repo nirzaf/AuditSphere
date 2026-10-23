@@ -24,7 +24,7 @@ Workpaper responses and recovery remain bound to the initiating engagement and i
 
 ## Scoped accounting and staffing persistence (2026-10-23)
 
-Profile/dimension history retains scoped revisions without legacy backfill. TB/GL resolve exact scope. API/Angular submit bounded reasons; an owned setup journey checks retained reasons and cutover denial. Staffing/resource/cost-rate keys bind owners. Context activation, wider key inventory and broader acceptance remain open. See `status.json`.
+Profile/dimension history retains scoped revisions without legacy backfill. TB/GL resolve exact scope. GL imports retain current authority through save; chunk replay locks firm/client/actor before its batch to avoid the source-acceptance lock cycle. API/Angular submit bounded reasons; an owned setup journey checks retained reasons and cutover denial. Staffing/resource/cost-rate keys bind owners. Context activation, wider key inventory and broader acceptance remain open. See `status.json`.
 
 ## Scope-denial HTTP responses (2026-10-23)
 

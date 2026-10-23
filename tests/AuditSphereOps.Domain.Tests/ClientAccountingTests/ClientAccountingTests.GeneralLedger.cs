@@ -1,20 +1,381 @@
+using System.Data.Common;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using WorkerHost = AuditSphereOps.Worker.Worker;
 
 namespace AuditSphereOps.Domain.Tests;
 
 public sealed partial class ClientAccountingTests
 {
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task GlImport_HoldsCurrentAuthorityThroughSaveAgainstRoleRevocation()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var (periodId, bookId) = await CreateGlFixtureAsync(pg, scope, preparer);
+    var administrator = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = scope.FirmId, Subject = "authority-admin-" + Guid.NewGuid().ToString("N"),
+      TenantId = "tenant", Email = "authority-admin@example.test", DisplayName = "Authority Administrator"
+    };
+    Guid preparerGrantId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      preparerGrantId = await setup.RoleGrants.Where(x => x.FirmId == scope.FirmId && x.UserId == scope.Preparer.Id &&
+          x.Role == "AccountingPreparer" && x.RevokedAt == null)
+        .Select(x => x.Id).SingleAsync(timeout.Token);
+      setup.Users.Add(administrator);
+      setup.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = administrator.Id, Role = "Administrator",
+        GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = administrator.Id
+      });
+      await setup.SaveChangesAsync(timeout.Token);
+    }
+
+    var request = new GeneralLedgerImportRequest(scope.ClientA, scope.EngagementA, periodId, bookId,
+      "csv-v1", "gl-v1", new string('a', 64), "CLIENT-A", "QAR", "authority-race-receipt",
+      [new("J-AUTH", "INV-AUTH", new DateOnly(2026, 6, 30), null, "user-a", "LEDGER-A", null, false, false,
+        [new("J-AUTH-L1", "1000", 25m, 0m, "QAR", 25m, 25m),
+         new("J-AUTH-L2", "4000", 0m, 25m, "QAR", -25m, -25m)])]);
+    var duplicateCheckReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var resumeImport = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var importConnectionReached = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var revocationLockAttempted = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var importOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(new PauseBeforeSourceIdentityCheck(duplicateCheckReached, resumeImport, importConnectionReached)).Options;
+    var revokeOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(new ObserveFirmRevocationLock(revocationLockAttempted)).Options;
+    await using var importDb = new AuditSphereDbContext(importOptions);
+    var import = ClientAccountingService.ImportGeneralLedgerAsync(importDb, preparer, request, timeout.Token);
+    Task<CommandResult>? revoke = null;
+
+    try
+    {
+      await duplicateCheckReached.Task.WaitAsync(timeout.Token);
+      var importPid = await importConnectionReached.Task.WaitAsync(timeout.Token);
+      revoke = Task.Run(async () =>
+      {
+        await using var revokeDb = new AuditSphereDbContext(revokeOptions);
+        return await RoleAdministrationService.RevokeRoleGrantAsync(revokeDb,
+          Actor(administrator, "Administrator"), new(preparerGrantId, Reason: "Focused GL authority race"), timeout.Token);
+      }, timeout.Token);
+      var revokePid = await revocationLockAttempted.Task.WaitAsync(timeout.Token);
+      var revocationWaitedForImport = await WaitForRevocationBlockerOrCompletionAsync(
+        revoke, revokePid, importPid, pg.ConnectionString, timeout.Token);
+
+      resumeImport.TrySetResult();
+      var imported = await import.WaitAsync(timeout.Token);
+      var revoked = await revoke.WaitAsync(timeout.Token);
+
+      Assert.True(imported.Succeeded, imported.Message);
+      Assert.True(revoked.Succeeded, revoked.Message);
+      await using var verify = new AuditSphereDbContext(pg.Options);
+      Assert.NotNull((await verify.RoleGrants.SingleAsync(x => x.Id == preparerGrantId, timeout.Token)).RevokedAt);
+      Assert.Single(await verify.SourceImportBatches.Where(x => x.ReceiptReference == request.ReceiptReference).ToListAsync(timeout.Token));
+      Assert.Single(await verify.GeneralLedgerTransactions.Where(x => x.StableJournalId == "J-AUTH").ToListAsync(timeout.Token));
+      Assert.True(revocationWaitedForImport,
+        $"RoleAdministration completed before GL resumed despite its earlier authorization (import succeeded={imported.Succeeded}; revocation succeeded={revoked.Succeeded}).");
+    }
+    finally
+    {
+      resumeImport.TrySetResult();
+      if (revoke is not null)
+      {
+        try { await revoke.WaitAsync(timeout.Token); }
+        catch (OperationCanceledException) { }
+      }
+      try { await import.WaitAsync(timeout.Token); }
+      catch (OperationCanceledException) { }
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task GlImport_DeniesCrossClientDuplicateAndSealedChunkReplayBeforeDuplicateChecks()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var (periodId, bookId) = await CreateGlFixtureAsync(pg, scope, preparer);
+    var clientBPreparer = User(scope.FirmId, "client-b-preparer");
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.Users.Add(clientBPreparer);
+      setup.RoleGrants.Add(Grant(scope.FirmId, clientBPreparer, "AccountingPreparer", scope.ClientB, scope.EngagementB));
+      await setup.SaveChangesAsync();
+    }
+    var clientBActor = Actor(clientBPreparer, "AccountingPreparer");
+    var singleTransactions = new[]
+    {
+      new GeneralLedgerTransactionInput("J-SCOPE", "INV-SCOPE", new DateOnly(2026, 6, 30), null, "user-a", "LEDGER-A", null, false, false,
+        [new("J-SCOPE-L1", "1000", 15m, 0m, "QAR", 15m, 15m),
+         new("J-SCOPE-L2", "4000", 0m, 15m, "QAR", -15m, -15m)])
+    };
+    var singleRequest = new GeneralLedgerImportRequest(scope.ClientA, scope.EngagementA, periodId, bookId,
+      "csv-v1", "gl-v1", new string('b', 64), "CLIENT-A", "QAR", "scope-duplicate-receipt", singleTransactions);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var imported = await ClientAccountingService.ImportGeneralLedgerAsync(db, preparer, singleRequest);
+      Assert.True(imported.Succeeded, imported.Message);
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var crossClientDuplicate = await ClientAccountingService.ImportGeneralLedgerAsync(db, clientBActor, singleRequest);
+      Assert.False(crossClientDuplicate.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, crossClientDuplicate.ErrorCode);
+    }
+
+    var chunk = new[]
+    {
+      new GeneralLedgerTransactionInput("J-STREAM-SCOPE", "INV-STREAM-SCOPE", new DateOnly(2026, 6, 30), null,
+        "user-a", "LEDGER-A", null, false, false,
+        [new("J-STREAM-SCOPE-L1", "1000", 20m, 0m, "QAR", 20m, 20m),
+         new("J-STREAM-SCOPE-L2", "4000", 0m, 20m, "QAR", -20m, -20m)])
+    };
+    var digest = ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", chunk);
+    Guid batchId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var started = await ClientAccountingService.BeginGeneralLedgerImportAsync(db, preparer,
+        new GeneralLedgerImportStartRequest(scope.ClientA, scope.EngagementA, periodId, bookId,
+          "stream-v1", "gl-v1", new string('c', 64), "CLIENT-A", "QAR", "scope-stream-receipt", 1, 1, 2));
+      Assert.True(started.Succeeded, started.Message);
+      batchId = started.Value;
+      var sealedBatch = await ClientAccountingService.AppendGeneralLedgerChunkAsync(db, preparer,
+        new GeneralLedgerImportChunkRequest(batchId, 0, digest, chunk, Finalize: true));
+      Assert.True(sealedBatch.Succeeded, sealedBatch.Message);
+      Assert.Equal("SEALED", sealedBatch.Value!.Status);
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var crossClientReplay = await ClientAccountingService.AppendGeneralLedgerChunkAsync(db, clientBActor,
+        new GeneralLedgerImportChunkRequest(batchId, 0, digest, chunk, Finalize: true));
+      Assert.False(crossClientReplay.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, crossClientReplay.ErrorCode);
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task GlReplayAndSourceAcceptance_UseClientBeforeBatchLockWithoutDeadlock()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var (periodId, bookId) = await CreateGlFixtureAsync(pg, scope, preparer);
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var period = await setup.ClientReportingPeriods.SingleAsync(x => x.Id == periodId);
+      period.Status = AccountingWorkflowStates.Active;
+      await setup.SaveChangesAsync();
+    }
+    var transactions = new[]
+    {
+      new GeneralLedgerTransactionInput("J-LOCK-ORDER", "INV-LOCK-ORDER", new DateOnly(2026, 6, 30), null,
+        "user-a", "LEDGER-A", null, false, false,
+        [new("J-LOCK-ORDER-L1", "1000", 30m, 0m, "QAR", 30m, 30m),
+         new("J-LOCK-ORDER-L2", "4000", 0m, 30m, "QAR", -30m, -30m)])
+    };
+    var digest = ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", transactions);
+    Guid batchId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var started = await ClientAccountingService.BeginGeneralLedgerImportAsync(setup, preparer,
+        new GeneralLedgerImportStartRequest(scope.ClientA, scope.EngagementA, periodId, bookId,
+          "lock-order-v1", "gl-v1", new string('d', 64), "CLIENT-A", "QAR", "lock-order-receipt", 1, 1, 2));
+      Assert.True(started.Succeeded, started.Message);
+      batchId = started.Value;
+      var sealedBatch = await ClientAccountingService.AppendGeneralLedgerChunkAsync(setup, preparer,
+        new GeneralLedgerImportChunkRequest(batchId, 0, digest, transactions, Finalize: true));
+      Assert.True(sealedBatch.Succeeded, sealedBatch.Message);
+      Assert.Equal("SEALED", sealedBatch.Value!.Status);
+    }
+
+    var acceptanceAtBatchLock = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var resumeAcceptance = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var appendAtClientLock = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var acceptanceOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(new PauseBeforeSourceAcceptanceBatchLock(acceptanceAtBatchLock, resumeAcceptance)).Options;
+    var appendOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(new ObserveGlAppendClientLock(appendAtClientLock)).Options;
+    Task<CommandResult<Guid>>? acceptance = null;
+    Task<CommandResult<GeneralLedgerImportBatchSummary>>? replay = null;
+
+    try
+    {
+      acceptance = Task.Run(async () =>
+      {
+        await using var db = new AuditSphereDbContext(acceptanceOptions);
+        return await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(db, reviewer,
+          new AcceptSourceRevisionRequest(scope.ClientA, scope.EngagementA, AccountingSourceKinds.GeneralLedger,
+            null, batchId, "lock-order-source-acceptance"), timeout.Token);
+      }, timeout.Token);
+      var acceptancePid = await acceptanceAtBatchLock.Task.WaitAsync(timeout.Token);
+
+      replay = Task.Run(async () =>
+      {
+        await using var db = new AuditSphereDbContext(appendOptions);
+        return await ClientAccountingService.AppendGeneralLedgerChunkAsync(db, preparer,
+          new GeneralLedgerImportChunkRequest(batchId, 0, digest, transactions, Finalize: true), timeout.Token);
+      }, timeout.Token);
+      var replayPid = await appendAtClientLock.Task.WaitAsync(timeout.Token);
+      var replayWaitedOnAcceptanceClientLock = await WaitForPostgresBlockerOrCompletionAsync(
+        replay, replayPid, acceptancePid, pg.ConnectionString, timeout.Token);
+      Assert.True(replayWaitedOnAcceptanceClientLock,
+        "The replay did not wait on source acceptance's PostgreSQL client-row lock before acceptance was released.");
+
+      resumeAcceptance.TrySetResult();
+      var accepted = await acceptance.WaitAsync(timeout.Token);
+      var replayed = await replay.WaitAsync(timeout.Token);
+      Assert.True(accepted.Succeeded, accepted.Message);
+      Assert.True(replayed.Succeeded, replayed.Message);
+      Assert.Equal("SEALED", replayed.Value!.Status);
+
+      await using var verify = new AuditSphereDbContext(pg.Options);
+      var selected = await AccountingSourceAcceptanceService.GetSelectedSourceAsync(
+        verify, reviewer, scope.ClientA, scope.EngagementA, AccountingSourceKinds.GeneralLedger, timeout.Token);
+      Assert.True(selected.Succeeded, selected.Message);
+      Assert.Equal(batchId, selected.Value!.ImportBatchId);
+      Assert.Single(await verify.SourceAcceptanceDecisions.Where(x => x.ImportBatchId == batchId).ToListAsync(timeout.Token));
+    }
+    finally
+    {
+      resumeAcceptance.TrySetResult();
+      await ObserveTaskCompletionAsync(acceptance);
+      await ObserveTaskCompletionAsync(replay);
+    }
+  }
+
+  private sealed class PauseBeforeSourceIdentityCheck(
+    TaskCompletionSource reached, TaskCompletionSource resume, TaskCompletionSource<int> connectionReached) : DbCommandInterceptor
+  {
+    private int paused;
+
+    public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+      DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("source_import_batches", StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.CompareExchange(ref paused, 1, 0) == 0)
+      {
+        if (eventData.Connection is NpgsqlConnection connection)
+          connectionReached.TrySetResult(connection.ProcessID);
+        reached.TrySetResult();
+        await resume.Task.WaitAsync(cancellationToken);
+      }
+      return result;
+    }
+  }
+
+  private sealed class ObserveFirmRevocationLock(TaskCompletionSource<int> reached) : DbCommandInterceptor
+  {
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+      DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("firm_safety_states", StringComparison.OrdinalIgnoreCase) &&
+          command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase) &&
+          eventData.Connection is NpgsqlConnection connection)
+        reached.TrySetResult(connection.ProcessID);
+      return ValueTask.FromResult(result);
+    }
+  }
+
+  private sealed class PauseBeforeSourceAcceptanceBatchLock(
+    TaskCompletionSource<int> reached, TaskCompletionSource resume) : DbCommandInterceptor
+  {
+    private int paused;
+
+    public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+      DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("source_import_batches", StringComparison.OrdinalIgnoreCase) &&
+          command.CommandText.Contains("FOR SHARE", StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.CompareExchange(ref paused, 1, 0) == 0 &&
+          eventData.Connection is NpgsqlConnection connection)
+      {
+        reached.TrySetResult(connection.ProcessID);
+        await resume.Task.WaitAsync(cancellationToken);
+      }
+      return result;
+    }
+  }
+
+  private sealed class ObserveGlAppendClientLock(TaskCompletionSource<int> reached) : DbCommandInterceptor
+  {
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+      DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("client_safety_states", StringComparison.OrdinalIgnoreCase) &&
+          command.CommandText.Contains("FOR SHARE", StringComparison.OrdinalIgnoreCase) &&
+          eventData.Connection is NpgsqlConnection connection)
+        reached.TrySetResult(connection.ProcessID);
+      return ValueTask.FromResult(result);
+    }
+  }
+
+  private static async Task<bool> WaitForRevocationBlockerOrCompletionAsync(
+    Task revocation, int processId, int expectedBlockerProcessId, string connectionString, CancellationToken ct)
+  {
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync(ct);
+    await using var command = new NpgsqlCommand(
+      "SELECT @blocker_pid = ANY(pg_blocking_pids(@pid)) FROM pg_stat_activity WHERE pid = @pid", connection);
+    command.Parameters.AddWithValue("pid", processId);
+    command.Parameters.AddWithValue("blocker_pid", expectedBlockerProcessId);
+    while (true)
+    {
+      if (revocation.IsCompleted) return false;
+      if (await command.ExecuteScalarAsync(ct) is true) return true;
+      await Task.Delay(20, ct);
+    }
+  }
+
+  private static async Task<bool> WaitForPostgresBlockerOrCompletionAsync(
+    Task operation, int processId, int expectedBlockerProcessId, string connectionString, CancellationToken ct)
+  {
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync(ct);
+    await using var command = new NpgsqlCommand(
+      "SELECT @blocker_pid = ANY(pg_blocking_pids(@pid)) FROM pg_stat_activity WHERE pid = @pid", connection);
+    command.Parameters.AddWithValue("pid", processId);
+    command.Parameters.AddWithValue("blocker_pid", expectedBlockerProcessId);
+    while (true)
+    {
+      if (operation.IsCompleted) return false;
+      if (await command.ExecuteScalarAsync(ct) is true) return true;
+      await Task.Delay(20, ct);
+    }
+  }
+
+  private static async Task ObserveTaskCompletionAsync(Task? operation)
+  {
+    if (operation is null) return;
+    try { await operation.WaitAsync(TimeSpan.FromSeconds(5)); }
+    catch (Exception) { }
+  }
+
   [Fact]
   [Trait("ReportingScope", "Database")]
   public async Task ReportingScopeResolver_RequiresExactFirmClientEngagementPeriodAndBook()

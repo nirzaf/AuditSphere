@@ -33,6 +33,9 @@ public static partial class ClientAccountingService
     var lineCount = request.Transactions.Sum(x => (long)x.Lines.Count);
     if (request.Transactions.Count > MaxGlTransactions || lineCount > MaxGlLines)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, "The GL import exceeds the bounded interactive limit; use an approved durable batch profile.");
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await LockGlImportAuthorityAsync(db, actor, request.ClientId, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
@@ -94,6 +97,7 @@ public static partial class ClientAccountingService
     try
     {
       await db.SaveChangesAsync(ct);
+      if (tx is not null) await tx.CommitAsync(ct);
       return CommandResult<Guid>.Ok(batch.Id);
     }
     catch (DbUpdateException)
@@ -114,6 +118,9 @@ public static partial class ClientAccountingService
         request.ExpectedLineCount is < 1 or > MaxGlLines || currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
         !IsSha256(request.RawFileSha256Hex))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, "The GL import profile or expected counts are invalid.");
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await LockGlImportAuthorityAsync(db, actor, request.ClientId, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
@@ -140,6 +147,7 @@ public static partial class ClientAccountingService
     try
     {
       await db.SaveChangesAsync(ct);
+      if (tx is not null) await tx.CommitAsync(ct);
       return CommandResult<Guid>.Ok(batch.Id);
     }
     catch (DbUpdateException)
@@ -159,10 +167,18 @@ public static partial class ClientAccountingService
         "The GL chunk identity or bounded chunk size is invalid.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var observedOwner = await db.SourceImportBatches.AsNoTracking()
+      .Where(x => x.Id == request.ImportBatchId && x.FirmId == actor.FirmId)
+      .Select(x => new { x.FirmId, x.ClientId, x.EngagementId })
+      .SingleOrDefaultAsync(ct);
+    if (observedOwner is null || !await LockGlImportAuthorityAsync(db, actor, observedOwner.ClientId, ct))
+      return CommandResult<GeneralLedgerImportBatchSummary>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
     var batch = await db.SourceImportBatches.FromSqlInterpolated(
       $"SELECT * FROM source_import_batches WHERE id = {request.ImportBatchId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
-    if (batch is null)
+    if (batch is null || batch.FirmId != observedOwner.FirmId || batch.ClientId != observedOwner.ClientId ||
+        batch.EngagementId != observedOwner.EngagementId)
       return CommandResult<GeneralLedgerImportBatchSummary>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, batch.ClientId, batch.EngagementId, PreparerRoles, InternalOnly: true), ct);
@@ -415,6 +431,23 @@ public static partial class ClientAccountingService
     new(batch.Id, batch.Status, batch.AcceptedChunkCount, batch.AcceptedTransactionCount, batch.AcceptedLineCount,
       batch.ExpectedChunkCount, batch.ExpectedTransactionCount, batch.ExpectedLineCount,
       string.IsNullOrWhiteSpace(batch.NormalizedDatasetDigest) ? null : batch.NormalizedDatasetDigest);
+
+  private static async Task<bool> LockGlImportAuthorityAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid clientId, CancellationToken ct)
+  {
+    // Keep the existing firm -> client -> actor order before Append takes its source batch row.
+    if (await db.FirmSafetyStates.FromSqlInterpolated(
+          $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE")
+        .AsNoTracking().SingleOrDefaultAsync(ct) is null)
+      return false;
+    if (await db.ClientSafetyStates.FromSqlInterpolated(
+          $"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {clientId} FOR SHARE")
+        .AsNoTracking().SingleOrDefaultAsync(ct) is null)
+      return false;
+    return await db.Users.FromSqlInterpolated(
+        $"SELECT * FROM users WHERE firm_id = {actor.FirmId} AND id = {actor.UserId} FOR SHARE")
+      .AsNoTracking().SingleOrDefaultAsync(ct) is not null;
+  }
 
   private static bool IsSha256(string value) => value.Trim().Length == 64 && value.Trim().All(c =>
     c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F');

@@ -1117,6 +1117,13 @@
         "checks": "Initial Domain3 PASS; final retained-byte/expiry/consent/downgrade fact1 PASS; authenticated API1 PASS; Angular4 PASS; offline PS59 assertions PASS; targeted Release compilation, OpenAPI generation and EF no-drift PASS. Independent read-only security review found no actionable issue.",
         "behavior": "Admin/CSRF-bound exact public CMS bytes, append-only replay-safe receipt, current binding/expiry status, explicit ENROLLED worker source; FILE remains default. Malformed acknowledgement stays unknown.",
         "remaining": "No interactive browser/current-combined full CI/live provider acceptance. Operator issuer tooling, RBAC enrollment, reviewed rollout/rollback, custody and deployment remain separate."
+      },
+      "glImportAuthority": {
+        "status": "PARTIAL_FOCUSED_PASS",
+        "base": "b50b90e8+two-file overlay; integrated after a2e26a43",
+        "evidence": ".local/autonomous/evidence/gl-authority-lockorder-b50b90e-20261023/manifest.json",
+        "checks": "4/4 PostgreSQL PASS, fresh Release compile. Actual revoke blocked by importer; cross-client replay denied; source acceptance and chunk replay complete under firm/client/actor-before-batch lock order. Prior failing authority and fixture attempts retained.",
+        "remaining": "Combined-current-source CI; wider writer/authority inventory remains open."
       }
     },
     "developmentFeedback20261023": {

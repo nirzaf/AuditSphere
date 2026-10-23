@@ -133,7 +133,7 @@ These are recorded, scoped checks—not current-source full CI or whole-product 
 | ☑ Completed | Assigned-task time, scoped paging, Audit Plan milestones and budget-review keyboard flow | Broader browser/legal acceptance. |
 | ☑ Completed | Purchase/credit preview recovery, accounting-mode lock and exact-period navigation | Native/currentness acceptance; rejection remains distinct from unknown outcome. |
 | ☑ Completed | Full statement/completion evidence IDs, release guards and pinned group/component currentness | Broader release acceptance; no group-only raw access, automatic re-pin or component-book writes. |
-| ☑ Completed | Immutable profile/dimension history, exact TB/GL scope and profile-change reasons — API/Angular/owned browser | Exact context activation and broader acceptance remain; legacy history is not invented. |
+| ☑ Completed | Immutable profile/dimension history, exact TB/GL scope, current-authority import locks and profile-change reasons — focused API/Angular/PostgreSQL/owned browser | Exact context activation and broader acceptance remain; legacy history is not invented. |
 | ☑ Completed | Secondary archive provider, queue/API, expected-plan export and service-to-CLI handoff | Live custody/recovery; historical matches do not prove current custody. |
 | ☑ Completed | Consolidation correction lineage/handoff and client unknown-outcome controls | Source-bound handoff checked; broader stale/receipt-recovery browser acceptance remains. |
 | ☑ Completed | Entra registration/certificates, signed Legacy mail receipt enrollment/readback and runtime gate — focused offline/API/Angular | Issuer tooling, broader readiness, RBAC, live consent/custody and migration acceptance; role-only mail evidence rejected. |
