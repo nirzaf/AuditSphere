@@ -886,7 +886,12 @@
     },
     "angularQuality20261023": {
       "result": "PARTIAL",
-      "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualitySpec3Implementation20261023"
+      "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualitySpec3Implementation20261023",
+      "followUp": {
+        "result": "PARTIAL_ACCEPTANCE",
+        "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualitySpec3Remediation20261023",
+        "remaining": "Full per-state/nativezoom/humanAT and final exact-source CI."
+      }
     },
     "autonomousCompletion20261022": {
       "specification": "docs/architecture/auditsphere-autonomous-completion-remediation-spec.md (AS-AUTONOMOUS-COMPLETION-2026-10-22-R2)",
@@ -1035,16 +1040,10 @@
       },
       "operationalEvidenceGuard": {
         "status": "PARTIAL",
-        "evidence": ".local/autonomous/evidence/wu038-capture-final",
-        "checks": "13PythonPASS; boundedcapture/source+inputs+feed/reporthashes; Nugetstderr/nesteddiagnostics cannotclear. Actual5aaNugetexit0/no records, DIRTY =>INCOMPLETE/SOURCE_UNKNOWN. Prior8guardproof retained wu038-verifier.",
-        "remaining": "Clean-source scans/triage, approved targets, measured performance/custody/recovery and production acceptance.",
-        "workflowCapture": {
-          "status": "CAPTURE_INTEGRITY_PASS_NOT_SECURITY_ACCEPTANCE",
-          "base": "b8cb1303+workflow overlay",
-          "workflowSha256": "5b5648e52ff72b852707952e81a492b1a951a132975d1eee91a2a538ffd60f11",
-          "checks": "Agent actionlint/placement/artifact checks and focused capture3PASS; parent diff review. Full-only NuGet/npm captures retain ref/SHA, exits and capped helper diagnostics. NOT_ASSESSED; no security pass or fast-gate change.",
-          "ciArtifacts": "399443/d4 npm+NuGet CAPTURED/CLEAN/exits0; source/ref andhashesvalidated. SecurityAssessment NOT_ASSESSED; current-sourceCI/othersecuritygates remain."
-        }
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.operationalEvidenceGuardBeforePortableSink20261023",
+        "evidence": ".local/autonomous/evidence/ci-continuation-20261023",
+        "portableSink": "Actual /dev/stdout fails on macOS pipes; documented - yields JSON. Focused2PASS. Redacted historical3 matches technically triaged false positives; no suppression/history rewrite. Dirty helper overlay, not clean final security acceptance.",
+        "remaining": "Current-source scans/feeds, targets, performance/custody/recovery and production acceptance."
       },
       "pbcReplyRecovery": {
         "status": "PARTIAL",
@@ -1136,6 +1135,11 @@
         "checks": "Final Angular9PASS; build/lintPASS; independent Python length-prefixed SHA256 vector MATCH unchanged backend. Parent corrected a test vector so disabled/stale/unavailable states are the sole rejection reason; current matching control then recovers without POST.",
         "behavior": "Same-session exact-envelope GET recovery, acknowledged ID check, enabled/VERIFIED/nonstale gate, failed reads hide old protected state with visible generic notice; unknown does not re-POST. Public files/digest remain memory-only.",
         "limits": "No browser/API integration or live provider workflow for this UI change. Reload loses in-memory pending identity; broader recovery and operator issuer/readiness remain open. Existing unrelated commercial/settings.scss style-budget warning remains. Exact combined full CI pending."
+      },
+      "mailEvidencePrecision": {
+        "commit": "01fb150da89713c91010b5e1e6fc4b4c1c0392a4",
+        "checks": "Forced sub-microsecond signedexpiry RED1 -> GREEN1; same-policy before/at persistedexpiry controlPASS; exactsignedbytes/hash retained, no tolerance/window. Consistent with2d CI failure; finalCIpending.",
+        "evidence": ".local/autonomous/evidence/ci-continuation-20261023/mail-precision-boundary-green.trx"
       }
     },
     "developmentFeedback20261023": {

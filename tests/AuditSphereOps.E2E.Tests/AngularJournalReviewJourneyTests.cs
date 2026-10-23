@@ -20,6 +20,10 @@ public sealed class AngularJournalReviewJourneyTests
     var route="/ui/app/accounting/journals/"+id;
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(route));
     await Assertions.Expect(page.GetByRole(AriaRole.Region,new(){Name="Exact journal context",Exact=true})).ToContainTextAsync("AJ-SYN");
+    var addLine=page.GetByRole(AriaRole.Button,new(){Name="Add journal line",Exact=true});
+    await addLine.PressAsync("Enter");
+    await page.GetByRole(AriaRole.Button,new(){Name="Remove journal line 3",Exact=true}).PressAsync("Enter");
+    await Assertions.Expect(addLine).ToBeFocusedAsync();
     await OwnedBrowserFixtureHandoff.WaitAsync(origin,route,"journal-editor-pre-dispatch");
     await page.GetByLabel("Debit 1",new(){Exact=true}).FillAsync("200.123456");
     await page.GetByLabel("Credit 2",new(){Exact=true}).FillAsync("200.123455");

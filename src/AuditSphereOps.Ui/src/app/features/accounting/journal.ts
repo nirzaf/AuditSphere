@@ -4,6 +4,7 @@ import {
   ElementRef,
   Injector,
   viewChild,
+  viewChildren,
   DestroyRef,
   HostListener,
   computed,
@@ -58,6 +59,8 @@ export class AdjustmentJournal implements NavigationProtected {
   private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly renderInjector = inject(Injector);
   private readonly reviewHeading = viewChild<ElementRef<HTMLElement>>('reviewHeading');
+  private readonly lineAccounts = viewChildren<ElementRef<HTMLInputElement>>('lineAccount');
+  private readonly addLineButton = viewChild<HTMLButtonElement, ElementRef<HTMLButtonElement>>('addLineButton', { read: ElementRef });
   private focusInteraction = 0;
   readonly id = routeGuid();
   readonly historyPage = signal(1);
@@ -259,8 +262,20 @@ export class AdjustmentJournal implements NavigationProtected {
       }));
   }
   removeLine(i: number) {
-    if (!this.busy() && !this.uncertain())
-      this.model.update((m) => ({ ...m, lines: m.lines.filter((_, n) => n !== i) }));
+    if (this.busy() || this.uncertain() || i < 0 || i >= this.model().lines.length) return;
+    const document = this.hostElement.nativeElement.ownerDocument;
+    const origin = document.activeElement;
+    const ownsFocus = this.lineAccounts()[i]?.nativeElement.closest('fieldset')?.contains(origin);
+    const current = this.captureOwner(), interaction = this.focusInteraction;
+    this.model.update((m) => ({ ...m, lines: m.lines.filter((_, n) => n !== i) }));
+    if (!ownsFocus) return;
+    afterNextRender(() => {
+      if (!current() || interaction !== this.focusInteraction || this.busy() || this.uncertain() ||
+          document.activeElement !== origin && document.activeElement !== document.body) return;
+      const nextAccount = i < this.model().lines.length ? this.lineAccounts()[i]?.nativeElement : undefined;
+      const target = nextAccount?.isConnected ? nextAccount : this.addLineButton()?.nativeElement;
+      target?.focus();
+    }, { injector: this.renderInjector });
   }
   @HostListener('document:pointerdown')
   @HostListener('document:keydown')

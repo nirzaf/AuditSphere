@@ -288,6 +288,7 @@
                 <label
                   >Account {{ i + 1
                   }}<input
+                    #lineAccount
                     [value]="l.accountCode"
                     maxlength="32"
                     (input)="editLine(i, 'accountCode', $event)"
@@ -319,6 +320,7 @@
               </fieldset>
             }
             <button
+              #addLineButton
               matButton="outlined"
               type="button"
               (click)="addLine()"

@@ -86,6 +86,10 @@ implemented patterns; acceptance claims always belong to `docs/execution/status.
   base-revision fences, pending-request references).
 - Drafts never store assent, reviewed checkboxes, secrets or files. Tab fields
   never restore assent after an uncertain outcome.
+- Pending submissions are recovery checkpoints, not editable drafts. Their original
+  identity survives draft expiry and unrelated pruning within the same session.
+  Reconcile the retained command or receipt before another write; unreadable
+  checkpoints stay blocked. Identity invalidation still clears tab storage.
 - Session-bound components fence on `SessionService.invalidation()`: dialogs
   close when the generation changes, responses from a stale identity are
   dropped, and identity switches clear in-memory form state.

@@ -11,19 +11,21 @@ import {
   batchDraft,
   actionDraft,
 } from '../features/audit/confirmation-drafts';
+import { decodeTailorProcedureCommand, type TailorProcedureCommand } from '../features/audit/fieldwork-contracts';
 
 const id = '11111111-1111-4111-8111-111111111111';
 const scope = { entity: 'confirmations/' + id + '/create', baseRevision: 'a'.repeat(64) };
+const tailoringScope = { entity: 'audit-procedure-tailoring/22222222-2222-4222-8222-222222222222', baseRevision: '0'.repeat(64) };
 describe('Versioned tab drafts', () => {
   let drafts: TabDrafts, session: SessionService;
-  beforeEach(() => {
-    sessionStorage.clear();
+  function mount() {
     TestBed.configureTestingModule({ providers: [provideHttpClient()] });
     session = TestBed.inject(SessionService);
     session.current.set({ userId: id, firmId: id, generation: '0', staff: true });
     drafts = TestBed.inject(TabDrafts);
     TestBed.tick();
-  });
+  }
+  beforeEach(() => { sessionStorage.clear(); mount(); });
   afterEach(() => {
     vi.restoreAllMocks();
     TestBed.resetTestingModule();
@@ -32,6 +34,9 @@ describe('Versioned tab drafts', () => {
   function stored() {
     const key = sessionStorage.key(0)!;
     return { key, value: JSON.parse(sessionStorage.getItem(key)!) };
+  }
+  function storageKey(entity: string) {
+    return `auditsphere-tab-draft-v1:${id}:${id}:0:${entity}`;
   }
   it('stores only allowlisted intent, scope and revision metadata, never review or credentials', () => {
     const value = intent({ ...emptyCreate(), respondent: 'Synthetic bank', reviewed: true });
@@ -111,6 +116,57 @@ describe('Versioned tab drafts', () => {
     expect(read.state).toBe('ready');
     if (read.state === 'ready') expect(read.draft.submissionPending).toBe(true);
   });
+  it('retains an expired pending command across unrelated prune and remount without restoring editable input', () => {
+    const command: TailorProcedureCommand = {
+      title: 'Cash confirmation',
+      customWording: 'Confirm the year-end balance directly with the bank.',
+      rationale: 'The engagement includes a material cash balance.',
+      expectedDefinitionRevision: 4,
+      commandId: '33333333-3333-4333-8333-333333333333',
+    };
+    const checkpointKey = storageKey(tailoringScope.entity);
+    expect(drafts.save(tailoringScope, command, decodeTailorProcedureCommand, true)).toBe(true);
+    const expiresAt = JSON.parse(sessionStorage.getItem(checkpointKey)!).expiresAt as number;
+    vi.spyOn(Date, 'now').mockReturnValue(expiresAt);
+
+    expect(drafts.readPendingSubmission(tailoringScope, decodeTailorProcedureCommand)).toEqual({
+      state: 'ready', draft: { value: command, submissionPending: true },
+    });
+    expect(drafts.read(tailoringScope, decodeTailorProcedureCommand).state).toBe('stale');
+    expect(drafts.save({ ...scope, entity: 'unrelated/convenience-draft' }, intent(emptyCreate()), createDraft)).toBe(true);
+    expect(sessionStorage.getItem(checkpointKey)).not.toBeNull();
+
+    TestBed.resetTestingModule();
+    mount();
+    expect(drafts.readPendingSubmission(tailoringScope, decodeTailorProcedureCommand)).toEqual({
+      state: 'ready', draft: { value: command, submissionPending: true },
+    });
+    expect(drafts.read(tailoringScope, decodeTailorProcedureCommand).state).toBe('stale');
+    expect(sessionStorage.getItem(checkpointKey)).not.toBeNull();
+  });
+  it('retains an unreadable pending checkpoint as stale across reread, unrelated prune and remount', () => {
+    const command: TailorProcedureCommand = {
+      title: 'Cash confirmation',
+      customWording: 'Confirm the year-end balance directly with the bank.',
+      rationale: 'The engagement includes a material cash balance.',
+      expectedDefinitionRevision: 4,
+      commandId: '33333333-3333-4333-8333-333333333333',
+    };
+    const checkpointKey = storageKey(tailoringScope.entity);
+    expect(drafts.save(tailoringScope, command, decodeTailorProcedureCommand, true)).toBe(true);
+    sessionStorage.setItem(checkpointKey, '{invalid');
+
+    expect(drafts.readPendingSubmission(tailoringScope, decodeTailorProcedureCommand).state).toBe('stale');
+    expect(sessionStorage.getItem(checkpointKey)).toBe('{invalid');
+    expect(drafts.save({ ...scope, entity: 'unrelated/convenience-draft' }, intent(emptyCreate()), createDraft)).toBe(true);
+    expect(sessionStorage.getItem(checkpointKey)).toBe('{invalid');
+    expect(drafts.readPendingSubmission(tailoringScope, decodeTailorProcedureCommand).state).toBe('stale');
+
+    TestBed.resetTestingModule();
+    mount();
+    expect(drafts.readPendingSubmission(tailoringScope, decodeTailorProcedureCommand).state).toBe('stale');
+    expect(sessionStorage.getItem(checkpointKey)).toBe('{invalid');
+  });
   it('bounds batch rows and string lengths while preserving exact decimal text', () => {
     const batch = intent(emptyBatch());
     batch.cases[0].bookedAmount = '987654321.123456';
@@ -155,6 +211,8 @@ describe('Versioned tab drafts', () => {
     drafts.save(scope, reference, pendingRequestReference, true);
     const e = stored();
     vi.spyOn(Date, 'now').mockReturnValue(e.value.expiresAt);
-    expect(drafts.readPendingRequest(next).state).toBe('stale');
+    expect(drafts.readPendingRequest(next)).toEqual({
+      state: 'ready', draft: { value: reference, submissionPending: true },
+    });
   });
 });

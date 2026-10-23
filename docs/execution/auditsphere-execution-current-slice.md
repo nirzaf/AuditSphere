@@ -147,7 +147,7 @@ Open findings for WU-015: 42 command endpoints still return 400 for `scope.denie
 
 ## Angular quality and accessibility status (2026-10-23)
 
-The new Angular quality attachment largely matches implemented strictness, decomposition, conventions and lint. Journal/evidence continuations now check the current target, visit, session and lifetime directly; journal dispatch requires both recovery writes to succeed. Existing specs cover these boundaries; no local test cases ran. Exact-source CI and task-by-task evidence are in `status.json`. Prior rendered findings/fixes remain recorded. Full state coverage, native zoom and qualified human screen-reader observations remain open; AC-09 is partial.
+The attachment’s strictness, typed editors, capability splits, conventions and lint are implemented. Peer owner/recovery guards are preserved. A rendered journal focus loss is corrected; stale/unavailable tailoring checkpoints block replacement identities, and pending submissions survive draft expiry/pruning/remount without restoring editable authority or assent. Focused Angular and owned API/UI/PostgreSQL checks plus the corrected built-in keyboard flow passed. The mail readback precision defect found during CI now has deterministic expiry-boundary evidence. Exact sources, tests and CI are in `status.json`. Full per-state coverage, native zoom, qualified human screen-reader observations and final exact-source CI remain open; AC-09 is partial. No deployment or live-provider effect occurred.
 
 ## Current master verification and scope (2026-10-21)
 

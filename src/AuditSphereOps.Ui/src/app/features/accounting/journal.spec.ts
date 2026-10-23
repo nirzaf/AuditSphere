@@ -307,6 +307,25 @@ describe('Exact native journal editor and receipt recovery', () => {
     expect(journalFields({ ...c.model(), reviewed: true })).toBeNull();
     http.expectNone(root + '/actions');
   });
+  it('keeps keyboard focus on a surviving journal control after line removal', async () => {
+    const { f, c, http } = await open();
+    const remove = (number: number) => f.nativeElement.querySelector(
+      `button[aria-label="Remove journal line ${number}"]`) as HTMLButtonElement;
+    const add = Array.from(f.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Add journal line'))!;
+    // The last row's focused button leaves the DOM; the next keyboard target is Add line.
+    remove(2).focus();
+    remove(2).click();
+    await f.whenStable(); TestBed.tick();
+    expect(document.activeElement).toBe(add);
+    c.addLine(); await f.whenStable(); TestBed.tick();
+    // Removing an earlier row keeps the reader in the next row's account context.
+    remove(1).focus();
+    remove(1).click();
+    await f.whenStable(); TestBed.tick();
+    expect(document.activeElement).toBe(f.nativeElement.querySelector('fieldset.line input'));
+    http.expectNone(root + '/actions');
+  });
   it('does not steal focus when a preview completes after the user moves elsewhere', async () => {
     const { f, c, http } = await open();
     const trigger = Array.from(f.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)

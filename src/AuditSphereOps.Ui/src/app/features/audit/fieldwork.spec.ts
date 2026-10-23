@@ -8,7 +8,7 @@ import { TabDrafts, pendingRequestReference, type DraftRead, type PendingRequest
 import { afterEach, describe, expect, it } from 'vitest';
 import { AuditFieldwork } from './fieldwork';
 import { FieldworkProcedureState } from './fieldwork-procedure-state';
-import { decodeFieldwork, decodeProcedureCommandLookup, decodeProcedureCommandPreview, decodeProcedureCommandReceipt, decodeProcedureCommandState, decodeProcedureReview, decodeProgramOptions, decodeSampleSet, focusRisks } from './fieldwork-contracts';
+import { decodeFieldwork, decodeProcedureCommandLookup, decodeProcedureCommandPreview, decodeProcedureCommandReceipt, decodeProcedureCommandState, decodeProcedureReview, decodeProgramOptions, decodeSampleSet, decodeTailorProcedureCommand, focusRisks, type TailorProcedureCommand } from './fieldwork-contracts';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
@@ -306,7 +306,7 @@ describe('Procedure execution and review workspace', () => {
     inputGeneration: 2, expectedResultRevision: 0, resultId: id2, workpaperId: id3, reviewId: null,
     resultRevision: 1, resultStatus: 'SUBMITTED', decision: null, evidenceDigest: hash64,
     committedAt: '2026-10-02T09:00:00Z' };
-  function open(store = new Map<string, PendingRequestReference>()) {
+  function open(store = new Map<string, PendingRequestReference>(), tailoringRead: DraftRead<TailorProcedureCommand> = { state: 'absent' }) {
     const workspace = signal({ engagementId: id1, canManageFieldwork: true, canViewReviewNotes: true, aggregate: null,
       risks: [], procedures: [{ id: id2, riskId: null, title: 'Cash confirmation', originalWording: null as string | null,
         effectiveWording: null as string | null, definitionRevision: null as number | null }] });
@@ -315,7 +315,8 @@ describe('Procedure execution and review workspace', () => {
         const value = store.get(scope.entity);
         return value ? { state: 'ready', draft: { value, submissionPending: true } } : { state: 'absent' };
       }),
-      read: vi.fn(() => ({ state: 'absent' })),
+      read: vi.fn((): DraftRead<TailorProcedureCommand> => ({ state: 'absent' })),
+      readPendingSubmission: vi.fn(() => tailoringRead),
       save: vi.fn((scope: { entity: string }, value: unknown) => {
         const reference = pendingRequestReference(value);
         if (reference) store.set(scope.entity, reference);
@@ -331,6 +332,20 @@ describe('Procedure execution and review workspace', () => {
       { provide: TabDrafts, useValue: drafts }, { provide: Router, useValue: { events: new Subject() } },
       { provide: ActivatedRoute, useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: id1 })) } }] });
     const page = TestBed.runInInjectionContext(() => new AuditFieldwork()); TestBed.tick(); return { page, workspace, api, drafts, store, session };
+  }
+  function openWithSessionStorage() {
+    const workspace = signal({ engagementId: id1, canManageFieldwork: true, canViewReviewNotes: true, aggregate: null,
+      risks: [], procedures: [{ id: id2, riskId: null, title: 'Cash confirmation', originalWording: null as string | null,
+        effectiveWording: null as string | null, definitionRevision: null as number | null }] });
+    const session = { current: signal({ userId: id1, firmId: id1, generation: '1', staff: true }), invalidation: signal(0) };
+    const api = { resource: vi.fn(() => ({ data: workspace, loading: signal(false), error: signal(''), reload: vi.fn() })),
+      command: vi.fn(), get: vi.fn() };
+    TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api }, { provide: SessionService, useValue: session },
+      { provide: Router, useValue: { events: new Subject() } },
+      { provide: ActivatedRoute, useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: id1 })) } }] });
+    const drafts = TestBed.inject(TabDrafts);
+    const page = TestBed.runInInjectionContext(() => new AuditFieldwork()); TestBed.tick();
+    return { page, workspace, api, drafts, session };
   }
   it('appends controlled wording with source lineage, rationale and the current expected revision', async () => {
     const { page, workspace, api, drafts } = open();
@@ -376,6 +391,63 @@ describe('Procedure execution and review workspace', () => {
     expect(api.command.mock.calls[1][1]).toMatchObject({ commandId: original.commandId, title: original.title, customWording: original.customWording });
     expect(page.procedure.tailoringUncertain()).toBe(false);
     expect(page.procedure.tailoringPending()).toBeNull();
+  });
+  it.each(['stale', 'unavailable'] as const)('blocks replacement of an unreadable tailoring identity across remounts (%s)', async problem => {
+    const checkpoint: DraftRead<TailorProcedureCommand> = { state: problem };
+    const attempt = async () => {
+      const opened = open(new Map(), checkpoint);
+      opened.workspace.update(w => ({ ...w, procedures: [{ ...w.procedures[0], originalWording: 'Original controlled source wording.',
+        effectiveWording: 'Existing effective instructions.', definitionRevision: 4 }] }));
+      TestBed.tick();
+      opened.page.procedure.beginTailoring(opened.workspace().procedures[0] as Parameters<FieldworkProcedureState['beginTailoring']>[0]);
+      opened.page.procedure.tailoringTitle = 'Cash confirmation';
+      opened.page.procedure.tailoringWording = 'Confirm the bank balance at year end.';
+      opened.page.procedure.tailoringRationale = 'The account is material.';
+      await opened.page.procedure.submitTailoring();
+      expect(opened.api.command).not.toHaveBeenCalled();
+      expect(opened.drafts.save).not.toHaveBeenCalled();
+      expect(opened.page.fieldworkCommandBlocked()).toBe(true);
+    };
+
+    await attempt();
+    TestBed.resetTestingModule();
+    await attempt();
+  });
+  it('keeps a corrupt tailoring checkpoint blocked across real storage reread, prune and remount', async () => {
+    sessionStorage.clear();
+    const scope = { entity: `audit-procedure-tailoring/${id2}`, baseRevision: '0'.repeat(64) };
+    const checkpointKey = `auditsphere-tab-draft-v1:${id1}:${id1}:1:${scope.entity}`;
+    const command: TailorProcedureCommand = { title: 'Cash confirmation',
+      customWording: 'Confirm the bank balance directly with the bank.', rationale: 'The account is material.',
+      expectedDefinitionRevision: 4, commandId: id3 };
+    const attempt = async (seed: boolean) => {
+      const opened = openWithSessionStorage();
+      if (seed) {
+        expect(opened.drafts.save(scope, command, decodeTailorProcedureCommand, true)).toBe(true);
+        sessionStorage.setItem(checkpointKey, '{invalid');
+      }
+      opened.workspace.update(w => ({ ...w, procedures: [{ ...w.procedures[0], originalWording: 'Original controlled source wording.',
+        effectiveWording: 'Existing effective instructions.', definitionRevision: 4 }] }));
+      TestBed.tick();
+      expect(opened.drafts.readPendingSubmission(scope, decodeTailorProcedureCommand).state).toBe('stale');
+      expect(sessionStorage.getItem(checkpointKey)).toBe('{invalid');
+      opened.page.procedure.beginTailoring(opened.workspace().procedures[0] as Parameters<FieldworkProcedureState['beginTailoring']>[0]);
+      opened.page.procedure.tailoringTitle = 'Cash confirmation';
+      opened.page.procedure.tailoringWording = 'Replacement instructions must not receive a new identity.';
+      opened.page.procedure.tailoringRationale = 'The account is material.';
+      await opened.page.procedure.submitTailoring();
+      expect(opened.api.command).not.toHaveBeenCalled();
+      expect(opened.page.fieldworkCommandBlocked()).toBe(true);
+
+      expect(opened.drafts.save({ ...scope, entity: `unrelated/${id3}` },
+        { requestId: id3, requestHash: hash64 }, pendingRequestReference)).toBe(true);
+      expect(opened.drafts.readPendingSubmission(scope, decodeTailorProcedureCommand).state).toBe('stale');
+      expect(sessionStorage.getItem(checkpointKey)).toBe('{invalid');
+    };
+
+    await attempt(true);
+    TestBed.resetTestingModule();
+    await attempt(false);
   });
   it('does not send a tailoring command without a meaningful rationale', async () => {
     const { page, workspace, api } = open();

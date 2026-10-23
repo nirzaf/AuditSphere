@@ -15270,7 +15270,7 @@
       },
       "angularQualitySummary20261022": {
         "result": "PARTIAL",
-        "criteria": "AC01–08 pass; AC09 partial; CI pending.",
+        "criteria": "AC01\u201308 pass; AC09 partial; CI pending.",
         "fastCi": "39818469441 SUCCESS on aedc42df; fast gate only.",
         "fullReleaseCi": "39818204512 SUCCESS on 48816d27; historical source, not current HEAD.",
         "browser": "All five surfaces and both shells sampled; full matrix partial.",
@@ -23931,6 +23931,36 @@
       "migration": "20261023144036_FirmExpenseActorFirmScope: restrict same-firm user keys, reviewer stays nullable, existing indexes preserved; no row rewrite. Invalid historical rows refuse upgrade validation.",
       "index": "Only convention reviewer index added. Scoped reviewer referential-lookup EXPLAIN/BUFFERS, synthetic temp-table storage/write tradeoff retained; no production throughput/WAL claim.",
       "remaining": "Broader key/race inventory and current full CI/live migration acceptance; no professional role/approval change."
+    },
+    "targetedVerification.autonomousCompletion20261022.operationalEvidenceGuardBeforePortableSink20261023": {
+      "status": "PARTIAL",
+      "evidence": ".local/autonomous/evidence/wu038-capture-final",
+      "checks": "13PythonPASS; boundedcapture/source+inputs+feed/reporthashes; Nugetstderr/nesteddiagnostics cannotclear. Actual5aaNugetexit0/no records, DIRTY =>INCOMPLETE/SOURCE_UNKNOWN. Prior8guardproof retained wu038-verifier.",
+      "remaining": "Clean-source scans/triage, approved targets, measured performance/custody/recovery and production acceptance.",
+      "workflowCapture": {
+        "status": "CAPTURE_INTEGRITY_PASS_NOT_SECURITY_ACCEPTANCE",
+        "base": "b8cb1303+workflow overlay",
+        "workflowSha256": "5b5648e52ff72b852707952e81a492b1a951a132975d1eee91a2a538ffd60f11",
+        "checks": "Agent actionlint/placement/artifact checks and focused capture3PASS; parent diff review. Full-only NuGet/npm captures retain ref/SHA, exits and capped helper diagnostics. NOT_ASSESSED; no security pass or fast-gate change.",
+        "ciArtifacts": "399443/d4 npm+NuGet CAPTURED/CLEAN/exits0; source/ref andhashesvalidated. SecurityAssessment NOT_ASSESSED; current-sourceCI/othersecuritygates remain."
+      }
+    },
+    "targetedVerification.angularQualitySpec3Remediation20261023": {
+      "result": "PARTIAL_ACCEPTANCE; technical corrective slice verified locally",
+      "specification": "Reattached Angular Quality and Development-Speed, AS-UIQ01-05/Tasks01-07; historical c525 baseline reconciled with current source",
+      "sources": {
+        "reviewedBase": "2481cbcf3647da2dc09174b60c2b4311beac214b",
+        "finalLocalBase": "5bf4e68a3f7a636ea81d32d1d955c872617a4cf7",
+        "overlayHashes": ".local/autonomous/evidence/angular-quality-reattached-20261023/final-ui-source.json"
+      },
+      "existingImplementation": "Strict app/spec config, two typed selections, lifetime/owner guards, planning/consolidation/fieldwork capability splits, form/subscription conventions and approved syntax-only lint setup reused; peer8b4145/becee/2481 owner/recovery fixes preserved.",
+      "corrections": "Rendered journal row-removal focus restored to next account/Addline with owner/lifetime/user-interaction guards. Tailoring stale/unavailable checkpoints block replacement. Existing TabDrafts now separates pending-submission recovery from editable drafts; identity survives expiry/unrelated prune/remount, malformed records stay blocked and bounded, epoch loss still clears. No fresh assent or API authority is recovered.",
+      "verification": "Final59 focused Angular PASS (three existing specs); production lint/build PASS; in-memory TS/externalHTML/short-inline positive+negative lint probes PASS. Existing owned journal journey1PASS with physical Enter focus assertion, lost-ack recovery, review/posting/history; fresh API+UI+testDB. No full local suite.",
+      "reproduction": "Original journal built-in check lost focus to BODY; focused RED1fail/17PASS beforefix. Shared storage cohort initially58PASS/1FAIL; preserved pre-existing base-mismatch retention, final59PASS. No test expected values weakened to hide a defect.",
+      "browser": "Corrected built-in/IAB: last-row removal focuses Addline, earlier-row removal focuses surviving Account1; draft revision preserved,320px reflow/keyboard-scroll region checked, no captured console warnings/errors. Viewport restored and created tabs closed. Fixture then expired by design; cleanup screenshot is not journal evidence.",
+      "evidence": ".local/autonomous/evidence/angular-quality-reattached-20261023",
+      "ci": "Source2d full39974953174 Domain failed mail persisted-expiry equality; deterministic repair01fb150d. Peer2481 fast39977274181PASS, full39977360380 pending when recorded. Final combined exact-source CI still required.",
+      "limits": "AC09 remains PARTIAL: full per-state matrix/native200/400zoom and actual qualified humanAT versions/workflow observations missing. Generic consolidation receipt recovery and broader release/provider/professional gates remain separate. Existing unrelated commercial/settings.scss budget warning retained. No deployment, permission or live-provider effects."
     }
   },
   "archivedTargetedVerification": {

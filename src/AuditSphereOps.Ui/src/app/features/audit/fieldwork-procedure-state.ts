@@ -10,6 +10,7 @@ import { decodeFieldwork, decodeProcedureCommandLookup, decodeProcedureCommandPr
 export type FieldworkSend = (url: string, body: unknown, ok: string, after?: () => void) => Promise<boolean>;
 type PendingProcedureCommand = { engagementId: string; actorUserId: string; actorGeneration: string; procedureId: string; requestId: string; requestHash: string };
 type TailoringOwner = { engagementId: string; actorUserId: string; actorGeneration: string };
+type TailoringCheckpointProblem = TailoringOwner & { procedureId: string };
 type ProcedureReceiptOwner = { engagementId: string; actorUserId: string; actorGeneration: string };
 
 export class FieldworkProcedureState {
@@ -25,6 +26,7 @@ export class FieldworkProcedureState {
   readonly procedureUnknown = signal<PendingProcedureCommand | null>(null);
   private readonly procedureUnknowns = signal<PendingProcedureCommand[]>([]);
   private readonly procedureReceiptStorageProblem = signal<ProcedureReceiptOwner | null>(null);
+  private readonly tailoringCheckpointProblems = signal<TailoringCheckpointProblem[]>([]);
   readonly tailoringProcedureId = signal('');
   readonly tailoringPending = signal<{ procedureId: string; command: TailorProcedureCommand } | null>(null);
   readonly tailoringBusy = signal(false);
@@ -151,6 +153,24 @@ export class FieldworkProcedureState {
   private procedureCommandScope(engagementId: string, procedureId: string) {
     return { entity: `audit-procedure-command/${engagementId}/${procedureId}`, baseRevision: '0'.repeat(64) };
   }
+  private tailoringCheckpointProblem(): boolean {
+    const engagementId = this.id(), actor = this.riskLinkSession.current();
+    return this.tailoringCheckpointProblems().some(problem => problem.engagementId === engagementId &&
+      problem.actorUserId === actor?.userId && problem.actorGeneration === actor?.generation);
+  }
+  private updateTailoringCheckpointProblem(owner: TailoringOwner, procedureId: string, blocked: boolean): void {
+    this.tailoringCheckpointProblems.update(problems => {
+      const matches = (problem: TailoringCheckpointProblem) => problem.engagementId === owner.engagementId &&
+        problem.actorUserId === owner.actorUserId && problem.actorGeneration === owner.actorGeneration && problem.procedureId === procedureId;
+      const retained = problems.filter(problem => !matches(problem));
+      return blocked ? [...retained, { ...owner, procedureId }] : retained;
+    });
+  }
+  private reportTailoringCheckpointProblem(): boolean {
+    if (!this.tailoringCheckpointProblem()) return false;
+    this.invalid('A tailoring request checkpoint is stale or unavailable. Restore the original checkpoint before continuing; a replacement request identity is blocked.');
+    return true;
+  }
   private restorePendingProcedureCommands(workspace: Fieldwork): void {
     const engagementId = this.id(), actor = this.riskLinkSession.current();
     if (!engagementId || !actor?.staff) return;
@@ -191,18 +211,26 @@ export class FieldworkProcedureState {
     const tailoringPending = !!this.tailoringPending() && !!tailoringOwner &&
       tailoringOwner.engagementId === engagementId && tailoringOwner.actorUserId === actor?.userId &&
       tailoringOwner.actorGeneration === actor?.generation && (this.tailoringUncertain() || this.tailoringBusy());
-    return checkpointUnreadable || procedureReceiptPending || (recovery !== 'tailoring' && tailoringPending);
+    return checkpointUnreadable || this.tailoringCheckpointProblem() || procedureReceiptPending ||
+      (recovery !== 'tailoring' && tailoringPending);
   }
   private restorePendingTailoring(workspace: Fieldwork): void {
     if (this.tailoringPending() || !workspace.canManageFieldwork) return;
+    const actor = this.riskLinkSession.current(), engagementId = this.id();
+    if (!actor?.staff || !engagementId) return;
+    const owner = { engagementId, actorUserId: actor.userId, actorGeneration: actor.generation };
     for (const procedure of workspace.procedures) {
       if (!procedure.originalWording || !procedure.definitionRevision) continue;
-      const saved = this.tabDrafts.read(this.tailoringScope(procedure.id), decodeTailorProcedureCommand);
+      const saved = this.tabDrafts.readPendingSubmission(this.tailoringScope(procedure.id), decodeTailorProcedureCommand);
+      if (saved.state === 'stale' || saved.state === 'unavailable') {
+        this.updateTailoringCheckpointProblem(owner, procedure.id, true);
+        this.reportTailoringCheckpointProblem();
+        continue;
+      }
       if (saved.state !== 'ready' || !saved.draft.submissionPending) continue;
+      this.updateTailoringCheckpointProblem(owner, procedure.id, false);
       this.tailoringPending.set({ procedureId: procedure.id, command: saved.draft.value });
-      const actor = this.riskLinkSession.current(), engagementId = this.id();
-      this.tailoringPendingOwner = actor && engagementId
-        ? { engagementId, actorUserId: actor.userId, actorGeneration: actor.generation } : null;
+      this.tailoringPendingOwner = owner;
       this.tailoringProcedureId.set(procedure.id);
       this.tailoringTitle = saved.draft.value.title;
       this.tailoringWording = saved.draft.value.customWording;
@@ -213,6 +241,7 @@ export class FieldworkProcedureState {
     }
   }
   beginTailoring(procedure: Fieldwork['procedures'][number]): void {
+    if (this.reportTailoringCheckpointProblem()) return;
     if (!this.ws.data()?.canManageFieldwork || !procedure.originalWording || !procedure.definitionRevision ||
         this.tailoringBusy() || this.tailoringUncertain() || this.tailoringPending()) return;
     this.tailoringProcedureId.set(procedure.id);
@@ -229,6 +258,7 @@ export class FieldworkProcedureState {
     this.tailoringMessage.set(''); this.tailoringFailed.set(false);
   }
   async submitTailoring(): Promise<void> {
+    if (this.reportTailoringCheckpointProblem()) return;
     if (this.tailoringBusy() || this.tailoringUncertain() || this.tailoringPending()) return;
     const procedureId = this.tailoringProcedureId(), workspace = this.ws.data();
     const procedure = workspace?.procedures.find(item => item.id === procedureId);
@@ -244,6 +274,7 @@ export class FieldworkProcedureState {
     await this.sendTailoring(procedureId, command);
   }
   async recoverTailoring(): Promise<void> {
+    if (this.reportTailoringCheckpointProblem()) return;
     const pending = this.tailoringPending(), owner = this.tailoringPendingOwner, actor = this.riskLinkSession.current();
     if (!pending || !owner || owner.engagementId !== this.id() || owner.actorUserId !== actor?.userId ||
         owner.actorGeneration !== actor?.generation || !this.tailoringUncertain() || this.tailoringBusy()) return;

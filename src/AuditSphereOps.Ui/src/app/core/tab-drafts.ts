@@ -92,13 +92,18 @@ export class TabDrafts {
    * across a changed base, so its persisted receipt can be read. This never recovers
    * editable fields, assent or an executable command against a stale revision. */
   readPendingRequest(scope: DraftScope): DraftRead<PendingRequestReference> {
-    const r = this.readCore(scope, pendingRequestReference, true);
-    return r.state === 'ready' && !r.draft.submissionPending ? { state: 'stale' } : r;
+    return this.readCore(scope, pendingRequestReference, { pendingOnly: true, pendingReferenceOnly: true });
+  }
+  /** Recover only the bounded payload of an already-submitted command. Its age and base
+   * revision do not erase an unresolved identity; callers must still reconcile it and
+   * must not treat it as editable draft input or fresh assent. */
+  readPendingSubmission<T>(scope: DraftScope, validate: (raw: unknown) => T | null): DraftRead<T> {
+    return this.readCore(scope, validate, { pendingOnly: true });
   }
   private readCore<T>(
     scope: DraftScope,
     validate: (raw: unknown) => T | null,
-    pendingReferenceOnly = false,
+    options: { pendingOnly?: boolean; pendingReferenceOnly?: boolean } = {},
   ): DraftRead<T> {
     const key = this.key(scope['entity']),
       s = this.session.current();
@@ -107,16 +112,24 @@ export class TabDrafts {
       const raw = sessionStorage.getItem(key);
       if (!raw) return { state: 'absent' };
       if (raw.length > maximumBytes) {
-        sessionStorage.removeItem(key);
+        if (!options.pendingOnly) sessionStorage.removeItem(key);
         return { state: 'stale' };
       }
-      let e: Record<string, unknown>;
+      let parsed: unknown;
       try {
-        e = JSON.parse(raw);
+        parsed = JSON.parse(raw);
       } catch {
-        sessionStorage.removeItem(key);
+        if (!options.pendingOnly) sessionStorage.removeItem(key);
         return { state: 'stale' };
       }
+      const e = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? parsed as Record<string, unknown>
+        : null;
+      const retain = options.pendingOnly === true || e?.['submissionPending'] === true;
+      const stale = (): DraftRead<T> => {
+        if (!retain) sessionStorage.removeItem(key);
+        return { state: 'stale' };
+      };
       const now = Date.now();
       if (
         !e ||
@@ -128,17 +141,15 @@ export class TabDrafts {
         typeof e['savedAt'] !== 'number' ||
         typeof e['expiresAt'] !== 'number' ||
         e['savedAt'] > now ||
-        e['expiresAt'] <= now ||
+        (!options.pendingOnly && e['expiresAt'] <= now) ||
         e['expiresAt'] - e['savedAt'] !== lifetime ||
         typeof e['submissionPending'] !== 'boolean' ||
+        (options.pendingOnly && e['submissionPending'] !== true) ||
         typeof e['baseRevision'] !== 'string' ||
         !/^[a-f0-9]{64}$/.test(e['baseRevision'])
-      ) {
-        sessionStorage.removeItem(key);
-        return { state: 'stale' };
-      }
+      ) return stale();
       const value = validate(e['value']);
-      if (!value || (!pendingReferenceOnly && e['baseRevision'] !== scope['baseRevision']))
+      if (!value || (!options.pendingReferenceOnly && !options.pendingOnly && e['baseRevision'] !== scope['baseRevision']))
         return { state: 'stale' };
       return { state: 'ready', draft: { value, submissionPending: e['submissionPending'] } };
     } catch {
@@ -168,19 +179,41 @@ export class TabDrafts {
   private prune(writingKey: string): void {
     const s = this.session.current();
     const identity = s ? `${prefix}${s.firmId}:${s.userId}:${s.generation}:` : '';
+    const now = Date.now();
     let count = 0;
     for (let i = sessionStorage.length - 1; i >= 0; i--) {
       const key = sessionStorage.key(i);
       if (!key?.startsWith(prefix)) continue;
-      let expired = true;
-      try {
-        const e = JSON.parse(sessionStorage.getItem(key) ?? 'null');
-        expired = !e || typeof e['expiresAt'] !== 'number' || e['expiresAt'] <= Date.now();
-      } catch {
-        /* discard */
+      if (!key.startsWith(identity)) {
+        sessionStorage.removeItem(key);
+        continue;
       }
-      if (!key.startsWith(identity) || expired) sessionStorage.removeItem(key);
-      else count++;
+      const entity = key.slice(identity.length);
+      try {
+        const raw = sessionStorage.getItem(key);
+        const parsed: unknown = raw && raw.length <= maximumBytes ? JSON.parse(raw) : null;
+        const e = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+          ? parsed as Record<string, unknown>
+          : null;
+        const knownEnvelope = !!e && e['schemaVersion'] === 1 && e['firmId'] === s?.firmId &&
+          e['userId'] === s?.userId && e['generation'] === s?.generation && e['entity'] === entity &&
+          typeof e['baseRevision'] === 'string' && /^[a-f0-9]{64}$/.test(e['baseRevision']) &&
+          typeof e['savedAt'] === 'number' && Number.isFinite(e['savedAt']) && e['savedAt'] <= now &&
+          typeof e['expiresAt'] === 'number' && Number.isFinite(e['expiresAt']) &&
+          e['expiresAt'] - e['savedAt'] === lifetime && typeof e['submissionPending'] === 'boolean';
+        if (!knownEnvelope || e!['submissionPending'] === true) {
+          // Unknown or unreadable current-session records may be unresolved submissions.
+          // Count them against the tab limit, but never evict them during an unrelated save.
+          count++;
+        } else if ((e!['expiresAt'] as number) <= now) {
+          sessionStorage.removeItem(key);
+        } else {
+          count++;
+        }
+      } catch {
+        // Storage errors fail the enclosing save closed; malformed records are retained.
+        count++;
+      }
     }
     if (count >= 50 && !sessionStorage.getItem(writingKey)) throw new Error('Draft limit');
   }
