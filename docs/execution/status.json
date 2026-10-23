@@ -1082,11 +1082,17 @@
           "checks": "3PASS: exact firm/client/engagement/period/book, existing TB duplicate reuse and GL dimension denial. Commands retain authorization; no substitute selected. No immutable context activation/pins."
         },
         "reasonAdapter": {
-          "status": "PASS_FOCUSED_NOT_BROWSER_VERIFIED",
+          "status": "PASS_FOCUSED_AND_OWNED_BROWSER",
           "base": "74044e96 warm+4 source overlays; relevant profile/history owners unchanged to4bad",
           "evidence": ".local/autonomous/evidence/wu015-accounting-profile-reason",
           "checks": "API1PASS, Angular8PASS; emitted OpenAPIcurrent, only optionalnullable reason/max2000. Missing/overlong reasons denied; valid reason retained; unauthorized change403/no mutation. No cutover relaxation.",
-          "remaining": "Combined exact-source CI and interactive acceptance; T014 context activation/pins remain."
+          "remaining": "Combinedexact-sourceCI/broaderacceptance; T014contextpins remain.",
+          "browser": {
+            "base": "143dc97b+2E2Eoverlays;6d5fCIUIartifact12500993617",
+            "evidence": ".local/autonomous/evidence/profile-reason-browser-143",
+            "checks": "Setup1PASS: reasonrequired, exact revision/author/reasonpersisted, periodcutover400/no mutation, existingbook/close/rollforward. CapturehelperRED duplicatePOST fixedbyfulfillbeforeunroute; single+multi dependency1PASS. OriginalREDretained.",
+            "remaining": "Automatedownedbrowseronly; broadercurrent-sourceCI/AT remain."
+          }
         }
       },
       "staffingScopedParents": {

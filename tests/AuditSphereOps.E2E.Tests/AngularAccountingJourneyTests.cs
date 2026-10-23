@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Tests;
+using AuditSphereOps.Domain.Shared;
+using System.Text.Json;
 
 namespace AuditSphereOps.E2E.Tests;
 
@@ -79,6 +81,37 @@ public sealed class AngularAccountingJourneyTests
     await profile.GetByRole(AriaRole.Checkbox).CheckAsync();
     await profile.GetByRole(AriaRole.Button, new() { Name = "Save profile" }).ClickAsync();
     await Assertions.Expect(accounting.GetByRole(AriaRole.Heading, new() { Name = "Revise accounting profile", Exact = true })).ToBeVisibleAsync();
+    var revisionForm = accounting.Locator("form").Filter(new() { Has = page.GetByRole(AriaRole.Heading, new() { Name = "Revise accounting profile", Exact = true }) });
+    var profilePath = $"/api/ui/accounting/clients/{host.Fixture.ClientId}/profile";
+    var expectedRevision = 1;
+    foreach (var (currency, reason) in new[]
+    {
+      ("USD", "Synthetic reviewed currency revision before period setup"),
+      ("QAR", "Synthetic restoration of the fixture reporting currency")
+    })
+    {
+      await revisionForm.GetByLabel("Functional currency", new() { Exact = true }).FillAsync(currency);
+      await revisionForm.GetByRole(AriaRole.Checkbox).CheckAsync();
+      await Assertions.Expect(revisionForm.GetByRole(AriaRole.Button, new() { Name = "Save profile", Exact = true })).ToBeDisabledAsync();
+      await revisionForm.GetByLabel("Reason for accounting basis change", new() { Exact = true }).FillAsync(reason);
+      var saved = await PlaywrightResponseCapture.RunAsync(page,
+        request => request.Method == "POST" && new Uri(request.Url).AbsolutePath == profilePath,
+        () => revisionForm.GetByRole(AriaRole.Button, new() { Name = "Save profile", Exact = true }).ClickAsync());
+      Assert.Equal(200, saved.Status);
+      expectedRevision++;
+      using (var response = JsonDocument.Parse(saved.Body))
+        Assert.Equal(expectedRevision.ToString(), response.RootElement.GetProperty("revision").GetString());
+      await Assertions.Expect(revisionForm.GetByRole(AriaRole.Checkbox,
+        new() { Name = $"I reviewed this client profile and revision {expectedRevision}.", Exact = true })).Not.ToBeCheckedAsync();
+      await Assertions.Expect(revisionForm.GetByLabel("Functional currency", new() { Exact = true })).ToHaveValueAsync(currency);
+      await Assertions.Expect(revisionForm.GetByLabel("Reason for accounting basis change", new() { Exact = true })).ToBeEmptyAsync();
+      await using var proof = host.CreateDbContext();
+      var retained = await proof.ClientAccountingProfileRevisionRecords.SingleAsync(x =>
+        x.ClientId == host.Fixture.ClientId && x.Revision == expectedRevision);
+      Assert.Equal(reason, retained.Reason);
+      Assert.Equal(currency, retained.FunctionalCurrency);
+      Assert.Equal(host.Fixture.Admin.Id, retained.CreatedByUserId);
+    }
     var periods = accounting.Locator("form").Filter(new() { Has = page.GetByRole(AriaRole.Heading, new() { Name = "Create reporting period", Exact = true }) });
     await periods.GetByLabel("Period code", new() { Exact = true }).FillAsync("2026");
     await periods.GetByLabel("Start date", new() { Exact = true }).FillAsync("2026-01-01");
@@ -88,6 +121,25 @@ public sealed class AngularAccountingJourneyTests
     await periods.GetByRole(AriaRole.Checkbox).CheckAsync();
     await periods.GetByRole(AriaRole.Button, new() { Name = "Create period", Exact = true }).ClickAsync();
     await Assertions.Expect(accounting.GetByRole(AriaRole.Cell, new() { Name = "2026", Exact = true })).ToBeVisibleAsync();
+    await revisionForm.GetByLabel("Functional currency", new() { Exact = true }).FillAsync("USD");
+    await revisionForm.GetByLabel("Reason for accounting basis change", new() { Exact = true }).FillAsync("Synthetic reason cannot authorize a post-period cutover");
+    await revisionForm.GetByRole(AriaRole.Checkbox).CheckAsync();
+    var blocked = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "POST" && new Uri(request.Url).AbsolutePath == profilePath,
+      () => revisionForm.GetByRole(AriaRole.Button, new() { Name = "Save profile", Exact = true }).ClickAsync());
+    Assert.Equal(400, blocked.Status);
+    using (var response = JsonDocument.Parse(blocked.Body))
+      Assert.Equal(ErrorCodes.GateBlocked, response.RootElement.GetProperty("code").GetString());
+    await Assertions.Expect(accounting.GetByText("Profile change was rejected by current accounting or cutover rules. Review the current profile before retrying.", new() { Exact = true })).ToBeVisibleAsync();
+    await using (var proof = host.CreateDbContext())
+    {
+      var retained = await proof.ClientAccountingProfiles.SingleAsync(x => x.ClientId == host.Fixture.ClientId);
+      Assert.Equal(expectedRevision, retained.Revision);
+      Assert.Equal("QAR", retained.FunctionalCurrency);
+      Assert.Equal(3, await proof.ClientAccountingProfileRevisionRecords.CountAsync(x => x.ClientId == host.Fixture.ClientId));
+    }
+    await revisionForm.GetByLabel("Functional currency", new() { Exact = true }).FillAsync("QAR");
+    await revisionForm.GetByLabel("Reason for accounting basis change", new() { Exact = true }).FillAsync("");
     Guid periodId;
     await using (var db = host.CreateDbContext())
       periodId = (await db.ClientReportingPeriods.SingleAsync(x => x.ClientId == host.Fixture.ClientId)).Id;

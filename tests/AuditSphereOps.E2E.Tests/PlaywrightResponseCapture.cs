@@ -15,6 +15,7 @@ internal static class PlaywrightResponseCapture
       throw new ArgumentException("At least one response matcher is required.", nameof(matchers));
 
     var captured = new ConcurrentDictionary<int, (int Status, string Body)>();
+    var fulfilled = 0;
     var allCaptured = new TaskCompletionSource<IReadOnlyList<(int Status, string Body)>>(
       TaskCreationOptions.RunContinuationsAsynchronously);
     var observed = new ConcurrentQueue<string>();
@@ -42,9 +43,10 @@ internal static class PlaywrightResponseCapture
       {
         var response = await route.FetchAsync();
         var body = await response.TextAsync();
-        if (captured.TryAdd(matcherIndex, (response.Status, body)) && captured.Count == matchers.Count)
-          allCaptured.TrySetResult(Enumerable.Range(0, matchers.Count).Select(index => captured[index]).ToArray());
+        var added = captured.TryAdd(matcherIndex, (response.Status, body));
         await route.FulfillAsync(new() { Response = response });
+        if (added && Interlocked.Increment(ref fulfilled) == matchers.Count)
+          allCaptured.TrySetResult(Enumerable.Range(0, matchers.Count).Select(index => captured[index]).ToArray());
       }
       catch (Exception exception)
       {
@@ -88,8 +90,9 @@ internal static class PlaywrightResponseCapture
       {
         var response = await route.FetchAsync();
         var body = await response.TextAsync();
-        captured.TrySetResult((response.Status, body));
         await route.FulfillAsync(new() { Response = response });
+        // Unrouting an unresolved browser route can continue it after Fetch already sent the mutation.
+        captured.TrySetResult((response.Status, body));
       }
       catch (Exception exception)
       {
