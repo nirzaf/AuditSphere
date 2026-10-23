@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
@@ -33,12 +34,33 @@ public sealed class StaffingChangeReviewApiTests
     Assert.Equal(HttpStatusCode.Unauthorized, (await Post(c, "forged", url + "/preview", r)).StatusCode);
     await c.GetAsync("/auth/sign-in"); using var session = await c.GetAsync("/api/ui/session");
     var csrf = Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie").Single(x => x.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..]);
-    Assert.Equal(HttpStatusCode.Forbidden, (await Post(c, "forged", url + "/preview", r)).StatusCode);
+    using (var csrfDenied = await Post(c, "forged", url + "/preview", r))
+      await AssertFailureAsync(csrfDenied, HttpStatusCode.Forbidden, "csrf.invalid");
+
+    int assignmentsBeforeDenial;
+    int receiptsBeforeDenial;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      assignmentsBeforeDenial = await db.EngagementStaffAssignments.CountAsync();
+      receiptsBeforeDenial = await db.StaffingChanges.CountAsync();
+    }
+    var foreignUrl = "/api/ui/engagements/" + foreign.EngagementId + "/staffing-change";
+    using (var deniedPreview = await Post(c, csrf, foreignUrl + "/preview", r))
+      await AssertFailureAsync(deniedPreview, HttpStatusCode.Forbidden, ErrorCodes.ScopeDenied);
+    using (var deniedExecute = await Post(c, csrf, foreignUrl, r))
+      await AssertFailureAsync(deniedExecute, HttpStatusCode.Forbidden, ErrorCodes.ScopeDenied);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(assignmentsBeforeDenial, await db.EngagementStaffAssignments.CountAsync());
+      Assert.Equal(receiptsBeforeDenial, await db.StaffingChanges.CountAsync());
+    }
+
     using var preview = await Post(c, csrf, url + "/preview", r); Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
     Assert.True(preview.Headers.CacheControl!.NoStore);
     var p = JsonDocument.Parse(await preview.Content.ReadAsStringAsync()).RootElement.GetProperty("value")
       .Deserialize<StaffingChangePreview>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
-    Assert.Equal(HttpStatusCode.BadRequest, (await Post(c, csrf, url, r)).StatusCode);
+    using (var invalid = await Post(c, csrf, url, r))
+      await AssertFailureAsync(invalid, HttpStatusCode.BadRequest, "request.invalid");
     r = r with { Reviewed = true, ReviewBasis = p.ReviewBasis, RequestHash = p.RequestHash };
     using var created = await Post(c, csrf, url, r); Assert.Equal(HttpStatusCode.OK, created.StatusCode);
     using var replay = await Post(c, csrf, url, r); Assert.Equal(await created.Content.ReadAsStringAsync(), await replay.Content.ReadAsStringAsync());
@@ -56,5 +78,12 @@ public sealed class StaffingChangeReviewApiTests
   {
     var r = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(input) };
     r.Headers.Add("X-XSRF-TOKEN", csrf); return c.SendAsync(r);
+  }
+
+  private static async Task AssertFailureAsync(HttpResponseMessage response, HttpStatusCode status, string code)
+  {
+    Assert.Equal(status, response.StatusCode);
+    using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+    Assert.Equal(code, body.RootElement.GetProperty("code").GetString());
   }
 }

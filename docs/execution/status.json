@@ -1130,6 +1130,11 @@
           "base": "74044e96+2fileoverlay",
           "evidence": ".local/autonomous/evidence/wu015-pricing",
           "checks": "1API PASS fresh rebuild: ScopeDenied403/no writes, validation400, csrf.invalid403, authorized200/one policy. Wider authority/race coverage remains."
+        },
+        "staffingMutation": {
+          "base": "74044e96+pricing2+test overlay",
+          "evidence": ".local/autonomous/evidence/wu015-staffing-scope",
+          "checks": "1API PASS: existing shared mapper correctly returns403 scope.denied; foreign preview/execute unchanged assignments/receipts, csrf.invalid403, invalid400, allowed/replay unchanged."
         }
       },
       "profileDimensionHistory": {
