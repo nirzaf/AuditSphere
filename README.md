@@ -92,7 +92,7 @@ Current server-side grants (`FIRM_WIDE`, `CLIENT`, `ENGAGEMENT`, `GROUP`), appen
 
 ## Product roadmap and feature checklist
 
-**☑ Completed:** evidenced slice. **☐ Partially pending:** integration/acceptance remains. **☐ Pending:** open deliverable. A completed slice does not complete its parent module.
+**☑ Completed:** evidenced slice. **☐ Partially pending:** integration/acceptance remains. **☐ Pending:** open deliverable. A completed slice does not complete its parent module. _Checklist last synced with `master` at `c94fd05f`; this is not a CI verification of that commit._
 
 Criteria/evidence: [product crosswalk](docs/execution/auditsphere-execution-tracker-practice-management-v22-crosswalk-current.md) · [API/Angular parity](docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md) · [task board](docs/execution/auditsphere-execution-index-task-board-current.md) · [ledger](docs/execution/status.json). Backlog IDs and acceptance gates remain authoritative.
 
@@ -125,7 +125,7 @@ These are recorded, scoped checks—not current-source full CI or whole-product 
 | Checklist | Completed slice | Remaining limits |
 | --- | --- | --- |
 | ☑ Completed | Angular host/Blazor retirement; sidebar toggle and mobile shell | Migration/parity and server isolation acceptance. |
-| ☑ Completed | Journal/evidence/sampling previews, review-point receipt recovery and consolidation controls/scrolling | Unknown/stale outcomes and human review; recording stays off before assent. |
+| ☑ Completed | Journal/evidence/sampling previews, fieldwork preview focus/loading feedback, serialized review-point receipt recovery, revoked-view E2E handling and consolidation controls/scrolling | Unknown/stale outcomes and human review; recording stays off before assent. |
 | ☑ Completed | Pinned task context, Required/Optional labels and atomic graph bounds | Manual tasks stay unlabeled; labels grant no completion approval. |
 | ☑ Completed | Proposal dispatch to canonical lifecycle handoff — synthetic browser/API/DB | Client acceptance, provider delivery and full commercial acceptance remain. |
 | ☑ Completed | Net-allocated advance gate, scoped fee-settlement browser/API/DB journey, expense paging/recovery and monthly P&L boundaries | Full commercial, receipt, reporting and export acceptance. |
