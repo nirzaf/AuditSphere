@@ -267,6 +267,7 @@ try {
   $script:mailSender = '00000000-0000-4000-8000-000000000106'
   $script:mailControl = '00000000-0000-4000-8000-000000000107'
   $script:mailGroup = '00000000-0000-4000-8000-000000000108'
+  $script:mailAssignment = '00000000-0000-4000-8000-000000000113'
 
   function New-SyntheticMailEvidence([ValidateSet('LEGACY_APPLICATION_ACCESS_POLICY', 'EXCHANGE_RBAC_RESOURCE_SCOPE')] [string] $Model) {
     $graphAppId = '00000003-0000-0000-c000-000000000000'
@@ -288,9 +289,9 @@ try {
     $graph = @{ id = $script:mailGraphServicePrincipal; appId = $graphAppId; appRoles = @($graphRole) }
     $appAssignments = @()
     if ($Model -eq 'LEGACY_APPLICATION_ACCESS_POLICY') {
-      $appAssignments = @(@{ principalId = $script:mailPrincipal; resourceId = $script:mailGraphServicePrincipal; appRoleId = $script:mailRole })
+      $appAssignments = @(@{ id = $script:mailAssignment; principalId = $script:mailPrincipal; resourceId = $script:mailGraphServicePrincipal; appRoleId = $script:mailRole })
     }
-    $exchange = @{ exchangeServicePrincipal = $null; roleAssignments = @() }
+    $exchange = @{ exchangeServicePrincipal = $null; roleAssignments = @(); mailboxObjectIds = @($script:mailSender, $script:mailControl) }
     if ($Model -eq 'LEGACY_APPLICATION_ACCESS_POLICY') {
       $policyProbes = @{}
       $policyProbes[$script:mailSender] = @{ AppId = $script:mailClient; MailboxId = $script:mailSender; AccessCheckResult = 'Granted' }
@@ -333,8 +334,30 @@ try {
   }
 
   $legacyEvidence = New-SyntheticMailEvidence 'LEGACY_APPLICATION_ACCESS_POLICY'
+  $legacyEvidence.Evidence.exchange.policyGroup.Name = 'Readback-Mail-Senders'
+  $legacyEvidence.Evidence.exchange.applicationAccessPolicies[0].ScopeName = 'Readback-Mail-Senders'
   $legacySnapshot = Assert-M365MailReadinessEvidence $legacyEvidence.Plan $legacyEvidence.Evidence
-  Assert-That 'legacy-current-state-is-exactly-authorized-and-control-denied' ($legacySnapshot.model -eq 'LEGACY_APPLICATION_ACCESS_POLICY')
+  Assert-That 'legacy-current-state-is-exactly-authorized-and-control-denied' ($legacySnapshot.model -eq 'LEGACY_APPLICATION_ACCESS_POLICY' -and
+    $legacySnapshot.providerSnapshot.legacyAuthorization.scopeGroupName -eq 'Readback-Mail-Senders' -and
+    $legacySnapshot.providerSnapshot.legacyAuthorization.policyScopeName -eq 'Readback-Mail-Senders' -and
+    $legacySnapshot.providerSnapshot.legacyAuthorization.accessRight -eq 'RestrictAccess' -and
+    $legacySnapshot.providerSnapshot.legacyAuthorization.probes.Count -eq 2 -and
+    @($legacySnapshot.providerSnapshot.legacyAuthorization.probes | Where-Object { $_.allowed }).Count -eq 1)
+  Assert-That 'legacy-provider-snapshot-normalizes-actual-entra-and-exchange-reads' (
+    $legacySnapshot.providerSnapshot.tenantId -eq $legacyEvidence.Evidence.enterpriseServicePrincipal.appOwnerOrganizationId -and
+    $legacySnapshot.providerSnapshot.runtimeClientId -eq $legacyEvidence.Evidence.enterpriseServicePrincipal.appId -and
+    $legacySnapshot.providerSnapshot.enterpriseServicePrincipalObjectId -eq $legacyEvidence.Evidence.enterpriseServicePrincipal.id -and
+    $legacySnapshot.providerSnapshot.graphServicePrincipalObjectId -eq $legacyEvidence.Evidence.graphServicePrincipal.id -and
+    $legacySnapshot.providerSnapshot.graphMailSendAppRoleId -eq $script:mailRole -and
+    $legacySnapshot.providerSnapshot.graphMailSendRoleValue -eq 'Mail.Send' -and
+    $legacySnapshot.providerSnapshot.graphMailSendRoleEnabled -eq $true -and
+    $legacySnapshot.providerSnapshot.graphMailSendAllowedMemberTypes[0] -eq 'Application' -and
+    $legacySnapshot.providerSnapshot.senderMailboxObjectIds[0] -eq $script:mailSender -and
+    $legacySnapshot.providerSnapshot.controlMailboxObjectId -eq $script:mailControl -and
+    $legacySnapshot.providerSnapshot.entraGrantSet.Count -eq 1 -and
+    $legacySnapshot.providerSnapshot.entraGrantSet[0].assignmentObjectId -eq $script:mailAssignment -and
+    $legacySnapshot.providerSnapshot.legacyAuthorization.policyApplicationClientIds[0] -eq $script:mailClient -and
+    $null -eq $legacySnapshot.providerSnapshot.exchangeRbacAuthorization)
   $wrongLegacyPlan = New-SyntheticMailEvidence 'LEGACY_APPLICATION_ACCESS_POLICY'
   $wrongLegacyPlan.Plan.capabilities[0].expectedApplicationRoles[0].value = 'Mail.Read'
   Assert-ThrowsCode 'pure-verifier-rejects-plan-role-outside-mail-contract' 'INVALID_OR_UNSAFE' {
@@ -357,10 +380,18 @@ try {
   }
 
   $rbacEvidence = New-SyntheticMailEvidence 'EXCHANGE_RBAC_RESOURCE_SCOPE'
+  $rbacEvidence.Evidence.exchange.managementScope.RecipientFilter = '(Department -eq "Readback")'
   $rbacSnapshot = Assert-M365MailReadinessEvidence $rbacEvidence.Plan $rbacEvidence.Evidence
-  Assert-That 'rbac-current-state-proves-scope-and-control-denial' ($rbacSnapshot.model -eq 'EXCHANGE_RBAC_RESOURCE_SCOPE')
+  Assert-That 'rbac-current-state-proves-scope-and-control-denial' ($rbacSnapshot.model -eq 'EXCHANGE_RBAC_RESOURCE_SCOPE' -and
+    $rbacSnapshot.providerSnapshot.exchangeRbacAuthorization.recipientFilter -eq '(Department -eq "Readback")' -and
+    $rbacSnapshot.providerSnapshot.exchangeRbacAuthorization.scopeMemberObjectIds[0] -eq $script:mailSender -and
+    $rbacSnapshot.providerSnapshot.exchangeRbacAuthorization.probes.Count -eq 2 -and
+    @($rbacSnapshot.providerSnapshot.exchangeRbacAuthorization.probes | Where-Object { $_.inScope }).Count -eq 1 -and
+    $rbacSnapshot.providerSnapshot.entraGrantSet.Count -eq 0 -and
+    $rbacSnapshot.providerSnapshot.exchangeRoleAssignmentSet.Count -eq 1 -and
+    $null -eq $rbacSnapshot.providerSnapshot.legacyAuthorization)
   $rbacOverlap = New-SyntheticMailEvidence 'EXCHANGE_RBAC_RESOURCE_SCOPE'
-  $rbacOverlap.Evidence.appRoleAssignments = @(@{ principalId = $script:mailPrincipal; resourceId = $script:mailGraphServicePrincipal; appRoleId = $script:mailRole })
+  $rbacOverlap.Evidence.appRoleAssignments = @(@{ id = $script:mailAssignment; principalId = $script:mailPrincipal; resourceId = $script:mailGraphServicePrincipal; appRoleId = $script:mailRole })
   Assert-ThrowsCode 'rbac-refuses-unscoped-entra-mail-send' 'DRIFT' {
     Assert-M365MailReadinessEvidence $rbacOverlap.Plan $rbacOverlap.Evidence | Out-Null
   }
@@ -373,6 +404,58 @@ try {
   $rbacControlGrant.Evidence.exchange.servicePrincipalAuthorizationProbes[$script:mailControl][0].InScope = $true
   Assert-ThrowsCode 'rbac-control-mailbox-must-be-out-of-scope' 'DRIFT' {
     Assert-M365MailReadinessEvidence $rbacControlGrant.Plan $rbacControlGrant.Evidence | Out-Null
+  }
+
+  $mailModule = Get-Module MailAccess
+  $repositoryPath = [System.IO.Path]::GetFullPath((Join-Path $root '../..'))
+  $repositoryCommit = [string] (& git -C $repositoryPath rev-parse HEAD 2>$null)
+  if ($LASTEXITCODE -ne 0) { throw 'synthetic-source-commit-unavailable' }
+  $sourceIdentity = & $mailModule { param($commit) Get-M365MailSourceIdentity $commit } $repositoryCommit
+  $sourceKeyList = @($sourceIdentity.Keys | Sort-Object -CaseSensitive) -join ','
+  $configureHash = (Get-FileHash -LiteralPath $scriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  $moduleHash = (Get-FileHash -LiteralPath (Join-Path $root 'MailAccess.psm1') -Algorithm SHA256).Hash.ToLowerInvariant()
+  $lockHash = (Get-FileHash -LiteralPath (Join-Path $root 'modules.lock.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+  $commonHash = (Get-FileHash -LiteralPath (Join-Path $root 'AuditSphere.M365.Common.psm1') -Algorithm SHA256).Hash.ToLowerInvariant()
+  $entraHash = (Get-FileHash -LiteralPath (Join-Path $root 'AuditSphere.M365.Entra.psm1') -Algorithm SHA256).Hash.ToLowerInvariant()
+  $schemaHash = (Get-FileHash -LiteralPath (Join-Path $root 'm365-plan.schema.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+  Assert-That 'cms-source-identity-has-only-the-fixed-contract-fields-and-current-content-hashes' (
+    $sourceKeyList -ceq 'commonModuleSha256,configureMailAccessSha256,entraModuleSha256,mailAccessModuleSha256,modulesLockSha256,planSchemaSha256,repositoryCommit' -and
+    $sourceIdentity.repositoryCommit -ceq $repositoryCommit.ToLowerInvariant() -and
+    $sourceIdentity.configureMailAccessSha256 -ceq $configureHash -and
+    $sourceIdentity.mailAccessModuleSha256 -ceq $moduleHash -and
+    $sourceIdentity.modulesLockSha256 -ceq $lockHash -and
+    $sourceIdentity.commonModuleSha256 -ceq $commonHash -and
+    $sourceIdentity.entraModuleSha256 -ceq $entraHash -and
+    $sourceIdentity.planSchemaSha256 -ceq $schemaHash)
+  Assert-ThrowsCode 'cms-source-identity-rejects-non-commit-input' 'INCOMPLETE_EVIDENCE' {
+    & $mailModule { param($commit) Get-M365MailSourceIdentity $commit } 'not-a-commit' | Out-Null
+  }
+  $readbackCalls = [int[]] @(0)
+  $sourcePhases = [System.Collections.Generic.List[string]]::new()
+  $driftObserver = {
+    param($phase, $commit)
+    $sourcePhases.Add([string] $phase)
+    $identityCopy = [ordered]@{}
+    foreach ($field in $sourceIdentity.Keys) { $identityCopy[$field] = $sourceIdentity[$field] }
+    if ($phase -ceq 'after') { $identityCopy.commonModuleSha256 = 'f' * 64 }
+    return $identityCopy
+  }.GetNewClosure()
+  $syntheticReadback = {
+    param($unused)
+    $readbackCalls[0]++
+    return [ordered]@{ providerSnapshot = [ordered]@{ syntheticObservation = 'read-completed' } }
+  }.GetNewClosure()
+  Assert-ThrowsCode 'source-drift-after-provider-read-refuses-evidence' 'INCOMPLETE_EVIDENCE' {
+    & $mailModule {
+      param($commit, $readback, $observer)
+      Invoke-M365MailReadbackWithSourceFence $commit $readback $null $observer | Out-Null
+    } $repositoryCommit $syntheticReadback $driftObserver
+  }
+  Assert-That 'source-drift-test-observed-change-after-read-completed' (
+    $readbackCalls[0] -eq 1 -and ($sourcePhases -join ',') -ceq 'before,after')
+  $oversizedSnapshot = [ordered]@{ normalizedField = ('x' * 1048577) }
+  Assert-ThrowsCode 'normalized-provider-snapshot-is-bounded-to-one-mebibyte' 'INCOMPLETE_EVIDENCE' {
+    & $mailModule { param($snapshot) Assert-MailProviderSnapshotBound $snapshot | Out-Null } $oversizedSnapshot
   }
 
   $sessionPlan = @{ tenantId = $script:mailTenant; operator = @{ clientId = $script:mailClient } }
@@ -419,8 +502,12 @@ try {
     senderObjectIds = @($legacySnapshot.senderObjectIds)
     controlMailboxObjectId = $legacySnapshot.controlMailboxObjectId
     evidenceReference = 'm365-mail-readonly:synthetic:sha256:' + ('a' * 64)
+    source = $sourceIdentity
+    providerSnapshot = $legacySnapshot.providerSnapshot
   }
   $gateResult = New-M365Result 'ReadOnly'
+  $gateResult.repositoryCommit = $sourceIdentity.repositoryCommit
+  $gateResult.tenantId = $script:mailTenant
   $gateStatus = Add-M365MailRuntimeGate $gateResult $snapshotForGate
   Assert-That 'legacy-provider-readiness-defers-to-existing-api-capability-evidence' ($gateStatus -eq 'INCOMPLETE_EVIDENCE' -and
     $gateResult.checks[0].state -eq 'PASS' -and $gateResult.checks[1].state -eq 'INCOMPLETE_EVIDENCE' -and
@@ -428,19 +515,40 @@ try {
     $gateResult.errorCode -eq 'mail-legacy-capability-evidence-not-verified' -and
     $gateResult.blockedPrerequisites[0] -eq 'verification:legacy-mail-capability-evidence-not-verified' -and
     $gateResult.checks[1].observed -notmatch 'runtime is not implemented' -and
+    $gateResult.checks[0].source.repositoryCommit -eq $sourceIdentity.repositoryCommit -and
+    $gateResult.checks[0].providerSnapshot.legacyAuthorization.scopeGroupName -eq 'Readback-Mail-Senders' -and
     $gateResult.mutationsAttempted -eq 0 -and $gateResult.mutationsConfirmed -eq 0 -and $gateResult.changes.Count -eq 0)
+  $gateResult.planSha256 = 'a' * 64
+  $gateResult.networkCalls = 0
+  $cmsEnvelopePath = Join-Path $work 'cms-readback-envelope.result.json'
+  $null = Complete-M365Result $gateResult $gateStatus $cmsEnvelopePath
+  $verifier = Join-Path $root 'verify-result.py'
+  $python = Get-Command python3 -ErrorAction SilentlyContinue
+  if (-not $python) { throw 'python3-required-for-result-envelope-compatibility-check' }
+  $verifyOutput = @(& $python.Source $verifier $cmsEnvelopePath --expect INCOMPLETE_EVIDENCE)
+  $verifyExitCode = $LASTEXITCODE
+  $verifiedEnvelope = Get-Content -Raw $cmsEnvelopePath | ConvertFrom-Json -AsHashtable
+  Assert-That 'cms-readback-fields-preserve-v1-envelope-and-verifier-accepts-incomplete-evidence' (
+    $verifyExitCode -eq 0 -and $verifiedEnvelope.schemaVersion -eq 1 -and
+    $verifiedEnvelope.status -eq 'INCOMPLETE_EVIDENCE' -and $verifiedEnvelope.checks[0].providerSnapshot -and
+    $verifiedEnvelope.checks[0].source -and $verifyOutput -match '"valid": true')
   $rbacSnapshotForGate = [ordered]@{
     model = 'EXCHANGE_RBAC_RESOURCE_SCOPE'; clientId = $snapshotForGate.clientId
     senderObjectIds = @($snapshotForGate.senderObjectIds)
     controlMailboxObjectId = $snapshotForGate.controlMailboxObjectId
     evidenceReference = $snapshotForGate.evidenceReference
+    source = $sourceIdentity
+    providerSnapshot = $rbacSnapshot.providerSnapshot
   }
   $rbacGateResult = New-M365Result 'ReadOnly'
+  $rbacGateResult.repositoryCommit = $sourceIdentity.repositoryCommit
+  $rbacGateResult.tenantId = $script:mailTenant
   $rbacGateStatus = Add-M365MailRuntimeGate $rbacGateResult $rbacSnapshotForGate
   Assert-That 'rbac-provider-readiness-names-missing-engineering-runtime' ($rbacGateStatus -eq 'INCOMPLETE_EVIDENCE' -and
     $rbacGateResult.checks[1].state -eq 'INCOMPLETE_EVIDENCE' -and
     $rbacGateResult.errorCode -eq 'mail-rbac-runtime-not-implemented' -and
     $rbacGateResult.blockedPrerequisites[0] -eq 'engineering:exchange-rbac-mail-runtime-not-implemented' -and
+    $rbacGateResult.checks[0].providerSnapshot.exchangeRbacAuthorization.recipientFilter -eq '(Department -eq "Readback")' -and
     $rbacGateResult.mutationsAttempted -eq 0 -and $rbacGateResult.mutationsConfirmed -eq 0 -and $rbacGateResult.changes.Count -eq 0)
 
   $moduleSource = Get-Content -Raw (Join-Path $root 'MailAccess.psm1')

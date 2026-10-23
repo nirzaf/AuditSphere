@@ -84,7 +84,7 @@ try {
   if ($dirty) { throw 'mail-source-tree-dirty' }
 
   Set-M365OfflineMode $false
-  $snapshot = Get-M365MailReadOnlyEvidence $plan
+  $snapshot = Get-M365MailReadOnlyEvidence $plan ([string] $head)
   $result.networkCalls = Get-M365NetworkCallCount
   $status = Add-M365MailRuntimeGate $result $snapshot
   exit (Complete-M365Result $result $status $OutputPath)

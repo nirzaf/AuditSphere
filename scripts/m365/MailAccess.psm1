@@ -5,6 +5,7 @@ Set-StrictMode -Version Latest
 $script:MailMaximumSenders = 1000
 $script:MailMaximumGraphRows = 1000
 $script:MailMaximumGraphPages = 10
+$script:MailMaximumSnapshotBytes = 1048576
 $script:GraphApplicationId = '00000003-0000-0000-c000-000000000000'
 $script:MailRoleName = 'Application Mail.Send'
 
@@ -57,6 +58,101 @@ function Test-MailExactSet([object[]] $Actual, [object[]] $Expected) {
     if ($actualValues[$i] -cne $expectedValues[$i]) { return $false }
   }
   return $true
+}
+
+function ConvertTo-MailSortedGuidStrings($Values) {
+  [string[]] $normalized = @(ConvertTo-MailRows $Values | ForEach-Object { ConvertTo-MailGuid $_ })
+  [Array]::Sort($normalized, [StringComparer]::Ordinal)
+  return $normalized
+}
+
+function ConvertTo-MailSortedStrings($Values) {
+  [string[]] $normalized = @(ConvertTo-MailRows $Values | ForEach-Object {
+    if ($_ -isnot [string] -or [string]::IsNullOrWhiteSpace($_)) { throw 'INCOMPLETE_EVIDENCE' }
+    [string] $_
+  })
+  if (@($normalized | Select-Object -Unique).Count -ne $normalized.Count) { throw 'INCOMPLETE_EVIDENCE' }
+  [Array]::Sort($normalized, [StringComparer]::Ordinal)
+  return $normalized
+}
+
+function Assert-MailProviderSnapshotBound($Snapshot) {
+  $json = ConvertTo-Json -InputObject $Snapshot -Depth 16 -Compress
+  if ([System.Text.Encoding]::UTF8.GetByteCount($json) -gt $script:MailMaximumSnapshotBytes) {
+    throw 'INCOMPLETE_EVIDENCE'
+  }
+  return $true
+}
+
+function Assert-MailSourceIdentity($Identity, [string] $RepositoryCommit) {
+  $fields = @(
+    'repositoryCommit',
+    'configureMailAccessSha256',
+    'mailAccessModuleSha256',
+    'modulesLockSha256',
+    'commonModuleSha256',
+    'entraModuleSha256',
+    'planSchemaSha256'
+  )
+  if ($Identity -isnot [System.Collections.IDictionary] -or $Identity.Count -ne $fields.Count) {
+    throw 'INCOMPLETE_EVIDENCE'
+  }
+  foreach ($field in $fields) {
+    if (-not $Identity.Contains($field)) { throw 'INCOMPLETE_EVIDENCE' }
+  }
+  if ([string] $Identity.repositoryCommit -cne $RepositoryCommit.ToLowerInvariant() -or
+      [string] $Identity.repositoryCommit -cnotmatch '^[0-9a-f]{40}$') { throw 'INCOMPLETE_EVIDENCE' }
+  foreach ($field in $fields | Where-Object { $_ -cne 'repositoryCommit' }) {
+    if ([string] $Identity[$field] -cnotmatch '^[0-9a-f]{64}$') { throw 'INCOMPLETE_EVIDENCE' }
+  }
+  return $fields
+}
+
+function Get-M365MailSourceIdentity([string] $RepositoryCommit) {
+  if ($RepositoryCommit -notmatch '^[0-9a-fA-F]{40}$') { throw 'INCOMPLETE_EVIDENCE' }
+  $files = [ordered]@{
+    configureMailAccessSha256 = 'Configure-MailAccess.ps1'
+    mailAccessModuleSha256 = 'MailAccess.psm1'
+    modulesLockSha256 = 'modules.lock.json'
+    commonModuleSha256 = 'AuditSphere.M365.Common.psm1'
+    entraModuleSha256 = 'AuditSphere.M365.Entra.psm1'
+    planSchemaSha256 = 'm365-plan.schema.json'
+  }
+  $identity = [ordered]@{ repositoryCommit = $RepositoryCommit.ToLowerInvariant() }
+  foreach ($field in $files.Keys) {
+    $path = Join-Path $PSScriptRoot $files[$field]
+    if (-not [System.IO.File]::Exists($path)) { throw 'INCOMPLETE_EVIDENCE' }
+    $identity[$field] = (Get-FileHash -LiteralPath $path -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+  }
+  return $identity
+}
+
+function Invoke-M365MailReadbackWithSourceFence(
+  [string] $RepositoryCommit,
+  [scriptblock] $Readback,
+  [object] $ReadbackArgument,
+  [scriptblock] $SourceObserver
+) {
+  if ($RepositoryCommit -cnotmatch '^[0-9a-fA-F]{40}$' -or $null -eq $Readback) {
+    throw 'INCOMPLETE_EVIDENCE'
+  }
+  $observe = if ($null -eq $SourceObserver) {
+    { param($phase, $commit) Get-M365MailSourceIdentity $commit }
+  } else { $SourceObserver }
+
+  $before = & $observe 'before' $RepositoryCommit
+  $fields = @(Assert-MailSourceIdentity $before $RepositoryCommit)
+  $evidence = & $Readback $ReadbackArgument
+  if ($evidence -isnot [System.Collections.IDictionary]) { throw 'INCOMPLETE_EVIDENCE' }
+  $after = & $observe 'after' $RepositoryCommit
+  $null = Assert-MailSourceIdentity $after $RepositoryCommit
+  foreach ($field in $fields) {
+    if ([string] $before[$field] -cne [string] $after[$field]) { throw 'INCOMPLETE_EVIDENCE' }
+  }
+
+  $evidence.source = $after
+  Assert-MailProviderSnapshotBound $evidence | Out-Null
+  return $evidence
 }
 
 function Assert-M365MailSessionBinding($Plan, $GraphContext, $ExchangeConnections) {
@@ -177,11 +273,13 @@ function Assert-M365MailEntraAssignments($Plan, $Capability, $EnterpriseServiceP
   Assert-MailFields $mailRoles[0] @('id','value','isEnabled','allowedMemberTypes')
   if ((Get-MailField $mailRoles[0] 'isEnabled') -ne $true -or
       'Application' -cnotin @(ConvertTo-MailRows (Get-MailField $mailRoles[0] 'allowedMemberTypes'))) { throw 'INCOMPLETE_EVIDENCE' }
+  if ((Get-MailField $mailRoles[0] 'isEnabled') -isnot [bool]) { throw 'INCOMPLETE_EVIDENCE' }
+  $null = ConvertTo-MailSortedStrings (Get-MailField $mailRoles[0] 'allowedMemberTypes')
   $roleId = ConvertTo-MailGuid (Get-MailField $mailRoles[0] 'id')
   $graphResourceId = ConvertTo-MailGuid (Get-MailField $GraphServicePrincipal 'id')
   $assignments = @(ConvertTo-MailRows $AppRoleAssignments)
   foreach ($assignment in $assignments) {
-    Assert-MailFields $assignment @('principalId','resourceId','appRoleId')
+    Assert-MailFields $assignment @('id','principalId','resourceId','appRoleId')
     if ((ConvertTo-MailGuid (Get-MailField $assignment 'principalId')) -cne $principalId) { throw 'INCOMPLETE_EVIDENCE' }
   }
 
@@ -279,6 +377,129 @@ function Assert-M365MailExchangeEvidence($Plan, $Capability, $Evidence, $Enterpr
   throw 'INVALID_OR_UNSAFE'
 }
 
+function New-MailAuthorizationProviderSnapshot($Plan, $Evidence, $ExchangeEvidence) {
+  $enterprise = Get-MailField $Evidence 'enterpriseServicePrincipal'
+  $graph = Get-MailField $Evidence 'graphServicePrincipal'
+  $graphRoles = @(ConvertTo-MailRows (Get-MailField $graph 'appRoles') | Where-Object {
+    [string] (Get-MailField $_ 'value') -ceq 'Mail.Send'
+  })
+  if ($graphRoles.Count -ne 1) { throw 'INCOMPLETE_EVIDENCE' }
+  $graphRole = $graphRoles[0]
+
+  $providerMailboxIds = @(ConvertTo-MailSortedGuidStrings (Get-MailField $ExchangeEvidence 'mailboxObjectIds'))
+  $expectedMailboxIds = @($Plan.mail.senderObjectIds) + @($Plan.mail.controlMailboxObjectId)
+  if (-not (Test-MailExactSet $providerMailboxIds $expectedMailboxIds)) { throw 'DRIFT' }
+
+  $senderReadback = if ($Plan.mail.permissionModel -ceq 'LEGACY_APPLICATION_ACCESS_POLICY') {
+    Get-MailField $ExchangeEvidence 'policyGroupMemberObjectIds'
+  } else {
+    Get-MailField $ExchangeEvidence 'scopeMemberObjectIds'
+  }
+  $senderIds = @(ConvertTo-MailSortedGuidStrings $senderReadback)
+  $controlCandidates = @($providerMailboxIds | Where-Object { $_ -notin $senderIds })
+  if ($controlCandidates.Count -ne 1) { throw 'DRIFT' }
+
+  $entraGrantSet = @()
+  foreach ($assignment in @(ConvertTo-MailRows (Get-MailField $Evidence 'appRoleAssignments'))) {
+    $entraGrantSet += [ordered]@{
+      assignmentObjectId = ConvertTo-MailGuid (Get-MailField $assignment 'id')
+      principalObjectId = ConvertTo-MailGuid (Get-MailField $assignment 'principalId')
+      resourceObjectId = ConvertTo-MailGuid (Get-MailField $assignment 'resourceId')
+      appRoleId = ConvertTo-MailGuid (Get-MailField $assignment 'appRoleId')
+    }
+  }
+  $entraGrantSet = @($entraGrantSet | Sort-Object -Property assignmentObjectId -CaseSensitive)
+
+  $exchangeRoleAssignmentSet = @()
+  foreach ($assignment in @(ConvertTo-MailRows (Get-MailField $ExchangeEvidence 'roleAssignments'))) {
+    $exchangeRoleAssignmentSet += [ordered]@{
+      role = [string] (Get-MailField $assignment 'Role')
+      roleAssigneeObjectId = ConvertTo-MailGuid (Get-MailField $assignment 'RoleAssigneeName')
+      roleAssigneeType = [string] (Get-MailField $assignment 'RoleAssigneeType')
+      assignmentMethod = [string] (Get-MailField $assignment 'AssignmentMethod')
+    }
+  }
+  $exchangeRoleAssignmentSet = @($exchangeRoleAssignmentSet | Sort-Object -Property roleAssigneeObjectId, role, assignmentMethod -CaseSensitive)
+
+  $legacyAuthorization = $null
+  $exchangeRbacAuthorization = $null
+  if ($Plan.mail.permissionModel -ceq 'LEGACY_APPLICATION_ACCESS_POLICY') {
+    $group = Get-MailField $ExchangeEvidence 'policyGroup'
+    $policies = @(ConvertTo-MailRows (Get-MailField $ExchangeEvidence 'applicationAccessPolicies'))
+    if ($policies.Count -ne 1) { throw 'INCOMPLETE_EVIDENCE' }
+    $policy = $policies[0]
+    $legacyProbes = @()
+    $policyProbes = Get-MailField $ExchangeEvidence 'applicationAccessPolicyProbes'
+    foreach ($mailboxId in $providerMailboxIds) {
+      $probe = $policyProbes[$mailboxId]
+      if ($null -eq $probe) { throw 'INCOMPLETE_EVIDENCE' }
+      $legacyProbes += [ordered]@{
+        mailboxObjectId = ConvertTo-MailGuid (Get-MailField $probe 'MailboxId')
+        allowed = ([string] (Get-MailField $probe 'AccessCheckResult') -ceq 'Granted')
+      }
+    }
+    $legacyProbes = @($legacyProbes | Sort-Object -Property mailboxObjectId -CaseSensitive)
+    $legacyAuthorization = [ordered]@{
+      scopeGroupObjectId = ConvertTo-MailGuid (Get-MailField $group 'ExternalDirectoryObjectId')
+      scopeGroupName = [string] (Get-MailField $group 'Name')
+      policyScopeName = [string] (Get-MailField $policy 'ScopeName')
+      accessRight = [string] (Get-MailField $policy 'AccessRight')
+      scopeGroupMemberObjectIds = $senderIds
+      policyApplicationClientIds = @(ConvertTo-MailSortedGuidStrings (Get-MailField $policy 'AppId'))
+      probes = $legacyProbes
+    }
+  } else {
+    $principal = Get-MailField $ExchangeEvidence 'exchangeServicePrincipal'
+    $scope = Get-MailField $ExchangeEvidence 'managementScope'
+    $authorizationProbes = Get-MailField $ExchangeEvidence 'servicePrincipalAuthorizationProbes'
+    $rbacProbes = @()
+    foreach ($mailboxId in $providerMailboxIds) {
+      $rows = @(ConvertTo-MailRows $authorizationProbes[$mailboxId])
+      if ($rows.Count -ne 1) { throw 'INCOMPLETE_EVIDENCE' }
+      $probe = $rows[0]
+      $rbacProbes += [ordered]@{
+        mailboxObjectId = $mailboxId
+        roleName = [string] (Get-MailField $probe 'RoleName')
+        grantedPermissions = @(ConvertTo-MailSortedStrings (Get-MailField $probe 'GrantedPermissions'))
+        allowedResourceScope = [string] (Get-MailField $probe 'AllowedResourceScope')
+        scopeType = [string] (Get-MailField $probe 'ScopeType')
+        inScope = [bool] (Get-MailField $probe 'InScope')
+      }
+    }
+    $rbacProbes = @($rbacProbes | Sort-Object -Property mailboxObjectId -CaseSensitive)
+    if ((Get-MailField $scope 'Exclusive') -isnot [bool]) { throw 'INCOMPLETE_EVIDENCE' }
+    $exchangeRbacAuthorization = [ordered]@{
+      servicePrincipalObjectId = ConvertTo-MailGuid (Get-MailField $principal 'ObjectId')
+      servicePrincipalAppId = ConvertTo-MailGuid (Get-MailField $principal 'AppId')
+      managementScopeName = [string] (Get-MailField $scope 'Name')
+      scopeRestrictionType = [string] (Get-MailField $scope 'ScopeRestrictionType')
+      exclusive = [bool] (Get-MailField $scope 'Exclusive')
+      recipientFilter = [string] (Get-MailField $scope 'RecipientFilter')
+      scopeMemberObjectIds = $senderIds
+      probes = $rbacProbes
+    }
+  }
+
+  return [ordered]@{
+    tenantId = ConvertTo-MailGuid (Get-MailField $enterprise 'appOwnerOrganizationId')
+    permissionModel = [string] $Plan.mail.permissionModel
+    runtimeClientId = ConvertTo-MailGuid (Get-MailField $enterprise 'appId')
+    enterpriseServicePrincipalObjectId = ConvertTo-MailGuid (Get-MailField $enterprise 'id')
+    graphServicePrincipalObjectId = ConvertTo-MailGuid (Get-MailField $graph 'id')
+    graphServicePrincipalAppId = ConvertTo-MailGuid (Get-MailField $graph 'appId')
+    graphMailSendAppRoleId = ConvertTo-MailGuid (Get-MailField $graphRole 'id')
+    graphMailSendRoleValue = [string] (Get-MailField $graphRole 'value')
+    graphMailSendRoleEnabled = [bool] (Get-MailField $graphRole 'isEnabled')
+    graphMailSendAllowedMemberTypes = @(ConvertTo-MailSortedStrings (Get-MailField $graphRole 'allowedMemberTypes'))
+    senderMailboxObjectIds = $senderIds
+    controlMailboxObjectId = $controlCandidates[0]
+    entraGrantSet = $entraGrantSet
+    exchangeRoleAssignmentSet = $exchangeRoleAssignmentSet
+    legacyAuthorization = $legacyAuthorization
+    exchangeRbacAuthorization = $exchangeRbacAuthorization
+  }
+}
+
 function Assert-M365MailReadinessEvidence($Plan, $Evidence) {
   $capabilities = @($Plan.capabilities | Where-Object { $_.kind -ceq 'MAIL' })
   if ($capabilities.Count -ne 1 -or -not $Plan.ContainsKey('mail')) { throw 'INVALID_OR_UNSAFE' }
@@ -286,11 +507,14 @@ function Assert-M365MailReadinessEvidence($Plan, $Evidence) {
   Assert-M365MailEntraAssignments $Plan $capabilities[0] $Evidence.enterpriseServicePrincipal `
     $Evidence.graphServicePrincipal @($Evidence.appRoleAssignments) | Out-Null
   Assert-M365MailExchangeEvidence $Plan $capabilities[0] $exchangeEvidence $Evidence.enterpriseServicePrincipal | Out-Null
+  $providerSnapshot = New-MailAuthorizationProviderSnapshot $Plan $Evidence $exchangeEvidence
+  Assert-MailProviderSnapshotBound $providerSnapshot | Out-Null
   return [ordered]@{
     model = [string] $Plan.mail.permissionModel
     clientId = [string] $capabilities[0].clientId
     senderObjectIds = @($Plan.mail.senderObjectIds)
     controlMailboxObjectId = [string] $Plan.mail.controlMailboxObjectId
+    providerSnapshot = $providerSnapshot
   }
 }
 
@@ -402,7 +626,7 @@ function Get-M365MailGraphCollection($Transport, [string] $Path) {
   throw 'INCOMPLETE_EVIDENCE'
 }
 
-function Get-M365MailReadOnlyEvidence($Plan) {
+function Get-M365MailReadOnlyEvidenceCore($Plan) {
   if ($Plan.mail.senderObjectIds.Count -gt $script:MailMaximumSenders) { throw 'INCOMPLETE_EVIDENCE' }
   Import-Module (Join-Path $PSScriptRoot 'AuditSphere.M365.Entra.psm1') -ErrorAction Stop
   $lock = Get-Content -Raw (Join-Path $PSScriptRoot 'modules.lock.json') | ConvertFrom-Json -AsHashtable
@@ -484,14 +708,18 @@ function Get-M365MailReadOnlyEvidence($Plan) {
   }
 
   $mailboxRowsById = @{}
+  $observedMailboxIds = @()
   foreach ($mailboxId in (@($Plan.mail.senderObjectIds) + @($Plan.mail.controlMailboxObjectId))) {
     $mailboxes = @(Invoke-M365MailExchangeRead 'Get-EXOMailbox' `
       @{ ExternalDirectoryObjectId = [guid] $mailboxId; Properties = @('ExternalDirectoryObjectId') } $commands)
     if ($mailboxes.Count -ne 1) { throw 'DRIFT' }
     Assert-MailFields $mailboxes[0] @('ExternalDirectoryObjectId')
     if ((ConvertTo-MailGuid $mailboxes[0].ExternalDirectoryObjectId) -cne (ConvertTo-MailGuid $mailboxId)) { throw 'DRIFT' }
+    $actualMailboxId = ConvertTo-MailGuid $mailboxes[0].ExternalDirectoryObjectId
     $mailboxRowsById[(ConvertTo-MailGuid $mailboxId)] = $mailboxes[0]
+    $observedMailboxIds += $actualMailboxId
   }
+  $exchangeEvidence.mailboxObjectIds = $observedMailboxIds
 
   if ($Plan.mail.permissionModel -ceq 'LEGACY_APPLICATION_ACCESS_POLICY') {
     $policyGroupId = ConvertTo-MailGuid $Plan.mail.policyScopeGroupId
@@ -516,10 +744,11 @@ function Get-M365MailReadOnlyEvidence($Plan) {
     $policyProbes = @{}
     foreach ($mailboxId in (@($Plan.mail.senderObjectIds) + @($Plan.mail.controlMailboxObjectId))) {
       $mailbox = $mailboxRowsById[(ConvertTo-MailGuid $mailboxId)]
+      $actualMailboxId = ConvertTo-MailGuid $mailbox.ExternalDirectoryObjectId
       $probeRows = @(Invoke-M365MailExchangeRead 'Test-ApplicationAccessPolicy' `
-        @{ Identity = [string] (ConvertTo-MailGuid $mailboxId); AppId = $clientId } $commands)
+        @{ Identity = $actualMailboxId; AppId = $clientId } $commands)
       if ($probeRows.Count -ne 1) { throw 'INCOMPLETE_EVIDENCE' }
-      $policyProbes[(ConvertTo-MailGuid $mailboxId)] = $probeRows[0]
+      $policyProbes[$actualMailboxId] = $probeRows[0]
     }
     $exchangeEvidence.policyGroup = $group
     $exchangeEvidence.policyGroupMemberObjectIds = $memberIds
@@ -542,9 +771,10 @@ function Get-M365MailReadOnlyEvidence($Plan) {
     })
     $authorizationProbes = @{}
     foreach ($mailboxId in (@($Plan.mail.senderObjectIds) + @($Plan.mail.controlMailboxObjectId))) {
+      $actualMailboxId = ConvertTo-MailGuid $mailboxRowsById[(ConvertTo-MailGuid $mailboxId)].ExternalDirectoryObjectId
       $rows = @(Invoke-M365MailExchangeRead 'Test-ServicePrincipalAuthorization' `
-        @{ Identity = $principalId; Resource = [string] $mailboxId } $commands)
-      $authorizationProbes[(ConvertTo-MailGuid $mailboxId)] = $rows
+        @{ Identity = $principalId; Resource = $actualMailboxId } $commands)
+      $authorizationProbes[$actualMailboxId] = $rows
     }
     $exchangeEvidence.managementScope = $scope
     $exchangeEvidence.scopeMemberObjectIds = $scopeMemberIds
@@ -567,19 +797,74 @@ function Get-M365MailReadOnlyEvidence($Plan) {
   return $snapshot
 }
 
+function Get-M365MailReadOnlyEvidence($Plan, [string] $RepositoryCommit) {
+  if ($RepositoryCommit -cnotmatch '^[0-9a-fA-F]{40}$' -or
+      [string] $Plan.repositoryCommit -ine $RepositoryCommit) { throw 'INCOMPLETE_EVIDENCE' }
+  $readback = { param($readbackPlan) Get-M365MailReadOnlyEvidenceCore $readbackPlan }
+  return Invoke-M365MailReadbackWithSourceFence $RepositoryCommit $readback $Plan $null
+}
+
 function Add-M365MailRuntimeGate($Result, $Snapshot) {
-  Assert-MailFields $Snapshot @('model','clientId','senderObjectIds','controlMailboxObjectId','evidenceReference')
+  Assert-MailFields $Snapshot @('model','clientId','senderObjectIds','controlMailboxObjectId','evidenceReference',
+    'providerSnapshot','source')
   $clientId = ConvertTo-MailGuid (Get-MailField $Snapshot 'clientId')
   $senders = @(ConvertTo-MailRows (Get-MailField $Snapshot 'senderObjectIds'))
   if ($senders.Count -eq 0 -or [string]::IsNullOrWhiteSpace([string] (Get-MailField $Snapshot 'evidenceReference'))) {
     throw 'INCOMPLETE_EVIDENCE'
   }
+  $source = Get-MailField $Snapshot 'source'
+  $sourceFields = @('repositoryCommit','configureMailAccessSha256','mailAccessModuleSha256','modulesLockSha256',
+    'commonModuleSha256','entraModuleSha256','planSchemaSha256')
+  Assert-MailFields $source $sourceFields
+  if ($source -isnot [System.Collections.IDictionary] -or $source.Count -ne $sourceFields.Count -or
+      [string] (Get-MailField $source 'repositoryCommit') -cnotmatch '^[0-9a-f]{40}$') { throw 'INCOMPLETE_EVIDENCE' }
+  foreach ($field in @('configureMailAccessSha256','mailAccessModuleSha256','modulesLockSha256',
+      'commonModuleSha256','entraModuleSha256','planSchemaSha256')) {
+    if ([string] (Get-MailField $source $field) -cnotmatch '^[0-9a-f]{64}$') { throw 'INCOMPLETE_EVIDENCE' }
+  }
+  Assert-MailFields $Result @('repositoryCommit','tenantId')
+  $providerSnapshot = Get-MailField $Snapshot 'providerSnapshot'
+  $providerFields = @('tenantId','permissionModel','runtimeClientId','enterpriseServicePrincipalObjectId',
+    'graphServicePrincipalObjectId','graphServicePrincipalAppId','graphMailSendAppRoleId','graphMailSendRoleValue',
+    'graphMailSendRoleEnabled','graphMailSendAllowedMemberTypes','senderMailboxObjectIds','controlMailboxObjectId',
+    'entraGrantSet','exchangeRoleAssignmentSet','legacyAuthorization','exchangeRbacAuthorization')
+  if ($providerSnapshot -isnot [System.Collections.IDictionary] -or $providerSnapshot.Count -ne $providerFields.Count) {
+    throw 'INCOMPLETE_EVIDENCE'
+  }
+  foreach ($field in $providerFields) {
+    if (-not $providerSnapshot.Contains($field)) { throw 'INCOMPLETE_EVIDENCE' }
+  }
+  Assert-MailFields $providerSnapshot @($providerFields | Where-Object {
+    $_ -notin @('entraGrantSet','exchangeRoleAssignmentSet','legacyAuthorization','exchangeRbacAuthorization')
+  })
+  foreach ($field in @('entraGrantSet','exchangeRoleAssignmentSet')) {
+    if ($providerSnapshot[$field] -isnot [System.Collections.IEnumerable] -or $providerSnapshot[$field] -is [string]) {
+      throw 'INCOMPLETE_EVIDENCE'
+    }
+  }
+  if ([string] (Get-MailField $Snapshot 'model') -ceq 'LEGACY_APPLICATION_ACCESS_POLICY' -and
+      ($null -eq (Get-MailField $providerSnapshot 'legacyAuthorization') -or
+       $null -ne (Get-MailField $providerSnapshot 'exchangeRbacAuthorization'))) { throw 'DRIFT' }
+  if ([string] (Get-MailField $Snapshot 'model') -ceq 'EXCHANGE_RBAC_RESOURCE_SCOPE' -and
+      ($null -ne (Get-MailField $providerSnapshot 'legacyAuthorization') -or
+       $null -eq (Get-MailField $providerSnapshot 'exchangeRbacAuthorization'))) { throw 'DRIFT' }
+  if (
+      [string] (Get-MailField $providerSnapshot 'permissionModel') -cne [string] (Get-MailField $Snapshot 'model') -or
+      [string] (Get-MailField $source 'repositoryCommit') -cne [string] (Get-MailField $Result 'repositoryCommit') -or
+      (ConvertTo-MailGuid (Get-MailField $providerSnapshot 'tenantId')) -cne
+        (ConvertTo-MailGuid (Get-MailField $Result 'tenantId')) -or
+      (ConvertTo-MailGuid (Get-MailField $providerSnapshot 'runtimeClientId')) -cne $clientId -or
+      (ConvertTo-MailGuid (Get-MailField $providerSnapshot 'controlMailboxObjectId')) -cne
+        (ConvertTo-MailGuid (Get-MailField $Snapshot 'controlMailboxObjectId')) -or
+      -not (Test-MailExactSet @((Get-MailField $providerSnapshot 'senderMailboxObjectIds')) $senders)) { throw 'DRIFT' }
   Add-M365Check $Result 'mail-current-state-authorization' 'PASS' `
     'exact current Entra grants, Exchange scope, sender membership and control denial' `
     'Read-only provider evidence matched the explicit plan; no messages were sent.'
   $Result.checks[-1].capability = 'MAIL'
   $Result.checks[-1].resourceId = $clientId
   $Result.checks[-1].evidenceReference = [string] (Get-MailField $Snapshot 'evidenceReference')
+  $Result.checks[-1].source = $source
+  $Result.checks[-1].providerSnapshot = $providerSnapshot
 
   $model = [string] (Get-MailField $Snapshot 'model')
   if ($model -ceq 'LEGACY_APPLICATION_ACCESS_POLICY') {
