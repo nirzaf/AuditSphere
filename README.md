@@ -133,7 +133,7 @@ These are recorded, scoped checks—not current-source full CI or whole-product 
 | ☑ Completed | Purchase/credit preview recovery, accounting-mode lock and exact-period navigation | Native/currentness acceptance; rejection remains distinct from unknown outcome. |
 | ☑ Completed | Full statement/completion evidence IDs, release guards and pinned group/component currentness | Broader release acceptance; no group-only raw access, automatic re-pin or component-book writes. |
 | ☑ Completed | Immutable profile history and dimension-schema revision commands — backend | Exact context activation/adapters and professional acceptance remain; legacy history is not invented. |
-| ☑ Completed | Secondary archive provider, queue/API, expected-plan export and read-only CLI | Live custody/recovery; historical matches do not prove current custody. |
+| ☑ Completed | Secondary archive provider, queue/API, expected-plan export and service-to-CLI handoff | Live custody/recovery; historical matches do not prove current custody. |
 | ☑ Completed | Immutable consolidation correction lineage and unknown-outcome controls | Exact receipt recovery; refresh is not completion. |
 | ☑ Completed | Entra registration/certificates, roles, enrollment, mail readback and signed runtime gate — offline | Receipt enrollment, persisted readiness, live consent/custody and migration acceptance; role-only mail evidence rejected. |
 | ☑ Completed | M365 deployment boundaries, selected-site grants, DOCUMENTS probe and readiness inventory — offline | Runtime evidence; DOCUMENTS requires namespace reads and unrelated-site HTTP 403. |

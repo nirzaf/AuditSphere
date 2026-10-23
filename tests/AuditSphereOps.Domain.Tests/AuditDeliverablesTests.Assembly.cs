@@ -689,6 +689,7 @@ public sealed partial class AuditDeliverablesTests
       }
 
       var archiveId = Guid.CreateVersion7();
+      const string tenantId = "7e90d7b4-8aec-4ef7-9f8d-2f57f733f023";
       var profile = new RecordsProfile
       {
         Id = Guid.CreateVersion7(), FirmId = w.FirmId, ProfileCode = "SYNTHETIC-ARCHIVE-COPY-TEST",
@@ -715,7 +716,7 @@ public sealed partial class AuditDeliverablesTests
         db.RepositoryBindings.Add(new RepositoryBinding
         {
           Id = bindingId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
-          TenantId = "tenant-del", SiteId = "source-site", DriveId = "source-drive", RootFolderId = "source-root",
+          TenantId = tenantId, SiteId = "source-site", DriveId = "source-drive", RootFolderId = "source-root",
           Classification = "CLIENT_CONFIDENTIAL", DesiredAccess = "READ_ONLY", ObservedAccess = "READ_ONLY",
           CapabilityProfile = "SELECTED_SITE", CreatedAt = DateTimeOffset.UtcNow
         });
@@ -739,7 +740,6 @@ public sealed partial class AuditDeliverablesTests
         Assert.Equal(16, included.Value!.EntryCount);
       }
 
-      const string tenantId = "7e90d7b4-8aec-4ef7-9f8d-2f57f733f023";
       const string staffGroupId = "42";
       var clientSiteId = Guid.CreateVersion7();
       var connectionId = Guid.CreateVersion7();
@@ -887,9 +887,10 @@ public sealed partial class AuditDeliverablesTests
         var checkpointReadBoundary = new ArchiveCopyCheckpointReadBoundaryStore(
           checkpointStore, () => db.Database.CurrentTransaction is not null);
         var exported = await ArchiveCopyService.GetVerificationPlanAsync(db, checkpointReadBoundary, partner, first.OperationId);
+        Assert.True(exported.Succeeded,
+          $"{exported.ErrorCode}: {exported.Message}; checkpointReadObserved={checkpointReadBoundary.ReadObserved}");
         Assert.True(checkpointReadBoundary.ReadObserved);
         Assert.False(checkpointReadBoundary.TransactionOpenObserved);
-        Assert.True(exported.Succeeded, $"{exported.ErrorCode}: {exported.Message}");
         firstPlan = exported.Value!;
       }
 
