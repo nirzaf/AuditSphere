@@ -233,10 +233,19 @@ public sealed class AngularPracticeTimeScopeParityJourneyTests
     await editor.GetByLabel("Reason for this change *", new() { Exact = true }).FillAsync("Reconciled the source workpaper effort.");
     await editor.GetByRole(AriaRole.Button, new() { Name = "Review exact change", Exact = true }).ClickAsync();
     await Assertions.Expect(editor.GetByRole(AriaRole.Heading, new() { Name = "Review before saving", Exact = true })).ToBeFocusedAsync();
-    var (editStatus, _) = await PlaywrightResponseCapture.RunAsync(managerPage,
+    // The acknowledged change triggers a workspace reload; await that read before asserting rendered rows.
+    var editResponses = await PlaywrightResponseCapture.RunMultipleAsync(managerPage,
+    [
       request => request.Method == "POST" && request.Url.EndsWith($"/api/ui/practice/time/entries/{recordedEntryId}/changes", StringComparison.Ordinal),
+      request => request.Method == "GET" && new Uri(request.Url).AbsolutePath == "/api/ui/practice/time"
+    ],
       () => editor.GetByRole(AriaRole.Button, new() { Name = "Save time change", Exact = true }).ClickAsync());
-    Assert.Equal(200, editStatus);
+    Assert.All(editResponses, response => Assert.Equal(200, response.Status));
+    using var editedWorkspace = JsonDocument.Parse(editResponses[1].Body);
+    var editedEntry = Assert.Single(editedWorkspace.RootElement.GetProperty("myEntries").EnumerateArray(),
+      row => row.GetProperty("id").GetGuid() == recordedEntryId);
+    Assert.Equal(45, editedEntry.GetProperty("durationMinutes").GetInt32());
+    Assert.Equal("RETURNED", editedEntry.GetProperty("status").GetString());
     await Assertions.Expect(sourceRow).ToContainTextAsync("45m");
     await Assertions.Expect(sourceRow.GetByRole(AriaRole.Button, new() { Name = "Resubmit", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(sourceRow).ToContainTextAsync(returnedReason);
@@ -268,16 +277,17 @@ public sealed class AngularPracticeTimeScopeParityJourneyTests
         var response = await route.FetchAsync();
         Assert.Equal(200, response.Status);
         using var result = JsonDocument.Parse(await response.TextAsync());
-        committedChange.TrySetResult(result.RootElement.GetProperty("value").GetGuid());
+        var resultId = result.RootElement.GetProperty("value").GetGuid();
         await route.AbortAsync();
+        committedChange.TrySetResult(resultId);
       }
       catch (Exception error) { committedChange.TrySetException(error); await route.AbortAsync(); }
     }
     await managerPage.RouteAsync(changeRoute, LoseCommittedChange);
     await editor.GetByRole(AriaRole.Button, new() { Name = "Create corrected draft", Exact = true }).ClickAsync();
     var correctedId = await committedChange.Task.WaitAsync(TimeSpan.FromSeconds(30));
-    await managerPage.UnrouteAsync(changeRoute, LoseCommittedChange);
     await Assertions.Expect(editor.GetByRole(AriaRole.Heading, new() { Name = "Change outcome needs review", Exact = true })).ToBeVisibleAsync();
+    await managerPage.UnrouteAsync(changeRoute, LoseCommittedChange);
     await editor.GetByRole(AriaRole.Button, new() { Name = "Check saved change receipt", Exact = true }).ClickAsync();
     var correctedRow = ownTable.GetByRole(AriaRole.Row).Filter(new() { HasText = "35m" });
     await Assertions.Expect(correctedRow.GetByRole(AriaRole.Button, new() { Name = "Submit", Exact = true })).ToBeVisibleAsync();

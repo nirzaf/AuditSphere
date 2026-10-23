@@ -24278,6 +24278,15 @@
         "priorRepairsCurrentCi": ".local/autonomous/evidence/ci-c94-20261024/prior-repair-current-ci-results.json",
         "limits": "Current E2E proves previous nine repair cases passed, not whole full regression: one heading failure and API pending. Proposal trigger cause remains unproven; latest observed journey passed.",
         "observedAtUtc": "2026-10-23T21:16:19.197145+00:00"
+      },
+      "practiceTimeRefreshCiFollowup": {
+        "source": "1dfedeb7c087fd3965492dbc7860691266485938",
+        "runId": 40025639856,
+        "ci": "Angular/Domain/contracts PASS; API413PASS; E2E334PASS/1FAIL",
+        "finding": "Returned-entry edit assertion ran while causal workspace GET still loading. Test now captures POST and subsequent GET, asserts exact entry45minutes RETURNED, then retains rendered/resubmit/reason and later approval/recovery assertions. No product change or timeout increase.",
+        "verification": "Fresh-built existing journey1PASS/0FAIL/0SKIP; docs validators PASS; new exact-source full CI required",
+        "evidence": ".local/autonomous/evidence/ci-1dfe-20261024",
+        "additionalFinding": "Initial focused run passed45minute refresh but later lost-response simulator exposed early route removal; signal ID after Abort and retain interception until unknown UI. Repeated full named journey PASS; original onePOST/recovery/history/persistence assertions intact."
       }
     }
   },
