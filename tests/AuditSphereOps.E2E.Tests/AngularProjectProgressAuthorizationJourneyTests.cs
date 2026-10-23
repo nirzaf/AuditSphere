@@ -219,10 +219,15 @@ public sealed class AngularProjectProgressAuthorizationJourneyTests
     await using (var db = host.CreateDbContext())
     {
       db.Users.Add(user);
-      // Deliberately seed a misbound grant: the persisted user's firm, not the role
-      // name or a foreign grant for the same user ID, must determine authority.
-      db.RoleGrants.AddRange(PbcSeed.Grant(user.FirmId, user, "Staff"), foreignGrant);
+      db.RoleGrants.Add(PbcSeed.Grant(user.FirmId, user, "Staff"));
       await db.SaveChangesAsync();
+      // The firm-scoped FK now prevents the formerly seedable corrupt grant.
+      // Prove that boundary before checking that the rejected grant cannot confer UI access.
+      db.RoleGrants.Add(foreignGrant);
+      var rejected = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+      var postgres = Assert.IsType<Npgsql.PostgresException>(rejected.InnerException);
+      Assert.Equal("23503", postgres.SqlState);
+      Assert.Equal("FK_role_grants_users_firm_id_user_id", postgres.ConstraintName);
     }
     var origin = await host.StartApiForIdentityAsync(user, Angular);
     using var playwright = await Playwright.CreateAsync();
@@ -242,7 +247,9 @@ public sealed class AngularProjectProgressAuthorizationJourneyTests
       var persistedUser = await db.Users.AsNoTracking().SingleAsync(x => x.Id == user.Id);
       Assert.Equal(host.Fixture.FirmId, persistedUser.FirmId);
       Assert.Equal(user.SessionEpoch, persistedUser.SessionEpoch);
-      Assert.Null((await db.RoleGrants.AsNoTracking().SingleAsync(x => x.Id == foreignGrant.Id)).RevokedAt);
+      Assert.False(await db.RoleGrants.AnyAsync(x => x.Id == foreignGrant.Id));
+      Assert.True(await db.RoleGrants.AnyAsync(x => x.FirmId == user.FirmId && x.UserId == user.Id &&
+        x.Role == "Staff" && x.RevokedAt == null));
       Assert.False(await db.RoleGrantChangeEvidences.AnyAsync(x => x.TargetUserId == user.Id));
     }
     Assert.Empty(errors);
