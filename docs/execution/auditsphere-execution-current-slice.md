@@ -20,7 +20,7 @@ Profile/dimension snapshots retain scoped history without backfilling legacy gap
 
 ## Scope-denial HTTP responses (2026-10-23)
 
-Acceptance, relationship/routing, chart, engagement and invoice mutations return forbidden for scope denial; validation and success behavior remain unchanged. Authenticated checks cover foreign-firm, sibling and wrong-route denials with unchanged records. Broader authority/race coverage remains open; see `status.json`.
+Acceptance, relationship/routing, chart, engagement, invoice and pricing mutations return forbidden for scope denial; validation and success behavior remain unchanged. Authenticated checks cover foreign-firm, sibling and wrong-route denials with unchanged records. Broader authority/race coverage remains open; see `status.json`.
 
 ## PBC reply recovery and current-owner fence (2026-10-23)
 

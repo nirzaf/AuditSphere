@@ -1,5 +1,6 @@
 using System.Globalization;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Api.HttpBoundary;
@@ -129,7 +130,8 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await FirmPricingPolicyService.SaveAsync(db, actor,
         new(input.Currency, minimumFee, maximumFee, maxDiscount, validityDays, input.ExpectedRevision), http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode },
+        statusCode: result.ErrorCode == ErrorCodes.ScopeDenied ? 403 : 400);
     })
       .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")

@@ -125,6 +125,47 @@ public sealed class FirmPortalLogoSettingsApiTests
     Assert.Equal("scope.denied", await ErrorCode(clientDenied));
   }
 
+  [Fact]
+  public async Task PricingPolicyScopeDenialIsForbiddenWhileValidationSuccessAndCsrfStatusesRemainDistinct()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-PRICING-POLICY-SCOPE-STATUS");
+    var fixture = await PbcSeed.SeedAsync(pg);
+    const string path = "/api/ui/commercial-settings/pricing-policy";
+
+    using var staffFactory = Factory(pg, fixture.Staff);
+    using var staff = staffFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var staffCsrf = await SignIn(staff);
+    using (var denied = await Post(staff, staffCsrf, path, PricingPolicyBody()))
+    {
+      Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+      Assert.Equal("scope.denied", await ErrorCode(denied));
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      Assert.Empty(await db.FirmPricingPolicies.ToListAsync());
+
+    using var adminFactory = Factory(pg, fixture.Admin);
+    using var admin = adminFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var adminCsrf = await SignIn(admin);
+    using (var invalid = await Post(admin, adminCsrf, path, PricingPolicyBody("50000", "1000")))
+    {
+      Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+      Assert.Equal("pricing-policy.invalid", await ErrorCode(invalid));
+    }
+    using (var missingCsrf = await Post(admin, "", path, PricingPolicyBody()))
+    {
+      Assert.Equal(HttpStatusCode.Forbidden, missingCsrf.StatusCode);
+      Assert.Equal("csrf.invalid", await ErrorCode(missingCsrf));
+    }
+    using (var created = await Post(admin, adminCsrf, path, PricingPolicyBody()))
+    {
+      Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+      using var json = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+      Assert.NotEqual(Guid.Empty, json.RootElement.GetProperty("id").GetGuid());
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      Assert.Single(await db.FirmPricingPolicies.ToListAsync());
+  }
+
   private static object ProfileBody(string version, string legalName, string? LogoPngBase64 = null, bool RemoveLogo = false)
   {
     var body = new Dictionary<string, object?>
@@ -137,6 +178,12 @@ public sealed class FirmPortalLogoSettingsApiTests
     if (RemoveLogo) body["removeLogo"] = true;
     return body;
   }
+
+  private static object PricingPolicyBody(string minimumFee = "1000", string maximumFee = "50000") => new
+  {
+    currency = "QAR", minimumFee, maximumFee, maxDiscount = "10", validityDays = "30",
+    expectedRevision = (long?)null, reviewed = true
+  };
 
   private static StandaloneApiApplicationFactory Factory(OwnedPostgresDatabase pg, AppUser user) => new(new Dictionary<string, string?>
   {

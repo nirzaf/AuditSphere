@@ -1055,7 +1055,7 @@
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.correctionLineage",
         "remaining": "Exact receipt recovery, broader group/release acceptance."
       },
-      "ciObserved": "Full889 PASS39903345685 (exactsource/aggregate/TRX). Fast74044e96 PASS39938028959 after profileEFrepair; image run separate. New staffing slice10PASS/EFnodrift; latest source fullCI pending.",
+      "ciObserved": "Full889 PASS39903345685 (exactsource/aggregate/TRX). Fast593b728d PASS39940525745 after staffing migration; focused staffing10/EFnodrift and archive1/realCLI PASS. New pricing candidate and latest fullCI pending.",
       "scopeUnknownOutcome": {
         "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.scopeUnknownOutcome",
         "status": "PARTIAL",
@@ -1107,15 +1107,10 @@
       },
       "archiveProviderApiCli": {
         "status": "PARTIAL",
-        "base": "889bde7e58c1c74d9fe52cfbb99565b779676f2f",
-        "evidence": ".local/autonomous/evidence/wu023-archive-api",
-        "checks": "Provider/migration4+readback1PG/API1+CLI23PASS; planexport current5feboverlay: Domain4/API1PASS, emitter/OpenAPIdelta onlynewGET+2schemas. No DBtx across checkpointIO; source/target/session races blocked. Proof .local/autonomous/evidence/wu023-verification-plan-current. No tenant effects.",
-        "remaining": "Connected provider/custody/denied-editor/recovery acceptance; no WORM/admin-proof claim.",
-        "serviceCliBridge": {
-          "base": "08a19bf+exact GUID fixture",
-          "result": "1 PASS; actual service JSON accepted by existing PS parser/digest. Combined current-source CI pending; no live custody.",
-          "evidence": ".local/autonomous/evidence/wu023-archive-cli-08a19-proof-20261023T095844Z"
-        }
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.archiveProviderApiCli",
+        "base": "593b728d source-equivalent snapshot; declared PowerShell CRLF materialization",
+        "evidence": ".local/autonomous/evidence/wu023-archive-cli-combined",
+        "checks": "1PASS freshcompiled service plan export + actual JSON accepted by existing PS parser/digest (18files). StaleDLL attempt retained and disproved by compiled marker. No live custody/recovery or WORM claim."
       },
       "operationalEvidenceGuard": {
         "status": "PARTIAL",
@@ -1130,7 +1125,12 @@
       },
       "acceptanceScopeStatus": {
         "status": "PARTIAL",
-        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.acceptanceScopeStatus"
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.acceptanceScopeStatus",
+        "pricing": {
+          "base": "74044e96+2fileoverlay",
+          "evidence": ".local/autonomous/evidence/wu015-pricing",
+          "checks": "1API PASS fresh rebuild: ScopeDenied403/no writes, validation400, csrf.invalid403, authorized200/one policy. Wider authority/race coverage remains."
+        }
       },
       "profileDimensionHistory": {
         "status": "PARTIAL",

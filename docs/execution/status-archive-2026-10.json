@@ -23766,6 +23766,18 @@
       "evidence": ".local/autonomous/wu025-readiness-final-environment-truth-20261023.log",
       "result": "47 assertions pass; real API-key mapping, stable session, UTC metadata, expected vs unobserved environment, simulation and missing-evidence blockers. Plan/WhatIf offline; Verify=ReadOnly GETs; Apply refuses before network. Cannot emit VERIFIED.",
       "remaining": "Runtime identity/grants/resources/expiry/probes/config/resume projection and client-sites owner still engineering; live tenant acceptance separate."
+    },
+    "targetedVerification.autonomousCompletion20261022.archiveProviderApiCli": {
+      "status": "PARTIAL",
+      "base": "889bde7e58c1c74d9fe52cfbb99565b779676f2f",
+      "evidence": ".local/autonomous/evidence/wu023-archive-api",
+      "checks": "Provider/migration4+readback1PG/API1+CLI23PASS; planexport current5feboverlay: Domain4/API1PASS, emitter/OpenAPIdelta onlynewGET+2schemas. No DBtx across checkpointIO; source/target/session races blocked. Proof .local/autonomous/evidence/wu023-verification-plan-current. No tenant effects.",
+      "remaining": "Connected provider/custody/denied-editor/recovery acceptance; no WORM/admin-proof claim.",
+      "serviceCliBridge": {
+        "base": "08a19bf+exact GUID fixture",
+        "result": "1 PASS; actual service JSON accepted by existing PS parser/digest. Combined current-source CI pending; no live custody.",
+        "evidence": ".local/autonomous/evidence/wu023-archive-cli-08a19-proof-20261023T095844Z"
+      }
     }
   },
   "archivedTargetedVerification": {
