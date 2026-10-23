@@ -439,6 +439,40 @@ that is the actual expected outcome. Do not enable RBAC or remove legacy grants
 from this result. Reviewed migration/rollback and an approved controlled
 recipient/send probe remain separate requirements.
 
+### Retained provider snapshot and source identity
+
+The successful authorization-readback check carries `providerSnapshot` and
+`source` inside the existing result envelope. The snapshot contains actual
+Graph/Exchange tenant, application and service-principal identities, the complete
+observed grant set, exact mailbox object IDs, scope/policy membership and positive
+sender/negative control probes. Model-specific blocks are `legacyAuthorization`
+or `exchangeRbacAuthorization`; the unused block is null. The snapshot is bounded
+and excludes tokens, private keys and message content.
+
+`source` pins the repository commit and SHA-256 hashes of the entry point, mail
+adapter, common and Entra modules, module lock and plan schema. Dependencies are
+checked again after collection; source drift refuses the evidence. Keep the
+result in the approved private operator directory. Do not edit its identities,
+copy a synthetic check into it, or write it directly into database verification
+rows.
+
+```powershell
+# Inspect only the existing readback file; this makes no provider call.
+$readback = Get-Content /approved/operator/mail-readback.json -Raw |
+  ConvertFrom-Json -AsHashtable
+$authorization = @($readback.checks | Where-Object { $_.Contains('providerSnapshot') })
+if ($authorization.Count -ne 1) { throw 'No unique provider authorization snapshot was recorded.' }
+$authorization[0].source.repositoryCommit
+$authorization[0].providerSnapshot.permissionModel
+```
+
+This is **unsigned readback**, not a trusted CMS attestation. Canonical digest and
+signature production, server import tied to the current connection/consent,
+worker evidence gating and roleless RBAC token validation remain engineering
+work. No CMS import/signing command is available from this slice. A matching
+snapshot, valid JSON envelope or zero exit from an offline check cannot replace
+those gates or prove delivery.
+
 ## Offline engineering checks
 
 ```powershell
