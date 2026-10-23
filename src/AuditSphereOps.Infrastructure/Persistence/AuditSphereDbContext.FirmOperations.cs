@@ -48,6 +48,12 @@ public sealed partial class AuditSphereDbContext
       e.HasOne<FirmAccount>().WithMany().HasForeignKey(x => new { x.FirmId, x.PaymentAccountId })
         .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
         .HasConstraintName("fk_firm_expense_payment_account_scope");
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.PreparedByUserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_firm_expense_prepared_by_user_scope");
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_firm_expense_reviewed_by_user_scope");
       e.Property(x => x.Amount).HasPrecision(18, 2);
       e.Property(x => x.CreateRequestHash).HasMaxLength(64);
       e.ToTable("firm_expenses", t => t.HasCheckConstraint("ck_firm_expense_values",

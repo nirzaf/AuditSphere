@@ -1123,21 +1123,19 @@
       },
       "ciContinuation20261023": {
         "status": "PARTIAL_FOCUSED_PASS",
-        "source": "0cad9ae97f02b42d27a4acb0c18cf63d8daac8b6 + fee test overlay",
-        "evidence": ".local/autonomous/evidence/ci-continuation-20261023",
-        "fast": {
-          "runId": 39969175428,
-          "sha": "0cad9ae97f02b42d27a4acb0c18cf63d8daac8b6",
-          "result": "FAST_CI_PASS; Angular/docs/Release+contract gates"
-        },
-        "oldFull": {
-          "runId": 39968938098,
-          "sha": "bb3bc69980f05d9b83a15584c8143ecd7af0a212",
-          "result": "FAIL: missing nullable authorizationEvidence in a typed Angular test fixture; upstream0cad corrects it. .NET skipped, not passed."
-        },
-        "feeJourney": "d4 full399443 E2E failed expected400/actual403 at sibling mutation; existing explicit ScopeDenied->403 API contract is authoritative. Corrected assertion, retained error/no-write checks, strengthened no-private-content checks. Owned realUI/API/PG1PASS on currentmain with exact0cad CI UIartifact12507019968. No production guard or test protection weakened.",
-        "workspace": "Only main checkout/master; no subworktrees. Fetch periodically and before commits, inspect incoming paths and preserve peer work.",
-        "remaining": "Full corrected-source CI, image job completion and ongoing scoped integrity/recovery work."
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.ciContinuationInitial20261023",
+        "fast": "Exact0cad fast39969175428/manual39969211569 and images39969175478 PASS. No full candidate pass.",
+        "feeJourney": "e3a37e28 actualUI/API/PG1PASS; d4 and6d E2E sole failure expected400/actual403 corrected, privacy/no-write checks retained. Reviewpoint9casesPASS on6d is source-bounded evidence, not a diagnosed historical cause.",
+        "remaining": "New combined full CI; current live/professional gates unchanged."
+      },
+      "expenseActorScope": {
+        "status": "PARTIAL_FOCUSED_PASS",
+        "base": "edb690b2 + five-file model/migration/test overlay",
+        "evidence": ".local/autonomous/evidence/ci-continuation-20261023/expense-user-scope",
+        "checks": "Actual RED: foreign preparer and reviewer accepted. GREEN2PASS: own references accepted, all foreign account/actor refs23503, probe rollback verified; existing expense ledger workflow passes. Fresh API Release0warnings and EF no drift PASS.",
+        "migration": "20261023144036_FirmExpenseActorFirmScope: restrict same-firm user keys, reviewer stays nullable, existing indexes preserved; no row rewrite. Invalid historical rows refuse upgrade validation.",
+        "index": "Only convention reviewer index added. Scoped reviewer referential-lookup EXPLAIN/BUFFERS, synthetic temp-table storage/write tradeoff retained; no production throughput/WAL claim.",
+        "remaining": "Broader key/race inventory and current full CI/live migration acceptance; no professional role/approval change."
       }
     },
     "developmentFeedback20261023": {

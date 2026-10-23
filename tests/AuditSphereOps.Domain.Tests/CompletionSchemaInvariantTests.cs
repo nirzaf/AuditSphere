@@ -168,7 +168,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
   }
 
   [Fact]
-  public async Task FirmExpenses_RejectForeignFirmAccounts()
+  public async Task FirmExpenses_RejectForeignFirmReferences()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var own = await PbcSeed.SeedAsync(pg);
@@ -191,9 +191,12 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     await using var transaction = await connection.BeginTransactionAsync();
     var evidence = "synthetic expense receipt"u8.ToArray();
     var evidenceHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(evidence)).ToLowerInvariant();
+    var expenseIds = new List<Guid>();
 
-    async Task<string> InsertExpenseAsync(Guid expenseAccountId, Guid paymentAccountId)
+    async Task<string> InsertExpenseAsync(Guid expenseAccountId, Guid paymentAccountId, Guid preparerId, Guid reviewerId)
     {
+      var expenseId = Guid.NewGuid();
+      expenseIds.Add(expenseId);
       await new NpgsqlCommand("SAVEPOINT expense_probe", connection, transaction).ExecuteNonQueryAsync();
       string outcome;
       try
@@ -202,20 +205,24 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
           INSERT INTO firm_expenses
             (id, firm_id, expense_date, category, payee, description, amount, currency,
              expense_account_id, payment_account_id, evidence_file_name, evidence_content_type,
-             evidence_content, evidence_sha256, status, prepared_by_user_id, created_at)
+             evidence_content, evidence_sha256, status, prepared_by_user_id, reviewed_by_user_id,
+             reviewed_at, created_at)
           VALUES
             (@id, @firm_id, @expense_date, 'OTHER', 'Synthetic payee', 'Scope probe', 1.00, 'QAR',
              @expense_account_id, @payment_account_id, 'receipt.pdf', 'application/pdf',
-             @evidence_content, @evidence_sha256, 'DRAFT', @prepared_by_user_id, @created_at)
+             @evidence_content, @evidence_sha256, 'APPROVED', @prepared_by_user_id,
+             @reviewed_by_user_id, @reviewed_at, @created_at)
           """, connection, transaction);
-        command.Parameters.AddWithValue("id", Guid.NewGuid());
+        command.Parameters.AddWithValue("id", expenseId);
         command.Parameters.AddWithValue("firm_id", own.FirmId);
         command.Parameters.AddWithValue("expense_date", new DateOnly(2026, 10, 23));
         command.Parameters.AddWithValue("expense_account_id", expenseAccountId);
         command.Parameters.AddWithValue("payment_account_id", paymentAccountId);
         command.Parameters.AddWithValue("evidence_content", evidence);
         command.Parameters.AddWithValue("evidence_sha256", evidenceHash);
-        command.Parameters.AddWithValue("prepared_by_user_id", own.Admin.Id);
+        command.Parameters.AddWithValue("prepared_by_user_id", preparerId);
+        command.Parameters.AddWithValue("reviewed_by_user_id", reviewerId);
+        command.Parameters.AddWithValue("reviewed_at", DateTimeOffset.UtcNow);
         command.Parameters.AddWithValue("created_at", DateTimeOffset.UtcNow);
         var rows = await command.ExecuteNonQueryAsync();
         outcome = $"ACCEPTED rows={rows}";
@@ -225,20 +232,31 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
         outcome = $"REFUSED SqlState={exception.SqlState} Constraint={exception.ConstraintName ?? "(none)"}";
       }
       await new NpgsqlCommand("ROLLBACK TO SAVEPOINT expense_probe", connection, transaction).ExecuteNonQueryAsync();
+      await new NpgsqlCommand("RELEASE SAVEPOINT expense_probe", connection, transaction).ExecuteNonQueryAsync();
       return outcome;
     }
 
-    var ownControl = await InsertExpenseAsync(accounts[0].Id, accounts[1].Id);
-    var foreignExpenseAccount = await InsertExpenseAsync(accounts[2].Id, accounts[1].Id);
-    var foreignPaymentAccount = await InsertExpenseAsync(accounts[0].Id, accounts[3].Id);
-    output.WriteLine($"SAME_FIRM_ACCOUNTS: {ownControl}");
+    var sameFirmControl = await InsertExpenseAsync(accounts[0].Id, accounts[1].Id, own.Admin.Id, own.Staff.Id);
+    var foreignExpenseAccount = await InsertExpenseAsync(accounts[2].Id, accounts[1].Id, own.Admin.Id, own.Staff.Id);
+    var foreignPaymentAccount = await InsertExpenseAsync(accounts[0].Id, accounts[3].Id, own.Admin.Id, own.Staff.Id);
+    var foreignPreparer = await InsertExpenseAsync(accounts[0].Id, accounts[1].Id, foreign.Admin.Id, own.Staff.Id);
+    var foreignReviewer = await InsertExpenseAsync(accounts[0].Id, accounts[1].Id, own.Admin.Id, foreign.Admin.Id);
+    output.WriteLine($"SAME_FIRM_REFERENCES: {sameFirmControl}");
     output.WriteLine($"FOREIGN_EXPENSE_ACCOUNT: {foreignExpenseAccount}");
     output.WriteLine($"FOREIGN_PAYMENT_ACCOUNT: {foreignPaymentAccount}");
+    output.WriteLine($"FOREIGN_PREPARER: {foreignPreparer}");
+    output.WriteLine($"FOREIGN_REVIEWER: {foreignReviewer}");
     await transaction.RollbackAsync();
 
-    Assert.Equal("ACCEPTED rows=1", ownControl);
+    await using var rollbackCheck = new NpgsqlCommand(
+      "SELECT count(*) FROM firm_expenses WHERE id = ANY(@expense_ids)", connection);
+    rollbackCheck.Parameters.AddWithValue("expense_ids", expenseIds.ToArray());
+    Assert.Equal(0L, await rollbackCheck.ExecuteScalarAsync());
+    Assert.Equal("ACCEPTED rows=1", sameFirmControl);
     Assert.Equal("REFUSED SqlState=23503 Constraint=fk_firm_expense_expense_account_scope", foreignExpenseAccount);
     Assert.Equal("REFUSED SqlState=23503 Constraint=fk_firm_expense_payment_account_scope", foreignPaymentAccount);
+    Assert.Equal("REFUSED SqlState=23503 Constraint=fk_firm_expense_prepared_by_user_scope", foreignPreparer);
+    Assert.Equal("REFUSED SqlState=23503 Constraint=fk_firm_expense_reviewed_by_user_scope", foreignReviewer);
   }
 
   [Theory]

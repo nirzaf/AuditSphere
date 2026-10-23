@@ -24987,6 +24987,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "PaymentAccountId");
 
+                    b.HasIndex("FirmId", "ReviewedByUserId");
+
                     b.HasIndex("FirmId", "PreparedByUserId", "CreateRequestId")
                         .IsUnique()
                         .HasFilter("create_request_id IS NOT NULL");
@@ -36919,6 +36921,21 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_firm_expense_payment_account_scope");
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "PreparedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_firm_expense_prepared_by_user_scope");
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_firm_expense_reviewed_by_user_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.FirmFinanceProfile", b =>
