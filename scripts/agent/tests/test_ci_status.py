@@ -39,7 +39,7 @@ def job(name, status="completed", conclusion="success", started="2026-10-22T16:5
 
 class FakeGh:
     def __init__(self, run, jobs, source=None):
-        self.run, self.jobs, self.source = run, jobs, source
+        self.run, self.jobs, self.source = {"path": ".github/workflows/release-verification.yml", **run}, jobs, source
 
     def __call__(self, *args, raw=False):
         path = next(a for a in args if a.startswith("repos/"))
@@ -128,8 +128,24 @@ class CiStatusTests(unittest.TestCase):
 
     def test_exact_candidate_with_all_jobs_successful_passes(self):
         run = {"id": 7, "status": "completed", "conclusion": "success", "head_sha": OTHER}
-        evidence, code = self.observe(run, [job("Resolve · Requested ref"), job("Test · .NET API"), job("Test · .NET Playwright E2E")], CANDIDATE)
+        evidence, code = self.observe(run, [job("Resolve · Requested ref"), job("Test · .NET API"), job("Test · .NET Playwright E2E"), job("Verify · Full release contract")], CANDIDATE)
         self.assertEqual((evidence["status"], code, evidence["fullPassForExpected"]), ("PASS", 0, True))
+        self.assertTrue(evidence["releaseContractVerified"])
+
+    def test_green_run_without_full_release_contract_is_not_full_ci(self):
+        for label, path, gate in (
+            ("absent gate", ".github/workflows/release-verification.yml", None),
+            ("skipped gate", ".github/workflows/release-verification.yml", job("Verify · Full release contract", conclusion="skipped")),
+            ("different workflow", ".github/workflows/ci.yml", job("Verify · Full release contract")),
+        ):
+            with self.subTest(label=label):
+                run = {"id": 7, "status": "completed", "conclusion": "success", "head_sha": CANDIDATE, "path": path}
+                jobs = [job("Resolve · Requested ref"), job("Test · .NET API")]
+                evidence, code = self.observe(run, jobs + ([gate] if gate else []), CANDIDATE)
+                self.assertEqual((evidence["status"], code), ("UNKNOWN", 12))
+                self.assertEqual(evidence["sourceMatch"], "MATCH")
+                self.assertFalse(evidence["releaseContractVerified"])
+                self.assertFalse(evidence["fullPassForExpected"])
 
     def test_job_beyond_timeout_is_stalled_not_passing(self):
         run = {"id": 7, "status": "in_progress", "conclusion": None, "head_sha": CANDIDATE}

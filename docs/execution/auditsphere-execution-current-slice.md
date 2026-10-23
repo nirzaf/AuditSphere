@@ -20,7 +20,7 @@ Completion exposes persisted artifact IDs and full hashes. The existing release 
 
 ## CI fixture repair and read-only readiness inventory (2026-10-23)
 
-The tracker fixture asserts database cross-firm rejection before browser denial; its owned rerun passed. CI dispatch now captures child stdout to preserve JSON-only output, with focused regression evidence. Corrected-candidate full CI is running; no full pass is claimed.
+The tracker fixture asserts database cross-firm rejection before browser denial; its owned rerun passed. CI dispatch now captures child stdout to preserve JSON-only output, with focused regression evidence. Full CI requires its canonical aggregate; the corrected run is active.
 
 M365 readiness now inventories authenticated GET metadata with exact plan/API key mapping, stable-session checks and explicit missing-evidence blockers. Offline checks passed; setup status never becomes runtime proof. Runtime evidence projection and live acceptance remain open. CLI usage is in the local M365 automation guide; exact results are in `status.json`.
 

@@ -130,12 +130,21 @@ def observe(repo: str, run_id: int, expected_sha: str | None, workflow_path: Pat
     jobs = [json.loads(line) for line in jobs.decode().splitlines() if line.strip()]
     at = now()
     status = classify(run, jobs, job_timeouts(workflow_path), at)
+    # A green workflow or matching source artifact alone is not the full release gate.
+    # The canonical aggregate owns the unfiltered suites and their mandatory evidence checks.
+    release_contract_verified = run.get("path") == f".github/workflows/{WORKFLOW}" and any(
+        job["name"] == "Verify · Full release contract" and job["status"] == "completed" and
+        job.get("conclusion") == "success" for job in jobs
+    )
+    if status == "PASS" and not release_contract_verified:
+        status = "UNKNOWN"
     resolved, source_basis = resolved_source(repo, run_id, jobs)
     evidence = {
         "schemaVersion": 1, "repository": repo, "runId": run_id, "attempt": run.get("run_attempt"),
         "workflow": run.get("path"), "event": run.get("event"), "displayTitle": run.get("display_title"),
         "workflowHeadSha": run.get("head_sha"), "resolvedSha": resolved, "resolvedSourceBasis": source_basis,
         "expectedSha": expected_sha, "status": status, "observedAtUtc": at.isoformat(timespec="seconds"),
+        "releaseContractVerified": release_contract_verified,
         "jobs": [{"name": j["name"], "status": j["status"], "conclusion": j.get("conclusion"),
                   "startedAt": j.get("started_at"), "completedAt": j.get("completed_at")} for j in jobs],
     }

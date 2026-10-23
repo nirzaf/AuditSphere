@@ -1103,7 +1103,7 @@
       "ciDispatchJson": {
         "status": "PASS_LOCAL_SLICE",
         "evidence": ".local/autonomous/evidence/run003-dispatch-json/",
-        "result": "Observed gh printed run URL beforeJSON. Focused regression failsbeforefix; 8CIobserver-module testsPASSaftercapturing childstdout, stderr preserved. Existing39903345685 reused; no duplicate dispatch. Original mixedstdout retained release-889-dispatch.raw.log."
+        "result": "Observed gh URL prefix brokeJSON; childstdout nowcaptured, stderrpreserved. Red/green tests also prove greenrun/matchingsource cannotpassfullCI without canonical successfulaggregate (absent/skipped/wrongworkflow=>UNKNOWN).9focusedCI-module testsPASS. Existing39903345685 reused; no duplicate dispatch. Raworiginal retained release-889-dispatch.raw.log."
       }
     },
     "developmentFeedback20261023": {
