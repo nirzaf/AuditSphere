@@ -161,9 +161,12 @@ public static class MailAuthorizationEvidenceEnrollment
         new(runtime.PinnedSignerCertificateSha256, runtime.MaximumEvidenceAge), expected, now);
       var digest = MailAuthorizationRuntimeGate.ComputeAttestationDigest(row.MailCanonicalPayload, row.MailDetachedCms);
       var bindingDigest = MailAuthorizationRuntimeGate.DeploymentBindingDigest(runtime, binding.ConnectionRevisionId, binding.ConsentAttemptId);
+      // PostgreSQL persists microseconds; require the exact truncated expiry, with no tolerance.
+      var expiryTicks = attestation.ExpiresAtUtc.UtcTicks;
+      var expectedPersistedExpiry = new DateTimeOffset(expiryTicks - expiryTicks % 10, TimeSpan.Zero);
       if (row.ConnectionRevisionId != binding.ConnectionRevisionId || row.ConsentAttemptId != binding.ConsentAttemptId ||
           row.MailAttestationSha256 != digest || row.MailBindingSha256 != bindingDigest ||
-          row.MailEvidenceExpiresAtUtc != attestation.ExpiresAtUtc || row.MailProviderSnapshotSha256 != attestation.ProviderSnapshotSha256 ||
+          row.MailEvidenceExpiresAtUtc != expectedPersistedExpiry || row.MailProviderSnapshotSha256 != attestation.ProviderSnapshotSha256 ||
           await MailAuthorizationRuntimeGate.ReadBindingAsync(db, firmId, runtime.TenantId, ct) != binding)
         return Missing();
       return new(display.Capability, display.DisplayName, display.Permission, true, CapabilityVerificationStates.Verified,

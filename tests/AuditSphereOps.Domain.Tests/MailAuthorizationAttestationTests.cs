@@ -358,16 +358,19 @@ public sealed class MailAuthorizationAttestationTests
     await using var db = fixture.Db();
     var consent = await db.TenantConsentAttempts.AsNoTracking().SingleAsync(x => x.State == TenantConsentAttemptStates.ConsentVerified);
     var now = DateTimeOffset.UtcNow;
+    var expiryTicks = now.AddHours(1).UtcTicks;
+    var expiresAt = new DateTimeOffset(expiryTicks - expiryTicks % 10 + 7, TimeSpan.Zero);
+    Assert.Equal(7L, expiresAt.UtcTicks % 10);
     var snapshot = CreateSnapshot(MailAuthorizationModel.LegacyApplicationAccessPolicy, Guid.Parse(fixture.TenantId));
     using var signer = CreateSyntheticSigner(now);
-    var attestation = CreateAttestation(snapshot, now.AddMinutes(-1), now.AddHours(1), fixture.ConnectionId, consent.Id);
+    var attestation = CreateAttestation(snapshot, now.AddMinutes(-1), expiresAt, fixture.ConnectionId, consent.Id);
     var payload = MailAuthorizationAttestationCanonicalizer.SerializeCanonical(attestation);
     var cms = SignDetached(payload, signer);
     var runtime = new MailAuthorizationRuntimeOptions(fixture.FirmId, snapshot.TenantId, snapshot.PermissionModel,
       snapshot.RuntimeClientId, snapshot.EnterpriseServicePrincipalObjectId, snapshot.SenderMailboxObjectIds,
       snapshot.ControlMailboxObjectId, attestation.PlanSha256, attestation.Source, attestation.Source.RepositoryCommit,
       Options(signer, TimeSpan.FromHours(24)).PinnedSignerCertificateSha256, TimeSpan.FromHours(24));
-    var options = fixture.Options with { OutboundMailEnabled = true, MailAuthorization = runtime, MailEvidenceEnrollmentEnabled = true };
+    var options = fixture.Options with { OutboundMailEnabled = true, VerificationMaxAge = TimeSpan.FromHours(24), MailAuthorization = runtime, MailEvidenceEnrollmentEnabled = true };
     var factory = new TenantAdministrationDbFactory(fixture.Pg.Options);
     db.TenantCapabilityVerifications.Add(new TenantCapabilityVerification
     {
@@ -401,6 +404,8 @@ public sealed class MailAuthorizationAttestationTests
     var retained = await db.TenantCapabilityVerifications.AsNoTracking().SingleAsync(x => x.Id == enrolled.Value);
     Assert.Equal(payload, retained.MailCanonicalPayload);
     Assert.Equal(cms, retained.MailDetachedCms);
+    var persistedExpiry = attestation.ExpiresAtUtc.AddTicks(-7);
+    Assert.Equal(persistedExpiry, retained.MailEvidenceExpiresAtUtc);
     Assert.Equal(2, await db.TenantCapabilityVerifications.CountAsync(x => x.Capability == Microsoft365Capabilities.OutboundMail));
     var status = (await TenantCapabilityService.StatusesAsync(db, fixture.FirmId, options, DateTimeOffset.UtcNow)).Single(x => x.Capability == Microsoft365Capabilities.OutboundMail);
     Assert.Equal(CapabilityVerificationStates.Verified, status.State);
@@ -418,6 +423,12 @@ public sealed class MailAuthorizationAttestationTests
     Assert.Equal(TenantCapabilityService.NotVerified, changed.State);
     var pastExpiry = (await TenantCapabilityService.StatusesAsync(db, fixture.FirmId, options, now.AddHours(2))).Single(x => x.Capability == Microsoft365Capabilities.OutboundMail);
     Assert.Equal(TenantCapabilityService.NotVerified, pastExpiry.State);
+    var beforePersistedExpiry = (await TenantCapabilityService.StatusesAsync(db, fixture.FirmId, options, persistedExpiry.AddTicks(-1))).Single(x => x.Capability == Microsoft365Capabilities.OutboundMail);
+    Assert.Equal(CapabilityVerificationStates.Verified, beforePersistedExpiry.State);
+    Assert.Equal(enrolled.Value, beforePersistedExpiry.AuthorizationEvidence!.ReceiptId);
+    var atPersistedExpiry = (await TenantCapabilityService.StatusesAsync(db, fixture.FirmId, options, persistedExpiry)).Single(x => x.Capability == Microsoft365Capabilities.OutboundMail);
+    Assert.Equal(TenantCapabilityService.NotVerified, atPersistedExpiry.State);
+    Assert.Null(atPersistedExpiry.AuthorizationEvidence);
     db.TenantConsentAttempts.Add(new TenantConsentAttempt
     {
       Id = Guid.NewGuid(), FirmId = fixture.FirmId, SetupDraftId = consent.SetupDraftId, InitiatedByUserId = fixture.Admin.Id,
