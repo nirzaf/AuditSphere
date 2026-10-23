@@ -16,7 +16,7 @@ newer exact-source CI and slice evidence live under `targetedVerification`.
 
 ## Scoped accounting and staffing persistence (2026-10-23)
 
-Profile/dimension history retains scoped revisions without legacy backfill. TB/GL resolve exact scope. API/Angular submit bounded profile-change reasons; existing cutover and authority guards remain. Staffing/resource keys bind owners. Focused checks pass; context activation, browser acceptance and wider key inventory remain open. See `status.json`.
+Profile/dimension history retains scoped revisions without legacy backfill. TB/GL resolve exact scope. API/Angular submit bounded profile-change reasons; cutover and authority guards remain. Staffing/resource/cost-rate keys bind owners. Focused checks pass; context activation, browser acceptance and wider key inventory remain open. See `status.json`.
 
 ## Scope-denial HTTP responses (2026-10-23)
 

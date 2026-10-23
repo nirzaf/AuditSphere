@@ -109,6 +109,64 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     Assert.True(accepted.Count == 0, "Cross-firm references accepted: " + string.Join(", ", accepted));
   }
 
+  [Fact]
+  public async Task StaffCostRates_RejectForeignFirmUser()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+
+    var sameFirmId = Guid.NewGuid();
+    var crossFirmId = Guid.NewGuid();
+    string crossFirmOutcome;
+    await using (var transaction = await connection.BeginTransactionAsync())
+    {
+      async Task<int> InsertRateAsync(Guid id, Guid firmId, Guid userId, Guid recordedByUserId)
+      {
+        await using var command = new NpgsqlCommand("""
+          INSERT INTO staff_cost_rates
+            (id, firm_id, user_id, hourly_cost, currency, effective_from, recorded_by_user_id, recorded_at)
+          VALUES
+            (@id, @firm_id, @user_id, @hourly_cost, @currency, @effective_from, @recorded_by_user_id, @recorded_at)
+          """, connection, transaction);
+        command.Parameters.AddWithValue("id", id);
+        command.Parameters.AddWithValue("firm_id", firmId);
+        command.Parameters.AddWithValue("user_id", userId);
+        command.Parameters.AddWithValue("hourly_cost", 200m);
+        command.Parameters.AddWithValue("currency", "QAR");
+        command.Parameters.AddWithValue("effective_from", new DateOnly(2026, 1, 1));
+        command.Parameters.AddWithValue("recorded_by_user_id", recordedByUserId);
+        command.Parameters.AddWithValue("recorded_at", DateTimeOffset.UtcNow);
+        return await command.ExecuteNonQueryAsync();
+      }
+
+      var sameFirmRows = await InsertRateAsync(sameFirmId, own.FirmId, own.Staff.Id, own.Admin.Id);
+      output.WriteLine($"SAME_FIRM_CONTROL: inserted={sameFirmRows}");
+      Assert.Equal(1, sameFirmRows);
+
+      try
+      {
+        var rows = await InsertRateAsync(crossFirmId, own.FirmId, foreign.Staff.Id, own.Admin.Id);
+        crossFirmOutcome = $"ACCEPTED rows={rows}";
+      }
+      catch (PostgresException exception)
+      {
+        crossFirmOutcome = $"REFUSED SqlState={exception.SqlState} Constraint={exception.ConstraintName ?? "(none)"}";
+      }
+      output.WriteLine($"CROSS_FIRM_USER: {crossFirmOutcome}");
+      await transaction.RollbackAsync();
+    }
+
+    await using var rollbackCheck = new NpgsqlCommand(
+      "SELECT count(*) FROM staff_cost_rates WHERE id IN (@same_firm_id, @cross_firm_id)", connection);
+    rollbackCheck.Parameters.AddWithValue("same_firm_id", sameFirmId);
+    rollbackCheck.Parameters.AddWithValue("cross_firm_id", crossFirmId);
+    Assert.Equal(0L, await rollbackCheck.ExecuteScalarAsync());
+    Assert.Equal("REFUSED SqlState=23503 Constraint=fk_staff_cost_rate_user_scope", crossFirmOutcome);
+  }
+
   [Theory]
   [InlineData("ENGAGEMENT")]
   [InlineData("USER")]

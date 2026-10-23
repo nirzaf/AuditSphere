@@ -27,7 +27,10 @@ public sealed partial class AuditSphereDbContext
     b.Entity<StaffCostRate>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.UserId, x.EffectiveFrom });
-      e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => x.UserId); // retain the user lookup index alongside the scoped FK
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.UserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_staff_cost_rate_user_scope");
       e.Property(x => x.HourlyCost).HasPrecision(18, 2);
       e.ToTable("staff_cost_rates", t => t.HasCheckConstraint("ck_staff_cost_rate_values", "hourly_cost > 0 AND currency ~ '^[A-Z]{3}$'"));
     });

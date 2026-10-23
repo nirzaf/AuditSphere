@@ -37393,9 +37393,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
-                        .HasForeignKey("UserId")
+                        .HasForeignKey("FirmId", "UserId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_staff_cost_rate_user_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffProfile", b =>

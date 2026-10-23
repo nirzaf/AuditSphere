@@ -393,12 +393,8 @@
       "result": "SourceReviewCanReview_RequiresCurrentScopedReviewGrant: PASS 1/1."
     },
     "cp19CompletionCapabilityProjection": {
-      "recordedAtUtc": "2026-10-17T08:58:52Z",
-      "codeCommit": "16b101dab51b7f603b2b134e76dfe6ac3083f40b",
-      "status": "PARTIAL",
-      "checks": "CompletionCapabilitiesRequireCurrentScopedPartnerGrant: PASS 1/1 on PostgreSQL; stale Partner session label with current Auditor grant exposes neither opinion controls nor release-preparation capability.",
-      "ci": "Full release verification run 39018621884 targets prior SHA 08c0aecae9b3da5fc715660b17ed1692c0a1883c; current-SHA CI pending.",
-      "open": "Full CP-19 workflow, current-SHA CI, client signatory/capacity evidence and professional acceptance remain open."
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.cp19CompletionCapabilityProjection",
+      "remaining": "Historical focused evidence; parent/current-source acceptance remains open."
     },
     "cp11AssetScheduleCashFlowLineage": {
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.cp11AssetScheduleCashFlowLineage",
@@ -425,15 +421,8 @@
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularFindingRecovery20261017"
     },
     "angularMigrationAcceptanceBatch": {
-      "result": "PARTIAL",
-      "codeCommit": "40a2a9a102c9576aba6102a46b70cc094fae1f6e",
-      "limits": [
-        "Full final-commit regression pending",
-        "Valid resource-bound execute authorization deserves separate assertion",
-        "Activation publication/lookup concurrency and advance-blocker browser transitions remain",
-        "Human accessibility, operational cutover/rollback and live-provider gates remain"
-      ],
-      "archiveRef": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAcceptanceBatch"
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.angularMigrationAcceptanceBatch",
+      "remaining": "Historical focused evidence; parent/current-source acceptance remains open."
     },
     "figmaAngularShell": {
       "status": "ARCHIVED_FOCUSED_EVIDENCE",
@@ -1110,6 +1099,12 @@
           "base": "593b728d+5fileoverlay",
           "evidence": ".local/autonomous/evidence/wu004-resource-scope",
           "checks": "6 actual foreign resource writes RED; 12PASS after scoped profile/certification/availability subject keys and allocation firm/client/engagement/user keys, including reviewed receipts/replay, grid and stale-update refusal. EF no-drift PASS. Existing rows/indexes retained; broader keys and full CI pending."
+        },
+        "costRateUser": {
+          "base": "6d5f3415+5fileoverlay",
+          "evidence": ".local/autonomous/evidence/wu004-costrate-20261023",
+          "checks": "Actualforeign-firmuserinsertaccepted RED; scopedFK23503 GREEN, positivecontrol/rollback, existingcostanalytics:2PASS;EFnodrift. No row/index/trigger rewrites.",
+          "remaining": "Bad-existing-row upgrade refusal notseparatelyrun; broaderkeyinventory/fullCI remain."
         }
       },
       "proposalLifecycleHandoff": {
