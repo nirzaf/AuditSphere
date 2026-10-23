@@ -145,7 +145,8 @@ public static partial class UiEndpoints
 
       return result.Succeeded
         ? Results.Ok(new { id = result.Value })
-        : Results.Json(new { code = result.ErrorCode, message = result.Message }, statusCode: 400);
+        : Results.Json(new { code = result.ErrorCode, message = result.Message },
+          statusCode: result.ErrorCode == ErrorCodes.ScopeDenied ? 403 : 400);
     }).WithSummary("Create a client relationship")
       .WithDescription("Creates the requested client relationship after validating both client identities and its effective dates.");
     createRelationship.Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
@@ -174,7 +175,8 @@ public static partial class UiEndpoints
 
       return result.Succeeded
         ? Results.Ok(new { success = true })
-        : Results.Json(new { code = result.ErrorCode, message = result.Message }, statusCode: 400);
+        : Results.Json(new { code = result.ErrorCode, message = result.Message },
+          statusCode: result.ErrorCode == ErrorCodes.ScopeDenied ? 403 : 400);
     }).WithSummary("Revoke a client relationship")
       .WithDescription("Revokes the relationship with its stated reason; the response confirms the action without returning a value envelope.");
     revokeRelationship.Produces<ClientRelationshipMutationResponse>(StatusCodes.Status200OK, "application/json")
@@ -237,7 +239,8 @@ public static partial class UiEndpoints
 
       return result.Succeeded
         ? Results.Ok(new { id = result.Value })
-        : Results.Json(new { code = result.ErrorCode, message = result.Message }, statusCode: 400);
+        : Results.Json(new { code = result.ErrorCode, message = result.Message },
+          statusCode: result.ErrorCode == ErrorCodes.ScopeDenied ? 403 : 400);
     }).WithSummary("Assign a client contact routing")
       .WithDescription("Assigns a contact to a correspondence purpose over the supplied effective dates.");
     assignRouting.Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
@@ -266,7 +269,8 @@ public static partial class UiEndpoints
 
       return result.Succeeded
         ? Results.Ok(new { success = true })
-        : Results.Json(new { code = result.ErrorCode, message = result.Message }, statusCode: 400);
+        : Results.Json(new { code = result.ErrorCode, message = result.Message },
+          statusCode: result.ErrorCode == ErrorCodes.ScopeDenied ? 403 : 400);
     }).WithSummary("Revoke a client contact routing")
       .WithDescription("Revokes the routing assignment with its stated reason; the response confirms the action without a value envelope.");
     revokeRouting.Produces<ClientRelationshipMutationResponse>(StatusCodes.Status200OK, "application/json")

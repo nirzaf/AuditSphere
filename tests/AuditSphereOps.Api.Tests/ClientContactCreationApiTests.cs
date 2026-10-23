@@ -113,7 +113,7 @@ public sealed class ClientContactCreationApiTests
 
     using var mismatchedRoute = await Delete(client, csrf,
       $"/api/ui/clients/{fixture.ClientId}/routings/{routingId}", new { reason = "Route client does not own this routing." });
-    Assert.Equal(HttpStatusCode.BadRequest, mismatchedRoute.StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, mismatchedRoute.StatusCode);
     using (var error = JsonDocument.Parse(await mismatchedRoute.Content.ReadAsStringAsync()))
       Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ScopeDenied, error.RootElement.GetProperty("code").GetString());
 
@@ -214,9 +214,21 @@ public sealed class ClientContactCreationApiTests
       effectiveTo = "2026-12-31",
       isPrimaryForPurpose = true
     });
-    Assert.Equal(HttpStatusCode.BadRequest, crossClientContact.StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, crossClientContact.StatusCode);
     using (var error = JsonDocument.Parse(await crossClientContact.Content.ReadAsStringAsync()))
       Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ScopeDenied, error.RootElement.GetProperty("code").GetString());
+
+    using var invalidPurpose = await Post(client, csrf, url, new
+    {
+      clientContactId,
+      purpose = "not-a-supported-purpose",
+      effectiveFrom = "2026-01-01",
+      effectiveTo = "2026-12-31",
+      isPrimaryForPurpose = true
+    });
+    Assert.Equal(HttpStatusCode.BadRequest, invalidPurpose.StatusCode);
+    using (var error = JsonDocument.Parse(await invalidPurpose.Content.ReadAsStringAsync()))
+      Assert.Equal("crm.invalid", error.RootElement.GetProperty("code").GetString());
 
     using var assigned = await Post(client, csrf, url, new
     {

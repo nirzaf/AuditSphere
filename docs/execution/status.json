@@ -1052,7 +1052,7 @@
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.correctionLineage",
         "remaining": "Exact receipt recovery, broader group/release acceptance."
       },
-      "ciObserved": "e6b5d6eb76a5f99b985da9181980c7e4c8a73ae4 FAST_CI_PASS39912380278/images39912380202. Full39903345685 exact889bde7e58c1c74d9fe52cfbb99565b779676f2f artifactMATCH: Angular/Domain/build/E2EPASS, APIrunning; no currentFULL_CI_PASS.",
+      "ciObserved": "FULL_CI_PASS39903345685 exact889bde7e58c1c74d9fe52cfbb99565b779676f2f: source artifact MATCH, all7jobs PASS, canonicalaggregate verified. e6bFAST_CI_PASS39912380278/images39912380202. Later HEAD not full-verified.",
       "scopeUnknownOutcome": {
         "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.scopeUnknownOutcome",
         "status": "PARTIAL",
@@ -1130,8 +1130,8 @@
         "status": "PASS_LOCAL_SLICE",
         "base": "e6b5d6eb76a5f99b985da9181980c7e4c8a73ae4",
         "evidence": ".local/autonomous/evidence/wu015-acceptance-final",
-        "checks": "4token-bearing API cases PASS in publishedArchive+PBC snapshot. Wrong-firm/sibling scope =>403, zeroeffects; invalidgeneration400/CSRF403 retained. Conditional onlyScopeDenied avoids unreviewed409 mappings.",
-        "remaining": "Other scope-status mappings and authenticated surface/denial/race coverage."
+        "checks": "Acceptance4 and relationships/routings4 authenticatedAPI cases PASS. OnlyScopeDenied=>403; othererrors400, CSRF and success retained; denied mutations zeroeffects. Relationships proof: .local/autonomous/evidence/wu015-relationships; exact overlay hashes retained.",
+        "remaining": "Other scope-status mappings and full authenticated denial/race coverage; current HEAD fullCI."
       }
     },
     "developmentFeedback20261023": {

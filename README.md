@@ -111,7 +111,7 @@ Criteria/evidence: [product crosswalk](docs/execution/auditsphere-execution-trac
 | ☐ Partially pending | Consolidation (26) | Groups/scopes, ownership, components, intercompany matching, eliminations/FX → authorization, concurrency, browser acceptance and methodology. |
 | ☐ Partially pending | Audit planning & execution | Programs, materiality/risk, procedures, sampling, confirmations, workpapers/review → methodology, terminal-evidence mapping and full review journeys. |
 | ☐ Partially pending | Completion, release & records | SRM/readiness, human decisions, artifacts/signing hooks, archive lineage, secondary-copy API/CLI → expected-plan export, signing/legal policy, custody/recovery, independent acceptance. |
-| ☐ Partially pending | Administration & security | Setup, users/grants, tenant capabilities, search, operations/progress, scoped Acceptance denials → application-wide isolation/revocation and operator readiness. |
+| ☐ Partially pending | Administration & security | Setup, users/grants, tenant capabilities, search, operations/progress, scoped Acceptance/relationship denials → application-wide isolation/revocation and operator readiness. |
 | ☐ Partially pending | M365 & client sites | Isolated identities/workers, exact grants, client sites/staff reconciliation, intents/status → mail RBAC runtime/readback/migration, rollout and live positive/negative acceptance. |
 | ☐ Partially pending | Knowledge library | Technical pages and reusable programs → authorization, authoring, workflow acceptance. |
 | ☐ Partially pending | Platform & durable operations | API, Angular, PostgreSQL, retries/idempotency/reconciliation → current-SHA full CI, recovery, capacity, observability, deployment acceptance. |

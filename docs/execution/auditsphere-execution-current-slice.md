@@ -14,9 +14,9 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Acceptance scope-denial responses (2026-10-23)
+## Acceptance and relationship scope-denial responses (2026-10-23)
 
-Four Acceptance commands return the declared forbidden status for scope denial. Token-bearing sibling/foreign-firm checks preserve zero effects, validation and CSRF behavior. Other mapping and authority/race coverage remains open; see `status.json`.
+Acceptance and relationship/routing mutations return forbidden for scope denial; validation and success behavior remain unchanged. Authenticated checks cover foreign-firm, sibling and wrong-route denials with unchanged records. Broader authority/race coverage remains open; see `status.json`.
 
 ## PBC reply recovery and current-owner fence (2026-10-23)
 
