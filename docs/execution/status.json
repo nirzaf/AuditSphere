@@ -1038,18 +1038,9 @@
         "status": "Focused technical evidence retained; broader release acceptance separate."
       },
       "mailPlanBoundaries": {
-        "status": "PARTIAL",
-        "scope": "Plan plus read-only Exchange/Entra adapter; exact app-only operator sessions, additive grant/scope/membership checks, sender/control probes, counted bounded reads. No sign-in/write/send or runtime activation. Exact Git root required; copied scripts cannot borrow parent HEAD.",
-        "checks": "PASS: isolated Git-fixture WU02258 + common WU01740; .local/autonomous/evidence/wu022-source-root/. CI39885984959 on368 failed the former dirty-worktree assumption; fixed fixture preserves source assertions. No live provider run.",
-        "remaining": "RBAC runtime verifier and reviewed migration/rollback; existing legacy API capability evidence; real readback output-shape confirmation and approved live transport acceptance.",
-        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.mailPlanBoundariesStep1",
-        "readOnlyApply": "ReadOnly remains INCOMPLETE_EVIDENCE even if provider checks match; model-specific remaining gate. Apply refuses missing migration before network.",
-        "fullLocalSuites": "NOT_RUN",
-        "normalizedReadback": {
-          "source": "73de4bae81679f11f9b256e6c2fdd74c2dd0a6c0",
-          "checks": "65 offline assertions PASS, including dependency drift after collection and normalized bounded actual Graph/Exchange fields. Log .local/autonomous/mail-runtime-draft/mailaccess-tests.log.",
-          "limit": "Unsigned readback only; CMS producer/import, runtime gating, reviewed migration and live verification remain pending."
-        }
+        "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.mailPlanBoundaries",
+        "status": "PARTIAL_OFFLINE_ENGINEERING",
+        "remaining": "Signed runtime binding, RBAC verifier/runtime/migration and live acceptance remain open; retained snapshot source hashes are not runtime approval."
       },
       "resultStructure": "PASS: 6 focused Python tests; new malformed-envelope regression fails old source. Shape/counters only; freshness/provider acceptance separate. Fast CI39882506372 PASS on e576; not full regression.",
       "contentReviewIdentity": {
@@ -1065,7 +1056,7 @@
         "checks": "PASS: main TRX 1/1 .local/autonomous/evidence/wu013-correction-lineage/correction-lineage.trx; agent Angular36, corrected build (SCSS warning), EF model and OpenAPI checks passed. Migration null-pointer downgrade/reapply and retained-lineage downgrade refusal covered.",
         "remaining": "Owned correction browser PASS 1/1: .local/autonomous/evidence/wu013-correction-browser/ComponentCorrectionHandoff.retry2.trx; exact source IDs persisted and approved pin/pack/run retained. Current-source CI and broader group release remain open; no universal supersession policy required."
       },
-      "ciObserved": "FAST_CI_PASS39898403067/images39898403065 at9491516129721813a4763d00d0968ba01166e674. Full39886113863 at368eada2 FAILED: Domain1522/API399/AngularPASS, E2E333/334; foreign-grant fixture repaired locally, oldverifyfixture fixed6f. No current FULL_CI_PASS.",
+      "ciObserved": "FAST_CI_PASS39900616765 at a7786bdb213dac39aedfeb17b511392489ec4024. Full39886113863 at368eada2 FAILED: Domain1522/API399/AngularPASS, E2E333/334; fixture repaired504 locally, oldverifyfixture fixed6f. No current FULL_CI_PASS.",
       "scopeUnknownOutcome": {
         "status": "PARTIAL",
         "scope": "WU032 mutation buttons and external-pack commands honor parent unknown-outcome fence. Refresh uses existing resource and never clears uncertainty or dispatches duplicate commands. Local editing/navigation retained.",
@@ -1096,6 +1087,12 @@
         "evidence": ".local/autonomous/wu025-readiness-final-environment-truth-20261023.log",
         "result": "47 assertions pass; real API-key mapping, stable session, UTC metadata, expected vs unobserved environment, simulation and missing-evidence blockers. Plan/WhatIf offline; Verify=ReadOnly GETs; Apply refuses before network. Cannot emit VERIFIED.",
         "remaining": "Runtime identity/grants/resources/expiry/probes/config/resume projection and client-sites owner still engineering; live tenant acceptance separate."
+      },
+      "completionEvidenceDisplay": {
+        "status": "PASS_LOCAL_UI_SLICE",
+        "evidence": ".local/autonomous/evidence/wu035-completion-identities/",
+        "result": "completion.spec18PASS and AngularbuildPASS; exact report/scan/bundle hashes with identical prefixes remain distinguishable; persisted package/document/scan/source/bundle IDs displayed. Initial assertion selector fixed, no production logic changed. Existing commercial CSS budget warning remains.",
+        "remaining": "No interactive/browser/AT approval; complete currentness/review identities, archive integration, professional/live/final-release acceptance remain open."
       }
     },
     "developmentFeedback20261023": {

@@ -409,12 +409,29 @@ describe('Report certificate signing (ADR-0016)', () => {
     TestBed.resetTestingModule();
   });
 
-  it('labels a certificate-signed report and shows the certificate in force', () => {
-    const { f } = open(validPayload);
+  it('labels a certificate-signed report and shows its exact evidence identities', () => {
+    const reportHash = 'a'.repeat(63) + '1', scanHash = 'a'.repeat(63) + '2', bundleHash = 'a'.repeat(63) + '3';
+    const { f } = open({ ...validPayload,
+      deliverables: [{ ...validPayload.deliverables[0], contentSha256: reportHash }],
+      signedLetters: [{ ...validPayload.signedLetters[0], contentSha256: scanHash }],
+      bundles: { ...validPayload.bundles, bundles: [{ ...validPayload.bundles.bundles[0], sha256: bundleHash }] },
+    });
     const host = f.nativeElement as HTMLElement;
     expect(host.textContent).toContain('certificate-signed');
     expect(host.querySelector('[data-report-signing]')?.textContent).toContain('firm certificate (required)');
     expect(host.querySelector('[data-report-signing]')?.textContent).toContain('valid until 2027-10-01');
+    // Exact retained identities must be copyable; a shared 12-character hash prefix is not sufficient.
+    const report = host.querySelector(`[data-completion-deliverable="${id2}"]`);
+    expect(report?.textContent).toContain(`Document ID: ${id2}`);
+    expect(report?.querySelector('td:nth-child(4) code')?.textContent).toBe(reportHash);
+    const scan = host.querySelector(`[data-signed-letter="${id1}"]`);
+    expect(scan?.textContent).toContain(`Scan ID: ${id1}`);
+    expect(scan?.textContent).toContain(`source document: ${id2}`);
+    expect(Array.from(scan?.querySelectorAll('p code') ?? []).map(node => node.textContent)).toEqual([id1, id2, scanHash]);
+    const bundle = host.querySelector(`[data-completion-bundle="${id3}"]`);
+    expect(bundle?.textContent).toContain(`Bundle ID: ${id3}`);
+    expect(Array.from(bundle?.querySelectorAll('code') ?? []).map(node => node.textContent)).toEqual([id3, bundleHash]);
+    expect(host.querySelector('#release-state-heading')?.parentElement?.textContent).toContain(`Financial package: ${id2}`);
     f.destroy();
   });
 

@@ -59,6 +59,7 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
 
       <section class="panel" aria-labelledby="release-state-heading">
         <h2 id="release-state-heading">Final release evidence</h2>
+        <p>Financial package: @if (w.packageId) { <code>{{ w.packageId }}</code> · {{ w.packageStatus }} } @else { No package recorded. }</p>
         @if (w.release; as r) {
           <dl class="facts">
             <dt>Candidate</dt><dd><a [routerLink]="['/app/releases', r.candidateId]">{{ r.candidateId }}</a> · {{ r.candidateStatus }} · {{ r.targetKind }} revision {{ r.targetRevision }} (candidate revision {{ r.candidateRevision }})</dd>
@@ -171,7 +172,7 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
           <div class="table-scroll"><table aria-label="Generated deliverables">
             <thead><tr><th>Document</th><th>Version</th><th>State</th><th>SHA-256</th><th><span class="sr-only">Actions</span></th></tr></thead>
             <tbody>@for (d of w.deliverables; track d.id) {
-              <tr><td><a [href]="'/api/deliverables/' + d.id + '/download'">{{ d.title }}</a></td><td>v{{ d.version }}{{ d.signatureKind === 'CERTIFICATE' ? ' certificate-signed' : d.signed ? ' signed (image only)' : '' }}@if (d.certificateSubject) { <small>{{ d.certificateSubject }}</small> }</td><td>{{ d.current ? 'Current' : 'Stale' }}</td><td><code>{{ d.contentSha256.slice(0, 12) }}</code></td>
+              <tr [attr.data-completion-deliverable]="d.id"><td><a [href]="'/api/deliverables/' + d.id + '/download'">{{ d.title }}</a><br /><small>Document ID: <code>{{ d.id }}</code></small></td><td>v{{ d.version }}{{ d.signatureKind === 'CERTIFICATE' ? ' certificate-signed' : d.signed ? ' signed (image only)' : '' }}@if (d.certificateSubject) { <small>{{ d.certificateSubject }}</small> }</td><td>{{ d.current ? 'Current' : 'Stale' }}</td><td><code>{{ d.contentSha256 }}</code></td>
                 <td class="actions">
                   @if (!d.signed && d.kind !== 'SUMMARY_REVIEW_MEMORANDUM' && d.kind !== 'HOLDING_LETTER') { <button matButton (click)="send('/api/ui/deliverables/' + d.id + '/share', {}, 'Shared with client management.')" [disabled]="cmd.busy()" [attr.aria-label]="'Share ' + d.title + ' v' + d.version + ' with the client'">Share with client</button> }
                   @if (!d.signed && d.kind === 'INDEPENDENT_AUDITORS_REPORT' && d.current) { <button matButton="filled" (click)="send('/api/ui/deliverables/' + d.id + '/sign', {}, 'Report signed; the signed version and its hash are recorded.')" [disabled]="cmd.busy() || !w.reportSigning.ready">{{ w.reportSigning.mode === 'CERTIFICATE' ? 'Sign with signature and firm certificate' : 'Sign with registered signature' }}</button> }
@@ -189,7 +190,7 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
         @for (scan of w.signedLetters; track scan.id) {
           <div [attr.data-signed-letter]="scan.id">
             <a [href]="'/api/representation-scans/' + scan.id + '/download'">Management-signed LOR v{{ scan.version }} — {{ scan.managementSignatory }}</a>
-            <audit-status [value]="scan.current ? (scan.verified ? 'VERIFIED' : 'PENDING_REVIEW') : 'STALE'" /> <code>{{ scan.contentSha256.slice(0, 12) }}</code>
+            <audit-status [value]="scan.current ? (scan.verified ? 'VERIFIED' : 'PENDING_REVIEW') : 'STALE'" /> <p><small>Scan ID: <code>{{ scan.id }}</code> · source document: <code>{{ scan.deliverableId }}</code></small><br />SHA-256: <code>{{ scan.contentSha256 }}</code></p>
             @if (scan.current && !scan.verified) {
               <label>Signature verification evidence <textarea [(ngModel)]="f.scanReason" [name]="'sr-' + scan.id" maxlength="2000" aria-label="Signature verification evidence"></textarea></label>
               <label><span><input type="checkbox" [(ngModel)]="f.scanReviewed" [name]="'sv-' + scan.id" /> I reviewed this exact scan and verified management authority, signature and completeness.</span></label>
@@ -202,7 +203,8 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
         <p>Signed report and certified financial statements; management letter; representation template and management-signed scan; correspondence audit trail; posted final balance fee note.</p>
         @if (w.bundles; as b) {
           <ul class="blockers">@for (x of b.blockers; track $index) { <li>{{ x }}</li> }</ul>
-          @for (x of b.bundles; track x.id) { <p><a [href]="'/api/deliverable-bundles/' + x.id + '/download'">Download five-part final bundle</a> <code>{{ x.sha256.slice(0, 12) }}</code> {{ x.assembledAt.slice(0, 10) }}</p> }
+          @for (x of b.bundles; track x.id) { <p [attr.data-completion-bundle]="x.id"><a [href]="'/api/deliverable-bundles/' + x.id + '/download'">Download five-part final bundle</a><br />
+            Bundle ID: <code>{{ x.id }}</code><br />SHA-256: <code>{{ x.sha256 }}</code><br />Assembled {{ x.assembledAt.slice(0, 16).replace('T', ' ') }} UTC</p> }
         }
         @if (signatureCheck(); as check) {
           <p [attr.role]="check.state === 'VALID' ? 'status' : 'alert'" data-signature-check><strong>{{ check.state === 'VALID' ? 'Signature valid' : check.state === 'ALTERED' ? 'Document changed after signing' : check.state === 'NOT_CERTIFICATE_SIGNED' ? 'Image-only signature' : 'Signature unreadable' }}.</strong>

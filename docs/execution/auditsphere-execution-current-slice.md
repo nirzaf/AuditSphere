@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Completion evidence identities (2026-10-23)
+
+Completion now exposes persisted package/document/scan/source/bundle IDs and full retained hashes, with unchanged signature, release and freeze gates. Focused Angular checks and build passed; interactive and full completion acceptance remain open. Exact evidence is in `status.json`.
+
 ## CI fixture repair and read-only readiness inventory (2026-10-23)
 
 The tracker authorization fixture now asserts the firm-scoped database rejection before browser denial; it no longer requires impossible cross-firm grant data. The isolated owned PostgreSQL/browser rerun passed. Full regression remains failed at its recorded source until corrected-candidate CI runs.

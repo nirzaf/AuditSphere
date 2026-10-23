@@ -23661,6 +23661,20 @@
         "Live tenant provisioning acceptance"
       ],
       "fullLocalSuites": "NOT_RUN"
+    },
+    "targetedVerification.autonomousCompletion20261022.mailPlanBoundaries": {
+      "status": "PARTIAL",
+      "scope": "Plan plus read-only Exchange/Entra adapter; exact app-only operator sessions, additive grant/scope/membership checks, sender/control probes, counted bounded reads. No sign-in/write/send or runtime activation. Exact Git root required; copied scripts cannot borrow parent HEAD.",
+      "checks": "PASS: isolated Git-fixture WU02258 + common WU01740; .local/autonomous/evidence/wu022-source-root/. CI39885984959 on368 failed the former dirty-worktree assumption; fixed fixture preserves source assertions. No live provider run.",
+      "remaining": "RBAC runtime verifier and reviewed migration/rollback; existing legacy API capability evidence; real readback output-shape confirmation and approved live transport acceptance.",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.mailPlanBoundariesStep1",
+      "readOnlyApply": "ReadOnly remains INCOMPLETE_EVIDENCE even if provider checks match; model-specific remaining gate. Apply refuses missing migration before network.",
+      "fullLocalSuites": "NOT_RUN",
+      "normalizedReadback": {
+        "source": "73de4bae81679f11f9b256e6c2fdd74c2dd0a6c0",
+        "checks": "65 offline assertions PASS, including dependency drift after collection and normalized bounded actual Graph/Exchange fields. Log .local/autonomous/mail-runtime-draft/mailaccess-tests.log.",
+        "limit": "Unsigned readback only; CMS producer/import, runtime gating, reviewed migration and live verification remain pending."
+      }
     }
   },
   "archivedTargetedVerification": {
