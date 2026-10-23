@@ -887,7 +887,7 @@
     "angularQuality20261023": {
       "result": "PARTIAL_ACCEPTANCE",
       "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityCiAccessibilityContinuation20261023",
-      "remaining": "Task07: wider states/native zoom/humanAT; GL CI fixture repaired/focused PASS; replacement full CI pending."
+      "remaining": "Task07: wider states/native zoom/humanAT; GL/reviewpoint CI repairs focused PASS; replacement full CI pending."
     },
     "autonomousCompletion20261022": {
       "specification": "docs/architecture/auditsphere-autonomous-completion-remediation-spec.md (AS-AUTONOMOUS-COMPLETION-2026-10-22-R2)",

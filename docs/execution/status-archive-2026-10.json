@@ -24006,7 +24006,7 @@
     "targetedVerification.angularQualityCiAccessibilityContinuation20261023": {
       "result": "PARTIAL_ACCEPTANCE",
       "source": "ee87a7b0f36ef7e24dc47ef97905756b950c85ab",
-      "observedAtUtc": "2026-10-23T17:34:22.243128+00:00",
+      "observedAtUtc": "2026-10-23T18:23:05.564152+00:00",
       "priorSnapshot": "targetedVerification.angularQualityBeforeCiAccessibilityContinuation20261023",
       "implementation": "Tasks01-06 implemented/revalidated. Task07 corrective slice changes four consolidation pager containers to named semantic navigation without changing commands or paging. One existing paging test now protects all four landmarks.",
       "ci": {
@@ -24030,7 +24030,7 @@
       },
       "otherRendered": "Prior builtin journal removal/reflow, staff/client navigation and fieldwork tabs/empty-program/invalid sampling alert are retained under .local/autonomous/evidence/angular-quality-reattached-20261023/rendered-followup/observations.json. Loopback ports share host cookies; actors were inspected sequentially after observing authority clearing.",
       "remaining": [
-        "Replacement code-candidate full unfiltered CI and aggregate; continue older API/E2E runs for shared failures",
+        "Replacement immutable code-candidate fullCI after receipt-first fix; preceding412 API/E2E retained separately",
         "Wider per-surface/state rendered matrix",
         "Native200/400zoom: browser has viewport only, native Codex app control refused; no bypass",
         "Actual qualified human screen-reader/browser versions and workflow observations"
@@ -24086,7 +24086,15 @@
           "evidence": ".local/autonomous/evidence/angular-quality-followup-20261023/ci-api-ee87/trx/api.trx",
           "repair": "Test setup corrected; original generation.stale and rollback assertions retained. Focused2PASS; replacement full CI still required."
         },
-        "e2e": "IN_PROGRESS"
+        "e2e": {
+          "result": "FAIL",
+          "passed": 334,
+          "failed": 1,
+          "total": 335,
+          "case": "AngularReviewPointCommandJourneyTests.DispositionsRequireFreshReviewAndRecoverTheSameRequest(REOPEN,lost-committed)",
+          "evidence": ".local/autonomous/evidence/angular-quality-followup-20261023/ci-e2e-ee87/trx/e2e.trx",
+          "repair": "Receipt-first recovery corrected in following code candidate; prior failure remains retained."
+        }
       },
       "fieldwork": {
         "automated": "Existing adopted-programme/reviewed-fieldwork/frozen-workpaper journey1PASS/0FAIL/0SKIP. Existing API/test binaries reused only after proving C# source unchanged since their fresh build.",
@@ -24129,6 +24137,34 @@
         "verification": "Focused API2PASS/0FAIL/0SKIP: late authority-fence rollback and exact concurrent upload/idempotent readback. No full local suite.",
         "testSha256": "810b69b63bfb030505d2c01d352c46ae9ec9e14d26cd8b80c7799960836b4c2a",
         "evidence": ".local/autonomous/evidence/angular-quality-followup-20261023/api-fixed-results/GeneralLedgerUploadRepair.trx"
+      },
+      "previousCodeCandidateCi": {
+        "source": "412c5e9d231d2be38be7580def21c42e51e3d530",
+        "fullRunId": 39996326500,
+        "fullResult": "RUNNING, NOT_FULL_CI_PASS",
+        "sourceMatch": "MATCH",
+        "fastRunId": 39996224560,
+        "fastResult": "FAST_CI_PASS",
+        "angular": "PASS",
+        "buildContractsPublication": "PASS",
+        "domain": "PASS, completed2026-10-23T17:57:26Z",
+        "api": "IN_PROGRESS",
+        "e2e": "IN_PROGRESS; predates receipt-first correction"
+      },
+      "reviewPointRecoveryCiRepair": {
+        "sourceBase": "412c5e9d231d2be38be7580def21c42e51e3d530",
+        "overlayHashes": {
+          "src/AuditSphereOps.Ui/src/app/features/audit/review-point-command-state.ts": "1178f97763856b182bb3525211c96f8d9dfa97f02cc7e58bd45b93c261c1f8dd",
+          "src/AuditSphereOps.Ui/src/app/features/audit/review-point-command-state.spec.ts": "201a787782cd360266b294b29c71d5766217871d0ad2f383c13031490d6a2fdc",
+          "tests/AuditSphereOps.E2E.Tests/AngularReviewPointCommandJourneyTests.cs": "8f259f4371f4272e7034778664419e62308d15d435ebc53c6076d209606c8368"
+        },
+        "rootCause": "GET mutable command state can race original publication and refuse before receipt lookup. Existing receipt endpoint takes shared engagement/request locks; doing that lookup first serializes with original commit.",
+        "change": "Reconcile actor-owned exact receipt before mutable command state. Preserve all actor/epoch/request/hash/client/engagement/target checks, current owner fences, fresh assent and no-POST recovery. No server gates changed.",
+        "angular": "Existing restore assertions reproduce race2FAIL/28PASS on old implementation; corrected same spec30PASS. Lint/buildPASS; existing commercial style budget warning retained.",
+        "e2e": "Fresh-built six-case CLEAR/REOPEN success/lost-committed/lost-uncommitted cohort6PASS/0FAIL/0SKIP. Earlier stale/denied lookup case1PASS on identical product overlay. No full local suite.",
+        "intermediateFailure": "Initial focused run6PASS/1FAIL: original REOPEN failure repaired, but CLEAR keyboard Tab preceded async button enable. Added ToBeEnabled before Tab; original checkbox/focus/Enter assertions retained. No weakening.",
+        "evidence": ".local/autonomous/evidence/review-point-recovery-20261023/review.json",
+        "limits": "Actual automated Chromium/API/PostgreSQL; not a built-in or human AT review. No live/provider/deployment effects; replacement immutable full CI required."
       }
     }
   },

@@ -101,7 +101,7 @@ Criteria/evidence: [product crosswalk](docs/execution/auditsphere-execution-trac
 | Checklist | Module | Implemented → remaining |
 | --- | --- | --- |
 | ☐ Partially pending | Practice & commercial | Leads, clients/contacts, pricing, proposals, fees, activation → acceptance, layouts/policy, provider delivery. |
-| ☐ Partially pending | Workflow & tasks | Seven phases, eleven derived states; tasks, milestones, dependencies, reminders/queues, Required/Optional labels, NR-12 off matrix, atomic bounds, persistent 403 → legal mapping, required-task semantics, recurrence/automation, review-point recovery diagnosis and off-state/role/accessibility acceptance. |
+| ☐ Partially pending | Workflow & tasks | Seven phases, eleven derived states; tasks, milestones, dependencies, reminders/queues, Required/Optional labels, NR-12 off matrix, atomic bounds, persistent 403 → legal mapping, required-task semantics, recurrence/automation, review-point receipt recovery acceptance and off-state/role/accessibility acceptance. |
 | ☐ Partially pending | Client collaboration | Scoped PBC, uploads/comments, package review, invoices; posted/sent, cash/credit, due dates, UTC aging → write/evidence gates, client browser acceptance, invoice provider delivery. |
 | ☐ Partially pending | People & time | Staffing/capacity, leave/training/holidays, phase/risk allocation, task time, budgets/rates/utilization → role, responsive/accessibility and release acceptance. |
 | ☐ Partially pending | Firm finance | Billing, settlements, receipts, expenses, ledger, aging, WIP/profitability → end-to-end acceptance, firm pricing and professional end-of-service configuration. |
@@ -125,7 +125,7 @@ These are recorded, scoped checks—not current-source full CI or whole-product 
 | Checklist | Completed slice | Remaining limits |
 | --- | --- | --- |
 | ☑ Completed | Angular host/Blazor retirement; sidebar toggle and mobile shell | Migration/parity and server isolation acceptance. |
-| ☑ Completed | Journal/evidence/sampling previews; consolidation journal controls and retained-match scrolling | Unknown/stale outcomes and human review; recording stays off before assent. |
+| ☑ Completed | Journal/evidence/sampling previews, review-point receipt recovery and consolidation controls/scrolling | Unknown/stale outcomes and human review; recording stays off before assent. |
 | ☑ Completed | Pinned task context, Required/Optional labels and atomic graph bounds | Manual tasks stay unlabeled; labels grant no completion approval. |
 | ☑ Completed | Proposal dispatch to canonical lifecycle handoff — synthetic browser/API/DB | Client acceptance, provider delivery and full commercial acceptance remain. |
 | ☑ Completed | Net-allocated advance gate, scoped fee-settlement browser/API/DB journey, expense paging/recovery and monthly P&L boundaries | Full commercial, receipt, reporting and export acceptance. |

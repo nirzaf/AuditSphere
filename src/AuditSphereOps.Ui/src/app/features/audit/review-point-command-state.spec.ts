@@ -44,13 +44,29 @@ describe('ReviewPoint reviewed command recovery', () => {
       selectedAction = action; await flow.prepare(() => fields(action)); flow.reviewed.set(true); api.command.mockResolvedValueOnce({ ok: false, unknown: true, message: 'Lost response' }); await flow.execute();
       const restored = create(); TestBed.tick(); const before = api.command.mock.calls.length;
       expect(restored.uncertain()).toBe(true); expect(restored.preview()).toBeNull(); expect(restored.reviewed()).toBe(false);
+      // A current-state read can race the outstanding publication. The actor-owned
+      // receipt lookup serializes with that request before current state is read.
+      let receiptRead = false;
+      api.get.mockClear();
+      api.get.mockImplementation(async (url, decoder) => {
+        if (url.includes('/receipts/')) {
+          receiptRead = true;
+          return decoder({ found: true, receipt: receipt(last, id(90), session.current().generation) }, '');
+        }
+        if (!receiptRead) throw new Error('State changed during pending publication');
+        return decoder(state(action), '');
+      });
       await restored.reconcile(action); expect(api.command).toHaveBeenCalledTimes(before); expect(restored.receipt()?.requestId).toBe(last.requestId); expect(restored.uncertain()).toBe(false);
+      expect(api.get.mock.calls.map(call => call[0])).toEqual([
+        expect.stringContaining('/receipts/' + last.requestId + '?requestHash=' + hash),
+        expect.stringContaining('/commands/state'),
+      ]);
     });
   }
   it('retains point-in-time absence and requires matching hash and fresh same-request assent', async () => {
     const input = () => fields('CLEAR'); await flow.prepare(input); const requestId = last.requestId;
     flow.reviewed.set(true); api.command.mockResolvedValueOnce({ ok: false, unknown: true, message: 'Lost' }); await flow.execute();
-    api.get.mockImplementationOnce(async (_url, decoder) => decoder(state(), '')).mockResolvedValueOnce({ found: false, receipt: null });
+    api.get.mockResolvedValueOnce({ found: false, receipt: null }).mockImplementationOnce(async (_url, decoder) => decoder(state(), ''));
     await flow.reconcile('CLEAR'); expect(flow.uncertain()).toBe(true); expect(drafts.clear).not.toHaveBeenCalled();
     await flow.prepare(() => fields('REOPEN')); expect(api.command).toHaveBeenCalledTimes(2);
     await flow.prepare(input); expect(last.requestId).toBe(requestId); expect(flow.reviewed()).toBe(false);
@@ -74,7 +90,7 @@ describe('ReviewPoint reviewed command recovery', () => {
       await flow.prepare(() => fields('CLEAR')); flow.reviewed.set(true);
       api.command.mockResolvedValueOnce({ ok: false, message: 'Unknown' }); await flow.execute();
       const delayed = deferred<unknown>();
-      api.get.mockImplementationOnce(async (_url, decoder) => decoder(state(), '')).mockReturnValueOnce(delayed.promise);
+      api.get.mockReturnValueOnce(delayed.promise);
       const reading = flow.reconcile('CLEAR'); await Promise.resolve();
       params.next(convertToParamMap({ id: id(2) })); params.next(convertToParamMap({ id: id(1) }));
       if (failure) delayed.reject(new Error('Late lookup')); else delayed.resolve({ found: true, receipt: receipt(last, id(90), session.current().generation) });
@@ -86,14 +102,15 @@ describe('ReviewPoint reviewed command recovery', () => {
       await flow.prepare(() => fields('CLEAR')); flow.reviewed.set(true); api.command.mockResolvedValueOnce({ ok: false, message: 'Unknown' }); await flow.execute();
       const original = receipt(last, id(90), session.current().generation);
       const before = { ...original.dispositionEvent.before, [key]: id(88) }, after = { ...original.dispositionEvent.after, [key]: id(88) };
-      api.get.mockImplementationOnce(async (_url, decoder) => decoder(state(), '')).mockImplementationOnce(async (_url, decoder) => decoder({ found: true,
-        receipt: { ...original, preview: { ...original.preview, before }, dispositionEvent: { ...original.dispositionEvent, before, after } } }, ''));
+      api.get.mockImplementationOnce(async (_url, decoder) => decoder({ found: true,
+        receipt: { ...original, preview: { ...original.preview, before }, dispositionEvent: { ...original.dispositionEvent, before, after } } }, ''))
+        .mockImplementationOnce(async (_url, decoder) => decoder(state(), ''));
       await flow.reconcile('CLEAR'); expect(flow.uncertain()).toBe(true); expect(flow.receipt()).toBeNull(); expect(drafts.clear).not.toHaveBeenCalled();
     });
   }
   it('refuses changed hash on fresh same-request review after missing lookup', async () => {
     const input = () => fields('CLEAR'); await flow.prepare(input); flow.reviewed.set(true); api.command.mockResolvedValueOnce({ ok: false, message: 'Unknown' }); await flow.execute();
-    api.get.mockImplementationOnce(async (_url, decoder) => decoder(state(), '')).mockResolvedValueOnce({ found: false, receipt: null }); await flow.reconcile('CLEAR');
+    api.get.mockResolvedValueOnce({ found: false, receipt: null }).mockImplementationOnce(async (_url, decoder) => decoder(state(), '')); await flow.reconcile('CLEAR');
     const reference = flow.pending()[0].reference;
     api.command.mockImplementationOnce(async (_url, request) => ({ ok: true, value: { ...preview(request), requestHash: 'c'.repeat(64) } }));
     await flow.prepare(input); expect(flow.preview()).toBeNull(); expect(flow.reviewed()).toBe(false); expect(flow.pending()[0].reference).toEqual(reference); expect(flow.uncertain()).toBe(true);
@@ -107,8 +124,9 @@ describe('ReviewPoint reviewed command recovery', () => {
   for (const field of ['actorId', 'actorEpoch', 'reviewPointId', 'requestId', 'requestHash', 'action'] as const) {
     it(`rejects receipt with changed ${field}`, async () => {
       await flow.prepare(() => fields('CLEAR')); flow.reviewed.set(true); api.command.mockResolvedValueOnce({ ok: false, message: 'Unknown' }); await flow.execute();
-      api.get.mockImplementationOnce(async (_url, decoder) => decoder(state(), '')).mockImplementationOnce(async (_url, decoder) => decoder({ found: true, receipt: {
-        ...receipt(last, id(90), session.current().generation), [field]: field === 'actorEpoch' ? '9007199254740992' : field === 'requestHash' ? 'c'.repeat(64) : field === 'action' ? 'UNREOPEN' : id(88) } }, ''));
+      api.get.mockImplementationOnce(async (_url, decoder) => decoder({ found: true, receipt: {
+        ...receipt(last, id(90), session.current().generation), [field]: field === 'actorEpoch' ? '9007199254740992' : field === 'requestHash' ? 'c'.repeat(64) : field === 'action' ? 'UNREOPEN' : id(88) } }, ''))
+        .mockImplementationOnce(async (_url, decoder) => decoder(state(), ''));
       await flow.reconcile('CLEAR'); expect(flow.uncertain()).toBe(true); expect(flow.receipt()).toBeNull(); expect(drafts.clear).not.toHaveBeenCalled();
     });
   }
@@ -127,8 +145,9 @@ describe('ReviewPoint reviewed command recovery', () => {
       await flow.prepare(() => fields('CLEAR')); flow.reviewed.set(true); api.command.mockResolvedValueOnce({ ok: false, message: 'Unknown' }); await flow.execute();
       const r = receipt(last, id(90), session.current().generation), changed = key === 'targetId' ? id(88) : key === 'targetRevision' ? '8' : 'FINDING';
       const before = { ...r.dispositionEvent.before, [key]: changed }, after = { ...r.dispositionEvent.after, [key]: changed };
-      api.get.mockImplementationOnce(async (_url, decoder) => decoder(state(), '')).mockImplementationOnce(async (_url, decoder) => decoder({ found: true,
-        receipt: { ...r, preview: { ...r.preview, before }, dispositionEvent: { ...r.dispositionEvent, before, after } } }, ''));
+      api.get.mockImplementationOnce(async (_url, decoder) => decoder({ found: true,
+        receipt: { ...r, preview: { ...r.preview, before }, dispositionEvent: { ...r.dispositionEvent, before, after } } }, ''))
+        .mockImplementationOnce(async (_url, decoder) => decoder(state(), ''));
       await flow.reconcile('CLEAR'); expect(flow.uncertain()).toBe(true); expect(flow.receipt()).toBeNull(); expect(drafts.clear).not.toHaveBeenCalled();
     });
   }

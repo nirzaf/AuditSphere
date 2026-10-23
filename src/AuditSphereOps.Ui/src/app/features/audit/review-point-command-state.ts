@@ -136,12 +136,14 @@ export class ReviewPointCommandState {
     if (!pending || !this.ready() || pending.reviewPointId !== this.id() || this.busy()) return;
     this.preview.set(null); this.reviewed.set(false); this.absent.set([]); const valid = this.ticket(), operation = ++this.operation; let refresh = false; this.busy.set(true);
     try {
-      const state = await this.api.get(this.base() + '/state', decodeReviewPointCommandState);
-      if (!valid()) return;
-      if (state.reviewPoint.reviewPointId !== pending.reviewPointId || state.reviewPoint.engagementId !== this.context()?.engagementId || !this.targetMatches(state.reviewPoint)) throw new Error('Wrong recovered scope');
+      // Exact receipt lookup serializes with the original publication. Reading
+      // mutable command state first can race its commit and prevent recovery.
       const lookup = await this.api.get(this.base() + '/receipts/' + pending.reference.requestId + '?requestHash=' + pending.reference.requestHash, decodeReviewPointLookup);
       if (!valid()) return;
       if (lookup.found !== !!lookup.receipt) throw new Error('Inconsistent lookup');
+      const state = await this.api.get(this.base() + '/state', decodeReviewPointCommandState);
+      if (!valid()) return;
+      if (state.reviewPoint.reviewPointId !== pending.reviewPointId || state.reviewPoint.engagementId !== this.context()?.engagementId || !this.targetMatches(state.reviewPoint)) throw new Error('Wrong recovered scope');
       if (!lookup.found) { this.absent.set([action]); this.message.set('No receipt was found at lookup time. A delayed command may still commit. Retain the identity and prepare a fresh same-request review before submitting again.'); return; }
       if (!this.matches(lookup.receipt!, pending, state.reviewPoint.clientId, state.reviewPoint.engagementId)) throw new Error('Wrong recovered receipt');
       refresh = this.accept(lookup.receipt!, pending);

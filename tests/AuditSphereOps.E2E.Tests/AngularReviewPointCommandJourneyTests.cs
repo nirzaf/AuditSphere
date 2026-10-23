@@ -321,6 +321,7 @@ public sealed class AngularReviewPointCommandJourneyTests
     if (keyboard)
     {
       await assent.FocusAsync(); await page.Keyboard.PressAsync("Space"); await Assertions.Expect(assent).ToBeCheckedAsync();
+      await Assertions.Expect(execute).ToBeEnabledAsync();
       await assent.PressAsync("Tab"); await Assertions.Expect(execute).ToBeFocusedAsync(); await page.Keyboard.PressAsync("Enter");
     }
     else { await assent.CheckAsync(); await execute.ClickAsync(); }
