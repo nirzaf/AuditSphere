@@ -5,17 +5,19 @@
 [![Angular](https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white)](src/AuditSphereOps.Ui/auditsphere-angular-development.md)
 [![EF Core](https://img.shields.io/badge/EF%20Core-10.0-0078D4?logo=nuget&logoColor=white)](https://learn.microsoft.com/ef/core/)
 
-**AuditSphereOps** is a professional audit, accounting, and assurance platform — a **.NET 10 modular monolith** (ASP.NET Core API + Angular 22) for CPA firms: engagement lifecycle, practice billing, trial-balance/GL intake, financial-statement production, audit fieldwork and review, controlled package release, records retention, and multi-currency group consolidation.
+**AuditSphereOps** is a .NET 10 / Angular 22 modular monolith for audit and accounting firms: client/engagement management, billing, TB/GL intake, financial statements, fieldwork/review, controlled release, records and multi-currency consolidation. Import-first accounting remains the default; native bookkeeping is separately gated.
 
-> **Status:** implementation and focused verification are recorded per slice; whole-product acceptance remains incomplete. [`docs/execution/status.json`](docs/execution/status.json) is the sole authority for test counts, verified SHA, and migration count. Angular is the canonical UI (Blazor host retired, see [removal gate](docs/migration/auditsphere-migration-blazor-removal-readiness.md)); migration acceptance is `NOT_READY`. Live Entra/Graph/release gates are `BLOCKED_EXTERNAL` — never fake-passed. Purview/eSignature providers are out of scope.
+> **Status:** implementation and focused verification are recorded per slice; whole-product acceptance remains incomplete. [`docs/execution/status.json`](docs/execution/status.json) is the sole authority for test counts, verified SHA, migration count and current-source CI. An earlier green run does not establish the current HEAD. Angular is the canonical UI (Blazor host retired, see [removal gate](docs/migration/auditsphere-migration-blazor-removal-readiness.md)); the removal gate is `NOT_READY` and migration acceptance remains partial. Live Entra/Graph/release gates are `BLOCKED_EXTERNAL` — never fake-passed. Purview/eSignature providers are out of scope.
 
 ## Financial boundaries
 
-Three isolated domains — enforced in Domain, services, and database. Import-first platform, not an operational client ERP (no payroll execution, payment initiation, or external tax filing).
+Three isolated domains — enforced in Domain, services, and database. Import-first remains the default (`EXTERNAL_SOURCE`) unless an explicit, reviewed cutover is approved. Neither mode is an operational client ERP: no inventory/procurement operations, payroll execution, payment initiation, or external tax filing.
 
 1. **Firm books** (`Practice/FirmLedger`) — billing, WIP time, invoices, receipts, immutable firm ledger.
-2. **Client workspace** (`Accounting/`) — TB/GL imports, charts, mappings, adjustments, reconciliations, statements, client FX remeasurement.
-3. **Group consolidation** (`Consolidation/`) — approved component packs, eliminations, FX translation. Never mutates component books.
+2. **Client workspace** (`Accounting/`) — TB/GL imports, charts, mappings, adjustments, reconciliations, statements and client FX remeasurement; cut-over clients may also use gated native books (journals, counterparties, invoices/credit notes, opening balances and open-item allocations).
+3. **Group consolidation** (`Consolidation/`) — approved component packs, eliminations, FX translation. Never mutates component books or client source data.
+
+**Native bookkeeping is separately gated:** existing clients stay `EXTERNAL_SOURCE`. `NATIVE_BOOKKEEPING` needs reviewer access and unconditional client-level `BOOKKEEPING` acceptance; clients with reporting periods cannot cut over inline. Maker/checker applies to client-owned records. Issuance, delivery and official numbering remain open. See the [code map](docs/architecture/auditsphere-architecture-code-map.md#native-client-operational-bookkeeping).
 
 ## Architecture
 
@@ -40,47 +42,48 @@ flowchart LR
     W --- SITES
 ```
 
-
-Live groups (`mail`, `pbc`, `client-sites`) compose in Production only when listed in `Worker:ApprovedLiveGroups`. Each one mounts only its own certificate. Core groups never carry external effects.
+Live groups (`mail`, `pbc`, `client-sites`) keep one isolated process each and compose in Production only when listed in `Worker:ApprovedLiveGroups`; Acceptance uses the same narrow groups. Each mounts only its own certificate. Core groups never carry external effects.
 
 Reference direction: `Domain → nothing; Application → Domain; Infrastructure → Application, Domain; Api/Worker → all`. Details: [current architecture](docs/architecture/auditsphere-architecture-current-architecture.md) · [code map](docs/architecture/auditsphere-architecture-code-map.md) · [enterprise target (PROPOSED)](docs/architecture/auditsphere-architecture-specification-enterprise-target-proposed.md). Routes: `src/AuditSphereOps.Ui/src/app/app.routes.ts`.
 
 ## Record-to-Report modules (20–26)
 
-Native R2R lifecycle under [`docs/task_breakdown`](docs/task_breakdown/auditsphere-r2r-index-task-breakdown.md):
-
-| Module | Scope |
-|---|---|
-| **20 — Workspace setup** | Client profiles, fiscal calendars, reporting periods, books, versioned charts, dimensions, taxonomy overlays. |
-| **21 — TB & GL intake** | Streaming CSV/XLSX intake, deterministic sealing, resumable GL batches, opening/movement completeness. |
-| **22 — Adjustments** | Draft journals, revision guards, dual-role decisions, reviewer-gated posting with separation of duties. |
-| **23 — Reconciliations & schedules** | Bank/AR-AP proofs, ECL matrix, NRV valuations, specialist schedules (PPE, loans, equity, tax, cash). |
-| **24 — Statements & taxonomy** | Chart-to-taxonomy mapping reviews, deterministic statement calculators. |
-| **25 — Package assembly** | Versioned packs, durable worker builds, exact-byte formula-free XLSX/PDF artifacts, review decisions. |
-| **26 — Consolidation & FX** | Perimeter scope, component pins, intercompany matching/elimination, IAS 21 translation. |
+[Module breakdown](docs/task_breakdown/auditsphere-r2r-index-task-breakdown.md): **20** workspace setup (profiles, calendars, periods, books, charts, dimensions, taxonomy); **21** TB/GL intake (CSV/XLSX, sealed/resumable batches, completeness); **22** adjustments (revision guards, independent decisions/posting); **23** reconciliations and specialist schedules (bank, AR/AP, ECL, NRV, PPE, loans, equity, tax, cash); **24** statements/taxonomy; **25** versioned package assembly, durable builds, formula-free XLSX/PDF and reviews; **26** consolidation and FX. Native bookkeeping is a separately gated client-service mode, not another R2R module.
 
 ## Stack & layout
 
-.NET 10 / C# 14 · EF Core 10 + Npgsql · PostgreSQL 18.6 (local port `5433`) · Angular 22 + Material/CDK · OpenXML + PDFsharp/MigraDoc · xUnit + Playwright.
+.NET 10 / C# 14 · ASP.NET Core 10 · EF Core 10 + Npgsql 10 · PostgreSQL 18.6 (local port `5433`) · Angular 22 + Material/CDK · Node 26.8.1 (`src/AuditSphereOps.Ui/.nvmrc`) · OpenXML + PDFsharp/MigraDoc · xUnit + Playwright.
 
 ```text
-src/AuditSphereOps.{Domain,Application,Infrastructure,Api,Ui,Worker}/
-tests/AuditSphereOps.{Domain,Api,E2E}.Tests/   docs/ (index · requirements · architecture · task_breakdown · testing · execution)
-scripts/db/  global.json  Directory.Packages.props
+src/AuditSphereOps.{Domain,Application,Infrastructure,Api,Worker}/
+src/AuditSphereOps.Ui/                         Angular 22 same-origin workspace
+tests/AuditSphereOps.{Domain,Api,E2E}.Tests/
+contracts/                                    checked-in OpenAPI contract
+scripts/{agent-check,contracts,db,dev,m365,ui,verification}/
+docs/{architecture,requirements,task_breakdown,testing,execution,operations}/
+infra/ · wiki/ · global.json · Directory.Packages.props
 ```
 
 ## Quickstart
 
 ```bash
-dotnet --version            # expect 10.0.300
+dotnet --version            # expect 10.0.300 from global.json
 dotnet tool restore         # pinned dotnet-ef
 dotnet restore AuditSphereOps.slnx --locked-mode
-npm --prefix src/AuditSphereOps.Ui ci   # Node version per src/AuditSphereOps.Ui/.nvmrc
+nvm use "$(cat src/AuditSphereOps.Ui/.nvmrc)"   # Node 26.8.1; skip if already active
+npm --prefix src/AuditSphereOps.Ui ci
 ```
 
 ```bash
 # macOS (Homebrew) — user-local cluster on :5433, trust auth on loopback
 pg_ctl -D /opt/homebrew/var/postgresql@18 -o "-p 5433" start
+createdb -h 127.0.0.1 -p 5433 -U postgres auditsphere       # if absent
+createdb -h 127.0.0.1 -p 5433 -U postgres auditsphere_tests # if absent
+# Apply pinned migrations to the local development database only.
+AUDITSPHERE_MIGRATION_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere;Username=postgres' \
+  dotnet ef database update --project src/AuditSphereOps.Infrastructure \
+  --startup-project src/AuditSphereOps.Api
+# Optional loopback restore rehearsal; drops only its generated restore database.
 scripts/db/restore-drill.sh
 # Windows — scripts\db\status.ps1 (ensure DBs) · start.ps1 · stop.ps1
 ```
@@ -98,6 +101,13 @@ npm --prefix src/AuditSphereOps.Ui start
 # Release publication remains a separate CI/operator workflow.
 ```
 
+```bash
+# Run only when the affected contract or EF model changes.
+bash scripts/contracts/verify-openapi.sh
+dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure \
+  --startup-project src/AuditSphereOps.Api --configuration Release
+```
+
 Per-test isolation: uniquely named disposable PostgreSQL schemas on `auditsphere_tests`; no InMemory fallback. Full regressions run in `release-verification.yml` on an immutable SHA — never locally after each edit. UI build/run details: `src/AuditSphereOps.Ui/auditsphere-angular-development.md`.
 
 ## Invariants
@@ -106,7 +116,8 @@ Per-test isolation: uniquely named disposable PostgreSQL schemas on `auditsphere
 - **Append-only evidence** — sealed datasets, posted journals, approvals, and releases enforced by Postgres triggers/constraints.
 - **Exact money** — `numeric(19,6)` + C# `decimal`; pure deterministic calculators (no EF, clocks, or I/O).
 - **Fail closed** — missing rates, unapproved perimeters, or stale evidence block release; humans make all audit opinions.
-- **Least-privilege M365** — `Sites.Selected` + per-site grants; no tenant-wide scopes ([permission boundary](docs/architecture/auditsphere-m365-tenant-administration-permissions.md)).
+- **Book isolation** — native client bookkeeping never posts to the firm ledger or consolidation components; consolidation never mutates component books.
+- **Least-privilege M365** — separate capability identities and exact-resource grants; no unscoped Graph roles or Entra administrator roles. SharePoint client-site provisioning uses its own owner-approved isolated boundary ([permission boundary](docs/architecture/auditsphere-m365-tenant-administration-permissions.md), [client-site decision](docs/architecture/auditsphere-client-sharepoint-sites-current.md)).
 - **Zero-warning Release builds**; `docs/execution/status.json` + current-slice handoff record only observed facts.
 
 ## Product roadmap and feature checklist
@@ -120,17 +131,18 @@ The [product crosswalk](docs/execution/auditsphere-execution-tracker-practice-ma
 | Checklist | Module / capability | Available implementation | Remaining work |
 | --- | --- | --- | --- |
 | ☐ Partially pending | Practice & commercial | Leads, client profiles/contacts, quotes, pricing, proposals, fee agreements and activation | Complete commercial acceptance, approved layouts/policy and provider delivery evidence. |
-| ☐ Partially pending | Workflow & tasks | Seven-phase workspace, eleven derived lifecycle states, expandable task checklists, operational due dates, saved Audit Plan milestones, role-authorized actions, templates with source-bound evidence prerequisites, bounded versioned dependencies, reviewed reminder rules and windows, queues, exact-pinned-template Required/Optional task labels and an NR-12 feature-off matrix; task- and edge-bound overflow reject atomically and Angular pins the 403 unavailable state | Approved/versioned jurisdictional source mapping and legal validation, remaining required-task graph semantics, broader recurrence/automation acceptance, remaining switch-off browser checks, broad role/accessibility acceptance. |
+| ☐ Partially pending | Workflow & tasks | Seven phases / eleven derived states; checklists, due dates, saved plan milestones, authorized actions, source-bound prerequisites, versioned dependencies, reminders/windows and queues. Pinned Required/Optional labels, NR-12 feature-off matrix, atomic graph bounds and persistent 403 unavailable state | Approved/versioned jurisdictional source mapping and legal validation, remaining required-task graph semantics, broader recurrence/automation acceptance, remaining switch-off browser checks, broad role/accessibility acceptance. |
 | ☐ Partially pending | Client collaboration | First sign-in, scoped PBC requests/uploads, comments, financial-package review, and portal invoices with separate posted/sent, recorded cash, credit, approved due-date and UTC aging states | Shared write-gate acceptance, exact accepted evidence sets, client-role browser acceptance and invoice-specific provider-delivery evidence. Invoice delivery remains explicitly untracked. |
 | ☐ Partially pending | People & time | Staffing, resource grid, recorded leave/training/public-holiday detail, phase/risk-attributed allocations, assigned-task time entry, budgets, rates and utilization | Broader role, responsive/accessibility, resource/time and current-release acceptance. |
 | ☐ Partially pending | Firm finance | Protected billing, fee settlements, receipt allocations, expenses, firm ledger, aging, WIP and profitability | Full financial workflow acceptance; firm pricing and end-of-service professional configuration. |
 | ☐ Partially pending | Client accounting — modules 20–23 | Setup, charts, periods, TB/GL, mappings, adjustments, reconciliations and specialist schedules | Complete source/review/correction workflows and professionally approved fixtures. |
+| ☐ Partially pending | Native client bookkeeping (gated) | Explicit source-mode cutover, client journals, counterparties, sales/purchase invoices and credit notes, opening balances and open-item allocations | Complete cutover and full bookkeeping acceptance; tax, delivery and official numbering remain partial. |
 | ☐ Partially pending | Financial reporting — modules 24–25 | Statements, comparatives, cash/equity schedules, disclosures, package builds and PDF/DOCX/XLSX | Approved indirect classifications, complete source-backed schedules/composition and release acceptance. |
 | ☐ Partially pending | Group consolidation — module 26 | Groups/scopes, ownership, component packs, intercompany matching, eliminations and FX | Current authorization/concurrency/browser acceptance and approved methodology. |
 | ☐ Partially pending | Audit planning & execution | Programs, materiality/risk, procedures, sampling, confirmations, workpapers and review | Qualified methodology decisions, terminal evidence mapping and complete review journeys. |
 | ☐ Partially pending | Completion, release & records | SRM/readiness, human decisions, report artifacts, sealing, signing hooks and archive lineage | Signing/legal policy, authoritative-store/provider acceptance and independent release review. |
 | ☐ Partially pending | Administration & security | Initial setup, users/grants, tenant capabilities, search, operations and progress | Whole-application isolation/revocation acceptance and operator readiness. |
-| ☐ Partially pending | Microsoft 365 & client sites | Isolated identities/workers, selected-resource verification, per-client site provisioning and managed staff reconciliation | Mail RBAC runtime/readback and migration support; approved rollout, live tenant positive/negative validation and production acceptance. |
+| ☐ Partially pending | Microsoft 365 & client sites | Isolated identities/workers, application-role and selected-site grants, per-client site provisioning, managed staff reconciliation and the authenticated intent/status adapter | Mail RBAC runtime/readback and migration support; approved rollout, live tenant positive/negative validation and production acceptance. |
 | ☐ Partially pending | Knowledge library | Technical pages and reusable audit-program library | Current authorization, authoring and workflow acceptance. |
 | ☐ Partially pending | Platform & durable operations | ASP.NET Core API, Angular, PostgreSQL, retries, idempotency and reconciliation | Current-SHA full CI, recovery/capacity/observability and deployment acceptance. |
 | ☐ Pending | Professional acceptance | Human review gates are retained | Named qualified methodology owner and independent reviewer approve applicable policies/fixtures. |
@@ -155,13 +167,13 @@ Parent modules remain partial. Current-source full CI, human accessibility revie
 | ☑ Completed | Assigned-task preparer time entry; narrow Time pagination | Domain/API cover assigned acceptance and unassigned denial; authorized managers may route unassigned work. Browser covers wrapping, refresh, pagination and skip-link focus; viewport E2E guard passed. |
 | ☑ Completed | Saved Audit Plan milestones and budget-review keyboard flow | Angular saved dates; browser empty milestones and budget preview/cancel/reopen with fresh assent. Both recovery routes pass; browser budget preparation and statutory/legal acceptance open. |
 | ☑ Completed | Scoped Debug hot reload | [Development loop](src/AuditSphereOps.Ui/auditsphere-angular-development.md#fast-backend-development-loop) reuses the proxy, avoids repeated restore/production bundling and refuses an occupied API port; focused launcher/restart probes pass. |
-| ☑ Completed | Entra registration, certificate and exact-role reconciliation; enrollment observer | Offline checks cover exact IDs, signed approval, uncertain creation, certificate overlap and current session. [Operator procedure](docs/operations/auditsphere-entra-registration-automation.md); live consent/custody/runtime gates remain open. |
+| ☑ Completed | Entra registration, certificate, exact application-role grants and enrollment reconciliation | Offline: exact IDs, signed approval, uncertain creation, certificate overlap, exact roles and current session. [Operator procedure](docs/operations/auditsphere-entra-registration-automation.md); no live tenant action or provider acceptance—live consent/custody/runtime gates remain open. |
 | ☑ Completed | Mail provider-readback adapter — offline engineering | Exact operator sessions, additive grants, scope membership, sender/control probes and read counters covered offline. Live output, API capability, RBAC runtime and migration acceptance remain separate. |
-| ☑ Completed | M365 plan permission boundaries and selected-document-site probe | Capability roles/resources, isolated certificates, redirect origins and incompatible Exchange models checked offline; exact site ownership/write grant and separate DOCUMENTS runtime probe include negative control. Simulations do not prove tenant acceptance. |
+| ☑ Completed | M365 plan permission boundaries, selected-site write grants and document-resource probe | Capability roles/resources, isolated certificates, redirect origins, incompatible Exchange models and exact selected-site application grants checked offline; the separate DOCUMENTS probe requires positive namespace reads and a known unrelated-site HTTP 403. Simulations do not prove tenant acceptance. |
 | ☑ Completed | Client-site review/local-intent API and worker safeguards | Application/API: admin, stale authority and persisted cutoff. Worker owns effects/receipts, rechecks authority and fences uncertain creation; queued ≠ provider success. |
 | ☑ Completed | Group report review-currentness guard | Returned component-package reviews block new runs and current report claims; final group authorization is rechecked. Focused regressions preserve historical runs and deny raw client artifacts to group-only readers. Broader release acceptance remains open. |
 | ☑ Completed | Statement content-review identities | Displays persisted revision, snapshot, reviewer and review IDs; rechecks read authority after fetch. Focused component/authorization checks and build pass. Approval rules are unchanged; broader currentness/browser acceptance remains open. |
-| ☑ Completed | Immutable correction source lineage | Exact scope/component provenance is retained on new scopes; same-group/period checks, immutable pins and safe downgrade are covered. No automatic supersession or approval is implied. Browser/release acceptance remains open. |
+| ☑ Completed | Immutable correction source lineage | Exact scope/component provenance is retained on new scopes; same-group/period checks, immutable pins and safe downgrade are covered. Owned browser handoff/readback preserves the approved source pack/run. No automatic supersession or approval; broader release acceptance open. |
 | ☑ Completed | Per-component pinned-source currentness | Server current/stale/unavailable differs from approval; Domain, Angular and owned browser checks pass. No newest-upload rule, re-pin or book write. Broader release acceptance open. |
 | ☑ Completed | Managed-only site membership removal and residual auditing | Unmanaged access is preserved; residual references retained in receipts/audit. Focused provider/PostgreSQL checks pass. |
 | ☑ Completed | Autonomous evidence integrity | Supervisor checks hashes/size and refuses missing, changed or symlinked evidence. M365 envelopes reject malformed checks and inconsistent read-only mutation counters. Existing checkpoints still need attributable revalidation. |
@@ -170,32 +182,11 @@ Parent modules remain partial. Current-source full CI, human accessibility revie
 
 **Angular quality/accessibility remains partial:** strict typing, feature-state extraction, command guards and lint have focused evidence. Remaining rendered states, native zoom and human screen-reader review are tracked in the [accessibility checklist](docs/testing/auditsphere-testing-checklist-angular-accessibility-current.md); current-source full CI is separate.
 
-### Available screens
+### Screen navigation
 
-All groups remain **partially pending** for full feature acceptance. Links identify
-implemented screens, not proof that every action has an adapter. Shared remaining
-gate: owning product/parity criteria and current end-to-end acceptance. Route
-aliases are consolidated from the [route registry](src/AuditSphereOps.Ui/src/app/app.routes.ts).
+Implemented screens cover administration, audit/records, accounting/reporting, gated native bookkeeping, client portal, firm finance, consolidation, knowledge, people/time, commercial and task workflows. Use the [Angular route registry](src/AuditSphereOps.Ui/src/app/app.routes.ts) for routes and the [code map](docs/architecture/auditsphere-architecture-code-map.md) for owning files. A route is not proof of functional parity; the product/parity trackers and current E2E evidence govern acceptance.
 
-<details>
-<summary>Browse implemented screens by module</summary>
-
-| Module | Screens | Acceptance |
-| --- | --- | --- |
-| Administration & operations | [Administration](src/AuditSphereOps.Ui/src/app/features/admin/overview.ts) · [Initial administrator setup](src/AuditSphereOps.Ui/src/app/features/admin/bootstrap.ts) · [Microsoft tenant connection](src/AuditSphereOps.Ui/src/app/features/admin/tenant.ts) · [Operations](src/AuditSphereOps.Ui/src/app/features/admin/operations.ts) · [Project task progress](src/AuditSphereOps.Ui/src/app/features/admin/progress.ts) · [Users & Access](src/AuditSphereOps.Ui/src/app/features/admin/access.ts) | Product/parity and current E2E gates. |
-| Audit & records | [Audit fieldwork](src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts) · [Audit plan](src/AuditSphereOps.Ui/src/app/features/audit/plan.ts) · [Audit program library](src/AuditSphereOps.Ui/src/app/features/audit/library.ts) · [Confirmations](src/AuditSphereOps.Ui/src/app/features/audit/confirmations.ts) · [Engagement completion](src/AuditSphereOps.Ui/src/app/features/audit/completion.ts) · [Finding](src/AuditSphereOps.Ui/src/app/features/audit/records.ts) · [Population](src/AuditSphereOps.Ui/src/app/features/audit/records.ts) · [Records archive](src/AuditSphereOps.Ui/src/app/features/audit/records.ts) · [Release candidate](src/AuditSphereOps.Ui/src/app/features/audit/records.ts) · [Review point](src/AuditSphereOps.Ui/src/app/features/audit/records.ts) · [Workpaper](src/AuditSphereOps.Ui/src/app/features/audit/workpaper.ts) | Product/parity and current E2E gates. |
-| Client accounting & reporting | [Accounting](src/AuditSphereOps.Ui/src/app/features/accounting/workspace.ts) · [Accounting evidence](src/AuditSphereOps.Ui/src/app/features/accounting/evidence.ts) · [Accounting mapping](src/AuditSphereOps.Ui/src/app/features/accounting/mapping.ts) · [Accounting period](src/AuditSphereOps.Ui/src/app/features/accounting/period.ts) · [Adjustment journal](src/AuditSphereOps.Ui/src/app/features/accounting/journal.ts) · [Adjustment journals](src/AuditSphereOps.Ui/src/app/features/accounting/records.ts) · [Adjustment plan eligibility](src/AuditSphereOps.Ui/src/app/features/accounting/adjustment-plans.ts) · [Adjustment plan review](src/AuditSphereOps.Ui/src/app/features/accounting/adjustment-plans.ts) · [Analysis evidence](src/AuditSphereOps.Ui/src/app/features/accounting/analysis-review.ts) · [Audit differences](src/AuditSphereOps.Ui/src/app/features/accounting/records.ts) · [Build financial package](src/AuditSphereOps.Ui/src/app/features/engagements/financial-package-build.ts) · [Currency remeasurement](src/AuditSphereOps.Ui/src/app/features/accounting/remeasurement.ts) · [FX rates & policies](src/AuditSphereOps.Ui/src/app/features/accounting/currency-configuration.ts) · [Finalize adjustment plan](src/AuditSphereOps.Ui/src/app/features/accounting/plan-command.ts) · [Financial statement package](src/AuditSphereOps.Ui/src/app/features/accounting/package.ts) · [Financial statements](src/AuditSphereOps.Ui/src/app/features/engagements/statements.ts) · [General ledger](src/AuditSphereOps.Ui/src/app/features/engagements/general-ledger.ts) · [General ledger completeness](src/AuditSphereOps.Ui/src/app/features/accounting/gl-completeness.ts) · [General ledger source acceptance](src/AuditSphereOps.Ui/src/app/features/accounting/source-acceptance.ts) · [General ledger upload](src/AuditSphereOps.Ui/src/app/features/engagements/gl-upload.ts) · [Independent mapping review](src/AuditSphereOps.Ui/src/app/features/accounting/mapping-approval.ts) · [Journal management evidence](src/AuditSphereOps.Ui/src/app/features/accounting/journal-management.ts) · [Mappings](src/AuditSphereOps.Ui/src/app/features/accounting/records.ts) · [Package reviews](src/AuditSphereOps.Ui/src/app/features/accounting/reviews.ts) · [Period restatements](src/AuditSphereOps.Ui/src/app/features/accounting/restatements.ts) · [Period roll-forward](src/AuditSphereOps.Ui/src/app/features/accounting/rollforward.ts) · [Prepare adjustment plan](src/AuditSphereOps.Ui/src/app/features/accounting/plan-command.ts) · [Prepare analytical review](src/AuditSphereOps.Ui/src/app/features/accounting/analytical-preparation.ts) · [Prepare journal](src/AuditSphereOps.Ui/src/app/features/accounting/journal-create.ts) · [Prepare mapping version](src/AuditSphereOps.Ui/src/app/features/accounting/mapping-draft.ts) · [Prepare reconciliation](src/AuditSphereOps.Ui/src/app/features/accounting/reconciliation-create.ts) · [Prepare specialist schedule](src/AuditSphereOps.Ui/src/app/features/accounting/specialist-preparation.ts) · [Prepare valuation](src/AuditSphereOps.Ui/src/app/features/accounting/valuation-preparation.ts) · [Reconciliation evidence](src/AuditSphereOps.Ui/src/app/features/accounting/reconciliation.ts) · [Review accounting evidence](src/AuditSphereOps.Ui/src/app/features/accounting/evidence-actions.ts) · [Source acceptance](src/AuditSphereOps.Ui/src/app/features/accounting/source-acceptance.ts) · [Trial balance intake](src/AuditSphereOps.Ui/src/app/features/engagements/tb-intake.ts) | Product/parity and current E2E gates. |
-| Client portal | [Client portal](src/AuditSphereOps.Ui/src/app/features/portal/home.ts) · [Billing and payment receipts](src/AuditSphereOps.Ui/src/app/features/portal/finance.ts) · [Document request](src/AuditSphereOps.Ui/src/app/features/portal/request.ts) · [Journal management response](src/AuditSphereOps.Ui/src/app/features/accounting/journal-management.ts) · [Management review](src/AuditSphereOps.Ui/src/app/features/portal/package.ts) | Invoice lifecycle, net recorded cash, issued credits, approved due date and UTC aging are projected separately; provider delivery is not tracked. Client-role browser and current release acceptance remain open. |
-| Firm finance | [End-of-service provision](src/AuditSphereOps.Ui/src/app/features/finance/end-of-service.ts) · [Fee settlements](src/AuditSphereOps.Ui/src/app/features/finance/fee-settlements.ts) · [Firm books](src/AuditSphereOps.Ui/src/app/features/finance/books.ts) · [Firm ledger](src/AuditSphereOps.Ui/src/app/features/finance/ledger.ts) · [Firm receivables ageing](src/AuditSphereOps.Ui/src/app/features/finance/receivables-aging.ts) · [Invoice](src/AuditSphereOps.Ui/src/app/features/finance/invoice.ts) | Product/parity and current E2E gates. |
-| Group consolidation | [Advanced consolidation](src/AuditSphereOps.Ui/src/app/features/consolidation/advanced.ts) · [Consolidation scope workspace](src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.ts) · [Group consolidation](src/AuditSphereOps.Ui/src/app/features/consolidation/overview.ts) | Product/parity and current E2E gates. |
-| Knowledge library | [Technical library](src/AuditSphereOps.Ui/src/app/features/library/library.ts) | Product/parity and current E2E gates. |
-| People & time | [Charge-out rates](src/AuditSphereOps.Ui/src/app/features/practice/rate-cards.ts) · [Resource planning](src/AuditSphereOps.Ui/src/app/features/practice/resources.ts) · [Time & work records](src/AuditSphereOps.Ui/src/app/features/practice/time.ts) | Phase/risk lines, aggregate capacity and exact saved availability entries have focused Domain, Angular and E2E evidence; broad role, responsive/accessibility and release acceptance remain. |
-| Practice & commercial | [Acceptance](src/AuditSphereOps.Ui/src/app/features/acceptance/checklist.ts) · [Add client contact](src/AuditSphereOps.Ui/src/app/features/clients/contact-create.ts) · [Client acceptance](src/AuditSphereOps.Ui/src/app/features/acceptance/assessment-route.ts) · [Client profile](src/AuditSphereOps.Ui/src/app/features/clients/client.ts) · [Commercial settings](src/AuditSphereOps.Ui/src/app/features/commercial/settings.ts) · [Convert prospect](src/AuditSphereOps.Ui/src/app/features/commercial/client-conversion.ts) · [Create blocked engagement](src/AuditSphereOps.Ui/src/app/features/clients/engagement-create.ts) · [Engagement](src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts) with a seven-phase saved-milestone workflow · [Leads](src/AuditSphereOps.Ui/src/app/features/commercial/leads.ts) · [Opportunities](src/AuditSphereOps.Ui/src/app/features/commercial/opportunities.ts) · [PBC requests](src/AuditSphereOps.Ui/src/app/features/engagements/pbc.ts) · [Portfolio](src/AuditSphereOps.Ui/src/app/features/portfolio/portfolio.ts) · [Practice analytics](src/AuditSphereOps.Ui/src/app/features/practice/analytics.ts) · [Proposal](src/AuditSphereOps.Ui/src/app/features/commercial/proposal.ts) · [Review activation](src/AuditSphereOps.Ui/src/app/features/engagements/activation.ts) | Approved/versioned jurisdictional milestone source mapping, role/accessibility and current end-to-end acceptance. |
-| Workflow & tasks | [My work](src/AuditSphereOps.Ui/src/app/features/practice/work-queue.ts) · [Reminder rules](src/AuditSphereOps.Ui/src/app/features/practice/reminder-rules.ts) · [Workflow templates](src/AuditSphereOps.Ui/src/app/features/practice/workflow-templates.ts) | Product/parity and current E2E gates. |
-
-</details>
-
-Purview/eSignature provider integrations, payment initiation and payroll execution remain outside approved scope; they are not pending roadmap commitments.
+Purview/eSignature providers, payment initiation and payroll execution are outside approved scope, not pending commitments.
 
 ## Docs
 
@@ -205,9 +196,13 @@ Start at [`docs/auditsphere-docs-index.md`](docs/auditsphere-docs-index.md), the
 |---|---|
 | [STE requirements](docs/requirements/auditsphere-accounting-module-requirements-current.md) | Commercial/audit-lifecycle contract. |
 | [Current architecture](docs/architecture/auditsphere-architecture-current-architecture.md) | Binding monolith structure and guards. |
+| [Code map](docs/architecture/auditsphere-architecture-code-map.md) | Capability-to-file ownership across Domain, Application, Infrastructure, API, Angular and tests. |
 | [Testing strategy](docs/testing/auditsphere-testing-strategy-definition-of-done-current.md) | Local-vs-CI verification rules. |
+| [Task board](docs/execution/auditsphere-execution-index-task-board-current.md) | Active work, dependencies and blockers. |
 | [status.json](docs/execution/status.json) | Machine-readable progress and evidence. |
 | [Current slice](docs/execution/auditsphere-execution-current-slice.md) | Active runbook and verified state. |
+| [M365 permissions](docs/architecture/auditsphere-m365-tenant-administration-permissions.md) | Least-privilege identity, consent and resource boundary. |
+| [M365 automation](docs/operations/auditsphere-entra-registration-automation.md) | Registration, grants, enrollment, selected-site setup and recovery. |
 
 ## Contributing
 
