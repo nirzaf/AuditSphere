@@ -197,10 +197,30 @@ describe('External consolidation component packs', () => {
     const setDetail = (rawPack: Record<string, unknown>) => detailData.set(decodeExternalPackDetail(detailPayload({ pack: rawPack }), 'root'));
 
     const reviewable = pack({ status: 'SUBMITTED', reconciliationStatus: 'PENDING', canReconcile: true, canReturn: true });
+    component.selectPack(id4);
     setDetail(reviewable);
     component.reconciliationEvidence.set('bank-reconciliation-26');
     component.reconcileReviewed.set(true);
+    fixture.detectChanges();
+
+    const button = (label: string) => [...fixture.nativeElement.querySelectorAll('button')]
+      .find(candidate => candidate.textContent?.trim() === label)! as HTMLButtonElement;
+    expect(button('Reconcile source lines').disabled).toBe(false);
+
+    fixture.componentRef.setInput('mutationBlocked', true);
+    fixture.detectChanges();
+    expect(button('Reconcile source lines').disabled).toBe(true);
+    expect(button('Refresh pack history').disabled).toBe(false);
+    button('Refresh pack history').click();
+    expect(workspaceResource.reload).toHaveBeenCalled();
     await component.reconcilePack(detailData()!.pack);
+    expect(api.command).not.toHaveBeenCalled();
+
+    fixture.componentRef.setInput('mutationBlocked', false);
+    fixture.detectChanges();
+    expect(button('Reconcile source lines').disabled).toBe(false);
+    await component.reconcilePack(detailData()!.pack);
+    expect(api.command).toHaveBeenCalledTimes(1);
     component.returnReason.set('Line references require correction');
     component.returnReviewed.set(true);
     await component.returnPack(detailData()!.pack);

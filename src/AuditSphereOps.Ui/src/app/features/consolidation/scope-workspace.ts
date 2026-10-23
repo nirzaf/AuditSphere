@@ -47,6 +47,7 @@ export class ConsolidationScopeWorkspace {
   readonly runsPageNumber = signal(1);
   readonly selectedComponentCorrection = signal<{ scopeId: string; componentId: string } | null>(null);
   readonly externalPacksScopeId = signal<string | null>(null);
+  readonly uncertainScopeId = signal<string | null>(null);
   readonly Math = Math;
   readonly ws = this.api.resource(
     () => this.id()
@@ -136,6 +137,7 @@ export class ConsolidationScopeWorkspace {
     settled?: () => void,
   ): Promise<boolean> {
     if (this.cmd.busy() || this.cmd.uncertain()) return false;
+    const commandScopeId = this.id()?.toLowerCase() ?? '';
     this.cmd.busy.set(true);
     this.cmd.message.set('');
     try {
@@ -146,13 +148,17 @@ export class ConsolidationScopeWorkspace {
           this.cmd.failed.set(true);
           this.cmd.code.set(outcome.code);
           this.cmd.uncertain.set(true);
-          this.cmd.message.set('A previous-scope action has an unconfirmed outcome. Reopen that scope and refresh before repeating it.');
+          this.uncertainScopeId.set(commandScopeId || null);
+          this.cmd.message.set('A previous-scope action has an unconfirmed outcome. Return to that scope to inspect its persisted state; server actions remain blocked until the original command outcome is confirmed.');
         }
         return false;
       }
       this.cmd.failed.set(!outcome.ok);
       this.cmd.code.set(outcome.ok ? '' : outcome.code);
-      if (!outcome.ok && outcome.unknown) this.cmd.uncertain.set(true);
+      if (!outcome.ok && outcome.unknown) {
+        this.cmd.uncertain.set(true);
+        this.uncertainScopeId.set(commandScopeId || null);
+      }
       this.cmd.message.set(outcome.ok ? success : outcome.message);
       if (outcome.ok) after?.(outcome.value);
       return outcome.ok;
@@ -215,6 +221,13 @@ export class ConsolidationScopeWorkspace {
   previousRunsPage(): void { this.runsPageNumber.update(page => Math.max(1, page - 1)); }
   nextRunsPage(page: ScopeWorkspace['runs']): void {
     if (page.page * page.pageSize < page.totalCount) this.runsPageNumber.set(page.page + 1);
+  }
+
+  refreshUnknownOutcome(): void {
+    const scopeId = this.id()?.toLowerCase();
+    if (!scopeId || !this.cmd.uncertain() || this.uncertainScopeId() !== scopeId) return;
+    this.cmd.message.set('Read-only scope refresh requested. It shows persisted state but does not confirm the original command outcome; server actions remain blocked until that outcome is confirmed.');
+    this.ws.reload();
   }
 
   selectedPackageId = '';

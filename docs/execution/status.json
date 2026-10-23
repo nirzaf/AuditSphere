@@ -33,13 +33,13 @@
   },
   "remainingLocalWork": [
     {
-      "item": "AS-PAR-002 \u2014 remaining whole-application scope and revocation coverage",
+      "item": "AS-PAR-002 — remaining whole-application scope and revocation coverage",
       "status": "PARTIAL",
       "details": "Whole-application scope, revocation, source-action behavior and dynamic acceptance remain partial. Use apiAngularParity for the attached backlog; the previous verification narrative is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-PAR-009 \u2014 Pricing review, evidence-bound dispatch and client response",
+      "item": "AS-PAR-009 — Pricing review, evidence-bound dispatch and client response",
       "status": "PARTIAL",
       "details": "Pricing implementation exists; firm-approved policy, provider delivery evidence and current end-to-end acceptance remain separate gates. Earlier implementation and check history is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -51,43 +51,43 @@
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "STE-NXT-014 \u2014 End-of-service accrual as a provision (ADR-0010)",
+      "item": "STE-NXT-014 — End-of-service accrual as a provision (ADR-0010)",
       "status": "PARTIAL",
       "details": "End-of-service accrual requires the existing approved treatment, provision and expense account configuration and independent Partner confirmation. Prior technical verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "ADR-0016 \u2014 Certificate signing of the final report (specification 4.4.1, 4.4.2)",
+      "item": "ADR-0016 — Certificate signing of the final report (specification 4.4.1, 4.4.2)",
       "status": "PARTIAL",
       "details": "Final report certificate policy, legal acceptance and live deployment remain explicit external/operator gates. Earlier technical signing evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-002 / FSR-010 / FSR-011 first slice \u2014 typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
+      "item": "FSR-002 / FSR-010 / FSR-011 first slice — typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
       "status": "PARTIAL",
       "details": "Typed and pinned financial statement presentation is implemented incrementally. Professional policy, complete approved schedules/disclosures, report composition and release acceptance remain governed by their current records. Prior slice narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-005 first slice \u2014 cash-flow movement evidence and adjusted cash cross-cast",
+      "item": "FSR-005 first slice — cash-flow movement evidence and adjusted cash cross-cast",
       "status": "PARTIAL",
       "details": "Source-backed cash flow and its professional classification policy remain governed by their current completion records. Historical first-slice verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "CP-13 \u2014 signed equity components and transfer workflow",
+      "item": "CP-13 — signed equity components and transfer workflow",
       "status": "PARTIAL",
       "details": "Equity components and transfer workflows remain subject to source lineage and independent professional acceptance. Historical increment evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-WF-V22 \u2014 v2.2 workflow experience PRs D\u2013I (WF-04 to WF-15) and production acceptance",
+      "item": "AS-WF-V22 — v2.2 workflow experience PRs D–I (WF-04 to WF-15) and production acceptance",
       "status": "PARTIAL",
       "details": "Workflow implementation does not replace professional approval or production acceptance. Current focused evidence is in targetedVerification; earlier long-form incremental narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) \u2014 NOT COMPLETE",
+      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) — NOT COMPLETE",
       "status": "PARTIAL",
       "details": "The production-readiness backlog remains incomplete; its external and independent acceptance gates are not closed by local parity implementation.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -964,7 +964,7 @@
     },
     "angularQuality20261022": {
       "result": "PARTIAL",
-      "criteria": "AC01\u201308 pass; AC09 partial; CI pending.",
+      "criteria": "AC01–08 pass; AC09 partial; CI pending.",
       "fastCi": "39818469441 SUCCESS on aedc42df; fast gate only.",
       "fullReleaseCi": "39818204512 SUCCESS on 48816d27; historical source, not current HEAD.",
       "browser": "All five surfaces and both shells sampled; full matrix partial.",
@@ -1050,47 +1050,12 @@
         "fullLocalSuites": "NOT_RUN"
       },
       "componentCurrentness": {
-        "status": "PARTIALLY_VERIFIED",
-        "scope": "WU-013 bounded per-component exact-pin currentness only; not whole group reporting completion",
-        "checks": {
-          "postgresql": "PASS: CompletionUnit=WU-013 selects 2 tests; .local/autonomous/evidence/wu013-currentness/component-currentness.trx",
-          "angular": "PASS: scope-workspace 20 tests after label-expectation correction; component-correction 5 tests on unchanged fixture; production build passed with existing commercial/settings.scss size warning",
-          "ownedBrowser": "PASS: ReviewerApprovalReadinessTracksTheCurrentGroupPerimeter, 1 test; .local/autonomous/evidence/wu013-currentness-browser/component-currentness-browser.trx",
-          "api": "PASS: targeted emitter Release build zero warnings/errors; generated contract adds only two currentness fields; OpenAPI drift passed",
-          "preservedWorkflows": "PASS: 3 existing tests for approved internal-component group workflow, external-pack history and immutable replacement refusal; .local/autonomous/evidence/wu013-currentness-neighbors/component-currentness-neighbors.trx",
-          "fastCi": {
-            "sourceCommit": "4cd62290d6282db16a2441ad565d28c0c35b2c03",
-            "runId": 39877468425,
-            "status": "FAST_CI_PASS"
-          }
-        },
-        "interactiveBrowser": "BLOCKED: current built-in tab observation denied by browser URL policy; no alternate observation attempted. Owned synthetic E2E is automated verification only.",
-        "remaining": [
-          "Group report release/export/archive boundary and full requirement audit",
-          "Independent release/professional acceptance"
-        ],
-        "fullLocalSuites": "NOT_RUN"
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.componentCurrentness",
+        "status": "Focused technical evidence retained; broader release acceptance separate."
       },
       "groupReportReviewCurrentness": {
-        "status": "PARTIALLY_VERIFIED",
-        "behavior": "Exact internal component package review/source evidence is reused for new runs, approvals and current report readback; final current financial output rechecks group authorization. Historical approvals/run lines unchanged; group-only raw-artifact access still denied.",
-        "checks": {
-          "postgresql": "PASS: 3 CompletionUnit=WU-013 tests incl legitimate partner return and revoked group reader race; .local/autonomous/evidence/wu013-group-review-final-authority/group-review-final-authority.trx",
-          "angular": "PASS: scope-workspace 21 focused tests incl stale report visibility and hidden current values; production build passed with existing commercial/settings.scss budget warning"
-        },
-        "apiBuild": "PASS: targeted Release API/emitter build, 0 warnings/errors; OpenAPI contract unchanged and drift check passed",
-        "ci": {
-          "status": "FAST_CI_PASS",
-          "sourceCommit": "f5441911d7309be244552efdce50107222ad8526",
-          "runId": 39880136113,
-          "imagePublicationRun": 39880136107,
-          "deployment": "NOT_RUN"
-        },
-        "fullLocalSuites": "NOT_RUN",
-        "remaining": [
-          "WU-013 typed correction-predecessor lineage audit and accepted group-report release boundary",
-          "Professional/live-provider release acceptance"
-        ]
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.groupReportReviewCurrentness",
+        "status": "Focused technical evidence retained; broader release acceptance separate."
       },
       "mailPlanBoundaries": {
         "status": "PARTIAL",
@@ -1114,7 +1079,13 @@
         "checks": "PASS: main TRX 1/1 .local/autonomous/evidence/wu013-correction-lineage/correction-lineage.trx; agent Angular36, corrected build (SCSS warning), EF model and OpenAPI checks passed. Migration null-pointer downgrade/reapply and retained-lineage downgrade refusal covered.",
         "remaining": "Owned correction browser PASS 1/1: .local/autonomous/evidence/wu013-correction-browser/ComponentCorrectionHandoff.retry2.trx; exact source IDs persisted and approved pin/pack/run retained. Current-source CI and broader group release remain open; no universal supersession policy required."
       },
-      "ciObserved": "FAST_CI_PASS39886871334 at6f69c97a20e332a6e457ce2326874bc782cd2091. Full39886113863 resolved368eada2cc2e169d11767055c4d39cbe7c96c960: Angular+Domain1522/1522PASS; verifyFAILfixturefixed6f; API/E2ERUNNING at2026-10-23T02:59:34+00:00. NOT_FULL_CI_PASS."
+      "ciObserved": "FAST_CI_PASS39892704014 atd5f425c3d94ceb63794ee71c254d013ccfeb1ccd. Full39886113863 resolved368eada2cc2e169d11767055c4d39cbe7c96c960: Angular+Domain1522+API399PASS; verifyFAILfixturefixed6f; E2ERUNNING at2026-10-23T03:09:27+00:00. NOT_FULL_CI_PASS.",
+      "scopeUnknownOutcome": {
+        "status": "PARTIAL",
+        "scope": "WU032 mutation buttons and external-pack commands honor parent unknown-outcome fence. Refresh uses existing resource and never clears uncertainty or dispatches duplicate commands. Local editing/navigation retained.",
+        "checks": "PASS: scope-workspace.spec.ts 23/23 and external-packs.spec.ts 5/5; Angular build PASS, existing commercial SCSS budget warning. Logs .local/autonomous/evidence/wu032-frontend/. No interactive browser/full-suite claim.",
+        "remaining": "Exact original-command receipt recovery, broader group-control browser acceptance and current-source CI."
+      }
     },
     "developmentFeedback20261023": {
       "status": "PARTIAL",
@@ -1208,7 +1179,7 @@
     {
       "gate": "P10",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Full \u00a747 real-tenant acceptance and professional sign-off"
+      "required": "Full §47 real-tenant acceptance and professional sign-off"
     },
     {
       "gate": "M365-ADMIN",

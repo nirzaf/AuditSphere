@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Consolidation unknown-outcome controls (2026-10-23)
+
+Mutation controls, including external-pack actions, now reflect the existing unknown-outcome fence. Read-only refresh uses the existing workspace resource without clearing uncertainty; navigation and local editing remain available. Focused Angular checks and build passed; no interactive browser verification is claimed. Exact receipt recovery and broader group acceptance remain open. Evidence is in `status.json`.
+
 ## Statement content-review identity display (2026-10-23)
 
 The content-review screen exposes the actual presentation revision, full snapshot digest, review IDs and reviewer IDs already returned by the API. Returned decisions remain unapproved; no review or source-currentness policy changes. Read authority is rechecked after review fetch: revocation denies content, while a retained read grant still allows read-only access. The focused Angular component checks and corrected build passed. Full source-backed presentation closure, browser acceptance and professional decisions remain separate; evidence is in `status.json`.
@@ -309,9 +313,7 @@ The seven-phase engagement projection now shows each phase's nearest due date fr
 
 ## Practice-management ledger-boundary regression (2026-10-18)
 
-NR-11 is complete for the named three-book and reporting cases. Firm-ledger posting and the actual firm billing-invoice post leave client books unchanged; a client sales-invoice post creates no firm journal/posting and leaves the firm analytics aggregate unchanged; and the approved consolidation workflow preserves exact component TB rows, imported GL, native-journal evidence and package manifests. The original PostgreSQL cohort passed 3/3 on `a67b296f`, and the new firm-billing/client-report extensions passed 2/2 in the current focused run.
-
-NR-12 remains partial. The crosswalk now maps five v2.2/host switches to existing off-path API and worker tests, their retained-state boundaries, and uncovered UI/configuration checks. The Angular work-queue spec also pins the explicit 403 unavailable message and confirms denied responses do not render summary/task cards (2/2 tests passed on the current slice). Built-in browser opened `/app/work`, but the local API currently has workflow tasks enabled and returned its normal view with one synthetic task; the route was read-only and produced no console errors or warnings. Therefore the disabled route itself was not browser-verified. The matrix is evidence mapping, not a fresh full regression or deployed-configuration acceptance. PM-01 remains gated on an approved, versioned jurisdictional source mapping; saved Audit Plan milestones and operational task deadlines are separate projections.
+Retained evidence and limits moved to the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#practice-management-ledger-boundary-regression-2026-10-18).
 
 ## Practice time return and resubmission (2026-10-18)
 

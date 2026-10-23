@@ -1,10 +1,11 @@
 import { signal, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
-import { Api } from '../../core/api';
+import { Api, UNKNOWN_OUTCOME } from '../../core/api';
 import { SessionService } from '../../core/session';
 import {
   decodeScopeWorkspace,
@@ -16,6 +17,7 @@ import {
   ScopeWorkspace,
 } from './scope-contracts';
 import { ConsolidationScopeWorkspace } from './scope-workspace';
+import { ConsolidationExternalPacks } from './external-packs';
 import { formatOwnershipPercent } from './scope-amounts';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
@@ -649,6 +651,94 @@ describe('Consolidation Scope Workspace Contracts', () => {
     await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
     expect(resource.reload).not.toHaveBeenCalled();
     expect(component.cmd.message()).toBe('');
+  });
+
+  it('keeps server mutations fenced after an unknown outcome while allowing read-only scope refresh', async () => {
+    const packageId = matchId3;
+    const submittedComponent = {
+      ...consolidationComponent(matchId1, id2), status: 'SUBMITTED', submittedByUserId: id2,
+      approvedByUserId: null, approvedAt: null, canApprove: true, approvalBlocker: null,
+    };
+    const draft = workspacePayload({
+      scope: { ...workspacePayload().scope, status: 'DRAFT' },
+      canApproveScope: true,
+      scopeApprovalBlocker: null,
+      eligiblePackages: [{ packageId, clientId: id2, clientLegalName: 'Synthetic Component', engagementId: id3,
+        periodBasis: '2026-01-01..2026-12-31', taxonomyVersion: 'IFRS-2026', mappingVersion: '1', currency: 'QAR', calculationHash: hash64 }],
+      components: [submittedComponent],
+      journals: [journal(matchId2, 'EJ-SUBMITTED', 'SUBMITTED', id2), journal(matchId3, 'EJ-RETURNED', 'Returned', id2)],
+    });
+    const { fixture, component } = open(draft);
+    const root = fixture.nativeElement as HTMLElement;
+    const button = (label: string) => [...root.querySelectorAll('button')]
+      .find(candidate => candidate.textContent?.trim() === label)!;
+    const packageSelect = root.querySelector('select[name="selectedPackage"]') as HTMLSelectElement;
+    packageSelect.value = packageId;
+    packageSelect.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+
+    const scopeApproval = button('Approve perimeter');
+    const componentActions = [...root.querySelectorAll('#components tbody tr button')] as HTMLButtonElement[];
+    const journalRows = [...root.querySelectorAll('#journals table[aria-labelledby="journals-heading"] tbody tr')] as HTMLTableRowElement[];
+    const submitComponent = button('Submit component');
+    expect(scopeApproval.disabled).toBe(false);
+    expect(submitComponent.disabled).toBe(false);
+    expect(componentActions[0].textContent?.trim()).toBe('Approve');
+    expect(componentActions[0].disabled).toBe(false);
+    expect(journalRows[0].querySelector('button')?.disabled).toBe(false);
+    expect(journalRows[1].querySelector('button')?.disabled).toBe(false);
+
+    api.command.mockResolvedValueOnce({ ok: false, unknown: true, code: 'outcome.unknown', status: 0, message: UNKNOWN_OUTCOME });
+    scopeApproval.click();
+    await vi.waitFor(() => expect(component.cmd.uncertain()).toBe(true));
+    await fixture.whenStable();
+    expect(root.textContent).toContain(UNKNOWN_OUTCOME);
+    expect(scopeApproval.disabled).toBe(true);
+    expect(submitComponent.disabled).toBe(true);
+    expect(componentActions[0].disabled).toBe(true);
+    expect(journalRows[0].querySelector('button')?.disabled).toBe(true);
+    expect(journalRows[1].querySelector('button')?.disabled).toBe(true);
+
+    const createJournalDetails = root.querySelector('#journals details') as HTMLDetailsElement;
+    createJournalDetails.open = true;
+    await fixture.whenStable();
+    const linesBefore = component.journalLines().length;
+    expect(button('Add line').disabled).toBe(false);
+    button('Add line').click();
+    await fixture.whenStable();
+    expect(component.journalLines()).toHaveLength(linesBefore + 1);
+    expect(button('Open external component packs').disabled).toBe(false);
+    expect(root.querySelector('nav[aria-label="Consolidation location"] a')).not.toBeNull();
+    button('Open external component packs').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const externalPacks = fixture.debugElement.query(By.directive(ConsolidationExternalPacks))
+      .componentInstance as ConsolidationExternalPacks;
+    expect(externalPacks.mutationBlocked()).toBe(true);
+    await externalPacks.submitPack({} as never);
+    expect(api.command).toHaveBeenCalledTimes(1);
+
+    const refreshed = workspacePayload({
+      ...draft,
+      scope: { ...draft.scope, status: 'APPROVED' },
+      canApproveScope: false,
+      scopeApprovalBlocker: null,
+    });
+    resource.reload.mockClear();
+    resource.reload.mockImplementationOnce(() => workspaceData.set(decodeScopeWorkspace(refreshed, 'root')));
+    expect(button('Refresh persisted scope').disabled).toBe(false);
+    button('Refresh persisted scope').click();
+    await vi.waitFor(() => expect(resource.reload).toHaveBeenCalledOnce());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.cmd.uncertain()).toBe(true);
+    expect(component.uncertainScopeId()).toBe(id1);
+    expect(component.ws.data()?.scope.status).toBe('APPROVED');
+    expect(button('Calculate consolidation run').disabled).toBe(true);
+    expect(button('Refresh persisted scope').disabled).toBe(false);
+    expect(root.textContent).toContain('cannot confirm whether the original command completed');
+    expect(api.command).toHaveBeenCalledTimes(1);
   });
 
   it('renders submitted-journal review, denies same-maker approval, and dispatches Returned resubmission', async () => {

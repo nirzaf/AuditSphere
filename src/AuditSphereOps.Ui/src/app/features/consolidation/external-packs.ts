@@ -241,16 +241,16 @@ function isHash(value: string): boolean { return /^[0-9a-f]{64}$/.test(value); }
                   @if (d.pack.canReconcile && w.canReviewPacks) {
                     <label>Reconciliation evidence reference * <input name="reconciliationEvidence" [ngModel]="reconciliationEvidence()" (ngModelChange)="reconciliationEvidence.set($event); reconcileReviewed.set(false)" maxlength="2000" /></label>
                     <label><input type="checkbox" name="reconcileReviewed" [ngModel]="reconcileReviewed()" (ngModelChange)="reconcileReviewed.set($event)" /> I reviewed the retained source and every line page at group revision {{ w.currentGroupRevision }}.</label>
-                    <button type="button" (click)="reconcilePack(d.pack)" [disabled]="cmd().busy() || cmd().uncertain() || !d.pack.canReconcile || !reconcileReviewed() || !reconciliationEvidence().trim()">Reconcile source lines</button>
+                    <button type="button" (click)="reconcilePack(d.pack)" [disabled]="mutationBlocked() || cmd().busy() || cmd().uncertain() || !d.pack.canReconcile || !reconcileReviewed() || !reconciliationEvidence().trim()">Reconcile source lines</button>
                   }
                   @if (d.pack.canReturn && w.canReviewPacks) {
                     <label>Return reason * <textarea name="returnReason" [ngModel]="returnReason()" (ngModelChange)="returnReason.set($event); returnReviewed.set(false)" maxlength="2000"></textarea></label>
                     <label><input type="checkbox" name="returnReviewed" [ngModel]="returnReviewed()" (ngModelChange)="returnReviewed.set($event)" /> I reviewed this pack and its return reason at group revision {{ w.currentGroupRevision }}.</label>
-                    <button type="button" (click)="returnPack(d.pack)" [disabled]="cmd().busy() || cmd().uncertain() || !d.pack.canReturn || !returnReviewed() || !returnReason().trim()">Return this pack</button>
+                    <button type="button" (click)="returnPack(d.pack)" [disabled]="mutationBlocked() || cmd().busy() || cmd().uncertain() || !d.pack.canReturn || !returnReviewed() || !returnReason().trim()">Return this pack</button>
                   }
                   @if (d.pack.canApprove && w.canReviewPacks) {
                     <label><input type="checkbox" name="approveReviewed" [ngModel]="approveReviewed()" (ngModelChange)="approveReviewed.set($event)" /> I independently reviewed all retained source lines, reconciliation and bridge state at group revision {{ w.currentGroupRevision }}.</label>
-                    <button type="button" (click)="approvePack(d.pack)" [disabled]="cmd().busy() || cmd().uncertain() || !d.pack.canApprove || !approveReviewed()">Approve source pack</button>
+                    <button type="button" (click)="approvePack(d.pack)" [disabled]="mutationBlocked() || cmd().busy() || cmd().uncertain() || !d.pack.canApprove || !approveReviewed()">Approve source pack</button>
                   }
                 </section>
               }
@@ -262,7 +262,7 @@ function isHash(value: string): boolean { return /^[0-9a-f]{64}$/.test(value); }
                   <label>Ownership percentage points * <input name="pinOwnership" inputmode="decimal" [ngModel]="pinOwnershipPercent()" (ngModelChange)="pinOwnershipPercent.set($event); pinReviewed.set(false)" maxlength="10" /></label>
                   <label>Control method * <select name="pinControl" [ngModel]="pinControlMethod()" (ngModelChange)="pinControlMethod.set($event); pinReviewed.set(false)"><option value="">Choose the evidenced control method</option><option value="CONTROLLED">CONTROLLED</option></select></label>
                   <label><input type="checkbox" name="pinReviewed" [ngModel]="pinReviewed()" (ngModelChange)="pinReviewed.set($event)" /> I reviewed this approved pack, exact ownership and control values at group revision {{ w.currentGroupRevision }}.</label>
-                  <button type="button" (click)="pinPack(d.pack)" [disabled]="cmd().busy() || cmd().uncertain() || !d.pack.canPin || !pinReviewed() || !validPinValues()">Submit external component</button>
+                  <button type="button" (click)="pinPack(d.pack)" [disabled]="mutationBlocked() || cmd().busy() || cmd().uncertain() || !d.pack.canPin || !pinReviewed() || !validPinValues()">Submit external component</button>
                 </section>
               }
             }
@@ -333,7 +333,7 @@ function isHash(value: string): boolean { return /^[0-9a-f]{64}$/.test(value); }
               @if (sourceLines().length) { <p>Exact declared signed total: <strong>{{ declaredSignedTotal() }} {{ form.reportingCurrency || 'source currency' }}</strong></p> }
               @if (hasCurrencyMismatch()) { <p role="alert">Every normalized line currency must match the pack reporting currency exactly.</p> }
               <label><input type="checkbox" name="prepareReviewed" [ngModel]="prepareReviewed()" (ngModelChange)="prepareReviewed.set($event)" /> I reviewed the selected source bytes, calculated hashes, typed-line preview, exact amounts and current scope/group revision.</label>
-              <button type="submit" [disabled]="!w.canSubmitPack || !scopeCurrent(w) || cmd().busy() || cmd().uncertain() || sourceBusy() || !prepareReviewed() || !validPackForm(w)">Submit immutable source pack</button>
+              <button type="submit" [disabled]="mutationBlocked() || !w.canSubmitPack || !scopeCurrent(w) || cmd().busy() || cmd().uncertain() || sourceBusy() || !prepareReviewed() || !validPackForm(w)">Submit immutable source pack</button>
             </fieldset>
           </form>
         } @else {
@@ -356,6 +356,7 @@ export class ConsolidationExternalPacks {
   private lastScopeId = '';
   private sourceGeneration = 0;
   readonly scopeId = input.required<string>();
+  readonly mutationBlocked = input(false);
   readonly componentPinned = output<void>();
   readonly page = signal(1);
   readonly clientPage = signal(1);
@@ -632,7 +633,7 @@ export class ConsolidationExternalPacks {
   }
 
   async submitPack(page: PackPage): Promise<void> {
-    if (!page.canSubmitPack || !this.scopeCurrent(page) || !this.prepareReviewed() || !this.validPackForm(page) || this.sourceBusy()) return;
+    if (this.mutationBlocked() || !page.canSubmitPack || !this.scopeCurrent(page) || !this.prepareReviewed() || !this.validPackForm(page) || this.sourceBusy()) return;
     const body = {
       clientId: this.form.clientId, engagementId: this.form.engagementId,
       periodStart: this.form.periodStart, periodEnd: this.form.periodEnd,
@@ -658,6 +659,7 @@ export class ConsolidationExternalPacks {
   }
 
   async reconcilePack(pack: PackDetail['pack']): Promise<void> {
+    if (this.mutationBlocked()) return;
     const page = this.workspace.data();
     const detail = this.detail.data();
     if (!page || !detail || !this.detailCurrent(detail, page) || detail.pack.id !== pack.id || !page.canReviewPacks ||
@@ -671,6 +673,7 @@ export class ConsolidationExternalPacks {
   }
 
   async returnPack(pack: PackDetail['pack']): Promise<void> {
+    if (this.mutationBlocked()) return;
     const page = this.workspace.data();
     const detail = this.detail.data();
     if (!page || !detail || !this.detailCurrent(detail, page) || detail.pack.id !== pack.id || !page.canReviewPacks ||
@@ -683,6 +686,7 @@ export class ConsolidationExternalPacks {
   }
 
   async approvePack(pack: PackDetail['pack']): Promise<void> {
+    if (this.mutationBlocked()) return;
     const page = this.workspace.data();
     const detail = this.detail.data();
     if (!page || !detail || !this.detailCurrent(detail, page) || detail.pack.id !== pack.id || !page.canReviewPacks ||
@@ -693,6 +697,7 @@ export class ConsolidationExternalPacks {
   }
 
   async pinPack(pack: PackDetail['pack']): Promise<void> {
+    if (this.mutationBlocked()) return;
     const page = this.workspace.data();
     const detail = this.detail.data();
     if (!page || !detail || !this.detailCurrent(detail, page) || detail.pack.id !== pack.id || !page.canPinApprovedPacks ||

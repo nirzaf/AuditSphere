@@ -96,7 +96,7 @@
                 </select>
               </label>
 
-              <button matButton="filled" (click)="submitComponent(w)" [disabled]="cmd.busy() || !selectedPackageId || !isValidOwnershipPercent(ownershipPercent)">
+              <button matButton="filled" (click)="submitComponent(w)" [disabled]="cmd.busy() || cmd.uncertain() || !selectedPackageId || !isValidOwnershipPercent(ownershipPercent)">
                 Submit component
               </button>
             </div>
@@ -196,7 +196,7 @@
         </button>
         <div id="external-packs-workspace">
           @if (isExternalPacksOpen(w)) {
-            <audit-consolidation-external-packs [scopeId]="w.scope.id" (componentPinned)="ws.reload()" />
+            <audit-consolidation-external-packs [scopeId]="w.scope.id" [mutationBlocked]="cmd.uncertain()" (componentPinned)="ws.reload()" />
           }
         </div>
       </section>
@@ -286,7 +286,7 @@
                 <button
                   matButton="filled"
                   (click)="createJournal(w.scope.id)"
-                  [disabled]="cmd.busy() || !isJournalBalanced() || !journalNumber.trim() || !journalEvidence.trim()"
+                  [disabled]="cmd.busy() || cmd.uncertain() || !isJournalBalanced() || !journalNumber.trim() || !journalEvidence.trim()"
                 >
                   Submit journal
                 </button>
@@ -340,17 +340,17 @@
                   <td>
                     @if (j.status === 'SUBMITTED' && w.canReview && j.createdByUserId !== w.currentUserId) {
                       <div class="actions">
-                        <button matButton="filled" (click)="approveJournal(j.id)" [disabled]="cmd.busy()">
+                        <button matButton="filled" (click)="approveJournal(j.id)" [disabled]="cmd.busy() || cmd.uncertain()">
                           Approve
                         </button>
-                        <button type="button" (click)="promptReturnJournal(j.id)" [disabled]="cmd.busy()">
+                        <button type="button" (click)="promptReturnJournal(j.id)" [disabled]="cmd.busy() || cmd.uncertain()">
                           Return
                         </button>
                       </div>
                     } @else if (j.status === 'SUBMITTED' && j.createdByUserId === w.currentUserId) {
                       <small>Maker/checker: independent review required</small>
                     } @else if (j.status === 'Returned' && w.canPrepare) {
-                      <button matButton="filled" (click)="resubmitJournal(j.id)" [disabled]="cmd.busy()">
+                      <button matButton="filled" (click)="resubmitJournal(j.id)" [disabled]="cmd.busy() || cmd.uncertain()">
                         Resubmit
                       </button>
                     } @else if (j.status === 'APPROVED') {
@@ -378,7 +378,7 @@
 
         @if (w.canPrepare && w.scope.status === 'APPROVED') {
           <div class="actions" style="margin-bottom: 1rem;">
-            <button matButton="filled" (click)="runConsolidation(w.scope.id)" [disabled]="cmd.busy()">
+            <button matButton="filled" (click)="runConsolidation(w.scope.id)" [disabled]="cmd.busy() || cmd.uncertain()">
               Calculate consolidation run
             </button>
           </div>
@@ -406,7 +406,7 @@
                   <td><audit-status [value]="r.status" /></td>
                   <td>
                     @if (r.status === 'SUBMITTED' && w.canReview && r.createdByUserId !== w.currentUserId) {
-                      <button matButton="filled" (click)="approveRun(r.id)" [disabled]="cmd.busy()">
+                      <button matButton="filled" (click)="approveRun(r.id)" [disabled]="cmd.busy() || cmd.uncertain()">
                         Approve run
                       </button>
                     } @else if (r.status === 'SUBMITTED' && r.createdByUserId === w.currentUserId) {
@@ -677,7 +677,7 @@
                 <input type="checkbox" name="reviewedIntercompanyMatch" [(ngModel)]="intercompanyForm.reviewed" [disabled]="!intercompany.canReviewAssent(w, options)">
                 I reviewed both counterparties, exact amounts, taxonomies, evidence and the current group revision.
               </label>
-              <button matButton="filled" type="submit" [disabled]="cmd.busy() || !canSubmitIntercompanyMatch(w, options)">Submit for independent review</button>
+              <button matButton="filled" type="submit" [disabled]="cmd.busy() || cmd.uncertain() || !canSubmitIntercompanyMatch(w, options)">Submit for independent review</button>
             </form>
           }
         }
@@ -720,7 +720,7 @@
                     <td>
                       @if (canApproveIntercompanyMatch(w, item, matchPage)) {
                         <label><input type="checkbox" [ngModel]="isIntercompanyApprovalReviewed(item.matchId)" [ngModelOptions]="{ standalone: true }" (ngModelChange)="setIntercompanyApprovalReviewed(item.matchId, $event)"> I reviewed the full retained match and current revision</label>
-                        <button matButton="filled" type="button" (click)="approveIntercompanyMatch(w, item, matchPage)" [disabled]="cmd.busy() || !isIntercompanyApprovalReviewed(item.matchId)">Approve match</button>
+                        <button matButton="filled" type="button" (click)="approveIntercompanyMatch(w, item, matchPage)" [disabled]="cmd.busy() || cmd.uncertain() || !isIntercompanyApprovalReviewed(item.matchId)">Approve match</button>
                       } @else if (item.status === 'SUBMITTED' && item.createdByUserId === w.currentUserId) {
                         <span>Maker/checker: preparers cannot approve their own match.</span>
                       } @else if (item.status === 'SUBMITTED' && !isCurrentIntercompanyPageRevision(w, matchPage)) {
@@ -747,4 +747,19 @@
       </section>
     }
 
-    <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
+    @if (cmd.uncertain()) {
+      <section class="panel" aria-labelledby="unknown-outcome-heading">
+        <h2 id="unknown-outcome-heading">Action outcome not confirmed</h2>
+        <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
+        @if (uncertainScopeId() === id()?.toLowerCase()) {
+          <p>This read-only refresh shows the currently persisted scope. It cannot confirm whether the original command completed, so server actions stay blocked until that command outcome is confirmed.</p>
+          <button matButton="outlined" type="button" (click)="refreshUnknownOutcome()" [disabled]="ws.loading()">
+            {{ ws.loading() ? 'Refreshing persisted scope…' : 'Refresh persisted scope' }}
+          </button>
+        } @else {
+          <p>Return to the scope that initiated the action to refresh its persisted state. No command was repeated.</p>
+        }
+      </section>
+    } @else {
+      <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
+    }
