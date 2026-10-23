@@ -33,6 +33,7 @@ const validPayload = {
       ],
       packageId: id2,
       packageStatus: 'VALIDATED',
+      packageEvidence: { current: true, message: 'Exact package evidence is current.' },
       partnerApproved: true,
       eqrStatus: 'CONCURRED',
       releaseCandidateId: id3,
@@ -437,6 +438,7 @@ describe('Report certificate signing (ADR-0016)', () => {
 
   it('withholds signing while a required certificate is unavailable and says why', () => {
     const blocked = { ...validPayload, deliverables: [draft],
+      packageEvidence: { current: false, message: 'The approved source has been returned.' }, partnerApproved: false, canPrepareRelease: false,
       reportSigning: { mode: 'CERTIFICATE', required: true, ready: false, subject: null, notAfter: null, message: 'No report-signing certificate is configured.' } };
     const { f } = open(blocked);
     const host = f.nativeElement as HTMLElement;
@@ -444,6 +446,10 @@ describe('Report certificate signing (ADR-0016)', () => {
     expect(sign.disabled).toBe(true);
     expect(host.querySelector('[data-report-signing]')?.getAttribute('role')).toBe('alert');
     expect(host.textContent).toContain('No report-signing certificate is configured.');
+    expect(host.querySelector('[data-package-evidence]')?.getAttribute('role')).toBe('alert');
+    expect(host.textContent).toContain('The approved source has been returned.');
+    expect(host.textContent).toContain('Current approval not established');
+    expect(host.textContent).toContain('Recorded approvals remain historical evidence');
     f.destroy();
   });
 

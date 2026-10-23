@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Security;
@@ -15,7 +16,7 @@ public sealed partial class AuditDeliverablesTests
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
     var partner = w.A("partner", "Partner");
-    var (_, releaseId) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options,
+    var (packageId, releaseId) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options,
       new CompletionBundleScope(w.FirmId, w.ClientId, w.EngagementId, w.U));
 
     await using var db = new AuditSphereDbContext(pg.Options);
@@ -36,6 +37,29 @@ public sealed partial class AuditDeliverablesTests
     Assert.True(release.CheckpointReadBackMatchesManifest);
     Assert.True(release.ReleaseMatchesCandidate);
     Assert.Equal(storedRelease.ReleasedAt, release.ReleasedAt);
+
+    Assert.True(workspace.Value.PackageEvidence!.Current, workspace.Value.PackageEvidence.Message);
+    Assert.True(workspace.Value.PartnerApproved);
+    var decisionIds = await db.FinancialPackageReviewDecisions.AsNoTracking()
+      .Where(x => x.FinancialPackageId == packageId).OrderBy(x => x.Id).Select(x => x.Id).ToListAsync();
+    var returned = await CashFlowSourceReviewCall.RecordAsync(db, w.A("senior", "AccountingReviewer"),
+      packageId, "RETURNED", "Synthetic correction requires independent source re-review.");
+    Assert.True(returned.Succeeded, returned.Message);
+
+    var stale = await EngagementCompletionWorkspaceQuery.GetAsync(db, partner, w.EngagementId, DateTimeOffset.UtcNow);
+    Assert.True(stale.Succeeded, stale.Message);
+    Assert.False(stale.Value!.PackageEvidence!.Current);
+    Assert.False(stale.Value.PartnerApproved);
+    Assert.False(stale.Value.CanPrepareRelease);
+    var packageGates = stale.Value.Gates.Where(x => x.Name.StartsWith("Package ", StringComparison.Ordinal)).ToList();
+    Assert.NotEmpty(packageGates);
+    Assert.All(packageGates, gate => { Assert.Equal("RECORDED_APPROVAL", gate.Status); Assert.Equal("neutral", gate.Tone); });
+    Assert.Equal(decisionIds, await db.FinancialPackageReviewDecisions.AsNoTracking()
+      .Where(x => x.FinancialPackageId == packageId).OrderBy(x => x.Id).Select(x => x.Id).ToListAsync());
+    // An issued record is historical fact even when its source is no longer current for a new release.
+    Assert.Equal(releaseId, stale.Value.Release!.ReleaseId);
+    Assert.Equal(release.ReleaseManifestDigest, stale.Value.Release.ReleaseManifestDigest);
+    Assert.Equal("ISSUED", stale.Value.Release.IssueState);
   }
 
   [Fact]
@@ -67,5 +91,6 @@ public sealed partial class AuditDeliverablesTests
     Assert.True(workspace.Succeeded, workspace.Message);
     Assert.Empty(workspace.Value!.OpinionTypes);
     Assert.False(workspace.Value.CanPrepareRelease);
+    Assert.False(workspace.Value.PackageEvidence!.Current);
   }
 }

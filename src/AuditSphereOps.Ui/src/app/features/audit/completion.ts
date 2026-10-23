@@ -15,7 +15,7 @@ export const decodeSignatureCheck = obj({ signatureKind: oneOf('VISUAL', 'CERTIF
 export const decodeCompletion = obj({ engagementId: guid,
   gates: arr(obj({ name: text, status: text, tone: text, authority: nullable(text), date: nullable(instant) }), 50),
   representations: arr(obj({ code: text, title: text, narrative: text, obtained: bool }), 500),
-  packageId: nullable(guid), packageStatus: text, partnerApproved: bool, eqrStatus: text, releaseCandidateId: nullable(guid),
+  packageId: nullable(guid), packageStatus: text, packageEvidence: nullable(obj({ current: bool, message: text })), partnerApproved: bool, eqrStatus: text, releaseCandidateId: nullable(guid),
   release: nullable(obj({ candidateId: guid, candidateStatus: oneOf('READY', 'ISSUED'), targetKind: text, targetRevision: nat, candidateRevision: nat,
     manifestDigest: text, candidateCreatedAt: instant, checkpointId: nullable(guid), checkpointState: oneOf('ABSENT', 'VERIFIED', 'PENDING', 'MISMATCHED', 'EXPIRED'),
     checkpointVerifiedAt: nullable(instant), checkpointMatchesCandidate: bool, checkpointReadBackMatchesManifest: bool, releaseId: nullable(guid),
@@ -60,6 +60,10 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
       <section class="panel" aria-labelledby="release-state-heading">
         <h2 id="release-state-heading">Final release evidence</h2>
         <p>Financial package: @if (w.packageId) { <code>{{ w.packageId }}</code> · {{ w.packageStatus }} } @else { No package recorded. }</p>
+        @if (w.packageEvidence; as evidence) {
+          <p [attr.role]="evidence.current ? 'status' : 'alert'" data-package-evidence><strong>Current package release evidence: {{ evidence.current ? 'Verified' : 'Not established' }}.</strong> {{ evidence.message }}</p>
+          @if (!evidence.current) { <p>Recorded approvals remain historical evidence; they do not establish that the package is currently ready for release.</p> }
+        }
         @if (w.release; as r) {
           <dl class="facts">
             <dt>Candidate</dt><dd><a [routerLink]="['/app/releases', r.candidateId]">{{ r.candidateId }}</a> · {{ r.candidateStatus }} · {{ r.targetKind }} revision {{ r.targetRevision }} (candidate revision {{ r.candidateRevision }})</dd>
@@ -277,7 +281,7 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
       <section class="panel" aria-labelledby="fs-heading">
         <h2 id="fs-heading">Final financial statements</h2>
         <dl class="facts"><dt>Package ID</dt><dd>{{ w.packageId ?? 'None' }}</dd><dt>Package status</dt><dd>{{ w.packageStatus }}</dd>
-          <dt>Partner approval</dt><dd>{{ w.partnerApproved ? 'Approved' : 'Pending' }}</dd><dt>EQR status</dt><dd>{{ w.eqrStatus }}</dd></dl>
+          <dt>Partner approval</dt><dd>{{ w.partnerApproved ? 'Current approval' : 'Current approval not established' }}</dd><dt>EQR status</dt><dd>{{ w.eqrStatus }}</dd></dl>
       </section>
       @if (w.freeze; as fz) {
         @if (fz.state === 'SCHEDULED' && readiness.error() !== partnerOnlyMessage) {

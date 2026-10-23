@@ -1056,7 +1056,7 @@
         "checks": "PASS: main TRX 1/1 .local/autonomous/evidence/wu013-correction-lineage/correction-lineage.trx; agent Angular36, corrected build (SCSS warning), EF model and OpenAPI checks passed. Migration null-pointer downgrade/reapply and retained-lineage downgrade refusal covered.",
         "remaining": "Owned correction browser PASS 1/1: .local/autonomous/evidence/wu013-correction-browser/ComponentCorrectionHandoff.retry2.trx; exact source IDs persisted and approved pin/pack/run retained. Current-source CI and broader group release remain open; no universal supersession policy required."
       },
-      "ciObserved": "FAST_CI_PASS39900616765 at a7786bdb213dac39aedfeb17b511392489ec4024. Full39886113863 at368eada2 FAILED: Domain1522/API399/AngularPASS, E2E333/334; fixture repaired504 locally, oldverifyfixture fixed6f. No current FULL_CI_PASS.",
+      "ciObserved": "FAST_CI_PASS39901528961 at59515acd1b7a286f0da42ed68ed1e71d30fc3165; images39901528985 last RUNNING. Full39886113863 source368 FAILED; Domain1522/API399/AngularPASS,E2E333/334; fixture repaired504. No current FULL_CI_PASS.",
       "scopeUnknownOutcome": {
         "status": "PARTIAL",
         "scope": "WU032 mutation buttons and external-pack commands honor parent unknown-outcome fence. Refresh uses existing resource and never clears uncertainty or dispatches duplicate commands. Local editing/navigation retained.",
@@ -1092,7 +1092,13 @@
         "status": "PASS_LOCAL_UI_SLICE",
         "evidence": ".local/autonomous/evidence/wu035-completion-identities/",
         "result": "completion.spec18PASS and AngularbuildPASS; exact report/scan/bundle hashes with identical prefixes remain distinguishable; persisted package/document/scan/source/bundle IDs displayed. Initial assertion selector fixed, no production logic changed. Existing commercial CSS budget warning remains.",
-        "remaining": "No interactive/browser/AT approval; complete currentness/review identities, archive integration, professional/live/final-release acceptance remain open."
+        "remaining": "No interactive/browser/AT approval; complete currentness/review identities, archive integration, professional/live/final-release acceptance remain open.",
+        "currentness": {
+          "status": "PASS_LOCAL_SLICE",
+          "base": "59515acd1b7a286f0da42ed68ed1e71d30fc3165",
+          "evidence": ".local/autonomous/evidence/wu035-release-currentness/",
+          "result": "Isolated patched595 snapshot: PG2PASS, Angular18PASS/buildPASS, emitterRelease0warnings and generated OpenAPI. Existing release validator demotes retained approval to RECORDED_APPROVAL and disables prepare when source returned/Partner authority lost; exact issued release/decisions unchanged. SharedUI build hit peerPBC WIP; isolated own-source buildpassed. Final OpenAPI drift PASS."
+        }
       }
     },
     "developmentFeedback20261023": {

@@ -104388,6 +104388,21 @@
           }
         }
       },
+      "CompletionPackageEvidence": {
+        "required": [
+          "current",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "CompletionRelease": {
         "required": [
           "candidateId",
@@ -109825,6 +109840,16 @@
               },
               {
                 "$ref": "#/components/schemas/CompletionWorkprogramApproval"
+              }
+            ]
+          },
+          "packageEvidence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CompletionPackageEvidence"
               }
             ]
           }

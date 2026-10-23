@@ -15,6 +15,7 @@ namespace AuditSphereOps.Application.Completion;
 public sealed record CompletionGate(string Name, string Status, string Tone, string? Authority, DateTimeOffset? Date);
 public sealed record CompletionRepresentation(string Code, string Title, string Narrative, bool Obtained);
 public sealed record CompletionClearance(DateTimeOffset ClearedAt);
+public sealed record CompletionPackageEvidence(bool Current, string Message);
 public sealed record CompletionOpinion(string OpinionType, string Label, string? FocusArea);
 public sealed record CompletionComment(Guid Id, string Body);
 public sealed record CompletionShared(string Title, IReadOnlyList<CompletionComment> OpenComments);
@@ -32,7 +33,7 @@ public sealed record EngagementCompletionWorkspace(Guid EngagementId, IReadOnlyL
   IReadOnlyList<OpinionFsliOption> OpinionAreas, IReadOnlyList<CompletionShared> Shared, IReadOnlyList<SignedLetterView> SignedLetters, BundleAssemblyState? Bundles,
   IReadOnlyList<string> OpinionTypes, CompletionFreeze? Freeze, int FreezeDays, IReadOnlyList<ActivityEvent>? Trail, string TrailCoverageNote, IReadOnlyList<DocumentLockView> Locks,
   HoldingLetterStatus? HoldingLetter = null, ReportSigningStatus? ReportSigning = null,
-  CompletionWorkprogramApproval? WorkprogramApproval = null);
+  CompletionWorkprogramApproval? WorkprogramApproval = null, CompletionPackageEvidence? PackageEvidence = null);
 
 /// <summary>
 /// Engagement completion projection: gate rows from persisted reviews, representations, EQR and release state, plus
@@ -59,8 +60,15 @@ public static class EngagementCompletionWorkspaceQuery
     var package = await db.FinancialPackages.AsNoTracking().Where(fp => fp.EngagementId == engagementId && fp.FirmId == actor.FirmId)
       .OrderByDescending(fp => fp.Revision).FirstOrDefaultAsync(ct);
     var partnerApproved = false;
+    CompletionPackageEvidence? packageEvidence = null;
     if (package is not null)
     {
+      // Completion read scope is already authorized above. Reuse the release owner's full current-evidence
+      // check rather than treating retained decision rows as proof of current source and staffing authority.
+      var currentEvidence = await FinancialPackageReviewService.RequireCurrentEvidenceAsync(db, package, requirePartner: true, ct);
+      packageEvidence = new(currentEvidence.Succeeded, currentEvidence.Succeeded
+        ? "The exact package review, source and composition evidence is current."
+        : currentEvidence.Message ?? "Current package release evidence is unavailable.");
       var reviews = await db.FinancialPackageReviewDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == package.ClientId &&
           x.EngagementId == package.EngagementId && x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&
           x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash).ToListAsync(ct);
@@ -77,9 +85,12 @@ public static class EngagementCompletionWorkspaceQuery
         var review = effective[stage] ?? FinancialPackageReviewService.InRecordedOrder(chain.Where(x => x.Stage == stage)).LastOrDefault();
         var status = review is null ? "PENDING"
           : effective[stage] is null && review.Decision == FinancialPackageReviewDecisions.Approved ? "PENDING" : review.Decision;
-        gates.Add(new($"Package {stage}", status, status == FinancialPackageReviewDecisions.Approved ? "ok"
+        var recordedOnly = status == FinancialPackageReviewDecisions.Approved && !currentEvidence.Succeeded;
+        gates.Add(new($"Package {stage}", recordedOnly ? "RECORDED_APPROVAL" : status,
+          recordedOnly ? "neutral" : status == FinancialPackageReviewDecisions.Approved ? "ok"
           : status is FinancialPackageReviewDecisions.ChangesRequired or FinancialPackageReviewDecisions.Rejected ? "blocked" : "pending", review?.EvidenceReference, review?.DecidedAt));
-        if (stage == FinancialPackageReviewStages.PartnerApproval) partnerApproved = status == FinancialPackageReviewDecisions.Approved;
+        if (stage == FinancialPackageReviewStages.PartnerApproval)
+          partnerApproved = currentEvidence.Succeeded && status == FinancialPackageReviewDecisions.Approved;
       }
     }
     else gates.Add(new("Final financial statements approved", "NO_PACKAGE", "neutral", null, null));
@@ -128,8 +139,7 @@ public static class EngagementCompletionWorkspaceQuery
     var canApproveWorkprograms = await AuditFieldworkService.CanApproveWorkprogramsAsync(db, actor, engagementId, ct);
     return CommandResult<EngagementCompletionWorkspace>.Ok(new(engagementId, gates, representations, package?.Id, package?.Status ?? "—", partnerApproved,
       eqr?.Status ?? "NOT_ASSIGNED", candidate?.Id, release,
-      releaseAuthority.Succeeded && package?.Status == AccountingPackageStates.PackageValidated &&
-        gates.Where(g => g.Name.StartsWith("Package ", StringComparison.Ordinal)).All(g => g.Status == FinancialPackageReviewDecisions.Approved) && package is not null,
+      releaseAuthority.Succeeded && packageEvidence?.Current == true,
       dashboard.Succeeded ? dashboard.Value! : [], await AuditDeliverableService.ListAsync(db, actor, engagementId, ct),
       clearance is null ? null : new CompletionClearance(clearance.ClearedAt),
       opinion is null ? null : new CompletionOpinion(opinion.OpinionType, AuditOpinionTypes.Label(opinion.OpinionType), opinion.FocusArea),
@@ -140,7 +150,7 @@ public static class EngagementCompletionWorkspaceQuery
       FileFreezeService.FreezeDays, trail.Succeeded ? trail.Value : null, EngagementActivityQuery.ExternalCoverageNote,
       await EngagementActivityQuery.LocksAsync(db, actor, engagementId, ct), await HoldingLetterDispatch.StatusAsync(db, actor.FirmId, engagementId, ct),
       ReportCertificateSigning.Status(signing, now), new CompletionWorkprogramApproval(workprogramApproval is not null, approvalIsCurrent,
-        workprogramApproval?.CreatedAt, canApproveWorkprograms)));
+        workprogramApproval?.CreatedAt, canApproveWorkprograms), packageEvidence));
   }
 
   private static async Task<CompletionRelease> ReleaseSummaryAsync(IAuditSphereDbContext db, AuditSphereOps.Domain.Completion.ReleaseCandidate candidate, CancellationToken ct)

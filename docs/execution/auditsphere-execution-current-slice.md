@@ -16,7 +16,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Completion evidence identities (2026-10-23)
 
-Completion now exposes persisted package/document/scan/source/bundle IDs and full retained hashes, with unchanged signature, release and freeze gates. Focused Angular checks and build passed; interactive and full completion acceptance remain open. Exact evidence is in `status.json`.
+Completion exposes persisted artifact IDs and full hashes. The existing release validator now separates recorded approvals from current package evidence and blocks prepare after source return or lost Partner authority; issued history is preserved. Focused PostgreSQL/Angular, build and contract checks are recorded in `status.json`. Interactive and full completion acceptance remain open.
 
 ## CI fixture repair and read-only readiness inventory (2026-10-23)
 
