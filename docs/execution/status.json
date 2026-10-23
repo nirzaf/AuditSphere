@@ -124,13 +124,6 @@
       "archivedTo": "docs/execution/status-archive-2026-10.json",
       "key": "targetedVerification.financialStatementPresentationPins"
     },
-    "workflowTemplatePlanPrE": {
-      "recordedAtUtc": "2026-10-12T01:27:00Z",
-      "baseCommit": "f7753f72a9ca5be7ea276a109b03ed96071a93be",
-      "scope": "Historical backend task/template/plan foundation verification. Later slices are current; the complete original record is preserved in the archive.",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowTemplatePlanPrE",
-      "acceptance": "Focused backend evidence only; not full suite, signed-in UI or live tenant acceptance."
-    },
     "workflowManagerReviewPrF": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
       "jsonPath": "keys.targetedVerification.workflowManagerReviewPrF"
@@ -146,21 +139,6 @@
     "workflowCommercialAcceptance": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
       "jsonPath": "keys.targetedVerification.workflowCommercialAcceptance"
-    },
-    "workflowPhaseRollup": {
-      "recordedAtUtc": "2026-10-12T05:47:51Z",
-      "baseCommit": "5de433ff",
-      "scope": "WF-14 phase task rollups; no migration.",
-      "runs": {
-        "releaseSolution": "PASS: 0 errors, 6 offline NU1900 warnings",
-        "postgresqlAnalytics": "PASS: 1/1",
-        "angularAnalytics": "PASS: 4/4",
-        "efModelDrift": "PASS: no pending changes",
-        "openApiDrift": "PASS: unchanged",
-        "angularDevServer": "PASS: compiled",
-        "browser": "LIMITED: staff sign-in guard; local API unavailable"
-      },
-      "acceptance": "Focused working-tree evidence only; full suite and authenticated UI not run."
     },
     "workflowTaskActivity": {
       "archivedTo": "docs/execution/status-archive-2026-10.json",
@@ -299,30 +277,6 @@
       "scopeStatus": "PARTIAL",
       "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAdministrationReviewFreshnessCi"
     },
-    "asPm8Atomic": {
-      "sourceCommit": "6e4d8682fa4886223422990f010f6d40e8729fe6",
-      "result": "PARTIAL",
-      "matrix": {
-        "archive": "status-archive-2026-10.json#keys.targetedVerification.asPm8AtomicMatrixBeforePortalActivity20261021"
-      },
-      "matrixCommit": "sourceCommit",
-      "currentFollowUp": {
-        "historicalEvidence": "Moved verbatim to docs/execution/status-archive-2026-10.json under keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017. Current result remains PARTIAL; see latestReleaseVerification."
-      },
-      "history": "status-archive-2026-10.json#keys.targetedVerification.asPm8AtomicDetailedBeforePracticeGuards20261019"
-    },
-    "angularAuditPlanningRecovery": {
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.angularAuditPlanningRecovery",
-      "source": "a8cdcf5f through eb28798e",
-      "implementation": "Reviewed planning receipts, library/read fences, period draft recovery and receipt precision follow-ups",
-      "retirementGate": "NOT_READY",
-      "pending": [
-        "Latest browser test corrections require verification",
-        "Full current-commit hosted verification",
-        "Finding durable command receipts",
-        "Global Blazor retirement acceptance"
-      ]
-    },
     "angularLibrarySourceClosure": {
       "source": "4f7a9f01074bce74f37eab9c728b4d653ca53ccd",
       "archivedAt": "status-archive-2026-10.json#keys.targetedVerification.angularLibrarySourceClosure"
@@ -370,15 +324,6 @@
     "cp10OpeningBridgeCloseGate": {
       "status": "FOCUSED_REGRESSION_PASS",
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.cp10OpeningBridgeCloseGate"
-    },
-    "cp12FxCashAssessment": {
-      "recordedAtUtc": "2026-10-17T08:14:58Z",
-      "codeCommit": "1a2376a9bc9f68fc3c629c1bf87d0dca09a3345a",
-      "status": "PARTIAL",
-      "migration": "20261017080751_FinancialPackageFxAssessment; generated, not applied.",
-      "checks": "Release build 0 warnings/errors; PostgreSQL Domain 3/3 focused; Angular specs 46/46; Angular build pass with existing commercial/settings.scss budget warning; EF, OpenAPI, docs and diff pass. Browser reached sign-in guard; local API session unavailable.",
-      "ci": "39016636601 queued on this SHA. Full release 39015225622 is on base ad2f0bd; Domain 19/1333 failed, other jobs pending.",
-      "open": "CP-12 indirect classification policy/T003; full suites and authenticated browser journey; professional and live-provider acceptance."
     },
     "cp12IndirectCashFlowRoles": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
@@ -458,29 +403,9 @@
       "archive": "status-archive-2026-10.json#keys.targetedVerification.browserCiRecoveryBeforeFirmReport20261019",
       "summary": "Earlier planning/invoice/finding focused repairs, response diagnostics and passes retained intact. No full API/E2E acceptance or proven runner-shutdown/hang root cause."
     },
-    "paymentMailRecipientGuard": {
-      "sourceCommit": "062ee27c49eb7fc5aa63193d6439ceba67566567",
-      "result": "FOCUSED_PASS_PARTIAL_CORRESPONDENCE_SAFETY",
-      "snapshotFollowUp": "paymentRecipientSnapshots",
-      "holdingLetterFollowUp": "holdingLetterMailSafety",
-      "priorEvidence": "status-archive-2026-10.json#keys.targetedVerification.paymentMailBeforeIdentitySnapshot20261019",
-      "remaining": [
-        "Initiating-actor mail reauthorization; DEC-09",
-        "Atomicity with every professional fact writer",
-        "Legacy historical authority identity",
-        "Current-source full CI, live-provider and professional acceptance"
-      ]
-    },
     "roleGrantExpiryFence": {
       "result": "FOCUSED_PASS",
       "evidence": "status-archive-2026-10.json#keys.roleGrantExpiryFenceBeforeResourceCommands20261019"
-    },
-    "holdingLetterMailSafety": {
-      "sourceCommit": "dc2861ea5cc459f74632645f40e165e0c4f5cbda",
-      "result": "FOCUSED_PASS",
-      "verification": "PASS4/4; new/legacy route refusal, retained attachment, blocker and provider receipt checks. Initial analyzer repair and limits archived.",
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.holdingLetterMailSafety20261019",
-      "limits": "Legacy route identity is not backfilled; current blocker read is not atomic with every professional writer; full/live acceptance remains open."
     },
     "paymentRecipientSnapshots": {
       "result": "FOCUSED_PASS",
@@ -933,7 +858,7 @@
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.runnerEvidenceIntegrity"
       },
       "openFindings": [
-        "Original audit identified flat400 scope-denial mappings; four Acceptance routes corrected, remaining inventory needs re-audit.",
+        "Flat-400 scope-denial inventory re-audited 2026-10-24; remaining service mappings now 403 (status-archive-2026-10.json#keys.ascpSpecDiscovery20261024).",
         "Single-column scoped keys and authenticated sibling/revocation coverage remain incompletely probed."
       ],
       "clientSiteAuthorityFence": {
@@ -1147,6 +1072,25 @@
       "status": "PARTIALLY_VERIFIED",
       "history": "status-archive-2026-10.json#archivedTargetedVerification.sharePointClientSitesAutomation",
       "remaining": "Exact live provisioning/membership/denial acceptance remains open; offline proof is preserved in history."
+    },
+    "ascpSpecDiscovery20261024": {
+      "status": "PARTIAL; tasks 01 and 03 delta implemented, 02 NONE (model), rest VERIFY_ONLY or BLOCKED_DECISION/EXTERNAL",
+      "source": "d210d301dd98590ab0ce6606b0336f3d448726b6",
+      "focused": "FirmPortalLogoSettingsApiTests 4 PASS (new 8-route scope-denial 403 regression); full suites and OpenAPI drift deferred to CI",
+      "history": "status-archive-2026-10.json#keys.ascpSpecDiscovery20261024"
+    },
+    "archivedOn20261024": {
+      "entries": [
+        "cp12FxCashAssessment",
+        "asPm8Atomic",
+        "paymentMailRecipientGuard",
+        "workflowPhaseRollup",
+        "holdingLetterMailSafety",
+        "workflowTemplatePlanPrE",
+        "angularAuditPlanningRecovery"
+      ],
+      "history": "status-archive-2026-10.json#keys.targetedVerificationMovedOn20261024",
+      "note": "Closed focused-slice records moved verbatim; no verdict changed."
     }
   },
   "externalGates": [

@@ -50,7 +50,7 @@ public static partial class UiEndpoints
           _ => await CommercialDocumentService.GenerateTenderAsync(db, actor, id, input.TeamCvs ?? "", input.Timeline ?? "", input.Reviewed,
             http.RequestAborted, input.QuotationId, version)
         };
-        return result.Succeeded ? Results.Ok(new { id = result.Value!.Id }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+        return result.Succeeded ? Results.Ok(new { id = result.Value!.Id }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
       })
         .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
         .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")

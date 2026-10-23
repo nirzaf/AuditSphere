@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Completion-spec discovery and remaining scope-denial statuses (2026-10-24)
+
+The external four-phase completion specification (31 resolution tasks) was reconciled against current authority. The requirement manifest now traces all 46 current requirement rows to existing UI, API, service, persistence and test files at the recorded source; `SOURCE_TRACED` is not behavioral, CI or professional acceptance. EF model drift is NONE per fast CI; deployed-schema comparison needs an authorized target read. The remaining commercial, accounting-setup, planning and acceptance mutation routes that returned 400 for `scope.denied` now return 403; validation, CSRF and success statuses are unchanged, and OpenAPI already declared 403. Policy-gated tasks (T003, D1, allocation effective date, renewal) and live tenant, custody, operational and release gates stay blocked. Dispositions and evidence are in `status.json`.
+
 ## CI continuation and main-only workflow (2026-10-23)
 
 The nullable capability fixture repair passed the fast CI gate; it is separate from full release acceptance. The fee-settlement browser journey now checks the current forbidden scope-denial contract, retains zero-write checks and rejects private sibling metadata. Its focused owned journey passed. All agents work in the main checkout on `master`; fetch remote changes periodically, inspect overlapping paths and preserve concurrent edits. Full candidate verification and wider integrity/recovery work remain open; exact sources, runs and results are in `status.json`.
@@ -358,32 +362,6 @@ WU-021 automates modern nongroup SharePoint client site provisioning and managed
 - `Reconcile-ClientSiteStaff.ps1`: Manages the dedicated `"AuditSphere Assigned Staff"` group, binds Full Control (role type 5), removes obsolete group members, and adds authorized staff members with directory UPN/AadObjectId verification. Client users are strictly excluded from staff Full Control.
 - Offline and synthetic verification: 36/36 tests pass in `scripts/m365/tests/ClientSites.Tests.ps1`, including dry-run envelope verification (`verify-result.py --expect PLANNED`), pre-cutoff refusal, idempotent re-apply (0 mutations), and detached CMS approval checks.
 - Live tenant execution and operator credentials remain external gates (`GATE-M365-LIVE-TARGET`).
-
-## Engagement workflow phase cues (2026-10-18)
-
-The engagement workflow now independently reads the scoped saved Audit Plan milestone endpoint and displays fieldwork start in phase 3, report and filing dates in phase 6, and archive deadline in phase 7. Dates are displayed only when a saved plan exists; an explicit empty response remains empty, a role-denied response is reported as unavailable, and session/route changes clear cached dates. The panel states that a filing cutoff is not independently validated against jurisdictional law and keeps operational task deadlines separate. The existing plan/configuration page remains the source of the dates; no legal deadline calculator or approval was introduced.
-
-Focused Angular workflow spec passes 3/3, including the populated schedule, explicit no-plan state and 403 denial state; the production build passes with only the existing `commercial/settings.scss` component-style budget warning. Built-in browser read-only verification on the local synthetic engagement observed HTTP 200 for its milestone, workflow and task reads, the no-saved-plan message, and no console errors or warnings. No business data was changed. Exact source commit and current checks are recorded under `targetedVerification.ste22F07WorkflowPhaseCues` in `status.json`. The feature remains partial pending an approved/versioned jurisdictional source mapping, legal validation, broader role/responsive/accessibility acceptance and current CI/CD.
-
-The seven-phase engagement projection now shows each phase's nearest due date from its current, open or in-progress workflow tasks. The UI labels these as task deadlines; they are not statutory milestones and do not satisfy readiness gates. Canonical next-action links are now projected only when the caller has the responsible-role grant and, for staffed audit roles, the matching active engagement assignment. Finance Manager links also require firm-wide scope. A focused PostgreSQL regression covers nearest-date selection, task completion leaving the lifecycle blocked, and authorized versus denied roles. The Angular decoder spec, production build, API Release build and OpenAPI drift check pass; the production build retains the existing commercial stylesheet budget warning. The built-in browser rendered the local synthetic engagement, its blocked lifecycle, task/gate separation, and the scoped Commercial Manager action. The sample had no active dated tasks, so the date label itself was not exercised there; responsive and full role-by-role browser acceptance remain open. No business records were changed. Exact source and verification details are in the current execution tracker and the practice-management criterion audit.
-
-## Practice-management ledger-boundary regression (2026-10-18)
-
-Retained evidence and limits moved to the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#practice-management-ledger-boundary-regression-2026-10-18).
-
-## Practice time return and resubmission (2026-10-18)
-
-RES-04 now has an independent return path with a mandatory reviewer reason. A returned entry can be resubmitted as a new review round on the same time-entry identity; its captured rate and billing classification remain unchanged. PostgreSQL retains submission, return and approval events append-only, and unapproved/returned time remains outside billable WIP. The current Angular time workspace displays the latest return reason and supports resubmission.
-
-The previous schema did not retain the submitter for historical rows. The migration records known legacy submission timestamps as explicitly unattributed and backfills an approval actor only where the prior row stored one. It does not invent historical attribution. Downgrade refuses after any review event is retained.
-
-The focused PostgreSQL workflow, immutable-history and migration-refusal regression passes. The Angular return/resubmission spec, API Release build, EF model-drift check and OpenAPI drift check pass; the Angular production build passes with its existing commercial stylesheet budget warning. Exact commands, counts, commit and warning details are in `status.json` under `completePracticeManagement.returnedTimeWorkflow`.
-
-Built-in browser verification confirms the clean preview serves the current Angular shell and its fingerprinted assets without the old missing-chunk error. That preview returned 401 for `/api/ui/session`, so authenticated time-workspace behavior remains unverified. The already-running local instance on port 5029 still serves a stale bundle; it was left untouched. No business records were changed. Full CI and authenticated browser acceptance remain pending.
-
-## Accounting and browser-journey repair (2026-10-18)
-
-Retained checks and limitations are in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#accounting-and-browser-journey-repair-2026-10-18).
 
 ## PBC exact-version reviewer acceptance
 

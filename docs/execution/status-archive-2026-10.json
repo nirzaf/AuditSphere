@@ -24288,6 +24288,111 @@
         "evidence": ".local/autonomous/evidence/ci-1dfe-20261024",
         "additionalFinding": "Initial focused run passed45minute refresh but later lost-response simulator exposed early route removal; signal ID after Abort and retain interception until unknown UI. Repeated full named journey PASS; original onePOST/recovery/history/persistence assertions intact."
       }
+    },
+    "ascpSpecDiscovery20261024": {
+      "specification": "External AuditSphere_Atomic_Implementation_Spec (four-phase, 31 resolution tasks); outside repository, subordinate to checked-in authority",
+      "source": "d210d301dd98590ab0ce6606b0336f3d448726b6",
+      "task01": "IMPLEMENT_DELTA docs: docs/spec/completion-requirement-manifest.json 46 rows traced to tracked files, status SOURCE_TRACED (not acceptance)",
+      "task02": "NONE for model drift: fast CI 40036938570 on d210d301 'Check EF model drift' success; deployed catalog comparison BLOCKED_EXTERNAL",
+      "task03": "IMPLEMENT_DELTA: see autonomousCompletion20261022.acceptanceScopeStatus.remainingInventory20261024",
+      "task28": "Verified fail-closed: GraphReleaseCheckpointStore throws live-provider-not-approved for all operations and is not registered; BLOCKED_EXTERNAL custody (gate P3)",
+      "task30": "release-verification 40036364799 for 871eca68 (runtime-identical to d210d301) still in progress at record time; FULL_CI_PASS not claimed",
+      "blockedDecision": [
+        "T003 (tasks 04,14)",
+        "POLICY-ALLOCATION-EFFECTIVE-DATE (task 12)",
+        "D1 (task 20)",
+        "POLICY-RENEWAL (task 09 recurrence semantics)"
+      ],
+      "blockedExternal": [
+        "tasks 24-26 M365/deployment targets",
+        "task 28 custody",
+        "task 29 operations targets",
+        "task 31 release acceptance",
+        "GATE-HUMAN-AT (task 27)"
+      ],
+      "verifyOnlyNotRun": "tasks 05-11,13,15-19,21-23,27: owners exist; no evidenced defect found in this pass; journeys rely on CI/browser evidence",
+      "scopeDenialInventory": {
+        "base": "d210d301dd98590ab0ce6606b0336f3d448726b6 plus uncommitted overlay",
+        "change": "27 remaining mutation routes (commercial settings, quotation, proposal/lead/opportunity, fee agreement, tender, accounting book/period/bridge, acceptance answer, activation, budget, staffing) mapped scope.denied to 400; now 403. Validation/CSRF/success statuses unchanged; 403 was already declared in OpenAPI.",
+        "checks": "dotnet test Api.Tests --filter FullyQualifiedName~FirmPortalLogoSettingsApiTests: 4 PASS, 0 failed (includes new CommercialMutationScopeDenialsAreForbiddenWithoutWrites over 8 routes, no writes). OpenAPI drift and full suites deferred to CI."
+      }
+    },
+    "targetedVerificationMovedOn20261024": {
+      "cp12FxCashAssessment": {
+        "recordedAtUtc": "2026-10-17T08:14:58Z",
+        "codeCommit": "1a2376a9bc9f68fc3c629c1bf87d0dca09a3345a",
+        "status": "PARTIAL",
+        "migration": "20261017080751_FinancialPackageFxAssessment; generated, not applied.",
+        "checks": "Release build 0 warnings/errors; PostgreSQL Domain 3/3 focused; Angular specs 46/46; Angular build pass with existing commercial/settings.scss budget warning; EF, OpenAPI, docs and diff pass. Browser reached sign-in guard; local API session unavailable.",
+        "ci": "39016636601 queued on this SHA. Full release 39015225622 is on base ad2f0bd; Domain 19/1333 failed, other jobs pending.",
+        "open": "CP-12 indirect classification policy/T003; full suites and authenticated browser journey; professional and live-provider acceptance."
+      },
+      "asPm8Atomic": {
+        "sourceCommit": "6e4d8682fa4886223422990f010f6d40e8729fe6",
+        "result": "PARTIAL",
+        "matrix": {
+          "archive": "status-archive-2026-10.json#keys.targetedVerification.asPm8AtomicMatrixBeforePortalActivity20261021"
+        },
+        "matrixCommit": "sourceCommit",
+        "currentFollowUp": {
+          "historicalEvidence": "Moved verbatim to docs/execution/status-archive-2026-10.json under keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017. Current result remains PARTIAL; see latestReleaseVerification."
+        },
+        "history": "status-archive-2026-10.json#keys.targetedVerification.asPm8AtomicDetailedBeforePracticeGuards20261019"
+      },
+      "paymentMailRecipientGuard": {
+        "sourceCommit": "062ee27c49eb7fc5aa63193d6439ceba67566567",
+        "result": "FOCUSED_PASS_PARTIAL_CORRESPONDENCE_SAFETY",
+        "snapshotFollowUp": "paymentRecipientSnapshots",
+        "holdingLetterFollowUp": "holdingLetterMailSafety",
+        "priorEvidence": "status-archive-2026-10.json#keys.targetedVerification.paymentMailBeforeIdentitySnapshot20261019",
+        "remaining": [
+          "Initiating-actor mail reauthorization; DEC-09",
+          "Atomicity with every professional fact writer",
+          "Legacy historical authority identity",
+          "Current-source full CI, live-provider and professional acceptance"
+        ]
+      },
+      "workflowPhaseRollup": {
+        "recordedAtUtc": "2026-10-12T05:47:51Z",
+        "baseCommit": "5de433ff",
+        "scope": "WF-14 phase task rollups; no migration.",
+        "runs": {
+          "releaseSolution": "PASS: 0 errors, 6 offline NU1900 warnings",
+          "postgresqlAnalytics": "PASS: 1/1",
+          "angularAnalytics": "PASS: 4/4",
+          "efModelDrift": "PASS: no pending changes",
+          "openApiDrift": "PASS: unchanged",
+          "angularDevServer": "PASS: compiled",
+          "browser": "LIMITED: staff sign-in guard; local API unavailable"
+        },
+        "acceptance": "Focused working-tree evidence only; full suite and authenticated UI not run."
+      },
+      "holdingLetterMailSafety": {
+        "sourceCommit": "dc2861ea5cc459f74632645f40e165e0c4f5cbda",
+        "result": "FOCUSED_PASS",
+        "verification": "PASS4/4; new/legacy route refusal, retained attachment, blocker and provider receipt checks. Initial analyzer repair and limits archived.",
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.holdingLetterMailSafety20261019",
+        "limits": "Legacy route identity is not backfilled; current blocker read is not atomic with every professional writer; full/live acceptance remains open."
+      },
+      "workflowTemplatePlanPrE": {
+        "recordedAtUtc": "2026-10-12T01:27:00Z",
+        "baseCommit": "f7753f72a9ca5be7ea276a109b03ed96071a93be",
+        "scope": "Historical backend task/template/plan foundation verification. Later slices are current; the complete original record is preserved in the archive.",
+        "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowTemplatePlanPrE",
+        "acceptance": "Focused backend evidence only; not full suite, signed-in UI or live tenant acceptance."
+      },
+      "angularAuditPlanningRecovery": {
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.angularAuditPlanningRecovery",
+        "source": "a8cdcf5f through eb28798e",
+        "implementation": "Reviewed planning receipts, library/read fences, period draft recovery and receipt precision follow-ups",
+        "retirementGate": "NOT_READY",
+        "pending": [
+          "Latest browser test corrections require verification",
+          "Full current-commit hosted verification",
+          "Finding durable command receipts",
+          "Global Blazor retirement acceptance"
+        ]
+      }
     }
   },
   "archivedTargetedVerification": {

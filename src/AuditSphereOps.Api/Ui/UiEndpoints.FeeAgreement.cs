@@ -52,7 +52,7 @@ public static partial class UiEndpoints
       if (!input.Reviewed) return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await FeeAgreementService.CreateAgreementAsync(db, actor, id, http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -68,7 +68,7 @@ public static partial class UiEndpoints
       if (!input.Reviewed || input.EngagementId == Guid.Empty) return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await FeeAgreementService.LinkEngagementAsync(db, actor, id, input.EngagementId, http.RequestAborted);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces(StatusCodes.Status204NoContent)
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")

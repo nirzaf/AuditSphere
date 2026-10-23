@@ -166,6 +166,37 @@ public sealed class FirmPortalLogoSettingsApiTests
       Assert.Single(await db.FirmPricingPolicies.ToListAsync());
   }
 
+  [Fact]
+  public async Task CommercialMutationScopeDenialsAreForbiddenWithoutWrites()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-COMMERCIAL-SCOPE-STATUS");
+    var fixture = await PbcSeed.SeedAsync(pg);
+    using var staffFactory = Factory(pg, fixture.Staff);
+    using var staff = staffFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var csrf = await SignIn(staff);
+    var id = Guid.NewGuid();
+    var denied = new (string Path, object Body)[]
+    {
+      ($"/api/ui/commercial-settings/pricing-policy/{id}/submit", new { }),
+      ($"/api/ui/commercial-settings/pricing-policy/{id}/approve", new { reason = "Synthetic approval", reviewed = true }),
+      ($"/api/ui/quotations/{id}/submit", new { }),
+      ($"/api/ui/quotations/{id}/approve", new { ruleKey = "synthetic-rule", reason = "Synthetic approval" }),
+      ($"/api/ui/quotations/approvals/{id}/revoke", new { reason = "Synthetic revocation" }),
+      ($"/api/ui/proposals/{id}/review", new { }),
+      ($"/api/ui/proposals/{id}/sent", new { }),
+      ($"/api/ui/leads/{id}/qualify", new { })
+    };
+    foreach (var (path, body) in denied)
+    {
+      using var response = await Post(staff, csrf, path, body);
+      Assert.True(response.StatusCode == HttpStatusCode.Forbidden, $"{path} returned {(int)response.StatusCode}");
+      Assert.Equal("scope.denied", await ErrorCode(response));
+    }
+    await using var db = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await db.FirmPricingPolicies.ToListAsync());
+    Assert.Empty(await db.QuotationApprovals.ToListAsync());
+  }
+
   private static object ProfileBody(string version, string legalName, string? LogoPngBase64 = null, bool RemoveLogo = false)
   {
     var body = new Dictionary<string, object?>

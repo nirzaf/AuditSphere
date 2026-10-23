@@ -2,6 +2,32 @@
 
 > **STATUS: HISTORICAL.** Sections moved verbatim from `auditsphere-execution-current-slice.md` on 2026-10-08 to keep the current handoff small. They are the audit trail of earlier slices. Never edit them to change a verdict; record a new observation in the current slice or in `status.json`.
 
+## Engagement workflow phase cues (2026-10-18)
+
+The engagement workflow now independently reads the scoped saved Audit Plan milestone endpoint and displays fieldwork start in phase 3, report and filing dates in phase 6, and archive deadline in phase 7. Dates are displayed only when a saved plan exists; an explicit empty response remains empty, a role-denied response is reported as unavailable, and session/route changes clear cached dates. The panel states that a filing cutoff is not independently validated against jurisdictional law and keeps operational task deadlines separate. The existing plan/configuration page remains the source of the dates; no legal deadline calculator or approval was introduced.
+
+Focused Angular workflow spec passes 3/3, including the populated schedule, explicit no-plan state and 403 denial state; the production build passes with only the existing `commercial/settings.scss` component-style budget warning. Built-in browser read-only verification on the local synthetic engagement observed HTTP 200 for its milestone, workflow and task reads, the no-saved-plan message, and no console errors or warnings. No business data was changed. Exact source commit and current checks are recorded under `targetedVerification.ste22F07WorkflowPhaseCues` in `status.json`. The feature remains partial pending an approved/versioned jurisdictional source mapping, legal validation, broader role/responsive/accessibility acceptance and current CI/CD.
+
+The seven-phase engagement projection now shows each phase's nearest due date from its current, open or in-progress workflow tasks. The UI labels these as task deadlines; they are not statutory milestones and do not satisfy readiness gates. Canonical next-action links are now projected only when the caller has the responsible-role grant and, for staffed audit roles, the matching active engagement assignment. Finance Manager links also require firm-wide scope. A focused PostgreSQL regression covers nearest-date selection, task completion leaving the lifecycle blocked, and authorized versus denied roles. The Angular decoder spec, production build, API Release build and OpenAPI drift check pass; the production build retains the existing commercial stylesheet budget warning. The built-in browser rendered the local synthetic engagement, its blocked lifecycle, task/gate separation, and the scoped Commercial Manager action. The sample had no active dated tasks, so the date label itself was not exercised there; responsive and full role-by-role browser acceptance remain open. No business records were changed. Exact source and verification details are in the current execution tracker and the practice-management criterion audit.
+
+## Practice-management ledger-boundary regression (2026-10-18)
+
+Retained evidence and limits moved to the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#practice-management-ledger-boundary-regression-2026-10-18).
+
+## Practice time return and resubmission (2026-10-18)
+
+RES-04 now has an independent return path with a mandatory reviewer reason. A returned entry can be resubmitted as a new review round on the same time-entry identity; its captured rate and billing classification remain unchanged. PostgreSQL retains submission, return and approval events append-only, and unapproved/returned time remains outside billable WIP. The current Angular time workspace displays the latest return reason and supports resubmission.
+
+The previous schema did not retain the submitter for historical rows. The migration records known legacy submission timestamps as explicitly unattributed and backfills an approval actor only where the prior row stored one. It does not invent historical attribution. Downgrade refuses after any review event is retained.
+
+The focused PostgreSQL workflow, immutable-history and migration-refusal regression passes. The Angular return/resubmission spec, API Release build, EF model-drift check and OpenAPI drift check pass; the Angular production build passes with its existing commercial stylesheet budget warning. Exact commands, counts, commit and warning details are in `status.json` under `completePracticeManagement.returnedTimeWorkflow`.
+
+Built-in browser verification confirms the clean preview serves the current Angular shell and its fingerprinted assets without the old missing-chunk error. That preview returned 401 for `/api/ui/session`, so authenticated time-workspace behavior remains unverified. The already-running local instance on port 5029 still serves a stale bundle; it was left untouched. No business records were changed. Full CI and authenticated browser acceptance remain pending.
+
+## Accounting and browser-journey repair (2026-10-18)
+
+Retained checks and limitations are in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#accounting-and-browser-journey-repair-2026-10-18).
+
 ## Certification administrative review integration
 
 Exact-source applicability rules, append-only review persistence and independent administrator publication are implemented. Current evidence and commit identities are in `status.json` under `completePracticeManagement.certificationReview`. The read workspace, API and Angular review dialog have focused verification, including a synthetic browser verification/withdrawal flow. Staffing eligibility readers are integrated and focused checks pass; deterministic revocation/assignment concurrency and broader acceptance remain unfinished; existing assignment history is preserved and legacy qualifications are not automatically verified. Only the synthetic browser database received the review migration; live/development databases remain unchanged. Client portal write-gate corrections are committed separately, with focused evidence in the crosswalk.

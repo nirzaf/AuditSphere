@@ -72,7 +72,7 @@ public static partial class UiEndpoints
       var result = await QuotationWorkspaceQuery.PreviewAsync(db, actor, request, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
-      return result.Succeeded ? Results.Ok(result.Value) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.Ok(result.Value) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces<QuotationAmounts>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -89,7 +89,7 @@ public static partial class UiEndpoints
       if (request is null) return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await QuotationService.SaveAsync(db, actor, request, http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -104,7 +104,7 @@ public static partial class UiEndpoints
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await QuotationService.SubmitAsync(db, actor, id, http.RequestAborted);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces(StatusCodes.Status204NoContent)
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -121,7 +121,7 @@ public static partial class UiEndpoints
         || input.Reason.Length > 1000) return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await QuotationService.ApproveAsync(db, actor, id, input.RuleKey, input.Reason, http.RequestAborted);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces(StatusCodes.Status204NoContent)
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -138,7 +138,7 @@ public static partial class UiEndpoints
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await QuotationService.RevokeApprovalAsync(db, actor, id, input.Reason, http.RequestAborted);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces(StatusCodes.Status204NoContent)
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")

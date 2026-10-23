@@ -135,7 +135,7 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await AcceptanceChecklistService.RecordAnswerAsync(db, actor, id, code, input.Answer, input.Evidence,
         http.RequestAborted, generation, revision);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     }).WithSummary("Record a client acceptance answer")
       .WithDescription("Records an answer and optional evidence against the supplied client acceptance question and generation/revision basis.")
       .Produces(StatusCodes.Status204NoContent)
@@ -170,7 +170,7 @@ public static partial class UiEndpoints
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await EngagementLifecycleService.ActivateAsync(db, actor, id, http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     }).WithSummary("Activate an engagement")
       .WithDescription("Activates the specified engagement after the existing lifecycle checks succeed and returns its identifier.")
       .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
@@ -190,7 +190,7 @@ public static partial class UiEndpoints
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeTimeService.ReviseBudgetAsync(db, actor, new(id, input.Currency, input.Lines, version), http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     }).WithSummary("Prepare an engagement budget")
       .WithDescription("Creates or revises the engagement budget from the supplied currency, version, and lines, then returns its identifier.")
       .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
@@ -207,7 +207,7 @@ public static partial class UiEndpoints
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await EngagementPlanningQuery.ApproveBudgetAsync(db, actor, id, budgetId, http.RequestAborted);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     }).WithSummary("Approve an engagement budget")
       .WithDescription("Approves the specified budget for the engagement when the existing approval checks succeed.")
       .Produces(StatusCodes.Status204NoContent)
@@ -224,7 +224,7 @@ public static partial class UiEndpoints
       if (!input.ReviewedClientSiteAccess) return Results.Json(new { code = "staffing.review-required" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await StaffingService.AssignAsync(db, actor, new(id, input.UserId, input.Level), http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     }).WithSummary("Assign staff to an engagement")
       .WithDescription("Assigns the supplied staff member and level after client-site access review and returns the assignment identifier.")
       .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")

@@ -62,7 +62,7 @@ public static partial class UiEndpoints
       var result = await PracticeCrmService.CreateOpportunityAsync(db, actor,
         new(id, input.ServiceRoute, input.EntityScope, input.PeriodStart, input.PeriodEnd, fee, input.Currency,
           OwnerUserId: actor.UserId, RequestId: input.RequestId), http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -126,7 +126,7 @@ public static partial class UiEndpoints
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeCrmService.ApproveProposalAsync(db, actor, id, http.RequestAborted);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces(StatusCodes.Status204NoContent)
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -141,7 +141,7 @@ public static partial class UiEndpoints
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeCrmService.SendProposalAsync(db, actor, id, http.RequestAborted);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces(StatusCodes.Status204NoContent)
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -158,7 +158,7 @@ public static partial class UiEndpoints
       var result = await PracticeCrmService.RecordProposalResponseAsync(db, actor, id,
         new(input.Decision, input.Reason, input.OfferSha256, input.RespondentName, input.RespondentEmail, input.EvidenceReference, input.Channel),
         http.RequestAborted);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces(StatusCodes.Status204NoContent)
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -210,7 +210,7 @@ public static partial class UiEndpoints
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeCrmService.QualifyLeadAsync(db, actor, id, http.RequestAborted);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces(StatusCodes.Status204NoContent)
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")

@@ -68,7 +68,7 @@ public static partial class UiEndpoints
       if (!input.Reviewed || input.SourceHash is not { Length: 64 }) return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(db, actor, bridgeId, http.RequestAborted, id, input.SourceHash);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces(StatusCodes.Status204NoContent)
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -94,7 +94,7 @@ public static partial class UiEndpoints
       var result = await ClientAccountingService.RollForwardPeriodAsync(db, actor,
         new(id, input.PriorPeriodId, input.Code, start, end, input.Basis, input.Currency, input.SourceHash,
           closing, opening, input.Evidence, input.SourcePackageId, revision), http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -133,7 +133,7 @@ public static partial class UiEndpoints
         var result = decision == "close"
           ? await ClientAccountingService.ClosePeriodAsync(db, actor, periodId, input.Reason, http.RequestAborted, revision, id)
           : await ClientAccountingService.ReopenPeriodAsync(db, actor, periodId, input.Reason, http.RequestAborted, revision, id);
-        return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+        return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
       })
         .Produces(StatusCodes.Status204NoContent)
         .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -154,7 +154,7 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await ClientAccountingService.CreateBookAsync(db, actor,
         new(id, input.PeriodId, input.Code, input.Basis, input.InclusionRule, input.Currency), http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -175,7 +175,7 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await ClientAccountingService.CreatePeriodAsync(db, actor,
         new(id, input.Code, start, end, input.Basis, input.Currency, input.PriorPeriodId), http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")

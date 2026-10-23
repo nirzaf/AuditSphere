@@ -1,13 +1,14 @@
 {
   "schemaVersion": 1,
-  "sourceSha": "303475233120b8c5d200df6096313f4c6304adb8",
+  "sourceSha": "d210d301dd98590ab0ce6606b0336f3d448726b6",
   "authority": {
     "path": "docs/requirements/auditsphere-accounting-module-requirements-current.md",
     "status": "CURRENT",
     "overlays": "Approved deviations section (ADR-0002\u2026ADR-0018) controls interpretation"
   },
   "statusLegend": {
-    "UNVERIFIED": "Not yet traced to UI/API/service/data/tests at this source"
+    "UNVERIFIED": "Not yet traced to UI/API/service/data/tests at this source",
+    "SOURCE_TRACED": "Owning UI/API/service/data/test files resolved at sourceSha from the current code map; behavior, current CI and professional/live acceptance are NOT established by this status"
   },
   "requirements": [
     {
@@ -20,12 +21,46 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/commercial/leads.ts",
+        "src/AuditSphereOps.Ui/src/app/features/clients/client.ts",
+        "src/AuditSphereOps.Ui/src/app/features/commercial/quotation.ts",
+        "src/AuditSphereOps.Ui/src/app/features/commercial/proposal.ts",
+        "src/AuditSphereOps.Ui/src/app/features/acceptance/checklist.ts",
+        "src/AuditSphereOps.Ui/src/app/features/engagements/activation.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Commercial.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.ClientRelationships.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Quotation.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Acceptance.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.EngagementActivation.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/PracticeCrmService.cs",
+        "src/AuditSphereOps.Application/Practice/PracticeLeadQuery.cs",
+        "src/AuditSphereOps.Application/Practice/ClientContactCreationWorkspace.cs",
+        "src/AuditSphereOps.Application/Practice/QuotationCalculator.cs",
+        "src/AuditSphereOps.Application/Practice/CommercialApprovalMatrix.cs",
+        "src/AuditSphereOps.Application/Practice/QuotationService.cs",
+        "src/AuditSphereOps.Application/Acceptance/AcceptanceRules.cs",
+        "src/AuditSphereOps.Application/Acceptance/AcceptanceDecisionService.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Practice.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Commercial.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AssessmentReceipts.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/QuotationCalculatorTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-039",
@@ -42,12 +77,36 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/practice/resources.ts",
+        "src/AuditSphereOps.Ui/src/app/features/engagements/planning.ts",
+        "src/AuditSphereOps.Ui/src/app/features/audit/plan.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Resources.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.StaffingChange.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.AuditPlan.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/StaffingService.cs",
+        "src/AuditSphereOps.Application/Practice/ResourcePlanningService.cs",
+        "src/AuditSphereOps.Application/Practice/ResourceGridCalculator.cs",
+        "src/AuditSphereOps.Application/Practice/ResourcePlanningCommandWorkspace.cs",
+        "src/AuditSphereOps.Application/Audit/MaterialityCalculator.cs",
+        "src/AuditSphereOps.Application/Audit/MaterialityEngineService.cs",
+        "src/AuditSphereOps.Application/Audit/RiskBandService.cs",
+        "src/AuditSphereOps.Application/Audit/AuditPlanningCommandWorkspace.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.ResourcePlanning.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.ResourcePlanningReceipts.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AuditPlanningReceipts.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+        "tests/AuditSphereOps.Api.Tests/ResourcePlanningReceiptApiTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-039",
@@ -64,12 +123,41 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts",
+        "src/AuditSphereOps.Ui/src/app/features/audit/library.ts",
+        "src/AuditSphereOps.Ui/src/app/features/practice/work-queue.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Fieldwork.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.AuditRecords.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Audit/AuditProgramCatalog.cs",
+        "src/AuditSphereOps.Application/Audit/AuditProgramService.cs",
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Connections.cs",
+        "src/AuditSphereOps.Application/Audit/AuditSamplingService.cs",
+        "src/AuditSphereOps.Application/Audit/ReviewNotesService.cs",
+        "src/AuditSphereOps.Application/Audit/ManagerReviewSummaryQuery.cs",
+        "src/AuditSphereOps.Application/Audit/ProcedureReviewInboxQuery.cs",
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Completion.cs",
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Confirmations.cs",
+        "src/AuditSphereOps.Application/Audit/ConfirmationWorkspace.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Audit.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Fieldwork.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.FieldworkConnections.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AuditDeliverables.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AuditProgramWorkflowTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/AuditSamplingEngineTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagerReview.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-039",
@@ -86,12 +174,35 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/audit/completion.ts",
+        "src/AuditSphereOps.Ui/src/app/features/portal/documents.ts",
+        "src/AuditSphereOps.Ui/src/app/features/audit/records.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Completion.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Portal.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.ArchiveCopies.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+        "src/AuditSphereOps.Application/Completion/ReportCertificateSigning.cs",
+        "src/AuditSphereOps.Application/Completion/AuditDeliverableService.Bundle.cs",
+        "src/AuditSphereOps.Application/Completion/ReleaseCheckpointService.cs",
+        "src/AuditSphereOps.Application/Documents/ClientPortalReviewQuery.cs",
+        "src/AuditSphereOps.Application/Records/FileFreezeService.cs",
+        "src/AuditSphereOps.Application/Records/RecordsArchiveService.cs",
+        "src/AuditSphereOps.Application/Records/ArchiveCopyService.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AuditDeliverables.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.FileFreeze.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/ReportCertificateSigningTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-039",
@@ -108,12 +219,36 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/practice/analytics.ts",
+        "src/AuditSphereOps.Ui/src/app/features/practice/time.ts",
+        "src/AuditSphereOps.Ui/src/app/features/finance/books.ts",
+        "src/AuditSphereOps.Ui/src/app/features/finance/end-of-service.ts",
+        "src/AuditSphereOps.Ui/src/app/features/finance/receivables-aging.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.PracticeInsights.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Time.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.FirmBooks.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.EndOfService.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/FirmOperationsServices.cs",
+        "src/AuditSphereOps.Application/Practice/PracticeTimeService.cs",
+        "src/AuditSphereOps.Application/Practice/LedgerService.cs",
+        "src/AuditSphereOps.Application/Practice/FirmFinanceQuery.cs",
+        "src/AuditSphereOps.Application/Practice/LedgerService.EndOfService.cs",
+        "src/AuditSphereOps.Application/Practice/FirmReceivablesAgingQuery.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.FirmOperations.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/FirmOperationsTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/EndOfServiceAccrualTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/FirmReceivablesAgingQueryTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-039",
@@ -130,12 +265,26 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/commercial/leads.ts",
+        "src/AuditSphereOps.Ui/src/app/features/clients/client.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Commercial.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.ClientRelationships.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/PracticeCrmService.cs",
+        "src/AuditSphereOps.Application/Practice/PracticeLeadQuery.cs",
+        "src/AuditSphereOps.Application/Practice/ClientContactCreationWorkspace.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Practice.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-010"
@@ -151,12 +300,26 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/commercial/quotation.ts",
+        "src/AuditSphereOps.Ui/src/app/features/commercial/proposal.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Quotation.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/QuotationCalculator.cs",
+        "src/AuditSphereOps.Application/Practice/CommercialApprovalMatrix.cs",
+        "src/AuditSphereOps.Application/Practice/QuotationService.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Commercial.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/QuotationCalculatorTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-010"
@@ -172,12 +335,28 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/acceptance/checklist.ts",
+        "src/AuditSphereOps.Ui/src/app/features/engagements/activation.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Acceptance.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.EngagementActivation.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/AcceptanceRules.cs",
+        "src/AuditSphereOps.Application/Acceptance/AcceptanceDecisionService.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AssessmentReceipts.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-027"
@@ -193,12 +372,23 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/commercial/documents.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.CommercialDocuments.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/CommercialDocumentRenderer.cs",
+        "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Commercial.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-027",
@@ -215,12 +405,31 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/commercial/fee-agreement.ts",
+        "src/AuditSphereOps.Ui/src/app/features/finance/fee-settlements.ts",
+        "src/AuditSphereOps.Ui/src/app/features/portal/finance.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.FeeAgreement.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Finance.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/FeeAgreementService.cs",
+        "src/AuditSphereOps.Application/Practice/BillingService.cs",
+        "src/AuditSphereOps.Application/Practice/FeeSettlementWorkspaceQuery.cs",
+        "src/AuditSphereOps.Application/Documents/ClientPortalService.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Commercial.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.ClientPortal.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularFeeSettlementJourneyTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-009",
@@ -237,12 +446,25 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/acceptance/checklist.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Acceptance.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/AcceptanceChecklistService.cs",
+        "src/AuditSphereOps.Application/Acceptance/AssessmentCommandWorkspace.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementRiskEvidence.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AssessmentReceipts.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs",
+        "tests/AuditSphereOps.Api.Tests/AssessmentCommandReceiptApiTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-027"
@@ -258,12 +480,29 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/practice/resources.ts",
+        "src/AuditSphereOps.Ui/src/app/features/engagements/planning.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Resources.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.StaffingChange.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/StaffingService.cs",
+        "src/AuditSphereOps.Application/Practice/ResourcePlanningService.cs",
+        "src/AuditSphereOps.Application/Practice/ResourceGridCalculator.cs",
+        "src/AuditSphereOps.Application/Practice/ResourcePlanningCommandWorkspace.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.ResourcePlanning.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.ResourcePlanningReceipts.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+        "tests/AuditSphereOps.Api.Tests/ResourcePlanningReceiptApiTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-028"
@@ -279,12 +518,23 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/admin/sharepoint.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.SelectedResources.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Documents/EngagementWorkspaceProvisioning.cs",
+        "src/AuditSphereOps.Application/Microsoft365/Microsoft365ConfigurationService.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Microsoft365.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/EngagementWorkspaceProvisioningTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-021"
@@ -300,12 +550,26 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": true,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/audit/plan.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.AuditPlan.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Audit/MaterialityCalculator.cs",
+        "src/AuditSphereOps.Application/Audit/MaterialityEngineService.cs",
+        "src/AuditSphereOps.Application/Audit/RiskBandService.cs",
+        "src/AuditSphereOps.Application/Audit/AuditPlanningCommandWorkspace.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.ResourcePlanning.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AuditPlanningReceipts.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-012"
@@ -321,12 +585,28 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/engagements/tb-intake.ts",
+        "src/AuditSphereOps.Ui/src/app/features/engagements/statements.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Intake.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Statements.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Accounting/TrialBalanceImportService.cs",
+        "src/AuditSphereOps.Application/Accounting/Intake/MultiPeriodTrialBalanceService.cs",
+        "src/AuditSphereOps.Application/Accounting/Intake/FinancialStatementDrillDownQuery.cs",
+        "src/AuditSphereOps.Application/Accounting/Intake/MappedTrialBalanceSource.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.FinancialStatements.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/TrialBalanceCalculatorTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-030"
@@ -342,12 +622,31 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts",
+        "src/AuditSphereOps.Ui/src/app/features/audit/library.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Fieldwork.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.AuditRecords.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Audit/AuditProgramCatalog.cs",
+        "src/AuditSphereOps.Application/Audit/AuditProgramService.cs",
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Connections.cs",
+        "src/AuditSphereOps.Application/Audit/AuditSamplingService.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Audit.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Fieldwork.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.FieldworkConnections.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AuditProgramWorkflowTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/AuditSamplingEngineTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-029"
@@ -363,12 +662,27 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": true,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts",
+        "src/AuditSphereOps.Ui/src/app/features/practice/work-queue.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Fieldwork.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Audit/ReviewNotesService.cs",
+        "src/AuditSphereOps.Application/Audit/ManagerReviewSummaryQuery.cs",
+        "src/AuditSphereOps.Application/Audit/ProcedureReviewInboxQuery.cs",
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Completion.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AuditDeliverables.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagerReview.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-029",
@@ -385,12 +699,23 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Fieldwork.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Confirmations.cs",
+        "src/AuditSphereOps.Application/Audit/ConfirmationWorkspace.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Fieldwork.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-029"
@@ -406,12 +731,24 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": true,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/audit/completion.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Completion.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+        "src/AuditSphereOps.Application/Completion/ReportCertificateSigning.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AuditDeliverables.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/ReportCertificateSigningTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-014"
@@ -427,12 +764,26 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/audit/completion.ts",
+        "src/AuditSphereOps.Ui/src/app/features/portal/documents.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Completion.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Portal.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Completion/AuditDeliverableService.Bundle.cs",
+        "src/AuditSphereOps.Application/Completion/ReleaseCheckpointService.cs",
+        "src/AuditSphereOps.Application/Documents/ClientPortalReviewQuery.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AuditDeliverables.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-035"
@@ -448,12 +799,25 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/audit/records.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Completion.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.ArchiveCopies.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Records/FileFreezeService.cs",
+        "src/AuditSphereOps.Application/Records/RecordsArchiveService.cs",
+        "src/AuditSphereOps.Application/Records/ArchiveCopyService.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.FileFreeze.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-023",
@@ -470,12 +834,25 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/practice/analytics.ts",
+        "src/AuditSphereOps.Ui/src/app/features/practice/time.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.PracticeInsights.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Time.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/FirmOperationsServices.cs",
+        "src/AuditSphereOps.Application/Practice/PracticeTimeService.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.FirmOperations.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/FirmOperationsTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-033"
@@ -491,12 +868,29 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/finance/books.ts",
+        "src/AuditSphereOps.Ui/src/app/features/finance/end-of-service.ts",
+        "src/AuditSphereOps.Ui/src/app/features/finance/receivables-aging.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.FirmBooks.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.EndOfService.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/LedgerService.cs",
+        "src/AuditSphereOps.Application/Practice/FirmFinanceQuery.cs",
+        "src/AuditSphereOps.Application/Practice/LedgerService.EndOfService.cs",
+        "src/AuditSphereOps.Application/Practice/FirmReceivablesAgingQuery.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.FirmOperations.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/EndOfServiceAccrualTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/FirmReceivablesAgingQueryTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-031"
@@ -512,12 +906,21 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs"
+      ],
       "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-027"
@@ -533,12 +936,21 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs"
+      ],
       "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-027"
@@ -554,12 +966,21 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs"
+      ],
       "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-027"
@@ -575,12 +996,21 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs"
+      ],
       "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-027"
@@ -596,12 +1026,21 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs"
+      ],
       "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-027"
@@ -617,12 +1056,21 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs"
+      ],
       "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-027"
@@ -638,12 +1086,24 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/practice/workflow-templates.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.WorkflowTasks.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/WorkflowTemplateService.cs",
+        "src/AuditSphereOps.Application/Practice/EngagementWorkflowPlanService.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.WorkflowTemplates.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/WorkflowTemplateTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowPlanTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-010"
@@ -659,12 +1119,24 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/clients/engagement-create.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.EngagementCreation.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/AnnualEngagementPreparationWorkspace.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementCreationWorkspace.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.EngagementCreations.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AnnualEngagementPreparationTests.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularAnnualEngagementJourneyTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-010"
@@ -680,12 +1152,26 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/practice/work-queue.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.WorkflowTasks.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/EngagementWorkflowTaskService.cs",
+        "src/AuditSphereOps.Application/Documents/PbcReminderDiscovery.cs",
+        "src/AuditSphereOps.Application/Practice/WorkflowTaskEvidenceQuery.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.WorkflowTasks.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowTaskTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/PbcWorkflowTaskTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/PbcReminderTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-016"
@@ -702,11 +1188,21 @@
       "required": true,
       "professionalAcceptance": false,
       "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Infrastructure.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Security/AuthorizationDecision.cs",
+        "src/AuditSphereOps.Application/Security/RoleAssignmentService.cs",
+        "src/AuditSphereOps.Application/Practice/WorkflowTaskQueueQuery.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Security.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/GlobalSearchQueryTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-015"
@@ -722,12 +1218,21 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs"
+      ],
       "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-027"
@@ -743,12 +1248,28 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/acceptance/checklist.ts",
+        "src/AuditSphereOps.Ui/src/app/features/engagements/activation.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Acceptance.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.EngagementActivation.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/AcceptanceRules.cs",
+        "src/AuditSphereOps.Application/Acceptance/AcceptanceDecisionService.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AssessmentReceipts.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-027"
@@ -764,12 +1285,42 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/acceptance/checklist.ts",
+        "src/AuditSphereOps.Ui/src/app/features/engagements/activation.ts",
+        "src/AuditSphereOps.Ui/src/app/features/commercial/fee-agreement.ts",
+        "src/AuditSphereOps.Ui/src/app/features/finance/fee-settlements.ts",
+        "src/AuditSphereOps.Ui/src/app/features/portal/finance.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Acceptance.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.EngagementActivation.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.FeeAgreement.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Finance.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/AcceptanceRules.cs",
+        "src/AuditSphereOps.Application/Acceptance/AcceptanceDecisionService.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
+        "src/AuditSphereOps.Application/Practice/FeeAgreementService.cs",
+        "src/AuditSphereOps.Application/Practice/BillingService.cs",
+        "src/AuditSphereOps.Application/Practice/FeeSettlementWorkspaceQuery.cs",
+        "src/AuditSphereOps.Application/Documents/ClientPortalService.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AssessmentReceipts.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Commercial.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.ClientPortal.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularFeeSettlementJourneyTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-027",
@@ -786,12 +1337,32 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/acceptance/checklist.ts",
+        "src/AuditSphereOps.Ui/src/app/features/engagements/activation.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Acceptance.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.EngagementActivation.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/AcceptanceRules.cs",
+        "src/AuditSphereOps.Application/Acceptance/AcceptanceDecisionService.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
+        "src/AuditSphereOps.Application/Acceptance/AcceptanceChecklistService.cs",
+        "src/AuditSphereOps.Application/Acceptance/AssessmentCommandWorkspace.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementRiskEvidence.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AssessmentReceipts.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs",
+        "tests/AuditSphereOps.Api.Tests/AssessmentCommandReceiptApiTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-027"
@@ -807,12 +1378,26 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/practice/work-queue.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.WorkflowTasks.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/EngagementWorkflowTaskService.cs",
+        "src/AuditSphereOps.Application/Documents/PbcReminderDiscovery.cs",
+        "src/AuditSphereOps.Application/Practice/WorkflowTaskEvidenceQuery.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.WorkflowTasks.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowTaskTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/PbcWorkflowTaskTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/PbcReminderTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-016"
@@ -828,12 +1413,27 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts",
+        "src/AuditSphereOps.Ui/src/app/features/practice/work-queue.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Fieldwork.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Audit/ReviewNotesService.cs",
+        "src/AuditSphereOps.Application/Audit/ManagerReviewSummaryQuery.cs",
+        "src/AuditSphereOps.Application/Audit/ProcedureReviewInboxQuery.cs",
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Completion.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AuditDeliverables.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagerReview.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-029"
@@ -849,12 +1449,36 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": true,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts",
+        "src/AuditSphereOps.Ui/src/app/features/practice/work-queue.ts",
+        "src/AuditSphereOps.Ui/src/app/features/audit/plan.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Fieldwork.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.AuditPlan.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Audit/ReviewNotesService.cs",
+        "src/AuditSphereOps.Application/Audit/ManagerReviewSummaryQuery.cs",
+        "src/AuditSphereOps.Application/Audit/ProcedureReviewInboxQuery.cs",
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Completion.cs",
+        "src/AuditSphereOps.Application/Audit/MaterialityCalculator.cs",
+        "src/AuditSphereOps.Application/Audit/MaterialityEngineService.cs",
+        "src/AuditSphereOps.Application/Audit/RiskBandService.cs",
+        "src/AuditSphereOps.Application/Audit/AuditPlanningCommandWorkspace.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AuditDeliverables.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.ResourcePlanning.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AuditPlanningReceipts.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagerReview.cs",
+        "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-029",
@@ -871,12 +1495,31 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts",
+        "src/AuditSphereOps.Ui/src/app/features/audit/completion.ts",
+        "src/AuditSphereOps.Ui/src/app/features/portal/documents.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Fieldwork.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Completion.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Portal.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Confirmations.cs",
+        "src/AuditSphereOps.Application/Audit/ConfirmationWorkspace.cs",
+        "src/AuditSphereOps.Application/Completion/AuditDeliverableService.Bundle.cs",
+        "src/AuditSphereOps.Application/Completion/ReleaseCheckpointService.cs",
+        "src/AuditSphereOps.Application/Documents/ClientPortalReviewQuery.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Fieldwork.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.AuditDeliverables.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-029",
@@ -893,12 +1536,25 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/audit/records.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Completion.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.ArchiveCopies.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Records/FileFreezeService.cs",
+        "src/AuditSphereOps.Application/Records/RecordsArchiveService.cs",
+        "src/AuditSphereOps.Application/Records/ArchiveCopyService.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.FileFreeze.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-023"
@@ -914,12 +1570,31 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/clients/engagement-create.ts",
+        "src/AuditSphereOps.Ui/src/app/features/practice/workflow-templates.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.EngagementCreation.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.WorkflowTasks.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Acceptance/AnnualEngagementPreparationWorkspace.cs",
+        "src/AuditSphereOps.Application/Acceptance/EngagementCreationWorkspace.cs",
+        "src/AuditSphereOps.Application/Practice/WorkflowTemplateService.cs",
+        "src/AuditSphereOps.Application/Practice/EngagementWorkflowPlanService.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.EngagementCreations.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.WorkflowTemplates.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/AnnualEngagementPreparationTests.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularAnnualEngagementJourneyTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/WorkflowTemplateTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowPlanTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-010"
@@ -936,11 +1611,21 @@
       "required": true,
       "professionalAcceptance": false,
       "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Infrastructure.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Security/AuthorizationDecision.cs",
+        "src/AuditSphereOps.Application/Security/RoleAssignmentService.cs",
+        "src/AuditSphereOps.Application/Practice/WorkflowTaskQueueQuery.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Security.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/GlobalSearchQueryTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-015"
@@ -956,12 +1641,26 @@
       "profile": "core",
       "required": true,
       "professionalAcceptance": false,
-      "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "ui": [
+        "src/AuditSphereOps.Ui/src/app/features/practice/work-queue.ts"
+      ],
+      "api": [
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.WorkflowTasks.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Practice/EngagementWorkflowTaskService.cs",
+        "src/AuditSphereOps.Application/Documents/PbcReminderDiscovery.cs",
+        "src/AuditSphereOps.Application/Practice/WorkflowTaskEvidenceQuery.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.WorkflowTasks.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowTaskTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/PbcWorkflowTaskTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/PbcReminderTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-016"
@@ -978,11 +1677,25 @@
       "required": true,
       "professionalAcceptance": false,
       "ui": [],
-      "api": [],
-      "services": [],
-      "data": [],
-      "tests": [],
-      "status": "UNVERIFIED",
+      "api": [
+        "src/AuditSphereOps.Api/HttpBoundary/HttpPolicies.cs",
+        "src/AuditSphereOps.Api/Ui/UiEndpoints.Infrastructure.cs"
+      ],
+      "services": [
+        "src/AuditSphereOps.Application/Abstractions/Boundaries.cs",
+        "src/AuditSphereOps.Application/Security/AuthorizationDecision.cs",
+        "src/AuditSphereOps.Application/Security/RoleAssignmentService.cs",
+        "src/AuditSphereOps.Application/Practice/WorkflowTaskQueueQuery.cs"
+      ],
+      "data": [
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.cs",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Security.cs"
+      ],
+      "tests": [
+        "tests/AuditSphereOps.Domain.Tests/ArchitectureGuardTests.cs",
+        "tests/AuditSphereOps.Domain.Tests/GlobalSearchQueryTests.cs"
+      ],
+      "status": "SOURCE_TRACED",
       "evidence": [],
       "workUnits": [
         "WU-015",
