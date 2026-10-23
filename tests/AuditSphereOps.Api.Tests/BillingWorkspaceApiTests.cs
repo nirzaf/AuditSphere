@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -128,6 +129,88 @@ public sealed class BillingWorkspaceApiTests
   }
 
   [Fact]
+  public async Task FeeInvoiceScopeDenialsAreForbiddenWithoutEffectsAndOtherOutcomesKeepTheirStatus()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("ANGULAR-FEE-INVOICE-SCOPE");
+    var seed = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    var managerUser = PbcSeed.User(seed.FirmId, "Staff");
+    var siblingClientId = Guid.NewGuid();
+    Guid ownAgreementId, siblingAgreementId, foreignAgreementId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(managerUser);
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, managerUser, "FinanceManager", clientId: seed.ClientId));
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = siblingClientId, FirmId = seed.FirmId, LegalName = "SYNTHETIC SIBLING FEE CLIENT", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = siblingClientId, FirmId = seed.FirmId });
+      ownAgreementId = SeedFeeAgreement(db, seed.FirmId, seed.ClientId, seed.Admin.Id);
+      siblingAgreementId = SeedFeeAgreement(db, seed.FirmId, siblingClientId, seed.Admin.Id);
+      foreignAgreementId = SeedFeeAgreement(db, foreign.FirmId, foreign.ClientId, foreign.Admin.Id);
+      await db.SaveChangesAsync();
+    }
+
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
+      ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:Subject"] = managerUser.Subject,
+      ["DevelopmentIdentity:TenantId"] = managerUser.TenantId,
+      ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false"
+    });
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    var csrf = await SignInAsync(client);
+    const string body = "{\"reviewed\":true}";
+
+    using (var noCsrf = await PostAsync(client, $"/api/ui/fee-agreements/{ownAgreementId:D}/advance-invoice",
+      new StringContent(body, System.Text.Encoding.UTF8, "application/json"), null))
+    {
+      Assert.Equal(HttpStatusCode.Forbidden, noCsrf.StatusCode);
+      Assert.Equal("csrf.invalid", (await noCsrf.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+    }
+
+    foreach (var deniedAgreementId in new[] { siblingAgreementId, foreignAgreementId })
+    {
+      using var denied = await PostAsync(client, $"/api/ui/fee-agreements/{deniedAgreementId:D}/advance-invoice",
+        new StringContent(body, System.Text.Encoding.UTF8, "application/json"), csrf);
+      Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+      Assert.Equal("scope.denied", (await denied.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+    }
+
+    await using (var proof = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Empty(await proof.BillingAccounts.ToListAsync());
+      Assert.Empty(await proof.Invoices.ToListAsync());
+      Assert.All(await proof.FeeMilestones.AsNoTracking().ToListAsync(), milestone =>
+      {
+        Assert.Equal(FeeMilestoneStates.Planned, milestone.State);
+        Assert.Null(milestone.InvoiceId);
+      });
+    }
+
+    using var allowed = await PostAsync(client, $"/api/ui/fee-agreements/{ownAgreementId:D}/advance-invoice",
+      new StringContent(body, System.Text.Encoding.UTF8, "application/json"), csrf);
+    Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+    var issuedInvoiceId = (await allowed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+    using var blockedBalance = await PostAsync(client, $"/api/ui/fee-agreements/{ownAgreementId:D}/balance-invoice",
+      new StringContent(body, System.Text.Encoding.UTF8, "application/json"), csrf);
+    Assert.Equal(HttpStatusCode.BadRequest, blockedBalance.StatusCode);
+    Assert.Equal("gate.blocked", (await blockedBalance.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+
+    await using var finalProof = new AuditSphereDbContext(pg.Options);
+    var advance = await finalProof.FeeMilestones.SingleAsync(x => x.AgreementId == ownAgreementId && x.Kind == FeeMilestoneKinds.Advance);
+    var balance = await finalProof.FeeMilestones.SingleAsync(x => x.AgreementId == ownAgreementId && x.Kind == FeeMilestoneKinds.Balance);
+    Assert.Equal(FeeMilestoneStates.Invoiced, advance.State);
+    Assert.Equal(issuedInvoiceId, advance.InvoiceId);
+    Assert.Equal(FeeMilestoneStates.Planned, balance.State);
+    Assert.Null(balance.InvoiceId);
+    Assert.Single(await finalProof.BillingAccounts.Where(x => x.FirmId == seed.FirmId).ToListAsync());
+    Assert.Single(await finalProof.Invoices.Where(x => x.FirmId == seed.FirmId).ToListAsync());
+  }
+
+  [Fact]
   public async Task InvoiceHistoryUsesStableCursorsAcrossEqualTimestamps()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("ANGULAR-BILLING-HISTORY-PAGES");
@@ -193,6 +276,44 @@ public sealed class BillingWorkspaceApiTests
   }
 
   private static Guid HistoryId(int number) => Guid.Parse($"00000000-0000-7000-8000-{number:000000000000}");
+
+  private static Guid SeedFeeAgreement(AuditSphereDbContext db, Guid firmId, Guid clientId, Guid createdByUserId)
+  {
+    var now = DateTimeOffset.UtcNow;
+    var leadId = Guid.NewGuid();
+    var opportunityId = Guid.NewGuid();
+    var proposalId = Guid.NewGuid();
+    var quotationId = Guid.NewGuid();
+    var agreementId = Guid.NewGuid();
+    db.Leads.Add(new Lead { Id = leadId, FirmId = firmId, Name = "SYNTHETIC FEE PROPOSAL", Source = "TEST", CreatedAt = now });
+    db.Opportunities.Add(new Opportunity
+    {
+      Id = opportunityId, FirmId = firmId, LeadId = leadId, PracticeClientId = clientId,
+      ServiceRoute = "FinancialStatementAudit", EntityScope = "Synthetic scope", PeriodStart = "2026-01-01",
+      PeriodEnd = "2026-12-31", ExpectedFee = 100m, Currency = "QAR", CreatedAt = now
+    });
+    db.Proposals.Add(new Proposal
+    {
+      Id = proposalId, FirmId = firmId, OpportunityId = opportunityId, PracticeClientId = clientId,
+      ServiceProfileId = "synthetic", Scope = "Synthetic scope", Deliverables = "Synthetic invoice fixture",
+      PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Fee = 100m, Currency = "QAR", CreatedAt = now
+    });
+    db.QuotationVersions.Add(new QuotationVersion
+    {
+      Id = quotationId, FirmId = firmId, ProposalId = proposalId, Currency = "QAR", BaseAmount = 100m,
+      Fee = 100m, InputHash = new string('a', 64), CreatedByUserId = createdByUserId, CreatedAt = now
+    });
+    db.EngagementFeeAgreements.Add(new EngagementFeeAgreement
+    {
+      Id = agreementId, FirmId = firmId, PracticeClientId = clientId, ProposalId = proposalId,
+      QuotationVersionId = quotationId, Currency = "QAR", AgreedFee = 100m, AdvancePercent = 50m,
+      CreatedByUserId = createdByUserId, CreatedAt = now
+    });
+    db.FeeMilestones.AddRange(
+      new FeeMilestone { Id = Guid.NewGuid(), FirmId = firmId, AgreementId = agreementId, Kind = FeeMilestoneKinds.Advance, Amount = 50m, CreatedAt = now },
+      new FeeMilestone { Id = Guid.NewGuid(), FirmId = firmId, AgreementId = agreementId, Kind = FeeMilestoneKinds.Balance, Amount = 50m, CreatedAt = now });
+    return agreementId;
+  }
 
   private static decimal Decimal(JsonElement value) => decimal.Parse(value.GetString()!, CultureInfo.InvariantCulture);
 

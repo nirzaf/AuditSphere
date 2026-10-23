@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Api.HttpBoundary;
+using AuditSphereOps.Domain.Shared;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,6 +20,10 @@ public static partial class UiEndpoints
   /// <summary>Describes the payment handler's existing flattened receipt and delivery fields.</summary>
   public sealed record FeePaymentResponse(Guid Id, bool Paid, Guid? ReceiptDocumentId, bool EmailQueued,
     Guid? VoucherDocumentId, bool VoucherEmailQueued);
+
+  private static IResult FeeInvoiceFailure(string? code) => Results.Json(new { code },
+    statusCode: code == ErrorCodes.ScopeDenied ? StatusCodes.Status403Forbidden : StatusCodes.Status400BadRequest);
+
   private static void MapFeeAgreementEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/proposals/{id:guid}/fee-agreement", async (Guid id, HttpContext http, TrustedActorResolver resolver,
@@ -81,7 +86,7 @@ public static partial class UiEndpoints
         await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
         var result = kind == "advance" ? await FeeAgreementService.IssueAdvanceInvoiceAsync(db, actor, id, http.RequestAborted)
           : await FeeAgreementService.IssueBalanceInvoiceAsync(db, actor, id, http.RequestAborted);
-        return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+        return result.Succeeded ? Results.Ok(new { id = result.Value }) : FeeInvoiceFailure(result.ErrorCode);
       })
         .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
         .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -101,7 +106,7 @@ public static partial class UiEndpoints
       return result.Succeeded ? Results.Ok(new { id = result.Value!.ReceiptId, paid = result.Value.MilestonePaid,
         receiptDocumentId = result.Value.ReceiptDocumentId, emailQueued = result.Value.EmailQueued,
         voucherDocumentId = result.Value.VoucherDocumentId, voucherEmailQueued = result.Value.VoucherEmailQueued })
-        : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+        : FeeInvoiceFailure(result.ErrorCode);
     })
       .Produces<FeePaymentResponse>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -121,7 +126,7 @@ public static partial class UiEndpoints
       return result.Succeeded ? Results.Ok(new { id = result.Value!.ReceiptId, paid = result.Value.MilestonePaid,
         receiptDocumentId = result.Value.ReceiptDocumentId, emailQueued = result.Value.EmailQueued,
         voucherDocumentId = result.Value.VoucherDocumentId, voucherEmailQueued = result.Value.VoucherEmailQueued })
-        : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+        : FeeInvoiceFailure(result.ErrorCode);
     })
       .Produces<FeePaymentResponse>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
