@@ -49489,6 +49489,137 @@
         ]
       }
     },
+    "/api/ui/administration/microsoft365/mail-authorization-evidence/enroll": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UiMailAuthorizationEvidenceEnrollment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiValueResponseOfGuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/administration/microsoft365/prepare": {
       "post": {
         "tags": [
@@ -97142,6 +97273,16 @@
           },
           "diagnosticCode": {
             "type": "string"
+          },
+          "authorizationEvidence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MailAuthorizationEvidenceStatus"
+              }
+            ]
           }
         }
       },
@@ -121875,6 +122016,85 @@
           }
         }
       },
+      "MailAuthorizationEvidenceStatus": {
+        "required": [
+          "receiptId",
+          "model",
+          "attestationSha256",
+          "bindingSha256",
+          "expiresAtUtc",
+          "tenantId",
+          "runtimeClientId",
+          "connectionRevisionId",
+          "consentAttemptId",
+          "providerSnapshotSha256",
+          "planSha256",
+          "sourceCommit",
+          "senderMailboxObjectIds",
+          "controlMailboxObjectId",
+          "evidenceObservedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "model": {
+            "type": "string"
+          },
+          "attestationSha256": {
+            "type": "string"
+          },
+          "bindingSha256": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runtimeClientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "connectionRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "consentAttemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "providerSnapshotSha256": {
+            "type": "string"
+          },
+          "planSha256": {
+            "type": "string"
+          },
+          "sourceCommit": {
+            "type": "string"
+          },
+          "senderMailboxObjectIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "controlMailboxObjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "evidenceObservedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "MailStatus": {
         "required": [
           "senderIdentity",
@@ -144429,6 +144649,27 @@
           }
         }
       },
+      "UiMailAuthorizationEvidenceEnrollment": {
+        "required": [
+          "canonicalPayloadBase64",
+          "detachedCmsBase64",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "canonicalPayloadBase64": {
+            "maxLength": 1398104,
+            "type": "string"
+          },
+          "detachedCmsBase64": {
+            "maxLength": 87384,
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
       "UiManualBindingResponse": {
         "required": [
           "userId"
@@ -144936,6 +145177,10 @@
           },
           "simulation": {
             "type": "boolean"
+          },
+          "mailAuthorizationEnrollmentAvailable": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

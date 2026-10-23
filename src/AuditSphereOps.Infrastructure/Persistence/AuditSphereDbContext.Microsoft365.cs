@@ -176,9 +176,23 @@ public sealed partial class AuditSphereDbContext
     capability.Property(x => x.State).HasMaxLength(30);
     capability.Property(x => x.DiagnosticCode).HasMaxLength(100);
     capability.Property(x => x.ProviderCorrelationId).HasMaxLength(200);
+    capability.Property(x => x.MailAuthorizationModel).HasMaxLength(50);
+    capability.Property(x => x.MailAttestationSha256).HasMaxLength(64);
+    capability.Property(x => x.MailBindingSha256).HasMaxLength(64);
+    capability.Property(x => x.MailProviderSnapshotSha256).HasMaxLength(64);
+    capability.Property(x => x.MailCanonicalPayload).HasMaxLength(1_048_576);
+    capability.Property(x => x.MailDetachedCms).HasMaxLength(65_536);
     capability.HasIndex(x => new { x.FirmId, x.TenantId, x.Capability, x.ObservedAt });
+    capability.HasIndex(x => new { x.FirmId, x.MailAttestationSha256, x.MailBindingSha256 }).IsUnique()
+      .HasFilter("mail_attestation_sha256 IS NOT NULL AND mail_binding_sha256 IS NOT NULL")
+      .HasDatabaseName("ux_m365_mail_attestation_binding");
     capability.ToTable("m365_tenant_capability_verifications", t => t.HasCheckConstraint("ck_m365_capability_values",
       "length(trim(tenant_id)) > 0 AND capability IN ('SIGN_IN','DIRECTORY_READ','SELECTED_SITE','OUTBOUND_MAIL','TENANT_USER_PROVISIONING','GUEST_INVITATION','GROUP_MEMBERSHIP') AND state IN ('VERIFIED','NOT_GRANTED','FAILED','BLOCKED_EXTERNAL') AND length(trim(permission)) > 0 AND length(trim(diagnostic_code)) > 0"));
+    capability.ToTable("m365_tenant_capability_verifications", t => t.HasCheckConstraint("ck_m365_mail_authorization_evidence",
+      "(mail_authorization_model IS NULL AND mail_attestation_sha256 IS NULL AND mail_binding_sha256 IS NULL AND mail_provider_snapshot_sha256 IS NULL AND mail_evidence_expires_at_utc IS NULL AND mail_canonical_payload IS NULL AND mail_detached_cms IS NULL) OR " +
+      "(mail_authorization_model IS NOT NULL AND mail_authorization_model = 'LEGACY_APPLICATION_ACCESS_POLICY' AND capability = 'OUTBOUND_MAIL' AND permission = 'Mail.Send' AND state = 'VERIFIED' AND connection_revision_id IS NOT NULL AND consent_attempt_id IS NOT NULL AND " +
+      "mail_attestation_sha256 IS NOT NULL AND mail_attestation_sha256 ~ '^[0-9a-f]{64}$' AND mail_binding_sha256 IS NOT NULL AND mail_binding_sha256 ~ '^[0-9a-f]{64}$' AND mail_provider_snapshot_sha256 IS NOT NULL AND mail_provider_snapshot_sha256 ~ '^[0-9a-f]{64}$' AND " +
+      "mail_evidence_expires_at_utc IS NOT NULL AND mail_evidence_expires_at_utc > observed_at AND mail_canonical_payload IS NOT NULL AND octet_length(mail_canonical_payload) BETWEEN 2 AND 1048576 AND mail_detached_cms IS NOT NULL AND octet_length(mail_detached_cms) BETWEEN 1 AND 65536)"));
     capability.HasOne<Microsoft365ConnectionRevision>().WithMany().HasForeignKey(x => new { x.FirmId, x.ConnectionRevisionId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     capability.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ObservedByUserId })

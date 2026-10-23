@@ -20,6 +20,18 @@ public sealed record TenantAdministrationSettings(
     var tenant = configuration["Identity:TenantId"] ?? configuration["DevelopmentIdentity:TenantId"] ?? string.Empty;
     var simulation = section.GetValue<bool>("Simulation:Enabled");
     bool Enabled(string name) => section.GetValue<bool>($"{name}:Enabled");
+    var enrolled = string.Equals(configuration["MailAuthorization:Evidence:Source"]?.Trim(), "ENROLLED", StringComparison.OrdinalIgnoreCase);
+    MailAuthorizationRuntimeOptions? mailAuthorization = null;
+    if (enrolled && Enabled("OutboundMail") && Guid.TryParse(configuration["Worker:FirmId"], out var firmId))
+    {
+      try
+      {
+        var commit = MailAuthorizationDeploymentConfiguration.ReadBuildRepositoryCommit(typeof(ApiHost).Assembly,
+          typeof(MailAuthorizationRuntimeOptions).Assembly, typeof(MailAuthorizationDeploymentConfiguration).Assembly);
+        mailAuthorization = MailAuthorizationDeploymentConfiguration.Read(configuration, firmId, commit);
+      }
+      catch (InvalidOperationException) { /* Missing public bindings leave enrollment unavailable. */ }
+    }
     return new(new TenantAdministrationOptions(
         tenant,
         ProvisioningEnabled: Enabled("Provisioning"),
@@ -28,7 +40,9 @@ public sealed record TenantAdministrationSettings(
         DirectoryReadEnabled: configuration.GetValue<bool>("DirectoryReader:Enabled") || simulation,
         OutboundMailEnabled: Enabled("OutboundMail"),
         GuestRedirectUrl: section["GuestRedirectUrl"],
-        VerificationMaxAge: TimeSpan.FromHours(Math.Clamp(section.GetValue<int?>("VerificationMaxAgeHours") ?? 24, 1, 168))),
+        VerificationMaxAge: TimeSpan.FromHours(Math.Clamp(section.GetValue<int?>("VerificationMaxAgeHours") ?? 24, 1, 168)),
+        MailAuthorization: mailAuthorization,
+        MailEvidenceEnrollmentEnabled: enrolled),
       simulation,
       simulation || configuration.GetValue<bool>("TenantConsent:Enabled") &&
         !string.Equals(configuration["TenantConsent:ClientId"], configuration["Identity:ClientId"], StringComparison.OrdinalIgnoreCase),
@@ -75,7 +89,9 @@ public static class TenantAdministrationComposition
       var provisioning = Credential("TenantAdministration:Provisioning", "User.Create", settings.Options.ProvisioningEnabled);
       var invitation = Credential("TenantAdministration:GuestInvitation", "User.Invite.All", settings.Options.GuestInvitationEnabled);
       var groupMembership = Credential("TenantAdministration:GroupMembership", "GroupMember.ReadWrite.All", settings.Options.GroupMembershipEnabled);
-      var mail = Credential("TenantAdministration:OutboundMail", "Mail.Send", settings.Options.OutboundMailEnabled);
+      // Enrolled authorization evidence uses public bindings; the sending certificate stays in worker-mail.
+      var mail = Credential("TenantAdministration:OutboundMail", "Mail.Send", settings.Options.OutboundMailEnabled &&
+        !settings.Options.MailEvidenceEnrollmentEnabled);
       var selectedSite = Credential("SelectedSite", "Sites.Selected", !string.IsNullOrWhiteSpace(configuration["SelectedSite:ClientId"]));
       foreach (var (name, credential) in new[] { ("DirectoryReader", reader), ("SelectedSite", selectedSite),
                  ("Provisioning", provisioning), ("GuestInvitation", invitation),
@@ -93,7 +109,8 @@ public static class TenantAdministrationComposition
         (Name: "TenantAdministration:Provisioning", ClientId: provisioning.ClientId, Enabled: provisioning.Enabled),
         (Name: "TenantAdministration:GuestInvitation", ClientId: invitation.ClientId, Enabled: invitation.Enabled),
         (Name: "TenantAdministration:GroupMembership", ClientId: groupMembership.ClientId, Enabled: groupMembership.Enabled),
-        (Name: "TenantAdministration:OutboundMail", ClientId: mail.ClientId, Enabled: mail.Enabled)
+        (Name: "TenantAdministration:OutboundMail", ClientId: settings.Options.MailAuthorization?.RuntimeClientId.ToString("D") ?? mail.ClientId,
+          Enabled: settings.Options.OutboundMailEnabled)
       };
       var duplicateIdentity = identities.Where(x => x.Enabled && !string.IsNullOrWhiteSpace(x.ClientId))
         .GroupBy(x => x.ClientId!, StringComparer.OrdinalIgnoreCase)

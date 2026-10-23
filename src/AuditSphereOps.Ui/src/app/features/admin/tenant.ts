@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
+import { decode, guid } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { consentDestination, tenantWorkspace } from './tenant-contracts';
@@ -54,6 +55,41 @@ import { WorkspaceAdministration } from './workspaces';
         @for(c of w.workspace.capabilities; track c.capability) { <tr><td>{{ c.displayName }}</td><td>{{ c.permission }}</td><td>{{ c.enabled ? 'Enabled' : 'Disabled' }}</td><td><audit-status [value]="c.stale ? 'STALE' : c.state" /></td><td>{{ c.lastVerifiedAt ?? 'Not observed' }}</td><td>{{ c.diagnosticCode }}</td></tr> }
       </tbody></table></div><a matButton routerLink="/app/administration">Review permission matrix and external blockers</a>
     </section>
+    @if (mailCapability(w); as mail) {
+      <section class="panel" aria-labelledby="mail-authorization-status-heading">
+        <h2 id="mail-authorization-status-heading">Persisted mail authorization evidence</h2>
+        <p>Authorization evidence only; it is not proof of a live send or delivery.</p>
+        <dl class="facts"><dt>Current capability evaluation</dt><dd><audit-status [value]="mail.stale ? 'STALE' : mail.state" /></dd>
+          <dt>Evaluation diagnostic</dt><dd>{{ mail.diagnosticCode }}</dd></dl>
+        @if (mail.authorizationEvidence; as evidence) {
+          <dl class="facts"><dt>Receipt ID</dt><dd><code>{{ evidence.receiptId }}</code></dd>
+            <dt>Permission model</dt><dd>{{ evidence.model }}</dd>
+            <dt>Attestation SHA-256</dt><dd><code>{{ evidence.attestationSha256 }}</code></dd>
+            <dt>Expected binding SHA-256</dt><dd><code>{{ evidence.bindingSha256 }}</code></dd>
+            <dt>Evidence expires</dt><dd>{{ evidence.expiresAtUtc }}</dd></dl>
+        } @else {
+          <p role="status">No typed signed receipt is persisted. Historical generic or role-only mail rows remain untrusted.</p>
+        }
+      </section>
+    }
+    @if (w.mailAuthorizationEnrollmentAvailable) {
+      <section class="panel" aria-labelledby="mail-authorization-evidence-heading">
+        <h2 id="mail-authorization-evidence-heading">Enroll signed mail authorization evidence</h2>
+        <p>This records deployment-bound authorization evidence only. It does not send mail and is not proof of a live send or delivery.</p>
+        <p>Choose the exact canonical JSON payload and its detached CMS signature. The files are uploaded byte-for-byte for server-side verification.</p>
+        <label>Canonical payload (up to 1 MiB)
+          <input type="file" accept="application/json,.json" (change)="selectMailAuthorizationFile($event, 'payload')" [disabled]="busy() || uncertain() || mailEvidenceReading()" />
+        </label>
+        @if (mailPayloadFile(); as file) { <p>Selected payload: {{ file.name }} · {{ file.size }} bytes</p> }
+        <label>Detached CMS signature (up to 64 KiB)
+          <input type="file" accept=".p7m,.p7s,.cms,application/pkcs7-mime,application/pkcs7-signature" (change)="selectMailAuthorizationFile($event, 'signature')" [disabled]="busy() || uncertain() || mailEvidenceReading()" />
+        </label>
+        @if (mailSignatureFile(); as file) { <p>Selected signature: {{ file.name }} · {{ file.size }} bytes</p> }
+        <label><input #mailReview type="checkbox" [checked]="mailAuthorizationReviewed()" (change)="mailAuthorizationReviewed.set(mailReview.checked)" [disabled]="busy() || uncertain() || mailEvidenceReading()" /> I reviewed these exact files and understand this is authorization evidence, not live-send or delivery confirmation.</label>
+        <button matButton="filled" (click)="enrollMailAuthorizationEvidence()" [disabled]="busy() || uncertain() || mailEvidenceReading() || !mailPayloadFile() || !mailSignatureFile() || !mailAuthorizationReviewed()">Enroll evidence</button>
+        @if (mailEvidenceMessage()) { <p [attr.role]="mailEvidenceFailed() ? 'alert' : 'status'">{{ mailEvidenceMessage() }}</p> }
+      </section>
+    }
     @if(w.workspace.setupProgress; as p) { <section class="panel"><h2>Selected workspace setup</h2><ul>
       <li>Tenant recorded: {{ p.tenantRecorded ? 'Yes' : 'Pending' }}</li><li>Connection prepared: {{ p.connectionPrepared ? 'Yes' : 'Pending' }}</li>
       <li>Administrator consent verified: {{ p.consentVerified ? 'Yes' : 'Pending' }}</li><li>Selected resource evidence: {{ p.selectedResourcesEvidenceRecorded ? 'Recorded' : 'Pending' }}</li>
@@ -79,8 +115,116 @@ export class TenantConnection {
   readonly ws = this.api.resource(() => '/api/ui/administration/microsoft365', tenantWorkspace, 'Current firm-wide Administrator access is required.');
   readonly form = inject(FormBuilder).nonNullable.group({ reviewed: [false, Validators.requiredTrue] });
   readonly prepareReviewed = inject(FormBuilder).nonNullable.control(false);
+  readonly mailPayloadFile = signal<File | null>(null);
+  readonly mailSignatureFile = signal<File | null>(null);
+  readonly mailAuthorizationReviewed = signal(false);
+  readonly mailEvidenceReading = signal(false);
+  readonly mailEvidenceMessage = signal('');
+  readonly mailEvidenceFailed = signal(false);
   readonly busy = signal(false); readonly uncertain = signal(false); readonly message = signal(''); readonly failed = signal(false);
-  constructor() { effect(() => { if (!this.ws.data()) { this.form.reset(); this.prepareReviewed.reset(); this.message.set(''); } }); }
+  private mailEvidenceReadVersion = 0;
+  private mailEvidenceActorKey = '';
+  mailCapability(w: ReturnType<typeof tenantWorkspace>) {
+    return w.workspace.capabilities.find(capability => capability.capability === 'OUTBOUND_MAIL') ?? null;
+  }
+  constructor() {
+    effect(() => {
+      const session = this.session.current(), epoch = this.session.invalidation(), workspace = this.ws.data();
+      const actorKey = session ? `${session.firmId}:${session.userId}:${session.generation}:${session.staff}:${epoch}` : `anonymous:${epoch}`;
+      if (actorKey !== this.mailEvidenceActorKey) { this.mailEvidenceActorKey = actorKey; this.resetMailAuthorizationEvidence(); }
+      if (!workspace) { this.form.reset(); this.prepareReviewed.reset(); this.message.set(''); }
+    });
+  }
+  selectMailAuthorizationFile(event: Event, part: 'payload' | 'signature'): void {
+    ++this.mailEvidenceReadVersion;
+    this.mailEvidenceReading.set(false);
+    const input = event.currentTarget as HTMLInputElement;
+    const files = input.files;
+    this.mailAuthorizationReviewed.set(false);
+    this.mailEvidenceFailed.set(false);
+    this.mailEvidenceMessage.set('');
+    const file = files?.length === 1 ? files[0] ?? null : null;
+    const maxBytes = part === 'payload' ? 1_048_576 : 65_536;
+    const accepted = file && file.size > 0 && file.size <= maxBytes ? file : null;
+    (part === 'payload' ? this.mailPayloadFile : this.mailSignatureFile).set(accepted);
+    if (!accepted) this.mailEvidenceMessage.set(`Choose exactly one ${part === 'payload' ? 'canonical payload' : 'detached CMS signature'} from 1 byte to ${maxBytes.toLocaleString()} bytes.`);
+    input.value = '';
+  }
+  async enrollMailAuthorizationEvidence(): Promise<void> {
+    const workspace = this.ws.data();
+    const payload = this.mailPayloadFile(), signature = this.mailSignatureFile();
+    if (!workspace?.mailAuthorizationEnrollmentAvailable || !payload || !signature || !this.mailAuthorizationReviewed() ||
+        this.busy() || this.uncertain() || this.mailEvidenceReading()) return;
+    const generation = this.session.invalidation();
+    const readVersion = ++this.mailEvidenceReadVersion;
+    let submitted = false;
+    this.mailEvidenceReading.set(true);
+    this.busy.set(true);
+    this.mailEvidenceFailed.set(false);
+    this.mailEvidenceMessage.set('Reading the selected files without changing their bytes…');
+    try {
+      const [payloadBuffer, signatureBuffer] = await Promise.all([payload.arrayBuffer(), signature.arrayBuffer()]);
+      if (generation !== this.session.invalidation() || readVersion !== this.mailEvidenceReadVersion || this.ws.data() !== workspace) return;
+      const payloadBytes = new Uint8Array(payloadBuffer), signatureBytes = new Uint8Array(signatureBuffer);
+      if (payloadBytes.byteLength < 1 || payloadBytes.byteLength > 1_048_576 || signatureBytes.byteLength < 1 || signatureBytes.byteLength > 65_536) {
+        this.mailEvidenceFailed.set(true);
+        this.mailEvidenceMessage.set('The selected file bytes do not match the allowed size bounds. Select the files again.');
+        return;
+      }
+      this.mailEvidenceMessage.set('Submitting the exact files for server-side signature and current-binding verification…');
+      const request = {
+        canonicalPayloadBase64: this.bytesToBase64(payloadBytes),
+        detachedCmsBase64: this.bytesToBase64(signatureBytes),
+        reviewed: true,
+      };
+      submitted = true;
+      const result = await this.api.command('/api/ui/administration/microsoft365/mail-authorization-evidence/enroll', request);
+      if (generation !== this.session.invalidation() || readVersion !== this.mailEvidenceReadVersion) return;
+      if (!result.ok) {
+        this.mailEvidenceFailed.set(true);
+        if (result.unknown) {
+          this.uncertain.set(true);
+          this.mailEvidenceMessage.set('The server outcome is unknown. Persisted status is refreshing; do not submit again until that status is reviewed.');
+          this.ws.reload();
+        } else this.mailEvidenceMessage.set(result.message);
+        return;
+      }
+      const receiptId = decode(guid, result.value);
+      this.mailEvidenceFailed.set(false);
+      this.mailEvidenceMessage.set(`Evidence receipt ${receiptId} acknowledged. Refreshing persisted authorization status…`);
+      this.mailPayloadFile.set(null);
+      this.mailSignatureFile.set(null);
+      this.mailAuthorizationReviewed.set(false);
+      this.ws.reload();
+    } catch {
+      if (generation === this.session.invalidation() && readVersion === this.mailEvidenceReadVersion) {
+        this.mailEvidenceFailed.set(true);
+        if (submitted) {
+          this.uncertain.set(true);
+          this.mailEvidenceMessage.set('The server outcome is unknown. Persisted status is refreshing; do not submit again until that status is reviewed.');
+          this.ws.reload();
+        } else this.mailEvidenceMessage.set('The selected evidence could not be read. Select the files again and retry.');
+      }
+    } finally {
+      if (readVersion === this.mailEvidenceReadVersion) this.mailEvidenceReading.set(false);
+      this.busy.set(false);
+    }
+  }
+  private bytesToBase64(bytes: Uint8Array): string {
+    let binary = '';
+    for (let offset = 0; offset < bytes.length; offset += 0x8000)
+      binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
+    return btoa(binary);
+  }
+  private resetMailAuthorizationEvidence(): void {
+    ++this.mailEvidenceReadVersion;
+    this.mailPayloadFile.set(null);
+    this.mailSignatureFile.set(null);
+    this.mailAuthorizationReviewed.set(false);
+    this.mailEvidenceReading.set(false);
+    this.mailEvidenceMessage.set('');
+    this.mailEvidenceFailed.set(false);
+  }
   async prepare(): Promise<void> {
     const w = this.ws.data(); if (!w?.workspace.connection.draftId || !w.workspace.draftRevision || !w.preparationConfigured || !this.prepareReviewed.value || this.busy() || this.uncertain()) return;
     const generation = this.session.invalidation(); this.busy.set(true);

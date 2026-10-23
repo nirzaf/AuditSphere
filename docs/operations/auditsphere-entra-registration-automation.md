@@ -466,12 +466,85 @@ $authorization[0].source.repositoryCommit
 $authorization[0].providerSnapshot.permissionModel
 ```
 
-This is **unsigned readback**, not a trusted CMS attestation. Canonical digest and
-signature production, server import tied to the current connection/consent,
-worker evidence gating and roleless RBAC token validation remain engineering
-work. No CMS import/signing command is available from this slice. A matching
-snapshot, valid JSON envelope or zero exit from an offline check cannot replace
-those gates or prove delivery.
+This is **unsigned readback**. The Application canonicalizer/verifier and worker
+gate support signed evidence; the enrollment procedure below accepts an already
+issued Legacy attestation. Operator signing/normalization tooling remains a
+separate deliverable: do not manually invent an attestation from this envelope.
+RBAC enrollment and rollout remain separate. A matching readback or an offline
+pass does not establish provider delivery.
+
+### Enroll a signed Legacy authorization receipt
+
+This procedure requires the release containing the mail-evidence migration, a
+current firm-wide AuditSphere Administrator session, and the exact canonical
+payload plus detached CMS from the approved operator issuer. Retain the issuer's
+private key outside the API and worker. The API accepts public bytes only.
+
+| Deployment setting | API / worker requirement |
+| --- | --- |
+| `MailAuthorization:Evidence:Source` | Set `ENROLLED` explicitly on API and Graph mail worker to use persisted evidence. `FILE` remains the worker default and retains the existing read-only file source. |
+| `MailAuthorization:Model` | Enrollment supports `LEGACY`; the canonical receipt model is `LEGACY_APPLICATION_ACCESS_POLICY`. |
+| `Worker:FirmId` | The same exact firm ID is also required by the API's public evidence binding. |
+| `MailAuthorization` binding | Both hosts need the approved tenant, runtime client/service-principal IDs, sender object IDs, control mailbox, plan/source hashes, signer certificate SHA-256 and maximum age. Use the existing worker binding keys; no value is learned from the uploaded receipt. |
+| Build identity | API/Application/Infrastructure and Worker/Application/Infrastructure must have matching full build-source metadata for their release. Missing metadata leaves API enrollment unavailable and blocks the worker. |
+| `TenantAdministration:OutboundMail:Enabled` | Enables the API capability. In `ENROLLED` mode the API does not require the mail worker's certificate/private-key paths. |
+| `GraphMail` credentials | Remain exclusively on `worker-mail`; the Graph sender retains its token and per-dispatch evidence checks. |
+
+First inspect the reviewed target with the existing readiness collector and
+confirm its staff-session firm, tenant, source and plan bindings. In the same
+approved operator process, use an authenticated `WebRequestSession` named
+`$approvedStaffSession` for that exact origin. Normal OIDC sign-in/MFA is still
+required; this example does not bootstrap a session. Keep cookies and XSRF
+tokens out of arguments, transcripts and logs.
+
+```powershell
+$apiOrigin = 'https://audit.example.test' # replace with the reviewed exact origin
+$workspaceUri = "$apiOrigin/api/ui/administration/microsoft365"
+# GET stores the current XSRF token in the already authenticated session.
+Invoke-WebRequest -Uri "$apiOrigin/api/ui/session" `
+  -WebSession $approvedStaffSession -MaximumRedirection 0 | Out-Null
+$workspace = Invoke-RestMethod -Uri $workspaceUri `
+  -WebSession $approvedStaffSession -MaximumRedirection 0
+if (-not $workspace.mailAuthorizationEnrollmentAvailable -or
+    $workspace.configuredTenantId -ne $plan.tenantId) {
+  throw 'Enrollment is unavailable or the reviewed tenant differs.'
+}
+$csrfCookie = $approvedStaffSession.Cookies.GetCookies([Uri]$apiOrigin)['XSRF-TOKEN']
+if ($null -eq $csrfCookie) { throw 'An authenticated XSRF token is required.' }
+$payload = [IO.File]::ReadAllBytes('/approved/operator/mail.canonical.json')
+$cms = [IO.File]::ReadAllBytes('/approved/operator/mail.detached.p7s')
+if ($payload.Length -lt 2 -or $payload.Length -gt 1048576 -or
+    $cms.Length -lt 1 -or $cms.Length -gt 65536) { throw 'Evidence exceeds its bounds.' }
+$body = @{
+  canonicalPayloadBase64 = [Convert]::ToBase64String($payload)
+  detachedCmsBase64 = [Convert]::ToBase64String($cms)
+  reviewed = $true # review these exact public files before this step
+} | ConvertTo-Json -Compress
+try {
+  $receipt = Invoke-RestMethod -Method Post `
+    -Uri "$apiOrigin/api/ui/administration/microsoft365/mail-authorization-evidence/enroll" `
+    -WebSession $approvedStaffSession -MaximumRedirection 0 `
+    -Headers @{ 'X-XSRF-TOKEN' = [Uri]::UnescapeDataString($csrfCookie.Value) } `
+    -ContentType 'application/json' -Body $body
+  $receipt.value # safe receipt identity; never print the request or session headers
+} finally {
+  Remove-Variable csrfCookie, body -ErrorAction SilentlyContinue
+}
+```
+
+Read the workspace again and inspect `OUTBOUND_MAIL.authorizationEvidence`, then
+run `Verify-M365Readiness.ps1` using the reviewed plan. The receipt exposes exact
+IDs, envelope/binding/provider hashes, source/plan identities and signed expiry;
+it exposes no payload/CMS bytes. Matching current receipts are replay-safe.
+After a timeout, inspect persisted status before resubmitting the same files;
+retain an unresolved result when readback cannot establish the outcome.
+
+Old generic `Mail.Send` rows remain ineligible. Expiry, changed consent,
+connection or deployment binding removes the current status; the worker also
+reverifies the persisted signed bytes before dispatch. An enrollment receipt is
+authorization evidence, not a mail-send or delivery receipt. Downgrade refuses
+to discard retained signed evidence. Live provider acceptance, signer custody,
+operator issuer tooling and reviewed rollout/rollback remain separate gates.
 
 ## Secondary archive copies and evidence readback (WU-023)
 

@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Signed Legacy mail evidence enrollment (2026-10-23)
+
+Firm-wide administrators can enroll exact public CMS evidence through the authenticated API/Angular workflow. Append-only receipts are replay-safe, rechecked against current deployment/connection/consent and expiry, and read by the Graph mail worker only when explicitly configured as `ENROLLED`; `FILE` remains the default. Generic role-only rows never qualify. The CLI reads safe receipt metadata. Downgrade refuses to discard retained bytes. Focused evidence and source limits are in `status.json`; issuer tooling, broader runtime readiness, interactive/current-source full CI, live provider and rollout acceptance remain open. No live effect or deployment was performed.
+
 ## Retained parity UI corrections (2026-10-23)
 
 Workpaper responses and recovery remain bound to the initiating engagement and identity. Context changes clear milestone drafts. Saved statements retain visible refusals, numeric note schedules and saved checks. Build/static evidence and deferred acceptance are recorded under `apiAngularParity.retainedUiT015T033T034` in `status.json`; no local test cases ran.
@@ -36,7 +40,7 @@ The verified dependency repair and scan review are retained in the [slice archiv
 
 ## Mail scope evidence projection (2026-10-23)
 
-Role-only rows cannot verify mail or reuse a verification timestamp. The Graph worker now requires signed source/model/tenant/sender/control evidence, current connection/consent, and model-specific token claims before dispatch; authority is rechecked after evidence I/O. Focused tests and compilation passed; Compose uses immutable sender IDs. Receipt enrollment, persisted API readiness, migration and live acceptance remain open. Evidence is in `status.json`.
+Role-only rows cannot verify mail or reuse a verification timestamp. The Graph worker now requires signed source/model/tenant/sender/control evidence, current connection/consent, and model-specific token claims before dispatch; authority is rechecked after evidence I/O. Focused tests and compilation passed; Compose uses immutable sender IDs. The newer enrollment section supersedes the earlier receipt/API metadata gap; broader readiness, migration/rollout and live acceptance remain open. Evidence is in `status.json`.
 
 ## Deployment binding inventory (2026-10-23)
 

@@ -98,8 +98,27 @@ function New-Workspace([switch] $WithoutCapabilityRows, [string] $TenantId = $sc
       draftRevision = '4'
     }
     consentConfigured = $true; directoryConfigured = $true; configuredTenantId = $TenantId
+    mailAuthorizationEnrollmentAvailable = $false
     preparationConfigured = $true; simulation = $Simulation
   }
+}
+
+function New-MailAuthorizationPlan {
+  $plan = $script:plan.Clone()
+  $capability = $script:plan.capabilities[0].Clone()
+  $capability.kind = 'MAIL'
+  $capability.expectedApplicationRoles = @()
+  $plan.capabilities = @($capability)
+  $plan.mail = @{ permissionModel = 'LEGACY_APPLICATION_ACCESS_POLICY'; senderObjectIds = @('00000000-0000-4000-8000-000000000050')
+    controlMailboxObjectId = '00000000-0000-4000-8000-000000000051' }
+  return $plan
+}
+
+function New-MailAuthorizationWorkspace([bool] $EnrollmentAvailable = $true, $Evidence = $null, [string] $State = 'VERIFIED') {
+  $row = @{ capability = 'OUTBOUND_MAIL'; displayName = 'MAIL'; permission = 'Mail.Send'; enabled = $true
+    state = $State; lastVerifiedAt = $script:now; stale = $false; diagnosticCode = '' }
+  if ($null -ne $Evidence) { $row.authorizationEvidence = $Evidence }
+  return @{ mailAuthorizationEnrollmentAvailable = $EnrollmentAvailable; workspace = @{ capabilities = @($row) } }
 }
 
 function New-ResponseSequence([switch] $WithoutCapabilityRows, [string] $AfterUserId = '00000000-0000-4000-8000-000000000020',
@@ -256,6 +275,100 @@ try {
     Assert-That "plan-kind-maps-to-api-wire-key-$($mappingCase.PlanKind)" ($mappingCheck.capability -eq $mappingCase.PlanKind -and
       $mappingCheck.apiCapabilityKey -eq $mappingCase.ApiKey)
   }
+
+  $mailPlan = New-MailAuthorizationPlan
+  $mailExpiry = [DateTimeOffset]::UtcNow.AddHours(1)
+  $mailEvidence = @{ receiptId = '00000000-0000-4000-8000-000000000090'; model = 'LEGACY_APPLICATION_ACCESS_POLICY'
+    attestationSha256 = 'a' * 64; bindingSha256 = 'b' * 64; expiresAtUtc = $mailExpiry.ToString('o')
+    tenantId = $mailPlan.tenantId; runtimeClientId = $mailPlan.capabilities[0].clientId
+    connectionRevisionId = '00000000-0000-4000-8000-000000000060'; consentAttemptId = '00000000-0000-4000-8000-000000000061'
+    providerSnapshotSha256 = 'c' * 64; planSha256 = Get-M365PlanSha256 $mailPlan
+    sourceCommit = $mailPlan.repositoryCommit; senderMailboxObjectIds = @($mailPlan.mail.senderObjectIds)
+    controlMailboxObjectId = $mailPlan.mail.controlMailboxObjectId; evidenceObservedAtUtc = $script:now }
+  $mailWorkspace = New-MailAuthorizationWorkspace -Evidence $mailEvidence
+  $mailResult = New-M365Result 'ReadOnly'
+  Add-M365ReadinessCapabilityChecks $mailResult $mailPlan $mailWorkspace 'INCOMPLETE_EVIDENCE'
+  $mailCheck = $mailResult.checks[0]
+  $expectedMailExpiry = $mailExpiry.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'", [Globalization.CultureInfo]::InvariantCulture)
+  $projectedMailEvidence = if ($null -ne $mailCheck.apiCapabilityObservation) { $mailCheck.apiCapabilityObservation['authorizationEvidence'] } else { $null }
+  $mailEvidenceDetail = "planModel=$($mailPlan.mail.permissionModel); enrollment=$($mailWorkspace.mailAuthorizationEnrollmentAvailable); blockers=$($mailCheck.sourceOwnedBlockers -join ',')"
+  Assert-That 'mail-receipt-projects-only-exact-bound-canonical-fields' ($mailCheck.state -eq 'INCOMPLETE_EVIDENCE' -and
+    $null -ne $projectedMailEvidence -and $projectedMailEvidence.receiptId -eq $mailEvidence.receiptId -and
+    $projectedMailEvidence.model -eq 'LEGACY_APPLICATION_ACCESS_POLICY' -and
+    $projectedMailEvidence.attestationSha256 -eq $mailEvidence.attestationSha256 -and
+    $projectedMailEvidence.bindingSha256 -eq $mailEvidence.bindingSha256 -and
+    $projectedMailEvidence.expiresAtUtc -eq $expectedMailExpiry -and
+    $projectedMailEvidence.tenantId -eq $mailPlan.tenantId -and
+    $projectedMailEvidence.runtimeClientId -eq $mailPlan.capabilities[0].clientId -and
+    $projectedMailEvidence.connectionRevisionId -eq $mailEvidence.connectionRevisionId -and
+    $projectedMailEvidence.consentAttemptId -eq $mailEvidence.consentAttemptId -and
+    $projectedMailEvidence.providerSnapshotSha256 -eq $mailEvidence.providerSnapshotSha256 -and
+    $projectedMailEvidence.planSha256 -eq (Get-M365PlanSha256 $mailPlan) -and
+    $projectedMailEvidence.sourceCommit -eq $mailPlan.repositoryCommit -and
+    $projectedMailEvidence.senderMailboxObjectIds.Count -eq 1 -and
+    $projectedMailEvidence.senderMailboxObjectIds[0] -eq $mailPlan.mail.senderObjectIds[0] -and
+    $projectedMailEvidence.controlMailboxObjectId -eq $mailPlan.mail.controlMailboxObjectId -and
+    $projectedMailEvidence.evidenceObservedAtUtc -eq '2026-10-23T06:30:00.0000000Z' -and
+    $mailCheck.observed -like '*does not prove live send or delivery*' -and
+    $mailCheck.sourceOwnedBlockers -contains 'api-workspace:runtime-client-identity-not-projected') $mailEvidenceDetail
+
+  $mailBindingMismatchCases = @(
+    @{ Name = 'tenant'; Field = 'tenantId'; Value = '00000000-0000-4000-8000-000000000099' },
+    @{ Name = 'app'; Field = 'runtimeClientId'; Value = '00000000-0000-4000-8000-000000000099' },
+    @{ Name = 'sender'; Field = 'senderMailboxObjectIds'; Value = @('00000000-0000-4000-8000-000000000099') },
+    @{ Name = 'control'; Field = 'controlMailboxObjectId'; Value = '00000000-0000-4000-8000-000000000099' },
+    @{ Name = 'plan'; Field = 'planSha256'; Value = 'd' * 64 },
+    @{ Name = 'source'; Field = 'sourceCommit'; Value = '1111111111111111111111111111111111111111' }
+  )
+  foreach ($case in $mailBindingMismatchCases) {
+    $mismatchedEvidence = $mailEvidence.Clone()
+    $mismatchedEvidence[$case.Field] = $case.Value
+    $mismatchResult = New-M365Result 'ReadOnly'
+    Add-M365ReadinessCapabilityChecks $mismatchResult $mailPlan (New-MailAuthorizationWorkspace -Evidence $mismatchedEvidence) 'INCOMPLETE_EVIDENCE'
+    $mismatchCheck = $mismatchResult.checks[0]
+    Assert-That "verified-mail-row-rejects-mismatched-$($case.Name)-binding" (-not $mismatchCheck.apiCapabilityObservation.Contains('authorizationEvidence') -and
+      $mismatchCheck.apiCapabilityObservation.state -eq 'VERIFIED' -and
+      $mismatchCheck.sourceOwnedBlockers -contains 'api-workspace:MAIL:authorization-evidence-plan-binding-mismatch')
+  }
+
+  $staleEvidenceResult = New-M365Result 'ReadOnly'
+  Add-M365ReadinessCapabilityChecks $staleEvidenceResult $mailPlan (New-MailAuthorizationWorkspace -Evidence $mailEvidence -State 'STALE') 'INCOMPLETE_EVIDENCE'
+  $staleEvidenceCheck = $staleEvidenceResult.checks[0]
+  Assert-That 'mail-receipt-not-projected-for-stale-capability-row' (-not $staleEvidenceCheck.apiCapabilityObservation.Contains('authorizationEvidence') -and
+    $staleEvidenceCheck.sourceOwnedBlockers -contains 'api-workspace:MAIL:authorization-evidence-current-status-mismatch')
+
+  $oldMailWorkspace = New-MailAuthorizationWorkspace -Evidence $null -State 'NOT_VERIFIED'
+  $oldMailResult = New-M365Result 'ReadOnly'
+  Add-M365ReadinessCapabilityChecks $oldMailResult $mailPlan $oldMailWorkspace 'INCOMPLETE_EVIDENCE'
+  $oldMailCheck = $oldMailResult.checks[0]
+  Assert-That 'historical-mail-row-without-typed-receipt-stays-untrusted' (-not $oldMailCheck.apiCapabilityObservation.Contains('authorizationEvidence') -and
+    $oldMailCheck.sourceOwnedBlockers -contains 'api-workspace:MAIL:typed-authorization-evidence-not-projected' -and
+    $oldMailCheck.apiCapabilityObservation.state -eq 'NOT_VERIFIED' -and $oldMailCheck.state -eq 'INCOMPLETE_EVIDENCE')
+
+  $wrongPlan = New-MailAuthorizationPlan
+  $wrongPlan.mail.permissionModel = 'EXCHANGE_RBAC_RESOURCE_SCOPE'
+  $wrongConfigResult = New-M365Result 'ReadOnly'
+  Add-M365ReadinessCapabilityChecks $wrongConfigResult $wrongPlan $mailWorkspace 'INCOMPLETE_EVIDENCE'
+  $wrongConfigCheck = $wrongConfigResult.checks[0]
+  Assert-That 'mail-receipt-not-projected-when-plan-model-does-not-match-enrollment-config' (-not $wrongConfigCheck.apiCapabilityObservation.Contains('authorizationEvidence') -and
+    $wrongConfigCheck.sourceOwnedBlockers -contains 'api-workspace:MAIL:authorization-evidence-deployment-binding-mismatch')
+
+  $aliasEvidence = $mailEvidence.Clone()
+  $aliasEvidence.model = 'LEGACY_AAP_GRAPH'
+  $aliasResult = New-M365Result 'ReadOnly'
+  Add-M365ReadinessCapabilityChecks $aliasResult $mailPlan (New-MailAuthorizationWorkspace -Evidence $aliasEvidence) 'INCOMPLETE_EVIDENCE'
+  $aliasCheck = $aliasResult.checks[0]
+  Assert-That 'mail-receipt-rejects-shorthand-model-alias' (-not $aliasCheck.apiCapabilityObservation.Contains('authorizationEvidence') -and
+    $aliasCheck.sourceOwnedBlockers -contains 'api-workspace:MAIL:authorization-evidence-model-mismatch')
+
+  $expiredEvidence = $mailEvidence.Clone()
+  $expiredEvidence.expiresAtUtc = [DateTimeOffset]::UtcNow.AddMinutes(-1).ToString('o')
+  $expiredResult = New-M365Result 'ReadOnly'
+  Add-M365ReadinessCapabilityChecks $expiredResult $mailPlan (New-MailAuthorizationWorkspace -Evidence $expiredEvidence) 'INCOMPLETE_EVIDENCE'
+  $expiredCheck = $expiredResult.checks[0]
+  Assert-That 'expired-mail-receipt-not-projected-as-current-evidence' (-not $expiredCheck.apiCapabilityObservation.Contains('authorizationEvidence') -and
+    $expiredCheck.sourceOwnedBlockers -contains 'api-workspace:MAIL:authorization-evidence-expired' -and
+    $expiredCheck.state -eq 'INCOMPLETE_EVIDENCE')
 
   $clientSitesCapability = $script:plan.capabilities[0].Clone()
   $clientSitesCapability.kind = 'CLIENT_SITES'

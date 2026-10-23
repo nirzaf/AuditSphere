@@ -61,6 +61,19 @@ function Get-M365ReadinessSafeGuid([object] $Value) {
   try { return ConvertTo-M365ReadinessGuid $Value } catch { return $null }
 }
 
+function ConvertTo-M365ReadinessGuidList([object] $Value) {
+  if ($Value -isnot [System.Collections.IEnumerable] -or $Value -is [string] -or
+      $Value -is [System.Collections.IDictionary]) { return @{ IsValid = $false; Values = @() } }
+  $normalized = [System.Collections.Generic.List[string]]::new()
+  foreach ($item in $Value) {
+    $guid = Get-M365ReadinessSafeGuid $item
+    if ($null -eq $guid -or $normalized.Contains($guid)) { return @{ IsValid = $false; Values = @() } }
+    $normalized.Add($guid)
+  }
+  if ($normalized.Count -eq 0) { return @{ IsValid = $false; Values = @() } }
+  return @{ IsValid = $true; Values = @($normalized.ToArray()) }
+}
+
 function Get-M365ReadinessSafeState([object] $Value) {
   if ($Value -is [string] -and $Value.Length -le 64 -and $Value -cmatch '^[A-Z0-9_]*$') { return $Value }
   return $null
@@ -68,7 +81,10 @@ function Get-M365ReadinessSafeState([object] $Value) {
 
 function Test-M365ReadinessCapabilityReadbackMissing($Plan, $Workspace) {
   $workspaceState = Get-M365ReadinessValue $Workspace 'workspace'
-  $apiRows = Get-M365ReadinessValue $workspaceState 'capabilities'
+  $apiRows = $null
+  if ($workspaceState -is [System.Collections.IDictionary] -and $workspaceState.Contains('capabilities')) {
+    $apiRows = $workspaceState['capabilities']
+  }
   if ($workspaceState -isnot [System.Collections.IDictionary] -or
       $apiRows -isnot [System.Collections.IEnumerable] -or $apiRows -is [string] -or $apiRows -is [System.Collections.IDictionary]) { return $true }
   foreach ($capability in $Plan.capabilities) {
@@ -133,10 +149,120 @@ function Get-M365ReadinessExpectedResources($Plan, $Capability) {
   return $resources
 }
 
+function Get-M365ReadinessMailAuthorizationEvidence($Workspace, $Plan, $Row, $Capability,
+    [System.Collections.Generic.List[string]] $Blockers) {
+  $plannedModel = if ($Plan.ContainsKey('mail')) { Get-M365ReadinessValue $Plan.mail 'permissionModel' } else { $null }
+  $enrollmentAvailable = Get-M365ReadinessValue $Workspace 'mailAuthorizationEnrollmentAvailable'
+  if ($plannedModel -cne 'LEGACY_APPLICATION_ACCESS_POLICY' -or $enrollmentAvailable -isnot [bool] -or -not $enrollmentAvailable) {
+    $Blockers.Add('api-workspace:MAIL:authorization-evidence-deployment-binding-mismatch')
+    return $null
+  }
+
+  $source = Get-M365ReadinessValue $Row 'authorizationEvidence'
+  if ($source -isnot [System.Collections.IDictionary]) {
+    $Blockers.Add('api-workspace:MAIL:typed-authorization-evidence-not-projected')
+    return $null
+  }
+  $model = Get-M365ReadinessValue $source 'model'
+  $receiptId = Get-M365ReadinessSafeGuid (Get-M365ReadinessValue $source 'receiptId')
+  $attestationSha256 = Get-M365ReadinessValue $source 'attestationSha256'
+  $bindingSha256 = Get-M365ReadinessValue $source 'bindingSha256'
+  $providerSnapshotSha256 = Get-M365ReadinessValue $source 'providerSnapshotSha256'
+  $planSha256 = Get-M365ReadinessValue $source 'planSha256'
+  $sourceCommit = Get-M365ReadinessValue $source 'sourceCommit'
+  $tenantId = Get-M365ReadinessSafeGuid (Get-M365ReadinessValue $source 'tenantId')
+  $runtimeClientId = Get-M365ReadinessSafeGuid (Get-M365ReadinessValue $source 'runtimeClientId')
+  $connectionRevisionId = Get-M365ReadinessSafeGuid (Get-M365ReadinessValue $source 'connectionRevisionId')
+  $consentAttemptId = Get-M365ReadinessSafeGuid (Get-M365ReadinessValue $source 'consentAttemptId')
+  $sourceSenderMailboxObjectIds = $null
+  if ($source.Contains('senderMailboxObjectIds')) { $sourceSenderMailboxObjectIds = $source['senderMailboxObjectIds'] }
+  $senderMailboxObjectIds = ConvertTo-M365ReadinessGuidList $sourceSenderMailboxObjectIds
+  $controlMailboxObjectId = Get-M365ReadinessSafeGuid (Get-M365ReadinessValue $source 'controlMailboxObjectId')
+  $expiresAt = Get-M365ReadinessValue $source 'expiresAtUtc'
+  $normalizedExpiry = Get-M365ReadinessTimestamp $expiresAt
+  $evidenceObservedAt = Get-M365ReadinessValue $source 'evidenceObservedAtUtc'
+  $normalizedEvidenceObservedAt = Get-M365ReadinessTimestamp $evidenceObservedAt
+  if ($model -cne $plannedModel) {
+    $Blockers.Add('api-workspace:MAIL:authorization-evidence-model-mismatch')
+    return $null
+  }
+  if ($null -eq $receiptId -or $attestationSha256 -isnot [string] -or $attestationSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+      $bindingSha256 -isnot [string] -or $bindingSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+      $providerSnapshotSha256 -isnot [string] -or $providerSnapshotSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+      $planSha256 -isnot [string] -or $planSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+      $sourceCommit -isnot [string] -or $sourceCommit -cnotmatch '^[0-9a-f]{40}$' -or
+      $null -eq $tenantId -or $null -eq $runtimeClientId -or $null -eq $connectionRevisionId -or
+      $null -eq $consentAttemptId -or -not $senderMailboxObjectIds.IsValid -or
+      $null -eq $controlMailboxObjectId -or $null -eq $normalizedExpiry -or $null -eq $normalizedEvidenceObservedAt) {
+    $Blockers.Add('api-workspace:MAIL:typed-authorization-evidence-malformed')
+    return $null
+  }
+
+  $expectedTenantId = Get-M365ReadinessSafeGuid $Plan.tenantId
+  $expectedClientId = Get-M365ReadinessSafeGuid $Capability.clientId
+  $expectedSenderMailboxObjectIds = ConvertTo-M365ReadinessGuidList $Plan.mail.senderObjectIds
+  $expectedControlMailboxObjectId = Get-M365ReadinessSafeGuid $Plan.mail.controlMailboxObjectId
+  $expectedPlanSha256 = Get-M365PlanSha256 $Plan
+  if ($null -eq $expectedTenantId -or $null -eq $expectedClientId -or
+      -not $expectedSenderMailboxObjectIds.IsValid -or $null -eq $expectedControlMailboxObjectId -or
+      $tenantId -cne $expectedTenantId -or $runtimeClientId -cne $expectedClientId -or
+      $controlMailboxObjectId -cne $expectedControlMailboxObjectId -or
+      $planSha256 -cne $expectedPlanSha256 -or $sourceCommit -cne $Plan.repositoryCommit) {
+    $Blockers.Add('api-workspace:MAIL:authorization-evidence-plan-binding-mismatch')
+    return $null
+  }
+  $observedSenders = @($senderMailboxObjectIds.Values | Sort-Object -CaseSensitive)
+  $expectedSenders = @($expectedSenderMailboxObjectIds.Values | Sort-Object -CaseSensitive)
+  if ($observedSenders.Count -ne $expectedSenders.Count) {
+    $Blockers.Add('api-workspace:MAIL:authorization-evidence-plan-binding-mismatch')
+    return $null
+  }
+  for ($i = 0; $i -lt $expectedSenders.Count; $i++) {
+    if ($observedSenders[$i] -cne $expectedSenders[$i]) {
+      $Blockers.Add('api-workspace:MAIL:authorization-evidence-plan-binding-mismatch')
+      return $null
+    }
+  }
+
+  if ((Get-M365ReadinessValue $Row 'state') -cne 'VERIFIED' -or
+      (Get-M365ReadinessValue $Row 'enabled') -isnot [bool] -or -not (Get-M365ReadinessValue $Row 'enabled') -or
+      (Get-M365ReadinessValue $Row 'stale') -isnot [bool] -or (Get-M365ReadinessValue $Row 'stale')) {
+    $Blockers.Add('api-workspace:MAIL:authorization-evidence-current-status-mismatch')
+    return $null
+  }
+
+  $expiryValue = [DateTimeOffset]::MinValue
+  if (-not [DateTimeOffset]::TryParse($expiresAt, [Globalization.CultureInfo]::InvariantCulture,
+      [Globalization.DateTimeStyles]::RoundtripKind, [ref] $expiryValue) -or $expiryValue -le [DateTimeOffset]::UtcNow) {
+    $Blockers.Add('api-workspace:MAIL:authorization-evidence-expired')
+    return $null
+  }
+  return [ordered]@{
+    receiptId = $receiptId
+    model = $model
+    attestationSha256 = $attestationSha256
+    bindingSha256 = $bindingSha256
+    expiresAtUtc = $normalizedExpiry
+    tenantId = $tenantId
+    runtimeClientId = $runtimeClientId
+    connectionRevisionId = $connectionRevisionId
+    consentAttemptId = $consentAttemptId
+    providerSnapshotSha256 = $providerSnapshotSha256
+    planSha256 = $planSha256
+    sourceCommit = $sourceCommit
+    senderMailboxObjectIds = $observedSenders
+    controlMailboxObjectId = $controlMailboxObjectId
+    evidenceObservedAtUtc = $normalizedEvidenceObservedAt
+  }
+}
+
 function Add-M365ReadinessCapabilityChecks($Result, $Plan, $Workspace, [string] $State,
     [string] $ErrorCode = $null, [string[]] $AdditionalBlockers = @()) {
   $workspaceState = Get-M365ReadinessValue $Workspace 'workspace'
-  $apiRows = Get-M365ReadinessValue $workspaceState 'capabilities'
+  $apiRows = $null
+  if ($workspaceState -is [System.Collections.IDictionary] -and $workspaceState.Contains('capabilities')) {
+    $apiRows = $workspaceState['capabilities']
+  }
   if ($apiRows -isnot [System.Collections.IEnumerable] -or $apiRows -is [string] -or $apiRows -is [System.Collections.IDictionary]) { $apiRows = @() }
   $connection = Get-M365ReadinessValue $workspaceState 'connection'
   $draftId = Get-M365ReadinessSafeGuid (Get-M365ReadinessValue $connection 'draftId')
@@ -202,6 +328,10 @@ function Add-M365ReadinessCapabilityChecks($Result, $Plan, $Workspace, [string] 
         stale = $stale
         diagnosticCode = $diagnosticCode
       }
+      if ($kind -ceq 'MAIL') {
+        $authorizationEvidence = Get-M365ReadinessMailAuthorizationEvidence $Workspace $Plan $row $capability $blockers
+        if ($null -ne $authorizationEvidence) { $apiObservation.authorizationEvidence = $authorizationEvidence }
+      }
     }
 
     $expectedRoles = @($capability.expectedApplicationRoles | ForEach-Object {
@@ -226,7 +356,9 @@ function Add-M365ReadinessCapabilityChecks($Result, $Plan, $Workspace, [string] 
       apiCapabilityKey = $apiCapabilityKey
       resourceId = $null
       expected = 'source-owned runtime identity, grant/resource readback, bounded expiry, probes and resume identity'
-      observed = 'API capability status is descriptive setup metadata; required runtime evidence is not projected'
+      observed = if ($kind -ceq 'MAIL' -and $null -ne $apiObservation -and $apiObservation.Contains('authorizationEvidence')) {
+        'API exposes persisted mail authorization receipt metadata only; it does not prove live send or delivery or complete runtime readiness'
+      } else { 'API capability status is descriptive setup metadata; required runtime evidence is not projected' }
       state = $State
       observedAtUtc = $sourceObservedAt
       expiresAtUtc = $null

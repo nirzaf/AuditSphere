@@ -1,9 +1,13 @@
-import { arr, bool, guid, instant, nullable, obj, text, oneOf, str } from '../../core/decode';
+import { arr, bool, guid, instant, nullable, obj, sha256, text, oneOf, str } from '../../core/decode';
 
+export const mailAuthorizationEvidence = obj({ receiptId: guid, model: oneOf('LEGACY_APPLICATION_ACCESS_POLICY'),
+  attestationSha256: sha256, bindingSha256: sha256, expiresAtUtc: instant });
 export const capabilityStatus = obj({ capability: text, displayName: text, permission: text, enabled: bool, state: text,
-  lastVerifiedAt: nullable(instant), stale: bool, diagnosticCode: text });
+  lastVerifiedAt: nullable(instant), stale: bool, diagnosticCode: text,
+  authorizationEvidence: nullable(mailAuthorizationEvidence) });
 export const tenantWorkspace = obj({ consentConfigured: bool, directoryConfigured: bool, simulation: bool,
   preparationConfigured: bool, configuredTenantId: nullable(guid),
+  mailAuthorizationEnrollmentAvailable: nullable(bool),
   workspace: obj({ connection: obj({ draftId: nullable(guid), expectedTenantId: nullable(guid), draftState: nullable(text),
     connectionState: nullable(text), consentState: nullable(text), lastAttemptState: nullable(text), lastAttemptAt: nullable(instant),
     directoryCapabilityState: text, directoryLastCheckedAt: nullable(instant) }), capabilities: arr(capabilityStatus, 50),

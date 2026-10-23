@@ -21,7 +21,9 @@ public sealed record TenantAdministrationOptions(
   bool DirectoryReadEnabled = false,
   bool OutboundMailEnabled = false,
   string? GuestRedirectUrl = null,
-  TimeSpan? VerificationMaxAge = null)
+  TimeSpan? VerificationMaxAge = null,
+  MailAuthorizationRuntimeOptions? MailAuthorization = null,
+  bool MailEvidenceEnrollmentEnabled = false)
 {
   public TimeSpan MaxAge => VerificationMaxAge ?? TimeSpan.FromHours(24);
 
@@ -38,7 +40,8 @@ public sealed record TenantAdministrationOptions(
 }
 
 public sealed record CapabilityStatus(string Capability, string DisplayName, string Permission, bool Enabled,
-  string State, DateTimeOffset? LastVerifiedAt, bool Stale, string DiagnosticCode);
+  string State, DateTimeOffset? LastVerifiedAt, bool Stale, string DiagnosticCode,
+  MailAuthorizationEvidenceStatus? AuthorizationEvidence = null);
 
 public static class TenantCapabilityService
 {
@@ -132,7 +135,9 @@ public static class TenantCapabilityService
     var rows = await db.TenantCapabilityVerifications.AsNoTracking()
       .Where(x => x.FirmId == firmId && x.TenantId == tenantId)
       .OrderByDescending(x => x.ObservedAt).ThenByDescending(x => x.Id)
+      .Select(x => new { x.Capability, x.State, x.ObservedAt, x.DiagnosticCode })
       .Take(200).ToListAsync(ct);
+    var mail = await MailAuthorizationEvidenceEnrollment.StatusAsync(db, firmId, options, now, ct);
     return Microsoft365PermissionMatrix.Rows.Select(row =>
     {
       var enabled = options.IsEnabled(row.Capability);
@@ -146,10 +151,9 @@ public static class TenantCapabilityService
           latest?.ObservedAt, false, "capability-disabled");
       // A Mail.Send role alone proves neither the restrictive Legacy AAP boundary nor the combined Entra and
       // Exchange resource scope required by RBAC. Ignore all generic and historical mail rows until typed evidence
-      // is integrated; never project their timestamps as current mail verification.
+      // qualifies; never project generic role-row timestamps as current mail verification.
       if (row.Capability == Microsoft365Capabilities.OutboundMail)
-        return new CapabilityStatus(row.Capability, row.DisplayName, row.Permission, true,
-          NotVerified, null, false, MailAuthorizationEvidenceRequired);
+        return mail;
       if (latest is null)
         return new CapabilityStatus(row.Capability, row.DisplayName, row.Permission, true, NotVerified,
           null, false, "not-verified");

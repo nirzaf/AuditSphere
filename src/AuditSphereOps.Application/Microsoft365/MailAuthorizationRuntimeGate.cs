@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Data;
 using System.Security.Cryptography;
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Microsoft365;
@@ -67,7 +68,8 @@ public sealed record MailAuthorizationRuntimeReceipt(
   Guid ConsentAttemptId,
   Guid SenderMailboxObjectId,
   string ProviderSnapshotSha256,
-  string AttestationDigest);
+  string AttestationDigest,
+  DateTimeOffset? ExpiresAtUtc = null);
 
 public interface IMailAuthorizationRuntimeGate
 {
@@ -138,7 +140,7 @@ public sealed class MailAuthorizationRuntimeGate(
     return new MailAuthorizationRuntimeReceipt(attestation.ProviderSnapshot.PermissionModel,
       attestation.ProviderSnapshot.TenantId, attestation.ProviderSnapshot.RuntimeClientId,
       attestation.ConnectionRevisionId, attestation.ConsentAttemptId, senderMailboxObjectId,
-      attestation.ProviderSnapshotSha256, attestationDigest);
+      attestation.ProviderSnapshotSha256, attestationDigest, attestation.ExpiresAtUtc);
   }
 
   private async Task<CurrentAuthorizationBinding> ReadCurrentAuthorizationBindingAsync(Guid firmId, Guid tenantId,
@@ -149,35 +151,7 @@ public sealed class MailAuthorizationRuntimeGate(
     {
       await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
       {
-        var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking()
-          .Where(x => x.FirmId == firmId)
-          .OrderByDescending(x => x.Revision)
-          .Select(x => new { x.Id, x.Revision, x.TenantId, x.State, x.ConsentState, x.VerifiedAt })
-          .FirstOrDefaultAsync(ct);
-        if (connection is null || connection.TenantId != tenantId.ToString("D") || connection.ConsentState != "VERIFIED" ||
-            connection.State is Microsoft365RevisionStates.Blocked or Microsoft365RevisionStates.Suspended)
-          throw Blocked();
-
-        var consent = await db.TenantConsentAttempts.AsNoTracking()
-          .Where(x => x.FirmId == firmId && x.ExpectedTenantId == tenantId.ToString("D") &&
-            db.Microsoft365SetupDrafts.Any(d => d.FirmId == firmId && d.Id == x.SetupDraftId &&
-              d.ConnectionRevisionId == connection.Id && d.ExpectedTenantId == tenantId.ToString("D")))
-          .OrderByDescending(x => x.CreatedAt)
-          .ThenByDescending(x => x.Id)
-          .Select(x => new
-          {
-            x.Id, x.SetupDraftId, x.State, x.CreatedAt, x.ConsentVerifiedAt,
-            x.ConsentingTenantId, x.ConsentingObjectId, x.ApplicationClientId
-          })
-          .FirstOrDefaultAsync(ct);
-        if (consent is null || consent.State != TenantConsentAttemptStates.ConsentVerified ||
-            consent.ConsentVerifiedAt is null || consent.ConsentingTenantId != tenantId.ToString("D"))
-          throw Blocked();
-
-        binding = new CurrentAuthorizationBinding(connection.Id, connection.Revision, connection.TenantId,
-          connection.State, connection.ConsentState, connection.VerifiedAt, consent.Id, consent.SetupDraftId, consent.State,
-          consent.CreatedAt, consent.ConsentVerifiedAt, consent.ConsentingTenantId, consent.ConsentingObjectId,
-          consent.ApplicationClientId);
+        binding = await ReadBindingAsync(db, firmId, tenantId, ct);
         await snapshot.CommitAsync(ct);
       }
     }
@@ -185,7 +159,41 @@ public sealed class MailAuthorizationRuntimeGate(
     return binding;
   }
 
-  private sealed record CurrentAuthorizationBinding(
+  internal static async Task<CurrentAuthorizationBinding> ReadBindingAsync(IAuditSphereDbContext db,
+    Guid firmId, Guid tenantId, CancellationToken ct)
+  {
+    var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking()
+      .Where(x => x.FirmId == firmId)
+      .OrderByDescending(x => x.Revision)
+      .Select(x => new { x.Id, x.Revision, x.TenantId, x.State, x.ConsentState, x.VerifiedAt })
+      .FirstOrDefaultAsync(ct);
+    if (connection is null || connection.TenantId != tenantId.ToString("D") || connection.ConsentState != "VERIFIED" ||
+        connection.State is Microsoft365RevisionStates.Blocked or Microsoft365RevisionStates.Suspended)
+      throw Blocked();
+
+    var consent = await db.TenantConsentAttempts.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.ExpectedTenantId == tenantId.ToString("D") &&
+        db.Microsoft365SetupDrafts.Any(d => d.FirmId == firmId && d.Id == x.SetupDraftId &&
+          d.ConnectionRevisionId == connection.Id && d.ExpectedTenantId == tenantId.ToString("D")))
+      .OrderByDescending(x => x.CreatedAt)
+      .ThenByDescending(x => x.Id)
+      .Select(x => new
+      {
+        x.Id, x.SetupDraftId, x.State, x.CreatedAt, x.ConsentVerifiedAt,
+        x.ConsentingTenantId, x.ConsentingObjectId, x.ApplicationClientId
+      })
+      .FirstOrDefaultAsync(ct);
+    if (consent is null || consent.State != TenantConsentAttemptStates.ConsentVerified ||
+        consent.ConsentVerifiedAt is null || consent.ConsentingTenantId != tenantId.ToString("D"))
+      throw Blocked();
+
+    return new CurrentAuthorizationBinding(connection.Id, connection.Revision, connection.TenantId,
+      connection.State, connection.ConsentState, connection.VerifiedAt, consent.Id, consent.SetupDraftId, consent.State,
+      consent.CreatedAt, consent.ConsentVerifiedAt, consent.ConsentingTenantId, consent.ConsentingObjectId,
+      consent.ApplicationClientId);
+  }
+
+  internal sealed record CurrentAuthorizationBinding(
     Guid ConnectionRevisionId,
     long ConnectionRevision,
     string ConnectionTenantId,
@@ -204,7 +212,7 @@ public sealed class MailAuthorizationRuntimeGate(
   private static OperationBlockedException Blocked() =>
     new("mail-authorization-evidence-unavailable", authorization: true);
 
-  private static string ComputeAttestationDigest(ReadOnlySpan<byte> payload, ReadOnlySpan<byte> cms)
+  internal static string ComputeAttestationDigest(ReadOnlySpan<byte> payload, ReadOnlySpan<byte> cms)
   {
     using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
     Span<byte> length = stackalloc byte[sizeof(int)];
@@ -216,4 +224,16 @@ public sealed class MailAuthorizationRuntimeGate(
     hash.AppendData(cms);
     return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
   }
+
+  internal static string DeploymentBindingDigest(MailAuthorizationRuntimeOptions options,
+    Guid connectionRevisionId, Guid consentAttemptId) => TenantAdministration.Fingerprint(
+      "mail-authorization-binding.v1", JsonSerializer.Serialize(new
+      {
+        options.FirmId, options.TenantId, options.PermissionModel, options.RuntimeClientId,
+        options.EnterpriseServicePrincipalObjectId,
+        SenderMailboxObjectIds = options.SenderMailboxObjectIds.Order().ToArray(),
+        options.ControlMailboxObjectId, options.PlanSha256, options.Source, options.ObservedRepositoryCommit,
+        PinnedSigner = options.PinnedSignerCertificateSha256.ToLowerInvariant(),
+        MaximumEvidenceAgeTicks = options.MaximumEvidenceAge.Ticks, connectionRevisionId, consentAttemptId
+      }));
 }

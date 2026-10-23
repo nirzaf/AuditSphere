@@ -43,6 +43,13 @@ public sealed class TenantCapabilityVerification
   public string? ProviderCorrelationId { get; set; }
   public Guid ObservedByUserId { get; set; }
   public DateTimeOffset ObservedAt { get; set; }
+  public string? MailAuthorizationModel { get; set; }
+  public string? MailAttestationSha256 { get; set; }
+  public string? MailBindingSha256 { get; set; }
+  public string? MailProviderSnapshotSha256 { get; set; }
+  public DateTimeOffset? MailEvidenceExpiresAtUtc { get; set; }
+  public byte[]? MailCanonicalPayload { get; set; }
+  public byte[]? MailDetachedCms { get; set; }
 }
 
 /// <summary>Allowlist of AuditSphere-managed Microsoft groups. Membership never grants AuditSphere access.</summary>

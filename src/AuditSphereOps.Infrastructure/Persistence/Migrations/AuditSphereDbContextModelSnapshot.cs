@@ -22769,6 +22769,40 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("firm_id");
 
+                    b.Property<string>("MailAttestationSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("mail_attestation_sha256");
+
+                    b.Property<string>("MailAuthorizationModel")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("mail_authorization_model");
+
+                    b.Property<string>("MailBindingSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("mail_binding_sha256");
+
+                    b.Property<byte[]>("MailCanonicalPayload")
+                        .HasMaxLength(1048576)
+                        .HasColumnType("bytea")
+                        .HasColumnName("mail_canonical_payload");
+
+                    b.Property<byte[]>("MailDetachedCms")
+                        .HasMaxLength(65536)
+                        .HasColumnType("bytea")
+                        .HasColumnName("mail_detached_cms");
+
+                    b.Property<DateTimeOffset?>("MailEvidenceExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("mail_evidence_expires_at_utc");
+
+                    b.Property<string>("MailProviderSnapshotSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("mail_provider_snapshot_sha256");
+
                     b.Property<DateTimeOffset>("ObservedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("observed_at");
@@ -22809,11 +22843,18 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ObservedByUserId");
 
+                    b.HasIndex("FirmId", "MailAttestationSha256", "MailBindingSha256")
+                        .IsUnique()
+                        .HasDatabaseName("ux_m365_mail_attestation_binding")
+                        .HasFilter("mail_attestation_sha256 IS NOT NULL AND mail_binding_sha256 IS NOT NULL");
+
                     b.HasIndex("FirmId", "TenantId", "Capability", "ObservedAt");
 
                     b.ToTable("m365_tenant_capability_verifications", null, t =>
                         {
                             t.HasCheckConstraint("ck_m365_capability_values", "length(trim(tenant_id)) > 0 AND capability IN ('SIGN_IN','DIRECTORY_READ','SELECTED_SITE','OUTBOUND_MAIL','TENANT_USER_PROVISIONING','GUEST_INVITATION','GROUP_MEMBERSHIP') AND state IN ('VERIFIED','NOT_GRANTED','FAILED','BLOCKED_EXTERNAL') AND length(trim(permission)) > 0 AND length(trim(diagnostic_code)) > 0");
+
+                            t.HasCheckConstraint("ck_m365_mail_authorization_evidence", "(mail_authorization_model IS NULL AND mail_attestation_sha256 IS NULL AND mail_binding_sha256 IS NULL AND mail_provider_snapshot_sha256 IS NULL AND mail_evidence_expires_at_utc IS NULL AND mail_canonical_payload IS NULL AND mail_detached_cms IS NULL) OR (mail_authorization_model IS NOT NULL AND mail_authorization_model = 'LEGACY_APPLICATION_ACCESS_POLICY' AND capability = 'OUTBOUND_MAIL' AND permission = 'Mail.Send' AND state = 'VERIFIED' AND connection_revision_id IS NOT NULL AND consent_attempt_id IS NOT NULL AND mail_attestation_sha256 IS NOT NULL AND mail_attestation_sha256 ~ '^[0-9a-f]{64}$' AND mail_binding_sha256 IS NOT NULL AND mail_binding_sha256 ~ '^[0-9a-f]{64}$' AND mail_provider_snapshot_sha256 IS NOT NULL AND mail_provider_snapshot_sha256 ~ '^[0-9a-f]{64}$' AND mail_evidence_expires_at_utc IS NOT NULL AND mail_evidence_expires_at_utc > observed_at AND mail_canonical_payload IS NOT NULL AND octet_length(mail_canonical_payload) BETWEEN 2 AND 1048576 AND mail_detached_cms IS NOT NULL AND octet_length(mail_detached_cms) BETWEEN 1 AND 65536)");
                         });
                 });
 

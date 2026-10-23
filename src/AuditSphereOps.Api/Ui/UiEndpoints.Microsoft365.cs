@@ -3,13 +3,21 @@ using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Api.Authentication;
 using System.Security.Claims;
 using Microsoft.AspNetCore.DataProtection;
+using System.ComponentModel.DataAnnotations;
+using AuditSphereOps.Application.Operations;
 
 namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
   public sealed record UiTenantAdministrationResponse(TenantAdministrationWorkspace Workspace, bool ConsentConfigured,
-    bool DirectoryConfigured, Guid? ConfiguredTenantId, bool PreparationConfigured, bool Simulation);
+    bool DirectoryConfigured, Guid? ConfiguredTenantId, bool PreparationConfigured, bool Simulation,
+    bool MailAuthorizationEnrollmentAvailable = false);
+
+  /// <summary>Exact public signed bytes; neither paths nor private keys are accepted.</summary>
+  public sealed record UiMailAuthorizationEvidenceEnrollment(
+    [property: MaxLength(1_398_104)] string CanonicalPayloadBase64,
+    [property: MaxLength(87_384)] string DetachedCmsBase64, bool Reviewed);
 
   public sealed record UiConsentBegin(Guid DraftId, bool Reviewed);
   /// <summary>Authorization redirect returned by the tenant-consent command.</summary>
@@ -42,8 +50,32 @@ public static partial class UiEndpoints
         consentConfigured = ConsentReady(http, settings), directoryConfigured = settings.Options.DirectoryReadEnabled,
         configuredTenantId = Guid.TryParse(settings.Options.TenantId, out var tenantId) ? tenantId.ToString("D") : null,
         preparationConfigured = InitialAdministratorSignIn.AllowsUnmappedIdentity(config, http.User.FindFirstValue("tid"), http.User.FindFirstValue("oid")),
-        simulation = settings.Simulation }) : CommandResult<object>.Fail(workspace.ErrorCode!, workspace.Message!);
+        simulation = settings.Simulation,
+        mailAuthorizationEnrollmentAvailable = MailAuthorizationEvidenceEnrollment.Available(settings.Options) &&
+          settings.Options.MailAuthorization?.FirmId == actor.FirmId }) : CommandResult<object>.Fail(workspace.ErrorCode!, workspace.Message!);
     })).WithUiResponse<UiTenantAdministrationResponse>();
+    group.MapPost("/administration/microsoft365/mail-authorization-evidence/enroll",
+      (UiMailAuthorizationEvidenceEnrollment input, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
+      {
+        if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<Guid>();
+        if (!input.Reviewed || input.CanonicalPayloadBase64 is not { Length: >= 4 and <= 1_398_104 } ||
+            input.DetachedCmsBase64 is not { Length: >= 4 and <= 87_384 })
+          return CommandResult<Guid>.Fail("request.invalid", "Reviewed bounded public evidence is required.");
+        byte[] payload, signature;
+        try
+        {
+          payload = Convert.FromBase64String(input.CanonicalPayloadBase64);
+          signature = Convert.FromBase64String(input.DetachedCmsBase64);
+        }
+        catch (FormatException)
+        {
+          return CommandResult<Guid>.Fail("request.invalid", "Public evidence must be valid base64 bytes.");
+        }
+        return await MailAuthorizationEvidenceEnrollment.EnrollAsync(db,
+          http.RequestServices.GetRequiredService<IAuditSphereDbContextFactory>(), actor,
+          http.RequestServices.GetRequiredService<TenantAdministrationSettings>().Options, new(payload, signature),
+          http.RequestServices.GetService<TimeProvider>() ?? TimeProvider.System, ct);
+      })).WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapPost("/administration/microsoft365/prepare", (UiTenantPreparation i, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
     {
       if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<Guid>();

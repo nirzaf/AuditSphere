@@ -11,9 +11,13 @@ using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Microsoft365;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Infrastructure.Providers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -344,6 +348,93 @@ public sealed class MailAuthorizationAttestationTests
     var exception = Assert.Throws<GraphMailAccessTokenValidationException>(() =>
       GraphMailAccessTokenValidator.Validate(token, model, tenant, client, now));
     Assert.Equal("mail-authorization-token-invalid", exception.Code);
+  }
+
+  [Fact]
+  public async Task EnrolledEvidenceRetainsExactBytesAndCannotOutliveItsCurrentBinding()
+  {
+    await using var fixture = await TenantAdministrationFixture.CreateAsync();
+    await fixture.ConnectAndVerifyAsync();
+    await using var db = fixture.Db();
+    var consent = await db.TenantConsentAttempts.AsNoTracking().SingleAsync(x => x.State == TenantConsentAttemptStates.ConsentVerified);
+    var now = DateTimeOffset.UtcNow;
+    var snapshot = CreateSnapshot(MailAuthorizationModel.LegacyApplicationAccessPolicy, Guid.Parse(fixture.TenantId));
+    using var signer = CreateSyntheticSigner(now);
+    var attestation = CreateAttestation(snapshot, now.AddMinutes(-1), now.AddHours(1), fixture.ConnectionId, consent.Id);
+    var payload = MailAuthorizationAttestationCanonicalizer.SerializeCanonical(attestation);
+    var cms = SignDetached(payload, signer);
+    var runtime = new MailAuthorizationRuntimeOptions(fixture.FirmId, snapshot.TenantId, snapshot.PermissionModel,
+      snapshot.RuntimeClientId, snapshot.EnterpriseServicePrincipalObjectId, snapshot.SenderMailboxObjectIds,
+      snapshot.ControlMailboxObjectId, attestation.PlanSha256, attestation.Source, attestation.Source.RepositoryCommit,
+      Options(signer, TimeSpan.FromHours(24)).PinnedSignerCertificateSha256, TimeSpan.FromHours(24));
+    var options = fixture.Options with { OutboundMailEnabled = true, MailAuthorization = runtime, MailEvidenceEnrollmentEnabled = true };
+    var factory = new TenantAdministrationDbFactory(fixture.Pg.Options);
+    db.TenantCapabilityVerifications.Add(new TenantCapabilityVerification
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, TenantId = fixture.TenantId,
+      Capability = Microsoft365Capabilities.OutboundMail, Permission = "Mail.Send", State = CapabilityVerificationStates.Verified,
+      DiagnosticCode = "historical-role-only", ObservedByUserId = fixture.Admin.Id, ObservedAt = now.AddMinutes(-5)
+    });
+    var staff = TenantAdministrationFixture.User(fixture.FirmId, fixture.TenantId, "no-admin@example.test", "No administrator grant");
+    db.Users.Add(staff);
+    await db.SaveChangesAsync();
+    var oldStatus = (await TenantCapabilityService.StatusesAsync(db, fixture.FirmId, options, DateTimeOffset.UtcNow)).Single(x => x.Capability == Microsoft365Capabilities.OutboundMail);
+    Assert.Equal(TenantCapabilityService.NotVerified, oldStatus.State);
+    Assert.Null(oldStatus.LastVerifiedAt);
+    var denied = await MailAuthorizationEvidenceEnrollment.EnrollAsync(db, factory,
+      new ActorContext(staff.Id, fixture.FirmId, staff.SessionEpoch, ["Administrator"]), options, new(payload, cms), TimeProvider.System);
+    Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+    var wrongBinding = await MailAuthorizationEvidenceEnrollment.EnrollAsync(db, factory, fixture.AdminActor,
+      options with { MailAuthorization = runtime with { PlanSha256 = new string('9', 64) } }, new(payload, cms), TimeProvider.System);
+    Assert.Equal(ErrorCodes.GateBlocked, wrongBinding.ErrorCode);
+    var expired = CreateAttestation(snapshot, now.AddHours(-2), now.AddHours(-1), fixture.ConnectionId, consent.Id);
+    var expiredPayload = MailAuthorizationAttestationCanonicalizer.SerializeCanonical(expired);
+    var stale = await MailAuthorizationEvidenceEnrollment.EnrollAsync(db, factory, fixture.AdminActor, options,
+      new(expiredPayload, SignDetached(expiredPayload, signer)), TimeProvider.System);
+    Assert.Equal(ErrorCodes.GateBlocked, stale.ErrorCode);
+    Assert.Equal(1, await db.TenantCapabilityVerifications.CountAsync(x => x.Capability == Microsoft365Capabilities.OutboundMail));
+
+    var enrolled = await MailAuthorizationEvidenceEnrollment.EnrollAsync(db, factory, fixture.AdminActor, options, new(payload, cms), TimeProvider.System);
+    Assert.True(enrolled.Succeeded, enrolled.Message);
+    var replay = await MailAuthorizationEvidenceEnrollment.EnrollAsync(db, factory, fixture.AdminActor, options, new(payload, cms), TimeProvider.System);
+    Assert.Equal(enrolled.Value, replay.Value);
+    var retained = await db.TenantCapabilityVerifications.AsNoTracking().SingleAsync(x => x.Id == enrolled.Value);
+    Assert.Equal(payload, retained.MailCanonicalPayload);
+    Assert.Equal(cms, retained.MailDetachedCms);
+    Assert.Equal(2, await db.TenantCapabilityVerifications.CountAsync(x => x.Capability == Microsoft365Capabilities.OutboundMail));
+    var status = (await TenantCapabilityService.StatusesAsync(db, fixture.FirmId, options, DateTimeOffset.UtcNow)).Single(x => x.Capability == Microsoft365Capabilities.OutboundMail);
+    Assert.Equal(CapabilityVerificationStates.Verified, status.State);
+    Assert.Equal(enrolled.Value, status.AuthorizationEvidence!.ReceiptId);
+    Assert.Equal(AttestationDigest(payload, cms), status.AuthorizationEvidence.AttestationSha256);
+    Assert.Equal(attestation.ExpiresAtUtc, status.AuthorizationEvidence.ExpiresAtUtc);
+    var source = new EnrolledMailAuthorizationAttestationSource(factory, runtime);
+    var workerReceipt = await new MailAuthorizationRuntimeGate(factory, source, runtime, TimeProvider.System)
+      .RequireCurrentAsync(fixture.FirmId, snapshot.TenantId, snapshot.RuntimeClientId, snapshot.SenderMailboxObjectIds[0], CancellationToken.None);
+    Assert.Equal(status.AuthorizationEvidence.AttestationSha256, workerReceipt.AttestationDigest);
+    await Assert.ThrowsAsync<IOException>(() => new EnrolledMailAuthorizationAttestationSource(factory,
+      runtime with { FirmId = Guid.NewGuid() }).ReadAsync(CancellationToken.None));
+    var changed = (await TenantCapabilityService.StatusesAsync(db, fixture.FirmId,
+      options with { MailAuthorization = runtime with { PlanSha256 = new string('9', 64) } }, DateTimeOffset.UtcNow)).Single(x => x.Capability == Microsoft365Capabilities.OutboundMail);
+    Assert.Equal(TenantCapabilityService.NotVerified, changed.State);
+    var pastExpiry = (await TenantCapabilityService.StatusesAsync(db, fixture.FirmId, options, now.AddHours(2))).Single(x => x.Capability == Microsoft365Capabilities.OutboundMail);
+    Assert.Equal(TenantCapabilityService.NotVerified, pastExpiry.State);
+    db.TenantConsentAttempts.Add(new TenantConsentAttempt
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, SetupDraftId = consent.SetupDraftId, InitiatedByUserId = fixture.Admin.Id,
+      InitiatingSessionEpoch = fixture.AdminActor.SessionEpoch, InitiatorObjectId = fixture.Admin.Subject,
+      ExpectedTenantId = fixture.TenantId, ApplicationClientId = consent.ApplicationClientId, StateHash = new string('3', 64),
+      State = TenantConsentAttemptStates.Denied, CreatedAt = now.AddSeconds(1), ExpiresAt = now.AddMinutes(11)
+    });
+    await db.SaveChangesAsync();
+    var revoked = (await TenantCapabilityService.StatusesAsync(db, fixture.FirmId, options, DateTimeOffset.UtcNow)).Single(x => x.Capability == Microsoft365Capabilities.OutboundMail);
+    Assert.Equal(TenantCapabilityService.NotVerified, revoked.State);
+    Assert.Null(revoked.AuthorizationEvidence);
+    await Assert.ThrowsAsync<OperationBlockedException>(() => new MailAuthorizationRuntimeGate(factory, source, runtime, TimeProvider.System)
+      .RequireCurrentAsync(fixture.FirmId, snapshot.TenantId, snapshot.RuntimeClientId, snapshot.SenderMailboxObjectIds[0], CancellationToken.None));
+    var downgrade = await Record.ExceptionAsync(() => db.GetService<IMigrator>()
+      .MigrateAsync("20261023124118_StaffCostRateFirmScopedUser"));
+    Assert.Equal("55000", Assert.IsType<PostgresException>(downgrade?.GetBaseException()).SqlState);
+    Assert.Equal(payload, (await db.TenantCapabilityVerifications.AsNoTracking().SingleAsync(x => x.Id == enrolled.Value)).MailCanonicalPayload);
   }
 
   [Fact]
