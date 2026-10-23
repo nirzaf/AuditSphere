@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Group report review-currentness guard (2026-10-23)
+
+Group run creation, approval and current report readback now reuse the established package evidence checks after exact approved component-pin validation. A later returned review makes the report stale without rewriting its approved run or stored lines. A final group authorization check denies a grant revoked during the report read; group-only readers still cannot fetch raw client artifacts. The UI explains stale/unreviewed/unavailable report states instead of silently hiding the report. Focused PostgreSQL and Angular checks passed; exact results are in `status.json`. No new source-selection policy or final group export/archive workflow is implied. Current-source CI and broader release acceptance remain separate.
+
 ## Per-component consolidation currentness (2026-10-23)
 
 The scope workspace now separates pinned-source currentness from component approval. Existing source validation is shared; exact pin, review, source authorization and perimeter changes demote the read model without replacing pins or modifying component books. Post-snapshot checks never promote stale evidence. Focused Domain/Angular checks, contract verification and an owned synthetic browser journey passed. Built-in browser policy denied the existing tab; no interactive verification is claimed. Broader group-report ownership, source-policy, release and current-source CI remain separate. Exact results are retained in `status.json`.

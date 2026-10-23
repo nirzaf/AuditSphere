@@ -183,6 +183,8 @@ unclassified line is an explicit unmapped issue, never assumed ASSETS.
 
 ## Consolidation — perimeter, components, matching, journals, runs, reports
 
+- Group run/report currentness reuses the evidence-only check in `FinancialPackageReviewService` after exact approved component scope/pin validation. Existing client review APIs retain their client/comparative authorization wrapper; group-only report readers gain no raw-artifact permission. `ConsolidationService.Reports.cs` revalidates source evidence and group authorization before returning current financial lines. Retained run identities, approvals and lines are not rewritten after a review return.
+
 - `ConsolidationService.Components.cs` shares exact source validation between approval readiness and per-component currentness. The scope workspace carries `CurrentnessState` and `CurrentnessBlockerCode` and demotes changed evidence after its read snapshot; the temporary evidence hash stays internal. Angular `scope-contracts.ts` strictly decodes these fields and the components table distinguishes source currentness from approval. No automatic newest-upload policy or source-book mutation is implied.
 
 - `ConsolidationService.GetComponentApprovalReadinessAsync` shares nonmutating command guards with the bounded scope workspace projection. Component rows expose `CanApprove` and a safe `ApprovalBlocker`, including selected off-page rows. Angular strictly decodes both fields, explains blocked approval and refuses local dispatch; the server command remains authoritative. Focused evidence is tracked in `status.json` under `operationalReadiness20261019`.

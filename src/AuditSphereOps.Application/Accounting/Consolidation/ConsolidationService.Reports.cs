@@ -60,6 +60,14 @@ public static partial class ConsolidationService
         MoneyPolicy.Normalize(x.Sum(y => y.ComponentAmount)), MoneyPolicy.Normalize(x.Sum(y => y.AlignmentAmount)),
         MoneyPolicy.Normalize(x.Sum(y => y.EliminationAmount)), MoneyPolicy.Normalize(x.Sum(y => y.ConsolidatedAmount)),
         x.Key.Currency)).ToArray();
+    var finalCurrent = await BuildCalculationAsync(db, actor.FirmId, scope, ct);
+    if (!finalCurrent.Succeeded || finalCurrent.Value!.Calculation.RunHash != run.RunHash ||
+        finalCurrent.Value.Calculation.InputManifest != run.InputManifest)
+      return CommandResult<ConsolidationReport>.Ok(new(scope.Id, run.Id, "STALE", run.ApprovedAt, empty));
+    var finalAuth = await GroupAuthAsync(db, actor, scope.GroupId,
+      ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"], ct);
+    if (!finalAuth.Succeeded)
+      return CommandResult<ConsolidationReport>.Fail(finalAuth.ErrorCode!, finalAuth.Message!);
     return CommandResult<ConsolidationReport>.Ok(new(scope.Id, run.Id, "CURRENT_APPROVED", run.ApprovedAt, lines));
   }
 }

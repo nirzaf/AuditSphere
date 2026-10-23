@@ -461,6 +461,14 @@
               </table>
             </div>
           </div>
+        } @else if (w.latestReport.value?.state === 'STALE') {
+          <p class="error-text" role="alert">Report evidence is stale. Review the current scope, component evidence and approvals before creating a new group run. Historical runs remain unchanged.</p>
+        } @else if (w.latestReport.value?.state === 'REVIEW_REQUIRED') {
+          <p role="status">This group run needs independent review before a current report can be shown.</p>
+        } @else if (w.latestReport.value?.state === 'ADVANCED_PROFILE') {
+          <p role="status">This report view does not support the selected advanced method.</p>
+        } @else {
+          <p role="status">No group run is available for this scope.</p>
         }
       </section>
 

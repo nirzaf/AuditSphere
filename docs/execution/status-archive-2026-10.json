@@ -23510,6 +23510,39 @@
       "evidence": ".local/autonomous/evidence/wu021-authority-final-source/wu021-authority.trx",
       "ci": "Prior source 573808a0 FAST_CI_PASS (39869037664); this backend slice requires new CI. Current-source full release NOT_RUN.",
       "remaining": "WU-021 CLI/API intent adapter and residual/managed-membership evidence remain pending; concurrent PowerShell provider duplication is unaccepted. No live tenant changes."
+    },
+    "targetedVerification.autonomousCompletion20261022.entraRegistrationAutomation": {
+      "implementation": "PRESENT",
+      "localVerification": "PASS",
+      "ciVerification": "NOT_DISPATCHED",
+      "externalAcceptance": "BLOCKED_EXTERNAL",
+      "checks": "WU-018 offline assertion cohort: 67 passed, 0 failed; WU-017 updated boundary cohort: 40 passed, 0 failed; existing M365 result verifier: 5 passed; DryRun envelope PLANNED/zero effects passed.",
+      "scope": "No tenant connection, consent grant, private credential generation or live acceptance performed. Exact-source full CI remains pending.",
+      "review": "Independent source findings repaired: ID-first lookup, fixed/canonical operator journal, LOGIN User.Read refusal and bounded Retry-After-aware GET retries.",
+      "operatorGuide": "docs/operations/auditsphere-entra-registration-automation.md",
+      "next": "WU-019 engineering implemented; WU-020 selected-resource grants/negative verification is next."
+    },
+    "targetedVerification.autonomousCompletion20261022.entraPermissionGrantAutomation": {
+      "implementation": "PRESENT",
+      "localVerification": "PASS",
+      "ciVerification": "NOT_DISPATCHED",
+      "externalAcceptance": "BLOCKED_EXTERNAL",
+      "checks": "WU-019 offline assertion cohort: 71 passed, 0 failed; shared WU-018 regression: 67 passed. Grant/enrollment DryRun envelopes PLANNED with zero effects; enrollment requires real server-owned human consent.",
+      "scope": "No live tenant connection, administrative impersonation, or direct database mutation performed. Exact-source full CI remains pending.",
+      "operatorGuide": "docs/operations/auditsphere-entra-registration-automation.md",
+      "next": "WU-020 engineering implemented; WU-021 client site configuration is next.",
+      "review": "Exact manifest/outgoing role sets; pending versus confirmed intent repair; pinned source/digest; redirect-disabled bounded HTTP with exact final URI, cookie-only auth and fresh server evidence."
+    },
+    "targetedVerification.autonomousCompletion20261022.selectedDocumentSitesAutomation": {
+      "implementation": "PRESENT",
+      "localVerification": "PASS",
+      "ciVerification": "NOT_DISPATCHED",
+      "externalAcceptance": "BLOCKED_EXTERNAL",
+      "checks": "Offline synthetic cohorts passed: WU-020 52 assertions; shared regressions WU-017 40, WU-018 67, WU-019 71. No full local suites. Runtime child Plan and schema envelope checked offline.",
+      "scope": "No live tenant connection or real document reads performed. Exact-source full CI remains pending.",
+      "operatorGuide": "docs/operations/auditsphere-entra-registration-automation.md",
+      "next": "WU-021 approved client sites and managed staff Full Control reconciliation.",
+      "review": "Exact owned app/role/certificate and site metadata; atomic pending/confirmed intents; actual separate-runtime positive namespace reads and known-control HTTP403 required by production probe. Synthetic transports only in this verification; no live isolation claim."
     }
   },
   "archivedTargetedVerification": {
@@ -23542,5 +23575,6 @@
       "scopeStatus": "PARTIAL",
       "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAccessNotAssignedBrowser"
     }
-  }
+  },
+  "lastUpdatedOn": "2026-10-23"
 }

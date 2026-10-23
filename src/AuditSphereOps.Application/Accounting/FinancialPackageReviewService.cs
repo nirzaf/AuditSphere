@@ -141,7 +141,7 @@ public static partial class FinancialPackageReviewService
     var readiness = await FinancialPackageValidationReadiness.GetAsync(db, package.FirmId, package.Id, ct);
     if (!readiness.Ready)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, readiness.Message);
-    if (!await CashFlowSourcesIndependentlyApprovedAsync(db, actor, package, ct))
+    if (!await CashFlowSourcesIndependentlyApprovedAsync(db, package, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         "Current and comparative cash-flow source links need independent approval against the accepted general ledger.");
 
@@ -343,7 +343,7 @@ public static partial class FinancialPackageReviewService
     if (!readiness.Ready)
       return CommandResult<ClientFinancialPackageView>.Fail(ErrorCodes.GateBlocked,
         "The financial package is not available for management approval.");
-    if (!await CashFlowSourcesIndependentlyApprovedAsync(db, actor, package, ct))
+    if (!await CashFlowSourcesIndependentlyApprovedAsync(db, package, ct))
       return CommandResult<ClientFinancialPackageView>.Fail(ErrorCodes.GateBlocked,
         "The financial package is not available for management approval.");
 
@@ -433,7 +433,7 @@ public static partial class FinancialPackageReviewService
         continue;
 
       if (!FinancialPackageValidationReadiness.Evaluate(package.FirmId, package.Id, validations).Ready) continue;
-      if (!await CashFlowSourcesIndependentlyApprovedAsync(db, actor, package, ct)) continue;
+      if (!await CashFlowSourcesIndependentlyApprovedAsync(db, package, ct)) continue;
 
       // Status follows the chain the latest management decision names. An approval that a later return at an earlier stage defeated
       // shows as pending, because it must be recorded again.
@@ -486,12 +486,19 @@ public static partial class FinancialPackageReviewService
     var comparativeAccess = await FinancialStatementService.AuthorizeComparativeAccessAsync(db, actor, package, ct);
     if (!comparativeAccess.Succeeded)
       return comparativeAccess;
+    return await RequireCurrentEvidenceAsync(db, package, requirePartner, ct);
+  }
+
+  /// <summary>Checks current review and source evidence after the caller has independently authorized its reporting scope.</summary>
+  internal static async Task<CommandResult> RequireCurrentEvidenceAsync(
+    IClientAccountingDbContext db, FinancialPackage package, bool requirePartner, CancellationToken ct = default)
+  {
     if (package.Status != AccountingPackageStates.PackageValidated)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The financial package is not currently reviewable.");
     var readiness = await FinancialPackageValidationReadiness.GetAsync(db, package.FirmId, package.Id, ct);
     if (!readiness.Ready)
       return CommandResult.Fail(ErrorCodes.GateBlocked, readiness.Message);
-    if (!await CashFlowSourcesIndependentlyApprovedAsync(db, actor, package, ct))
+    if (!await CashFlowSourcesIndependentlyApprovedAsync(db, package, ct))
       return CommandResult.Fail(ErrorCodes.GateBlocked,
         "Current and comparative cash-flow source links need independent approval against the accepted general ledger.");
 
@@ -635,7 +642,7 @@ public static partial class FinancialPackageReviewService
   private static bool IsSha256(string value) => value.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 
   private static async Task<bool> CashFlowSourcesIndependentlyApprovedAsync(
-    IClientAccountingDbContext db, ActorContext actor, FinancialPackage package, CancellationToken ct)
+    IClientAccountingDbContext db, FinancialPackage package, CancellationToken ct)
   {
     var packages = new List<FinancialPackage> { package };
     if (package.ComparativePackageId is Guid comparativeId)

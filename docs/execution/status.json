@@ -1011,37 +1011,19 @@
       ],
       "localFocusedEvidence": "Focused TRX per unit asserted with scripts/verification/assert-test-results.py; full suites deferred to release-verification.yml",
       "entraRegistrationAutomation": {
-        "implementation": "PRESENT",
-        "localVerification": "PASS",
-        "ciVerification": "NOT_DISPATCHED",
-        "externalAcceptance": "BLOCKED_EXTERNAL",
-        "checks": "WU-018 offline assertion cohort: 67 passed, 0 failed; WU-017 updated boundary cohort: 40 passed, 0 failed; existing M365 result verifier: 5 passed; DryRun envelope PLANNED/zero effects passed.",
-        "scope": "No tenant connection, consent grant, private credential generation or live acceptance performed. Exact-source full CI remains pending.",
-        "review": "Independent source findings repaired: ID-first lookup, fixed/canonical operator journal, LOGIN User.Read refusal and bounded Retry-After-aware GET retries.",
-        "operatorGuide": "docs/operations/auditsphere-entra-registration-automation.md",
-        "next": "WU-019 engineering implemented; WU-020 selected-resource grants/negative verification is next."
+        "status": "PASS_LOCAL_SLICE",
+        "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.entraRegistrationAutomation",
+        "note": "Offline engineering evidence retained; live acceptance remains separate."
       },
       "entraPermissionGrantAutomation": {
-        "implementation": "PRESENT",
-        "localVerification": "PASS",
-        "ciVerification": "NOT_DISPATCHED",
-        "externalAcceptance": "BLOCKED_EXTERNAL",
-        "checks": "WU-019 offline assertion cohort: 71 passed, 0 failed; shared WU-018 regression: 67 passed. Grant/enrollment DryRun envelopes PLANNED with zero effects; enrollment requires real server-owned human consent.",
-        "scope": "No live tenant connection, administrative impersonation, or direct database mutation performed. Exact-source full CI remains pending.",
-        "operatorGuide": "docs/operations/auditsphere-entra-registration-automation.md",
-        "next": "WU-020 engineering implemented; WU-021 client site configuration is next.",
-        "review": "Exact manifest/outgoing role sets; pending versus confirmed intent repair; pinned source/digest; redirect-disabled bounded HTTP with exact final URI, cookie-only auth and fresh server evidence."
+        "status": "PASS_LOCAL_SLICE",
+        "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.entraPermissionGrantAutomation",
+        "note": "Offline engineering evidence retained; live acceptance remains separate."
       },
       "selectedDocumentSitesAutomation": {
-        "implementation": "PRESENT",
-        "localVerification": "PASS",
-        "ciVerification": "NOT_DISPATCHED",
-        "externalAcceptance": "BLOCKED_EXTERNAL",
-        "checks": "Offline synthetic cohorts passed: WU-020 52 assertions; shared regressions WU-017 40, WU-018 67, WU-019 71. No full local suites. Runtime child Plan and schema envelope checked offline.",
-        "scope": "No live tenant connection or real document reads performed. Exact-source full CI remains pending.",
-        "operatorGuide": "docs/operations/auditsphere-entra-registration-automation.md",
-        "next": "WU-021 approved client sites and managed staff Full Control reconciliation.",
-        "review": "Exact owned app/role/certificate and site metadata; atomic pending/confirmed intents; actual separate-runtime positive namespace reads and known-control HTTP403 required by production probe. Synthetic transports only in this verification; no live isolation claim."
+        "status": "PASS_LOCAL_SLICE",
+        "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.selectedDocumentSitesAutomation",
+        "note": "Offline engineering evidence retained; live acceptance remains separate."
       },
       "m365PlanPermissionBoundary": "WU-017 correction: exact resource/role matrix, capability certificate isolation, required MAIL/CLIENT_SITES config, redirect-origin match and Exchange RBAC no-unscoped-Graph-role guard. Offline Test-Automation: 33 PASS, zero failures. Prerequisite DryRun + verify-result PLANNED PASS with zero network/mutations. Live WU-018..025 engineering and external acceptance remain open.",
       "runnerEvidenceIntegrity": "RUN-008 correction: supervisor hashes and size-bounds evidence; final verify/run/resume reject missing or changed artifacts and directory symlinks. Focused completion runner/state cohort: 34 PASS; descriptor-relative reads and same-byte validation/hash close independent-review race findings. Historical checkpoints lacking digests require real revalidation, not automatic backfill. Full current-candidate CI NOT_RUN.",
@@ -1091,15 +1073,35 @@
           "angular": "PASS: scope-workspace 20 tests after label-expectation correction; component-correction 5 tests on unchanged fixture; production build passed with existing commercial/settings.scss size warning",
           "ownedBrowser": "PASS: ReviewerApprovalReadinessTracksTheCurrentGroupPerimeter, 1 test; .local/autonomous/evidence/wu013-currentness-browser/component-currentness-browser.trx",
           "api": "PASS: targeted emitter Release build zero warnings/errors; generated contract adds only two currentness fields; OpenAPI drift passed",
-          "preservedWorkflows": "PASS: 3 existing tests for approved internal-component group workflow, external-pack history and immutable replacement refusal; .local/autonomous/evidence/wu013-currentness-neighbors/component-currentness-neighbors.trx"
+          "preservedWorkflows": "PASS: 3 existing tests for approved internal-component group workflow, external-pack history and immutable replacement refusal; .local/autonomous/evidence/wu013-currentness-neighbors/component-currentness-neighbors.trx",
+          "fastCi": {
+            "sourceCommit": "4cd62290d6282db16a2441ad565d28c0c35b2c03",
+            "runId": 39877468425,
+            "status": "FAST_CI_PASS"
+          }
         },
         "interactiveBrowser": "BLOCKED: current built-in tab observation denied by browser URL policy; no alternate observation attempted. Owned synthetic E2E is automated verification only.",
         "remaining": [
-          "Group report readback may still claim CURRENT_APPROVED after a pinned internal-package review is returned; next WU-013 guard must preserve group-only historical access and retained run lines",
-          "Current-source CI",
+          "Group report release/export/archive boundary and full requirement audit",
           "Independent release/professional acceptance"
         ],
         "fullLocalSuites": "NOT_RUN"
+      },
+      "groupReportReviewCurrentness": {
+        "status": "PARTIALLY_VERIFIED",
+        "behavior": "Exact internal component package review/source evidence is reused for new runs, approvals and current report readback; final current financial output rechecks group authorization. Historical approvals/run lines unchanged; group-only raw-artifact access still denied.",
+        "checks": {
+          "postgresql": "PASS: 3 CompletionUnit=WU-013 tests incl legitimate partner return and revoked group reader race; .local/autonomous/evidence/wu013-group-review-final-authority/group-review-final-authority.trx",
+          "angular": "PASS: scope-workspace 21 focused tests incl stale report visibility and hidden current values; production build passed with existing commercial/settings.scss budget warning"
+        },
+        "apiBuild": "PASS: targeted Release API/emitter build, 0 warnings/errors; OpenAPI contract unchanged and drift check passed",
+        "ci": "PENDING exact source",
+        "fullLocalSuites": "NOT_RUN",
+        "remaining": [
+          "Current-source CI",
+          "WU-013 typed correction-predecessor lineage audit and accepted group-report release boundary",
+          "Professional/live-provider release acceptance"
+        ]
       }
     },
     "developmentFeedback20261023": {

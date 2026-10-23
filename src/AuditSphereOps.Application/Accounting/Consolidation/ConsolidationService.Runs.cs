@@ -108,6 +108,9 @@ public static partial class ConsolidationService
       x.Status == AccountingWorkflowStates.Approved).OrderBy(x => x.Id).ToListAsync(ct);
     if (components.Count == 0)
       return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GateBlocked, "At least one approved component package is required.");
+    if (components.Any(component => component.GroupId != scope.GroupId))
+      return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GenerationStale,
+        "An approved component no longer belongs to this group scope.");
     var packageComponents = components.Where(x => x.SourceType == ConsolidationComponentSources.InternalPackage && x.PackageId.HasValue).ToList();
     var externalComponents = components.Where(x => x.SourceType == ConsolidationComponentSources.ExternalPack && x.ExternalComponentPackId.HasValue).ToList();
     if (packageComponents.Count + externalComponents.Count != components.Count)
@@ -115,8 +118,11 @@ public static partial class ConsolidationService
     var packageIds = packageComponents.Select(x => x.PackageId!.Value).ToArray();
     var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == firmId && packageIds.Contains(x.Id)).ToListAsync(ct);
     if (packages.Count != packageComponents.Count || packageComponents.Any(component =>
-        packages.All(package => package.Id != component.PackageId || package.CalculationHash != component.PackageHash ||
-          package.Status != AccountingPackageStates.PackageValidated || package.Currency != component.Currency)))
+        packages.All(package => package.Id != component.PackageId || package.ClientId != component.ClientId ||
+          package.EngagementId != component.EngagementId || package.CalculationHash != component.PackageHash ||
+          package.Status != AccountingPackageStates.PackageValidated || package.Currency != component.Currency ||
+          package.TaxonomyVersion != component.TaxonomyVersion ||
+          !Guid.TryParse(component.MappingVersion, out var mappingVersionId) || mappingVersionId != package.MappingVersionId)))
       return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GenerationStale,
         "A component package changed; rebuild the group run from current approved packages.");
     var externalPackIds = externalComponents.Select(x => x.ExternalComponentPackId!.Value).ToArray();
@@ -293,15 +299,23 @@ public static partial class ConsolidationService
       })
       .Concat(journalLines.Select(x => (new ConsolidationElimination(x.Id, x.TaxonomyCode, x.Debit - x.Credit, x.Currency, "", x.IntercompanyMatchId, ConsolidationEliminationKinds.GroupJournal), (Guid?)x.ConsolidationJournalId)))
       .ToList();
+    ConsolidationCalculation calculation;
     try
     {
-      var calculation = ConsolidationCalculator.Compute(scope.ReportingCurrency, scope.Method, scope.OpeningBasis, balances,
+      calculation = ConsolidationCalculator.Compute(scope.ReportingCurrency, scope.Method, scope.OpeningBasis, balances,
         eliminationSources.Select(x => x.Item1).ToList(), scope.GroupRevision);
-      return CommandResult<ConsolidationBuild>.Ok(new ConsolidationBuild(calculation, eliminationSources));
     }
     catch (InvalidOperationException ex)
     {
       return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GateBlocked, ex.Message);
     }
+    foreach (var component in packageComponents)
+    {
+      var package = packages.Single(x => x.Id == component.PackageId);
+      var review = await FinancialPackageReviewService.RequireCurrentEvidenceAsync(db, package, requirePartner: true, ct);
+      if (!review.Succeeded)
+        return CommandResult<ConsolidationBuild>.Fail(review.ErrorCode!, review.Message!);
+    }
+    return CommandResult<ConsolidationBuild>.Ok(new ConsolidationBuild(calculation, eliminationSources));
   }
 }

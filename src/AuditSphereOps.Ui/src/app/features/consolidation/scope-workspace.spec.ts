@@ -668,6 +668,24 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(api.command).toHaveBeenCalledWith(`/api/ui/consolidation/runs/${otherRunId}/approve`, {}, 'POST');
   });
 
+  it('explains stale report evidence and removes current-report values without changing retained run history', async () => {
+    const report = { scopeVersionId: id1, runId: id2, state: 'CURRENT_APPROVED', approvedAt: '2026-10-01T12:00:00Z',
+      lines: [{ component: 'Synthetic approved component', taxonomyCode: 'CASH', componentAmount: '100.000000',
+        alignmentAmount: '0.000000', eliminationAmount: '0.000000', consolidatedAmount: '100.000000', currency: 'QAR' }] };
+    const history = [run(id2, 'APPROVED', id3)];
+    const { fixture } = open(workspacePayload({ latestReport: report, runs: history }));
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('[aria-label="Authoritative consolidated report"]')?.textContent)
+      .toContain('Synthetic approved component');
+    workspaceData.set(decodeScopeWorkspace(workspacePayload({ latestReport: { ...report, state: 'STALE', lines: [] }, runs: history }), 'root'));
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('[aria-label="Authoritative consolidated report"]')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Report evidence is stale.');
+    expect(fixture.nativeElement.textContent).toContain('Historical runs remain unchanged.');
+    expect(fixture.nativeElement.querySelector('#runs tbody')?.textContent).toContain('approved');
+    expect(api.command).not.toHaveBeenCalled();
+  });
+
   it('shows server-derived pinned-source currentness separately from component approval', async () => {
     const { fixture } = open(workspacePayload({ components: [
       consolidationComponent(id1, id1),

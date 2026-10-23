@@ -42,6 +42,25 @@ public sealed class ConsolidationQueryTests
     }
   }
 
+  private sealed class PauseAfterRunLinesRead : DbCommandInterceptor
+  {
+    private int paused;
+    public TaskCompletionSource<bool> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("consolidation_run_lines", StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.CompareExchange(ref paused, 1, 0) == 0)
+      {
+        Reached.TrySetResult(true);
+        await Release.Task.WaitAsync(cancellationToken);
+      }
+      return result;
+    }
+  }
+
   [Fact]
   [Trait("Profile", "Database")]
   public async Task TranslationBridgeAndExceptions_ArePagedScopedAndShowUnmatchedAmounts()
@@ -682,6 +701,8 @@ public sealed class ConsolidationQueryTests
     var reviewer = Actor(fixture.GroupReviewer, "AccountingReviewer");
     Guid componentAId, componentBId, packAId, scopeId, runId;
     Guid[] originalRunLineIds;
+    var reportReader = User(fixture.FirmId, "report-reader");
+    var reportReaderActor = Actor(reportReader, "AccountingReviewer");
 
     await using (var setup = new AuditSphereDbContext(pg.Options))
     {
@@ -693,6 +714,13 @@ public sealed class ConsolidationQueryTests
       {
         Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId,
         UserId = fixture.GroupReviewer.Id, Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow,
+        GrantedByUserId = fixture.Manager.Id
+      });
+      setup.Users.Add(reportReader);
+      setup.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId,
+        UserId = reportReader.Id, Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow,
         GrantedByUserId = fixture.Manager.Id
       });
       setup.ClientReportingPeriods.Add(new ClientReportingPeriod
@@ -729,6 +757,36 @@ public sealed class ConsolidationQueryTests
         .Where(x => x.FirmId == fixture.FirmId && x.ScopeVersionId == scopeId && x.RunId == runId)
         .OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
       Assert.NotEmpty(originalRunLineIds);
+    }
+
+    var pause = new PauseAfterRunLinesRead();
+    var delayedOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(pause).Options;
+    await using var delayedReportDb = new AuditSphereDbContext(delayedOptions);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+    try
+    {
+      var pendingReport = ConsolidationService.GetLatestReportAsync(
+        delayedReportDb, reportReaderActor, scopeId, timeout.Token);
+      await pause.Reached.Task.WaitAsync(timeout.Token);
+
+      await using (var grantWriter = new AuditSphereDbContext(pg.Options))
+      {
+        var revoked = await grantWriter.GroupAccessGrants
+          .Where(x => x.FirmId == fixture.FirmId && x.GroupId == fixture.GroupId &&
+            x.UserId == reportReader.Id && x.Role == "AccountingReviewer" && x.RevokedAt == null)
+          .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), timeout.Token);
+        Assert.Equal(1, revoked);
+      }
+
+      pause.Release.TrySetResult(true);
+      var revokedReport = await pendingReport;
+      Assert.False(revokedReport.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, revokedReport.ErrorCode);
+      Assert.Null(revokedReport.Value);
+    }
+    finally
+    {
+      pause.Release.TrySetResult(true);
     }
 
     await using (var beforeChangeDb = new AuditSphereDbContext(pg.Options))

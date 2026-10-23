@@ -224,6 +224,7 @@ public sealed partial class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  [Trait("CompletionUnit", "WU-013")]
   public async Task GroupWorkflow_UsesApprovedComponentPackagesWithoutMutatingThem()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -288,7 +289,7 @@ public sealed partial class ClientAccountingTests
       await db.SaveChangesAsync();
     }
 
-    Guid packageA, packageB;
+    Guid packageA, packageB, compositionA;
     string sourcePackagesBefore, sourceClientBooksBefore;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -313,7 +314,7 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(ErrorCodes.GateBlocked, missingPackageReview.ErrorCode);
       var partner = Actor(scope.Partner, "Partner");
       Assert.Equal(sourcePackagesBefore, await CurrencyPackageSourceManifestAsync(db, [packageA, packageB]));
-      var compositionA = await ReviewCurrencyCompositionAsync(db, scope, packageA);
+      compositionA = await ReviewCurrencyCompositionAsync(db, scope, packageA);
       var compositionB = await ReviewCurrencyCompositionAsync(db, scope, packageB);
       Assert.NotEqual(compositionA, compositionB);
       // Rendering appends the approved artifact set; consolidation must preserve that exact set.
@@ -450,9 +451,6 @@ public sealed partial class ClientAccountingTests
       Assert.Equal("CURRENT_APPROVED", report.Value!.State);
       Assert.Equal(rebuiltRunId, report.Value.RunId);
       Assert.Contains(report.Value.Lines, x => x.Component == "CLIENT A" && x.TaxonomyCode == "CASH");
-      var rawPackage = await FinancialStatementService.GetStoredPackageArtifactAsync(db, groupViewerActor, packageA);
-      Assert.False(rawPackage.Succeeded);
-      Assert.Equal(ErrorCodes.ScopeDenied, rawPackage.ErrorCode);
       Assert.Equal(18, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId && x.ConsolidationJournalId == journalId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId && x.IntercompanyMatchId == matchId));
@@ -463,6 +461,51 @@ public sealed partial class ClientAccountingTests
       Assert.All(await db.ConsolidationComponents.Where(x => x.ScopeVersionId == consolidationScopeId).ToListAsync(), x => Assert.Equal(AccountingWorkflowStates.Approved, x.Status));
       Assert.Equal(sourceClientBooksBefore,
         await ClientBookSourceManifestAsync(db, scope.FirmId, [scope.ClientA, scope.ClientB]));
+
+      var approvedRun = await db.ConsolidationRuns.AsNoTracking().SingleAsync(x => x.Id == rebuiltRunId);
+      var approvedRunStatus = approvedRun.Status;
+      var approvedRunHash = approvedRun.RunHash;
+      var approvedRunManifest = approvedRun.InputManifest;
+      var approvedRunBy = approvedRun.ApprovedByUserId;
+      var approvedRunAt = approvedRun.ApprovedAt;
+      var approvedRunLineIds = await db.ConsolidationRunLines.AsNoTracking().Where(x => x.RunId == rebuiltRunId)
+        .OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+      var runCountBeforeReviewReturn = await db.ConsolidationRuns.CountAsync(x =>
+        x.FirmId == scope.FirmId && x.ScopeVersionId == consolidationScopeId);
+      var composition = await db.FinancialStatementCompositions.AsNoTracking().SingleAsync(x => x.Id == compositionA);
+      var returnedReview = await FinancialPackageReviewService.RecordAsync(db, Actor(scope.Partner, "Partner"),
+        new FinancialPackageReviewRequest(packageA, FinancialPackageReviewStages.PartnerApproval,
+          FinancialPackageReviewDecisions.ChangesRequired, FinancialPackageReviewEvidenceModes.SignedIn,
+          "group-component-review-return", "Return the exact pinned package review for correction.",
+          composition.PresentationRevisionId, null, composition.Id, composition.ManifestDigest));
+      Assert.True(returnedReview.Succeeded, returnedReview.Message);
+
+      var runAfterReviewReturn = await ConsolidationService.RunAsync(db, preparer, consolidationScopeId);
+      Assert.False(runAfterReviewReturn.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, runAfterReviewReturn.ErrorCode);
+      var approvalAfterReviewReturn = await ConsolidationService.ApproveRunAsync(db, reviewer, runId);
+      Assert.False(approvalAfterReviewReturn.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, approvalAfterReviewReturn.ErrorCode);
+      var staleReviewReport = await ConsolidationService.GetLatestReportAsync(db, groupViewerActor, consolidationScopeId);
+      Assert.True(staleReviewReport.Succeeded, staleReviewReport.Message);
+      Assert.Equal("STALE", staleReviewReport.Value!.State);
+      Assert.Equal(rebuiltRunId, staleReviewReport.Value.RunId);
+      Assert.Empty(staleReviewReport.Value.Lines);
+      var rawPackage = await FinancialStatementService.GetStoredPackageArtifactAsync(db, groupViewerActor, packageA);
+      Assert.False(rawPackage.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, rawPackage.ErrorCode);
+
+      var retainedApprovedRun = await db.ConsolidationRuns.AsNoTracking().SingleAsync(x => x.Id == rebuiltRunId);
+      Assert.Equal(approvedRunStatus, retainedApprovedRun.Status);
+      Assert.Equal(approvedRunHash, retainedApprovedRun.RunHash);
+      Assert.Equal(approvedRunManifest, retainedApprovedRun.InputManifest);
+      Assert.Equal(approvedRunBy, retainedApprovedRun.ApprovedByUserId);
+      Assert.Equal(approvedRunAt, retainedApprovedRun.ApprovedAt);
+      Assert.Equal(approvedRunLineIds,
+        await db.ConsolidationRunLines.AsNoTracking().Where(x => x.RunId == rebuiltRunId)
+          .OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
+      Assert.Equal(runCountBeforeReviewReturn,
+        await db.ConsolidationRuns.CountAsync(x => x.FirmId == scope.FirmId && x.ScopeVersionId == consolidationScopeId));
 
       var newClientId = Guid.NewGuid();
       db.PracticeClients.Add(new PracticeClient { Id = newClientId, FirmId = scope.FirmId, LegalName = "CLIENT C", CreatedAt = DateTimeOffset.UtcNow });
