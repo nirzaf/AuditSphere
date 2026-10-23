@@ -67,8 +67,8 @@ jobs:
           printf 'Angular gate outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
             "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
 
-  # Fast push/PR gate: compile all projects, run database-free guards, check model/contract
-  # drift and standalone publication. PostgreSQL/API/browser regressions are intentionally
+  # Fast push/PR gate: compile all projects, run database-free guards and OpenAPI semantics,
+  # check model/contract drift and publication. PostgreSQL and full API/browser regressions are
   # deferred to release-verification.yml (nightly + manual, complete unfiltered suites).
   dotnet-build:
     needs: ui-build
@@ -122,6 +122,16 @@ jobs:
             --filter 'FullyQualifiedName~ArchitectureGuardTests|FullyQualifiedName~MaterialityPracticalRoundingTests' \
             --logger 'trx;LogFileName=fast-guards.trx' --results-directory "$RUNNER_TEMP/fast-ci-results"
 
+      # This class generates the real contract in an in-process Test host. It does not
+      # create a PostgreSQL fixture or execute the wider authenticated API journeys.
+      - name: Verify database-free OpenAPI response semantics
+        run: |
+          set -euo pipefail
+          dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --no-restore \
+            --configuration Release --maxcpucount:1 \
+            --filter 'FullyQualifiedName~AuditSphereOps.Api.Tests.OpenApiContractTests' \
+            --logger 'trx;LogFileName=openapi-contracts.trx' --results-directory "$RUNNER_TEMP/fast-ci-results"
+
       - name: Upload fast guard results
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -166,7 +176,7 @@ jobs:
         run: |
           printf '.NET gate outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
             "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
-          printf '\nFast CI intentionally omits PostgreSQL integration, API and browser suites. Run release-verification.yml for full acceptance; this build gate is not full regression evidence.\n' >> "$GITHUB_STEP_SUMMARY"
+          printf '\nFast CI includes database-free OpenAPI semantics; PostgreSQL integration and full API/browser suites remain in release-verification.yml. This gate is not full regression evidence.\n' >> "$GITHUB_STEP_SUMMARY"
 
   # Documentation health gate: canonical-link integrity, naming policy and
   # HISTORICAL_SOURCE banners. Pure stdlib Python; no .NET or database needed.

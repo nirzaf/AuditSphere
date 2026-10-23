@@ -1565,7 +1565,8 @@
       "localVerification": "Angular build/spec compilation PASS; local tests NOT_RUN per owner.",
       "ci": "FAST_CI_PASS; run 39965230613. Full release/browser/human acceptance OPEN.",
       "sourceCommit": "a2e26a433be288448482825b4f628c428344b0c1"
-    }
+    },
+    "contractSemanticsCI": "PENDING; database-free OpenApiContractTests added to fast CI."
   },
   "completePracticeManagement": {
     "specification": "docs/requirements/auditsphere-requirements-specification-complete-practice-management-proposed.md",
