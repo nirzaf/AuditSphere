@@ -13,6 +13,9 @@ from the expected candidate (never reported as a pass); 11 QUEUED/RUNNING (WAITI
 The resolved source comes from the run's `release-verification-source` artifact when present, else
 from the "Resolved commit" line of the Resolve job log. Workflow head SHA is recorded separately and
 never treated as the tested source.
+
+Dispatch --state updates an existing valid autonomous checkpoint whose currentSha matches the
+candidate; it is not an output filename. A post-dispatch checkpoint failure retains the run receipt.
 """
 
 from __future__ import annotations
@@ -183,6 +186,15 @@ def write_state_ci(state_path: Path, evidence: dict) -> None:
 def dispatch(repo: str, candidate: str, workflow: str, state_path: Path | None) -> tuple[dict, int]:
     if not cs.SHA.match(candidate):
         raise GhError("--candidate must be a full 40-character commit SHA")
+    if state_path:
+        # Refuse an unusable checkpoint before creating a remote run.
+        with cs.single_writer(state_path):
+            state = cs.load_json(state_path)
+            errors = cs.check_state(state, expected_repository=repo)
+            if errors:
+                raise cs.StateError("invalid dispatch state: " + "; ".join(errors))
+            if state["currentSha"] != candidate:
+                raise cs.StateError("dispatch candidate differs from state currentSha")
     correlation = f"as-{candidate[:12]}-{secrets.token_hex(4)}"
     started = now() - dt.timedelta(seconds=5)
     # gh may print the created run URL. Keep the automation stdout contract JSON-only.
@@ -204,7 +216,13 @@ def dispatch(repo: str, candidate: str, workflow: str, state_path: Path | None) 
                 "requestedRef": candidate, "correlation": correlation, "workflowHeadSha": run.get("head_sha"),
                 "resolvedSha": None, "status": "QUEUED", "observedAtUtc": now().isoformat(timespec="seconds")}
     if state_path:
-        write_state_ci(state_path, evidence)
+        try:
+            write_state_ci(state_path, evidence)
+        except (cs.StateError, OSError) as exc:
+            # The remote effect already happened: retain its identity even if the checkpoint fails.
+            evidence.update(stateUpdate="FAILED", stateError=str(exc),
+                            recovery="Observe this runId; do not dispatch again solely to repair the local checkpoint.")
+            return evidence, 2
     return evidence, EXIT["QUEUED"]
 
 
@@ -239,7 +257,7 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--repo", required=True)
     d.add_argument("--candidate", required=True)
     d.add_argument("--workflow", default=WORKFLOW)
-    d.add_argument("--state", type=Path)
+    d.add_argument("--state", type=Path, help="Existing valid autonomous checkpoint matching the candidate (not an output path)")
     w = sub.add_parser("wait")
     w.add_argument("--state", type=Path, required=True)
     w.add_argument("--poll-seconds", type=int, default=60)

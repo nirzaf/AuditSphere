@@ -993,7 +993,7 @@
           "checks": "1fresh-build E2E PASS with source-bound CI UI; actual create response captured before navigation. Payload/readback/UI/DB assertions retained. Historical399178 failure preserved. Broader browser/current-source full CI pending."
         }
       },
-      "ciObserved": "Full39944364261/d4 source MATCH: Domain1585PASS/4FAIL, history2+reason2 focused repairsPASS. Build/contracts/publication andAngularPASS; API/E2E pending. Older889fullPASS separate; latest-source fullCI required.",
+      "ciObserved": "Full39953446413 targets6d5f3415; resolvedartifact/jobs pending. Prior399443/d4 Domain1585PASS/4FAIL (4 focused repairsPASS), Angular/buildPASS, API/E2E pending. Fast47/daaPASS; older889fullPASS historical. No current FULL_CI_PASS.",
       "scopeUnknownOutcome": {
         "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.scopeUnknownOutcome",
         "status": "PARTIAL",
@@ -1055,10 +1055,11 @@
         "checks": "13PythonPASS; boundedcapture/source+inputs+feed/reporthashes; Nugetstderr/nesteddiagnostics cannotclear. Actual5aaNugetexit0/no records, DIRTY =>INCOMPLETE/SOURCE_UNKNOWN. Prior8guardproof retained wu038-verifier.",
         "remaining": "Clean-source scans/triage, approved targets, measured performance/custody/recovery and production acceptance.",
         "workflowCapture": {
-          "status": "PENDING_CI",
+          "status": "CAPTURE_INTEGRITY_PASS_NOT_SECURITY_ACCEPTANCE",
           "base": "b8cb1303+workflow overlay",
           "workflowSha256": "5b5648e52ff72b852707952e81a492b1a951a132975d1eee91a2a538ffd60f11",
-          "checks": "Agent actionlint/placement/artifact checks and focused capture3PASS; parent diff review. Full-only NuGet/npm captures retain ref/SHA, exits and capped helper diagnostics. NOT_ASSESSED; no security pass or fast-gate change."
+          "checks": "Agent actionlint/placement/artifact checks and focused capture3PASS; parent diff review. Full-only NuGet/npm captures retain ref/SHA, exits and capped helper diagnostics. NOT_ASSESSED; no security pass or fast-gate change.",
+          "ciArtifacts": "399443/d4 npm+NuGet CAPTURED/CLEAN/exits0; source/ref andhashesvalidated. SecurityAssessment NOT_ASSESSED; current-sourceCI/othersecuritygates remain."
         }
       },
       "pbcReplyRecovery": {
@@ -1134,6 +1135,12 @@
         "evidence": ".local/autonomous/evidence/39917840742-reviewpoint-diagnostic-request-bound",
         "checks": "1fresh selectedCLEAR/lostcommitted PASS. State capture bindsrequestafterlookupintent, boundedtypedfields/status/panel; same originaltimeout/assertions. Earlier3passes retained. No productguard changed.",
         "remaining": "Historical no-receipt cause unknown; diagnosticfailurebranchnotexercised. Needrecurrenceevidence/current-sourceCI; not a productionfix."
+      },
+      "dispatchCheckpointGuard": {
+        "base": "6d5f3415+2fileoverlay",
+        "evidence": ".local/autonomous/evidence/ci-dispatch-checkpoint-guard/result.json",
+        "checks": "3focusedPythonPASS: invalid/missing/foreign/stalesource checkpoints refuse before remoteeffect; postcreation savefailure retainsrunId+correlation; existing JSONoutput unchanged. Live399534runrecoveredwithoutduplicate after originalmissingpatherror.",
+        "remaining": "Offlinecontractonly; current fullCI separate."
       }
     },
     "developmentFeedback20261023": {

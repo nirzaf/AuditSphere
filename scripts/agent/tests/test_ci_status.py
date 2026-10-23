@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from scripts.agent.tests.test_completion_state import state, task
 
 AGENT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(AGENT))
@@ -93,6 +94,40 @@ class CiStatusTests(unittest.TestCase):
         self.assertEqual((code, evidence["runId"], evidence["requestedRef"], evidence["status"]),
                          (11, 42, CANDIDATE, "QUEUED"))
         self.assertIsNone(evidence["resolvedSha"])
+        invoked.assert_called_once()
+
+    def test_dispatch_rejects_unusable_state_before_any_remote_effect(self):
+        state_path = Path(self.tmp.name, "dispatch-state.json")
+        cases = (
+            ("missing", None), ("corrupt", "{"), ("invalid", "{}"),
+            ("other source", json.dumps(state({"RUN-003": task()}, currentSha=OTHER))),
+            ("other repository", json.dumps(state({"RUN-003": task()}, repository="other/repo"))),
+        )
+        for label, content in cases:
+            with self.subTest(label=label):
+                if content is not None:
+                    state_path.write_text(content, encoding="utf-8")
+                with patch.object(ci.subprocess, "run") as invoked, patch.object(ci, "gh") as remote:
+                    with self.assertRaises(ci.cs.StateError):
+                        ci.dispatch("nirzaf/AuditSphere", CANDIDATE, ci.WORKFLOW, state_path)
+                invoked.assert_not_called()
+                remote.assert_not_called()
+
+    def test_dispatch_retains_created_run_when_checkpoint_write_fails(self):
+        state_path = Path(self.tmp.name, "dispatch-state.json")
+        state_path.write_text(json.dumps(state({"RUN-003": task()})), encoding="utf-8")
+        run = {"id": 42, "run_attempt": 1, "head_sha": CANDIDATE,
+               "display_title": f"release as-{CANDIDATE[:12]}-fixed", "created_at": NOW.isoformat()}
+        with patch.object(ci.subprocess, "run") as invoked, \
+                patch.object(ci, "gh", return_value={"workflow_runs": [run]}), \
+                patch.object(ci.secrets, "token_hex", return_value="fixed"), \
+                patch.object(ci.time, "sleep"), \
+                patch.object(ci, "write_state_ci", side_effect=ci.cs.StateError("checkpoint unavailable")):
+            evidence, code = ci.dispatch("nirzaf/AuditSphere", CANDIDATE, ci.WORKFLOW, state_path)
+        self.assertEqual((code, evidence["runId"], evidence["requestedRef"], evidence["stateUpdate"]),
+                         (2, 42, CANDIDATE, "FAILED"))
+        self.assertIn("checkpoint unavailable", evidence["stateError"])
+        self.assertIn("do not dispatch again", evidence["recovery"])
         invoked.assert_called_once()
 
     def test_running_api_and_e2e_waits_and_continues(self):
