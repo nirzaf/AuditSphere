@@ -616,7 +616,7 @@ public sealed class AngularFinancialArtifactParityJourneyTests
       }
     }
 
-    await mappingPage.GetByRole(AriaRole.Button, new() { Name = "Refresh mapping", Exact = true }).ClickAsync();
+    await RefreshOrObserveRevocationAsync(mappingPage, "Refresh mapping");
     await mappingPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })
       .WaitForAsync(new() { Timeout = 15000 });
     Assert.DoesNotContain(mappingId.ToString("D"), await mappingPage.Locator("body").InnerTextAsync());
@@ -643,10 +643,10 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     await RefreshOrObserveRevocationAsync(reviewQueuePage);
     Assert.DoesNotContain(packageId.ToString("D"), await reviewQueuePage.Locator("body").InnerTextAsync());
 
-    static async Task RefreshOrObserveRevocationAsync(IPage target)
+    static async Task RefreshOrObserveRevocationAsync(IPage target, string refreshName = "Refresh queue")
     {
       var unavailable = target.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true });
-      var refresh = target.GetByRole(AriaRole.Button, new() { Name = "Refresh queue", Exact = true });
+      var refresh = target.GetByRole(AriaRole.Button, new() { Name = refreshName, Exact = true });
       if (!await unavailable.IsVisibleAsync() && await refresh.IsVisibleAsync())
       {
         try { await refresh.ClickAsync(new() { Timeout = 5000 }); }

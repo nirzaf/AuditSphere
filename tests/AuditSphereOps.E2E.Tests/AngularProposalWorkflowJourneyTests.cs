@@ -125,13 +125,38 @@ public sealed class AngularProposalWorkflowJourneyTests
     await Assertions.Expect(page.GetByText(
       "Email queued for lifecycle@example.test; awaiting the isolated mail worker.", new() { Exact = true })).ToBeVisibleAsync();
 
-    var (stage3Status, stage3Body) = await PlaywrightResponseCapture.RunAsync(page,
-      request => request.Method == "GET" && Uri.TryCreate(request.Url, UriKind.Absolute, out var uri) && uri.AbsolutePath == lifecycleUrl,
-      async () =>
+    (int stage3Status, string stage3Body) lifecycleReadback;
+    try
+    {
+      lifecycleReadback = await PlaywrightResponseCapture.RunAsync(page,
+        request => request.Method == "GET" && Uri.TryCreate(request.Url, UriKind.Absolute, out var uri) && uri.AbsolutePath == lifecycleUrl,
+        async () =>
+        {
+          await page.GotoAsync(origin + engagementPath);
+          await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
+        });
+    }
+    catch (TimeoutException exception)
+    {
+      var renderState = "Unavailable";
+      try
       {
-        await page.GotoAsync(origin + engagementPath);
-        await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
-      });
+        renderState = await page.EvaluateAsync<string>("""
+          () => {
+            const panel = document.querySelector('details.technical-lifecycle');
+            const placeholder = panel?.querySelector(':scope > p');
+            const box = placeholder?.getBoundingClientRect();
+            return JSON.stringify({ panelPresent: !!panel, open: panel?.open,
+              lifecyclePresent: !!panel?.querySelector('audit-engagement-lifecycle'),
+              placeholderPresent: !!placeholder, placeholderTop: box?.top,
+              placeholderBottom: box?.bottom, scrollY, viewportHeight: innerHeight });
+          }
+          """);
+      }
+      catch (PlaywrightException) { /* Preserve the original failure if the page has closed. */ }
+      throw new TimeoutException($"{exception.Message} Deferred lifecycle render state: {renderState}; page errors: {string.Join("; ", errors)}", exception);
+    }
+    var (stage3Status, stage3Body) = lifecycleReadback;
     Assert.Equal(200, stage3Status);
     using (var body = JsonDocument.Parse(stage3Body))
       Assert.Equal(3, body.RootElement.GetProperty("summary").GetProperty("stageIndex").GetInt32());
