@@ -192,7 +192,7 @@ describe('Exact native journal editor and receipt recovery', () => {
     }
   });
   it.each(['route', 'session'])('ignores a receipt when %s changes before the owner effect runs', async (change) => {
-    const { f, c } = await open();
+    const { f, c, http } = await open();
     await prepare(c, http);
     c.reviewed.set(true);
     let complete!: (result: CommandOutcome<unknown>) => void;
