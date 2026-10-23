@@ -24006,30 +24006,21 @@
     "targetedVerification.angularQualityCiAccessibilityContinuation20261023": {
       "result": "PARTIAL_ACCEPTANCE",
       "source": "ee87a7b0f36ef7e24dc47ef97905756b950c85ab",
-      "observedAtUtc": "2026-10-23T16:56:29.288417+00:00",
+      "observedAtUtc": "2026-10-23T17:08:52.672125+00:00",
       "priorSnapshot": "targetedVerification.angularQualityBeforeCiAccessibilityContinuation20261023",
       "implementation": "Tasks01-06 implemented/revalidated. Task07 corrective slice changes four consolidation pager containers to named semantic navigation without changing commands or paging. One existing paging test now protects all four landmarks.",
       "ci": {
-        "fullRunId": 39982432220,
+        "source": "311841a99b59f6cc1e06bd62c730ef3854ef5458",
+        "fullRunId": 39991715381,
         "fullResult": "RUNNING; NOT_FULL_CI_PASS",
         "sourceMatch": "MATCH",
-        "fastRunId": 39982253116,
+        "fastRunId": 39991047096,
         "fastResult": "FAST_CI_PASS",
-        "imagesRunId": 39982253022,
-        "imagesResult": "PASS; not deployment",
-        "angular": {
-          "passed": 1598,
-          "failed": 0,
-          "files": 177,
-          "evidence": ".local/autonomous/evidence/angular-quality-reattached-20261023/ci-angular/summary.json"
-        },
-        "domain": {
-          "passed": 1595,
-          "failed": 0,
-          "evidence": ".local/autonomous/evidence/angular-quality-reattached-20261023/ci-domain/summary.json"
-        },
+        "angular": "Full Angular job PASS; current-run count not extracted",
+        "domain": "IN_PROGRESS",
         "api": "IN_PROGRESS",
-        "e2e": "IN_PROGRESS"
+        "e2e": "IN_PROGRESS",
+        "limits": "The following documentation-only record commit is not the tested code candidate."
       },
       "planning": {
         "automated": "Existing exact-review/lost-response/reload/receipt journey, both canonical route variants:2PASS/0FAIL/0SKIP; fresh test compilation and owned isolated PostgreSQL/API/UI. No full local suite.",
@@ -24039,7 +24030,7 @@
       },
       "otherRendered": "Prior builtin journal removal/reflow, staff/client navigation and fieldwork tabs/empty-program/invalid sampling alert are retained under .local/autonomous/evidence/angular-quality-reattached-20261023/rendered-followup/observations.json. Loopback ports share host cookies; actors were inspected sequentially after observing authority clearing.",
       "remaining": [
-        "Full API/E2E jobs and canonical aggregate on this exact candidate",
+        "Full unfiltered backend jobs and canonical aggregate on311841a9; precedingEE API/E2E still monitored for shared failures",
         "Wider per-surface/state rendered matrix",
         "Native200/400zoom: browser has viewport only, native Codex app control refused; no bypass",
         "Actual qualified human screen-reader/browser versions and workflow observations"
@@ -24064,7 +24055,37 @@
         "builtIn": "Allowed procedure selected and synthetic rationale/reference previewed; H2 receives focus; record is disabled without assent; cancel announces fresh preview/assent and settled focus returns to Preview exact action.0 retained native actions.",
         "evidence": ".local/autonomous/evidence/angular-quality-continuation-20261023/evidence-rendered.json"
       },
-      "handoffGuide": "docs/testing/auditsphere-testing-checklist-angular-accessibility-current.md#reuse-the-existing-synthetic-browser-handoffs"
+      "handoffGuide": "docs/testing/auditsphere-testing-checklist-angular-accessibility-current.md#reuse-the-existing-synthetic-browser-handoffs",
+      "priorCi": {
+        "source": "ee87a7b0f36ef7e24dc47ef97905756b950c85ab",
+        "fullRunId": 39982432220,
+        "fullResult": "RUNNING; NOT_FULL_CI_PASS",
+        "sourceMatch": "MATCH",
+        "fastRunId": 39982253116,
+        "fastResult": "FAST_CI_PASS",
+        "imagesRunId": 39982253022,
+        "imagesResult": "PASS; not deployment",
+        "angular": {
+          "passed": 1598,
+          "failed": 0,
+          "files": 177,
+          "evidence": ".local/autonomous/evidence/angular-quality-reattached-20261023/ci-angular/summary.json"
+        },
+        "domain": {
+          "passed": 1595,
+          "failed": 0,
+          "evidence": ".local/autonomous/evidence/angular-quality-reattached-20261023/ci-domain/summary.json"
+        },
+        "api": "IN_PROGRESS",
+        "e2e": "IN_PROGRESS"
+      },
+      "fieldwork": {
+        "automated": "Existing adopted-programme/reviewed-fieldwork/frozen-workpaper journey1PASS/0FAIL/0SKIP. Existing API/test binaries reused only after proving C# source unchanged since their fresh build.",
+        "sourceBoundary": "UI311841a9; API/test binary sourceee87a7b0 with identical C# source. Exact arguments, hashes and assembly time in fieldwork-command.json.",
+        "builtIn": "Adopted programme/provenance and9 procedure rows observed. Authorized procedure/schedule chosen; keyboard sampling preview shows ROW-001,125.00 and monetary interval basis; Exact selection preview H3 receives focus. No sample recorded.",
+        "noticeLimit": "Initial unavailable command-state notice was read immediately after Open procedure, before async settling. This does not establish a persistent failure; settled execution/review state was not inspected.",
+        "evidence": ".local/autonomous/evidence/angular-quality-continuation-20261023/fieldwork-rendered.json"
+      }
     }
   },
   "archivedTargetedVerification": {
