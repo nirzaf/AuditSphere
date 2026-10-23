@@ -55,6 +55,34 @@ SCAN_TOOL_NAMES = {
     "npm": "npm audit --json",
     "gitleaks": "gitleaks git --redact=100 --report-format json",
 }
+SCAN_EXECUTABLES = {"nuget": "dotnet", "npm": "npm", "gitleaks": "gitleaks"}
+SCAN_ARGV = {
+    "nuget": [
+        "dotnet", "list", "solution", "package", "--vulnerable",
+        "--include-transitive", "--format", "json", "--no-restore",
+    ],
+    "npm": ["npm", "audit", "--json"],
+    "gitleaks": [
+        "gitleaks", "git", "--redact=100", "--report-format", "json",
+        "--report-path", "/dev/stdout",
+    ],
+}
+SCAN_WORKING_DIRECTORIES = {"nuget": ".", "npm": "src/AuditSphereOps.Ui", "gitleaks": "."}
+CAPTURE_FEED_METHODS = {
+    "nuget": "tool-report-sources",
+    "npm": "npm-audit-json-no-registry-identity",
+    "gitleaks": "not-applicable",
+}
+CAPTURE_CONFIG_KEYS = {
+    "nuget": {"repository", "user", "machine"},
+    "npm": {"repository", "project", "user", "global"},
+    "gitleaks": {"repository", "project"},
+}
+MAX_CAPTURE_INPUTS = 256
+MAX_CAPTURE_INPUT_BYTES = 67_108_864
+MAX_CAPTURE_FILE_BYTES = 20_971_520
+MAX_CAPTURE_RUNTIME_SECONDS = 180
+MAX_CAPTURE_STDERR_BYTES = 1_048_576
 FINDING_IDENTITY_RULES = {
     "npm": "NPM-SHA256(package-name-casefold + NUL + advisory-source)",
     "nuget": "NUGET-SHA256(package-id-casefold + NUL + resolved-version + NUL + advisory-url)",
@@ -310,6 +338,95 @@ def _is_beneath(path: Path, parent: Path) -> bool:
         return False
 
 
+def _scan_input_paths(scan_id: str, root: Path) -> list[str] | None:
+    if scan_id not in SCAN_ARGV:
+        return None
+    required: set[str]
+    candidates: set[str] = set()
+    if scan_id == "nuget":
+        required = {
+            "AuditSphereOps.slnx", "global.json", "Directory.Packages.props",
+            "Directory.Build.props", "NuGet.Config",
+        }
+        candidates.update(required)
+        required_project_inputs: set[str] = set()
+        for path in root.iterdir():
+            if path.is_file() and path.suffix.lower() in {".props", ".targets"}:
+                candidates.add(path.relative_to(root).as_posix())
+        for base_name in ("src", "tests"):
+            base = root / base_name
+            if not base.is_dir():
+                continue
+            for directory, dirs, files in os.walk(base, followlinks=False):
+                current = Path(directory)
+                dirs[:] = [
+                    name for name in dirs
+                    if name not in {".git", "artifacts", "bin", "node_modules", "obj"}
+                    and not (current / name).is_symlink()
+                ]
+                for filename in files:
+                    path = current / filename
+                    if path.suffix.lower() in {".csproj", ".props", ".targets"} or filename == "packages.lock.json":
+                        candidates.add(path.relative_to(root).as_posix())
+                    if path.suffix.lower() == ".csproj":
+                        assets = current / "obj" / "project.assets.json"
+                        relative_assets = assets.relative_to(root).as_posix()
+                        candidates.add(relative_assets)
+                        required_project_inputs.add(relative_assets)
+        required.update(required_project_inputs)
+    elif scan_id == "npm":
+        required = {"src/AuditSphereOps.Ui/package.json", "src/AuditSphereOps.Ui/package-lock.json"}
+        candidates.update(required)
+        candidates.update({".npmrc", "src/AuditSphereOps.Ui/.npmrc"})
+    else:
+        required = set()
+        candidates.update({".gitleaks.toml", ".gitleaksignore", ".gitleaks.yaml"})
+
+    root_resolved = root.resolve()
+    for relative in tuple(candidates):
+        candidate = root.joinpath(*PurePosixPath(relative).parts)
+        cursor = root
+        for component in PurePosixPath(relative).parts:
+            cursor = cursor / component
+            if cursor.is_symlink():
+                return None
+        if not candidate.is_file():
+            candidates.discard(relative)
+            continue
+        try:
+            resolved = candidate.resolve(strict=True)
+        except (OSError, RuntimeError):
+            return None
+        if not _is_beneath(resolved, root_resolved):
+            return None
+    if not required.issubset(candidates) or len(candidates) > MAX_CAPTURE_INPUTS:
+        return None
+    return sorted(candidates)
+
+
+def _scan_input_hashes(scan_id: str, root: Path) -> dict[str, str] | None:
+    paths = _scan_input_paths(scan_id, root)
+    if paths is None:
+        return None
+    hashes: dict[str, str] = {}
+    total = 0
+    try:
+        for relative in paths:
+            path = root.joinpath(*PurePosixPath(relative).parts)
+            size = path.stat().st_size
+            total += size
+            if size > MAX_CAPTURE_FILE_BYTES or total > MAX_CAPTURE_INPUT_BYTES:
+                return None
+            digest = hashlib.sha256()
+            with path.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(65_536), b""):
+                    digest.update(chunk)
+            hashes[relative] = digest.hexdigest()
+    except (OSError, RuntimeError):
+        return None
+    return hashes
+
+
 def _resolve_evidence_file(
     root: Path,
     raw_path: str,
@@ -543,7 +660,11 @@ def _feed_host(value: Any) -> str | None:
         return None
 
 
-def _nuget_report(report: Any) -> tuple[dict[str, tuple[str, str]], list[str] | None] | None:
+def _nuget_report(
+    report: Any,
+    *,
+    allow_sparse_projects: bool = False,
+) -> tuple[dict[str, tuple[str, str]], list[str] | None] | None:
     if type(report) is not dict or type(report.get("version")) is not int or report["version"] != 1:
         return None
     parameters = report.get("parameters")
@@ -571,10 +692,16 @@ def _nuget_report(report: Any) -> tuple[dict[str, tuple[str, str]], list[str] | 
         "low": "LOW",
     }
     findings: dict[str, tuple[str, str]] = {}
+    sparse_projects = False
     for project in projects:
         frameworks = project.get("frameworks") if type(project) is dict else None
         if type(project) is not dict or type(project.get("path")) is not str or not project["path"]:
             return None
+        if frameworks is None:
+            if not allow_sparse_projects or set(project) != {"path"}:
+                return None
+            sparse_projects = True
+            continue
         if type(frameworks) is not list or not frameworks:
             return None
         for framework in frameworks:
@@ -616,6 +743,8 @@ def _nuget_report(report: Any) -> tuple[dict[str, tuple[str, str]], list[str] | 
                         if previous is not None and previous != normalized:
                             return None
                         findings[finding_id] = normalized
+    if sparse_projects and findings:
+        return None
     return findings, sorted(hosts)
 
 
@@ -643,12 +772,15 @@ def _gitleaks_report(report: Any) -> tuple[dict[str, tuple[str, str]], list[str]
 
 
 def _parse_scan_report(
-    scan_id: str, report: Any,
+    scan_id: str,
+    report: Any,
+    *,
+    allow_sparse_nuget: bool = False,
 ) -> tuple[dict[str, tuple[str, str]], list[str] | None] | None:
     if scan_id == "npm":
         return _npm_report(report)
     if scan_id == "nuget":
-        return _nuget_report(report)
+        return _nuget_report(report, allow_sparse_projects=allow_sparse_nuget)
     if scan_id == "gitleaks":
         return _gitleaks_report(report)
     return None
@@ -735,6 +867,145 @@ def _validate_finding(finding: Any, errors: set[str]) -> bool:
     if type(finding["triage"]) is not str or finding["triage"] not in FINDING_TRIAGE:
         errors.add("invalid-finding-triage")
     return True
+
+
+def _capture_envelope_report(
+    scan_id: str,
+    envelope: Any,
+    scan: dict[str, Any],
+    source_commit: str | None,
+    source_exact: bool,
+    root: Path,
+    errors: set[str],
+    blockers: set[str],
+) -> tuple[Any, list[str] | None, int | None] | None:
+    unknown = f"SCAN_CAPTURE_UNKNOWN_{scan_id.upper()}"
+    keys = {
+        "schemaVersion", "scanId", "source", "inputHashes", "invocation",
+        "tool", "feed", "report", "capturedAtUtc",
+    }
+    if type(envelope) is not dict or set(envelope) != keys:
+        blockers.add(unknown)
+        return None
+    if (
+        type(envelope["schemaVersion"]) is not int
+        or envelope["schemaVersion"] != 1
+        or envelope["scanId"] != scan_id
+        or not _utc_timestamp(envelope["capturedAtUtc"])
+    ):
+        blockers.add(unknown)
+        return None
+
+    source = envelope["source"]
+    if (
+        not _object_matches(source, {"repository", "commit", "workingTree"})
+        or source["repository"] != "nirzaf/AuditSphere"
+        or source["commit"] != source_commit
+        or source["workingTree"] not in {"CLEAN", "DIRTY"}
+        or (source["workingTree"] == "CLEAN" and not source_exact)
+    ):
+        blockers.add(f"SCAN_SOURCE_UNKNOWN_{scan_id.upper()}")
+        return None
+    if source["workingTree"] != "CLEAN" or not source_exact:
+        blockers.add(f"SCAN_SOURCE_UNKNOWN_{scan_id.upper()}")
+
+    recorded_inputs = envelope["inputHashes"]
+    observed_inputs = _scan_input_hashes(scan_id, root)
+    if (
+        type(recorded_inputs) is not dict
+        or observed_inputs is None
+        or recorded_inputs != observed_inputs
+        or any(SHA256_RE.fullmatch(value) is None for value in recorded_inputs.values()
+               if type(value) is str)
+        or any(type(value) is not str or SHA256_RE.fullmatch(value) is None
+               for value in recorded_inputs.values())
+    ):
+        blockers.add(f"SCAN_INPUTS_UNKNOWN_{scan_id.upper()}")
+        return None
+
+    invocation = envelope["invocation"]
+    invocation_keys = {
+        "argv", "workingDirectory", "exitCode", "startedAtUtc", "completedAtUtc",
+        "stdoutSha256", "stderrSha256", "stderrBytes",
+    }
+    if (
+        not _object_matches(invocation, invocation_keys)
+        or invocation["argv"] != SCAN_ARGV[scan_id]
+        or invocation["workingDirectory"] != SCAN_WORKING_DIRECTORIES[scan_id]
+        or type(invocation["exitCode"]) is not int
+        or invocation["exitCode"] < 0
+        or invocation["exitCode"] > 255
+        or not _utc_timestamp(invocation["startedAtUtc"])
+        or not _utc_timestamp(invocation["completedAtUtc"])
+        or datetime.fromisoformat(invocation["startedAtUtc"][:-1] + "+00:00")
+        > datetime.fromisoformat(invocation["completedAtUtc"][:-1] + "+00:00")
+        or invocation["completedAtUtc"] != envelope["capturedAtUtc"]
+        or type(invocation["stdoutSha256"]) is not str
+        or SHA256_RE.fullmatch(invocation["stdoutSha256"]) is None
+        or type(invocation["stderrSha256"]) is not str
+        or SHA256_RE.fullmatch(invocation["stderrSha256"]) is None
+        or type(invocation["stderrBytes"]) is not int
+        or not 0 <= invocation["stderrBytes"] <= MAX_CAPTURE_STDERR_BYTES
+    ):
+        blockers.add(unknown)
+        return None
+
+    tool = envelope["tool"]
+    if (
+        not _object_matches(tool, {"executable", "version"})
+        or tool["executable"] != SCAN_EXECUTABLES[scan_id]
+        or not _safe_token(tool["version"])
+        or scan["tool"]["version"] != tool["version"]
+    ):
+        blockers.add(f"SCAN_TOOL_UNKNOWN_{scan_id.upper()}")
+        return None
+
+    feed = envelope["feed"]
+    if (
+        not _object_matches(feed, {"state", "identities", "captureMethod", "configurationHashes"})
+        or feed["captureMethod"] != CAPTURE_FEED_METHODS[scan_id]
+        or type(feed["identities"]) is not list
+        or any(type(host) is not str or HOST_RE.fullmatch(host) is None for host in feed["identities"])
+        or feed["identities"] != sorted(set(host.lower() for host in feed["identities"]))
+        or not _object_matches(feed["configurationHashes"], CAPTURE_CONFIG_KEYS[scan_id])
+        or any(
+            type(value) is not str or (value != "ABSENT" and SHA256_RE.fullmatch(value) is None)
+            for value in feed["configurationHashes"].values()
+        )
+    ):
+        blockers.add(f"SCAN_FEED_UNKNOWN_{scan_id.upper()}")
+        return None
+    expected_feed_state = {
+        "nuget": "IDENTIFIED",
+        "npm": "UNKNOWN",
+        "gitleaks": "NOT_APPLICABLE",
+    }[scan_id]
+    identities_valid = (
+        bool(feed["identities"])
+        if scan_id == "nuget"
+        else not feed["identities"]
+    )
+    if feed["state"] != expected_feed_state or not identities_valid:
+        blockers.add(f"SCAN_FEED_UNKNOWN_{scan_id.upper()}")
+        return None
+
+    report_reference = envelope["report"]
+    if (
+        not _validate_reference_shape(report_reference, errors)
+        or report_reference["sourceCommit"] != source_commit
+    ):
+        blockers.add(f"SCAN_REPORT_UNKNOWN_{scan_id.upper()}")
+        return None
+    report_matches, report = _read_report_reference(
+        report_reference, root, None, errors, blockers,
+    )
+    if not report_matches:
+        blockers.add(f"SCAN_REPORT_UNKNOWN_{scan_id.upper()}")
+        return None
+    if report_reference["sha256"] != invocation["stdoutSha256"]:
+        blockers.add(f"SCAN_REPORT_HASH_UNKNOWN_{scan_id.upper()}")
+        return None
+    return report, feed["identities"], invocation["exitCode"]
 
 
 def _scan_status(
@@ -833,13 +1104,23 @@ def _scan_status(
     captured_exact = _utc_timestamp(scan["capturedAtUtc"])
     if scan["capturedAtUtc"] is not None and not captured_exact:
         errors.add("invalid-scan-timestamp")
-    evidence_matches, report = _read_report_reference(
+    evidence_matches, envelope = _read_report_reference(
         scan["evidence"], root, scan_id, errors, blockers,
     )
     if not evidence_matches:
         blockers.add(f"SCAN_EVIDENCE_UNKNOWN_{scan_id.upper()}")
         return "UNKNOWN"
-    parsed_report = _parse_scan_report(scan_id, report)
+    capture = _capture_envelope_report(
+        scan_id, envelope, scan, source_commit, source_exact, root, errors, blockers,
+    )
+    if capture is None:
+        return "UNKNOWN"
+    report, captured_feeds, exit_code = capture
+    captured_exact = captured_exact and scan["capturedAtUtc"] == envelope["capturedAtUtc"]
+    parsed_report = _parse_scan_report(
+        scan_id, report,
+        allow_sparse_nuget=(scan_id == "nuget" and exit_code == 0),
+    )
     if parsed_report is None:
         blockers.add(f"SCAN_REPORT_PARSER_UNAVAILABLE_{scan_id.upper()}")
         return "UNKNOWN"
@@ -854,6 +1135,7 @@ def _scan_status(
 
     source_matches = (
         source_exact
+        and envelope["source"]["workingTree"] == "CLEAN"
         and source_commit is not None
         and scan["sourceCommit"] == source_commit
         and type(scan["evidence"]) is dict
@@ -864,8 +1146,16 @@ def _scan_status(
         and type(tool_version) is str
         and _safe_token(tool_version)
     )
+    report_exit_matches = (
+        exit_code == 0
+        if scan_id == "nuget"
+        else exit_code == (1 if report_findings else 0)
+    )
+    if not report_exit_matches:
+        blockers.add(f"SCAN_EXIT_UNKNOWN_{scan_id.upper()}")
     if scan_id == "npm":
-        # npm audit JSON does not record which registry supplied the response.
+        # npm audit JSON has no authenticated identity for the registry that
+        # supplied the advisories. Hashed npm configuration is not proof of use.
         feed_exact = False
     elif scan_id == "nuget":
         identities = feed["identities"]
@@ -880,6 +1170,7 @@ def _scan_status(
             and bool(declared_hosts)
             and report_feeds is not None
             and declared_hosts == report_feeds
+            and captured_feeds == report_feeds
         )
     else:
         feed_exact = (
@@ -897,7 +1188,7 @@ def _scan_status(
         blockers.add(f"SCAN_RESULT_INCOMPLETE_{scan_id.upper()}")
     if not (
         source_matches and tool_exact and feed_exact
-        and captured_exact and findings is not None
+        and captured_exact and report_exit_matches and findings is not None
     ):
         return "UNKNOWN"
     if errors != errors_before_scan:

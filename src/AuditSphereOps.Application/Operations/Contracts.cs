@@ -316,6 +316,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<ClientCounterpartyAmendment> ClientCounterpartyAmendments { get; }
   DbSet<ClientCounterpartyAmendmentDecision> ClientCounterpartyAmendmentDecisions { get; }
   DbSet<ClientAccountingProfile> ClientAccountingProfiles { get; }
+  DbSet<ClientAccountingProfileRevisionRecord> ClientAccountingProfileRevisionRecords { get; }
   DbSet<ClientGroup> ClientGroups { get; }
   DbSet<ClientGroupMembership> ClientGroupMemberships { get; }
   DbSet<GroupAccessGrant> GroupAccessGrants { get; }
@@ -340,6 +341,9 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<ReportingTaxonomyVersion> ReportingTaxonomyVersions { get; }
   DbSet<ReportingTaxonomyNode> ReportingTaxonomyNodes { get; }
   DbSet<ClientAccountingDimensionDefinition> ClientAccountingDimensionDefinitions { get; }
+  DbSet<ClientAccountingDimensionSchemaRevisionRecord> ClientAccountingDimensionSchemaRevisions { get; }
+  DbSet<ClientAccountingDimensionDefinitionRevisionRecord> ClientAccountingDimensionDefinitionRevisionRecords { get; }
+  DbSet<ClientAccountingDimensionValueRevisionRecord> ClientAccountingDimensionValueRevisionRecords { get; }
   DbSet<SourceImportBatch> SourceImportBatches { get; }
   DbSet<GeneralLedgerImportChunk> GeneralLedgerImportChunks { get; }
   DbSet<GeneralLedgerTransaction> GeneralLedgerTransactions { get; }

@@ -2608,6 +2608,226 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionSchemaRevisionRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("BaseRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("base_revision_id");
+
+                    b.Property<string>("CanonicalDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("canonical_digest");
+
+                    b.Property<int>("CanonicalDigestVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("canonical_digest_version");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<bool>("ImpactAcknowledged")
+                        .HasColumnType("boolean")
+                        .HasColumnName("impact_acknowledged");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<Guid?>("PublishedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("published_by_user_id");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<Guid>("SchemaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("schema_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset?>("ValidatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("validated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "Id")
+                        .HasName("ak_client_dim_schema_revision_scope_id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "SchemaId", "Id")
+                        .HasName("ak_client_dim_schema_revision_lineage_id");
+
+                    b.HasIndex("FirmId", "ClientId", "Revision")
+                        .IsUnique()
+                        .HasDatabaseName("ux_client_dim_schema_owner_revision");
+
+                    b.HasIndex("FirmId", "ClientId", "SchemaId", "BaseRevisionId")
+                        .HasDatabaseName("ix_client_dim_schema_base");
+
+                    b.ToTable("client_accounting_dimension_schema_revisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_dimension_schema_revision_values", "revision > 0 AND status IN ('DRAFT','SUBMITTED','APPROVED') AND canonical_digest_version > 0 AND canonical_digest ~ '^[0-9a-f]{64}$' AND ((revision = 1 AND base_revision_id IS NULL) OR (revision > 1 AND base_revision_id IS NOT NULL)) AND ((status = 'DRAFT' AND validated_at IS NULL AND published_by_user_id IS NULL AND published_at IS NULL) OR (status = 'SUBMITTED' AND validated_at IS NOT NULL AND published_by_user_id IS NULL AND published_at IS NULL) OR (status = 'APPROVED' AND validated_at IS NOT NULL AND published_by_user_id IS NOT NULL AND published_at IS NOT NULL AND published_by_user_id <> created_by_user_id AND impact_acknowledged))");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionDefinitionRevisionRecord", b =>
+                {
+                    b.Property<Guid>("SchemaRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("schema_revision_id");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("CodeKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("code_key");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("DimensionType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("dimension_type");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_required");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("name");
+
+                    b.HasKey("SchemaRevisionId", "Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "SchemaRevisionId", "Id")
+                        .HasName("ak_client_dim_definition_revision_scope_id");
+
+                    b.HasIndex("FirmId", "ClientId", "SchemaRevisionId", "DimensionType")
+                        .IsUnique()
+                        .HasDatabaseName("ux_client_dim_definition_revision_type");
+
+                    b.HasIndex("FirmId", "ClientId", "SchemaRevisionId", "DimensionType", "CodeKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_client_dim_definition_revision_code");
+
+                    b.ToTable("client_accounting_dimension_definition_revisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_dim_definition_revision_values", "dimension_type IN ('BRANCH','COST_CENTRE','DEPARTMENT','PROJECT','INTERCOMPANY_COUNTERPARTY') AND length(trim(code)) > 0 AND length(trim(code_key)) > 0 AND length(trim(name)) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionValueRevisionRecord", b =>
+                {
+                    b.Property<Guid>("SchemaRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("schema_revision_id");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("CodeKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("code_key");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("DefinitionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("definition_id");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_from");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_to");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("name");
+
+                    b.HasKey("SchemaRevisionId", "Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "SchemaRevisionId", "Id")
+                        .HasName("ak_client_dim_value_revision_scope_id");
+
+                    b.HasIndex("FirmId", "ClientId", "SchemaRevisionId", "DefinitionId", "CodeKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_client_dim_value_revision_code");
+
+                    b.ToTable("client_accounting_dimension_value_revisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_dim_value_revision_values", "length(trim(code)) > 0 AND length(trim(code_key)) > 0 AND length(trim(name)) > 0 AND (effective_to IS NULL OR effective_to >= effective_from)");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionDefinition", b =>
                 {
                     b.Property<Guid>("Id")
@@ -31763,6 +31983,60 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "ClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionSchemaRevisionRecord", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_client_dim_schema_client")
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionSchemaRevisionRecord", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "SchemaId", "BaseRevisionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "SchemaId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_client_dim_schema_base");
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionDefinitionRevisionRecord", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionSchemaRevisionRecord", "SchemaRevision")
+                        .WithMany("Definitions")
+                        .HasForeignKey("FirmId", "ClientId", "SchemaRevisionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_client_dim_definition_revision")
+                        .IsRequired();
+
+                    b.Navigation("SchemaRevision");
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionValueRevisionRecord", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionDefinitionRevisionRecord", "Definition")
+                        .WithMany("Values")
+                        .HasForeignKey("FirmId", "ClientId", "SchemaRevisionId", "DefinitionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "SchemaRevisionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_client_dim_value_definition")
+                        .IsRequired();
+
+                    b.Navigation("Definition");
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionSchemaRevisionRecord", b =>
+                {
+                    b.Navigation("Definitions");
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionDefinitionRevisionRecord", b =>
+                {
+                    b.Navigation("Values");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientAccountingDimensionDefinition", b =>

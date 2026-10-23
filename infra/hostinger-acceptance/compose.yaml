@@ -211,9 +211,28 @@ services:
       Mail__Provider: GRAPH
       GraphMail__TenantId: ${IDENTITY_TENANT_ID:?Set IDENTITY_TENANT_ID in .env}
       GraphMail__ClientId: ${OUTBOUND_MAIL_CLIENT_ID:-}
-      GraphMail__SenderMailbox: ${OUTBOUND_MAIL_SENDER_MAILBOX:-}
+      GraphMail__SenderObjectId: ${OUTBOUND_MAIL_SENDER_OBJECT_ID:-}
       GraphMail__CertificatePath: /run/auditsphere/m365/outbound-mail/certificate.pem
       GraphMail__PrivateKeyPath: /run/auditsphere/m365/outbound-mail/private-key.pem
+      # Public signed authorization evidence only; its signing key must never be mounted here.
+      MailAuthorization__Model: ${MAIL_AUTHORIZATION_MODEL:-}
+      MailAuthorization__TenantId: ${IDENTITY_TENANT_ID:?Set IDENTITY_TENANT_ID in .env}
+      MailAuthorization__RuntimeClientId: ${OUTBOUND_MAIL_CLIENT_ID:-}
+      MailAuthorization__EnterpriseServicePrincipalObjectId: ${OUTBOUND_MAIL_SERVICE_PRINCIPAL_OBJECT_ID:-}
+      MailAuthorization__SenderMailboxObjectIds__0: ${OUTBOUND_MAIL_SENDER_OBJECT_ID:-}
+      MailAuthorization__ControlMailboxObjectId: ${OUTBOUND_MAIL_CONTROL_OBJECT_ID:-}
+      MailAuthorization__PlanSha256: ${MAIL_AUTHORIZATION_PLAN_SHA256:-}
+      MailAuthorization__PinnedSignerCertificateSha256: ${MAIL_AUTHORIZATION_SIGNER_SHA256:-}
+      MailAuthorization__MaximumEvidenceAgeHours: ${MAIL_AUTHORIZATION_MAX_AGE_HOURS:-24}
+      MailAuthorization__Evidence__CanonicalPayloadPath: /run/auditsphere/m365/outbound-mail/authorization.json
+      MailAuthorization__Evidence__DetachedCmsPath: /run/auditsphere/m365/outbound-mail/authorization.p7s
+      MailAuthorization__Source__RepositoryCommit: ${RELEASE_TAG:?Set RELEASE_TAG in .env}
+      MailAuthorization__Source__ConfigureMailAccessSha256: ${MAIL_AUTHORIZATION_CONFIGURE_SHA256:-}
+      MailAuthorization__Source__MailAccessModuleSha256: ${MAIL_AUTHORIZATION_MODULE_SHA256:-}
+      MailAuthorization__Source__ModulesLockSha256: ${MAIL_AUTHORIZATION_MODULES_LOCK_SHA256:-}
+      MailAuthorization__Source__CommonModuleSha256: ${MAIL_AUTHORIZATION_COMMON_SHA256:-}
+      MailAuthorization__Source__EntraModuleSha256: ${MAIL_AUTHORIZATION_ENTRA_SHA256:-}
+      MailAuthorization__Source__PlanSchemaSha256: ${MAIL_AUTHORIZATION_PLAN_SCHEMA_SHA256:-}
     volumes:
       - pbc_staging:/var/lib/auditsphere/pbc-staging
       - release_checkpoints:/var/lib/auditsphere/release-checkpoints

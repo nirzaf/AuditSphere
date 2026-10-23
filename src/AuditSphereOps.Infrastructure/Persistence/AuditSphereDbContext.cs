@@ -350,6 +350,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<ClientCounterpartyAmendment> ClientCounterpartyAmendments => Set<ClientCounterpartyAmendment>();
   public DbSet<ClientCounterpartyAmendmentDecision> ClientCounterpartyAmendmentDecisions => Set<ClientCounterpartyAmendmentDecision>();
   public DbSet<ClientAccountingProfile> ClientAccountingProfiles => Set<ClientAccountingProfile>();
+  public DbSet<ClientAccountingProfileRevisionRecord> ClientAccountingProfileRevisionRecords => Set<ClientAccountingProfileRevisionRecord>();
 
   public DbSet<ClientGroup> ClientGroups => Set<ClientGroup>();
 
@@ -389,6 +390,10 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<ReportingTaxonomyNode> ReportingTaxonomyNodes => Set<ReportingTaxonomyNode>();
 
   public DbSet<ClientAccountingDimensionDefinition> ClientAccountingDimensionDefinitions => Set<ClientAccountingDimensionDefinition>();
+
+  public DbSet<ClientAccountingDimensionSchemaRevisionRecord> ClientAccountingDimensionSchemaRevisions => Set<ClientAccountingDimensionSchemaRevisionRecord>();
+  public DbSet<ClientAccountingDimensionDefinitionRevisionRecord> ClientAccountingDimensionDefinitionRevisionRecords => Set<ClientAccountingDimensionDefinitionRevisionRecord>();
+  public DbSet<ClientAccountingDimensionValueRevisionRecord> ClientAccountingDimensionValueRevisionRecords => Set<ClientAccountingDimensionValueRevisionRecord>();
 
   public DbSet<SourceImportBatch> SourceImportBatches => Set<SourceImportBatch>();
 

@@ -52,7 +52,10 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
 
   public async Task<OperationResult> ExecuteEffectAsync(DurableOperation op, CancellationToken ct)
   {
-    var plan = await PrepareSendAsync(op, ct);
+    // Check the local mail authorization before committing DISPATCHED. Graph repeats this check before token
+    // acquisition and after token validation, immediately before the provider request.
+    await sender.PreflightAsync(op.FirmId, ct);
+    var (plan, previousDeliveryState) = await PrepareSendAsync(op, ct);
     try
     {
       await sender.SendAsync(plan, ct);
@@ -63,6 +66,13 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
     }
     catch (OperationCanceledException)
     {
+      throw;
+    }
+    catch (OperationBlockedException ex) when (ex.Code.StartsWith("mail-authorization-", StringComparison.Ordinal))
+    {
+      // A local evidence/token gate proves no sendMail request was issued. Restore the exact pre-dispatch state;
+      // do not classify a local authorization change as a provider refusal or unknown provider outcome.
+      await RestoreDeliveryStateAsync(factory, op.FirmId, op.TargetId, previousDeliveryState, ct);
       throw;
     }
     catch (OperationBlockedException)
@@ -78,7 +88,8 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
     return Expected(op);
   }
 
-  private async Task<PbcMailPlan> PrepareSendAsync(DurableOperation op, CancellationToken ct)
+  private async Task<(PbcMailPlan Plan, string PreviousDeliveryState)> PrepareSendAsync(DurableOperation op,
+    CancellationToken ct)
   {
     await using var db = await factory.CreateAsync(ct);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -127,7 +138,8 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
         setters => setters.SetProperty(x => x.DeliveryState, CommercialDeliveryStates.Dispatched), ct);
     if (changed != 1) throw new OperationBlockedException("mail-state-changed", authorization: true);
     await tx.CommitAsync(ct);
-    return new(mail.Recipient, mail.Subject, mail.Body, op.CorrelationId, attachment);
+    return (new PbcMailPlan(mail.Recipient, mail.Subject, mail.Body, op.CorrelationId, attachment, op.FirmId),
+      mail.DeliveryState);
   }
 
   private static async Task<PbcMailAttachment> PrepareHoldingLetterAsync(
@@ -298,6 +310,15 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
     await db.CommercialNotifications
       .Where(x => x.FirmId == firmId && x.Id == notificationId)
       .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.DeliveryState, state), ct);
+  }
+
+  private static async Task RestoreDeliveryStateAsync(IAuditSphereDbContextFactory factory, Guid firmId,
+    Guid notificationId, string previousState, CancellationToken ct)
+  {
+    await using var db = await factory.CreateAsync(ct);
+    await db.CommercialNotifications
+      .Where(x => x.FirmId == firmId && x.Id == notificationId && x.DeliveryState == CommercialDeliveryStates.Dispatched)
+      .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.DeliveryState, previousState), ct);
   }
 
   private static OperationResult Expected(DurableOperation op) => new(op.CorrelationId.ToString("D"), Hashing.Sha256Hex(op.PayloadJson));

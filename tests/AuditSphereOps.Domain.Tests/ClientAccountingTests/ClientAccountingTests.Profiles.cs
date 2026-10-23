@@ -12,6 +12,107 @@ public sealed partial class ClientAccountingTests
 {
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task ProfileRevisionReference_ResolvesImmutableHistoryAndLeavesLegacyGapUnbackfilled()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var created = await ClientAccountingService.CreateProfileAsync(db, preparer,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 1, 1, "LEDGER-A", "SOURCE-A"));
+    Assert.True(created.Succeeded, created.Message);
+
+    var firstRef = new ClientAccountingProfileRevisionRef(created.Value, 1);
+    var resolved = await ClientAccountingService.ResolveProfileRevisionAsync(db, preparer, scope.ClientA, firstRef);
+    Assert.True(resolved.Succeeded, resolved.Message);
+    Assert.Equal(firstRef, resolved.Value!.Reference);
+    Assert.NotEqual(Guid.Empty, resolved.Value.RevisionId);
+    Assert.Null(resolved.Value.PreviousRevisionId);
+    Assert.Equal(scope.ClientA, resolved.Value.ClientId);
+    Assert.Equal("QAR", resolved.Value.FunctionalCurrency);
+
+    var missingReason = await ClientAccountingService.ReviseProfileAsync(db, preparer, firstRef,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "USD", 1, 1, "LEDGER-A", "SOURCE-A"));
+    Assert.False(missingReason.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.MappingInvalid, missingReason.ErrorCode);
+
+    var revised = await ClientAccountingService.ReviseProfileAsync(db, preparer, firstRef,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "USD", 1, 1, "LEDGER-B", "SOURCE-B",
+        Reason: "Test profile revision"));
+    Assert.True(revised.Succeeded, revised.Message);
+    Assert.Equal(2, revised.Value);
+
+    var historical = await ClientAccountingService.ResolveProfileRevisionAsync(db, preparer, scope.ClientA, firstRef);
+    Assert.True(historical.Succeeded, historical.Message);
+    Assert.Equal(resolved.Value.RevisionId, historical.Value!.RevisionId);
+    Assert.Equal("LEDGER-A", historical.Value.SourceSystem);
+    Assert.Equal("QAR", historical.Value.FunctionalCurrency);
+
+    var secondRef = new ClientAccountingProfileRevisionRef(created.Value, 2);
+    var second = await ClientAccountingService.ResolveProfileRevisionAsync(db, preparer, scope.ClientA, secondRef);
+    Assert.True(second.Succeeded, second.Message);
+    Assert.NotEqual(historical.Value.RevisionId, second.Value!.RevisionId);
+    Assert.Equal(historical.Value.RevisionId, second.Value.PreviousRevisionId);
+    Assert.Equal("Test profile revision", second.Value.Reason);
+    Assert.Equal("USD", second.Value.FunctionalCurrency);
+
+    var staleCommand = await ClientAccountingService.ReviseProfileAsync(db, preparer, firstRef,
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "USD", 1, 1, "LEDGER-B", "SOURCE-B"));
+    Assert.False(staleCommand.Succeeded);
+    Assert.Equal(ErrorCodes.StaleRevision, staleCommand.ErrorCode);
+
+    var foreignClient = await ClientAccountingService.ResolveProfileRevisionAsync(db, preparer, scope.ClientB, firstRef);
+    Assert.False(foreignClient.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, foreignClient.ErrorCode);
+
+    await using (var tamperDb = new AuditSphereDbContext(pg.Options))
+    {
+      var immutableUpdate = await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+        tamperDb.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE client_accounting_profile_revisions SET source_system = {"ALTERED"} WHERE id = {historical.Value.RevisionId}"));
+      Assert.Equal("23514", immutableUpdate.SqlState);
+    }
+
+    await using (var deleteDb = new AuditSphereDbContext(pg.Options))
+    {
+      var immutableDelete = await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+        deleteDb.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM client_accounting_profile_revisions WHERE id = {historical.Value.RevisionId}"));
+      Assert.Equal("23514", immutableDelete.SqlState);
+    }
+
+    var legacyProfileId = Guid.CreateVersion7();
+    await using (var legacySeedDb = new AuditSphereDbContext(pg.Options))
+    {
+      legacySeedDb.ClientAccountingProfiles.Add(new ClientAccountingProfile
+      {
+        Id = legacyProfileId, FirmId = scope.FirmId, ClientId = scope.ClientB, Revision = 7,
+        Jurisdiction = "QA", FunctionalCurrency = "QAR", FiscalYearStartMonth = 1, FiscalYearStartDay = 1,
+        SourceSystem = "LEGACY", SourceSystemIdentifier = "LEGACY-7",
+        CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await legacySeedDb.SaveChangesAsync();
+    }
+
+    var legacyRevised = await ClientAccountingService.ReviseProfileAsync(db, preparer,
+      new ClientAccountingProfileRevisionRef(legacyProfileId, 7),
+      new ClientAccountingProfileRequest(scope.ClientB, "QA", "QAR", 1, 1, "LEGACY-NEW", "LEGACY-8"));
+    Assert.True(legacyRevised.Succeeded, legacyRevised.Message);
+    Assert.Equal(8, legacyRevised.Value);
+    var legacySnapshots = await db.ClientAccountingProfileRevisionRecords.AsNoTracking()
+      .Where(x => x.ProfileId == legacyProfileId).OrderBy(x => x.Revision).ToArrayAsync();
+    var onlyNewSnapshot = Assert.Single(legacySnapshots);
+    Assert.Equal(8, onlyNewSnapshot.Revision);
+    Assert.Null(onlyNewSnapshot.PreviousRevisionId);
+
+    var unavailableLegacyRevision = await ClientAccountingService.ResolveProfileRevisionAsync(db, preparer, scope.ClientB,
+      new ClientAccountingProfileRevisionRef(legacyProfileId, 7));
+    Assert.False(unavailableLegacyRevision.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, unavailableLegacyRevision.ErrorCode);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task AccountingSetup_DefaultsBlankCurrencyToQar()
   {
     await using var pg = await PgTestSchema.CreateAsync();

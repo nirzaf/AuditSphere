@@ -26,6 +26,89 @@ class OperationalEvidenceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.document = verify.load_document(CONTRACT)
 
+    def _write_scan_capture(
+        self,
+        root: Path,
+        scan_id: str,
+        commit: str,
+        report: object,
+        version: str,
+        feeds: list[str],
+        exit_code: int,
+    ) -> dict[str, object]:
+        captured = "2026-10-23T00:00:00Z"
+        captured_feeds = [] if scan_id == "npm" else feeds
+        captured_feed_state = {
+            "nuget": "IDENTIFIED",
+            "npm": "UNKNOWN",
+            "gitleaks": "NOT_APPLICABLE",
+        }[scan_id]
+        directory = root / "artifacts" / "completion"
+        directory.mkdir(parents=True, exist_ok=True)
+        report_path = f"artifacts/completion/{scan_id}-report.json"
+        report_bytes = json.dumps(report, separators=(",", ":")).encode()
+        (root / report_path).write_bytes(report_bytes)
+        report_reference = {
+            "id": f"{scan_id.upper()}-REPORT-001",
+            "path": report_path,
+            "sha256": hashlib.sha256(report_bytes).hexdigest(),
+            "sourceCommit": commit,
+        }
+        config_keys = verify.CAPTURE_CONFIG_KEYS[scan_id]
+        config_hashes = {key: "ABSENT" for key in config_keys}
+        if scan_id == "nuget":
+            config_hashes["repository"] = hashlib.sha256((root / "NuGet.Config").read_bytes()).hexdigest()
+        if scan_id == "npm":
+            project_npmrc = root / "src/AuditSphereOps.Ui/.npmrc"
+            if project_npmrc.is_file():
+                config_hashes["project"] = hashlib.sha256(project_npmrc.read_bytes()).hexdigest()
+        capture = {
+            "schemaVersion": 1,
+            "scanId": scan_id,
+            "source": {"repository": "nirzaf/AuditSphere", "commit": commit, "workingTree": "CLEAN"},
+            "inputHashes": verify._scan_input_hashes(scan_id, root),
+            "invocation": {
+                "argv": verify.SCAN_ARGV[scan_id],
+                "workingDirectory": verify.SCAN_WORKING_DIRECTORIES[scan_id],
+                "exitCode": exit_code,
+                "startedAtUtc": captured,
+                "completedAtUtc": captured,
+                "stdoutSha256": hashlib.sha256(report_bytes).hexdigest(),
+                "stderrSha256": hashlib.sha256(b"").hexdigest(),
+                "stderrBytes": 0,
+            },
+            "tool": {"executable": verify.SCAN_EXECUTABLES[scan_id], "version": version},
+            "feed": {
+                "state": captured_feed_state,
+                "identities": captured_feeds,
+                "captureMethod": verify.CAPTURE_FEED_METHODS[scan_id],
+                "configurationHashes": config_hashes,
+            },
+            "report": report_reference,
+            "capturedAtUtc": captured,
+        }
+        capture_bytes = json.dumps(capture, separators=(",", ":")).encode()
+        capture_path = f"artifacts/completion/{scan_id}-capture.json"
+        (root / capture_path).write_bytes(capture_bytes)
+        return {
+            "runState": "COMPLETED",
+            "failureClass": None,
+            "sourceCommit": commit,
+            "tool": {"name": verify.SCAN_TOOL_NAMES[scan_id], "version": version},
+            "feed": {
+                "state": captured_feed_state,
+                "identities": captured_feeds,
+            },
+            "capturedAtUtc": captured,
+            "evidence": {
+                "id": f"{scan_id.upper()}-CAPTURE-001",
+                "path": capture_path,
+                "sha256": hashlib.sha256(capture_bytes).hexdigest(),
+                "sourceCommit": commit,
+            },
+            "findings": [],
+        }
+
     def test_current_record_is_incomplete_and_local_restore_stays_local(self) -> None:
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
@@ -192,24 +275,13 @@ class OperationalEvidenceTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            artifact = root / "artifacts" / "completion" / "npm-report.json"
-            artifact.parent.mkdir(parents=True)
-            raw = json.dumps(report, separators=(",", ":")).encode()
-            artifact.write_bytes(raw)
-            document["securityScans"]["npm"].update({
-                "runState": "COMPLETED",
-                "sourceCommit": commit,
-                "tool": {"name": verify.SCAN_TOOL_NAMES["npm"], "version": "10.0.0"},
-                "feed": {"state": "IDENTIFIED", "identities": ["registry.npmjs.org"]},
-                "capturedAtUtc": "2026-10-23T00:00:00Z",
-                "evidence": {
-                    "id": "NPM-REPORT-001",
-                    "path": "artifacts/completion/npm-report.json",
-                    "sha256": hashlib.sha256(raw).hexdigest(),
-                    "sourceCommit": commit,
-                },
-                "findings": [],
-            })
+            package_dir = root / "src" / "AuditSphereOps.Ui"
+            package_dir.mkdir(parents=True)
+            (package_dir / "package.json").write_text("{}", encoding="utf-8")
+            (package_dir / "package-lock.json").write_text("{}", encoding="utf-8")
+            document["securityScans"]["npm"] = self._write_scan_capture(
+                root, "npm", commit, report, "10.0.0", ["registry.npmjs.org"], 1,
+            )
             exact_clean = {"rootMatches": True, "commit": commit, "workingTree": "CLEAN"}
             with patch.object(verify, "_observe_git_source", return_value=exact_clean):
                 result = verify.evaluate(document, root)
@@ -218,6 +290,127 @@ class OperationalEvidenceTests(unittest.TestCase):
         self.assertIn("scan-report-manifest-mismatch", result["errorCodes"])
         self.assertIn("SCAN_REPORT_MANIFEST_MISMATCH_NPM", result["blockerCodes"])
         self.assertNotEqual("NO_FINDINGS", result["securityScans"]["npm"])
+
+    def test_nuget_sparse_zero_report_requires_bound_completed_capture(self) -> None:
+        commit = "c" * 40
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in (
+                "AuditSphereOps.slnx", "global.json", "Directory.Packages.props",
+                "Directory.Build.props", "NuGet.Config", "src/obj/project.assets.json",
+                "src/Project.csproj", "src/packages.lock.json",
+            ):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("fixture", encoding="utf-8")
+            report = {
+                "version": 1,
+                "parameters": "--vulnerable --include-transitive",
+                "sources": ["https://api.nuget.org/v3/index.json"],
+                "projects": [{"path": f"src/Project-{index}.csproj"} for index in range(9)],
+            }
+            scan = self._write_scan_capture(
+                root, "nuget", commit, report, "10.0.300", ["api.nuget.org"], 0,
+            )
+            errors: set[str] = set()
+            blockers: set[str] = set()
+            status = verify._scan_status(
+                "nuget", scan, commit, True, root, errors, blockers, {},
+            )
+            self.assertEqual("NO_FINDINGS", status)
+            self.assertEqual(set(), errors)
+
+            input_path = root / "src/Project.csproj"
+            input_path.write_text("changed", encoding="utf-8")
+            blockers = set()
+            status = verify._scan_status(
+                "nuget", scan, commit, True, root, set(), blockers, {},
+            )
+            self.assertEqual("UNKNOWN", status)
+            self.assertIn("SCAN_INPUTS_UNKNOWN_NUGET", blockers)
+            input_path.write_text("fixture", encoding="utf-8")
+
+            envelope_path = root / scan["evidence"]["path"]
+            envelope = json.loads(envelope_path.read_text(encoding="utf-8"))
+            envelope["invocation"]["exitCode"] = 1
+            envelope_bytes = json.dumps(envelope, separators=(",", ":")).encode()
+            envelope_path.write_bytes(envelope_bytes)
+            scan["evidence"]["sha256"] = hashlib.sha256(envelope_bytes).hexdigest()
+            status = verify._scan_status(
+                "nuget", scan, commit, True, root, set(), set(), {},
+            )
+            self.assertEqual("UNKNOWN", status)
+
+            envelope["invocation"]["exitCode"] = 0
+            envelope["invocation"]["stdoutSha256"] = "f" * 64
+            envelope_bytes = json.dumps(envelope, separators=(",", ":")).encode()
+            envelope_path.write_bytes(envelope_bytes)
+            scan["evidence"]["sha256"] = hashlib.sha256(envelope_bytes).hexdigest()
+            blockers = set()
+            status = verify._scan_status(
+                "nuget", scan, commit, True, root, set(), blockers, {},
+            )
+            self.assertEqual("UNKNOWN", status)
+            self.assertIn("SCAN_REPORT_HASH_UNKNOWN_NUGET", blockers)
+
+            envelope["invocation"]["stdoutSha256"] = envelope["report"]["sha256"]
+            envelope["invocation"]["argv"][-1] = "--restore"
+            envelope_bytes = json.dumps(envelope, separators=(",", ":")).encode()
+            envelope_path.write_bytes(envelope_bytes)
+            scan["evidence"]["sha256"] = hashlib.sha256(envelope_bytes).hexdigest()
+            blockers = set()
+            status = verify._scan_status(
+                "nuget", scan, commit, True, root, set(), blockers, {},
+            )
+            self.assertEqual("UNKNOWN", status)
+            self.assertIn("SCAN_CAPTURE_UNKNOWN_NUGET", blockers)
+
+            envelope["invocation"]["argv"] = verify.SCAN_ARGV["nuget"]
+            envelope["source"]["workingTree"] = "DIRTY"
+            envelope_bytes = json.dumps(envelope, separators=(",", ":")).encode()
+            envelope_path.write_bytes(envelope_bytes)
+            scan["evidence"]["sha256"] = hashlib.sha256(envelope_bytes).hexdigest()
+            blockers = set()
+            status = verify._scan_status(
+                "nuget", scan, commit, False, root, set(), blockers, {},
+            )
+            self.assertEqual("UNKNOWN", status)
+            self.assertIn("SCAN_SOURCE_UNKNOWN_NUGET", blockers)
+
+            self.assertIsNone(verify._parse_scan_report("nuget", report))
+            self.assertIsNotNone(verify._parse_scan_report(
+                "nuget", report, allow_sparse_nuget=True,
+            ))
+
+    def test_npm_registry_configuration_does_not_claim_audit_feed_identity(self) -> None:
+        commit = "d" * 40
+        report = {
+            "auditReportVersion": 2,
+            "metadata": {"vulnerabilities": {
+                "total": 0, "critical": 0, "high": 0, "moderate": 0, "low": 0, "info": 0,
+            }},
+            "vulnerabilities": {},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            package_dir = root / "src" / "AuditSphereOps.Ui"
+            package_dir.mkdir(parents=True)
+            (package_dir / "package.json").write_text("{}", encoding="utf-8")
+            (package_dir / "package-lock.json").write_text("{}", encoding="utf-8")
+            (package_dir / ".npmrc").write_text("registry=https://registry.npmjs.org/\n", encoding="utf-8")
+            scan = self._write_scan_capture(
+                root, "npm", commit, report, "11.19.0", ["registry.npmjs.org"], 0,
+            )
+            self.assertEqual("UNKNOWN", scan["feed"]["state"])
+            self.assertEqual([], scan["feed"]["identities"])
+            blockers: set[str] = set()
+            status = verify._scan_status(
+                "npm", scan, commit, True, root, set(), blockers, {},
+            )
+
+        self.assertEqual("UNKNOWN", status)
+        self.assertIn("SCAN_FEED_UNKNOWN_NPM", blockers)
+        self.assertNotIn("SCAN_REPORT_MANIFEST_MISMATCH_NPM", blockers)
 
     def test_scan_parsers_reject_incomplete_nuget_and_count_redacted_gitleaks_entries(self) -> None:
         self.assertIsNone(verify._parse_scan_report("nuget", {

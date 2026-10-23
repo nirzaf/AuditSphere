@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Tests;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
@@ -11,6 +13,58 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Api.Tests;
 public sealed class EngagementCreationReviewApiTests
 {
+  [Fact]
+  public async Task LegacyDraftScopeDenialIsForbiddenAndHasNoPersistedEffect()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-LEGACY-ENGAGEMENT-DRAFT-SCOPE");
+    var f = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    var siblingClientId = Guid.NewGuid();
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      await EngagementCreationReviewSeed.PopulateAsync(setup, f);
+      setup.PracticeClients.Add(new PracticeClient
+      {
+        Id = siblingClientId, FirmId = f.FirmId, LegalName = "Sibling test client", CreatedAt = DateTimeOffset.UtcNow
+      });
+      setup.ClientSafetyStates.Add(new ClientSafetyState { Id = siblingClientId, FirmId = f.FirmId });
+      await setup.SaveChangesAsync();
+    }
+
+    using var factory = Factory(pg, f.Staff);
+    using var c = factory.CreateClient(new() { AllowAutoRedirect = false });
+    var csrf = await SignIn(c);
+    var url = "/api/ui/clients/{0}/engagements";
+    var validDraft = new { serviceRoute = "AccountingOnly", periodStart = "2027-01-01", periodEnd = "2027-12-31", serviceProfile = "SYNTHETIC" };
+
+    using var created = await Post(c, csrf, string.Format(url, f.ClientId), validDraft);
+    Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+    using var createBody = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+    var createdId = createBody.RootElement.GetProperty("id").GetGuid();
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.True(await proof.Engagements.AsNoTracking().AnyAsync(x => x.Id == createdId && x.FirmId == f.FirmId && x.PracticeClientId == f.ClientId));
+
+    using var invalid = await Post(c, csrf, string.Format(url, f.ClientId), new
+    {
+      validDraft.serviceRoute, periodStart = "2028-01-01", validDraft.periodEnd, validDraft.serviceProfile
+    });
+    Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    using (var invalidError = JsonDocument.Parse(await invalid.Content.ReadAsStringAsync()))
+      Assert.Equal("engagement.invalid", invalidError.RootElement.GetProperty("code").GetString());
+
+    var before = await proof.Engagements.AsNoTracking().OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.FirmId, x.PracticeClientId, x.Status, x.Generation }).ToArrayAsync();
+    foreach (var targetClientId in new[] { foreign.ClientId, siblingClientId })
+    {
+      using var denied = await Post(c, csrf, string.Format(url, targetClientId), validDraft);
+      Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+      using var error = JsonDocument.Parse(await denied.Content.ReadAsStringAsync());
+      Assert.Equal("scope.denied", error.RootElement.GetProperty("code").GetString());
+      Assert.Equal(before, await proof.Engagements.AsNoTracking().OrderBy(x => x.Id)
+        .Select(x => new { x.Id, x.FirmId, x.PracticeClientId, x.Status, x.Generation }).ToArrayAsync());
+    }
+  }
+
   [Fact]
   public async Task CookieCsrfPartnerScopeExactReviewIdempotencyAndRevocationAreServerOwned()
   {

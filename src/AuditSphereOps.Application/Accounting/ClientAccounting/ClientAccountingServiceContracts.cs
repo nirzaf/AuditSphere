@@ -5,7 +5,29 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record ClientAccountingProfileRequest(
   Guid ClientId, string Jurisdiction, string FunctionalCurrency,
   int FiscalYearStartMonth, int FiscalYearStartDay, string SourceSystem,
-  string SourceSystemIdentifier, string SourceMode = ClientAccountingSourceModes.ExternalSource);
+  string SourceSystemIdentifier, string SourceMode = ClientAccountingSourceModes.ExternalSource,
+  string? Reason = null);
+
+/// <summary>
+/// Server-resolved projection of one persisted immutable profile revision.
+/// </summary>
+public sealed record ResolvedClientAccountingProfileRevisionDto(
+  Guid FirmId,
+  Guid ClientId,
+  ClientAccountingProfileRevisionRef Reference,
+  Guid RevisionId,
+  Guid? PreviousRevisionId,
+  Guid CreatedByUserId,
+  DateTimeOffset CreatedAt,
+  string? Reason,
+  string Status,
+  string Jurisdiction,
+  string FunctionalCurrency,
+  int FiscalYearStartMonth,
+  int FiscalYearStartDay,
+  string SourceSystem,
+  string SourceSystemIdentifier,
+  string SourceMode);
 
 public sealed record ReportingPeriodRequest(
   Guid ClientId, string PeriodCode, DateOnly StartDate, DateOnly EndDate,

@@ -152,7 +152,9 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await EngagementLifecycleService.CreateDraftAsync(db, actor,
         new(id, input.ServiceRoute, input.PeriodStart, input.PeriodEnd, input.ServiceProfile), http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+      return result.Succeeded
+        ? Results.Ok(new { id = result.Value })
+        : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     }).WithSummary("Create a client engagement")
       .WithDescription("Creates a draft engagement for the client and returns its identifier.")
       .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")

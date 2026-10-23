@@ -60,6 +60,7 @@ public sealed partial class AuditSphereDbContext
     });
     profile.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    ConfigureClientAccountingProfileRevisions(b);
 
     var group = b.Entity<ClientGroup>();
     group.Property(x => x.Code).HasMaxLength(100);
@@ -255,6 +256,8 @@ public sealed partial class AuditSphereDbContext
       "dimension_type IN ('BRANCH','COST_CENTRE','DEPARTMENT','PROJECT','INTERCOMPANY_COUNTERPARTY') AND length(trim(code)) > 0 AND length(trim(name)) > 0"));
     dimension.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    ConfigureClientAccountingDimensionSchema(b);
 
     var import = b.Entity<SourceImportBatch>();
     import.Property(x => x.SourceKind).HasMaxLength(30);

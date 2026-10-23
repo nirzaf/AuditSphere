@@ -367,6 +367,26 @@ public sealed class CommercialPricingPolicyTests
   }
 
   [Fact]
+  public async Task CommercialMail_AuthorizationPreflightDenialLeavesNoticeQueuedBeforeDispatch()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var mail = await PrepareClientProposalMailAsync(pg, w);
+    var sender = new PreflightBlockingMailSender();
+
+    await RunWorkerAsync(pg, w, sender);
+
+    Assert.Empty(sender.Plans);
+    await using var verification = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(CommercialDeliveryStates.Queued,
+      (await verification.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == mail.NotificationId)).DeliveryState);
+    var operation = await verification.DurableOperations.AsNoTracking()
+      .SingleAsync(x => x.FirmId == w.FirmId && x.OperationKind == CommercialMailDeliveryHandler.Kind &&
+        x.TargetId == mail.NotificationId);
+    Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, operation.Status);
+  }
+
+  [Fact]
   public async Task DeliveryReceipts_DistinguishRefusalAndProviderAcceptance()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -850,6 +870,18 @@ public sealed class CommercialPricingPolicyTests
   {
     public List<PbcMailPlan> Plans { get; } = [];
     public Task SendAsync(PbcMailPlan plan, CancellationToken ct) { Plans.Add(plan); return Task.CompletedTask; }
+  }
+
+  private sealed class PreflightBlockingMailSender : IPbcMailSender
+  {
+    public List<PbcMailPlan> Plans { get; } = [];
+    public Task PreflightAsync(Guid firmId, CancellationToken ct) =>
+      Task.FromException(new OperationBlockedException("mail-authorization-evidence-unavailable", authorization: true));
+    public Task SendAsync(PbcMailPlan plan, CancellationToken ct)
+    {
+      Plans.Add(plan);
+      return Task.CompletedTask;
+    }
   }
 
   private sealed class RefusingMailSender : IPbcMailSender

@@ -914,7 +914,8 @@ public sealed partial class AuditDeliverablesTests
       }
       Assert.NotNull(checkpointContent);
       Assert.Equal(checkpointContent.Bytes.LongLength, checkpointPlanFile.SourceByteCount);
-      var planJson = JsonSerializer.SerializeToElement(firstPlan, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+      var planJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+      var planJson = JsonSerializer.SerializeToElement(firstPlan, planJsonOptions);
       Assert.Equal(new[]
       {
         "schemaVersion", "operationId", "firmId", "tenantId", "clientId", "engagementId", "archiveId",
@@ -932,6 +933,21 @@ public sealed partial class AuditDeliverablesTests
       }.Order(StringComparer.Ordinal), fileProperties);
       Assert.DoesNotContain("content", planJson.ToString(), StringComparison.OrdinalIgnoreCase);
       Assert.DoesNotContain("credential", planJson.ToString(), StringComparison.OrdinalIgnoreCase);
+
+      // Optional test-only handoff for the existing PowerShell CLI contract check. Never write an
+      // application artifact; callers must point this at ignored autonomous evidence and each run
+      // creates a new file so an earlier export cannot be mistaken for this service result.
+      var planEvidencePath = Environment.GetEnvironmentVariable("AUDITSPHERE_WU023_ARCHIVE_COPY_PLAN_EVIDENCE_PATH");
+      if (!string.IsNullOrWhiteSpace(planEvidencePath))
+      {
+        var fullEvidencePath = Path.GetFullPath(planEvidencePath);
+        var evidenceMarker = Path.DirectorySeparatorChar + Path.Combine(".local", "autonomous", "evidence") + Path.DirectorySeparatorChar;
+        Assert.Contains(evidenceMarker, fullEvidencePath, StringComparison.Ordinal);
+        var evidenceBytes = JsonSerializer.SerializeToUtf8Bytes(firstPlan, planJsonOptions);
+        await using var evidenceFile = new FileStream(
+          fullEvidencePath, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
+        await evidenceFile.WriteAsync(evidenceBytes);
+      }
 
       await using (var db = new AuditSphereDbContext(pg.Options))
       {

@@ -59,7 +59,8 @@ These are all inputs interpolated by the checked-in base Hostinger Compose. A pr
 | `TENANT_ADMINISTRATION_GROUP_MEMBERSHIP_CLIENT_ID` | `TenantAdministration:GroupMembership:ClientId` | Exactly Graph `GroupMember.ReadWrite.All` |
 | `OUTBOUND_MAIL_ENABLED` | API `TenantAdministration:OutboundMail:Enabled` | Defaults false; does not control whether a live mail worker dispatches |
 | `OUTBOUND_MAIL_CLIENT_ID` | API `TenantAdministration:OutboundMail:ClientId`, worker `GraphMail:ClientId` | Separate mail identity; read runbook's AAP/RBAC compatibility boundary |
-| `OUTBOUND_MAIL_SENDER_MAILBOX` | API sender / `GraphMail:SenderMailbox` | Exact approved functioning Exchange Online mailbox |
+| `OUTBOUND_MAIL_SENDER_MAILBOX` | API `TenantAdministration:OutboundMail:SenderMailbox` | Approved Exchange Online mailbox address; does not identify the worker sender |
+| `OUTBOUND_MAIL_SENDER_OBJECT_ID` | Worker `GraphMail:SenderObjectId` / authorization sender list | Immutable mailbox object GUID; no UPN lookup or address fallback |
 | `CLIENT_SITES_ENABLED` | `ClientSites:Enabled` in API/PBC/provisioner | Defaults true; false stops new automatic intents, not saved rollout protection |
 | `CLIENT_SITES_CLIENTS_CREATED_AFTER` | `ClientSites:ClientsCreatedAfter` in API/PBC/provisioner | Explicit fixed UTC cutoff, no default; absent means blocked rollout |
 | `CLIENT_SITES_CLIENT_ID` | `ClientSites:ClientId` | Separate provisioner with approved Graph and SharePoint role exception |
@@ -131,6 +132,25 @@ On rotation, configure the new current PFX and retain old decryption credentials
 
 Records profiles/retention and repository identities are persisted Application configuration and evidence. Do not invent `Records__ProfileId` or a Purview label setting and assume it has a startup consumer. The authoritative archive/release store, independently verified secondary SharePoint archive, report-signing/legal policy and professional decisions remain separate requirements.
 
+## Signed Graph mail authorization binding
+
+The Graph worker requires model-bound signed evidence before token acquisition and again before dispatch. API role-only capability rows do not satisfy this gate. The base `m365-mail` profile remains opt-in; missing configuration blocks startup or dispatch rather than falling back to another sender/provider.
+
+| Compose input | Worker binding |
+| --- | --- |
+| `MAIL_AUTHORIZATION_MODEL` | Explicit `LEGACY` (AAP with exact `Mail.Send`) or `RBAC` (Exchange resource scope with no unscoped Graph roles) |
+| `OUTBOUND_MAIL_SERVICE_PRINCIPAL_OBJECT_ID` | Enterprise service-principal **object ID**, not application/client ID |
+| `OUTBOUND_MAIL_SENDER_OBJECT_ID`, `OUTBOUND_MAIL_CONTROL_OBJECT_ID` | Approved sender and separate denied-control mailbox object IDs |
+| `MAIL_AUTHORIZATION_PLAN_SHA256` | Exact reviewed plan digest |
+| `MAIL_AUTHORIZATION_SIGNER_SHA256` | Independently approved signer certificate SHA-256 fingerprint |
+| `MAIL_AUTHORIZATION_MAX_AGE_HOURS` | Evidence-age limit, 1–168 hours; default 24, not permission to extend an expired receipt |
+| `MAIL_AUTHORIZATION_CONFIGURE_SHA256`, `MAIL_AUTHORIZATION_MODULE_SHA256`, `MAIL_AUTHORIZATION_MODULES_LOCK_SHA256`, `MAIL_AUTHORIZATION_COMMON_SHA256`, `MAIL_AUTHORIZATION_ENTRA_SHA256`, `MAIL_AUTHORIZATION_PLAN_SCHEMA_SHA256` | Hashes of the exact configuration command, mail/common/Entra modules, module lock and plan schema bound by the signed receipt |
+| `RELEASE_TAG` | Full source SHA; must equal the receipt source and matching Worker/Application/Infrastructure build metadata |
+
+Place only the canonical public `authorization.json` and detached `authorization.p7s` in the existing read-only outbound-mail credential mount, alongside the runtime app's separate certificate/key. The **attestation signer's private key must stay outside API and worker hosts**. Do not repurpose the runtime certificate as proof of independent authorization. Current connection/consent IDs, exact provider snapshot, sender/control probes, validity and source must all match; a changed binding requires freshly reviewed evidence.
+
+This configuration documents the runtime contract, not a completed enrollment path: signed-receipt issuance/import, persisted capability/readiness integration and live sender/control acceptance remain engineering/external gates. An unsigned `Configure-MailAccess.ps1` result cannot be renamed into a valid attestation. No Wiki publication, tenant grant or live send is implied.
+
 ## Email provider and reminder options
 
 These settings exist in Worker code but are not all base-Compose variables. Select one provider through a reviewed override/secret store. SMTP/Resend do not produce Graph capability verification and currently omit attachments; they cannot replace Graph attachment workflows.
@@ -138,7 +158,7 @@ These settings exist in Worker code but are not all base-Compose variables. Sele
 | Key | Expected value |
 | --- | --- |
 | `Mail:Provider` | `GRAPH`, `SMTP` or `RESEND`; base mail profile selects `GRAPH` |
-| `GraphMail:TenantId`, `ClientId`, `SenderMailbox`, `CertificatePath`, `PrivateKeyPath` | Complete separate Graph sender identity and credential |
+| `GraphMail:TenantId`, `ClientId`, `SenderObjectId`, `CertificatePath`, `PrivateKeyPath` | Complete separate Graph sender identity and credential |
 | `SmtpMail:Host`, `Port`, `UseSsl` | Approved relay host/port; STARTTLS true for secure relay; not implicit TLS 465 |
 | `SmtpMail:SenderAddress`, `SenderName` | Approved relay sender and optional display name |
 | `SmtpMail:Username`, `Password` | Both set or both absent for explicitly approved relay auth; no XOAUTH2 support |

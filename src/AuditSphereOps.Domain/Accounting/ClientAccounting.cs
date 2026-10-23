@@ -153,6 +153,78 @@ public sealed class ClientAccountingProfile
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>
+/// Immutable snapshot of one revision on the existing client-accounting profile head.
+/// A null predecessor on a revision above one records an unavailable legacy predecessor;
+/// it does not imply that missing history was reconstructed.
+/// </summary>
+public sealed class ClientAccountingProfileRevisionRecord
+{
+  private ClientAccountingProfileRevisionRecord() { }
+
+  public Guid Id { get; private set; }
+  public Guid FirmId { get; private set; }
+  public Guid ClientId { get; private set; }
+  public Guid ProfileId { get; private set; }
+  public long Revision { get; private set; }
+  public Guid? PreviousRevisionId { get; private set; }
+  public string Status { get; private set; } = AccountingWorkflowStates.Draft;
+  public string Jurisdiction { get; private set; } = string.Empty;
+  public string FunctionalCurrency { get; private set; } = AccountingDefaults.DefaultCurrency;
+  public int FiscalYearStartMonth { get; private set; } = 1;
+  public int FiscalYearStartDay { get; private set; } = 1;
+  public string SourceSystem { get; private set; } = string.Empty;
+  public string SourceSystemIdentifier { get; private set; } = string.Empty;
+  public string SourceMode { get; private set; } = ClientAccountingSourceModes.ExternalSource;
+  public string? Reason { get; private set; }
+  public Guid CreatedByUserId { get; private set; }
+  public DateTimeOffset CreatedAt { get; private set; }
+
+  public static ClientAccountingProfileRevisionRecord FromProfile(
+    ClientAccountingProfile profile,
+    Guid revisionId,
+    Guid? previousRevisionId,
+    string? reason,
+    Guid createdByUserId,
+    DateTimeOffset createdAt)
+  {
+    ArgumentNullException.ThrowIfNull(profile);
+    if (revisionId == Guid.Empty || profile.Id == Guid.Empty || profile.FirmId == Guid.Empty ||
+        profile.ClientId == Guid.Empty || profile.Revision < 1 || createdByUserId == Guid.Empty || createdAt == default)
+      throw new ArgumentException("A persisted profile revision requires exact owner, revision and author identities.");
+
+    return new ClientAccountingProfileRevisionRecord
+    {
+      Id = revisionId,
+      FirmId = profile.FirmId,
+      ClientId = profile.ClientId,
+      ProfileId = profile.Id,
+      Revision = profile.Revision,
+      PreviousRevisionId = previousRevisionId,
+      Status = profile.Status,
+      Jurisdiction = profile.Jurisdiction,
+      FunctionalCurrency = profile.FunctionalCurrency,
+      FiscalYearStartMonth = profile.FiscalYearStartMonth,
+      FiscalYearStartDay = profile.FiscalYearStartDay,
+      SourceSystem = profile.SourceSystem,
+      SourceSystemIdentifier = profile.SourceSystemIdentifier,
+      SourceMode = profile.SourceMode,
+      Reason = reason,
+      CreatedByUserId = createdByUserId,
+      CreatedAt = createdAt
+    };
+  }
+}
+
+/// <summary>
+/// Logical identity of one immutable revision snapshot on the existing profile head.
+/// Revision rows are server-resolved by firm, client, profile, and revision.
+/// </summary>
+public readonly record struct ClientAccountingProfileRevisionRef(Guid ProfileId, long Revision)
+{
+  public bool IsValid => ProfileId != Guid.Empty && Revision > 0;
+}
+
 public sealed class ClientGroup
 {
   public Guid Id { get; set; }

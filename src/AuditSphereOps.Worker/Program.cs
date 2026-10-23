@@ -1,9 +1,11 @@
 using AuditSphereOps.Worker;
+using System.Reflection;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Diagnostics;
 using AuditSphereOps.Application.Documents;
+using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Records;
@@ -123,11 +125,28 @@ if (liveMail)
       var graph = new GraphMailOptions(
         builder.Configuration["GraphMail:TenantId"] ?? string.Empty,
         builder.Configuration["GraphMail:ClientId"] ?? string.Empty,
-        builder.Configuration["GraphMail:SenderMailbox"] ?? string.Empty,
+        builder.Configuration["GraphMail:SenderObjectId"] ?? string.Empty,
         builder.Configuration["GraphMail:CertificatePath"] ?? string.Empty,
-        builder.Configuration["GraphMail:PrivateKeyPath"] ?? string.Empty);
+        builder.Configuration["GraphMail:PrivateKeyPath"] ?? string.Empty,
+        workerOptions.FirmId);
       graph.Validate();
+      var observedRepositoryCommit = ReadBuildRepositoryCommit();
+      var mailAuthorization = ReadMailAuthorizationRuntimeOptions(
+        builder.Configuration, workerOptions.FirmId, observedRepositoryCommit);
+      var evidenceFiles = new MailAuthorizationAttestationFileSourceOptions(
+        builder.Configuration["MailAuthorization:Evidence:CanonicalPayloadPath"] ?? string.Empty,
+        builder.Configuration["MailAuthorization:Evidence:DetachedCmsPath"] ?? string.Empty);
+      evidenceFiles.Validate();
+      if (!Guid.TryParse(graph.TenantId, out var graphTenantId) || graphTenantId != mailAuthorization.TenantId ||
+          !Guid.TryParse(graph.ClientId, out var graphClientId) || graphClientId != mailAuthorization.RuntimeClientId ||
+          !Guid.TryParse(graph.SenderObjectId, out var graphSenderId) ||
+          !mailAuthorization.SenderMailboxObjectIds.Contains(graphSenderId))
+        throw new InvalidOperationException("Graph mail identity does not match the signed-evidence binding.");
       builder.Services.AddSingleton(graph);
+      builder.Services.AddSingleton(mailAuthorization);
+      builder.Services.AddSingleton(evidenceFiles);
+      builder.Services.AddSingleton<IMailAuthorizationAttestationSource, MailAuthorizationAttestationFileSource>();
+      builder.Services.AddSingleton<IMailAuthorizationRuntimeGate, MailAuthorizationRuntimeGate>();
       builder.Services.AddSingleton<IPbcMailSender, GraphPbcMailSender>();
       break;
     case "SMTP":
@@ -154,7 +173,10 @@ if (liveMail)
     default:
       throw new InvalidOperationException("Mail:Provider must be Graph, Smtp or Resend.");
   }
-  builder.Services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(30) });
+  builder.Services.AddSingleton(provider == "GRAPH"
+    ? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false })
+      { Timeout = TimeSpan.FromSeconds(30) }
+    : new HttpClient { Timeout = TimeSpan.FromSeconds(30) });
   builder.Services.AddSingleton<PbcMailDeliveryHandler>(sp => new PbcMailDeliveryHandler(
     sp.GetRequiredService<IAuditSphereDbContextFactory>(),
     sp.GetRequiredService<IPbcMailSender>(),
@@ -347,4 +369,67 @@ static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationA
   return simulationAllowed
     ? [validation, completeness, packageBuild, packageRender, checkpoint, freeze, fees, reminders, sp.GetRequiredService<PbcDocumentTransferHandler>()]
     : [validation, completeness, packageBuild, packageRender, checkpoint, freeze, fees, reminders];
+}
+
+static MailAuthorizationRuntimeOptions ReadMailAuthorizationRuntimeOptions(IConfiguration configuration, Guid firmId,
+  string observedRepositoryCommit)
+{
+  var section = configuration.GetSection("MailAuthorization");
+  var model = section["Model"]?.Trim().ToUpperInvariant() switch
+  {
+    "LEGACY" => MailAuthorizationModel.LegacyApplicationAccessPolicy,
+    "EXCHANGE_RBAC" => MailAuthorizationModel.ExchangeRbacResourceScope,
+    _ => throw new InvalidOperationException("MailAuthorization:Model must be LEGACY or EXCHANGE_RBAC.")
+  };
+
+  Guid RequiredGuid(string key) => Guid.TryParse(section[key], out var value) && value != Guid.Empty
+    ? value
+    : throw new InvalidOperationException($"MailAuthorization:{key} must be a non-empty GUID.");
+  string RequiredString(string key) => section[key] ?? string.Empty;
+
+  var senderValues = section.GetSection("SenderMailboxObjectIds").Get<string[]>() ?? [];
+  var senders = senderValues.Select(value => Guid.TryParse(value, out var id) ? id : Guid.Empty).ToArray();
+  var source = new MailAuthorizationSourceIdentity(
+    RequiredString("Source:RepositoryCommit"),
+    RequiredString("Source:ConfigureMailAccessSha256"),
+    RequiredString("Source:MailAccessModuleSha256"),
+    RequiredString("Source:ModulesLockSha256"),
+    RequiredString("Source:CommonModuleSha256"),
+    RequiredString("Source:EntraModuleSha256"),
+    RequiredString("Source:PlanSchemaSha256"));
+  var options = new MailAuthorizationRuntimeOptions(
+    firmId, RequiredGuid("TenantId"), model, RequiredGuid("RuntimeClientId"),
+    RequiredGuid("EnterpriseServicePrincipalObjectId"), senders,
+    RequiredGuid("ControlMailboxObjectId"), RequiredString("PlanSha256"), source,
+    observedRepositoryCommit,
+    RequiredString("PinnedSignerCertificateSha256"),
+    TimeSpan.FromHours(section.GetValue("MaximumEvidenceAgeHours", 24.0)));
+  options.Validate();
+  return options;
+}
+
+static string ReadBuildRepositoryCommit()
+{
+  var assemblies = new[]
+  {
+    typeof(Worker).Assembly,
+    typeof(MailAuthorizationRuntimeOptions).Assembly,
+    typeof(MailAuthorizationAttestationFileSource).Assembly
+  };
+  var commits = assemblies.Select(ReadAssemblyRepositoryCommit).ToArray();
+  if (commits.Distinct(StringComparer.Ordinal).Count() != 1)
+    throw new InvalidOperationException("Mail authorization requires matching build source metadata across Worker, Application, and Infrastructure.");
+  return commits[0];
+}
+
+static string ReadAssemblyRepositoryCommit(Assembly assembly)
+{
+  var informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+  var separator = informationalVersion?.LastIndexOf('+') ?? -1;
+  if (separator < 0 || separator == informationalVersion!.Length - 1)
+    throw new InvalidOperationException("Mail authorization requires full build source metadata on Worker, Application, and Infrastructure.");
+  var commit = informationalVersion[(separator + 1)..];
+  if (commit.Length != 40 || commit.Any(c => c is not (>= '0' and <= '9' or >= 'a' and <= 'f')))
+    throw new InvalidOperationException("Mail authorization requires full build source metadata on Worker, Application, and Infrastructure.");
+  return commit;
 }

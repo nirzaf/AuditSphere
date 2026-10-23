@@ -10,10 +10,12 @@ namespace AuditSphereOps.Application.Documents;
 public sealed record PbcMailAttachment(string FileName, string ContentType, byte[] Bytes);
 
 public sealed record PbcMailPlan(string Recipient, string Subject, string Body, Guid CorrelationId,
-  PbcMailAttachment? Attachment = null);
+  PbcMailAttachment? Attachment = null, Guid FirmId = default);
 
 public interface IPbcMailSender
 {
+  /// <summary>Optional local authorization check run before a durable commercial dispatch is committed.</summary>
+  Task PreflightAsync(Guid firmId, CancellationToken ct) => Task.CompletedTask;
   Task SendAsync(PbcMailPlan plan, CancellationToken ct);
 }
 
@@ -96,7 +98,8 @@ public sealed class PbcMailDeliveryHandler(
     }
     if (reminder is not null)
       EnsureReminderPolicyAllowsDelivery();
-    await sender.SendAsync(new(mail.RecipientEmail!, mail.Subject!, mail.Body, op.CorrelationId), ct);
+    await sender.PreflightAsync(op.FirmId, ct);
+    await sender.SendAsync(new(mail.RecipientEmail!, mail.Subject!, mail.Body, op.CorrelationId, FirmId: op.FirmId), ct);
     return Expected(op);
   }
 
