@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Explicit mail-model plan boundaries (2026-10-23)
+
+MAIL plans now require model-specific scope identifiers, approved senders and a distinct negative-control mailbox. An RBAC plan cannot include an unrestricted Entra Mail.Send grant. Offline planning is implemented and the common/mail focused checks passed; a plan without MAIL clearly skips mail readiness. The new entrypoint cannot configure or verify a tenant yet: ReadOnly/Apply return an explicit engineering prerequisite with no provider effects. Exchange/Entra readback, RBAC runtime support and reviewed migration remain executable engineering work, followed by separately approved live acceptance. WU-022 remains partial; exact evidence is in `status.json`.
+
 ## Group report review-currentness guard (2026-10-23)
 
 Group run creation, approval and current report readback now reuse the established package evidence checks after exact approved component-pin validation. A later returned review makes the report stale without rewriting its approved run or stored lines. A final group authorization check denies a grant revoked during the report read; group-only readers still cannot fetch raw client artifacts. The UI explains stale/unreviewed/unavailable report states instead of silently hiding the report. Focused PostgreSQL and Angular checks passed; exact results are in `status.json`. No new source-selection policy or final group export/archive workflow is implied. Current-source CI and broader release acceptance remain separate.

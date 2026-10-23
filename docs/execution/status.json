@@ -1095,13 +1095,35 @@
           "angular": "PASS: scope-workspace 21 focused tests incl stale report visibility and hidden current values; production build passed with existing commercial/settings.scss budget warning"
         },
         "apiBuild": "PASS: targeted Release API/emitter build, 0 warnings/errors; OpenAPI contract unchanged and drift check passed",
-        "ci": "PENDING exact source",
+        "ci": {
+          "status": "FAST_CI_PASS",
+          "sourceCommit": "f5441911d7309be244552efdce50107222ad8526",
+          "runId": 39880136113,
+          "imagePublicationRun": 39880136107,
+          "deployment": "NOT_RUN"
+        },
         "fullLocalSuites": "NOT_RUN",
         "remaining": [
-          "Current-source CI",
           "WU-013 typed correction-predecessor lineage audit and accepted group-report release boundary",
           "Professional/live-provider release acceptance"
         ]
+      },
+      "mailPlanBoundaries": {
+        "status": "PARTIAL",
+        "scope": "WU-022 step1: explicit per-model scope/control target validation and zero-effect plan entrypoint; no live adapter/runtime completion",
+        "checks": {
+          "mailOffline": "PASS: 23 assertions, 0 failed; .local/autonomous/evidence/wu022-plan/offline.log",
+          "commonOffline": "PASS: agent executed WU-017 cohort, 40 assertions, 0 failed after fixture updates",
+          "documentedDryRun": "PASS: Configure-MailAccess synthetic fixture PLANNED; verify-result.py valid; no MAIL configured so readiness explicitly skipped"
+        },
+        "readOnlyApply": "PREREQUISITE_MISSING / adapter-not-implemented; zero authentication/network/mutations. Engineering gap, not external-consent blocker.",
+        "remaining": [
+          "Exchange and Entra independent authorization readback",
+          "Mail-specific RBAC runtime verifier and focused token/capability tests",
+          "Reviewed legacy/RBAC migration and rollback",
+          "Approved live mailbox positive/negative and synthetic-send evidence"
+        ],
+        "fullLocalSuites": "NOT_RUN"
       }
     },
     "developmentFeedback20261023": {

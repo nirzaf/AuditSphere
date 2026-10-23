@@ -341,6 +341,33 @@ only to local Application intent submissions. No privileged worker certificate
 is mounted in the CLI. Live positive provisioning, idempotent rerun and negative
 cross-client acceptance still require the separately approved tenant run.
 
+## Mail permission-model planning (WU-022)
+
+`Configure-MailAccess.ps1` currently implements **plan validation only**. A MAIL
+plan must select `LEGACY_APPLICATION_ACCESS_POLICY` (exact Graph `Mail.Send` and
+`policyScopeGroupId`) or `EXCHANGE_RBAC_RESOURCE_SCOPE` (`scopeName`, no unscoped
+Entra `Mail.Send`). Both require unique `senderObjectIds` and a distinct
+`controlMailboxObjectId`. These are reviewed target identities, not proof of
+Exchange authorization. Existing legacy runtime configuration is unchanged.
+
+```powershell
+pwsh -NoProfile -NonInteractive -File scripts/m365/Configure-MailAccess.ps1 `
+  -PlanPath scripts/m365/tests/fixtures/plan.synthetic.json -DryRun `
+  -OutputPath /approved/operator/mail-plan.json
+python3 scripts/m365/verify-result.py /approved/operator/mail-plan.json --expect PLANNED
+pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-022 -Offline
+```
+
+A generic plan with no MAIL capability records that mail readiness was skipped;
+`PLANNED` never means configured or verified. ReadOnly and Apply currently return
+`PREREQUISITE_MISSING` / `adapter-not-implemented` without authentication, provider
+calls or permission changes. This is remaining engineering work, not a request
+for broader consent. Independent Exchange positive/control-mailbox readback,
+Entra overlapping-grant inspection, mail-specific RBAC runtime verification and
+reviewed migration/rollback remain required before activation. Actual send
+probes additionally require an approved synthetic recipient and retained provider
+evidence. Do not activate RBAC or remove legacy grants based on this plan result.
+
 ## Offline engineering checks
 
 ```powershell

@@ -6,12 +6,17 @@
   pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-017 -Offline
 #>
 param(
-  [ValidateSet('WU-017', 'WU-018', 'WU-019', 'WU-020', 'WU-021')] [string] $Unit = 'WU-017',
+  [ValidateSet('WU-017', 'WU-018', 'WU-019', 'WU-020', 'WU-021', 'WU-022')] [string] $Unit = 'WU-017',
   [switch] $Offline
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $Offline) { throw 'Test-Automation runs offline only; pass -Offline.' }
+if ($Unit -eq 'WU-022') {
+  $engine = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
+  & $engine -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot 'tests/MailAccess.Tests.ps1') -Offline
+  exit $LASTEXITCODE
+}
 if ($Unit -eq 'WU-021') {
   $engine = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
   & $engine -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot 'tests/ClientSiteIntentHttp.Tests.ps1') -Offline
@@ -92,7 +97,12 @@ try {
         }
       )
       if ($kind -eq 'MAIL') {
-        $p.mail = @{ permissionModel = 'LEGACY_APPLICATION_ACCESS_POLICY'; senderObjectIds = @('00000000-0000-4000-8000-000000000050') }
+        $p.mail = @{
+          permissionModel = 'LEGACY_APPLICATION_ACCESS_POLICY'
+          senderObjectIds = @('00000000-0000-4000-8000-000000000050')
+          controlMailboxObjectId = '00000000-0000-4000-8000-000000000051'
+          policyScopeGroupId = '00000000-0000-4000-8000-000000000052'
+        }
       }
     }
     $outcome = Invoke-Prerequisites $path @('-DryRun')
@@ -100,6 +110,8 @@ try {
     if ($kind -eq 'MAIL') {
       $rbac = Get-Content -Raw $path | ConvertFrom-Json -AsHashtable
       $rbac.mail.permissionModel = 'EXCHANGE_RBAC_RESOURCE_SCOPE'
+      $rbac.mail.scopeName = 'AuditSphere-Sender-Only'
+      $rbac.mail.Remove('policyScopeGroupId')
       $rbac.capabilities[0].expectedApplicationRoles = @()
       $rbac | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath $path -Encoding utf8NoBOM
       $outcome = Invoke-Prerequisites $path @('-DryRun')

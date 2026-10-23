@@ -84,6 +84,19 @@ function Read-M365Plan([string] $Path, [string] $SchemaPath) {
   $clients = @($plan.capabilities | Where-Object { $_.clientId } | ForEach-Object { $_.clientId.ToLowerInvariant() }) + @($plan.operator.clientId.ToLowerInvariant())
   if (@($kinds | Select-Object -Unique).Count -ne $kinds.Count) { throw [M365PlanException]::new('duplicate-capability-kind') }
   if (@($clients | Select-Object -Unique).Count -ne $clients.Count) { throw [M365PlanException]::new('reused-client-identity') }
+  $mailCapabilities = @($plan.capabilities | Where-Object { $_.kind -eq 'MAIL' })
+  if ($plan.ContainsKey('mail') -and $mailCapabilities.Count -ne 1) {
+    throw [M365PlanException]::new('mail-capability-count-invalid')
+  }
+  if ($mailCapabilities.Count -eq 1) {
+    $senderIds = @($plan.mail.senderObjectIds | ForEach-Object { $_.ToLowerInvariant() })
+    if (@($senderIds | Select-Object -Unique).Count -ne $senderIds.Count) {
+      throw [M365PlanException]::new('mail-sender-identities-duplicate')
+    }
+    if ($senderIds -contains $plan.mail.controlMailboxObjectId.ToLowerInvariant()) {
+      throw [M365PlanException]::new('mail-control-mailbox-is-sender')
+    }
+  }
   # The plan is an allowlist, not a vehicle for arbitrary tenant permissions.
   # Resolve role GUIDs from the provider only after this exact resource/value boundary passes.
   $graph = '00000003-0000-0000-c000-000000000000'

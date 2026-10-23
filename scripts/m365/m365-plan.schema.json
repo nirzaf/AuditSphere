@@ -138,8 +138,10 @@
       "type": "object", "additionalProperties": false, "required": ["permissionModel", "senderObjectIds"],
       "properties": {
         "permissionModel": { "enum": ["LEGACY_APPLICATION_ACCESS_POLICY", "EXCHANGE_RBAC_RESOURCE_SCOPE"] },
-        "senderObjectIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/guid" } },
-        "controlMailboxObjectId": { "$ref": "#/$defs/guid" }
+        "senderObjectIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/guid" } },
+        "controlMailboxObjectId": { "$ref": "#/$defs/guid" },
+        "scopeName": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
+        "policyScopeGroupId": { "$ref": "#/$defs/guid" }
       }
     },
     "negativeControls": {
@@ -151,6 +153,60 @@
     },
     "approvalReference": { "type": "string", "minLength": 3, "maxLength": 200 }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "capabilities": {
+            "contains": {
+              "type": "object",
+              "properties": { "kind": { "const": "MAIL" } },
+              "required": ["kind"]
+            }
+          }
+        },
+        "required": ["capabilities"]
+      },
+      "then": {
+        "required": ["mail"],
+        "properties": {
+          "mail": {
+            "required": ["permissionModel", "senderObjectIds", "controlMailboxObjectId"],
+            "allOf": [
+              {
+                "if": {
+                  "properties": { "permissionModel": { "const": "LEGACY_APPLICATION_ACCESS_POLICY" } },
+                  "required": ["permissionModel"]
+                },
+                "then": { "required": ["policyScopeGroupId"] }
+              },
+              {
+                "if": {
+                  "properties": { "permissionModel": { "const": "EXCHANGE_RBAC_RESOURCE_SCOPE" } },
+                  "required": ["permissionModel"]
+                },
+                "then": { "required": ["scopeName"] }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": { "required": ["mail"] },
+      "then": {
+        "properties": {
+          "capabilities": {
+            "contains": {
+              "type": "object",
+              "properties": { "kind": { "const": "MAIL" } },
+              "required": ["kind"]
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "guid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
     "reference": { "type": "string", "pattern": "^(file|env|keyvault|certstore):[A-Za-z0-9/._:-]{1,200}$" }

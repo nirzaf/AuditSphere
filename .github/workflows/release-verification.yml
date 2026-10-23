@@ -463,6 +463,8 @@ jobs:
             pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-020 -Offline
           bash scripts/release/run-verification-step.sh "Offline SharePoint client sites reconciliation" \
             pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-021 -Offline
+          bash scripts/release/run-verification-step.sh "Offline mail permission-model plan boundaries" \
+            pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-022 -Offline
           bash scripts/release/run-verification-step.sh "UI source discovery drift" \
             python3 scripts/ui/inventory.py --check
 
