@@ -1077,7 +1077,8 @@
       "status": "PARTIAL; tasks 01 and 03 delta implemented, 02 NONE (model), rest VERIFY_ONLY or BLOCKED_DECISION/EXTERNAL",
       "source": "d210d301dd98590ab0ce6606b0336f3d448726b6",
       "focused": "FirmPortalLogoSettingsApiTests 4 PASS (new 8-route scope-denial 403 regression); full suites and OpenAPI drift deferred to CI",
-      "history": "status-archive-2026-10.json#keys.ascpSpecDiscovery20261024"
+      "history": "status-archive-2026-10.json#keys.ascpSpecDiscovery20261024",
+      "ownerTests": "Existing owner tests PASS locally on a09ca4cb (Release): CommercialWorkflowTests 44/44 (tasks 05/06); MaterialityPracticalRoundingTests, EngagementWorkflowPlanTests, AnnualEngagementPreparationTests, PbcWorkflowTaskTests 25/25 (tasks 07-09). No defect found; tasks stay VERIFY_ONLY pending CI journeys."
     },
     "archivedOn20261024": {
       "entries": [
