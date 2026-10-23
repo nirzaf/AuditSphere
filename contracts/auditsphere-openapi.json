@@ -90690,6 +90690,13 @@
           "sourceMode": {
             "type": "string",
             "default": "EXTERNAL_SOURCE"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

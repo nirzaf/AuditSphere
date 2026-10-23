@@ -121,6 +121,7 @@ describe('Accounting workspace mode and period navigation', () => {
     expect((fixture.nativeElement.querySelector('input[name="currency"]') as HTMLInputElement).disabled).toBe(false);
     const periodLink = fixture.nativeElement.querySelector(`a[href="/app/accounting/periods/${periodA}"]`) as HTMLAnchorElement | null;
     expect(periodLink?.textContent?.trim()).toBe('FY-A');
+    expect(fixture.nativeElement.textContent).toContain('a reason does not enable that cutover');
 
     workspace.form.sourceMode = 'NATIVE_BOOKKEEPING';
     workspace.reviewed = true;
@@ -134,6 +135,7 @@ describe('Accounting workspace mode and period navigation', () => {
     expect((fixture.nativeElement.querySelector('input[name="currency"]') as HTMLInputElement).disabled).toBe(false);
 
     workspace.form.currency = 'USD';
+    workspace.form.reason = 'Synthetic blocked currency revision';
     workspace.reviewed = true;
     workspace.saveProfile();
     const rejected = http.expectOne(request => request.method === 'POST' && request.url.endsWith('/profile'));
@@ -144,10 +146,11 @@ describe('Accounting workspace mode and period navigation', () => {
     expect(workspace.error()).toContain('rejected');
 
     workspace.form.currency = 'EUR';
+    workspace.form.reason = 'Synthetic functional currency revision';
     workspace.reviewed = true;
     workspace.saveProfile();
     const acknowledged = http.expectOne(request => request.method === 'POST' && request.url === `/api/ui/accounting/clients/${clientB}/profile`);
-    expect(acknowledged.request.body).toMatchObject({ profileId: guid(32), revision: '1', currency: 'EUR' });
+    expect(acknowledged.request.body).toMatchObject({ profileId: guid(32), revision: '1', currency: 'EUR', reason: 'Synthetic functional currency revision' });
     acknowledged.flush({ revision: '2' });
     await settle(fixture);
     const readback = http.expectOne(`/api/ui/accounting/clients/${clientB}`);
@@ -162,6 +165,7 @@ describe('Accounting workspace mode and period navigation', () => {
     expect((fixture.nativeElement.querySelector('input[name="currency"]') as HTMLInputElement).value).toBe('EUR');
 
     workspace.form.currency = 'USD';
+    workspace.form.reason = 'Synthetic currency reversion';
     workspace.reviewed = true;
     workspace.saveProfile();
     const unknown = http.expectOne(request => request.method === 'POST' && request.url.endsWith('/profile'));
@@ -196,11 +200,51 @@ describe('Accounting workspace mode and period navigation', () => {
     http.expectNone(request => request.method === 'POST' && request.url.endsWith('/profile'));
   });
 
+  it('requires and sends a meaningful bounded reason for accounting basis changes', async () => {
+    const fixture = await open();
+    const workspace = fixture.componentInstance;
+    await select(fixture, clientB, clientWorkspace(clientB, 'Client B', guid(32), []));
+    const reasonInput = fixture.nativeElement.querySelector('textarea[name="reason"]') as HTMLTextAreaElement;
+    expect(reasonInput.maxLength).toBe(2000);
+
+    const currencyInput = fixture.nativeElement.querySelector('input[name="currency"]') as HTMLInputElement;
+    currencyInput.value = 'USD';
+    currencyInput.dispatchEvent(new Event('input'));
+    workspace.reviewed = true;
+    await settle(fixture);
+    expect(workspace.profileReasonRequired(workspace.workspace()!)).toBe(true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('A meaningful reason is required when changing jurisdiction, functional currency or fiscal calendar.');
+    const renderedReasonInput = fixture.nativeElement.querySelector('textarea[name="reason"]') as HTMLTextAreaElement;
+    expect(renderedReasonInput.getAttribute('required')).not.toBeNull();
+    expect(renderedReasonInput.required).toBe(true);
+    workspace.saveProfile();
+    http.expectNone(request => request.method === 'POST' && request.url.endsWith('/profile'));
+
+    workspace.form.reason = '   ';
+    workspace.saveProfile();
+    http.expectNone(request => request.method === 'POST' && request.url.endsWith('/profile'));
+
+    workspace.form.reason = 'x'.repeat(2001);
+    workspace.saveProfile();
+    http.expectNone(request => request.method === 'POST' && request.url.endsWith('/profile'));
+    expect(workspace.form.reason).toHaveLength(2001);
+
+    workspace.form.reason = 'Synthetic functional currency change';
+    workspace.saveProfile();
+    const request = http.expectOne(request => request.method === 'POST' && request.url.endsWith('/profile'));
+    expect(request.request.body.reason).toBe('Synthetic functional currency change');
+    request.flush({ code: 'accounting.gate-blocked' }, { status: 400, statusText: 'Bad Request' });
+    await settle(fixture);
+    expect(workspace.error()).toContain('rejected');
+  });
+
   it('keeps malformed successful profile responses unresolved after a scoped readback', async () => {
     const fixture = await open();
     const workspace = fixture.componentInstance;
     await select(fixture, clientB, clientWorkspace(clientB, 'Client B', guid(32), []));
     workspace.form.currency = 'USD';
+    workspace.form.reason = 'Synthetic malformed-response currency revision';
     workspace.reviewed = true;
     workspace.saveProfile();
     http.expectOne(request => request.method === 'POST' && request.url.endsWith('/profile'))

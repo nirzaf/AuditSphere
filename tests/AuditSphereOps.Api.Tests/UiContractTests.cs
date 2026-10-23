@@ -1,12 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
@@ -16,6 +19,76 @@ namespace AuditSphereOps.Api.Tests;
 
 public sealed class UiContractTests
 {
+  [Fact]
+  public async Task AccountingProfileReasonIsMappedBoundedAndStillRequiresClientAuthority()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-ACCOUNTING-PROFILE-REASON");
+    var seed = await PbcSeed.SeedAsync(pg);
+    Guid profileId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Staff, "AccountingPreparer", clientId: seed.ClientId));
+      await db.SaveChangesAsync();
+      var created = await ClientAccountingService.CreateProfileAsync(db, PbcSeed.Actor(seed.Staff, "AccountingPreparer"),
+        new(seed.ClientId, "QA", "QAR", 1, 1, "TEST", "SOURCE"));
+      Assert.True(created.Succeeded, created.ErrorCode);
+      profileId = created.Value!;
+    }
+
+    using var factory = ProfileFactory(pg, seed.Staff);
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    var csrf = await SignIn(client);
+    using var missingReason = await PostProfile(client, csrf, seed.ClientId, new
+    {
+      profileId, revision = "1", jurisdiction = "QA", currency = "USD", fiscalMonth = 1, fiscalDay = 1,
+      sourceSystem = "TEST", sourceIdentifier = "SOURCE", sourceMode = "EXTERNAL_SOURCE", reviewed = true
+    });
+    Assert.Equal(HttpStatusCode.BadRequest, missingReason.StatusCode);
+    using (var body = JsonDocument.Parse(await missingReason.Content.ReadAsStringAsync()))
+      Assert.Equal("mapping.invalid", body.RootElement.GetProperty("code").GetString());
+
+    using var revised = await PostProfile(client, csrf, seed.ClientId, new
+    {
+      profileId, revision = "1", jurisdiction = "QA", currency = "USD", fiscalMonth = 1, fiscalDay = 1,
+      sourceSystem = "TEST", sourceIdentifier = "SOURCE", sourceMode = "EXTERNAL_SOURCE", reviewed = true,
+      reason = "Synthetic functional currency revision"
+    });
+    Assert.Equal(HttpStatusCode.OK, revised.StatusCode);
+    using (var body = JsonDocument.Parse(await revised.Content.ReadAsStringAsync()))
+      Assert.Equal("2", body.RootElement.GetProperty("revision").GetString());
+
+    using var tooLong = await PostProfile(client, csrf, seed.ClientId, new
+    {
+      profileId, revision = "2", jurisdiction = "QA", currency = "EUR", fiscalMonth = 1, fiscalDay = 1,
+      sourceSystem = "TEST", sourceIdentifier = "SOURCE", sourceMode = "EXTERNAL_SOURCE", reviewed = true,
+      reason = new string('x', 2001)
+    });
+    Assert.Equal(HttpStatusCode.BadRequest, tooLong.StatusCode);
+    using (var body = JsonDocument.Parse(await tooLong.Content.ReadAsStringAsync()))
+      Assert.Equal("request.invalid", body.RootElement.GetProperty("code").GetString());
+
+    using var reviewerFactory = ProfileFactory(pg, seed.Reviewer);
+    using var reviewer = reviewerFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var reviewerCsrf = await SignIn(reviewer);
+    using var denied = await PostProfile(reviewer, reviewerCsrf, seed.ClientId, new
+    {
+      profileId, revision = "2", jurisdiction = "QA", currency = "EUR", fiscalMonth = 1, fiscalDay = 1,
+      sourceSystem = "TEST", sourceIdentifier = "SOURCE", sourceMode = "EXTERNAL_SOURCE", reviewed = true,
+      reason = "Synthetic unauthorized revision"
+    });
+    Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+    using (var body = JsonDocument.Parse(await denied.Content.ReadAsStringAsync()))
+      Assert.Equal("scope.denied", body.RootElement.GetProperty("code").GetString());
+
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    var current = await proof.ClientAccountingProfiles.SingleAsync(x => x.Id == profileId);
+    Assert.Equal(2, current.Revision);
+    Assert.Equal("USD", current.FunctionalCurrency);
+    var retained = await proof.ClientAccountingProfileRevisionRecords.SingleAsync(x => x.ProfileId == profileId && x.Revision == 2);
+    Assert.Equal("Synthetic functional currency revision", retained.Reason);
+    Assert.Equal(2, await proof.ClientAccountingProfileRevisionRecords.CountAsync(x => x.ProfileId == profileId));
+  }
+
   [Fact]
   public async Task CookieSession_PortfolioAndRevokedIdentityFailClosed()
   {
@@ -167,5 +240,36 @@ public sealed class UiContractTests
     await db.SaveChangesAsync();
     Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/ui/session")).StatusCode);
     Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/ui/portfolio")).StatusCode);
+  }
+
+  private static StandaloneApiApplicationFactory ProfileFactory(OwnedPostgresDatabase pg, AppUser user) =>
+    new(new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
+      ["DevelopmentIdentity:Enabled"] = "true",
+      ["DevelopmentIdentity:Subject"] = user.Subject,
+      ["DevelopmentIdentity:TenantId"] = user.TenantId,
+      ["Application:AllowSimulationAdapters"] = "true",
+      ["ExternalEffects:Enabled"] = "false"
+    });
+
+  private static async Task<string> SignIn(HttpClient client)
+  {
+    await client.GetAsync("/auth/sign-in");
+    using var session = await client.GetAsync("/api/ui/session");
+    Assert.Equal(HttpStatusCode.OK, session.StatusCode);
+    return Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie")
+      .Single(cookie => cookie.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal))
+      .Split(';')[0]["XSRF-TOKEN=".Length..]);
+  }
+
+  private static async Task<HttpResponseMessage> PostProfile(HttpClient client, string csrf, Guid clientId, object body)
+  {
+    using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/ui/accounting/clients/{clientId}/profile")
+    {
+      Content = JsonContent.Create(body)
+    };
+    request.Headers.Add("X-XSRF-TOKEN", csrf);
+    return await client.SendAsync(request);
   }
 }

@@ -184,13 +184,17 @@ function isProfileSaveAcknowledgement(value: unknown, profile: Profile | null): 
           <label>Source identifier <input name="identifier" [(ngModel)]="form.identifier" maxlength="200" /></label>
           <label>Book source mode <select name="sourceMode" [(ngModel)]="form.sourceMode" [disabled]="sourceModeSelectionDisabled(w)">
             <option value="EXTERNAL_SOURCE">External source</option><option value="NATIVE_BOOKKEEPING">Native client bookkeeping</option></select></label>
+          <label>Reason for accounting basis change<textarea name="reason" [(ngModel)]="form.reason" [required]="profileReasonRequired(w)" maxlength="2000"></textarea></label>
+          @if (profileReasonRequired(w) && !form.reason.trim()) {
+            <p>A meaningful reason is required when changing jurisdiction, functional currency or fiscal calendar.</p>
+          }
           @if (w.periods.length || w.hasMorePeriods) {
-            <p>Native mode requires an accepted client-level BOOKKEEPING service decision. The source mode is locked while reporting periods exist because a reviewed cutover is not configured. VAT/tax and ancillary modules remain optional.</p>
+            <p>Native mode requires an accepted client-level BOOKKEEPING service decision. Source mode is locked while reporting periods exist. Changes to jurisdiction, currency, fiscal calendar or source identity remain blocked until a reviewed cutover is configured; a reason does not enable that cutover. VAT/tax and ancillary modules remain optional.</p>
           } @else {
             <p>Native mode requires an accepted client-level BOOKKEEPING service decision. Changing currency, fiscal calendar, source identity, jurisdiction or source mode after periods exist requires a reviewed cutover. VAT/tax and ancillary modules remain optional.</p>
           }
           <label><input name="reviewed" type="checkbox" [(ngModel)]="reviewed" /> I reviewed this client profile and revision {{ w.profile?.revision ?? '0' }}.</label>
-          <button matButton type="submit" [disabled]="profileForm.invalid || !reviewed || saving() || writeBlocked()">Save profile</button>
+          <button matButton type="submit" [disabled]="profileForm.invalid || profileReasonInvalid(w) || !reviewed || saving() || writeBlocked()">Save profile</button>
           @if (profileOutcomeUnknown()) {
             <p role="alert">The profile save outcome remains unresolved. Refreshing shows persisted setup but does not confirm that the request settled; profile, period, roll-forward, book, opening-bridge and dimension submissions in this workspace stay disabled.</p>
           } @else if (uncertain()) { <p role="alert">The outcome is unconfirmed. Refresh the client and review persisted setup before another change.</p> }
@@ -334,7 +338,7 @@ export class AccountingWorkspace {
   book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' };
   periodReviewed = false;
   period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' };
-  form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '', sourceMode: 'EXTERNAL_SOURCE' };
+  form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '', sourceMode: 'EXTERNAL_SOURCE', reason: '' };
   dimReviewed = false;
   dim = { type: 'BRANCH', code: '', name: '' };
   readonly dimensions = signal<Dimension[] | null>(null);
@@ -352,7 +356,7 @@ export class AccountingWorkspace {
   constructor() {
     effect(() => {
       this.session.invalidation(); const staff = this.session.current()?.staff;
-      untracked(() => { this.request?.unsubscribe(); this.taskOwnerRead?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.taskOwnerSummary.set(null); this.taskOwnerLoading.set(false); this.taskOwnerError.set(''); this.sources.set(null); this.dimensions.set(null); this.dimensionsLoading.set(false); this.dimensionsError.set(''); this.dimensionsTruncated.set(false); this.selectedSource = ''; this.saving.set(false); this.reviewed = false; this.openingReviewed = ''; this.rollReviewed = false; this.dimReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false; this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' }; this.dim = { type: 'BRANCH', code: '', name: '' }; this.form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '', sourceMode: 'EXTERNAL_SOURCE' }; this.data.set(null); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(false); if (staff) this.load(); });
+      untracked(() => { this.request?.unsubscribe(); this.taskOwnerRead?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.taskOwnerSummary.set(null); this.taskOwnerLoading.set(false); this.taskOwnerError.set(''); this.sources.set(null); this.dimensions.set(null); this.dimensionsLoading.set(false); this.dimensionsError.set(''); this.dimensionsTruncated.set(false); this.selectedSource = ''; this.saving.set(false); this.reviewed = false; this.openingReviewed = ''; this.rollReviewed = false; this.dimReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false; this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' }; this.dim = { type: 'BRANCH', code: '', name: '' }; this.form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '', sourceMode: 'EXTERNAL_SOURCE', reason: '' }; this.data.set(null); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(false); if (staff) this.load(); });
     });
     inject(DestroyRef).onDestroy(() => { this.request?.unsubscribe(); this.taskOwnerRead?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.sources.set(null); this.taskOwnerSummary.set(null); this.dimensions.set(null); this.selectedSource = ''; });
   }
@@ -391,7 +395,7 @@ export class AccountingWorkspace {
     this.detail?.unsubscribe(); this.dimRead?.unsubscribe(); this.workspace.set(null); this.dimensions.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(true);
     const generation = this.session.invalidation();
     this.detail = this.http.get<unknown>('/api/ui/accounting/clients/' + id).pipe(timeout(15000)).subscribe({
-      next: value => { if (generation !== this.session.invalidation()) return; try { const w = decodeWorkspace(value); if (w.clientId !== id) throw new Error('Identity mismatch'); this.workspace.set(w); const p = w.profile; this.form = { jurisdiction: p?.jurisdiction ?? '', currency: p?.currency ?? '', month: p?.fiscalMonth ?? 1, day: p?.fiscalDay ?? 1, source: p?.sourceSystem ?? '', identifier: p?.sourceIdentifier ?? '', sourceMode: p?.sourceMode ?? 'EXTERNAL_SOURCE' }; this.reviewed = false; this.uncertain.set(false); this.loadDimensions(id, generation); } catch { this.error.set('Unsupported accounting response.'); } this.loading.set(false); },
+      next: value => { if (generation !== this.session.invalidation()) return; try { const w = decodeWorkspace(value); if (w.clientId !== id) throw new Error('Identity mismatch'); this.workspace.set(w); const p = w.profile; this.form = { jurisdiction: p?.jurisdiction ?? '', currency: p?.currency ?? '', month: p?.fiscalMonth ?? 1, day: p?.fiscalDay ?? 1, source: p?.sourceSystem ?? '', identifier: p?.sourceIdentifier ?? '', sourceMode: p?.sourceMode ?? 'EXTERNAL_SOURCE', reason: '' }; this.reviewed = false; this.uncertain.set(false); this.loadDimensions(id, generation); } catch { this.error.set('Unsupported accounting response.'); } this.loading.set(false); },
       error: failure => { if (generation !== this.session.invalidation()) return; this.loading.set(false); this.error.set('Client accounting unavailable. Refresh your assignments.'); if (failure.status === 401) this.session.clear(); },
     });
   }
@@ -445,15 +449,28 @@ export class AccountingWorkspace {
       (w.periods.length > 0 || w.hasMorePeriods || w.profile?.sourceMode === 'NATIVE_BOOKKEEPING');
   }
 
+  profileReasonRequired(w: Workspace): boolean {
+    const profile = w.profile;
+    return !!profile && (this.form.jurisdiction.trim() !== profile.jurisdiction ||
+      this.form.currency.trim().toUpperCase() !== profile.currency ||
+      this.form.month !== profile.fiscalMonth || this.form.day !== profile.fiscalDay);
+  }
+
+  profileReasonInvalid(w: Workspace): boolean {
+    return this.form.reason.length > 2000 ||
+      (this.profileReasonRequired(w) && !this.form.reason.trim());
+  }
+
   saveProfile(): void {
     const w = this.workspace();
-    if (!w || !this.reviewed || this.saving() || this.writeBlocked() || this.sourceModeChangeBlocked(w)) return;
+    if (!w || !this.reviewed || this.saving() || this.writeBlocked() || this.sourceModeChangeBlocked(w) || this.profileReasonInvalid(w)) return;
     const generation = this.session.invalidation();
     this.saving.set(true); this.error.set('');
     this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/profile', {
       profileId: w.profile?.id ?? null, revision: w.profile?.revision ?? '0', jurisdiction: this.form.jurisdiction,
       currency: this.form.currency, fiscalMonth: this.form.month, fiscalDay: this.form.day,
       sourceSystem: this.form.source, sourceIdentifier: this.form.identifier, sourceMode: this.form.sourceMode, reviewed: true,
+      reason: this.form.reason || null,
     }).pipe(timeout(15000)).subscribe({
       next: value => {
         if (generation !== this.session.invalidation()) return;

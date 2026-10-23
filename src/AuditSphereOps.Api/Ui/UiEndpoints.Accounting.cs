@@ -3,6 +3,7 @@ using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Api.HttpBoundary;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Antiforgery;
 using System.Globalization;
@@ -23,7 +24,8 @@ public static partial class UiEndpoints
 
   public sealed record AccountingProfileInput(Guid? ProfileId, string Revision, string Jurisdiction, string Currency,
     int FiscalMonth, int FiscalDay, string SourceSystem, string SourceIdentifier, bool Reviewed,
-    string SourceMode = ClientAccountingSourceModes.ExternalSource);
+    string SourceMode = ClientAccountingSourceModes.ExternalSource,
+    [property: MaxLength(2000)] string? Reason = null);
   public sealed record AccountingPeriodInput(string Code, string Start, string End, string Basis, string Currency,
     Guid? PriorPeriodId, bool Reviewed);
   public sealed record AccountingBookInput(Guid PeriodId, string Code, string Basis, string InclusionRule, string Currency, bool Reviewed);
@@ -190,11 +192,12 @@ public static partial class UiEndpoints
         (input.ProfileId is null ? revision != 0 : revision < 1) ||
         string.IsNullOrWhiteSpace(input.Jurisdiction) || input.Jurisdiction.Length > 100 ||
         string.IsNullOrWhiteSpace(input.SourceSystem) || input.SourceSystem.Length > 100 ||
-        input.SourceIdentifier is null || input.SourceIdentifier.Length > 200 || input.Currency is not { Length: 3 })
+        input.SourceIdentifier is null || input.SourceIdentifier.Length > 200 || input.Currency is not { Length: 3 } ||
+        input.Reason is { Length: > 2000 })
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var request = new ClientAccountingProfileRequest(id, input.Jurisdiction, input.Currency, input.FiscalMonth,
-        input.FiscalDay, input.SourceSystem, input.SourceIdentifier, input.SourceMode);
+        input.FiscalDay, input.SourceSystem, input.SourceIdentifier, input.SourceMode, input.Reason);
       if (input.ProfileId is { } profileId)
       {
         var result = await ClientAccountingService.ReviseProfileAsync(db, actor, profileId, request, revision, http.RequestAborted);

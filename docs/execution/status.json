@@ -592,10 +592,8 @@
       "limits": "Focused rate/period/FSLI acceptance; broader field/state and full release gates remain open."
     },
     "timeClientBookIsolation20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "codeCommit": "ee829c0aa39b39b6242670580c1beddcfc95efaf",
-      "archive": "status-archive-2026-10.json#timeClientBookIsolation20261019BeforeCrmFocus20261019",
-      "limits": "Billable fixture evidence for imported and native client books only; group/firm-ledger non-mutation, other classifications/state combinations and complete workflow acceptance are not established by this cohort. No product/schema/UI/provider change or full local suites. Final-source full release acceptance remains open."
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.timeClientBookIsolation20261019",
+      "remaining": "Historical focused evidence only; parent/current-source acceptance remains open."
     },
     "crmAuthorityAndFocus20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
@@ -619,13 +617,8 @@
       "summary": "Scoped opportunity paging and owned success/retry focus; focused PostgreSQL/Angular/browser checks and built-in390px flow pass. Fast CI c0859189passed. Human AT/full release remain open."
     },
     "clientAndQuotationPublication20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "codeCommits": [
-        "3303722acc5b0422b185d56203d834f62619cc8f",
-        "be280776d1d6feea60ba95a97991630e15efd18a"
-      ],
-      "evidenceArchive": "status-archive-2026-10.json#keys.clientAndQuotationPublicationBeforeDocumentReads20261019",
-      "scope": "Client/relationship publication and quotation/rule authority; focused counterfactual, denial, race and positive cohorts pass. Fast CI15ba2d7b passes; full release and parent acceptance remain open."
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.clientAndQuotationPublication20261019",
+      "remaining": "Historical focused evidence only; parent/current-source acceptance remains open."
     },
     "commercialDocumentAccess20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
@@ -638,22 +631,12 @@
       "jsonPath": "keys.targetedVerification.commercialFinality20261019"
     },
     "operationalReadiness20261019": {
-      "result": "Scoped deadline and component checks passed; broader acceptance remains open.",
-      "archive": "status-archive-2026-10.json#keys.operationalReadinessBeforePerimeterAndReminderPolicy20261019",
-      "codeCommit": "197743da41985583ea393dbc6934ec5b67806952",
-      "remaining": "Broader reminder catalogue, human accessibility and full current-source release acceptance remain open. Stale perimeter presentation is addressed in perimeterAndReminderPolicy20261019."
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.operationalReadiness20261019",
+      "remaining": "Historical focused evidence only; parent/current-source acceptance remains open."
     },
     "perimeterAndReminderPolicy20261019": {
-      "codeCommit": "7c2207f2fc13a1666140ca95c298fd245ad8345f",
-      "perimeterCommit": "aff366e7629a546e7fb640b6c82f6eb0ceb64593",
-      "result": "Scoped checks pass; CI fixture repaired without weakening assertions.",
-      "archive": "status-archive-2026-10.json#keys.perimeterAndReminderPolicyBeforeFairScanning20261019",
-      "fastCi": {
-        "run": 39276998678,
-        "source": "f36a74dbbdb2e94b4af8a4c06c6456a3d39952e6",
-        "result": "SUCCESS"
-      },
-      "remaining": "Full current-source release, broader accessibility and human AT remain unverified."
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.perimeterAndReminderPolicy20261019",
+      "remaining": "Historical focused evidence only; parent/current-source acceptance remains open."
     },
     "reminderBatchFairness20261019": {
       "result": "FOCUSED_PASS",
@@ -1102,11 +1085,18 @@
         "base": "eef3735d8011be4282ecfeafa5cf898ac0e23a97",
         "evidence": ".local/autonomous/evidence/wu005-profile-history",
         "checks": "9focusedPASS; profilehistory/authorFK/immutablelineage, typedscoperefs anddimensiondigest/publication. Additive20261023092814 fixesprofileEFdrift; no pendingmodel isolated. M20unchanged.",
-        "remaining": "Contextpins/adapters andbroaderacceptance; staffingFKproposal excluded.",
+        "remaining": "Immutable context activation/pins andbroaderacceptance; legacyhistory notbackfilled.",
         "importScopeResolver": {
           "base": "593b728d+5fileoverlay",
           "evidence": ".local/autonomous/evidence/wu005-scope-resolver",
           "checks": "3PASS: exact firm/client/engagement/period/book, existing TB duplicate reuse and GL dimension denial. Commands retain authorization; no substitute selected. No immutable context activation/pins."
+        },
+        "reasonAdapter": {
+          "status": "PASS_FOCUSED_NOT_BROWSER_VERIFIED",
+          "base": "74044e96 warm+4 source overlays; relevant profile/history owners unchanged to4bad",
+          "evidence": ".local/autonomous/evidence/wu015-accounting-profile-reason",
+          "checks": "API1PASS, Angular8PASS; emitted OpenAPIcurrent, only optionalnullable reason/max2000. Missing/overlong reasons denied; valid reason retained; unauthorized change403/no mutation. No cutover relaxation.",
+          "remaining": "Combined exact-source CI and interactive acceptance; T014 context activation/pins remain."
         }
       },
       "staffingScopedParents": {
@@ -1135,7 +1125,7 @@
         "historyEvidence": ".local/autonomous/evidence/ci-domain-history-repair-d4",
         "reasonEvidence": ".local/autonomous/evidence/wu015-profile-reason.Cewcn6",
         "checks": "2history+2reason focusedPASS. Legacyprofile seeded without futurehistorycommand; fullSundayupgrade keepsrealparents/FKs. Explicitrevisionreasons preservecutover/stale assertions andretainedreason. No product/migration guard weakened.",
-        "remaining": "Current-source fullCI; profileReason API/UI adapter underimplementation."
+        "remaining": "Combined exact-source fullCI; profileReason API/UI adapter has focused evidence separately."
       },
       "reviewPointCiDiagnosis": {
         "status": "UNRESOLVED_NOT_REPRODUCED",
