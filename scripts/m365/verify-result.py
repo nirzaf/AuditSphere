@@ -38,10 +38,10 @@ def problems(result: dict, expect: str, plan_sha256: str | None, tenant: str | N
     found = [f"missing field: {key}" for key in REQUIRED if key not in result]
     if found:
         return found
-    if result["schemaVersion"] != 1:
+    if type(result["schemaVersion"]) is not int or result["schemaVersion"] != 1:
         found.append("schemaVersion must be 1")
     status = result["status"]
-    if status not in STATUSES:
+    if not isinstance(status, str) or status not in STATUSES:
         found.append(f"unknown status: {status!r}")
     if status != expect:
         found.append(f"status {status!r} != expected {expect!r}")
@@ -50,7 +50,27 @@ def problems(result: dict, expect: str, plan_sha256: str | None, tenant: str | N
     for name in ("mutationsAttempted", "mutationsConfirmed", "networkCalls"):
         if type(result[name]) is not int or result[name] < 0:
             found.append(f"{name} must be a non-negative integer")
+    for name in ("changes", "checks", "blockedPrerequisites"):
+        if not isinstance(result[name], list):
+            found.append(f"{name} must be an array")
+    checks = result["checks"]
+    if isinstance(checks, list):
+        for index, check in enumerate(checks):
+            if not isinstance(check, dict) or not isinstance(check.get("id"), str) or not check["id"].strip() or not isinstance(check.get("state"), str):
+                found.append(f"checks[{index}] must contain a nonempty id and string state")
+    if result["mode"] not in ("Plan", "ReadOnly", "Apply"):
+        found.append("mode must be Plan, ReadOnly or Apply")
+    counters_valid = all(type(result[name]) is int and result[name] >= 0
+                         for name in ("mutationsAttempted", "mutationsConfirmed", "networkCalls"))
+    if counters_valid:
+        if result["mutationsConfirmed"] > result["mutationsAttempted"]:
+            found.append("confirmed mutations cannot exceed attempted mutations")
+        if result["mode"] in ("Plan", "ReadOnly") and (result["mutationsAttempted"] or result["mutationsConfirmed"]):
+            found.append("Plan and ReadOnly modes cannot contain mutations")
     found += [f"unsafe field name: {path}" for path in unsafe_keys(result)]
+    # Stop before interpreting malformed collections; invalid evidence must return JSON, not crash.
+    if found:
+        return found
     if plan_sha256 and result.get("planSha256") != plan_sha256:
         found.append("planSha256 does not match the expected plan digest")
     if tenant and str(result.get("tenantId", "")).lower() != tenant.lower():

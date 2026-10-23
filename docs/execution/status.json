@@ -1130,7 +1130,8 @@
           "sha": "27fa046934c68501a306bf0ec6dac4b04c7feb50",
           "result": "FAST_CI_PASS; not full regression or live MAIL verification"
         }
-      }
+      },
+      "resultStructure": "PASS: 6 focused Python tests; new malformed-envelope regression fails old source. Shape/counters only; freshness/provider acceptance separate."
     },
     "developmentFeedback20261023": {
       "status": "PARTIAL",

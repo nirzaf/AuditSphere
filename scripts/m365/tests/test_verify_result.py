@@ -49,6 +49,18 @@ class VerifyResultTests(unittest.TestCase):
         leaked["checks"] = [{"id": "c", "state": "PASS", "observed": {"access_token": "x"}}]
         self.assertEqual(self.run_cli(leaked, "--expect", "PLANNED"), 1)
 
+    def test_malformed_evidence_is_rejected_without_crashing(self):
+        verified = dict(PLANNED, status="VERIFIED", mode="ReadOnly", checks=[{"id": "c", "state": "PASS"}])
+        cases = [dict(verified, **{name: value})
+                 for name, value in (("checks", None), ("checks", "PASS"), ("checks", [None]),
+                                     ("checks", [{"state": "PASS"}]), ("checks", [{"id": " ", "state": "PASS"}]),
+                                     ("changes", {}), ("blockedPrerequisites", ""), ("schemaVersion", True),
+                                     ("status", []), ("mutationsConfirmed", 1),
+                                     ("mutationsAttempted", 1), ("mode", "Unknown"))]
+        for envelope in cases:
+            with self.subTest(envelope=envelope):
+                self.assertEqual(self.run_cli(envelope, "--expect", "VERIFIED"), 1)
+
     def test_string_counters_are_not_coerced(self):
         self.assertEqual(self.run_cli(dict(PLANNED, networkCalls="0"), "--expect", "PLANNED"), 1)
 
