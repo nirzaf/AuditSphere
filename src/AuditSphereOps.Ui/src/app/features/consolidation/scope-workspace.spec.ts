@@ -143,6 +143,7 @@ function consolidationComponent(id: string, clientId: string) {
     ownershipPercent: '100.000000', controlMethod: 'CONTROLLED', status: 'APPROVED',
     submittedByUserId: id2, submittedAt: '2026-10-01T10:00:00Z', approvedByUserId: id3,
     approvedAt: '2026-10-01T10:30:00Z', canApprove: false, approvalBlocker: null,
+    currentnessState: 'CURRENT', currentnessBlockerCode: null,
   };
 }
 
@@ -316,6 +317,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
           approvedAt: '2026-10-01T10:30:00Z',
           canApprove: false,
           approvalBlocker: null,
+          currentnessState: 'CURRENT', currentnessBlockerCode: null,
         },
       ],
       eligiblePackages: {
@@ -431,6 +433,13 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(decoded.components[0].clientLegalName).toBe('Acme Subsidiary QSTP-LLC');
     expect(decoded.components[0].canApprove).toBe(false);
     expect(decoded.components[0].approvalBlocker).toBeNull();
+    expect(decoded.components[0].currentnessState).toBe('CURRENT');
+    expect(decoded.components[0].currentnessBlockerCode).toBeNull();
+    for (const patch of [{ currentnessState: undefined }, { currentnessState: 'VERIFIED' },
+      { currentnessBlockerCode: undefined }, { currentnessBlockerCode: 'stale' },
+      { currentnessState: 'STALE', currentnessBlockerCode: null }]) {
+      expect(() => decodeScopeWorkspace({ ...raw, components: [{ ...raw.components[0], ...patch }] }, 'root')).toThrow();
+    }
     expect(decoded.eligiblePackages.items.length).toBe(1);
     expect(decoded.journals.items.length).toBe(1);
     expect(decoded.journals.items[0].lines.length).toBe(2);
@@ -657,6 +666,23 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect([...rows[1].querySelectorAll('button')].map(x => x.textContent?.trim())).not.toContain('Approve run');
     (rows[0].querySelector('button') as HTMLButtonElement).click();
     expect(api.command).toHaveBeenCalledWith(`/api/ui/consolidation/runs/${otherRunId}/approve`, {}, 'POST');
+  });
+
+  it('shows server-derived pinned-source currentness separately from component approval', async () => {
+    const { fixture } = open(workspacePayload({ components: [
+      consolidationComponent(id1, id1),
+      { ...consolidationComponent(id2, id2), currentnessState: 'STALE', currentnessBlockerCode: 'generation.stale' },
+      { ...consolidationComponent(id3, id3), currentnessState: 'UNAVAILABLE', currentnessBlockerCode: 'gate.blocked' },
+    ] }));
+    await fixture.whenStable();
+    const rows = [...fixture.nativeElement.querySelectorAll('#components tbody tr')] as HTMLTableRowElement[];
+    expect(rows.map(row => row.cells[5].textContent?.trim())).toEqual(['approved', 'approved', 'approved']);
+    expect(rows.map(row => row.cells[6].querySelector('audit-status')?.textContent?.trim()))
+      .toEqual(['current', 'stale', 'unavailable']);
+    expect(rows[0].cells[6].textContent).not.toContain('Review the pinned source');
+    expect(rows[1].cells[6].textContent).toContain('Review the pinned source');
+    expect(rows[2].cells[6].textContent).toContain('Review the pinned source');
+    expect(api.command).not.toHaveBeenCalled();
   });
 
   it('keeps component approval disabled with the server blocker and dispatches only ready independent submissions', async () => {

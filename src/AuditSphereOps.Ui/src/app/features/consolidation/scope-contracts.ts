@@ -67,15 +67,23 @@ const decodeConsolidationComponentShape = obj({
   approvedAt: nullable(instant),
   canApprove: bool,
   approvalBlocker: nullable(text),
+  currentnessState: oneOf('CURRENT', 'STALE', 'UNAVAILABLE'),
+  currentnessBlockerCode: nullable(text),
 });
 
 export const decodeConsolidationComponent: Decoder<ReturnType<typeof decodeConsolidationComponentShape>> = (value, path) => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const source = value as Record<string, unknown>;
-    if (!Object.prototype.hasOwnProperty.call(source, 'approvalBlocker') || source['approvalBlocker'] === undefined)
-      throw new Error(`${path || 'response'}: expected required approvalBlocker field`);
+    for (const key of ['approvalBlocker', 'currentnessBlockerCode']) {
+      if (!Object.prototype.hasOwnProperty.call(source, key) || source[key] === undefined)
+        throw new Error(`${path || 'response'}: expected required ${key} field`);
+    }
   }
-  return decodeConsolidationComponentShape(value, path);
+  const component = decodeConsolidationComponentShape(value, path);
+  if ((component.currentnessState === 'CURRENT' && component.currentnessBlockerCode !== null) ||
+      (component.currentnessState !== 'CURRENT' && !component.currentnessBlockerCode?.trim()))
+    throw new Error(`${path || 'response'}: inconsistent pinned-source currentness`);
+  return component;
 };
 
 export const decodeEligiblePackage = obj({

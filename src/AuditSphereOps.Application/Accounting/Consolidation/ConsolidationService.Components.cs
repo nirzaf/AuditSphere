@@ -6,6 +6,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Accounting;
 
+internal sealed record ConsolidationComponentCurrentness(string State, string? BlockerCode, string? EvidenceHash);
+
+internal sealed record ComponentSourceValidation(CommandResult ApprovalReadiness,
+  ConsolidationComponentCurrentness Currentness);
+
+internal static class ConsolidationComponentCurrentnessStates
+{
+  internal const string Current = "CURRENT";
+  internal const string Stale = "STALE";
+  internal const string Unavailable = "UNAVAILABLE";
+}
+
 public static partial class ConsolidationService
 {
   public static async Task<CommandResult<Guid>> SubmitComponentAsync(
@@ -137,10 +149,63 @@ public static partial class ConsolidationService
         candidates.Add(component);
     }
 
-    var externalComponents = candidates.Where(x => x.SourceType == ConsolidationComponentSources.ExternalPack).ToArray();
+    var sourceValidation = await ValidateComponentSourcesAsync(db, actor, scope, candidates, ct);
+    foreach (var component in candidates)
+      results[component.Id] = sourceValidation[component.Id].ApprovalReadiness;
+
+    return results;
+  }
+
+  internal static async Task<IReadOnlyDictionary<Guid, ConsolidationComponentCurrentness>> GetComponentCurrentnessAsync(
+    IClientAccountingDbContext db, ActorContext actor, ConsolidationScopeVersion scope,
+    IReadOnlyCollection<ConsolidationComponent> components, CancellationToken ct = default)
+  {
+    var results = new Dictionary<Guid, ConsolidationComponentCurrentness>();
+    var rows = components.DistinctBy(x => x.Id).ToArray();
+    if (rows.Length == 0)
+      return results;
+
+    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
+    {
+      foreach (var component in rows)
+        results[component.Id] = new(ConsolidationComponentCurrentnessStates.Stale, "PERIMETER_STALE", null);
+      return results;
+    }
+
+    var approved = new List<ConsolidationComponent>(rows.Length);
+    foreach (var component in rows)
+    {
+      if (component.Status != AccountingWorkflowStates.Approved)
+        results[component.Id] = new(ConsolidationComponentCurrentnessStates.Unavailable, "COMPONENT_APPROVAL_REQUIRED", null);
+      else
+        approved.Add(component);
+    }
+
+    var sourceValidation = await ValidateComponentSourcesAsync(db, actor, scope, approved, ct);
+    foreach (var component in approved)
+      results[component.Id] = sourceValidation[component.Id].Currentness;
+
+    return results;
+  }
+
+  private static async Task<IReadOnlyDictionary<Guid, ComponentSourceValidation>> ValidateComponentSourcesAsync(
+    IClientAccountingDbContext db, ActorContext actor, ConsolidationScopeVersion scope,
+    IReadOnlyCollection<ConsolidationComponent> components, CancellationToken ct)
+  {
+    var results = new Dictionary<Guid, ComponentSourceValidation>();
+    if (components.Count == 0)
+      return results;
+
+    static ComponentSourceValidation Validation(CommandResult readiness, string state, string? blocker = null, string? evidenceHash = null) =>
+      new(readiness, new ConsolidationComponentCurrentness(state, blocker, evidenceHash));
+
+    static string EvidenceHash(params string[] values) => Hashing.Sha256Hex(string.Join('\u001f', values));
+
+    var externalComponents = components.Where(x => x.SourceType == ConsolidationComponentSources.ExternalPack).ToArray();
     foreach (var component in externalComponents.Where(x => x.ExternalComponentPackId is null))
-      results[component.Id] = CommandResult.Fail(ErrorCodes.GenerationStale,
-        "The external component source is incomplete; resubmit the pack.");
+      results[component.Id] = Validation(
+        CommandResult.Fail(ErrorCodes.GenerationStale, "The external component source is incomplete; resubmit the pack."),
+        ConsolidationComponentCurrentnessStates.Unavailable, "SOURCE_UNAVAILABLE");
 
     var externalPackIds = externalComponents.Where(x => x.ExternalComponentPackId.HasValue)
       .Select(x => x.ExternalComponentPackId!.Value).Distinct().ToArray();
@@ -148,11 +213,12 @@ public static partial class ConsolidationService
       ? new List<ExternalComponentPack>()
       : await db.ExternalComponentPacks.AsNoTracking()
         .Where(x => x.FirmId == actor.FirmId && externalPackIds.Contains(x.Id) && x.GroupId == scope.GroupId &&
-          x.ScopeVersionId == scope.Id && x.Status == ExternalComponentPackStates.Approved &&
-          x.ReconciliationStatus == ExternalComponentReconciliationStates.Reconciled)
+          x.ScopeVersionId == scope.Id)
         .ToListAsync(ct);
     var packsById = externalPacks.ToDictionary(x => x.Id);
-    var approvedPackIds = externalPacks.Select(x => x.Id).ToArray();
+    var approvedPacks = externalPacks.Where(x => x.Status == ExternalComponentPackStates.Approved &&
+      x.ReconciliationStatus == ExternalComponentReconciliationStates.Reconciled).ToArray();
+    var approvedPackIds = approvedPacks.Select(x => x.Id).ToArray();
     var externalLines = approvedPackIds.Length == 0
       ? new List<ExternalComponentPackLine>()
       : await db.ExternalComponentPackLines.AsNoTracking()
@@ -164,51 +230,128 @@ public static partial class ConsolidationService
 
     foreach (var component in externalComponents.Where(x => x.ExternalComponentPackId.HasValue))
     {
-      if (!packsById.TryGetValue(component.ExternalComponentPackId!.Value, out var externalPack) ||
-          externalPack.ClientId != component.ClientId ||
+      var packId = component.ExternalComponentPackId!.Value;
+      if (!packsById.TryGetValue(packId, out var externalPack))
+      {
+        results[component.Id] = Validation(
+          CommandResult.Fail(ErrorCodes.GenerationStale, "The external component pack changed; resubmit the current approved pack."),
+          ConsolidationComponentCurrentnessStates.Unavailable, "SOURCE_UNAVAILABLE");
+        continue;
+      }
+      if (externalPack.Status != ExternalComponentPackStates.Approved ||
+          externalPack.ReconciliationStatus != ExternalComponentReconciliationStates.Reconciled)
+      {
+        results[component.Id] = Validation(
+          CommandResult.Fail(ErrorCodes.GenerationStale, "The external component pack changed; resubmit the current approved pack."),
+          ConsolidationComponentCurrentnessStates.Unavailable, "SOURCE_APPROVAL_REQUIRED");
+        continue;
+      }
+      if (externalPack.ClientId != component.ClientId || externalPack.EngagementId != component.EngagementId ||
+          externalPack.PeriodBasis != component.PeriodBasis ||
           !linesByPackId.TryGetValue(externalPack.Id, out var lines) || !ExternalPackLinesMatch(externalPack, lines) ||
           externalPack.PackDigest != component.PackageHash || externalPack.ReportingCurrency != component.Currency ||
           externalPack.TaxonomyVersion != component.TaxonomyVersion || externalPack.MappingVersion != component.MappingVersion)
       {
-        results[component.Id] = CommandResult.Fail(ErrorCodes.GenerationStale,
-          "The external component pack changed; resubmit the current approved pack.");
+        results[component.Id] = Validation(
+          CommandResult.Fail(ErrorCodes.GenerationStale, "The external component pack changed; resubmit the current approved pack."),
+          ConsolidationComponentCurrentnessStates.Stale, "SOURCE_PIN_STALE");
         continue;
       }
-      results[component.Id] = CommandResult.Ok();
+
+      var evidenceHash = EvidenceHash(externalPack.Id.ToString("D"), externalPack.PackDigest,
+        externalPack.Status, externalPack.ReconciliationStatus, externalPack.ReconciliationReference,
+        externalPack.ReconciledByUserId?.ToString("D") ?? string.Empty,
+        externalPack.ReconciledAt?.ToString("O", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+        externalPack.ApprovedByUserId?.ToString("D") ?? string.Empty,
+        externalPack.ApprovedAt?.ToString("O", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty);
+      results[component.Id] = Validation(CommandResult.Ok(), ConsolidationComponentCurrentnessStates.Current,
+        evidenceHash: evidenceHash);
     }
 
-    var packageComponents = candidates.Where(x => x.SourceType != ConsolidationComponentSources.ExternalPack).ToArray();
+    var packageComponents = components.Where(x => x.SourceType != ConsolidationComponentSources.ExternalPack).ToArray();
     foreach (var component in packageComponents.Where(x => x.PackageId is null))
-      results[component.Id] = CommandResult.Fail(ErrorCodes.GenerationStale,
-        "The component package is missing; resubmit the current approved package.");
+      results[component.Id] = Validation(
+        CommandResult.Fail(ErrorCodes.GenerationStale, "The component package is missing; resubmit the current approved package."),
+        ConsolidationComponentCurrentnessStates.Unavailable, "SOURCE_UNAVAILABLE");
 
     var packageIds = packageComponents.Where(x => x.PackageId.HasValue).Select(x => x.PackageId!.Value).Distinct().ToArray();
     var packageFacts = await db.FinancialPackages.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.Id))
-      .Select(x => new { x.Id, x.CalculationHash, x.Status, x.Currency, x.TaxonomyVersion, x.MappingVersionId })
+      .Select(x => new
+      {
+        x.Id, x.ClientId, x.EngagementId, x.CalculationHash, x.Status, x.Currency, x.TaxonomyVersion,
+        x.MappingVersionId, x.Revision, x.Generation
+      })
       .ToListAsync(ct);
     var packagesById = packageFacts.ToDictionary(x => x.Id);
+    var packageIdsWithReviewEvidence = packageIds.Length == 0
+      ? Array.Empty<Guid>()
+      : await db.FinancialPackageReviewDecisions.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId))
+        .Select(x => x.FinancialPackageId).Distinct().ToArrayAsync(ct);
     var packageReviews = new Dictionary<Guid, CommandResult>();
     foreach (var component in packageComponents.Where(x => x.PackageId.HasValue))
     {
       var packageId = component.PackageId!.Value;
-      if (!packagesById.TryGetValue(packageId, out var package) || package.CalculationHash != component.PackageHash ||
-          package.Status != AccountingPackageStates.PackageValidated || package.Currency != component.Currency ||
-          package.TaxonomyVersion != component.TaxonomyVersion ||
-          !Guid.TryParse(component.MappingVersion, out var componentMappingId) || componentMappingId != package.MappingVersionId)
+      if (!packagesById.TryGetValue(packageId, out var package))
       {
-        results[component.Id] = CommandResult.Fail(ErrorCodes.GenerationStale,
-          "The component package changed; resubmit the current approved package.");
+        results[component.Id] = Validation(
+          CommandResult.Fail(ErrorCodes.GenerationStale, "The component package changed; resubmit the current approved package."),
+          ConsolidationComponentCurrentnessStates.Unavailable, "SOURCE_UNAVAILABLE");
         continue;
       }
-
+      // Establish source authorization before exposing whether the retained pin still matches.
+      // Preserve the established release-readiness result instead of inventing a review-stage message.
       if (!packageReviews.TryGetValue(packageId, out var packageReview))
       {
         packageReview = await FinancialPackageReviewService.RequireCurrentAsync(
           db, actor, packageId, requirePartner: true, ct);
         packageReviews[packageId] = packageReview;
       }
-      results[component.Id] = packageReview;
+      if (!packageReview.Succeeded && packageReview.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale)
+      {
+        results[component.Id] = Validation(packageReview,
+          ConsolidationComponentCurrentnessStates.Unavailable, "SOURCE_UNAVAILABLE");
+        continue;
+      }
+      if (package.ClientId != component.ClientId || package.EngagementId != component.EngagementId ||
+          package.CalculationHash != component.PackageHash || package.Status != AccountingPackageStates.PackageValidated ||
+          package.Currency != component.Currency || package.TaxonomyVersion != component.TaxonomyVersion ||
+          !Guid.TryParse(component.MappingVersion, out var componentMappingId) || componentMappingId != package.MappingVersionId)
+      {
+        results[component.Id] = Validation(
+          CommandResult.Fail(ErrorCodes.GenerationStale, "The component package changed; resubmit the current approved package."),
+          ConsolidationComponentCurrentnessStates.Stale, "SOURCE_PIN_STALE");
+        continue;
+      }
+
+      if (!packageReview.Succeeded)
+      {
+        var unavailable = !packageIdsWithReviewEvidence.Contains(packageId);
+        results[component.Id] = Validation(packageReview,
+          unavailable ? ConsolidationComponentCurrentnessStates.Unavailable : ConsolidationComponentCurrentnessStates.Stale,
+          unavailable ? "SOURCE_UNAVAILABLE" : "SOURCE_REVIEW_STALE");
+        continue;
+      }
+
+      var reviews = await db.FinancialPackageReviewDecisions.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == packageId)
+        .OrderBy(x => x.Sequence).ThenBy(x => x.DecidedAt).ThenBy(x => x.Id)
+        .ToListAsync(ct);
+      var reviewEvidence = string.Join('\n', reviews.Select(x => string.Join('\u001f',
+        x.Id.ToString("D"), x.Sequence.ToString(System.Globalization.CultureInfo.InvariantCulture), x.Stage, x.Decision,
+        x.PackageHash, x.PackageRevision.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        x.PackageGeneration.ToString(System.Globalization.CultureInfo.InvariantCulture), x.FinancialPackageArtifactId.ToString("D"),
+        x.ArtifactVersion, x.ArtifactSha256Hex, x.PresentationRevisionId?.ToString("D") ?? string.Empty,
+        x.PresentationCompositionId?.ToString("D") ?? string.Empty, x.CompositionManifestDigest ?? string.Empty,
+        x.DecidedByUserId?.ToString("D") ?? string.Empty,
+        x.DecidedAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture))));
+      var evidenceHashForPackage = EvidenceHash(packageId.ToString("D"), package.CalculationHash, package.Status,
+        package.Currency, package.TaxonomyVersion, package.MappingVersionId.ToString("D"),
+        package.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        package.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture), reviewEvidence);
+      results[component.Id] = Validation(CommandResult.Ok(), ConsolidationComponentCurrentnessStates.Current,
+        evidenceHash: evidenceHashForPackage);
     }
 
     return results;

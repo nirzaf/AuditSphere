@@ -183,6 +183,8 @@ unclassified line is an explicit unmapped issue, never assumed ASSETS.
 
 ## Consolidation — perimeter, components, matching, journals, runs, reports
 
+- `ConsolidationService.Components.cs` shares exact source validation between approval readiness and per-component currentness. The scope workspace carries `CurrentnessState` and `CurrentnessBlockerCode` and demotes changed evidence after its read snapshot; the temporary evidence hash stays internal. Angular `scope-contracts.ts` strictly decodes these fields and the components table distinguishes source currentness from approval. No automatic newest-upload policy or source-book mutation is implied.
+
 - `ConsolidationService.GetComponentApprovalReadinessAsync` shares nonmutating command guards with the bounded scope workspace projection. Component rows expose `CanApprove` and a safe `ApprovalBlocker`, including selected off-page rows. Angular strictly decodes both fields, explains blocked approval and refuses local dispatch; the server command remains authoritative. Focused evidence is tracked in `status.json` under `operationalReadiness20261019`.
 
 - Domain: `Domain/Accounting/ClientAccounting.cs` (`ClientGroup`, `ConsolidationScopeVersion`, `ConsolidationComponent`, `ConsolidationRun`, `ExchangeRateSetVersion`, `TranslationPolicyVersion`, `TranslationResult`)

@@ -117,6 +117,7 @@
                 <th>Control method</th>
                 <th>Period basis</th>
                 <th>Status</th>
+                <th>Pinned source</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -132,6 +133,12 @@
                   <td>{{ c.controlMethod }}</td>
                   <td>{{ c.periodBasis }}</td>
                   <td><audit-status [value]="c.status" /></td>
+                  <td>
+                    <audit-status [value]="c.currentnessState" />
+                    @if (c.currentnessState !== 'CURRENT') {
+                      <small>Review the pinned source and scope before building the group report.</small>
+                    }
+                  </td>
                   <td>
                     @if (c.status === 'SUBMITTED' && w.canReview && c.submittedByUserId !== w.currentUserId) {
                       @if (!c.canApprove) {
@@ -157,7 +164,7 @@
                   </td>
                 </tr>
               } @empty {
-                <tr><td colspan="7">No components have been submitted for this scope version.</td></tr>
+                <tr><td colspan="8">No components have been submitted for this scope version.</td></tr>
               }
             </tbody>
           </table>

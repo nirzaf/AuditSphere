@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Per-component consolidation currentness (2026-10-23)
+
+The scope workspace now separates pinned-source currentness from component approval. Existing source validation is shared; exact pin, review, source authorization and perimeter changes demote the read model without replacing pins or modifying component books. Post-snapshot checks never promote stale evidence. Focused Domain/Angular checks, contract verification and an owned synthetic browser journey passed. Built-in browser policy denied the existing tab; no interactive verification is claimed. Broader group-report ownership, source-policy, release and current-source CI remain separate. Exact results are retained in `status.json`.
+
 ## Client-site terminal intent integration (2026-10-23)
 
 The terminal scripts now submit reviewed local Application intents and observe exact worker-published receipts. The duplicate PowerShell provisioning algorithm is removed. Signed CMS approval, source pinning, current staff session, CSRF, persisted rollout boundary, bounded polling and final per-target rereads preserve the existing worker's authority. Historical staff evidence projects pending membership, never verified access. Focused PostgreSQL, HTTP and offline terminal checks passed; exact evidence is in `status.json`. Current-source CI and separately approved live tenant acceptance remain open. No tenant permission or provider effect was performed by this engineering run.

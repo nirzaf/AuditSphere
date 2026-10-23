@@ -43,7 +43,13 @@ public sealed record ConsolidationComponentDto(
   Guid? ApprovedByUserId,
   DateTimeOffset? ApprovedAt,
   bool CanApprove,
-  string? ApprovalBlocker);
+  string? ApprovalBlocker,
+  string CurrentnessState,
+  string? CurrentnessBlockerCode)
+{
+  // Retained only between the repeatable-read projection and its final recheck; it is not part of the published API contract.
+  internal string? CurrentnessEvidenceHash { get; init; }
+}
 
 public sealed record EligibleComponentPackageDto(
   Guid PackageId,
@@ -183,36 +189,90 @@ public static class ConsolidationScopeWorkspaceQuery
       .Concat(workspace.ResolvedComponent is null ? [] : [workspace.ResolvedComponent.Id])
       .Distinct().ToArray();
     IReadOnlyDictionary<Guid, CommandResult> currentComponentReadiness = new Dictionary<Guid, CommandResult>();
-    if (canReviewAtReturn && componentIds.Length > 0)
-    {
-      var currentComponents = await db.ConsolidationComponents.AsNoTracking()
+    var currentComponents = componentIds.Length == 0
+      ? new List<ConsolidationComponent>()
+      : await db.ConsolidationComponents.AsNoTracking()
         .Where(x => x.FirmId == actor.FirmId && x.GroupId == snapshotScope.GroupId &&
           x.ScopeVersionId == scopeId && componentIds.Contains(x.Id))
         .ToListAsync(ct);
+    if (canReviewAtReturn && componentIds.Length > 0)
+    {
       currentComponentReadiness = await ConsolidationService.GetComponentApprovalReadinessAsync(
         db, actor, currentScope, currentComponents, ct);
     }
+    var currentComponentCurrentness = await ConsolidationService.GetComponentCurrentnessAsync(
+      db, actor, currentScope, currentComponents, ct);
 
     ConsolidationComponentDto ComponentAtReturn(ConsolidationComponentDto component)
     {
+      var currentnessAtReturn = component;
+      if (currentComponentCurrentness.TryGetValue(component.Id, out var finalPerimeter) &&
+          finalPerimeter.BlockerCode == "PERIMETER_STALE")
+        currentnessAtReturn = component with
+        {
+          CurrentnessState = ConsolidationComponentCurrentnessStates.Stale,
+          CurrentnessBlockerCode = finalPerimeter.BlockerCode,
+          CurrentnessEvidenceHash = null
+        };
+      else if (component.CurrentnessState == ConsolidationComponentCurrentnessStates.Current)
+      {
+        var currentRow = currentComponents.SingleOrDefault(x => x.Id == component.Id);
+        if (currentRow is null)
+          currentnessAtReturn = component with
+          {
+            CurrentnessState = ConsolidationComponentCurrentnessStates.Stale,
+            CurrentnessBlockerCode = "COMPONENT_CHANGED",
+            CurrentnessEvidenceHash = null
+          };
+        else if (!SameComponentPin(component, currentRow))
+          currentnessAtReturn = component with
+          {
+            CurrentnessState = ConsolidationComponentCurrentnessStates.Stale,
+            CurrentnessBlockerCode = "COMPONENT_PIN_CHANGED",
+            CurrentnessEvidenceHash = null
+          };
+        else if (!currentComponentCurrentness.TryGetValue(component.Id, out var finalCurrentness))
+          currentnessAtReturn = component with
+          {
+            CurrentnessState = ConsolidationComponentCurrentnessStates.Stale,
+            CurrentnessBlockerCode = "CURRENTNESS_RECHECK_UNAVAILABLE",
+            CurrentnessEvidenceHash = null
+          };
+        else if (finalCurrentness.State != ConsolidationComponentCurrentnessStates.Current)
+          currentnessAtReturn = component with
+          {
+            CurrentnessState = finalCurrentness.State,
+            CurrentnessBlockerCode = finalCurrentness.BlockerCode,
+            CurrentnessEvidenceHash = null
+          };
+        else if (!string.Equals(component.CurrentnessEvidenceHash,
+          CurrentnessEvidenceHash(currentRow, finalCurrentness.EvidenceHash), StringComparison.Ordinal))
+          currentnessAtReturn = component with
+          {
+            CurrentnessState = ConsolidationComponentCurrentnessStates.Stale,
+            CurrentnessBlockerCode = "SOURCE_EVIDENCE_CHANGED",
+            CurrentnessEvidenceHash = null
+          };
+      }
+
       if (!canReviewAtReturn)
-        return component with { CanApprove = false, ApprovalBlocker = reviewerRequired };
+        return currentnessAtReturn with { CanApprove = false, ApprovalBlocker = reviewerRequired };
 
       if (!currentComponentReadiness.TryGetValue(component.Id, out var readiness))
         return component.CanApprove
-          ? component with { CanApprove = false, ApprovalBlocker = "Current component approval readiness could not be established; reload the current scope." }
-          : component;
+          ? currentnessAtReturn with { CanApprove = false, ApprovalBlocker = "Current component approval readiness could not be established; reload the current scope." }
+          : currentnessAtReturn;
 
       if (!readiness.Succeeded)
       {
         var blocker = readiness.ErrorCode == ErrorCodes.ScopeDenied
           ? "Current source authorization does not permit component approval."
           : readiness.Message ?? "Current component approval readiness could not be established; reload the current scope.";
-        return component with { CanApprove = false, ApprovalBlocker = blocker };
+        return currentnessAtReturn with { CanApprove = false, ApprovalBlocker = blocker };
       }
 
       // Current readiness may only retain a capability already established by the snapshot.
-      return component.CanApprove ? component with { CanApprove = true, ApprovalBlocker = null } : component;
+      return component.CanApprove ? currentnessAtReturn with { CanApprove = true, ApprovalBlocker = null } : currentnessAtReturn;
     }
 
     var componentsAtReturn = workspace.Components.Select(ComponentAtReturn).ToArray();
@@ -280,6 +340,11 @@ public static class ConsolidationScopeWorkspaceQuery
       .Skip(PageOffset(componentsPage)).Take(HistoryPageSize).ToListAsync(ct);
     var selectedComponent = selectedComponentId.HasValue
       ? await componentsQuery.SingleOrDefaultAsync(x => x.Id == selectedComponentId.Value, ct) : null;
+    var currentnessComponents = components.ToList();
+    if (selectedComponent is not null && currentnessComponents.All(x => x.Id != selectedComponent.Id))
+      currentnessComponents.Add(selectedComponent);
+    var componentCurrentness = await ConsolidationService.GetComponentCurrentnessAsync(
+      db, actor, scope, currentnessComponents, ct);
     var componentClientIds = components.Select(x => x.ClientId)
       .Concat(selectedComponent is null ? [] : new[] { selectedComponent.ClientId }).Distinct().ToArray();
 
@@ -436,6 +501,9 @@ public static class ConsolidationScopeWorkspaceQuery
         : readiness is null ? "Component approval readiness could not be established; reload the current scope."
         : readiness.ErrorCode == ErrorCodes.ScopeDenied ? "Current source authorization does not permit component approval."
         : readiness.Message ?? "Component approval readiness could not be established; reload the current scope.";
+      var currentness = componentCurrentness.GetValueOrDefault(c.Id,
+        new ConsolidationComponentCurrentness(ConsolidationComponentCurrentnessStates.Unavailable,
+          "CURRENTNESS_UNAVAILABLE", null));
 
       return new ConsolidationComponentDto(
         c.Id,
@@ -457,7 +525,12 @@ public static class ConsolidationScopeWorkspaceQuery
         c.ApprovedByUserId,
         c.ApprovedAt,
         canApprove,
-        blocker);
+        blocker,
+        currentness.State,
+        currentness.BlockerCode)
+      {
+        CurrentnessEvidenceHash = CurrentnessEvidenceHash(c, currentness.EvidenceHash)
+      };
     }
     var componentDtos = components.Select(ComponentDto).ToList();
 
@@ -499,6 +572,24 @@ public static class ConsolidationScopeWorkspaceQuery
     left.Id == right.Id && left.FirmId == right.FirmId && left.Code == right.Code && left.Name == right.Name &&
     left.Status == right.Status && left.Revision == right.Revision && left.CreatedByUserId == right.CreatedByUserId &&
     left.CreatedAt == right.CreatedAt;
+
+  private static bool SameComponentPin(ConsolidationComponentDto snapshot, ConsolidationComponent current) =>
+    snapshot.Id == current.Id && snapshot.ClientId == current.ClientId && snapshot.SourceType == current.SourceType &&
+    snapshot.PackageId == current.PackageId && snapshot.ExternalComponentPackId == current.ExternalComponentPackId &&
+    snapshot.PackageHash == current.PackageHash && snapshot.PeriodBasis == current.PeriodBasis &&
+    snapshot.TaxonomyVersion == current.TaxonomyVersion && snapshot.MappingVersion == current.MappingVersion &&
+    snapshot.Currency == current.Currency && snapshot.OwnershipPercent == current.OwnershipPercent &&
+    snapshot.ControlMethod == current.ControlMethod;
+
+  private static string? CurrentnessEvidenceHash(ConsolidationComponent component, string? sourceEvidenceHash) =>
+    sourceEvidenceHash is null ? null : Hashing.Sha256Hex(string.Join('\u001f',
+      component.Id.ToString("D"), component.Status, component.SubmittedByUserId.ToString("D"),
+      component.SubmittedAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+      component.ApprovedByUserId?.ToString("D") ?? string.Empty,
+      component.ApprovedAt?.ToString("O", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+      component.PackageId?.ToString("D") ?? string.Empty,
+      component.ExternalComponentPackId?.ToString("D") ?? string.Empty,
+      component.PackageHash, sourceEvidenceHash));
 
   private static int PageOffset(int page) => checked((page - 1) * HistoryPageSize);
 

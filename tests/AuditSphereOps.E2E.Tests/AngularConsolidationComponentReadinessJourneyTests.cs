@@ -67,7 +67,8 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
     var components = page.Locator("#components");
     var componentRow = components.GetByRole(AriaRole.Row).Filter(new() { HasText = "PBC TEST CLIENT" });
     await Assertions.Expect(componentRow).ToHaveCountAsync(1);
-    await Assertions.Expect(componentRow.Locator("audit-status .status-chip")).ToHaveTextAsync("submitted");
+    await Assertions.Expect(componentRow.Locator("td").Nth(5).Locator("audit-status .status-chip")).ToHaveTextAsync("submitted");
+    await Assertions.Expect(componentRow.Locator("td").Nth(6).Locator("audit-status .status-chip")).ToHaveTextAsync("unavailable");
     var approve = componentRow.GetByRole(AriaRole.Button, new() { Name = "Approve", Exact = true });
     await Assertions.Expect(approve).ToBeEnabledAsync();
     Assert.Null(await approve.GetAttributeAsync("aria-describedby"));
@@ -101,7 +102,8 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = $"{groupName} ({groupCode}) · v1", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(componentRow).ToHaveCountAsync(1);
-    await Assertions.Expect(componentRow.Locator("audit-status .status-chip")).ToHaveTextAsync("submitted");
+    await Assertions.Expect(componentRow.Locator("td").Nth(5).Locator("audit-status .status-chip")).ToHaveTextAsync("submitted");
+    await Assertions.Expect(componentRow.Locator("td").Nth(6).Locator("audit-status .status-chip")).ToHaveTextAsync("stale");
     await Assertions.Expect(approve).ToBeDisabledAsync();
 
     var blockerId = $"component-approval-blocker-{componentId:D}";
@@ -241,7 +243,7 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
     var components = page.Locator("#components");
     var componentRow = components.GetByRole(AriaRole.Row).Filter(new() { HasText = "PBC TEST CLIENT" });
     await Assertions.Expect(componentRow).ToHaveCountAsync(1);
-    await Assertions.Expect(componentRow.Locator("audit-status .status-chip")).ToHaveTextAsync("approved");
+    await Assertions.Expect(componentRow.Locator("td").Nth(5).Locator("audit-status .status-chip")).ToHaveTextAsync("approved");
     var approveScope = page.GetByRole(AriaRole.Button, new() { Name = "Approve perimeter", Exact = true });
     await Assertions.Expect(approveScope).ToBeEnabledAsync();
     Assert.Null(await approveScope.GetAttributeAsync("aria-describedby"));
@@ -298,7 +300,7 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = $"{seeded.GroupName} ({seeded.GroupCode}) · v1", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(componentRow).ToHaveCountAsync(1);
-    await Assertions.Expect(componentRow.Locator("audit-status .status-chip")).ToHaveTextAsync("approved");
+    await Assertions.Expect(componentRow.Locator("td").Nth(5).Locator("audit-status .status-chip")).ToHaveTextAsync("approved");
     await Assertions.Expect(approveScope).ToBeDisabledAsync();
     var blockerReference = await approveScope.GetAttributeAsync("aria-describedby");
     Assert.False(string.IsNullOrWhiteSpace(blockerReference));

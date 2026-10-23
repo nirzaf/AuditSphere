@@ -105108,7 +105108,9 @@
           "approvedByUserId",
           "approvedAt",
           "canApprove",
-          "approvalBlocker"
+          "approvalBlocker",
+          "currentnessState",
+          "currentnessBlockerCode"
         ],
         "type": "object",
         "properties": {
@@ -105192,6 +105194,15 @@
             "type": "boolean"
           },
           "approvalBlocker": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currentnessState": {
+            "type": "string"
+          },
+          "currentnessBlockerCode": {
             "type": [
               "null",
               "string"
