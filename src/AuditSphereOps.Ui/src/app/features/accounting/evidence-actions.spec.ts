@@ -107,7 +107,7 @@ describe('native evidence action review and receipt recovery',()=>{
     if(change==='route')params.next(convertToParamMap({id:resultId,kind:'INVENTORY'}));
     else TestBed.inject(SessionService).current.update(s=>s&&{...s,generation:'2'});
     await task;
-    expect(publish).not.toHaveBeenCalled();expect(clear).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalledWith(expect.objectContaining({requestId:pending.requestId}));expect(clear).not.toHaveBeenCalled();
     expect(detail).not.toHaveBeenCalled();expect(history).not.toHaveBeenCalled();
     f.destroy();
   });

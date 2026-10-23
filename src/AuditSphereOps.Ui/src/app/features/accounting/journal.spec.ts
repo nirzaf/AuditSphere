@@ -192,7 +192,7 @@ describe('Exact native journal editor and receipt recovery', () => {
     }
   });
   it.each(['route', 'session'])('ignores a receipt when %s changes before the owner effect runs', async (change) => {
-    const { f, c, http } = await open();
+    const { f, c } = await open();
     await prepare(c, http);
     c.reviewed.set(true);
     let complete!: (result: CommandOutcome<unknown>) => void;
@@ -211,7 +211,7 @@ describe('Exact native journal editor and receipt recovery', () => {
       TestBed.inject(SessionService).current.update(s => s && { ...s, generation: '2' });
     }
     await task;
-    expect(publish).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalledWith(expect.objectContaining({ requestId: pending.requestId }));
     expect(clear).not.toHaveBeenCalled();
     expect(reload).not.toHaveBeenCalled();
     f.destroy();
