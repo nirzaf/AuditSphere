@@ -24006,21 +24006,22 @@
     "targetedVerification.angularQualityCiAccessibilityContinuation20261023": {
       "result": "PARTIAL_ACCEPTANCE",
       "source": "ee87a7b0f36ef7e24dc47ef97905756b950c85ab",
-      "observedAtUtc": "2026-10-23T19:51:49.854454+00:00",
+      "observedAtUtc": "2026-10-23T21:16:19.197145+00:00",
       "priorSnapshot": "targetedVerification.angularQualityBeforeCiAccessibilityContinuation20261023",
       "implementation": "Tasks01-06 implemented/revalidated. Task07 corrective slice changes four consolidation pager containers to named semantic navigation without changing commands or paging. One existing paging test now protects all four landmarks.",
       "ci": {
-        "source": "311841a99b59f6cc1e06bd62c730ef3854ef5458",
-        "fullRunId": 39991715381,
-        "fullResult": "RUNNING; NOT_FULL_CI_PASS",
+        "source": "c94fd05f56d8f79346890a94daca39af7c7af4e7",
+        "fullRunId": 40014904838,
+        "fullResult": "RUNNING; E2E job FAIL; NOT_FULL_CI_PASS",
         "sourceMatch": "MATCH",
-        "fastRunId": 39991047096,
+        "fastRunId": 40014847365,
         "fastResult": "FAST_CI_PASS",
-        "angular": "Full Angular job PASS; current-run count not extracted",
-        "domain": "PASS; exact311 job completed2026-10-23T17:24:43Z; count not extracted",
-        "api": "IN_PROGRESS",
-        "e2e": "IN_PROGRESS",
-        "limits": "Run311 predates published fieldwork2958e826 and the subsequent GL API test-fixture correction; not final acceptance."
+        "angular": "PASS",
+        "domain": "PASS",
+        "buildContractsPublication": "PASS",
+        "api": "RUNNING",
+        "e2e": "334PASS/1FAIL; exact heading name matched real H1 and H2",
+        "limits": "Precedes current test-only heading correction; replacement immutable source full CI required."
       },
       "planning": {
         "automated": "Existing exact-review/lost-response/reload/receipt journey, both canonical route variants:2PASS/0FAIL/0SKIP; fresh test compilation and owned isolated PostgreSQL/API/UI. No full local suite.",
@@ -24030,7 +24031,7 @@
       },
       "otherRendered": "Prior builtin journal removal/reflow, staff/client navigation and fieldwork tabs/empty-program/invalid sampling alert are retained under .local/autonomous/evidence/angular-quality-reattached-20261023/rendered-followup/observations.json. Loopback ports share host cookies; actors were inspected sequentially after observing authority clearing.",
       "remaining": [
-        "Replacement immutable-source fullCI after test follow-up; proposal deferred lifecycle request observation remains unproven, retained diagnostics for recurrence",
+        "Replacement immutable source full CI after exact H1 heading test correction; prior deferred lifecycle cause remains unproven despite subsequent passing journeys",
         "Wider per-surface/state rendered matrix",
         "Native200/400zoom: browser has viewport only, native Codex app control refused; no bypass",
         "Actual qualified human screen-reader/browser versions and workflow observations"
@@ -24173,15 +24174,16 @@
         "source": "9350ba0bb0a92ea5a419a2b9fe6ec7418e8c70e0",
         "fullRunId": 40002908714,
         "sourceMatch": "MATCH",
-        "fullResult": "RUNNING; NOT_FULL_CI_PASS; predates test-only consolidation capture correction",
+        "fullResult": "FAIL; terminal with classified E2E findings",
         "angular": "PASS",
         "buildContractsPublication": "PASS",
         "domain": "PASS",
-        "api": "RUNNING",
+        "api": "413PASS/0FAIL/0SKIP",
         "e2e": "332PASS/3FAIL: consolidation body lifetime fixedb6; mapping revocation click fixed in current overlay; absent lifecycle request not reproduced locally, diagnostics added",
         "fastRunId": 40002887844,
         "fastResult": "FAST_CI_PASS",
-        "observedAtUtc": "2026-10-23T19:50:56+00:00"
+        "observedAtUtc": "2026-10-23T19:50:56+00:00",
+        "apiEvidence": ".local/autonomous/evidence/ci-followup-9350-20261023/preceding-9350-api-summary.json"
       },
       "consolidationHandoffCiCaptureRepair": {
         "sourceBase": "9350ba0bb0a92ea5a419a2b9fe6ec7418e8c70e0",
@@ -24215,7 +24217,8 @@
           "status": "CI_FINDING_NOT_REPRODUCED; DIAGNOSTICS_ADDED; NOT_A_PRODUCT_FIX",
           "observation": "Exact CI capture contains no lifecycle GET; matcher already uses AbsolutePath and correctly ignores holdPage query parameters. Lifecycle is viewport-deferred. Missing viewport trigger versus component load cause not established.",
           "local": "Unchanged proposal passed in initial two-method cohort, then passed again after diagnostics-only edit. No expectation, matcher, scroll action or timeout changed.",
-          "change": "On existing stage3 timeout, retain original failure and append native details open/placeholder geometry/lifecycle host presence plus page errors; preserve original timeout if page closed."
+          "change": "On existing stage3 timeout, retain original failure and append native details open/placeholder geometry/lifecycle host presence plus page errors; preserve original timeout if page closed.",
+          "currentSourceCi": "Lifecycle method PASS in exactc94 full E2E and precedingb6 full E2E. Cause of older missing-request observation remains unproven; diagnostics retained, no product fix claimed."
         },
         "verification": {
           "initial": "Two existing affected methods:2PASS/0FAIL/0SKIP; proposal unchanged",
@@ -24240,8 +24243,41 @@
         "buildContractsPublication": "PASS",
         "domain": "PASS",
         "api": "RUNNING",
-        "e2e": "RUNNING",
-        "observedAtUtc": "2026-10-23T19:41:21+00:00"
+        "e2e": "334PASS/1FAIL; identical commercial heading strict ambiguity",
+        "observedAtUtc": "2026-10-23T21:11:22+00:00"
+      },
+      "supersededCi311": {
+        "source": "311841a99b59f6cc1e06bd62c730ef3854ef5458",
+        "fullRunId": 39991715381,
+        "fullResult": "CANCELLED; superseded, not current acceptance",
+        "sourceMatch": "MATCH",
+        "fastRunId": 39991047096,
+        "fastResult": "FAST_CI_PASS",
+        "angular": "Full Angular job PASS; current-run count not extracted",
+        "domain": "PASS; exact311 job completed2026-10-23T17:24:43Z; count not extracted",
+        "api": "Cancelled; not accepted",
+        "e2e": "Cancelled; not accepted",
+        "limits": "Run311 predates published fieldwork2958e826 and the subsequent GL API test-fixture correction; not final acceptance."
+      },
+      "commercialHeadingCiRepair": {
+        "sourceBase": "c94fd05f56d8f79346890a94daca39af7c7af4e7",
+        "exactFailedRunId": 40014904838,
+        "precedingFailedRunId": 40008219142,
+        "failureEvidence": ".local/autonomous/evidence/ci-c94-20261024/failure-summary.json",
+        "rootCause": "Exact name Opportunities matches the legitimate page H1 and opportunities section H2. Same method already uses Level1 at its later page assertion.",
+        "change": "Specify Level1 on all three remaining Opportunities heading assertions shared by the two existing opportunity/proposal lost-response recovery methods. No arbitrary first-match choice, removed assertion, timeout/retry change or application edit.",
+        "preserved": "Committed/uncommitted lost-response paths, exact target/request identities, renewed assent, retained drafts, POST counts, immutable persisted proposals/opportunities and zero page errors.",
+        "verification": {
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "scope": "Existing opportunity/proposal lost-response recovery methods; fresh C# build, automated Chromium/API/owned local PostgreSQL; no full local suite",
+          "trxSha256": "e5936c9f980d9052895d40caff9ec369d1c5dde7efa59d385666517da1b2821c",
+          "sourceHash": "fdbb3ae7cf9f23cf4406390f45919f8e372820fb7f0dd22f8f50c3fb8bcdd3d6"
+        },
+        "priorRepairsCurrentCi": ".local/autonomous/evidence/ci-c94-20261024/prior-repair-current-ci-results.json",
+        "limits": "Current E2E proves previous nine repair cases passed, not whole full regression: one heading failure and API pending. Proposal trigger cause remains unproven; latest observed journey passed.",
+        "observedAtUtc": "2026-10-23T21:16:19.197145+00:00"
       }
     }
   },

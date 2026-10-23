@@ -298,7 +298,7 @@ public sealed class AngularCommercialJourneyTests
 
     await page.ReloadAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
-      new() { Name = "Opportunities", Exact = true })).ToBeVisibleAsync();
+      new() { Name = "Opportunities", Exact = true, Level = 1 })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByText("Persisted result found.", new() { Exact = false })).ToBeVisibleAsync();
     var recovery = page.GetByRole(AriaRole.Button,
       new() { Name = "Resolve saved opportunity request", Exact = true });
@@ -315,7 +315,7 @@ public sealed class AngularCommercialJourneyTests
 
     await page.ReloadAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
-      new() { Name = "Opportunities", Exact = true })).ToBeVisibleAsync();
+      new() { Name = "Opportunities", Exact = true, Level = 1 })).ToBeVisibleAsync();
     recovery = page.GetByRole(AriaRole.Button,
       new() { Name = "Resolve saved opportunity request", Exact = true });
     await Assertions.Expect(recovery).ToBeVisibleAsync();
@@ -415,7 +415,7 @@ public sealed class AngularCommercialJourneyTests
     var routePath = $"/ui/app/practice/leads/{leadId:D}";
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(routePath));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
-      new() { Name = "Opportunities", Exact = true })).ToBeVisibleAsync();
+      new() { Name = "Opportunities", Exact = true, Level = 1 })).ToBeVisibleAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Prepare initial proposal", Exact = true }).First.ClickAsync();
     await page.GetByRole(AriaRole.Textbox, new() { Name = "Service profile", Exact = true }).FillAsync("Committed recovery profile");
     await page.GetByRole(AriaRole.Textbox, new() { Name = "Deliverables", Exact = true }).FillAsync("Committed recovery report");
