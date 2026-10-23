@@ -1052,7 +1052,7 @@
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.correctionLineage",
         "remaining": "Exact receipt recovery, broader group/release acceptance."
       },
-      "ciObserved": "FULL_CI_PASS39903345685 exact889bde7e58c1c74d9fe52cfbb99565b779676f2f: source artifact MATCH, all7jobs PASS, canonicalaggregate verified. e6bFAST_CI_PASS39912380278/images39912380202. Later HEAD not full-verified.",
+      "ciObserved": "FULL_CI_PASS39903345685 exact889bde7e58c1c74d9fe52cfbb99565b779676f2f: artifactMATCH, all7PASS, canonicalaggregate/TRX verified (Domain1525/API399/E2E335 zero skips). fff6a787 FAST_CI_PASS39927606952. Later HEAD not full-verified.",
       "scopeUnknownOutcome": {
         "history": "status-archive-2026-10.json#targetedVerification.autonomousCompletion20261022.scopeUnknownOutcome",
         "status": "PARTIAL",
@@ -1130,7 +1130,7 @@
         "status": "PASS_LOCAL_SLICE",
         "base": "e6b5d6eb76a5f99b985da9181980c7e4c8a73ae4",
         "evidence": ".local/autonomous/evidence/wu015-acceptance-final",
-        "checks": "Acceptance4 and relationships/routings4 authenticatedAPI cases PASS. OnlyScopeDenied=>403; othererrors400, CSRF and success retained; denied mutations zeroeffects. Relationships proof: .local/autonomous/evidence/wu015-relationships; exact overlay hashes retained.",
+        "checks": "Acceptance4, relationships/routings4 and chart3 authenticatedAPI cases PASS. OnlyScopeDenied=>403; othererrors400; success/CSRF retained; denied mutations zeroeffects. Proof .local/autonomous/evidence/wu015-{acceptance-final,relationships,charts}; exactoverlay hashes retained.",
         "remaining": "Other scope-status mappings and full authenticated denial/race coverage; current HEAD fullCI."
       }
     },

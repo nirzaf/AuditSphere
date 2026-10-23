@@ -14,9 +14,9 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
-## Acceptance and relationship scope-denial responses (2026-10-23)
+## Acceptance, relationship and chart scope-denial responses (2026-10-23)
 
-Acceptance and relationship/routing mutations return forbidden for scope denial; validation and success behavior remain unchanged. Authenticated checks cover foreign-firm, sibling and wrong-route denials with unchanged records. Broader authority/race coverage remains open; see `status.json`.
+Acceptance, relationship/routing and chart mutations return forbidden for scope denial; validation and success behavior remain unchanged. Authenticated checks cover foreign-firm, sibling and wrong-route denials with unchanged records. Broader authority/race coverage remains open; see `status.json`.
 
 ## PBC reply recovery and current-owner fence (2026-10-23)
 
