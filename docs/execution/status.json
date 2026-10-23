@@ -1050,9 +1050,8 @@
       },
       "correctionLineage": {
         "status": "PARTIAL",
-        "scope": "Nullable immutable same-firm/group/period correction source scope+component pair; ordinary/roll-forward basis preserved; no inferred supersession staleness.",
-        "checks": "PASS: main TRX 1/1 .local/autonomous/evidence/wu013-correction-lineage/correction-lineage.trx; agent Angular36, corrected build (SCSS warning), EF model and OpenAPI checks passed. Migration null-pointer downgrade/reapply and retained-lineage downgrade refusal covered.",
-        "remaining": "Owned correction browser PASS 1/1: .local/autonomous/evidence/wu013-correction-browser/ComponentCorrectionHandoff.retry2.trx; exact source IDs persisted and approved pin/pack/run retained. Current-source CI and broader group release remain open; no universal supersession policy required."
+        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.correctionLineage",
+        "remaining": "Exact receipt recovery, broader group/release acceptance."
       },
       "ciObserved": "Full39903345685 exact889bde7e58c1c74d9fe52cfbb99565b779676f2f artifactMATCH; Angular/Domain/buildPASS; API/E2E running. Fast39905138989 at8baadfed257dd096de0708be8b2596f121368871 PASS. Not currentHEAD FULL_CI_PASS.",
       "scopeUnknownOutcome": {
@@ -1114,6 +1113,13 @@
         "evidence": ".local/autonomous/evidence/wu022-mail-overview-8baadfed-20261023",
         "checks": "2 PostgreSQL PASS; exact three source hashes match. Generic/historical Mail.Send evidence cannot verify mailbox scope or supply overview timestamp. No provider calls.",
         "remaining": "Typed signed model-bound evidence, runtime token/send gate, import/migration and live acceptance."
+      },
+      "dependencySecurityPatch": {
+        "status": "PASS_LOCAL_SLICE",
+        "base": "7e727942c9145bd5ebb98b0b1e1f5301f5652286",
+        "evidence": ".local/autonomous/evidence/wu038-scans",
+        "checks": "Vite override8.3.3; npm before1high+1low/after0; isolated npmci/build+4session specsPASS. NuGet9projects nofindings; gitleaks2falsepositives source-reviewed, rawexit1 retained. No history/rule suppression.",
+        "remaining": "Currentcommit CI, operational targets/performance/recovery acceptance."
       }
     },
     "developmentFeedback20261023": {
