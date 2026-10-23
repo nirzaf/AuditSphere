@@ -1094,8 +1094,8 @@
       },
       "mailPlanBoundaries": {
         "status": "PARTIAL",
-        "scope": "Plan plus read-only Exchange/Entra adapter; exact app-only operator sessions, additive grant/scope/membership checks, sender/control probes, counted bounded reads. No sign-in/write/send or runtime activation.",
-        "checks": "PASS: main WU022 offline cohort54; agent same54, parser/JSON checks. Evidence .local/autonomous/evidence/wu022-readback/offline.log. No live provider run.",
+        "scope": "Plan plus read-only Exchange/Entra adapter; exact app-only operator sessions, additive grant/scope/membership checks, sender/control probes, counted bounded reads. No sign-in/write/send or runtime activation. Exact Git root required; copied scripts cannot borrow parent HEAD.",
+        "checks": "PASS: isolated Git-fixture WU02258 + common WU01740; .local/autonomous/evidence/wu022-source-root/. CI39885984959 on368 failed the former dirty-worktree assumption; fixed fixture preserves source assertions. No live provider run.",
         "remaining": "RBAC runtime verifier and reviewed migration/rollback; existing legacy API capability evidence; real readback output-shape confirmation and approved live transport acceptance.",
         "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.mailPlanBoundariesStep1",
         "readOnlyApply": "ReadOnly remains INCOMPLETE_EVIDENCE even if provider checks match; model-specific remaining gate. Apply refuses missing migration before network.",

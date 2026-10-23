@@ -31,6 +31,7 @@ try {
   if (-not $ExpectedPlanSha256) { throw 'INVALID_OR_UNSAFE' }
   $repository = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
   if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'PREREQUISITE_MISSING' }
+  if (-not (Test-M365ExactCheckoutRoot $repository)) { throw 'INVALID_OR_UNSAFE' }
   $source = & git -C $repository rev-parse HEAD 2>$null
   if ($LASTEXITCODE -ne 0 -or $source -cne $plan.repositoryCommit) { throw 'INVALID_OR_UNSAFE' }
   $dirty = & git -C $repository status --porcelain -- scripts/m365 2>$null

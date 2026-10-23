@@ -76,6 +76,7 @@ try {
   if ($plan.repositoryCommit -notmatch '^[0-9a-fA-F]{40}$') { throw 'mail-plan-repository-commit-invalid' }
   if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'mail-git-unavailable' }
   $repository = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+  if (-not (Test-M365ExactCheckoutRoot $repository)) { throw 'INVALID_OR_UNSAFE' }
   $head = & git -C $repository rev-parse HEAD 2>$null
   if ($LASTEXITCODE -ne 0 -or [string] $head -ine [string] $plan.repositoryCommit) { throw 'mail-source-head-mismatch' }
   $dirty = & git -C $repository status --porcelain -- scripts/m365 2>$null

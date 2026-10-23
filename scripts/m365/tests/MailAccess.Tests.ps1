@@ -65,9 +65,9 @@ function New-MailPlan([ValidateSet('LEGACY_APPLICATION_ACCESS_POLICY', 'EXCHANGE
 }
 
 function Invoke-MailAccess([string] $Plan, [string] $Mode = 'Plan', [switch] $DryRun, [switch] $WhatIf,
-    [string] $ExpectedPlanSha256) {
+    [string] $ExpectedPlanSha256, [string] $EntryPoint = $scriptPath) {
   $output = Join-Path $work ([guid]::NewGuid().ToString('N') + '.result.json')
-  $childArgs = @('-NoProfile', '-NonInteractive', '-File', $scriptPath, '-PlanPath', $Plan,
+  $childArgs = @('-NoProfile', '-NonInteractive', '-File', $EntryPoint, '-PlanPath', $Plan,
     '-Mode', $Mode, '-OutputPath', $output)
   if ($DryRun) { $childArgs += '-DryRun' }
   if ($WhatIf) { $childArgs += '-WhatIf' }
@@ -107,12 +107,32 @@ try {
     $whatIf.Result.status -eq 'PLANNED') "exit=$($whatIf.ExitCode) mode=$($whatIf.Result.mode) status=$($whatIf.Result.status) error=$($whatIf.Result.errorCode)"
   Assert-ZeroEffects 'whatif-apply' $whatIf
 
+  # Source guards are tested in an isolated Git fixture, independent of this checkout's dirtiness.
+  $fixtureRoot = Join-Path $work 'checkout'
+  $fixtureScripts = Join-Path $fixtureRoot 'scripts/m365'
+  [System.IO.Directory]::CreateDirectory($fixtureScripts) | Out-Null
+  foreach ($name in @('Configure-MailAccess.ps1','AuditSphere.M365.Common.psm1','MailAccess.psm1','m365-plan.schema.json')) {
+    Copy-Item -LiteralPath (Join-Path $root $name) -Destination (Join-Path $fixtureScripts $name)
+  }
+  [System.IO.File]::WriteAllText((Join-Path $fixtureRoot '.gitignore'), ".privatecopy/`n")
+  & git -c init.templateDir= -C $fixtureRoot init -q
+  if ($LASTEXITCODE -ne 0) { throw 'fixture-git-init-failed' }
+  & git -C $fixtureRoot add .
+  & git -c user.name=AuditSphereSynthetic -c user.email=synthetic@example.invalid `
+    -c commit.gpgsign=false -c core.hooksPath= -C $fixtureRoot commit -qm 'Synthetic source guard fixture'
+  if ($LASTEXITCODE -ne 0) { throw 'fixture-git-commit-failed' }
+  Assert-That 'source-root-is-the-exact-checkout' (Test-M365ExactCheckoutRoot $fixtureRoot)
+  Assert-That 'source-root-refuses-a-git-child-directory' (-not (Test-M365ExactCheckoutRoot $fixtureScripts))
+
   $readOnlyPlanPath = New-MailPlan 'LEGACY_APPLICATION_ACCESS_POLICY'
   $readOnlyPlanValue = Get-Content -Raw $readOnlyPlanPath | ConvertFrom-Json -AsHashtable -Depth 32
-  $readOnlyPlanValue.repositoryCommit = (& git -C (Join-Path $root '../..') rev-parse HEAD).Trim()
+  $readOnlyPlanValue.repositoryCommit = (& git -C $fixtureRoot rev-parse HEAD).Trim()
   $readOnlyPlanValue | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath $readOnlyPlanPath -Encoding utf8NoBOM
   $readOnlyPlanSha = Get-M365PlanSha256 $readOnlyPlanValue
-  $readOnly = Invoke-MailAccess $readOnlyPlanPath -Mode ReadOnly -ExpectedPlanSha256 $readOnlyPlanSha
+  $fixtureEntry = Join-Path $fixtureScripts 'Configure-MailAccess.ps1'
+  $originalEntry = [System.IO.File]::ReadAllBytes($fixtureEntry)
+  Add-Content -LiteralPath $fixtureEntry -Value '# Deliberately dirty synthetic source.'
+  $readOnly = Invoke-MailAccess $readOnlyPlanPath -Mode ReadOnly -ExpectedPlanSha256 $readOnlyPlanSha -EntryPoint $fixtureEntry
   Assert-That 'readonly-requires-clean-exact-owned-source-before-session-read' ($readOnly.ExitCode -eq 4 -and
     $readOnly.Result.status -eq 'INVALID_OR_UNSAFE' -and
     $readOnly.Result.errorCode -eq 'mail-source-tree-dirty' -and
@@ -120,6 +140,19 @@ try {
     $readOnly.Result.mutationsAttempted -eq 0 -and $readOnly.Result.mutationsConfirmed -eq 0) `
     "exit=$($readOnly.ExitCode) status=$($readOnly.Result.status) error=$($readOnly.Result.errorCode)"
   Assert-ZeroEffects 'readonly-source-guard' $readOnly
+  [System.IO.File]::WriteAllBytes($fixtureEntry, $originalEntry)
+
+  # Even when the parent Git HEAD matches and ignores the copy, a modified copied entrypoint is not published source.
+  $copyScripts = Join-Path $fixtureRoot '.privatecopy/scripts/m365'
+  [System.IO.Directory]::CreateDirectory($copyScripts) | Out-Null
+  Get-ChildItem -LiteralPath $fixtureScripts -File | Copy-Item -Destination $copyScripts
+  $copyEntry = Join-Path $copyScripts 'Configure-MailAccess.ps1'
+  Add-Content -LiteralPath $copyEntry -Value '# Ignored source copy must never borrow parent HEAD.'
+  $copiedRead = Invoke-MailAccess $readOnlyPlanPath -Mode ReadOnly -ExpectedPlanSha256 $readOnlyPlanSha -EntryPoint $copyEntry
+  Assert-That 'ignored-script-copy-refused-before-provider-read' ($copiedRead.ExitCode -eq 4 -and
+    $copiedRead.Result.status -eq 'INVALID_OR_UNSAFE' -and
+    $copiedRead.Result.errorCode -eq 'mail-readonly-source-or-plan-invalid')
+  Assert-ZeroEffects 'ignored-source-copy' $copiedRead
 
   $apply = Invoke-MailAccess (New-MailPlan 'EXCHANGE_RBAC_RESOURCE_SCOPE') -Mode Apply
   Assert-That 'apply-stays-blocked-until-reviewed-migration' ($apply.ExitCode -eq 7 -and

@@ -366,7 +366,9 @@ pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-
 
 A plan without MAIL records readiness as skipped. A real plan must pin the exact
 published repository commit; ReadOnly refuses dirty M365 scripts and a different
-HEAD before provider access. Supply its exact canonical digest through
+HEAD before provider access. Run from the actual Git checkout root; script copies
+in an ignored child directory cannot borrow the enclosing checkout's HEAD.
+Supply its exact canonical digest through
 `ExpectedPlanSha256`. The synthetic fixture is for offline checks only.
 
 ### Separately approved operator bootstrap

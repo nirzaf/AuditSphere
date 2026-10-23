@@ -23,6 +23,20 @@ function Set-M365OfflineMode([bool] $Offline) { $script:Offline = $Offline }
 
 function Get-M365NetworkCallCount { return $script:NetworkCalls }
 
+# Git walks parent directories. A copied script inside an ignored child directory must
+# not borrow the enclosing checkout's HEAD and clean status as evidence of its own source.
+function Test-M365ExactCheckoutRoot([string] $Repository) {
+  try {
+    if (-not [System.IO.Path]::IsPathFullyQualified($Repository)) { return $false }
+    $top = & git -C $Repository rev-parse --show-toplevel 2>$null
+    if ($LASTEXITCODE -ne 0 -or @($top).Count -ne 1) { return $false }
+    # Git's own prefix resolves filesystem aliases (for example /var -> /private/var on macOS).
+    # A nonempty prefix identifies a child directory even when Git can borrow its parent's HEAD.
+    $prefix = & git -C $Repository rev-parse --show-prefix 2>$null
+    return $LASTEXITCODE -eq 0 -and [string]::IsNullOrEmpty([string] $prefix)
+  } catch { return $false }
+}
+
 # The only path a script may use to reach a provider. Offline mode refuses before any connection.
 function Invoke-M365ProviderRequest([scriptblock] $Request) {
   if ($script:Offline) { throw [M365PlanException]::new('offline-network-call-refused') }
@@ -200,5 +214,5 @@ function Complete-M365Result($Result, [string] $Status, [string] $OutputPath) {
   return Get-M365ExitCode $Status
 }
 
-Export-ModuleMember -Function Add-M365ObservedNetworkCalls, Get-M365ExitCode, Set-M365OfflineMode, Get-M365NetworkCallCount, Invoke-M365ProviderRequest,
+Export-ModuleMember -Function Test-M365ExactCheckoutRoot, Add-M365ObservedNetworkCalls, Get-M365ExitCode, Set-M365OfflineMode, Get-M365NetworkCallCount, Invoke-M365ProviderRequest,
   Find-M365SecretProperty, Get-M365PlanSha256, Read-M365Plan, New-M365Result, Add-M365Check, Complete-M365Result
