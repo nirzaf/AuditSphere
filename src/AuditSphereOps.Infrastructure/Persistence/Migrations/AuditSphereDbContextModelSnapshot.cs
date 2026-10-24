@@ -13764,6 +13764,83 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditConfirmationBookedSource", b =>
+                {
+                    b.Property<Guid>("ConfirmationCaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("confirmation_case_id");
+
+                    b.Property<Guid>("BankReconciliationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bank_reconciliation_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("LedgerScheduleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ledger_schedule_id");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("snapshot_json");
+
+                    b.Property<string>("SnapshotSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("snapshot_sha256");
+
+                    b.Property<string>("SourceKind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("source_kind");
+
+                    b.Property<Guid>("StatementScheduleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("statement_schedule_id");
+
+                    b.HasKey("ConfirmationCaseId");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "BankReconciliationId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ConfirmationCaseId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_audit_confirmation_booked_sources_firm_id_client_id_engage~1");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "LedgerScheduleId")
+                        .HasDatabaseName("IX_audit_confirmation_booked_sources_firm_id_client_id_engage~2");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "StatementScheduleId")
+                        .HasDatabaseName("IX_audit_confirmation_booked_sources_firm_id_client_id_engage~3");
+
+                    b.ToTable("audit_confirmation_booked_sources", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_confirmation_booked_source", "source_kind = 'BANK_RECONCILIATION'\nAND ledger_schedule_id <> statement_schedule_id\nAND snapshot_sha256 ~ '^[0-9a-f]{64}$'\nAND octet_length(snapshot_json) BETWEEN 2 AND 16777216\nAND snapshot_sha256 = encode(sha256(convert_to(snapshot_json, 'UTF8')), 'hex')\nAND jsonb_typeof(snapshot_json::jsonb) = 'object'\nAND COALESCE(snapshot_json::jsonb->>'Version' = 'bank-confirmation-booked-source.v1', false)\nAND COALESCE(snapshot_json::jsonb->'Bank' @> jsonb_build_object(\n  'Id', bank_reconciliation_id, 'FirmId', firm_id, 'ClientId', client_id,\n  'EngagementId', engagement_id, 'LedgerScheduleId', ledger_schedule_id,\n  'StatementScheduleId', statement_schedule_id), false)");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditConfirmationCase", b =>
                 {
                     b.Property<Guid>("Id")
@@ -34881,6 +34958,45 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "SourceScheduleId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditConfirmationBookedSource", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditBankReconciliation", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "BankReconciliationId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditConfirmationCase", null)
+                        .WithOne()
+                        .HasForeignKey("AuditSphereOps.Domain.Audit.AuditConfirmationBookedSource", "FirmId", "ClientId", "EngagementId", "ConfirmationCaseId")
+                        .HasPrincipalKey("AuditSphereOps.Domain.Audit.AuditConfirmationCase", "FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditSchedule", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "LedgerScheduleId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditSchedule", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "StatementScheduleId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_audit_confirmation_booked_sources_audit_schedules_firm_id_~1");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditConfirmationCase", b =>

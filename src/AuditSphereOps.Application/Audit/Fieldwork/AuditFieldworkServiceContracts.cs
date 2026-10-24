@@ -77,7 +77,8 @@ public sealed record CreateConfirmationRequest(
   string Currency,
   DateOnly ConfirmationDate,
   string Respondent,
-  string ContactValidationSource);
+  string ContactValidationSource,
+  ConfirmationBookedSourcePin? BookedSource = null);
 public sealed record ConfirmationValue(Guid ConfirmationCaseId, string Status);
 public sealed record RecordConfirmationDispatchRequest(Guid ConfirmationCaseId, string DispatchReference);
 public sealed record RecordConfirmationResponseRequest(

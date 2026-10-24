@@ -24,7 +24,9 @@ public sealed record ConfirmationAlternativeView(Guid Id, string Purpose, IReadO
   string Status, bool PreparedByMe, Guid? ReviewerId, DateTimeOffset? ReviewedAt);
 public sealed record ConfirmationClosureView(Guid Id, string Conclusion, string EvidenceSha256, Guid ClosedByUserId, DateTimeOffset ClosedAt);
 public sealed record ConfirmationDetail(ConfirmationRow Case, string ReviewToken, string ContactValidationSource,
-  string? DispatchReference, bool PreparedByMe, IReadOnlyList<ConfirmationResponseView> Responses, IReadOnlyList<ConfirmationAlternativeView> Alternatives, ConfirmationClosureView? Closure);
+  string? DispatchReference, bool PreparedByMe, IReadOnlyList<ConfirmationResponseView> Responses,
+  IReadOnlyList<ConfirmationAlternativeView> Alternatives, ConfirmationClosureView? Closure,
+  ConfirmationBookedSourceView? BookedSource = null);
 public sealed record ConfirmationAction(string Action, string ReviewToken, bool Reviewed, Guid? EvidenceId = null,
   string? Reference = null, string? Origin = null, string? Channel = null, decimal? ConfirmedAmount = null,
   string? AuthenticityAssessment = null, string? Decision = null, string? Purpose = null,
@@ -81,10 +83,11 @@ public static partial class ConfirmationWorkspace
     var closure=await db.AuditConfirmationClosures.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId && x.EngagementId==engagement && x.ConfirmationCaseId==id,ct);
     var registerToken=await CreateToken(db,a,engagement,ct);
     var token=Digest(new { a.FirmId,a.UserId,a.SessionEpoch,registerToken,c,responses,alternatives,critical,closure });
+    var bookedSource=await BookedSourceViewAsync(db,a,engagement,c,ct);
     var value=new ConfirmationDetail(await Row(db,c,ct),token,c.ContactValidationSource,c.DispatchReference,c.CreatedByUserId==a.UserId,
       responses.Select(r=>new ConfirmationResponseView(r.Id,r.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture),r.Origin,r.Channel,r.ResponseReference,r.ConfirmedAmount,r.DifferenceAmount,r.AuthenticityAssessment,r.Decision,r.ReceivedAt,r.CreatedByUserId==a.UserId,r.ReviewedByUserId,r.ReviewedAt)).ToArray(),
       alternatives.Select(r=>new ConfirmationAlternativeView(r.Id,r.Purpose,JsonSerializer.Deserialize<string[]>(r.EvidenceReferencesJson)??[],r.Conclusion,r.Status,r.CreatedByUserId==a.UserId,r.ReviewedByUserId,r.ReviewedAt)).ToArray(),
-      closure is null?null:new(closure.Id,closure.Conclusion,closure.EvidenceSha256,closure.ClosedByUserId,closure.ClosedAt));
+      closure is null?null:new(closure.Id,closure.Conclusion,closure.EvidenceSha256,closure.ClosedByUserId,closure.ClosedAt),bookedSource);
     return (await Auth(db,a,engagement,ReadRoles,false,ct)).Succeeded?CommandResult<ConfirmationDetail>.Ok(value):Denied<ConfirmationDetail>();
   }
   // Lock order matches role/acceptance transactions. No external dispatch occurs in these local commands.

@@ -28,7 +28,24 @@ import { MatButtonModule } from '@angular/material/button';
 import { Api, routeGuid } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
-import { confirmationPage, confirmationDetail, confirmationAmount } from './confirmation-contracts';
+import {
+  confirmationPage,
+  confirmationDetail,
+  confirmationAmount,
+  confirmationBankSourcePage,
+  confirmationBankSourceOption,
+} from './confirmation-contracts';
+import type {
+  ConfirmationBankSourceOption,
+  ConfirmationBookedSourcePin,
+} from './confirmation-contracts';
+type BankSourceSelection = {
+  reconciliationId: string;
+  expectedSnapshotSha256: string;
+  state: 'loading' | 'current' | 'stale' | 'unavailable';
+  source: ConfirmationBankSourceOption | null;
+  message: string;
+};
 @Component({
   selector: 'audit-confirmations',
   imports: [FormField, RouterLink, MatButtonModule, ...SHARED],
@@ -141,7 +158,10 @@ import { confirmationPage, confirmationDetail, confirmationAmount } from './conf
             @for (c of w.items; track c.id) {
               <tr>
                 <td>{{ c.areaCode }} · {{ c.sourceRecordId }}<br />{{ c.respondent }}</td>
-                <td>{{ c.bookedAmount | money }} {{ c.currency }}</td>
+                <td>
+                  {{ c.bookedAmount | money }} {{ c.currency }}<br />
+                  <small>Booked-source proof is shown in case detail.</small>
+                </td>
                 <td><audit-status [value]="c.status" /></td>
                 <td>{{ c.critical ? 'Critical' : 'Not marked critical' }}</td>
                 <td>{{ c.dispatchedAt ?? 'Not dispatched' }}<br />{{ c.monitoring }}</td>
@@ -183,22 +203,95 @@ import { confirmationPage, confirmationDetail, confirmationAmount } from './conf
         >
           <summary>Prepare confirmation</summary>
           <form (submit)="$event.preventDefault(); create()">
-            <fieldset [disabled]="busy() || uncertain()">
+            <fieldset [disabled]="busy() || uncertain() || bankSourceBusy()">
               <legend>New case identity</legend>
               <label>Confirmation area<select [formField]="createForm.areaCode"><option value="" disabled>Select an area</option>@for (code of w.areaCodes; track code) { <option [value]="code">{{ code }}</option> }</select></label
               ><label>Source record<input [formField]="createForm.sourceRecordId" /></label>
-              <label
-                >Booked amount<input
-                  [formField]="createForm.bookedAmount"
-                  inputmode="decimal"
-                  aria-describedby="amount-help"
-              /></label>
+              @if (createModel().areaCode === 'CASH_BANK') {
+                <section aria-label="Approved Bank booked-source selection">
+                  <h3>Approved Bank booked source</h3>
+                  <p>
+                    Selecting a source derives the exact signed ledger balance and currency. The
+                    respondent, source-record reference, account scope and contact evidence remain
+                    your explicit declarations; no bank schedule is mapped to them automatically.
+                  </p>
+                  <button matButton type="button" (click)="loadBankSourceCandidates()"
+                    [disabled]="busy() || uncertain() || bankSourceBusy()">
+                    {{ bankSourceListRequested() ? 'Refresh approved Bank source candidates' : 'Load approved Bank source candidates' }}
+                  </button>
+                  @if (bankSourceListRequested()) {
+                    <audit-state [loading]="bankSources.loading()" [error]="bankSources.error()" label="approved Bank booked sources" />
+                  }
+                  @if (bankSources.data(); as bankPage) {
+                    @for (source of bankPage.sources; track source.reconciliationId) {
+                      <article>
+                        <h4>{{ source.entityIdentifier }} · as of {{ source.sourceAsOfDate }}</h4>
+                        <p>
+                          Ledger booked amount <code>{{ source.bookedAmount ?? 'Unavailable' }}</code>
+                          {{ source.currency }} · reconciliation <code>{{ source.reconciliationId }}</code>
+                        </p>
+                        <p>
+                          Ledger schedule <code>{{ source.ledgerScheduleId }}</code> · statement schedule
+                          <code>{{ source.statementScheduleId }}</code> · generation {{ source.inputGeneration }}
+                        </p>
+                        <p>{{ source.eligible ? 'Eligible source candidate' : 'Unavailable source' }}{{ source.blocker ? ' · ' + source.blocker : '' }}</p>
+                        <button matButton type="button" (click)="selectCreateBankSource(source)"
+                          [disabled]="busy() || uncertain() || bankSourceBusy() || !source.eligible || source.bookedAmount === null || source.snapshotSha256 === null">
+                          Select this exact Bank source
+                        </button>
+                      </article>
+                    } @empty {
+                      <p role="status">No Bank source candidates are available on this page.</p>
+                    }
+                    <nav aria-label="Approved Bank source pages">
+                      <button matButton type="button" (click)="moveBankSourcePage(-1)"
+                        [disabled]="bankSourcePage() === 0 || bankSourceBusy()">Previous Bank source page</button>
+                      Page {{ bankPage.page + 1 }}
+                      <button matButton type="button" (click)="moveBankSourcePage(1)"
+                        [disabled]="(bankPage.page + 1) * bankPage.pageSize >= bankPage.total || bankSourceBusy()">Next Bank source page</button>
+                    </nav>
+                  }
+                  @if (sourceSelection('create'); as selection) {
+                    <p [attr.role]="selection.state === 'stale' || selection.state === 'unavailable' ? 'alert' : 'status'">
+                      {{ selection.message }} · pinned hash <code>{{ selection.expectedSnapshotSha256 }}</code>
+                    </p>
+                    @if (selection.source; as source) {
+                      <p>Source as of {{ source.sourceAsOfDate }}; confirmation date remains {{ createModel().confirmationDate || 'not entered' }}.</p>
+                    }
+                    <button matButton type="button" (click)="clearCreateBankSource()" [disabled]="busy() || uncertain() || bankSourceBusy()">
+                      Discard source selection and switch to manual unverified entry
+                    </button>
+                  }
+                </section>
+              }
+              @if (createModel().bookedSource && createModel().areaCode !== 'CASH_BANK') {
+                <p role="alert">A Bank source pin can only be used for the CASH_BANK area.</p>
+                <button matButton type="button" (click)="clearCreateBankSource()" [disabled]="busy() || uncertain() || bankSourceBusy()">
+                  Discard incompatible Bank source pin
+                </button>
+              }
+              @if (!createModel().bookedSource) {
+                <p role="status">Manual booked amount entry has no typed approved-source proof and remains unverified.</p>
+              }
+              <label for="confirmation-booked-amount">Booked amount
+                @if (createModel().bookedSource) {
+                  <input id="confirmation-booked-amount" [value]="createModel().bookedAmount" readonly aria-describedby="amount-help" />
+                } @else {
+                  <input id="confirmation-booked-amount" [formField]="createForm.bookedAmount" inputmode="decimal" aria-describedby="amount-help" />
+                }
+              </label>
               <p id="amount-help">
                 Use an exact decimal amount with up to 14 whole digits and 6 decimal places.
                 Unsupported precision is refused. No browser financial calculation determines the
                 result.
               </p>
-              <label>Currency<input [formField]="createForm.currency" /></label
+              <label for="confirmation-currency">Currency
+                @if (createModel().bookedSource) {
+                  <input id="confirmation-currency" [value]="createModel().currency" readonly />
+                } @else {
+                  <input id="confirmation-currency" [formField]="createForm.currency" />
+                }
+              </label
               ><label
                 >Confirmation date<input type="date" [formField]="createForm.confirmationDate"
               /></label>
@@ -227,7 +320,7 @@ import { confirmationPage, confirmationDetail, confirmationAmount } from './conf
         >
           <summary>Prepare confirmation batch</summary>
           <form (submit)="$event.preventDefault(); createBatch()">
-            <fieldset [disabled]="busy() || uncertain()">
+            <fieldset [disabled]="busy() || uncertain() || bankSourceBusy()">
               <legend>Reviewed batch identity</legend>
               <p>
                 Every case is prepared together or the entire batch is refused. This prepares local
@@ -235,7 +328,13 @@ import { confirmationPage, confirmationDetail, confirmationAmount } from './conf
                 confirmation date.
               </p>
               <label>Batch confirmation area<select [formField]="batchForm.areaCode"><option value="" disabled>Select an area</option>@for (code of w.areaCodes; track code) { <option [value]="code">{{ code }}</option> }</select></label>
-              <label>Batch currency<input [formField]="batchForm.currency" /></label>
+              <label for="confirmation-batch-currency">Batch currency
+                @if (batchHasTypedSource()) {
+                  <input id="confirmation-batch-currency" [value]="batchModel().currency" readonly />
+                } @else {
+                  <input id="confirmation-batch-currency" [formField]="batchForm.currency" />
+                }
+              </label>
               <label
                 >Batch confirmation date<input type="date" [formField]="batchForm.confirmationDate"
               /></label>
@@ -250,10 +349,66 @@ import { confirmationPage, confirmationDetail, confirmationAmount } from './conf
                     >Batch source record {{ i + 1
                     }}<input [formField]="batchForm.cases[i].sourceRecordId"
                   /></label>
-                  <label
-                    >Batch booked amount {{ i + 1
-                    }}<input [formField]="batchForm.cases[i].bookedAmount" inputmode="decimal"
-                  /></label>
+                  @if (batchModel().areaCode === 'CASH_BANK') {
+                    <section [attr.aria-label]="'Approved Bank source selection for batch case ' + (i + 1)">
+                      <h4>Approved Bank booked source</h4>
+                      <p>Source selection derives the signed ledger balance. Respondent, source-record reference and validated contact remain human declared.</p>
+                      <button matButton type="button" (click)="loadBankSourceCandidates()" [disabled]="busy() || uncertain() || bankSourceBusy()">
+                        {{ bankSourceListRequested() ? 'Refresh approved Bank source candidates' : 'Load approved Bank source candidates' }}
+                      </button>
+                      @if (bankSourceListRequested()) {
+                        <audit-state [loading]="bankSources.loading()" [error]="bankSources.error()" label="approved Bank booked sources" />
+                      }
+                      @if (bankSources.data(); as bankPage) {
+                        @for (source of bankPage.sources; track source.reconciliationId) {
+                          <article>
+                            <p>{{ source.entityIdentifier }} · as of {{ source.sourceAsOfDate }} ·
+                              <code>{{ source.bookedAmount ?? 'Unavailable' }}</code> {{ source.currency }}</p>
+                            <p>Reconciliation <code>{{ source.reconciliationId }}</code> · ledger <code>{{ source.ledgerScheduleId }}</code> · statement <code>{{ source.statementScheduleId }}</code> · generation {{ source.inputGeneration }}</p>
+                            <p>{{ source.eligible ? 'Eligible source candidate' : 'Unavailable source' }}{{ source.blocker ? ' · ' + source.blocker : '' }}</p>
+                            <button matButton type="button" (click)="selectBatchBankSource(i, source)"
+                              [disabled]="busy() || uncertain() || bankSourceBusy() || !source.eligible || source.bookedAmount === null || source.snapshotSha256 === null">
+                              Select this exact source for case {{ i + 1 }}
+                            </button>
+                          </article>
+                        } @empty {
+                          <p role="status">No Bank source candidates are available on this page.</p>
+                        }
+                        <nav [attr.aria-label]="'Approved Bank source pages for case ' + (i + 1)">
+                          <button matButton type="button" (click)="moveBankSourcePage(-1)" [disabled]="bankSourcePage() === 0 || bankSourceBusy()">Previous source page</button>
+                          Page {{ bankPage.page + 1 }}
+                          <button matButton type="button" (click)="moveBankSourcePage(1)" [disabled]="(bankPage.page + 1) * bankPage.pageSize >= bankPage.total || bankSourceBusy()">Next source page</button>
+                        </nav>
+                      }
+                      @if (sourceSelection('batch:' + i); as selection) {
+                        <p [attr.role]="selection.state === 'stale' || selection.state === 'unavailable' ? 'alert' : 'status'">
+                          {{ selection.message }} · pinned hash <code>{{ selection.expectedSnapshotSha256 }}</code>
+                        </p>
+                        @if (selection.source; as source) {
+                          <p>Source as of {{ source.sourceAsOfDate }}; batch confirmation date remains {{ batchModel().confirmationDate || 'not entered' }}.</p>
+                        }
+                        <button matButton type="button" (click)="clearBatchBankSource(i)" [disabled]="busy() || uncertain() || bankSourceBusy()">
+                          Discard source selection and use manual unverified entry
+                        </button>
+                      }
+                    </section>
+                  }
+                  @if (c.bookedSource && batchModel().areaCode !== 'CASH_BANK') {
+                    <p role="alert">A Bank source pin can only be used for the CASH_BANK area.</p>
+                    <button matButton type="button" (click)="clearBatchBankSource(i)" [disabled]="busy() || uncertain() || bankSourceBusy()">
+                      Discard incompatible Bank source pin
+                    </button>
+                  }
+                  @if (!c.bookedSource) {
+                    <p role="status">Manual booked amount entry has no typed approved-source proof and remains unverified.</p>
+                  }
+                  <label [for]="'confirmation-batch-amount-' + i">Batch booked amount {{ i + 1 }}
+                    @if (c.bookedSource) {
+                      <input [id]="'confirmation-batch-amount-' + i" [value]="c.bookedAmount" readonly />
+                    } @else {
+                      <input [id]="'confirmation-batch-amount-' + i" [formField]="batchForm.cases[i].bookedAmount" inputmode="decimal" />
+                    }
+                  </label>
                   <label
                     >Batch respondent {{ i + 1 }}<input [formField]="batchForm.cases[i].respondent"
                   /></label>
@@ -282,8 +437,8 @@ import { confirmationPage, confirmationDetail, confirmationAmount } from './conf
               </button>
               <p role="status">
                 {{ batchModel().cases.length }} case(s) selected. Review each exact amount, identity
-                and contact source above. Duplicate trimmed source records and unsupported amounts
-                are refused.
+                and contact source above. Typed source rows require a current exact pin; any manual
+                row remains unverified. Duplicate trimmed source records and unsupported amounts are refused.
               </p>
               <label
                 ><input type="checkbox" [formField]="batchForm.reviewed" />I reviewed every batch
@@ -316,6 +471,44 @@ import { confirmationPage, confirmationDetail, confirmationAmount } from './conf
         <p>
           Exact booked amount <code>{{ d.case.bookedAmount }}</code> {{ d.case.currency }}
         </p>
+        @if (d.bookedSource; as source) {
+          <section aria-label="Retained booked-source proof">
+            <h3>Typed booked-source proof</h3>
+            <p>
+              Currentness:
+              {{ source.currentness === 'CURRENT' ? 'CURRENT' : source.currentness === 'STALE' ? 'STALE' : 'UNAVAILABLE' }}
+            </p>
+            <p>
+              Original source {{ source.kind }} · reconciliation <code>{{ source.reconciliationId }}</code>
+            </p>
+            <p>
+              Source as of {{ source.sourceAsOfDate ?? 'Unavailable' }} · confirmation date
+              {{ d.case.confirmationDate }} · retained amount
+              <code>{{ source.bookedAmount ?? 'Unavailable' }}</code> {{ source.currency ?? '' }}
+            </p>
+            <p>Source snapshot SHA-256 <code>{{ source.snapshotSha256 }}</code></p>
+            <p>
+              Ledger schedule <code>{{ source.ledgerScheduleId }}</code> · source hash
+              <code>{{ source.ledgerSourceHash ?? 'Unavailable' }}</code>
+            </p>
+            <p>
+              Statement schedule <code>{{ source.statementScheduleId }}</code> · source hash
+              <code>{{ source.statementSourceHash ?? 'Unavailable' }}</code>
+            </p>
+            @if (source.currentness === 'STALE') {
+              <p role="alert">The retained source proof is stale. Its original amount, hash and IDs remain unchanged.</p>
+            } @else if (source.currentness === 'UNAVAILABLE') {
+              <p role="alert">Current source state is unavailable. The retained source proof is not treated as current.</p>
+            }
+            @if (source.blocker) {
+              <p role="alert">Source blocker: {{ source.blocker }}</p>
+            }
+          </section>
+        } @else {
+          <p role="status">
+            Legacy/manual confirmation: no typed approved booked-source proof is retained. The booked amount is unverified.
+          </p>
+        }
         <p>Contact validation: {{ d.contactValidationSource }}</p>
         <p>
           Observed dispatch: {{ d.case.dispatchedAt ?? 'Not dispatched' }} · reference
@@ -472,6 +665,9 @@ import { confirmationPage, confirmationDetail, confirmationAmount } from './conf
         select and review again.
       </p>
     }
+    @if (bankSourceMessage()) {
+      <p role="status">{{ bankSourceMessage() }}</p>
+    }
     <audit-command-message [message]="message()" [failed]="failed()" />
   `,
   styles: `
@@ -561,6 +757,22 @@ export class Confirmations {
       maxLength(c.contactValidationSource, 2000);
     });
   });
+  readonly bankSourcePage = signal(0);
+  readonly bankSourceListRequested = signal(false);
+  readonly bankSources = this.api.resource(
+    () => {
+      const selectingBank =
+        this.createModel().areaCode === 'CASH_BANK' || this.batchModel().areaCode === 'CASH_BANK';
+      return this.id() && selectingBank && this.bankSourceListRequested()
+        ? this.base() + '/bank-sources?page=' + this.bankSourcePage() + '&pageSize=5'
+        : null;
+    },
+    confirmationBankSourcePage,
+    'Approved Bank booked sources are unavailable in this engagement.',
+  );
+  readonly bankSourceBusy = signal(false);
+  readonly bankSourceMessage = signal('');
+  readonly bankSourceSelections = signal<Record<string, BankSourceSelection>>({});
   readonly createExpanded = signal(false);
   readonly batchExpanded = signal(false);
   readonly draftKinds: DraftKind[] = ['create', 'batch', 'action'];
@@ -611,6 +823,11 @@ export class Confirmations {
         this.draftMessage.set('');
         this.uncertain.set(false);
         this.candidates.set({ create: 'absent', batch: 'absent', action: 'absent' });
+        this.bankSourcePage.set(0);
+        this.bankSourceListRequested.set(false);
+        this.bankSourceBusy.set(false);
+        this.bankSourceMessage.set('');
+        this.bankSourceSelections.set({});
       });
     });
     effect(() => {
@@ -787,6 +1004,7 @@ export class Confirmations {
         ? 'Submission may have started. Refresh persisted evidence before another action; no retry occurs.'
         : 'Draft recovered explicitly. Review the current evidence and your fields again before submitting.',
     );
+    if (kind === 'create' || kind === 'batch') void this.inspectRecoveredBankSources(kind);
   }
   discardDraft(kind: DraftKind) {
     if (this.busy()) return;
@@ -864,12 +1082,288 @@ export class Confirmations {
       }));
   }
   removeBatchCase(index: number) {
-    if (!this.busy() && !this.uncertain() && this.batchModel().cases.length > 1)
+    if (!this.busy() && !this.uncertain() && !this.bankSourceBusy() && this.batchModel().cases.length > 1) {
       this.batchModel.update((m) => ({
         ...m,
         reviewed: false,
         cases: m.cases.filter((_, i) => i !== index),
       }));
+      this.reindexBatchSourceSelections(index);
+    }
+  }
+  sourceSelection(key: string) {
+    return this.bankSourceSelections()[key] ?? null;
+  }
+  moveBankSourcePage(change: number) {
+    if (this.bankSourceBusy() || this.busy() || this.uncertain()) return;
+    this.bankSourcePage.update((page) => Math.max(0, page + change));
+  }
+  loadBankSourceCandidates() {
+    if (
+      this.busy() ||
+      this.uncertain() ||
+      this.bankSourceBusy() ||
+      (this.createModel().areaCode !== 'CASH_BANK' && this.batchModel().areaCode !== 'CASH_BANK')
+    )
+      return;
+    const page = this.bankSourcePage();
+    this.bankSourcePage.set(0);
+    if (this.bankSourceListRequested()) {
+      if (page === 0) this.bankSources.reload();
+    } else this.bankSourceListRequested.set(true);
+  }
+  batchHasTypedSource() {
+    return this.batchModel().cases.some((c) => !!c.bookedSource);
+  }
+  private bankSourcePin(option: ConfirmationBankSourceOption): ConfirmationBookedSourcePin | null {
+    return option.eligible && option.bookedAmount !== null && option.snapshotSha256 !== null
+      ? {
+          kind: 'BANK_RECONCILIATION',
+          reconciliationId: option.reconciliationId,
+          expectedSnapshotSha256: option.snapshotSha256,
+        }
+      : null;
+  }
+  async selectCreateBankSource(option: ConfirmationBankSourceOption) {
+    const pin = this.bankSourcePin(option);
+    if (!pin || this.bankSourceBusy() || this.busy() || this.uncertain()) return;
+    this.createModel.update((m) => ({
+      ...m,
+      bookedSource: pin,
+      bookedAmount: '',
+      currency: '',
+      reviewed: false,
+    }));
+    await this.inspectBankSource('create', pin, option, 'create', -1, true);
+  }
+  async selectBatchBankSource(index: number, option: ConfirmationBankSourceOption) {
+    const pin = this.bankSourcePin(option),
+      model = this.batchModel();
+    if (!pin || this.bankSourceBusy() || this.busy() || this.uncertain() || !model.cases[index]) return;
+    this.batchModel.update((m) => ({
+      ...m,
+      reviewed: false,
+      cases: m.cases.map((c, i) =>
+        i === index ? { ...c, bookedSource: pin, bookedAmount: '' } : c,
+      ),
+    }));
+    await this.inspectBankSource('batch:' + index, pin, option, 'batch', index, true);
+  }
+  clearCreateBankSource() {
+    if (this.busy() || this.uncertain() || this.bankSourceBusy()) return;
+    this.createModel.update((m) => {
+      const manual = { ...m };
+      delete manual.bookedSource;
+      return { ...manual, bookedAmount: '', currency: '', reviewed: false };
+    });
+    this.bankSourceSelections.update((all) => {
+      const next = { ...all };
+      delete next['create'];
+      return next;
+    });
+    this.bankSourceMessage.set('Typed source discarded. Manual amount entry is unverified and requires fresh review.');
+  }
+  clearBatchBankSource(index: number) {
+    if (this.busy() || this.uncertain() || this.bankSourceBusy() || !this.batchModel().cases[index]) return;
+    this.batchModel.update((m) => {
+      const hasOtherTypedSource = m.cases.some((c, i) => i !== index && !!c.bookedSource);
+      return {
+        ...m,
+        currency: hasOtherTypedSource ? m.currency : '',
+        reviewed: false,
+        cases: m.cases.map((c, i) => {
+          if (i !== index) return c;
+          const manual = { ...c };
+          delete manual.bookedSource;
+          return { ...manual, bookedAmount: '' };
+        }),
+      };
+    });
+    this.bankSourceSelections.update((all) => {
+      const next = { ...all };
+      delete next['batch:' + index];
+      return next;
+    });
+    this.bankSourceMessage.set('Typed source discarded. Manual amount entry is unverified and requires fresh review.');
+  }
+  private reindexBatchSourceSelections(removedIndex: number) {
+    this.bankSourceSelections.update((all) => {
+      const next: Record<string, BankSourceSelection> = {};
+      for (const [key, value] of Object.entries(all)) {
+        const match = /^batch:(\d+)$/.exec(key);
+        if (!match) {
+          next[key] = value;
+          continue;
+        }
+        const index = Number(match[1]);
+        if (index < removedIndex) next[key] = value;
+        else if (index > removedIndex) next['batch:' + (index - 1)] = value;
+      }
+      return next;
+    });
+  }
+  private bankSourceProblem(
+    source: ConfirmationBankSourceOption,
+    pin: ConfirmationBookedSourcePin,
+    option: ConfirmationBankSourceOption | null,
+  ): { state: 'stale' | 'unavailable'; message: string } | null {
+    if (source.reconciliationId !== pin.reconciliationId)
+      return { state: 'unavailable', message: 'The exact Bank source read returned a different identity.' };
+    if (source.snapshotSha256 !== null && source.snapshotSha256 !== pin.expectedSnapshotSha256)
+      return { state: 'stale', message: 'The Bank source hash changed after selection. Refresh the page and select it again explicitly.' };
+    if (!source.eligible || source.blocker)
+      return { state: 'unavailable', message: 'The selected Bank source is unavailable or blocked: ' + (source.blocker ?? 'source not eligible') };
+    if (
+      option &&
+      (option.reconciliationId !== source.reconciliationId ||
+        option.entityIdentifier !== source.entityIdentifier ||
+        option.inputGeneration !== source.inputGeneration ||
+        option.snapshotSha256 !== source.snapshotSha256 ||
+        option.bookedAmount !== source.bookedAmount ||
+        option.currency !== source.currency ||
+        option.sourceAsOfDate !== source.sourceAsOfDate ||
+        option.ledgerScheduleId !== source.ledgerScheduleId ||
+        option.statementScheduleId !== source.statementScheduleId ||
+        option.eligible !== source.eligible ||
+        option.blocker !== source.blocker)
+    )
+      return { state: 'stale', message: 'The bounded candidate changed before exact-ID read. Refresh and select the current candidate again.' };
+    if (source.snapshotSha256 !== pin.expectedSnapshotSha256)
+      return { state: 'stale', message: 'The selected Bank source no longer has the pinned snapshot hash. Select the current source explicitly.' };
+    if (
+      source.sourceAsOfDate === null ||
+      source.bookedAmount === null ||
+      confirmationAmount(source.bookedAmount) !== source.bookedAmount ||
+      source.currency === null ||
+      !/^[A-Z]{3}$/.test(source.currency)
+    )
+      return { state: 'unavailable', message: 'The exact Bank source lacks a usable signed amount, currency or as-of date.' };
+    return null;
+  }
+  private async inspectBankSource(
+    ownerKey: string,
+    pin: ConfirmationBookedSourcePin,
+    option: ConfirmationBankSourceOption | null,
+    formKind: 'create' | 'batch',
+    caseIndex: number,
+    applySourceAmount: boolean,
+  ): Promise<boolean> {
+    const epoch = this.session.invalidation(),
+      engagement = this.id();
+    this.bankSourceSelections.update((all) => ({
+      ...all,
+      [ownerKey]: {
+        reconciliationId: pin.reconciliationId,
+        expectedSnapshotSha256: pin.expectedSnapshotSha256,
+        state: 'loading',
+        source: null,
+        message: 'Rechecking the exact Bank reconciliation and pinned snapshot…',
+      },
+    }));
+    this.bankSourceBusy.set(true);
+    this.bankSourceMessage.set('');
+    try {
+      const source = await this.api.get(
+        this.base() + '/bank-sources/' + pin.reconciliationId,
+        confirmationBankSourceOption,
+      );
+      if (epoch !== this.session.invalidation() || engagement !== this.id()) return false;
+      let problem = this.bankSourceProblem(source, pin, option);
+      if (!problem && formKind === 'create') {
+        const model = this.createModel();
+        if (
+          model.areaCode !== 'CASH_BANK' ||
+          model.bookedSource?.reconciliationId !== pin.reconciliationId ||
+          model.bookedSource.expectedSnapshotSha256 !== pin.expectedSnapshotSha256
+        )
+          return false;
+        if (!applySourceAmount && (model.bookedAmount !== source.bookedAmount || model.currency !== source.currency))
+          problem = { state: 'stale', message: 'Recovered amount or currency no longer matches the pinned Bank source.' };
+        else if (applySourceAmount)
+          this.createModel.update((m) => ({ ...m, bookedAmount: source.bookedAmount!, currency: source.currency!, reviewed: false }));
+      } else if (!problem && formKind === 'batch') {
+        const model = this.batchModel(),
+          item = model.cases[caseIndex];
+        if (
+          model.areaCode !== 'CASH_BANK' ||
+          !item ||
+          item.bookedSource?.reconciliationId !== pin.reconciliationId ||
+          item.bookedSource.expectedSnapshotSha256 !== pin.expectedSnapshotSha256
+        )
+          return false;
+        if (model.currency && model.currency !== source.currency)
+          problem = { state: 'stale', message: 'Batch currency does not match this Bank source. No amount was applied.' };
+        else if (!applySourceAmount && (item.bookedAmount !== source.bookedAmount || model.currency !== source.currency))
+          problem = { state: 'stale', message: 'Recovered batch amount or currency no longer matches the pinned Bank source.' };
+        else if (applySourceAmount)
+          this.batchModel.update((m) => ({
+            ...m,
+            currency: m.currency || source.currency!,
+            reviewed: false,
+            cases: m.cases.map((c, i) => i === caseIndex ? { ...c, bookedAmount: source.bookedAmount! } : c),
+          }));
+      }
+      if (epoch !== this.session.invalidation() || engagement !== this.id()) return false;
+      const selection: BankSourceSelection = {
+        reconciliationId: pin.reconciliationId,
+        expectedSnapshotSha256: pin.expectedSnapshotSha256,
+        state: problem?.state ?? 'current',
+        source,
+        message: problem?.message ?? 'Current exact Bank source is pinned; amount and currency are source-derived.',
+      };
+      this.bankSourceSelections.update((all) => ({ ...all, [ownerKey]: selection }));
+      if (problem) this.bankSourceMessage.set(problem.message);
+      return !problem;
+    } catch (error) {
+      if (epoch !== this.session.invalidation() || engagement !== this.id()) return false;
+      const message = error instanceof Error ? error.message : 'The selected Bank source is unavailable.';
+      this.bankSourceSelections.update((all) => ({
+        ...all,
+        [ownerKey]: {
+          reconciliationId: pin.reconciliationId,
+          expectedSnapshotSha256: pin.expectedSnapshotSha256,
+          state: 'unavailable',
+          source: null,
+          message,
+        },
+      }));
+      this.bankSourceMessage.set(message);
+      return false;
+    } finally {
+      if (epoch === this.session.invalidation() && engagement === this.id()) this.bankSourceBusy.set(false);
+    }
+  }
+  private async inspectRecoveredBankSources(kind: 'create' | 'batch') {
+    if (kind === 'create') {
+      const model = this.createModel();
+      if (model.bookedSource)
+        await this.inspectBankSource('create', model.bookedSource, null, 'create', -1, false);
+      return;
+    }
+    for (const [index, item] of this.batchModel().cases.entries()) {
+      if (item.bookedSource)
+        await this.inspectBankSource('batch:' + index, item.bookedSource, null, 'batch', index, false);
+    }
+  }
+  private bankSourceIsReady(
+    ownerKey: string,
+    pin: ConfirmationBookedSourcePin,
+    amount: string,
+    currency: string,
+  ) {
+    const selection = this.bankSourceSelections()[ownerKey],
+      source = selection?.source;
+    return !!selection &&
+      selection.state === 'current' &&
+      selection.reconciliationId === pin.reconciliationId &&
+      selection.expectedSnapshotSha256 === pin.expectedSnapshotSha256 &&
+      !!source &&
+      source.eligible &&
+      source.snapshotSha256 === pin.expectedSnapshotSha256 &&
+      source.bookedAmount === amount &&
+      source.currency === currency &&
+      source.sourceAsOfDate !== null &&
+      source.blocker === null;
   }
   canCreateBatch() {
     const m = this.batchModel(),
@@ -880,20 +1374,23 @@ export class Confirmations {
       m.reviewed &&
       !this.stale('batch') &&
       !this.busy() &&
+      !this.bankSourceBusy() &&
       !this.uncertain() &&
       m.cases.length >= 1 &&
       m.cases.length <= 100 &&
       new Set(sources).size === sources.length &&
+      (m.cases.every((c) => !c.bookedSource) || m.areaCode === 'CASH_BANK') &&
       /^[A-Z]{3}$/.test(m.currency) &&
       /^\d{4}-\d{2}-\d{2}$/.test(m.confirmationDate) &&
       (!m.procedureId ||
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.procedureId)) &&
       m.cases.every(
-        (c) =>
+        (c, i) =>
           !!confirmationAmount(c.bookedAmount) &&
           !!c.sourceRecordId.trim() &&
           !!c.respondent.trim() &&
-          !!c.contactValidationSource.trim(),
+          !!c.contactValidationSource.trim() &&
+          (!c.bookedSource || this.bankSourceIsReady('batch:' + i, c.bookedSource, c.bookedAmount, m.currency)),
       )
     );
   }
@@ -1019,6 +1516,8 @@ export class Confirmations {
       m.reviewed &&
       !this.stale('create') &&
       !!confirmationAmount(m.bookedAmount) &&
+      !this.bankSourceBusy() &&
+      (!m.bookedSource || (m.areaCode === 'CASH_BANK' && this.bankSourceIsReady('create', m.bookedSource, m.bookedAmount, m.currency))) &&
       /^\d{4}-\d{2}-\d{2}$/.test(m.confirmationDate) &&
       !this.busy() &&
       !this.uncertain()

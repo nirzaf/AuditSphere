@@ -31,15 +31,54 @@ public static partial class AuditFieldworkService
     }
     if (request.ProcedureId is not null && !await IsApplicableProcedureAsync(db, actor.FirmId, auth.ClientId, request.EngagementId, request.ProcedureId.Value, ct))
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.GateBlocked, "The linked procedure is not applicable.");
+    ConfirmationBankSourceCapture? bookedSource = null;
+    if (request.BookedSource is { } pin)
+    {
+      if (!string.Equals(request.AreaCode.Trim(), AuditAreaCodes.CashBank, StringComparison.OrdinalIgnoreCase))
+        return Invalid<ConfirmationValue>("A typed Bank booked source is supported only for the cash-and-bank area.");
+      var sourceLocks = await ConfirmationBankSourceResolver.LockForPublicationAsync(
+        db, actor.FirmId, auth.ClientId, request.EngagementId, [pin.ReconciliationId], ct);
+      if (!sourceLocks.Succeeded)
+        return CommandResult<ConfirmationValue>.Fail(sourceLocks.ErrorCode!, sourceLocks.Message!);
+      var resolved = await ConfirmationBankSourceResolver.ResolveForPublicationAsync(
+        db, actor.FirmId, auth.ClientId, request.EngagementId, pin, ct);
+      if (!resolved.Succeeded)
+        return CommandResult<ConfirmationValue>.Fail(resolved.ErrorCode!, resolved.Message!);
+      bookedSource = resolved.Value!;
+      if (request.BookedAmount != bookedSource.Bank.LedgerBalance ||
+          !string.Equals(request.Currency, bookedSource.Bank.Currency, StringComparison.OrdinalIgnoreCase))
+        return CommandResult<ConfirmationValue>.Fail(ErrorCodes.GenerationStale,
+          "The entered booked amount and currency must match the selected Bank ledger balance.");
+    }
+    // Recheck authority immediately before publishing the case and its immutable source proof.
+    auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode ?? ErrorCodes.ScopeDenied, auth.Message ?? "Access denied.");
+    if (bookedSource is not null && auth.ClientId != bookedSource.Bank.ClientId)
+      return CommandResult<ConfirmationValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var createdAt = DateTimeOffset.UtcNow;
     var confirmation = new AuditConfirmationCase
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = auth.ClientId, EngagementId = request.EngagementId,
       ProcedureId = request.ProcedureId, AreaCode = request.AreaCode.Trim().ToUpperInvariant(), SourceRecordId = request.SourceRecordId.Trim(),
-      BookedAmount = request.BookedAmount, Currency = request.Currency.ToUpperInvariant(), ConfirmationDate = request.ConfirmationDate,
+      BookedAmount = bookedSource?.Bank.LedgerBalance ?? request.BookedAmount,
+      Currency = (bookedSource?.Bank.Currency ?? request.Currency).ToUpperInvariant(), ConfirmationDate = request.ConfirmationDate,
       Respondent = request.Respondent.Trim(), ContactValidationSource = request.ContactValidationSource.Trim(),
-      InputGeneration = await CurrentGenerationAsync(db, auth.ClientId, actor.FirmId, ct), CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      InputGeneration = bookedSource?.CurrentGeneration ?? await CurrentGenerationAsync(db, auth.ClientId, actor.FirmId, ct),
+      CreatedByUserId = actor.UserId, CreatedAt = createdAt
     };
     db.AuditConfirmationCases.Add(confirmation);
+    if (bookedSource is not null)
+    {
+      db.AuditConfirmationBookedSources.Add(new AuditConfirmationBookedSource
+      {
+        ConfirmationCaseId = confirmation.Id, FirmId = actor.FirmId, ClientId = auth.ClientId,
+        EngagementId = request.EngagementId, SourceKind = ConfirmationBankSourceResolver.SourceKind,
+        BankReconciliationId = bookedSource.Bank.Id, LedgerScheduleId = bookedSource.LedgerSchedule.Id,
+        StatementScheduleId = bookedSource.StatementSchedule.Id, SnapshotJson = bookedSource.SnapshotJson,
+        SnapshotSha256 = bookedSource.SnapshotSha256, CreatedByUserId = actor.UserId, CreatedAt = createdAt
+      });
+    }
     await db.SaveChangesAsync(ct);
     if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<ConfirmationValue>.Ok(new(confirmation.Id, confirmation.Status));

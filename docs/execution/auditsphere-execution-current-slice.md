@@ -408,3 +408,7 @@ Built-in checks exercised actual target/source selection and keyboard preview, e
 ## Bank linked-source freshness
 
 Bank creation and review now reject approved linked schedules whose generation differs from the current client generation. A focused existing workflow reproduced stale-source creation before the fix and passed afterward, retaining the original approved reconciliation and refusing a synthetic historical-invalid review. This is a source-adapter prerequisite, not runtime race proof, typed booked-balance retention or T059/Task 18 completion.
+
+### 2026-10-24 — Task18 typed Bank source subset
+
+Explicit source pins retain approved signed ledger amount/SHA and current/stale provenance; legacy/manual proof stays unverified. Domain2/API2/Angular19/E2E1 and final lint/build/EF passed; builtin readback captured before fixture expiry. Other sources/difference links, concurrency variants, full CI and qualified/live gates remain. Details: `status-archive-2026-10.json#archivedTargetedVerification.confirmationBankSource20261024`.

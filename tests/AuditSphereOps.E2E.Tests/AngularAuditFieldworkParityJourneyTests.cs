@@ -27,16 +27,23 @@ public sealed class AngularAuditFieldworkParityJourneyTests
     var sourceHash = Hashing.Sha256Hex("synthetic retained bank GL fixture");
     var statementHash = Hashing.Sha256Hex("synthetic retained statement fixture");
     var batchId = Guid.NewGuid();
+    var sourcePeriodId = Guid.NewGuid();
     var transactionId = Guid.NewGuid();
     Guid bankId;
     await using (var db = host.CreateDbContext())
     {
       // Stored synthetic GL fixture only: this test exercises inspection, not file ingestion
       // or a real professional source acceptance. All schedule/reconciliation commands are real.
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = sourcePeriodId, FirmId = f.FirmId, ClientId = f.ClientId, PeriodCode = "BANK-INSPECTION-FY26",
+        StartDate = new(2026, 1, 1), EndDate = new(2026, 12, 31), Basis = "IFRS", Currency = "QAR",
+        CreatedByUserId = f.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
       db.SourceImportBatches.Add(new SourceImportBatch
       {
         Id = batchId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-        PeriodId = Guid.NewGuid(), SourceKind = "GL", ProfileVersion = "gl-v1", ParserVersion = "parser-v1",
+        PeriodId = sourcePeriodId, SourceKind = "GL", ProfileVersion = "gl-v1", ParserVersion = "parser-v1",
         RawFileSha256Hex = sourceHash, NormalizedDatasetDigest = sourceHash, LegalEntityKey = "bank-inspection-001", Currency = "QAR",
         RowCount = 1, ExpectedChunkCount = 1, ExpectedTransactionCount = 1, ExpectedLineCount = 1,
         AcceptedChunkCount = 1, AcceptedTransactionCount = 1, AcceptedLineCount = 1, Status = "SEALED",
@@ -104,8 +111,52 @@ public sealed class AngularAuditFieldworkParityJourneyTests
       Assert.Equal(AuditBankReconciliationStatuses.Reconciled, retained.Status);
       Assert.Null(retained.ReviewedByUserId); Assert.Null(retained.ReviewedAt); Assert.Null(retained.Conclusion);
       Assert.Equal(3, await db.AuditBankReconciliationItems.CountAsync(x => x.BankReconciliationId == bankId));
+      // A separate explicit synthetic reviewer action starts the source-linked phase;
+      // inspection itself did not approve or modify the Bank record above.
+      var review = await AuditFieldworkService.ReviewBankReconciliationAsync(db, PbcSeed.Actor(f.Reviewer, "Reviewer"),
+        new(bankId, AuditBankReconciliationStatuses.Approved, "Synthetic independent Bank source review for confirmation."));
+      Assert.True(review.Succeeded, review.Message);
     }
-    await OwnedBrowserFixtureHandoff.WaitAsync(origin, inspectionPath, "bank-reconciliation-inspection");
+    var staffOrigin = await host.StartApiForIdentityAsync(f.Staff, Angular);
+    await using var staffContext = await browser.NewContextAsync();
+    var preparation = await staffContext.NewPageAsync();
+    preparation.PageError += (_, error) => errors.Add(error);
+    var confirmationPath = $"/app/engagements/{f.EngagementId:D}/confirmations";
+    await preparation.GotoAsync(staffOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(confirmationPath));
+    await preparation.GetByText("Prepare confirmation", new() { Exact = true }).ClickAsync();
+    var createForm = preparation.Locator("details").Filter(new() { Has = preparation.GetByText("Prepare confirmation", new() { Exact = true }) });
+    await createForm.GetByLabel("Confirmation area").SelectOptionAsync("CASH_BANK");
+    await createForm.GetByRole(AriaRole.Button, new() { Name = "Load approved Bank source candidates", Exact = true }).ClickAsync();
+    await createForm.GetByRole(AriaRole.Button, new() { Name = "Select this exact Bank source", Exact = true }).PressAsync("Enter");
+    await Assertions.Expect(createForm.GetByLabel("Booked amount", new() { Exact = true })).ToHaveValueAsync("100.123456");
+    await Assertions.Expect(createForm.GetByLabel("Booked amount", new() { Exact = true })).ToHaveAttributeAsync("readonly", "");
+    await Assertions.Expect(createForm.GetByLabel("Currency", new() { Exact = true })).ToHaveValueAsync("QAR");
+    await createForm.GetByLabel("Source record", new() { Exact = true }).FillAsync("bank-source-account-explicit");
+    await createForm.GetByLabel("Confirmation date", new() { Exact = true }).FillAsync("2026-10-02");
+    await createForm.GetByLabel("Respondent", new() { Exact = true }).FillAsync("Synthetic Bank respondent");
+    await createForm.GetByLabel("Validated contact source", new() { Exact = true }).FillAsync("Explicit synthetic account/contact mapping.");
+    var submit = createForm.GetByRole(AriaRole.Button, new() { Name = "Prepare reviewed confirmation", Exact = true });
+    await Assertions.Expect(submit).ToBeDisabledAsync();
+    await createForm.GetByRole(AriaRole.Checkbox).CheckAsync();
+    await submit.ClickAsync();
+    var retainedProof = preparation.GetByRole(AriaRole.Region, new() { Name = "Retained booked-source proof", Exact = true });
+    // The new case is inspected through its register action; source creation is not a
+    // professional approval or actual external dispatch.
+    await preparation.GetByRole(AriaRole.Button, new() { Name = "Review confirmation for Synthetic Bank respondent", Exact = true }).ClickAsync();
+    await Assertions.Expect(retainedProof.GetByText(bankId.ToString("D"), new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(retainedProof.GetByText(sourceHash, new() { Exact = true })).ToBeVisibleAsync();
+    await using (var db = host.CreateDbContext())
+    {
+      var created = await db.AuditConfirmationCases.AsNoTracking().SingleAsync(x => x.SourceRecordId == "bank-source-account-explicit");
+      Assert.Equal(100.123456m, created.BookedAmount);
+      Assert.Equal(new DateOnly(2026, 10, 2), created.ConfirmationDate);
+      Assert.Equal(AuditConfirmationStatuses.Draft, created.Status);
+      var source = await db.AuditConfirmationBookedSources.AsNoTracking().SingleAsync(x => x.ConfirmationCaseId == created.Id);
+      Assert.Equal(bankId, source.BankReconciliationId);
+      Assert.Equal(Hashing.Sha256Hex(source.SnapshotJson), source.SnapshotSha256);
+      Assert.Equal(f.Staff.Id, source.CreatedByUserId);
+    }
+    await OwnedBrowserFixtureHandoff.WaitAsync(staffOrigin, confirmationPath, "typed-bank-confirmation");
     Assert.Empty(errors);
   }
 

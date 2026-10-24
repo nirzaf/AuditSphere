@@ -5,11 +5,13 @@ namespace AuditSphereOps.Api.Ui;
 public static partial class UiEndpoints
 {
   public sealed record UiConfirmationCreate(string ReviewToken, bool Reviewed, Guid? ProcedureId, string AreaCode,
-    string SourceRecordId, string BookedAmount, string Currency, string ConfirmationDate, string Respondent, string ContactValidationSource);
+    string SourceRecordId, string BookedAmount, string Currency, string ConfirmationDate, string Respondent, string ContactValidationSource,
+    ConfirmationBookedSourcePin? BookedSource = null);
   public sealed record UiConfirmationAction(string Action,string ReviewToken,bool Reviewed,Guid? EvidenceId=null,
     string? Reference=null,string? Origin=null,string? Channel=null,string? ConfirmedAmount=null,string? AuthenticityAssessment=null,
     string? Decision=null,string? Purpose=null,string[]? EvidenceReferences=null,string? Conclusion=null,bool? Critical=null,string? Rationale=null);
-  public sealed record UiConfirmationBatchItem(string SourceRecordId, string BookedAmount, string Respondent, string ContactValidationSource);
+  public sealed record UiConfirmationBatchItem(string SourceRecordId, string BookedAmount, string Respondent, string ContactValidationSource,
+    ConfirmationBookedSourcePin? BookedSource = null);
   public sealed record UiConfirmationBatch(string ReviewToken, bool Reviewed, Guid? ProcedureId, string AreaCode,
     string Currency, string ConfirmationDate, UiConfirmationBatchItem[] Cases);
   private static void MapConfirmationEndpoints(RouteGroupBuilder group)
@@ -18,6 +20,20 @@ public static partial class UiEndpoints
       ReadAsync(http,(db,a,ct)=>ConfirmationWorkspace.GetAsync(db,a,id,page??0,filter??"ALL",ct))));
     UiEndpointContractMetadata.WithUiResponse<ConfirmationDetail>(group.MapGet("/engagements/{id:guid}/confirmations/{caseId:guid}",(Guid id,Guid caseId,HttpContext http)=>
       ReadAsync(http,(db,a,ct)=>ConfirmationWorkspace.DetailAsync(db,a,id,caseId,ct))));
+    group.MapGet("/engagements/{id:guid}/confirmations/bank-sources",
+      (Guid id, int? page, int? pageSize, HttpContext http) =>
+        ReadAsync(http, (db, a, ct) => ConfirmationWorkspace.BankSourcesAsync(db, a, id, page ?? 0, pageSize ?? 5, ct)))
+      .WithName("GetConfirmationBankBookedSources")
+      .WithSummary("List approved Bank booked-source candidates")
+      .WithDescription("Returns one bounded, engagement-scoped page of safe Bank reconciliation source candidates for confirmation preparation. Pages default to 0 and 5 rows; the source details remain subject to a separate exact-ID read and current authorization.")
+      .WithUiResponse<ConfirmationBankSourcePage>();
+    group.MapGet("/engagements/{id:guid}/confirmations/bank-sources/{reconciliationId:guid}",
+      (Guid id, Guid reconciliationId, HttpContext http) =>
+        ReadAsync(http, (db, a, ct) => ConfirmationWorkspace.BankSourceAsync(db, a, id, reconciliationId, ct)))
+      .WithName("GetConfirmationBankBookedSource")
+      .WithSummary("Read an exact approved Bank booked source")
+      .WithDescription("Returns the safe confirmation source projection for one exact Bank reconciliation ID in this engagement. Currentness and source identity are revalidated by the Application workspace.")
+      .WithUiResponse<ConfirmationBankSourceOption>();
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<ConfirmationBatchValue>>(group.MapPost("/engagements/{id:guid}/confirmations/batch", (Guid id, UiConfirmationBatch i, HttpContext http) => CommandAsync(http, (db,a,ct) =>
     {
       if (i.Cases is not {Length:>=1 and <=100} || !AuditConfirmationAreaCodes.IsSupported(i.AreaCode) || i.Currency is not {Length:3} ||
@@ -26,19 +42,21 @@ public static partial class UiEndpoints
       var cases = new List<ConfirmationBatchItem>(i.Cases.Length);
       foreach (var c in i.Cases)
       {
-        if (c is null || !Bound(c.SourceRecordId,200) || !Bound(c.Respondent,500) || !Bound(c.ContactValidationSource,2000) || !TryConfirmationAmount(c.BookedAmount,out var amount))
+        if (c is null || !Bound(c.SourceRecordId,200) || !Bound(c.Respondent,500) || !Bound(c.ContactValidationSource,2000) ||
+            !TryConfirmationAmount(c.BookedAmount,out var amount) || !ValidBookedSourcePin(i.AreaCode, c.BookedSource))
           return Task.FromResult(CommandResult<ConfirmationBatchValue>.Fail("request.invalid","Every case requires bounded identity, exact amount and validated contact evidence. No cases were saved."));
-        cases.Add(new(c.SourceRecordId,amount,c.Respondent,c.ContactValidationSource));
+        cases.Add(new(c.SourceRecordId,amount,c.Respondent,c.ContactValidationSource,c.BookedSource));
       }
       return ConfirmationWorkspace.CreateBatchAsync(db,a,new(id,i.ProcedureId,i.AreaCode,i.Currency,date,cases),i.ReviewToken,i.Reviewed,ct);
     })), includeConflict: true);
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<ConfirmationValue>>(group.MapPost("/engagements/{id:guid}/confirmations",(Guid id,UiConfirmationCreate i,HttpContext http)=>CommandAsync(http,(db,a,ct)=>
     {
-      if(!TryConfirmationAmount(i.BookedAmount,out var amount) || !DateOnly.TryParseExact(i.ConfirmationDate,"yyyy-MM-dd",out var date) ||
+      if(!TryConfirmationAmount(i.BookedAmount,out var amount) || !ValidBookedSourcePin(i.AreaCode, i.BookedSource) ||
+        !DateOnly.TryParseExact(i.ConfirmationDate,"yyyy-MM-dd",out var date) ||
         !AuditConfirmationAreaCodes.IsSupported(i.AreaCode) || !Bound(i.SourceRecordId,200) || !Bound(i.Respondent,500) || !Bound(i.ContactValidationSource,2000) ||
         i.Currency is not {Length:3} || i.ReviewToken is not {Length:64})
         return Task.FromResult(CommandResult<ConfirmationValue>.Fail("request.invalid","Provide a reviewed identity, exact amount, date and bounded contact evidence."));
-      return ConfirmationWorkspace.CreateAsync(db,a,new(id,i.ProcedureId,i.AreaCode,i.SourceRecordId,amount,i.Currency,date,i.Respondent,i.ContactValidationSource),i.ReviewToken,i.Reviewed,ct);
+      return ConfirmationWorkspace.CreateAsync(db,a,new(id,i.ProcedureId,i.AreaCode,i.SourceRecordId,amount,i.Currency,date,i.Respondent,i.ContactValidationSource,i.BookedSource),i.ReviewToken,i.Reviewed,ct);
     })), includeConflict: true);
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/engagements/{id:guid}/confirmations/{caseId:guid}/actions",(Guid id,Guid caseId,UiConfirmationAction i,HttpContext http)=>CommandAsync(http,(db,a,ct)=>
     {
@@ -54,6 +72,11 @@ public static partial class UiEndpoints
     })), includeConflict: true);
   }
   private static bool TryConfirmationAmount(string? value,out decimal amount)=>ValidConfirmationAmount(value,out amount);
+  private static bool ValidBookedSourcePin(string areaCode, ConfirmationBookedSourcePin? pin) =>
+    pin is null || areaCode == "CASH_BANK" && pin.Kind == "BANK_RECONCILIATION" && pin.ReconciliationId != Guid.Empty &&
+      pin.ExpectedSnapshotSha256 is { Length: 64 } &&
+      System.Text.RegularExpressions.Regex.IsMatch(pin.ExpectedSnapshotSha256, @"\A[0-9a-f]{64}\z",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant);
   private static bool ValidConfirmationAmount(string? value,out decimal amount)
   {
     amount=0;

@@ -16,7 +16,38 @@ import {
   confirmationAmount,
 } from './confirmation-contracts';
 const id = '11111111-1111-4111-8111-111111111111',
-  path = '/api/ui/engagements/' + id + '/confirmations';
+  path = '/api/ui/engagements/' + id + '/confirmations',
+  reconciliationId = '22222222-2222-4222-8222-222222222222',
+  ledgerScheduleId = '33333333-3333-4333-8333-333333333333',
+  statementScheduleId = '44444444-4444-4444-8444-444444444444',
+  sourceHash = 'd'.repeat(64);
+const bankSource = {
+  reconciliationId,
+  sourceAsOfDate: '2026-10-01',
+  entityIdentifier: 'Qatar operating account',
+  currency: 'QAR',
+  bookedAmount: '-987654321.123456',
+  snapshotSha256: sourceHash,
+  ledgerScheduleId,
+  statementScheduleId,
+  inputGeneration: '12',
+  eligible: true,
+  blocker: null,
+};
+const retainedBankSource = {
+  kind: 'BANK_RECONCILIATION',
+  reconciliationId,
+  sourceAsOfDate: '2026-10-01',
+  bookedAmount: '-987654321.123456',
+  currency: 'QAR',
+  snapshotSha256: sourceHash,
+  currentness: 'CURRENT',
+  ledgerScheduleId,
+  statementScheduleId,
+  ledgerSourceHash: 'e'.repeat(64),
+  statementSourceHash: 'f'.repeat(64),
+  blocker: null,
+};
 const row = {
   id,
   areaCode: 'CASH_BANK',
@@ -53,6 +84,7 @@ const detail = {
   responses: [],
   alternatives: [],
   closure: null,
+  bookedSource: null,
 };
 describe('Confirmation evidence controls', () => {
   beforeEach(() => {
@@ -97,6 +129,19 @@ describe('Confirmation evidence controls', () => {
     http.expectOne(path + '/' + id).flush(detail);
     TestBed.tick();
   }
+  function loadBankSources(c: Confirmations, http: HttpTestingController) {
+    TestBed.tick();
+    c.loadBankSourceCandidates();
+    TestBed.tick();
+    http.expectOne(path + '/bank-sources?page=0&pageSize=5').flush({
+      engagementId: id,
+      page: 0,
+      pageSize: 5,
+      total: 1,
+      sources: [bankSource],
+    });
+    TestBed.tick();
+  }
   it('binds native Signal Forms, preserves exact input and requires explicit review', async () => {
     const { f, c, http } = open();
     c.createModel.set({
@@ -117,6 +162,7 @@ describe('Confirmation evidence controls', () => {
     const save = c.create();
     const r = http.expectOne(path);
     expect(r.request.body.bookedAmount).toBe('987654321.123456');
+    expect(r.request.body).not.toHaveProperty('bookedSource');
     expect(r.request.body.reviewToken).toBe(page.createReviewToken);
     r.flush({ value: { confirmationCaseId: id, status: 'DRAFT' } });
     await save;
@@ -125,11 +171,156 @@ describe('Confirmation evidence controls', () => {
     expect(c.createModel().reviewed).toBe(false);
     f.destroy();
   });
+  it('pins a single CASH_BANK case to the exact source and preserves signed decimal text', async () => {
+    const { f, c, http } = open();
+    c.createModel.set({
+      areaCode: 'CASH_BANK',
+      sourceRecordId: 'human-declared-bank-ledger-reference',
+      bookedAmount: '',
+      currency: '',
+      confirmationDate: '2026-10-02',
+      respondent: 'Human selected respondent',
+      contactValidationSource: 'Human verified contact register',
+      reviewed: false,
+    });
+    loadBankSources(c, http);
+    const selected = c.selectCreateBankSource(bankSource);
+    http.expectOne(path + '/bank-sources/' + reconciliationId).flush(bankSource);
+    await selected;
+    TestBed.tick();
+    expect(c.createModel().bookedAmount).toBe(bankSource.bookedAmount);
+    expect(c.createModel().currency).toBe('QAR');
+    expect(c.createModel().confirmationDate).toBe('2026-10-02');
+    expect(c.createModel().bookedSource).toEqual({
+      kind: 'BANK_RECONCILIATION',
+      reconciliationId,
+      expectedSnapshotSha256: sourceHash,
+    });
+    expect(c.createModel().sourceRecordId).toBe('human-declared-bank-ledger-reference');
+    expect(c.createModel().respondent).toBe('Human selected respondent');
+    c.createModel.update((m) => ({ ...m, reviewed: true }));
+    expect(c.canCreate()).toBe(true);
+    const save = c.create(),
+      request = http.expectOne(path);
+    expect(request.request.body.bookedAmount).toBe(bankSource.bookedAmount);
+    expect(request.request.body.currency).toBe('QAR');
+    expect(request.request.body.bookedSource).toEqual({
+      kind: 'BANK_RECONCILIATION',
+      reconciliationId,
+      expectedSnapshotSha256: sourceHash,
+    });
+    request.flush({ value: { confirmationCaseId: id, status: 'DRAFT' } });
+    await save;
+    http.expectOne(path + '?page=0&filter=ALL').flush(page);
+    TestBed.tick();
+    f.destroy();
+  });
+  it('pins each CASH_BANK batch row and keeps respondent mapping human declared', async () => {
+    const { f, c, http } = open();
+    c.batchModel.set({
+      areaCode: 'CASH_BANK',
+      currency: '',
+      confirmationDate: '2026-10-02',
+      procedureId: '',
+      cases: [{
+        sourceRecordId: 'human-selected-source-record',
+        bookedAmount: '',
+        respondent: 'Human selected batch respondent',
+        contactValidationSource: 'Human verified batch contact',
+      }],
+      reviewed: false,
+    });
+    loadBankSources(c, http);
+    const selected = c.selectBatchBankSource(0, bankSource);
+    http.expectOne(path + '/bank-sources/' + reconciliationId).flush(bankSource);
+    await selected;
+    TestBed.tick();
+    c.batchModel.update((m) => ({ ...m, reviewed: true }));
+    expect(c.canCreateBatch()).toBe(true);
+    const save = c.createBatch(),
+      request = http.expectOne(path + '/batch');
+    expect(request.request.body.currency).toBe('QAR');
+    expect(request.request.body.cases[0].bookedAmount).toBe(bankSource.bookedAmount);
+    expect(request.request.body.cases[0].bookedSource).toEqual({
+      kind: 'BANK_RECONCILIATION',
+      reconciliationId,
+      expectedSnapshotSha256: sourceHash,
+    });
+    expect(request.request.body.cases[0].sourceRecordId).toBe('human-selected-source-record');
+    expect(request.request.body.cases[0].respondent).toBe('Human selected batch respondent');
+    expect(request.request.body.cases[0].contactValidationSource).toBe('Human verified batch contact');
+    request.flush({ value: { createdCount: 1 } });
+    await save;
+    http.expectOne(path + '?page=0&filter=ALL').flush(page);
+    TestBed.tick();
+    f.destroy();
+  });
+  it('keeps an unavailable exact source pinned and refuses typed submission without fallback', async () => {
+    const { f, c, http } = open();
+    c.createModel.set({
+      areaCode: 'CASH_BANK',
+      sourceRecordId: 'human-declared-reference',
+      bookedAmount: '',
+      currency: '',
+      confirmationDate: '2026-10-02',
+      respondent: 'Human respondent',
+      contactValidationSource: 'Human verified contact',
+      reviewed: false,
+    });
+    loadBankSources(c, http);
+    const selected = c.selectCreateBankSource(bankSource);
+    http.expectOne(path + '/bank-sources/' + reconciliationId).flush({
+      ...bankSource,
+      eligible: false,
+      blocker: 'Linked Bank schedule is no longer eligible.',
+    });
+    await selected;
+    TestBed.tick();
+    expect(c.createModel().bookedSource?.expectedSnapshotSha256).toBe(sourceHash);
+    expect(c.createModel().bookedAmount).toBe('');
+    expect(c.sourceSelection('create')?.state).toBe('unavailable');
+    c.createModel.update((m) => ({ ...m, reviewed: true }));
+    expect(c.canCreate()).toBe(false);
+    await c.create();
+    http.expectNone(path);
+    f.destroy();
+  });
+  it('retains the selected snapshot hash when the exact source read has changed', async () => {
+    const { f, c, http } = open();
+    c.createModel.set({
+      areaCode: 'CASH_BANK',
+      sourceRecordId: 'human-declared-reference',
+      bookedAmount: '',
+      currency: '',
+      confirmationDate: '2026-10-02',
+      respondent: 'Human respondent',
+      contactValidationSource: 'Human verified contact',
+      reviewed: false,
+    });
+    loadBankSources(c, http);
+    const selected = c.selectCreateBankSource(bankSource);
+    http.expectOne(path + '/bank-sources/' + reconciliationId).flush({
+      ...bankSource,
+      bookedAmount: '-987654321.123457',
+      snapshotSha256: 'e'.repeat(64),
+    });
+    await selected;
+    TestBed.tick();
+    expect(c.sourceSelection('create')?.state).toBe('stale');
+    expect(c.createModel().bookedSource?.expectedSnapshotSha256).toBe(sourceHash);
+    expect(c.createModel().bookedAmount).toBe('');
+    c.createModel.update((m) => ({ ...m, reviewed: true }));
+    expect(c.canCreate()).toBe(false);
+    await c.create();
+    http.expectNone(path);
+    f.destroy();
+  });
   it('never treats prepared state as dispatch and sends uncertain actions once', async () => {
     const { f, c, http } = open();
     select(c, http);
     expect(f.nativeElement.textContent).toContain('Not dispatched');
     expect(f.nativeElement.textContent).toContain('Exact booked amount 123.12345678');
+    expect(f.nativeElement.textContent).toContain('no typed approved booked-source proof is retained');
     c.chooseAction('DISPATCH');
     c.actionModel.update((m) => ({ ...m, reference: 'Observed dispatch', reviewed: false }));
     TestBed.tick();
@@ -221,6 +412,7 @@ describe('Confirmation evidence controls', () => {
     expect(r.request.body.cases[1].bookedAmount).toBe('-1.000001');
     expect(r.request.body.procedureId).toBeNull();
     expect(r.request.body.reviewToken).toBe(page.createReviewToken);
+    expect(r.request.body.cases[0]).not.toHaveProperty('bookedSource');
     r.flush({ value: { createdCount: 2 } });
     await save;
     http.expectOne(path + '?page=0&filter=ALL').flush(page);
@@ -293,6 +485,45 @@ describe('Confirmation evidence controls', () => {
     );
     f.destroy();
   });
+  it('renders retained Bank source identity and distinct current, stale and unavailable states', () => {
+    const { f, c, http } = open();
+    c.select(id);
+    TestBed.tick();
+    http.expectOne(path + '/' + id).flush({ ...detail, bookedSource: retainedBankSource });
+    TestBed.tick();
+    expect(f.nativeElement.textContent).toContain('Currentness: CURRENT');
+    expect(f.nativeElement.textContent).toContain('Original source BANK_RECONCILIATION');
+    expect(f.nativeElement.textContent).toContain(reconciliationId);
+    expect(f.nativeElement.textContent).toContain('Source as of 2026-10-01');
+    expect(f.nativeElement.textContent).toContain('Source snapshot SHA-256');
+
+    c.detail.reload();
+    http.expectOne(path + '/' + id).flush({
+      ...detail,
+      bookedSource: { ...retainedBankSource, currentness: 'STALE', blocker: 'Current generation changed.' },
+    });
+    TestBed.tick();
+    expect(f.nativeElement.textContent).toContain('Currentness: STALE');
+    expect(f.nativeElement.textContent).toContain('Current generation changed.');
+
+    c.detail.reload();
+    http.expectOne(path + '/' + id).flush({
+      ...detail,
+      bookedSource: {
+        ...retainedBankSource,
+        sourceAsOfDate: null,
+        bookedAmount: null,
+        currency: null,
+        currentness: 'UNAVAILABLE',
+        blocker: 'Current source could not be read.',
+      },
+    });
+    TestBed.tick();
+    expect(f.nativeElement.textContent).toContain('Currentness: UNAVAILABLE');
+    expect(f.nativeElement.textContent).toContain('Current source could not be read.');
+    expect(f.nativeElement.textContent).toContain('Source snapshot SHA-256');
+    f.destroy();
+  });
   it('recovers only explicitly and requires fresh review after edits', () => {
     const { f, c, http } = open();
     c.createModel.update((m) => ({
@@ -302,6 +533,8 @@ describe('Confirmation evidence controls', () => {
     }));
     TestBed.tick();
     expect(c.saveDraft('create')).toBe(true);
+    const saved = JSON.parse(sessionStorage.getItem(sessionStorage.key(0)!)!) as { value: Record<string, unknown> };
+    expect(saved.value).not.toHaveProperty('bookedSource');
     f.destroy();
     const reopened = open();
     expect(reopened.c.createModel().respondent).toBe('');
@@ -310,6 +543,7 @@ describe('Confirmation evidence controls', () => {
     TestBed.tick();
     expect(reopened.c.createModel().respondent).toBe('Recoverable bank');
     expect(reopened.c.createModel().reviewed).toBe(false);
+    expect(reopened.c.createModel()).not.toHaveProperty('bookedSource');
     http.expectNone(path);
     reopened.f.destroy();
   });
@@ -387,29 +621,89 @@ describe('Confirmation evidence controls', () => {
     expect(await c.confirmNavigation()).toBe(true);
     f.destroy();
   });
+  it('does not recover a pinned Bank draft after its session owner changes', () => {
+    const { f, c, http } = open();
+    c.createModel.update((m) => ({
+      ...m,
+      areaCode: 'CASH_BANK',
+      sourceRecordId: 'human-declared-reference',
+      bookedAmount: bankSource.bookedAmount,
+      currency: bankSource.currency,
+      confirmationDate: '2026-10-02',
+      respondent: 'Human selected respondent',
+      contactValidationSource: 'Human verified contact',
+      bookedSource: {
+        kind: 'BANK_RECONCILIATION',
+        reconciliationId,
+        expectedSnapshotSha256: sourceHash,
+      },
+    }));
+    TestBed.tick();
+    expect(c.saveDraft('create')).toBe(true);
+    expect(sessionStorage.length).toBe(1);
+    const session = TestBed.inject(SessionService);
+    session.clear();
+    TestBed.tick();
+    session.current.set({
+      userId: '55555555-5555-4555-8555-555555555555',
+      firmId: id,
+      generation: '0',
+      staff: true,
+    });
+    TestBed.tick();
+    expect(sessionStorage.length).toBe(0);
+    expect(c.createModel()).not.toHaveProperty('bookedSource');
+    c.recoverDraft('create');
+    TestBed.tick();
+    expect(c.createModel()).not.toHaveProperty('bookedSource');
+    http.expectNone(path);
+    http.expectNone(path + '/bank-sources/' + reconciliationId);
+    f.destroy();
+  });
   it('recovers a lost submission as uncertain and never replays a command automatically', async () => {
     const { f, c, http } = open();
     c.createModel.set({
       areaCode: 'CASH_BANK',
       sourceRecordId: 'bank-unknown',
-      bookedAmount: '1.000001',
-      currency: 'QAR',
+      bookedAmount: '',
+      currency: '',
       confirmationDate: '2026-10-02',
       respondent: 'Uncertain bank',
       contactValidationSource: 'Verified source',
       reviewed: false,
     });
     TestBed.tick();
+    loadBankSources(c, http);
+    const selected = c.selectCreateBankSource(bankSource);
+    http.expectOne(path + '/bank-sources/' + reconciliationId).flush(bankSource);
+    await selected;
+    TestBed.tick();
     c.createModel.update((m) => ({ ...m, reviewed: true }));
     const pending = c.create();
-    http.expectOne(path).flush({}, { status: 503, statusText: 'Unavailable' });
+    const original = http.expectOne(path);
+    expect(original.request.body.bookedSource).toEqual({
+      kind: 'BANK_RECONCILIATION',
+      reconciliationId,
+      expectedSnapshotSha256: sourceHash,
+    });
+    expect(original.request.body.bookedAmount).toBe(bankSource.bookedAmount);
+    original.flush({}, { status: 503, statusText: 'Unavailable' });
     await pending;
     f.destroy();
     const reopened = open();
     reopened.c.recoverDraft('create');
     TestBed.tick();
+    http.expectOne(path + '/bank-sources/' + reconciliationId).flush(bankSource);
+    await Promise.resolve();
+    TestBed.tick();
     expect(reopened.c.uncertain()).toBe(true);
     expect(reopened.c.createModel().reviewed).toBe(false);
+    expect(reopened.c.createModel().bookedSource).toEqual({
+      kind: 'BANK_RECONCILIATION',
+      reconciliationId,
+      expectedSnapshotSha256: sourceHash,
+    });
+    expect(reopened.c.createModel().bookedAmount).toBe(bankSource.bookedAmount);
     await reopened.c.create();
     http.expectNone(path);
     reopened.f.destroy();

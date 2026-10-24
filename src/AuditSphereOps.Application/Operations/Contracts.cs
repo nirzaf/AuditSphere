@@ -114,6 +114,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<GoingConcernAssessment> GoingConcernAssessments { get; }
   DbSet<SubsequentEventReview> SubsequentEventReviews { get; }
   DbSet<AuditConfirmationCase> AuditConfirmationCases { get; }
+  DbSet<AuditConfirmationBookedSource> AuditConfirmationBookedSources { get; }
   DbSet<AuditConfirmationClosure> AuditConfirmationClosures { get; }
   DbSet<AuditConfirmationResponse> AuditConfirmationResponses { get; }
   DbSet<AuditAlternativeProcedure> AuditAlternativeProcedures { get; }

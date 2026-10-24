@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Records;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Shared;
@@ -15,7 +16,8 @@ public sealed record ConfirmationBatchRequest(
   IReadOnlyList<ConfirmationBatchItem> Cases);
 
 public sealed record ConfirmationBatchItem(
-  string SourceRecordId, decimal BookedAmount, string Respondent, string ContactValidationSource);
+  string SourceRecordId, decimal BookedAmount, string Respondent, string ContactValidationSource,
+  ConfirmationBookedSourcePin? BookedSource = null);
 
 public sealed record ConfirmationBatchValue(
   string AreaCode, int CreatedCount, decimal TotalBookedAmount,
@@ -70,7 +72,10 @@ public static class AuditConfirmationBatchService
         InternalOnly: true, RequireProfessionalWork: true), ct);
     if (!auth.Succeeded)
       return CommandResult<ConfirmationBatchValue>.Fail(auth.ErrorCode!, auth.Message!);
-    var engagement = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == request.EngagementId, ct);
+    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.EngagementId && x.FirmId == actor.FirmId, ct);
+    if (engagement is null)
+      return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (request.ProcedureId is { } procedureId)
     {
       var applicable = await db.AuditProcedures.AsNoTracking().AnyAsync(x =>
@@ -94,31 +99,121 @@ public static class AuditConfirmationBatchService
         $"The batch currency {currency} does not match the engagement reporting currency {packageCurrency}.");
 
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    await AuditFieldworkService.LockConfirmationScopeAsync(db, actor, request.EngagementId, ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, request.EngagementId,
+        RequiredRoles: PlanningRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<ConfirmationBatchValue>.Fail(auth.ErrorCode!, auth.Message!);
+    var liveEngagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.EngagementId && x.FirmId == actor.FirmId && x.PracticeClientId == engagement.PracticeClientId, ct);
+    if (liveEngagement is null)
+      return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var generation = await db.ClientSafetyStates.AsNoTracking()
-      .Where(x => x.Id == engagement.PracticeClientId && x.FirmId == actor.FirmId)
-      .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct) ?? 1;
+      .Where(x => x.Id == liveEngagement.PracticeClientId && x.FirmId == actor.FirmId)
+      .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct);
+    if (generation is null || generation < 1)
+      return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var area = request.AreaCode.Trim().ToUpperInvariant();
-    var created = new List<ConfirmationValue>(request.Cases.Count);
-    foreach (var item in request.Cases)
+    var typedIndices = request.Cases.Select((item, index) => (item, index))
+      .Where(x => x.item.BookedSource is not null).ToArray();
+    if (typedIndices.Length > 0 && area != AuditAreaCodes.CashBank)
+      return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "Typed Bank booked sources are supported only for the cash-and-bank area.");
+    var bookedSources = new ConfirmationBankSourceCapture?[request.Cases.Count];
+    if (typedIndices.Length > 0)
     {
+      var pins = typedIndices.Select(x => x.item.BookedSource!).ToArray();
+      var sourceLocks = await ConfirmationBankSourceResolver.LockForPublicationAsync(
+        db, actor.FirmId, liveEngagement.PracticeClientId, request.EngagementId,
+        pins.Select(x => x.ReconciliationId), ct);
+      if (!sourceLocks.Succeeded)
+        return CommandResult<ConfirmationBatchValue>.Fail(sourceLocks.ErrorCode!, sourceLocks.Message!);
+      foreach (var (item, index) in typedIndices)
+      {
+        var resolved = await ConfirmationBankSourceResolver.ResolveForPublicationAsync(
+          db, actor.FirmId, liveEngagement.PracticeClientId, request.EngagementId, item.BookedSource, ct);
+        if (!resolved.Succeeded)
+          return CommandResult<ConfirmationBatchValue>.Fail(resolved.ErrorCode!, resolved.Message!);
+        var source = resolved.Value!;
+        if (item.BookedAmount != source.Bank.LedgerBalance ||
+            !string.Equals(currency, source.Bank.Currency, StringComparison.OrdinalIgnoreCase))
+          return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.GenerationStale,
+            "Every typed Bank source amount and currency must match the batch request.");
+        bookedSources[index] = source;
+      }
+    }
+    // Authority and engagement scope are fresh after all source-resolution awaits and before any row is added.
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, liveEngagement.PracticeClientId, request.EngagementId,
+        RequiredRoles: PlanningRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<ConfirmationBatchValue>.Fail(auth.ErrorCode!, auth.Message!);
+    if (await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.Id == request.EngagementId && x.FirmId == actor.FirmId &&
+          x.PracticeClientId == liveEngagement.PracticeClientId, ct) is null)
+      return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (request.ProcedureId is { } currentProcedureId &&
+        !await db.AuditProcedures.AsNoTracking().AnyAsync(x =>
+          x.Id == currentProcedureId && x.FirmId == actor.FirmId &&
+          x.ClientId == liveEngagement.PracticeClientId && x.EngagementId == request.EngagementId &&
+          x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable, ct))
+      return CommandResult<ConfirmationBatchValue>.Fail(ErrorCodes.GateBlocked,
+        "The linked procedure is no longer applicable to this engagement.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, liveEngagement.PracticeClientId, request.EngagementId,
+        RequiredRoles: PlanningRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<ConfirmationBatchValue>.Fail(auth.ErrorCode!, auth.Message!);
+    var writable = await FileFreezeService.RequireWritableAsync(
+      db, actor, request.EngagementId, "prepare confirmation batch", ct);
+    if (!writable.Succeeded)
+    {
+      // A direct command owns its transaction and must retain the recorded frozen-write refusal.
+      if (tx is not null) await tx.CommitAsync(ct);
+      return CommandResult<ConfirmationBatchValue>.Fail(writable.ErrorCode!, writable.Message!);
+    }
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, liveEngagement.PracticeClientId, request.EngagementId,
+        RequiredRoles: PlanningRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<ConfirmationBatchValue>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var created = new List<ConfirmationValue>(request.Cases.Count);
+    for (var index = 0; index < request.Cases.Count; index++)
+    {
+      var item = request.Cases[index];
+      var bookedSource = bookedSources[index];
+      var createdAt = DateTimeOffset.UtcNow;
       var confirmation = new AuditConfirmationCase
       {
-        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = engagement.PracticeClientId,
+        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = liveEngagement.PracticeClientId,
         EngagementId = request.EngagementId, ProcedureId = request.ProcedureId, AreaCode = area,
-        SourceRecordId = item.SourceRecordId.Trim(), BookedAmount = item.BookedAmount,
-        Currency = currency, ConfirmationDate = request.ConfirmationDate,
+        SourceRecordId = item.SourceRecordId.Trim(), BookedAmount = bookedSource?.Bank.LedgerBalance ?? item.BookedAmount,
+        Currency = (bookedSource?.Bank.Currency ?? currency).ToUpperInvariant(), ConfirmationDate = request.ConfirmationDate,
         Respondent = item.Respondent.Trim(), ContactValidationSource = item.ContactValidationSource.Trim(),
-        Status = AuditConfirmationStatuses.Draft, InputGeneration = generation,
-        CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+        Status = AuditConfirmationStatuses.Draft, InputGeneration = bookedSource?.CurrentGeneration ?? generation.Value,
+        CreatedByUserId = actor.UserId, CreatedAt = createdAt
       };
       db.AuditConfirmationCases.Add(confirmation);
+      if (bookedSource is not null)
+      {
+        db.AuditConfirmationBookedSources.Add(new AuditConfirmationBookedSource
+        {
+          ConfirmationCaseId = confirmation.Id, FirmId = actor.FirmId, ClientId = liveEngagement.PracticeClientId,
+          EngagementId = request.EngagementId, SourceKind = ConfirmationBankSourceResolver.SourceKind,
+          BankReconciliationId = bookedSource.Bank.Id, LedgerScheduleId = bookedSource.LedgerSchedule.Id,
+          StatementScheduleId = bookedSource.StatementSchedule.Id, SnapshotJson = bookedSource.SnapshotJson,
+          SnapshotSha256 = bookedSource.SnapshotSha256, CreatedByUserId = actor.UserId, CreatedAt = createdAt
+        });
+      }
       created.Add(new ConfirmationValue(confirmation.Id, confirmation.Status));
     }
     await db.SaveChangesAsync(ct);
     if (tx is not null) await tx.CommitAsync(ct);
 
     return CommandResult<ConfirmationBatchValue>.Ok(new ConfirmationBatchValue(
-      area, created.Count, request.Cases.Sum(x => x.BookedAmount), created));
+      area, created.Count, request.Cases.Select((item, index) => bookedSources[index]?.Bank.LedgerBalance ?? item.BookedAmount).Sum(), created));
   }
 
   /// <summary>Paged confirmation register for one engagement: each case with its dispatch

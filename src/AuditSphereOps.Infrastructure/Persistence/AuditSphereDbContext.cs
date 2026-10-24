@@ -531,6 +531,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AuditSubsequentMatchRecord> AuditSubsequentMatchRecords => Set<AuditSubsequentMatchRecord>();
 
   public DbSet<AuditConfirmationCase> AuditConfirmationCases => Set<AuditConfirmationCase>();
+  public DbSet<AuditConfirmationBookedSource> AuditConfirmationBookedSources => Set<AuditConfirmationBookedSource>();
   public DbSet<AuditConfirmationClosure> AuditConfirmationClosures => Set<AuditConfirmationClosure>();
 
   public DbSet<AuditConfirmationResponse> AuditConfirmationResponses => Set<AuditConfirmationResponse>();
@@ -643,6 +644,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureFirmOperations(b);
     ConfigureAudit(b);
     ConfigureFieldwork(b);
+    ConfigureConfirmationBookedSources(b);
     ConfigureScopedEvidence(b);
     ConfigureAccounting(b);
     ConfigureNativeTrialBalanceSources(b);

@@ -1,4 +1,32 @@
-export const emptyCreate = () => ({
+import type { ConfirmationBookedSourcePin } from './confirmation-contracts';
+
+export type ConfirmationCreateModel = {
+  areaCode: string;
+  sourceRecordId: string;
+  bookedAmount: string;
+  currency: string;
+  bookedSource?: ConfirmationBookedSourcePin | null;
+  confirmationDate: string;
+  respondent: string;
+  contactValidationSource: string;
+  reviewed: boolean;
+};
+export type ConfirmationBatchCaseModel = {
+  sourceRecordId: string;
+  bookedAmount: string;
+  bookedSource?: ConfirmationBookedSourcePin | null;
+  respondent: string;
+  contactValidationSource: string;
+};
+export type ConfirmationBatchModel = {
+  areaCode: string;
+  currency: string;
+  confirmationDate: string;
+  procedureId: string;
+  cases: ConfirmationBatchCaseModel[];
+  reviewed: boolean;
+};
+export const emptyCreate = (): ConfirmationCreateModel => ({
   areaCode: '',
   sourceRecordId: '',
   bookedAmount: '',
@@ -8,13 +36,13 @@ export const emptyCreate = () => ({
   contactValidationSource: '',
   reviewed: false,
 });
-export const emptyBatchCase = () => ({
+export const emptyBatchCase = (): ConfirmationBatchCaseModel => ({
   sourceRecordId: '',
   bookedAmount: '',
   respondent: '',
   contactValidationSource: '',
 });
-export const emptyBatch = () => ({
+export const emptyBatch = (): ConfirmationBatchModel => ({
   areaCode: '',
   currency: '',
   confirmationDate: '',
@@ -41,30 +69,58 @@ export function intent<T extends { reviewed: boolean }>(model: T): Omit<T, 'revi
   const { reviewed, ...value } = model;
   return value;
 }
-function strings(raw: unknown, fields: Record<string, number>): Record<string, string> | null {
+function strings<const T extends Record<string, number>>(
+  raw: unknown,
+  fields: T,
+): { [K in keyof T]: string } | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const o = raw as Record<string, unknown>,
-    keys = Object.keys(fields);
+    keys = Object.keys(fields) as (keyof T & string)[];
   if (Object.keys(o).some((k) => !keys.includes(k))) return null;
   const result: Record<string, string> = {};
   for (const k of keys) {
     if (typeof o[k] !== 'string' || (o[k] as string).length > fields[k]) return null;
     result[k] = o[k] as string;
   }
-  return result;
+  return result as { [K in keyof T]: string };
 }
-export function createDraft(raw: unknown): Omit<ReturnType<typeof emptyCreate>, 'reviewed'> | null {
-  return strings(raw, {
-    areaCode: 40,
-    sourceRecordId: 200,
-    bookedAmount: 40,
-    currency: 3,
-    confirmationDate: 10,
-    respondent: 500,
-    contactValidationSource: 2000,
-  }) as ReturnType<typeof createDraft>;
+function bookedSource(raw: unknown): ConfirmationBookedSourcePin | null | undefined | false {
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+  const pin = raw as Record<string, unknown>;
+  return Object.keys(pin).length === 3 &&
+    pin['kind'] === 'BANK_RECONCILIATION' &&
+    typeof pin['reconciliationId'] === 'string' &&
+    /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(pin['reconciliationId']) &&
+    typeof pin['expectedSnapshotSha256'] === 'string' &&
+    /^[0-9a-f]{64}$/.test(pin['expectedSnapshotSha256'])
+    ? {
+        kind: 'BANK_RECONCILIATION',
+        reconciliationId: pin['reconciliationId'],
+        expectedSnapshotSha256: pin['expectedSnapshotSha256'],
+      }
+    : false;
 }
-export function batchDraft(raw: unknown): Omit<ReturnType<typeof emptyBatch>, 'reviewed'> | null {
+export function createDraft(raw: unknown): Omit<ConfirmationCreateModel, 'reviewed'> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const { bookedSource: rawSource, ...fields } = raw as Record<string, unknown>;
+  const source = bookedSource(rawSource),
+    value = strings(fields, {
+      areaCode: 40,
+      sourceRecordId: 200,
+      bookedAmount: 40,
+      currency: 3,
+      confirmationDate: 10,
+      respondent: 500,
+      contactValidationSource: 2000,
+    });
+  if (!value || source === false) return null;
+  return source === undefined
+    ? value
+    : { ...value, bookedSource: source };
+}
+export function batchDraft(raw: unknown): Omit<ConfirmationBatchModel, 'reviewed'> | null {
   if (!raw || typeof raw !== 'object') return null;
   const { cases, ...shared } = raw as Record<string, unknown>;
   const head = strings(shared, {
@@ -74,17 +130,21 @@ export function batchDraft(raw: unknown): Omit<ReturnType<typeof emptyBatch>, 'r
     procedureId: 36,
   });
   if (!head || !Array.isArray(cases) || cases.length < 1 || cases.length > 100) return null;
-  const rows = cases.map((c) =>
-    strings(c, {
-      sourceRecordId: 200,
-      bookedAmount: 40,
-      respondent: 500,
-      contactValidationSource: 2000,
-    }),
-  );
-  return rows.every((c) => c !== null)
-    ? ({ ...head, cases: rows } as ReturnType<typeof batchDraft>)
-    : null;
+  const rows = cases.map((c) => {
+    if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
+    const { bookedSource: rawSource, ...fields } = c as Record<string, unknown>,
+      source = bookedSource(rawSource),
+      value = strings(fields, {
+        sourceRecordId: 200,
+        bookedAmount: 40,
+        respondent: 500,
+        contactValidationSource: 2000,
+      });
+    if (!value || source === false) return null;
+    return source === undefined ? value : { ...value, bookedSource: source };
+  });
+  const validRows = rows.filter((c): c is NonNullable<typeof c> => c !== null);
+  return validRows.length === rows.length ? { ...head, cases: validRows } : null;
 }
 export function actionDraft(raw: unknown): Omit<ReturnType<typeof emptyAction>, 'reviewed'> | null {
   if (!raw || typeof raw !== 'object') return null;

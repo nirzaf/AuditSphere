@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Text.Json.Nodes;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Security;
@@ -9,12 +10,28 @@ using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 
 [Trait("Profile", "Database")]
 public sealed class AuditFieldworkWorkflowTests
 {
+  [Fact]
+  public async Task EmptyBookedSourceMigrationCanRollBackAndForward()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var migrations = db.Database.GetMigrations().ToArray();
+    var proofMigration = migrations.Single(x => x.EndsWith("_ConfirmationBookedSources", StringComparison.Ordinal));
+    await db.GetService<IMigrator>().MigrateAsync(migrations.TakeWhile(x => x != proofMigration).Last());
+    Assert.DoesNotContain(proofMigration, await db.Database.GetAppliedMigrationsAsync());
+    await db.GetService<IMigrator>().MigrateAsync(migrations.Last());
+    Assert.Empty(await db.AuditConfirmationBookedSources.AsNoTracking().ToListAsync());
+  }
+
   [Fact(DisplayName = "Fieldwork retains signed source rows, reviewed selections, confirmation alternatives and area evidence")]
   public async Task FieldworkEvidence_IsScopedAndReviewable()
   {
@@ -70,10 +87,17 @@ public sealed class AuditFieldworkWorkflowTests
     var glBatchId = Guid.NewGuid();
     var glTransactionId = Guid.NewGuid();
     var glHash = new string('b', 64);
+    var glPeriodId = Guid.NewGuid();
+    db.ClientReportingPeriods.Add(new ClientReportingPeriod
+    {
+      Id = glPeriodId, FirmId = scope.FirmId, ClientId = scope.ClientId, PeriodCode = "BANK-SOURCE-FY26",
+      StartDate = new(2026, 1, 1), EndDate = new(2026, 12, 31), Basis = "IFRS", Currency = "QAR",
+      CreatedByUserId = scope.Actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+    });
     db.SourceImportBatches.Add(new SourceImportBatch
     {
       Id = glBatchId, FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
-      PeriodId = Guid.NewGuid(), SourceKind = "GL", ProfileVersion = "gl-v1", ParserVersion = "parser-v1",
+      PeriodId = glPeriodId, SourceKind = "GL", ProfileVersion = "gl-v1", ParserVersion = "parser-v1",
       RawFileSha256Hex = glHash, NormalizedDatasetDigest = glHash, LegalEntityKey = "bank-001", Currency = "QAR",
       RowCount = 1, ExpectedChunkCount = 1, ExpectedTransactionCount = 1, ExpectedLineCount = 1,
       AcceptedChunkCount = 1, AcceptedTransactionCount = 1, AcceptedLineCount = 1, Status = "SEALED",
@@ -183,6 +207,97 @@ public sealed class AuditFieldworkWorkflowTests
     Assert.Equal(bankBefore.ReviewedByUserId, bankAfter.ReviewedByUserId);
     Assert.Equal(bankBefore.ReviewedAt, bankAfter.ReviewedAt);
 
+    // The selected source is the approved ledger 100, not the statement 90 or the
+    // reconciliation residual zero. Human respondent/account mapping remains explicit.
+    var bookedSource = await ConfirmationWorkspace.BankSourceAsync(db, scope.Actor, scope.EngagementId, bankId);
+    Assert.True(bookedSource.Succeeded, bookedSource.Message);
+    Assert.True(bookedSource.Value!.Eligible, bookedSource.Value.Blocker);
+    Assert.Equal(100m, decimal.Parse(bookedSource.Value.BookedAmount!, System.Globalization.CultureInfo.InvariantCulture));
+    var sourcePin = new ConfirmationBookedSourcePin("BANK_RECONCILIATION", bankId, bookedSource.Value.SnapshotSha256!);
+    var typedRequest = new CreateConfirmationRequest(scope.EngagementId, procedure.Id, AuditAreaCodes.CashBank,
+      "explicit-bank-account-source", 100m, "QAR", new DateOnly(2026, 9, 20),
+      "Bank source respondent", "Synthetic reviewed account-to-respondent mapping", sourcePin);
+    foreach (var invalid in new[]
+    {
+      typedRequest with { BookedAmount = 90m },
+      typedRequest with { Currency = "USD" },
+      typedRequest with { BookedSource = sourcePin with { ExpectedSnapshotSha256 = new string('0', 64) } },
+      typedRequest with { EngagementId = fixture.Other.EngagementId }
+    })
+      Assert.False((await AuditFieldworkService.CreateConfirmationAsync(db, scope.Actor, invalid)).Succeeded);
+    Assert.Empty(await db.AuditConfirmationBookedSources.AsNoTracking().ToListAsync());
+    var typed = await AuditFieldworkService.CreateConfirmationAsync(db, scope.Actor, typedRequest);
+    Assert.True(typed.Succeeded, typed.Message);
+    var typedId = typed.Value!.ConfirmationCaseId;
+    var retainedSource = await db.AuditConfirmationBookedSources.AsNoTracking().SingleAsync(x => x.ConfirmationCaseId == typedId);
+    Assert.Equal(sourcePin.ExpectedSnapshotSha256, retainedSource.SnapshotSha256);
+    var typedDetail = await ConfirmationWorkspace.DetailAsync(db, reviewer, scope.EngagementId, typedId);
+    Assert.True(typedDetail.Succeeded, typedDetail.Message);
+    Assert.Equal("CURRENT", typedDetail.Value!.BookedSource!.Currentness);
+    Assert.Equal(100m, decimal.Parse(typedDetail.Value.BookedSource.BookedAmount!, System.Globalization.CultureInfo.InvariantCulture));
+    Assert.Equal("2026-09-19", typedDetail.Value.BookedSource.SourceAsOfDate);
+    var invalidBatch = await AuditConfirmationBatchService.CreateConfirmationBatchAsync(db, scope.Actor,
+      new(scope.EngagementId, procedure.Id, AuditAreaCodes.CashBank, "QAR", new DateOnly(2026, 9, 20),
+        [new("typed-batch-valid", 100m, "Bank A", "Explicit account mapping", sourcePin),
+         new("typed-batch-invalid", 90m, "Bank B", "Explicit account mapping", sourcePin)]));
+    Assert.False(invalidBatch.Succeeded);
+    Assert.False(await db.AuditConfirmationCases.AnyAsync(x => x.SourceRecordId == "typed-batch-valid"));
+    var validBatch = await AuditConfirmationBatchService.CreateConfirmationBatchAsync(db, scope.Actor,
+      new(scope.EngagementId, procedure.Id, AuditAreaCodes.CashBank, "QAR", new DateOnly(2026, 9, 20),
+        [new("typed-batch-a", 100m, "Bank A", "Explicit account mapping A", sourcePin),
+         new("typed-batch-b", 100m, "Bank B", "Explicit account mapping B", sourcePin)]));
+    Assert.True(validBatch.Succeeded, validBatch.Message);
+    Assert.Equal(200m, validBatch.Value!.TotalBookedAmount);
+    var batchCaseIds = validBatch.Value.Cases.Select(x => x.ConfirmationCaseId).ToArray();
+    Assert.Equal(2, await db.AuditConfirmationBookedSources.CountAsync(x => batchCaseIds.Contains(x.ConfirmationCaseId)));
+    var changedProof = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE audit_confirmation_booked_sources SET snapshot_json='{{}}' WHERE confirmation_case_id={typedId}"));
+    Assert.Equal("55000", changedProof.SqlState);
+    var reboundCase = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE audit_confirmation_cases SET booked_amount=90 WHERE id={typedId}"));
+    Assert.Equal("55000", reboundCase.SqlState);
+    Assert.Equal(retainedSource.SnapshotJson, (await db.AuditConfirmationBookedSources.AsNoTracking()
+      .SingleAsync(x => x.ConfirmationCaseId == typedId)).SnapshotJson);
+    foreach (var forgeSnapshot in new[] { false, true })
+    {
+      await using var forgedDb = new AuditSphereDbContext(pg.Options);
+      var unbound = await AuditFieldworkService.CreateConfirmationAsync(forgedDb, scope.Actor,
+        typedRequest with { SourceRecordId = "sql-boundary-" + forgeSnapshot, BookedSource = null,
+          BookedAmount = forgeSnapshot ? 100m : 90m });
+      Assert.True(unbound.Succeeded, unbound.Message);
+      var unboundCase = await forgedDb.AuditConfirmationCases.AsNoTracking()
+        .SingleAsync(x => x.Id == unbound.Value!.ConfirmationCaseId);
+      var forgedJson = retainedSource.SnapshotJson;
+      if (forgeSnapshot)
+      {
+        var document = JsonNode.Parse(forgedJson)!;
+        document["Bank"]!["LedgerBalance"] = "90";
+        forgedJson = document.ToJsonString();
+      }
+      await using var forgedTx = await forgedDb.Database.BeginTransactionAsync();
+      forgedDb.AuditConfirmationBookedSources.Add(new()
+      {
+        ConfirmationCaseId = unboundCase.Id, FirmId = scope.FirmId, ClientId = scope.ClientId,
+        EngagementId = scope.EngagementId, BankReconciliationId = bankId,
+        LedgerScheduleId = retainedSource.LedgerScheduleId, StatementScheduleId = retainedSource.StatementScheduleId,
+        SnapshotJson = forgedJson, SnapshotSha256 = Hashing.Sha256Hex(forgedJson),
+        CreatedByUserId = unboundCase.CreatedByUserId, CreatedAt = unboundCase.CreatedAt
+      });
+      await forgedDb.SaveChangesAsync();
+      var forgedRefused = await Assert.ThrowsAsync<PostgresException>(() => forgedTx.CommitAsync());
+      Assert.Equal("23514", forgedRefused.SqlState);
+    }
+    var proofDelete = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"DELETE FROM audit_confirmation_booked_sources WHERE confirmation_case_id={typedId}"));
+    Assert.Equal("55000", proofDelete.SqlState);
+    var proofTruncate = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync(
+      "TRUNCATE audit_confirmation_booked_sources"));
+    Assert.Equal("55000", proofTruncate.SqlState);
+    var migrationIds = db.Database.GetMigrations().ToArray();
+    var precedingProofMigration = migrationIds.TakeWhile(x => !x.EndsWith("_ConfirmationBookedSources", StringComparison.Ordinal)).Last();
+    var downRefused = await Assert.ThrowsAsync<InvalidOperationException>(() => db.GetService<IMigrator>().MigrateAsync(precedingProofMigration));
+    Assert.Equal("55000", Assert.IsType<PostgresException>(downRefused.InnerException).SqlState);
+
     var missingProposedJournal = await AuditFieldworkService.CreateBankReconciliationAsync(db, scope.Actor,
       new CreateBankReconciliationRequest(scope.EngagementId, procedure.Id, ledgerSchedule.Value.ScheduleId,
         statementSchedule.Value.ScheduleId, new DateOnly(2026, 9, 19),
@@ -226,6 +341,7 @@ public sealed class AuditFieldworkWorkflowTests
       scope.EngagementId, procedure.Id, AuditAreaCodes.CashBank, "bank-001", 50m, "QAR", new DateOnly(2026, 9, 19),
       "Bank relationship manager", "Client master contact list reviewed by partner."));
     Assert.True(confirmation.Succeeded);
+    Assert.False(await db.AuditConfirmationBookedSources.AnyAsync(x => x.ConfirmationCaseId == confirmation.Value!.ConfirmationCaseId));
     Assert.True((await AuditFieldworkService.ApproveConfirmationAsync(db, reviewer, confirmation.Value!.ConfirmationCaseId)).Succeeded);
     Assert.True((await AuditFieldworkService.RecordDispatchEvidenceAsync(db, scope.Actor,
       new RecordConfirmationDispatchRequest(confirmation.Value.ConfirmationCaseId, "provider-dispatch-001"))).Succeeded);
@@ -321,6 +437,16 @@ public sealed class AuditFieldworkWorkflowTests
     var staleCurrentGeneration = currentBankGeneration + 1;
     await db.ClientSafetyStates.Where(x => x.FirmId == scope.FirmId && x.Id == scope.ClientId)
       .ExecuteUpdateAsync(s => s.SetProperty(x => x.InputGeneration, staleCurrentGeneration));
+
+    var staleTyped = await AuditFieldworkService.CreateConfirmationAsync(db, scope.Actor,
+      typedRequest with { SourceRecordId = "stale-typed-bank-source" });
+    Assert.False(staleTyped.Succeeded);
+    Assert.False(await db.AuditConfirmationCases.AnyAsync(x => x.SourceRecordId == "stale-typed-bank-source"));
+    var retainedStaleSource = await ConfirmationWorkspace.DetailAsync(db, reviewer, scope.EngagementId, typedId);
+    Assert.True(retainedStaleSource.Succeeded, retainedStaleSource.Message);
+    Assert.Equal("STALE", retainedStaleSource.Value!.BookedSource!.Currentness);
+    Assert.Equal(retainedSource.SnapshotSha256, retainedStaleSource.Value.BookedSource.SnapshotSha256);
+    Assert.Equal(100m, decimal.Parse(retainedStaleSource.Value.BookedSource.BookedAmount!, System.Globalization.CultureInfo.InvariantCulture));
 
     var staleScheduleCreate = await AuditFieldworkService.CreateBankReconciliationAsync(db, reviewer,
       new CreateBankReconciliationRequest(scope.EngagementId, procedure.Id, ledgerSchedule.Value.ScheduleId,

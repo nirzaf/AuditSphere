@@ -71,6 +71,16 @@ public sealed class ConfirmationApiTests
     // Bank inspection is a separate authorized read; the aggregate count is not a data grant.
     var bankPath = $"/api/ui/engagements/{f.EngagementId:D}/fieldwork/bank-reconciliations";
     Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync(bankPath)).StatusCode);
+    // Confirmation preparation has a separate narrow source projection; it does not
+    // grant staff the full Bank evidence inspector or guessed sibling sources.
+    var bookedSourcesPath = path + "/bank-sources";
+    var emptyBookedSources = await Get(c, bookedSourcesPath);
+    Assert.Equal(0, emptyBookedSources.GetProperty("total").GetInt32());
+    Assert.Empty(emptyBookedSources.GetProperty("sources").EnumerateArray());
+    Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync(bookedSourcesPath + "?page=-1")).StatusCode);
+    Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync(bookedSourcesPath + "?pageSize=6")).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync(bookedSourcesPath + "/" + Guid.NewGuid())).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync(Path(other.EngagementId) + "/bank-sources")).StatusCode);
     using var bankReviewerFactory = Factory(pg, f.Reviewer);
     using var bankReviewer = bankReviewerFactory.CreateClient(new() { AllowAutoRedirect = false });
     await SignIn(bankReviewer);
@@ -87,6 +97,7 @@ public sealed class ConfirmationApiTests
     var first=await Get(c,path);Assert.Equal(25,first.GetProperty("items").GetArrayLength());Assert.True(first.GetProperty("hasMore").GetBoolean());Assert.Equal(2,(await Get(c,path+"?page=1")).GetProperty("items").GetArrayLength());
     await using(var db=new AuditSphereDbContext(pg.Options)){(await db.Users.SingleAsync(x=>x.Id==f.Staff.Id)).SessionEpoch++;await db.SaveChangesAsync();}
     Assert.Equal(HttpStatusCode.Unauthorized,(await c.GetAsync(path)).StatusCode);Assert.Equal(HttpStatusCode.Unauthorized,(await Post(c,path,csrf,new{})).StatusCode);
+    Assert.Equal(HttpStatusCode.Unauthorized,(await c.GetAsync(bookedSourcesPath)).StatusCode);
   }
   [Fact]
   public async Task ReviewedBatch_IsAtomic_Bounded_DuplicateSafe_AndScopeFenced()
