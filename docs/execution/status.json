@@ -1014,6 +1014,13 @@
       "status": "ARCHIVED_FOCUSED_CAPTURE; API/Angular integration updated in adjacent current entry.",
       "history": "status-archive-2026-10.json#archivedTargetedVerification.scheduleSourceCapture20261024"
     },
+    "t058CutoffProcedureLineage20261024": {
+      "status": "FOCUSED_PASS; T058 remains PARTIAL",
+      "issue": "Cut-off evidence persisted Guid.Empty instead of the selected procedure ID.",
+      "verification": "Regression RED 1/1; corrected scoped selection lookup; focused Domain test GREEN 1/1.",
+      "sourceCommit": "dad7c5bff73ccac1345c3d2cefa23279c7be3c4c",
+      "limits": "Full T058, append-only revisions, cut-off policy, matching/API/UI, findings and MUS adoption remain open."
+    },
     "scheduleSourceIndependentReview20261024": {
       "status": "FOCUSED_PASS_API_ANGULAR_CI_PENDING",
       "baseline": "c55f1e0d185eb9e6c2b5ec6cc9be17565b425f66",
