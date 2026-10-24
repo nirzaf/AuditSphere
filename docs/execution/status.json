@@ -915,7 +915,7 @@
       "sourceCommit": "893da808b8bff0c395d2b646890b3d9c6f2298a8"
     },
     "t058SubsequentAmountPrecision20261025": {
-      "status": "FOCUSED_PASS_FULL_CI_RUNNING",
+      "status": "FOCUSED_PASS_FULL_CI_RUNNING_WITH_DOCUMENTATION_GATE_FAILURE",
       "sourceCommit": "4ed301647cf76d659563a586a0f6ba69c534f65c",
       "change": "Reject a subsequent-match amount when representing it at six decimal places changes its value; retain accepted amount unchanged.",
       "regression": "AuditSamplingServiceTests.CutOffAndSubsequentMatching_AreDerivedAndVisibleInTheSampleSet rejects 900.0000004 against a 900.000000 sample before the valid full match.",
@@ -924,21 +924,43 @@
       "fullCi": {
         "runId": 40133039876,
         "sourceMatch": "MATCH",
-        "status": "RUNNING",
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/40133039876"
+        "status": "RUNNING_WITH_VERIFIER_JOB_FAILURE",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/40133039876",
+        "failedJob": "Verify · Build, contracts and publication",
+        "failedStep": "Documentation, agent catalog and UI inventory validators",
+        "failure": "At source 4ed30164, status.json was 103481 bytes (>102400) and current-slice Markdown was 62568 bytes (>61440). The documentation follow-up reduced current sizes below limits; local validator and latest docs fast workflow passed.",
+        "followUpDocsCommit": "7cdb7f986dd34167028fa7ea5f7d89d73dba817d",
+        "followUpDocsFastRunId": 40133206996,
+        "followUpDocsFastStatus": "SUCCESS",
+        "lastObservedAtUtc": "2026-10-24T21:33:06+00:00",
+        "completedJobs": {
+          "Angular and full specs": "SUCCESS",
+          "Domain unfiltered": "SUCCESS",
+          "Verify Build/contracts/publication": "FAILURE_DOCUMENTATION_LEDGER_BUDGET"
+        },
+        "pendingJobs": {
+          "API unfiltered": "RUNNING",
+          "Playwright E2E unfiltered": "RUNNING"
+        }
       },
       "fastCi": {
         "runId": 40133000520,
         "workflow": "AuditSphereOps CI",
-        "status": "RUNNING",
+        "status": "CANCELLED_BY_DOCUMENTATION_FOLLOW_UP",
         "url": "https://github.com/nirzaf/AuditSphere/actions/runs/40133000520"
       },
       "acceptanceImageWorkflow": {
         "runId": 40133000519,
-        "status": "RUNNING",
+        "status": "SUCCESS_IMAGE_BUILD_ONLY",
         "url": "https://github.com/nirzaf/AuditSphere/actions/runs/40133000519"
       },
-      "limits": "The subsequent reference remains free text rather than a typed imported bank/GL row link. Approved cut-off window and MUS policy, finding linkage, rendered browser acceptance and qualified methodology acceptance remain open."
+      "limits": "The subsequent reference remains free text rather than a typed imported bank/GL row link. Approved cut-off window and MUS policy, finding linkage, rendered browser acceptance and qualified methodology acceptance remain open.",
+      "latestDocsFastCi": {
+        "runId": 40133206996,
+        "sourceCommit": "7cdb7f986dd34167028fa7ea5f7d89d73dba817d",
+        "status": "SUCCESS",
+        "checks": "Docs Health, Angular build, .NET Release build"
+      }
     }
   },
   "externalGates": [
@@ -1513,10 +1535,12 @@
   },
   "currentSourceCi": {
     "sourceCommit": "4ed301647cf76d659563a586a0f6ba69c534f65c",
-    "evidence": "T058 amount precision guard; exact focused Domain regression passed on the tree later committed as this SHA. No full tests were run locally.",
-    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40133039876 RUNNING (exact source MATCH).",
-    "fastCi": "https://github.com/nirzaf/AuditSphere/actions/runs/40133000520 RUNNING on this SHA.",
-    "acceptanceImageWorkflow": "https://github.com/nirzaf/AuditSphere/actions/runs/40133000519 RUNNING on this SHA; this is an image workflow, not deployment acceptance.",
-    "precedingFull": "40132097923 on 893da808 remains RUNNING with Angular passed and API, E2E, Domain and build/contract verification in progress; it is not current-source acceptance. Earlier 40131071167 and 40131026731 remain separate source runs."
+    "evidence": "T058 amount precision guard; focused regression passed on exact source. Full release verifier exposed the pre-follow-up ledger size budget issue. Latest docs-only follow-up is 7cdb7f986dd34167028fa7ea5f7d89d73dba817d.",
+    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40133039876 RUNNING, exact source MATCH; Angular and unfiltered Domain passed. Verify · Build/contracts/publication failed only the Markdown ledger-size check on 4ed; unfiltered API and E2E remain in progress; no FULL_CI_PASS.",
+    "fastCi": "40133000520 CANCELLED after newer docs push; not a failure. Latest docs-source fast CI 40133206996 PASSED on 7cdb7f986dd34167028fa7ea5f7d89d73dba817d: Docs Health, Angular and .NET Release build.",
+    "acceptanceImageWorkflow": "https://github.com/nirzaf/AuditSphere/actions/runs/40133000519 SUCCESS: private images built; this is not deployment or production acceptance.",
+    "precedingFull": "40132097923 on 893da808 is a preceding-source run and not current-source acceptance.",
+    "docsFollowUpCommit": "7cdb7f986dd34167028fa7ea5f7d89d73dba817d",
+    "docsFollowUpFastCi": "https://github.com/nirzaf/AuditSphere/actions/runs/40133206996 SUCCESS for Docs Health, Angular and .NET Release build; full unfiltered suites were not part of this workflow."
   }
 }
