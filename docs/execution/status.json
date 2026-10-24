@@ -843,15 +843,15 @@
         "implementationCommit": "91aa0b2b19ca5f6814b789c30a9896d2e05e6fe2"
       },
       "latestExactCi": {
-        "candidate": "f7e7308d6f2949ea95f0be7bf0171bb9d2172fb6",
-        "runId": 40064309210,
+        "candidate": "d2cc2b5a1c56046fec723bf3a33f85d705c8cb8d",
+        "runId": 40112119542,
         "sourceMatch": "MATCH",
         "status": "RUNNING",
-        "observedAtUtc": "2026-10-24T05:01:25+00:00",
+        "observedAtUtc": "2026-10-24T16:36:03+00:00",
         "fullPass": false,
-        "passed": "Angular",
+        "passed": "Angular full specs/build",
         "pending": "Domain/API/E2E/build-contracts-publication",
-        "limits": "Exact combined f7 code/test candidate; docs-only follow-ups do not create a new code candidate. No full pass yet."
+        "limits": "Exact accepted-source/binding code candidate. This documentation follow-up is not a new code candidate. Preceding c67/05/21 runs are separate source boundaries; no current full acceptance yet."
       },
       "clientContactReadScope": "Focused read-scope checks retained: status-archive-2026-10.json#keys.clientContactReadScope20261024.",
       "clientRoutingOwnerScope": {
