@@ -106,20 +106,31 @@ public static partial class AuditFieldworkService
     var auth = await AuthorizeEntityAsync(db, actor, scheduleSnapshot, ReviewRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
-    var schedule = await db.AuditSchedules.SingleOrDefaultAsync(x => x.Id == request.ScheduleId && x.FirmId == actor.FirmId, ct);
-    if (schedule is null)
-      return Denied<ScheduleValue>();
-    if (request.Approve && schedule.CreatedByUserId == actor.UserId)
-      return CommandResult<ScheduleValue>.Fail(ErrorCodes.ScopeDenied, "The preparer cannot approve the same schedule.");
-    if (request.Approve && schedule.Residual != 0)
-      return CommandResult<ScheduleValue>.Fail(ErrorCodes.GateBlocked, "An unexplained signed reconciliation residual prevents approval.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await LockConfirmationScopeAsync(db, actor, scheduleSnapshot!.EngagementId, ct);
+    var current = await db.AuditSchedules.FromSqlInterpolated(
+      $"SELECT * FROM audit_schedules WHERE firm_id = {actor.FirmId} AND client_id = {scheduleSnapshot.ClientId} AND engagement_id = {scheduleSnapshot.EngagementId} AND id = {request.ScheduleId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    if (current is null) return Denied<ScheduleValue>();
+    auth = await AuthorizeEntityAsync(db, actor, current, ReviewRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
+    if (request.Approve && current.CreatedByUserId == actor.UserId)
+      return CommandResult<ScheduleValue>.Fail(ErrorCodes.ScopeDenied, "The preparer cannot approve the same schedule.");
+    if (request.Approve && current.Residual != 0)
+      return CommandResult<ScheduleValue>.Fail(ErrorCodes.GateBlocked, "An unexplained signed reconciliation residual prevents approval.");
+    // Validate fresh locked facts even when a direct caller already tracks the old schedule.
+    var schedule = db.AuditSchedules.Local.SingleOrDefault(x => x.Id == current.Id) ??
+      db.AuditSchedules.Attach(current).Entity;
     schedule.CompletenessDecision = request.CompletenessDecision.Trim();
     schedule.Status = request.Approve ? AuditScheduleStatuses.Approved :
-      (schedule.Residual == 0 ? AuditScheduleStatuses.Reconciled : AuditScheduleStatuses.Unreconciled);
+      (current.Residual == 0 ? AuditScheduleStatuses.Reconciled : AuditScheduleStatuses.Unreconciled);
     await db.SaveChangesAsync(ct);
+    auth = await AuthorizeEntityAsync(db, actor, current, ReviewRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
     await tx.CommitAsync(ct);
-    return CommandResult<ScheduleValue>.Ok(ToScheduleValue(schedule));
+    return CommandResult<ScheduleValue>.Ok(new(current.Id, schedule.Status, current.RowCount, current.SignedControlTotal, current.Residual));
   }
 
   private static ScheduleValue ToScheduleValue(AuditSchedule schedule) =>

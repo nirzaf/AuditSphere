@@ -8044,3 +8044,9 @@ Built-in checks exercised actual target/source selection and keyboard preview, e
 ## Recent focused evidence
 
 Reminder bounds, template prerequisites, quotation timelines, practice-time phases and firm-report/finding recovery are preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md) and their keyed records in [status.json](status.json). Full current-source release and applicable human acceptance remain open.
+
+## Risk-owner focused pointer — archived before schedule-review correction 2026-10-24
+
+## Recent focused evidence
+
+Risk-owner staffing revocation reproduced stale routing/readiness (RED1). Latest-owner eligibility now checks current exact staffing, rank, enabled user and linked grant. The existing fixture passes, including lower-rank denial, restoration and no fallback to an older owner; assignment history and Partner clearance remain intact. Broader races/current CI remain open. Prior evidence stays in the historical handoff and [status.json](status.json).

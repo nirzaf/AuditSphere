@@ -909,6 +909,13 @@
         "red": "SupportedSeniorstaffingRevoke retained ownername/level and omitted Amberownerblocker for unaffected reader.",
         "green": "Existing Staffing_MapsFourLevelsToEngagementRoles_AndRiskBandsRouteOwnersAndPartnerReview PASS1; lower-rank refusal, explicit qualified restoration, latestrevoked no olderfallback, originalownerhistory and humanPartnerclearance retained.",
         "limits": "No universal concurrent-revocation, expiry/disabled interleaving, UI/humanAT or fullcurrentCI claim. No history/approval mutation."
+      },
+      "scheduleReviewAuthority": {
+        "status": "RED1_GREEN2 focused; Original03/17/18 and whole31 remain partial.",
+        "red": "Official reviewer role revocation committed at transaction start, yet direct ReviewScheduleAsync persisted APPROVED/completeness text.",
+        "repair": "Existing firm/client/engagement locks, exact scoped schedule FORUPDATE fresh facts, inside currentauthority/self-review/residual checks and precommit reauthorization. Existing directcaller tracking handled without trusting old facts.",
+        "verification": "New single named DB regression plus existing FieldworkEvidence_IsScopedAndReviewable PASS2; no schema/API/UI changes or full local suite.",
+        "limits": "No universal race/currentness/archive-fence/caller-owned transaction claim. No production review endpoint was found: real source-intake/bind/review composition remains required; test-seeded sources are not product acceptance."
       }
     },
     "archivedOn20261024": {

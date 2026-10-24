@@ -391,7 +391,7 @@ Earlier parity implementation observations are retained in the [historical hando
 
 ## Recent focused evidence
 
-Risk-owner staffing revocation reproduced stale routing/readiness (RED1). Latest-owner eligibility now checks current exact staffing, rank, enabled user and linked grant. The existing fixture passes, including lower-rank denial, restoration and no fallback to an older owner; assignment history and Partner clearance remain intact. Broader races/current CI remain open. Prior evidence stays in the historical handoff and [status.json](status.json).
+Risk-owner revocation RED1/GREEN1: invalid latest owners cannot fall back to history. Direct schedule review also reproduced approval after official role revocation (RED1); exact-row transaction guards pass the new case and existing fieldwork flow (GREEN2). History remains retained. Current CI, broader races and real source-intake UI remain open. Other focused evidence stays in the historical handoff and [status.json](status.json).
 
 ## Native generated reporting sources
 

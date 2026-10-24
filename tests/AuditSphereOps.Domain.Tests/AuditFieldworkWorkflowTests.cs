@@ -32,6 +32,68 @@ public sealed class AuditFieldworkWorkflowTests
     Assert.Empty(await db.AuditConfirmationBookedSources.AsNoTracking().ToListAsync());
   }
 
+  [Fact]
+  public async Task ScheduleReviewRefusesAuthorityRevokedBeforeItsTransaction()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, role: "Partner");
+    var scope = fixture.Primary;
+    var reviewer = PbcSeed.User(scope.FirmId, "Staff");
+    var administrator = PbcSeed.User(scope.FirmId, "Staff");
+    var reviewGrant = PbcSeed.Grant(scope.FirmId, reviewer, "Reviewer", scope.ClientId, scope.EngagementId);
+    Guid deniedScheduleId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.Users.AddRange(reviewer, administrator);
+      setup.RoleGrants.AddRange(reviewGrant, PbcSeed.Grant(scope.FirmId, administrator, "Administrator"));
+      await setup.SaveChangesAsync();
+      async Task<Guid> Schedule(string reference)
+      {
+        var created = await AuditFieldworkService.CreateScheduleAsync(setup, scope.Actor,
+          new(scope.EngagementId, "RECEIVABLES_LEAD", "synthetic-AR", reference,
+            new DateTimeOffset(2026, 9, 19, 0, 0, 0, TimeSpan.Zero), new(2026, 1, 1), new(2026, 9, 19),
+            "QAR", "debits positive; credits negative", new string('a', 64), 900m,
+            [new("invoice-001", 1, "1200", "Synthetic retained receivable", 900m, "QAR", null, new(2026, 9, 19), null, null, "{}") ]));
+        Assert.True(created.Succeeded, created.Message);
+        return created.Value!.ScheduleId;
+      }
+      var allowedId = await Schedule("authorized-review");
+      var allowed = await AuditFieldworkService.ReviewScheduleAsync(setup, PbcSeed.Actor(reviewer, "Reviewer"),
+        new(allowedId, "Synthetic independently reviewed complete schedule", true));
+      Assert.True(allowed.Succeeded, allowed.Message);
+      deniedScheduleId = await Schedule("revoked-review");
+    }
+    var interceptor = new RevokeBeforeScheduleReview(async token =>
+    {
+      await using var revokeDb = new AuditSphereDbContext(pg.Options);
+      var result = await RoleAdministrationService.RevokeRoleGrantAsync(revokeDb,
+        PbcSeed.Actor(administrator, "Administrator"), new(reviewGrant.Id, Reason: "Synthetic schedule approval authority boundary"), token);
+      Assert.True(result.Succeeded, result.Message);
+    });
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(interceptor).Options;
+    await using var db = new AuditSphereDbContext(options);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var reviewed = await AuditFieldworkService.ReviewScheduleAsync(db, PbcSeed.Actor(reviewer, "Reviewer"),
+      new(deniedScheduleId, "Must not persist after official revocation", true), timeout.Token);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.True(interceptor.Invoked);
+    Assert.NotNull((await verify.RoleGrants.AsNoTracking().SingleAsync(x => x.Id == reviewGrant.Id)).RevokedAt);
+    var actual = await verify.AuditSchedules.AsNoTracking().SingleAsync(x => x.Id == deniedScheduleId);
+    Assert.True(!reviewed.Succeeded && actual.Status == AuditScheduleStatuses.Reconciled && actual.CompletenessDecision == string.Empty,
+      $"Official revocation committed before approval transaction continued: success={reviewed.Succeeded}, status={actual.Status}, decision={actual.CompletenessDecision}");
+  }
+
+  private sealed class RevokeBeforeScheduleReview(Func<CancellationToken, Task> revoke) : DbTransactionInterceptor
+  {
+    public bool Invoked { get; private set; }
+    public override async ValueTask<DbTransaction> TransactionStartedAsync(DbConnection connection,
+      TransactionEndEventData eventData, DbTransaction result, CancellationToken cancellationToken = default)
+    {
+      if (!Invoked) { Invoked = true; await revoke(cancellationToken); }
+      return result;
+    }
+  }
+
   [Fact(DisplayName = "Fieldwork retains signed source rows, reviewed selections, confirmation alternatives and area evidence")]
   public async Task FieldworkEvidence_IsScopedAndReviewable()
   {
