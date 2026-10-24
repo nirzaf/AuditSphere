@@ -25351,6 +25351,13 @@
       "implementation": "Reuse existing firm SHARE/client UPDATE/engagement UPDATE fence; reauthorize current actor/scope after transaction starts. Recording rechecks procedure applicability; evaluation locks exact scoped difference and rechecks generation/maker. Existing freeze and financial guards retained. No schema, HTTP DTO or provider change.",
       "verification": "Small existing AuditDifferenceCommandIsolationTests cohort GREEN3: authorized positive operations, original open denial target, committed revocation/user epoch and byte-identical retained difference rows, plus existing sibling-client create/read/evaluate/correction/journal-link denials.",
       "limits": "Only the evidenced revocation ordering and sibling cohort. Corrected-journal/reflection freshness variants, original evaluation immutability policy, caller-owned composition and other correction commands still need their own source-backed treatment. No full-local tests or overall Task18/31 completion."
+    },
+    "scheduleSourceIndependentReviewHistory20261024": {
+      "archivedOn": "2026-10-24",
+      "initialReview": "3 PASS / 0 FAIL / 0 SKIP",
+      "consumerCohort": "4 PASS / 1 FAIL: raw JSON representation rejected a current source; legacy sampling/isolation and empty rollback passed.",
+      "affectedCorrection": "2 PASS / 0 FAIL / 0 SKIP after only descriptor value-comparison fix; matching/mismatching fixtures cover review, IO preview, replay/conflict, tamper and generation refusal.",
+      "evidence": ".local/autonomous/evidence/schedule-intake-20261024/selection-item-readiness-source-guards-reviewed.trx"
     }
   },
   "lastUpdatedOn": "2026-10-24"
