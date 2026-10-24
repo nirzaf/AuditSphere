@@ -1078,7 +1078,7 @@
       "source": "d210d301dd98590ab0ce6606b0336f3d448726b6",
       "focused": "FirmPortalLogoSettingsApiTests 4 PASS (new 8-route scope-denial 403 regression); full suites and OpenAPI drift deferred to CI",
       "history": "status-archive-2026-10.json#keys.ascpSpecDiscovery20261024",
-      "ownerTests": "Existing owner tests PASS locally on a09ca4cb (Release): CommercialWorkflowTests 44/44 (tasks 05/06); MaterialityPracticalRoundingTests, EngagementWorkflowPlanTests, AnnualEngagementPreparationTests, PbcWorkflowTaskTests 25/25 (tasks 07-09). No defect found; tasks stay VERIFY_ONLY pending CI journeys."
+      "ownerTests": "Existing owner tests PASS locally on a09ca4cb (Release): CommercialWorkflowTests 44/44 (tasks 05/06); MaterialityPracticalRoundingTests, EngagementWorkflowPlanTests, AnnualEngagementPreparationTests, PbcWorkflowTaskTests 25/25 (tasks 07-09). No defect found; tasks stay VERIFY_ONLY pending CI journeys. Tasks 10-23 owner cohort PASS 235/235 on c01fc877 (ClientAccounting, FinancialStatement, FinancialPackageGate, Consolidation, AuditConfirmationCommandIsolation, AuditDeliverables, PracticeTime, FirmOperations, SourceManifest). Fast CI c01fc877 success. No defect found; acceptance still needs CI journeys and professional gates."
     },
     "archivedOn20261024": {
       "entries": [
