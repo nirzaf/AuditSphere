@@ -23,7 +23,7 @@
   </section>
 }
 <div class="toolbar">
-  <button matButton [disabled]="busy() || loading()" (click)="refresh()">
+  <button #refreshTrigger matButton [disabled]="busy() || loading()" (click)="refresh()">
     Refresh completeness</button
   ><a matButton routerLink="/app/operations">Operations and recovery</a>
 </div>
@@ -38,8 +38,14 @@
       {{ w.context.source.periodCode }} · {{ w.context.basis }}
     </p>
     <dl>
-      <dt>GL import batch</dt>
+      <dt>
+        {{
+          w.context.source.originKind === 'NATIVE_LEDGER' ? 'Generated GL batch' : 'GL import batch'
+        }}
+      </dt>
       <dd>{{ w.context.source.batchId }}</dd>
+      <dt>Source origin</dt>
+      <dd>{{ w.context.source.originKind }}</dd>
       <dt>Source digest</dt>
       <dd>{{ w.context.source.sourceHash }}</dd>
       <dt>Client / engagement</dt>
@@ -57,6 +63,18 @@
       <dt>Input generation</dt>
       <dd>{{ w.context.inputGeneration }}</dd>
     </dl>
+    @if (w.context.nativeOpening; as opening) {
+      <p>
+        Whole native period ledger · no reporting book. Opening evidence is inherited from this
+        actual retained native source, not an imported opening TB.
+      </p>
+      <dl>
+        <dt>Inherited native opening</dt>
+        <dd>{{ opening.openingId }}</dd>
+        <dt>Native opening manifest hash</dt>
+        <dd>{{ opening.manifestHash }}</dd>
+      </dl>
+    }
     <p>
       Source selection, sealing, completeness and professional conclusions are separate. No local
       journal changes the source books.
@@ -106,38 +124,40 @@
           Next closing sources
         </button>
       </div>
-      <label
-        >Opening trial balance<select
-          aria-label="Opening trial balance"
-          [value]="model().openingId"
-          (change)="edit('openingId', $any($event.target).value)"
+      @if (w.context.source.originKind === 'EXTERNAL') {
+        <label
+          >Opening trial balance<select
+            aria-label="Opening trial balance"
+            [value]="model().openingId"
+            (change)="edit('openingId', $any($event.target).value)"
+          >
+            <option value="">Opening evidence not provided — blocks approval</option>
+            @for (t of w.openingSources.items; track t.id) {
+              <option [value]="t.id">
+                {{ t.periodCode }} · revision {{ t.revision }} · {{ t.id }}
+              </option>
+            }
+          </select></label
         >
-          <option value="">Opening evidence not provided — blocks approval</option>
-          @for (t of w.openingSources.items; track t.id) {
-            <option [value]="t.id">
-              {{ t.periodCode }} · revision {{ t.revision }} · {{ t.id }}
-            </option>
-          }
-        </select></label
-      >
-      <div class="toolbar">
-        <button
-          matButton
-          [disabled]="w.openingSources.page <= 1"
-          (click)="refresh(false, w.closingSources.page, w.openingSources.page - 1)"
-        >
-          Previous opening sources</button
-        ><span
-          >Page {{ w.openingSources.page }} · {{ w.openingSources.totalCount }} opening
-          sources</span
-        ><button
-          matButton
-          [disabled]="w.openingSources.page * 20 >= w.openingSources.totalCount"
-          (click)="refresh(false, w.closingSources.page, w.openingSources.page + 1)"
-        >
-          Next opening sources
-        </button>
-      </div>
+        <div class="toolbar">
+          <button
+            matButton
+            [disabled]="w.openingSources.page <= 1"
+            (click)="refresh(false, w.closingSources.page, w.openingSources.page - 1)"
+          >
+            Previous opening sources</button
+          ><span
+            >Page {{ w.openingSources.page }} · {{ w.openingSources.totalCount }} opening
+            sources</span
+          ><button
+            matButton
+            [disabled]="w.openingSources.page * 20 >= w.openingSources.totalCount"
+            (click)="refresh(false, w.closingSources.page, w.openingSources.page + 1)"
+          >
+            Next opening sources
+          </button>
+        </div>
+      }
       <button matButton [disabled]="!model().trialBalanceId" (click)="loadPlan()">
         Review completeness source pair
       </button>
@@ -146,11 +166,16 @@
       <dl>
         <dt>Closing TB / digest</dt>
         <dd>{{ p.closing.id }} · {{ p.closing.sourceHash }}</dd>
-        <dt>Opening TB / digest</dt>
-        <dd>
-          {{ p.opening?.id ?? 'Unknown opening' }} ·
-          {{ p.opening?.sourceHash ?? 'No retained opening evidence' }}
-        </dd>
+        @if (p.context.nativeOpening; as opening) {
+          <dt>Inherited native opening / manifest</dt>
+          <dd>{{ opening.openingId }} · {{ opening.manifestHash }}</dd>
+        } @else {
+          <dt>Opening TB / digest</dt>
+          <dd>
+            {{ p.opening?.id ?? 'Unknown opening' }} ·
+            {{ p.opening?.sourceHash ?? 'No retained opening evidence' }}
+          </dd>
+        }
       </dl>
       @if (p.blocker) {
         <p role="alert" class="warning">{{ p.blocker }}</p>
@@ -166,7 +191,7 @@
           Read retained bridge
         </button>
       }
-      @if (!p.opening) {
+      @if (!p.opening && !p.context.nativeOpening) {
         <p class="warning">
           Unknown opening is never zero. Evidence can be prepared, but it cannot be approved as
           complete without opening coverage.
@@ -215,11 +240,16 @@
         <dd>{{ r.bridge.id }} · {{ r.bridge.status }}</dd>
         <dt>Closing TB / digest</dt>
         <dd>{{ r.bridge.trialBalanceDatasetId }} · {{ r.bridge.trialBalanceHash }}</dd>
-        <dt>Opening TB / digest</dt>
-        <dd>
-          {{ r.bridge.openingTrialBalanceDatasetId ?? 'Unknown opening' }} ·
-          {{ r.bridge.openingTrialBalanceHash || 'Unavailable' }}
-        </dd>
+        @if (r.context.nativeOpening; as opening) {
+          <dt>Inherited native opening / manifest</dt>
+          <dd>{{ opening.openingId }} · {{ opening.manifestHash }}</dd>
+        } @else {
+          <dt>Opening TB / digest</dt>
+          <dd>
+            {{ r.bridge.openingTrialBalanceDatasetId ?? 'Unknown opening' }} ·
+            {{ r.bridge.openingTrialBalanceHash || 'Unavailable' }}
+          </dd>
+        }
         <dt>Movement coverage</dt>
         <dd>{{ r.bridge.coverageStart }} to {{ r.bridge.coverageEnd }}</dd>
         <dt>Account residual</dt>
@@ -229,7 +259,11 @@
         </dd>
         <dt>Known opening/movement residual</dt>
         <dd>
-          {{ r.bridge.openingTrialBalanceDatasetId ? r.bridge.openingMovementResidual : 'Unknown' }}
+          {{
+            r.bridge.openingTrialBalanceDatasetId || r.context.nativeOpening
+              ? r.bridge.openingMovementResidual
+              : 'Unknown'
+          }}
           · {{ r.bridge.openingMovementMismatchedAccountCount }} known calculation mismatches
         </dd>
         <dt>Journal exceptions</dt>

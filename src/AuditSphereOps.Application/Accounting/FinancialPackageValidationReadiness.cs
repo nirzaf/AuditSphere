@@ -47,7 +47,21 @@ public static class FinancialPackageValidationReadiness
       where package.FirmId == firmId && package.Id == packageId && mapping.FirmId == firmId && dataset.FirmId == firmId
       select dataset).SingleOrDefaultAsync(ct);
     if (source is not null && !(await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, source, ct)).Succeeded)
-      return result with { Failed = result.Failed.Concat(["NATIVE_SOURCE_CURRENT"]).ToArray() };
+      result = result with { Failed = result.Failed.Concat(["NATIVE_SOURCE_CURRENT"]).ToArray() };
+    var nativeBatches = await (from allocation in db.FinancialPackageCashFlowAllocations.AsNoTracking()
+      join batch in db.SourceImportBatches.AsNoTracking() on allocation.SourceImportBatchId equals batch.Id
+      where allocation.FirmId == firmId && allocation.FinancialPackageId == packageId && batch.FirmId == firmId &&
+        batch.OriginKind == SourceImportOrigins.NativeLedger
+      select batch).Distinct().ToListAsync(ct);
+    if (nativeBatches.Count > 0)
+    {
+      var mappingId = await db.FinancialPackages.AsNoTracking().Where(x => x.Id == packageId && x.FirmId == firmId)
+        .Select(x => x.MappingVersionId).SingleAsync(ct);
+      foreach (var batch in nativeBatches)
+        if (!(await NativeGeneralLedgerSourceWorkspace.CheckCurrentAsync(db, batch, ct)).Succeeded ||
+            !(await NativeGeneralLedgerSourceWorkspace.CheckPackagePairAsync(db, batch, mappingId, ct)).Succeeded)
+          return result with { Failed = result.Failed.Concat(["NATIVE_GL_SOURCE_CURRENT"]).ToArray() };
+    }
     return result;
   }
 }

@@ -250,6 +250,9 @@ public static partial class FinancialStatementService
         !await db.SourceImportBatches.AsNoTracking().AnyAsync(x => x.FirmId == package.FirmId && x.ClientId == package.ClientId &&
           x.EngagementId == package.EngagementId && x.Id == accepted.ImportBatchId && x.SourceKind == AccountingSourceKinds.GeneralLedger &&
           x.Status == "SEALED" && x.NormalizedDatasetDigest == accepted.SourceIdentityHash, ct)) return false;
+    var acceptedBatch = await db.SourceImportBatches.AsNoTracking().SingleAsync(x => x.Id == accepted.ImportBatchId && x.FirmId == package.FirmId, ct);
+    if (!(await NativeGeneralLedgerSourceWorkspace.CheckCurrentAsync(db, acceptedBatch, ct)).Succeeded ||
+        !(await NativeGeneralLedgerSourceWorkspace.CheckPackagePairAsync(db, acceptedBatch, package.MappingVersionId, ct)).Succeeded) return false;
     var latest = await LatestCashFlowSourceReviewAsync(db, package.FirmId, package.Id, ct);
     return latest is { Decision: "APPROVED" } && latest.SourceImportBatchId == accepted.ImportBatchId &&
       allocations.All(x => x.CreatedByUserId != latest.ReviewedByUserId) && scheduleAllocations.All(x => x.CreatedByUserId != latest.ReviewedByUserId) &&
@@ -395,7 +398,17 @@ public static partial class FinancialStatementService
       package.EngagementId, periodId, ct);
     if (!selected.Succeeded)
       return CommandResult<CashFlowLineage>.Fail(selected.ErrorCode!, selected.Message!);
-    return CommandResult<CashFlowLineage>.Ok(new CashFlowLineage(movements, allocations, scheduleAllocations, resolved, selected.Value?.ImportBatchId));
+    var sourceMatches = selected.Value is not { IsCurrent: false };
+    if (selected.Value?.ImportBatchId is { } selectedBatchId)
+    {
+      var selectedBatch = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x => x.Id == selectedBatchId &&
+        x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId, ct);
+      sourceMatches = sourceMatches && selectedBatch is not null &&
+        (await NativeGeneralLedgerSourceWorkspace.CheckPackagePairAsync(db, selectedBatch, package.MappingVersionId, ct)).Succeeded;
+    }
+    if (!sourceMatches) resolved = movements.Select(_ => false).ToArray();
+    return CommandResult<CashFlowLineage>.Ok(new CashFlowLineage(movements, allocations, scheduleAllocations, resolved,
+      sourceMatches ? selected.Value?.ImportBatchId : null));
   }
 
   private static async Task<bool> ScheduleAllocationsAreCurrentAsync(IClientAccountingDbContext db, FinancialPackage package,

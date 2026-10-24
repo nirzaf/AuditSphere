@@ -24,6 +24,8 @@ const context = {
   currency: 'QAR',
   importState: 'SEALED',
   rawFileSha256: 'a'.repeat(64),
+  originKind: 'EXTERNAL',
+  unavailableMetadata: [] as string[],
   sourceHash: 'b'.repeat(64),
   profileVersion: 'syn-v1',
   parserVersion: 'syn-v1',
@@ -37,6 +39,7 @@ const catalogue = {
   items: [
     {
       id: batch,
+      originKind: 'EXTERNAL',
       periodId: id,
       periodCode: '2026',
       bookId: null,
@@ -132,17 +135,22 @@ describe('Native bounded general ledger inspection', () => {
     TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true });
     TestBed.resetTestingModule();
   });
-  function open() {
+  function open(value = source) {
     const f = TestBed.createComponent(GeneralLedger);
     f.detectChanges();
     TestBed.tick();
     const http = TestBed.inject(HttpTestingController);
-    http.expectOne(base + '?page=1').flush(catalogue);
+    http
+      .expectOne(base + '?page=1')
+      .flush({
+        ...catalogue,
+        items: catalogue.items.map((item) => ({ ...item, originKind: value.context.originKind })),
+      });
     f.detectChanges();
     const c = f.componentInstance;
     c.choose(batch);
     TestBed.tick();
-    http.expectOne((r) => r.url.startsWith(base + '/' + batch + '?')).flush(source);
+    http.expectOne((r) => r.url.startsWith(base + '/' + batch + '?')).flush(value);
     f.detectChanges();
     return { f, c, http };
   }
@@ -196,6 +204,50 @@ describe('Native bounded general ledger inspection', () => {
     expect(c.validFilters()).toBe(false);
     f.destroy();
   });
+  it.each([
+    { flag: true, manual: 'Manual journal', yearEnd: 'Year end' },
+    { flag: false, manual: 'Source journal', yearEnd: 'In-period' },
+    {
+      flag: null,
+      manual: 'Manual classification unknown',
+      yearEnd: 'Year-end classification unknown',
+    },
+  ])(
+    'preserves and displays known or unknown journal metadata ($flag)',
+    ({ flag, manual, yearEnd }) => {
+      const sourceContext =
+        flag === null
+          ? {
+              ...context,
+              originKind: 'NATIVE_LEDGER',
+              rawFileSha256: '',
+              unavailableMetadata: ['Manual classification', 'Year-end classification'],
+            }
+          : context;
+      const payload = {
+        ...journal,
+        context: sourceContext,
+        journal: { ...journal.journal, isManual: flag, isYearEnd: flag },
+      };
+      const decoded = decodeLedgerJournal(payload);
+      expect(decoded.journal.isManual).toBe(flag);
+      expect(decoded.journal.isYearEnd).toBe(flag);
+      const { f, c, http } = open({ ...source, context: sourceContext });
+      c.journalId.set('J-001');
+      TestBed.tick();
+      http.expectOne((r) => r.url.includes('/journal?')).flush(payload);
+      f.detectChanges();
+      expect(f.nativeElement.textContent).toContain(manual);
+      expect(f.nativeElement.textContent).toContain(yearEnd);
+      if (flag === null) {
+        expect(f.nativeElement.textContent).toContain('NATIVE_LEDGER');
+        expect(f.nativeElement.textContent).toContain('no uploaded file');
+        expect(f.nativeElement.textContent).not.toContain('Source journal');
+        expect(f.nativeElement.textContent).not.toContain('In-period');
+      }
+      f.destroy();
+    },
+  );
   it('clears protected selections and cancels reads after route or session changes', () => {
     const { f, c, http } = open();
     c.journalId.set('J-001');
@@ -219,6 +271,18 @@ describe('Native bounded general ledger inspection', () => {
     f.destroy();
   });
   it('rejects unsupported page sizes, missing identities, truncated or duplicated journal evidence', () => {
+    expect(() =>
+      decodeLedgerSource({ ...source, context: { ...context, rawFileSha256: '' } }),
+    ).toThrow();
+    expect(() =>
+      decodeLedgerSource({ ...source, context: { ...context, originKind: 'NATIVE_LEDGER' } }),
+    ).toThrow();
+    expect(() =>
+      decodeLedgerJournal({ ...journal, journal: { ...journal.journal, isManual: 'false' } }),
+    ).toThrow();
+    expect(() =>
+      decodeLedgerJournal({ ...journal, journal: { ...journal.journal, isYearEnd: 0 } }),
+    ).toThrow();
     expect(() => decodeLedgerCatalogue({ ...catalogue, pageSize: 500 })).toThrow();
     expect(() =>
       decodeLedgerSource({ ...source, context: { ...context, sourceHash: '' } }),

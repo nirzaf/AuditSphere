@@ -1106,21 +1106,21 @@
         "scope": "Current authority, post-close and original-review guards; broader concurrency/source lineage remain open."
       },
       "financialPackageBalance": "PASS_FOCUSED3; manual/read/automatic financial-package predicate aligned. Current CI pending. Archive: status-archive-2026-10.json#keys.financialPackageBalanceEligibility20261024.",
-      "accountingHandoff": "Tasks10/11/15 source/test trace, not accepted. Native successor/sealed source remain. Archive: status-archive-2026-10.json#keys.accountingHandoffReview20261024.",
+      "accountingHandoff": "Tasks10/11/15 trace retained. NativeTB/GL records below; context activation and successor/qualified acceptance remain partial. History: status-archive-2026-10.json#keys.accountingHandoffReview20261024.",
       "queueCurrentExpiry": "RED1/GREEN1+calendar2PASS; fullCI pending. Archive: status-archive-2026-10.json#keys.queueCurrentExpiry20261024.",
       "ciE2eFollowup": "Focused7+1PASS and builtin lifecycle subset; currentCI required. Archive: status-archive-2026-10.json#keys.a9E2eCausalFollowup20261024.",
       "nativeTbHandoff": {
-        "status": "PARTIAL_TASK11; bounded tests/browser PASS; exact-current full CI pending",
-        "migration": "20261024052643_NativeTrialBalanceSourceHandoff",
-        "evidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/native-source-handoff-final",
-        "checks": "Domain7/API1/Angular6 PASS; scoped lint/production UI build, OpenAPI and EF drift PASS. Existing opening browser journey1PASS plus builtin repeat1PASS; actual keyboard refresh/retained source captured before expiry. Immutable SQL/atomicity/hash/rollback and raw-package release retained.",
-        "boundary": "Generated Native TB is not uploaded Raw evidence; exact source membership/hashes retained. Activity-only/interim cannot assert complete coverage. Native GL/successor opening/professional/live acceptance remain open.",
-        "remaining": "Exact-current full CI; native GL bridge and successor openings; professional/live acceptance. Builtin read/refresh is not human AT/native zoom.",
-        "sealRace": {
-          "status": "ACTUAL_RED1_GREEN3_PLUS_PINNED_PRESENTATION1",
-          "evidence": ".local/autonomous/evidence/native-source-seal-concurrency-20261024/review.json",
-          "scope": "Own-transaction posting/seal fence; replay/formats/pinned presentation retained. Other caller-isolation variants unverified."
-        }
+        "status": "BOUNDED_FOCUSED_PASS; Task11 remainspartial",
+        "history": "status-archive-2026-10.json#keys.nativeTbHandoffBeforeNativeGl20261024",
+        "remaining": "Successor opening, context activation, professional/live and exact-source full CI; caller-owned seal-isolation variants remain unverified."
+      },
+      "nativeGlHandoff": {
+        "status": "Partial Task11; focused engineering passed; exact full CI pending.",
+        "migration": "20261024071046_NativeGeneralLedgerSourceHandoff",
+        "evidence": ".local/autonomous/evidence/native-gl-handoff-20261024",
+        "checks": "Domain/API, native/external SQL regressions and scoped Angular/lint/build passed. Browser focus RED/GREEN and built-in check passed; exact runs/hashes in evidence.",
+        "boundary": "Native TB, original journals/lines and actual opening retained; unknown metadata stays unknown. Independent GL acceptance exercised; completeness only inspected.",
+        "remaining": "Public DRAFT-to-ACTIVE path, successor opening, full CI and professional/live acceptance. No live migration. Retained history blocks destructive Down; earlier non-null flag binaries need compatibility review."
       }
     },
     "archivedOn20261024": {

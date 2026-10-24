@@ -1,0 +1,297 @@
+<audit-page-header
+  title="Native general ledger source"
+  eyebrow="Client accounting"
+  description="Retain actual native posting rows pinned to an independently accepted native trial balance. Sealing does not supply independent GL acceptance or completeness."
+/>
+<p><a matButton routerLink="/app/accounting">Client accounting workspace</a></p>
+@if (!clientId() || (!datasetId() && !importBatchId())) {
+  <p role="alert">An exact client and source scope is required.</p>
+}
+<audit-state
+  [loading]="trialBalance.loading() || source.loading()"
+  [error]="trialBalance.error() || source.error()"
+  label="native ledger source"
+/>
+@if (message()) {
+  <p role="status" aria-live="polite">{{ message() }}</p>
+}
+@if (trialBalance.data(); as tb) {
+  @if (!displaySource()) {
+    <section class="panel" aria-labelledby="native-gl-intent-heading">
+      <h2 id="native-gl-intent-heading">Actual retained native trial balance</h2>
+      <dl>
+        <dt>Client / engagement / period</dt>
+        <dd>{{ tb.clientId }} / {{ tb.engagementId }} / {{ tb.periodId }}</dd>
+        <dt>Trial balance / source hash</dt>
+        <dd>
+          {{ tb.datasetId }} / <code>{{ tb.sourceIdentityHash }}</code>
+        </dd>
+        <dt>Cutoff / legal entity / book scope</dt>
+        <dd>{{ tb.asOfDate }} / {{ tb.legalEntityKey }} / {{ tb.bookScope }}</dd>
+      </dl>
+      <p>
+        <a
+          matButton
+          [routerLink]="['/app/accounting/clients', tb.clientId, 'native-sources', tb.datasetId]"
+          >Inspect retained native trial balance</a
+        >
+      </p>
+      <p>
+        Origin: NATIVE_LEDGER. This source is generated from actual posted native journal identities
+        and retained opening evidence, not an uploaded file. Current independent TB acceptance is
+        checked by the server.
+      </p>
+      @if (!tb.isCurrent) {
+        <p role="alert">Historical trial balance: {{ tb.currentnessBlocker }}</p>
+      }
+      @if (tb.activityOnly) {
+        <p role="alert">
+          Activity-only evidence cannot supply complete opening coverage for this GL workflow.
+        </p>
+      }
+      @if (tb.validationStatus !== 'Accepted') {
+        <p role="alert">The trial balance has not passed technical validation.</p>
+      }
+      <form (submit)="$event.preventDefault(); makePreview()">
+        <fieldset [disabled]="busy() || uncertain() || blockedPending()">
+          <legend>Native GL source evidence</legend>
+          <label>Evidence reference <input [formField]="fields.evidenceReference" /></label>
+        </fieldset>
+        <label
+          ><input
+            type="checkbox"
+            [checked]="wholePeriod()"
+            [disabled]="busy() || blockedPending()"
+            (change)="wholePeriod.set($any($event.target).checked)"
+          />
+          I explicitly selected this whole native period ledger with no reporting book and its
+          retained TB cutoff.</label
+        >
+        @if (!uncertain()) {
+          <button matButton="filled" type="submit" [disabled]="!ready() || !!pending()">
+            Preview exact native GL rows
+          </button>
+        }
+      </form>
+    </section>
+  }
+}
+@if (preview(); as p) {
+  <section class="panel" aria-labelledby="native-gl-preview-heading">
+    <h2 id="native-gl-preview-heading">Review actual native GL population</h2>
+    <dl>
+      <dt>Origin / currency / cutoff</dt>
+      <dd>{{ p.originKind }} / {{ p.currency }} / {{ p.asOfDate }}</dd>
+      <dt>Posting sequence</dt>
+      <dd>{{ p.postingSequence }}</dd>
+      <dt>Native opening / manifest</dt>
+      <dd>
+        {{ p.nativeOpening.openingId }} / <code>{{ p.nativeOpening.manifestHash }}</code>
+      </dd>
+      <dt>Source identity</dt>
+      <dd>
+        <code>{{ p.sourceIdentityHash }}</code>
+      </dd>
+      <dt>Manifest / generated rows hash</dt>
+      <dd>
+        <code>{{ p.manifestHash }}</code> / <code>{{ p.generatedRowsHash }}</code>
+      </dd>
+      <dt>Review basis</dt>
+      <dd>
+        <code>{{ p.reviewBasis }}</code>
+      </dd>
+    </dl>
+    <p>
+      {{ p.transactionCount }} actual posted journals · {{ p.lineCount }} lines · Exact debit
+      {{ p.totalDebit }} · Exact credit {{ p.totalCredit }}
+    </p>
+    <h3>Unavailable source metadata</h3>
+    <ul>
+      @for (item of p.unavailableMetadata; track $index) {
+        <li>{{ item }}</li>
+      } @empty {
+        <li>No unavailable fields reported by the source contract.</li>
+      }
+    </ul>
+    <p>
+      Unknown manual/year-end flags stay unknown. Empty source user or system fields are
+      unavailable; no classification or FX rate is inferred.
+    </p>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Native GL exact preview rows">
+      <table>
+        <caption>
+          Actual native source rows ·
+          {{
+            p.lineCount
+          }}
+          total · page
+          {{
+            rowPage() + 1
+          }}
+          ·
+          {{
+            visibleRows().length
+          }}
+          displayed
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Journal / line identity</th>
+            <th scope="col">Date / account identity</th>
+            <th scope="col">Debit</th>
+            <th scope="col">Credit</th>
+            <th scope="col">Original amount / currency</th>
+            <th scope="col">Functional amount / currency</th>
+            <th scope="col">Source user / system</th>
+            <th scope="col">Manual / year end</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of visibleRows(); track r.lineId) {
+            <tr>
+              <th scope="row">
+                {{ r.journalNumber }}<br /><code>{{ r.journalId }}</code
+                ><br /><code>{{ r.lineId }}</code>
+              </th>
+              <td>
+                {{ r.postingDate }} · {{ r.accountCode }}<br /><code>{{ r.clientAccountId }}</code>
+              </td>
+              <td>{{ r.debit }}</td>
+              <td>{{ r.credit }}</td>
+              <td>{{ r.originalAmount }} / {{ r.originalCurrency || 'Unavailable' }}</td>
+              <td>{{ r.functionalAmount }} / {{ r.currency }}</td>
+              <td>{{ r.sourceUser || 'Unavailable' }} / {{ r.sourceSystem || 'Unavailable' }}</td>
+              <td>
+                {{ r.isManual === null ? 'Unknown' : r.isManual ? 'Manual' : 'Source journal' }} /
+                {{ r.isYearEnd === null ? 'Unknown' : r.isYearEnd ? 'Year end' : 'In-period' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <mat-paginator
+      aria-label="Native GL source preview population pages"
+      [length]="p.lineCount"
+      [pageIndex]="rowPage()"
+      [pageSize]="100"
+      [pageSizeOptions]="[100]"
+      [showFirstLastButtons]="true"
+      (page)="rowPage.set($event.pageIndex)"
+    />
+    <p>
+      Every retained preview row is available through these pages. Counts, controls and hashes
+      describe the complete population.
+    </p>
+  </section>
+}
+@if ((preview() || pending()) && !displaySource()) {
+  @if (pending(); as r) {
+    <p>
+      Original request <code>{{ r.requestId }}</code> · TB source
+      <code>{{ r.expectedTrialBalanceSourceHash }}</code> · Review basis
+      <code>{{ r.reviewBasis }}</code> · Evidence {{ r.evidenceReference }}
+    </p>
+    <p>This is retained submitted intent, not a new row review or independent acceptance.</p>
+  }
+  @if (uncertain()) {
+    <p role="alert">
+      The original seal outcome is unknown. It may already have completed. An explicit retry sends
+      that same reviewed request and may finish it; no fresh capture is started.
+    </p>
+  }
+  <label
+    ><input
+      type="checkbox"
+      [checked]="reviewed()"
+      [disabled]="busy()"
+      (change)="reviewed.set($any($event.target).checked)"
+    />
+    {{
+      uncertain()
+        ? 'I checked the retained original intent and explicitly request recovery of that same seal outcome.'
+        : 'I reviewed the exact source rows, cutoff, opening, unavailable metadata and preview basis. Seal generated evidence only.'
+    }}</label
+  >
+  <button matButton="filled" [disabled]="!canSeal() || !reviewed()" (click)="seal()">
+    {{ uncertain() ? 'Retry exact reviewed GL seal request' : 'Seal native generated GL source' }}
+  </button>
+}
+@if (displaySource(); as s) {
+  <section class="panel" aria-labelledby="native-gl-retained-heading">
+    <h2 id="native-gl-retained-heading">Retained native generated GL source</h2>
+    <dl>
+      <dt>Origin / status</dt>
+      <dd>{{ s.originKind }} / {{ s.status }}</dd>
+      <dt>GL batch / native TB</dt>
+      <dd>{{ s.importBatchId }} / {{ s.trialBalanceDatasetId }}</dd>
+      <dt>Client / engagement / period</dt>
+      <dd>{{ s.clientId }} / {{ s.engagementId }} / {{ s.periodId }}</dd>
+      <dt>As of / entity / currency / scope</dt>
+      <dd>{{ s.asOfDate }} / {{ s.legalEntityKey }} / {{ s.currency }} / {{ s.bookScope }}</dd>
+      <dt>Actual journals / lines / posting sequence</dt>
+      <dd>{{ s.transactionCount }} / {{ s.lineCount }} / {{ s.postingSequence }}</dd>
+      <dt>Exact debit / credit</dt>
+      <dd>{{ s.totalDebit }} / {{ s.totalCredit }}</dd>
+      <dt>Native opening / manifest</dt>
+      <dd>
+        {{ s.nativeOpening.openingId }} / <code>{{ s.nativeOpening.manifestHash }}</code>
+      </dd>
+      <dt>Source identity</dt>
+      <dd>
+        <code>{{ s.sourceIdentityHash }}</code>
+      </dd>
+      <dt>Manifest / generated rows hash</dt>
+      <dd>
+        <code>{{ s.manifestHash }}</code> / <code>{{ s.generatedRowsHash }}</code>
+      </dd>
+      <dt>Captured by / at</dt>
+      <dd>{{ s.capturedByUserId }} / {{ s.createdAt }}</dd>
+    </dl>
+    <ul>
+      @for (item of s.unavailableMetadata; track $index) {
+        <li>Unavailable: {{ item }}</li>
+      }
+    </ul>
+    @if (!s.isCurrent) {
+      <p role="alert">Historical source: {{ s.currentnessBlocker }}</p>
+    }
+    <p>
+      Generated source evidence is not an uploaded GL file, independent acceptance, a completeness
+      verdict or a professional report approval. Current permissions and downstream eligibility are
+      checked by the server.
+    </p>
+    <p>
+      <a
+        matButton
+        [routerLink]="['/app/accounting/clients', s.clientId, 'native-gl-sources', s.importBatchId]"
+        >Open retained native GL source link</a
+      >
+      <a
+        matButton
+        [routerLink]="[
+          '/app/accounting/clients',
+          s.clientId,
+          'native-sources',
+          s.trialBalanceDatasetId,
+        ]"
+        >Retained native trial balance</a
+      >
+      @if (s.isCurrent) {
+        <a matButton [routerLink]="['/app/accounting/gl-sources', s.importBatchId, 'acceptance']"
+          >Separate independent GL acceptance</a
+        >
+      }
+      <a matButton [routerLink]="['/app/engagements', s.engagementId, 'general-ledger']"
+        >Scoped GL source inspection</a
+      >
+    </p>
+    <button matButton [disabled]="busy()" (click)="download('rows')">
+      Download exact generated GL rows
+    </button>
+    <button matButton [disabled]="busy()" (click)="download('manifest')">
+      Download retained GL manifest
+    </button>
+  </section>
+}
+<button matButton [disabled]="busy()" (click)="refresh()">Refresh native GL source context</button>

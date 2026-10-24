@@ -269,3 +269,11 @@ Scope approval now projects the existing command's exact readiness and gives a v
 ## Bounded fair PBC reminder discovery
 
 Due reminders now traverse stable due-date/ID pages between singleton worker polls, so handled or ineligible rows cannot permanently hide later requests. Each poll remains bounded; restart and failed-page replay rely on existing receipt deduplication and locked eligibility. The focused PostgreSQL baseline, repaired behavior and independent review are recorded under `reminderBatchFairness20261019` in [status.json](status.json). Exact task-deadline handoff and reconciliation/period-close fencing are the next work in progress. The general rule catalogue, broader accessibility, human AT, professional/provider gates and full current-source release acceptance remain open.
+
+## Native TB handoff before Native GL — archived 2026-10-24
+
+## Native generated trial-balance source handoff
+
+The additive native source path freezes whole-period/no-book scope, approved opening and posted movements, exact membership and generated artifact hashes. Existing technical validation and independent acceptance gate mapping; currentness rejects changed postings even when closing rows are unchanged. Focused backend checks pass, including SQL immutability, atomicity, byte hashes, safe empty rollback and refusal to erase retained history. See the keyed native handoff evidence in [status.json](status.json). API/Angular focused checks and the extended existing opening browser journey pass. An owned built-in tab confirmed retained source identities, Pending validation and keyboard refresh before fixture expiry; the tab was closed. This does not establish human AT/native zoom. Exact-source full CI, successor openings, native GL completeness and professional/live acceptance remain open.
+
+A controlled native posting/package-seal interleaving reproduced stale seal publication. Sealing now retains the existing scope and source fences through commit and rechecks the locked package/authority. The same race, existing seal contracts and actual pinned-presentation sealing pass; exact-source CI and broader transaction-isolation variants remain separate. Synthetic package/artifact scaffolding in the race is not financial-methodology or rendering acceptance.

@@ -31,7 +31,9 @@ const blank = () => ({ account: '', from: '', to: '', journal: '', counterparty:
       label="ledger sources"
     />
     @if (catalogue.data(); as c) {
-      <a matButton [routerLink]="['/app/engagements', c.engagementId, 'general-ledger', 'upload']">Upload general ledger</a>
+      <a matButton [routerLink]="['/app/engagements', c.engagementId, 'general-ledger', 'upload']"
+        >Upload general ledger</a
+      >
       <section class="panel" aria-labelledby="catalogue-heading">
         <h2 id="catalogue-heading">Sealed ledger sources</h2>
         <p>
@@ -43,6 +45,14 @@ const blank = () => ({ account: '', from: '', to: '', journal: '', counterparty:
               <strong>{{ item.entity }} · {{ item.periodCode }} · {{ item.currency }}</strong>
               <p>
                 <code>{{ item.id }}</code> · {{ item.rowCount }} source rows · {{ item.importedAt }}
+              </p>
+              <p>
+                Origin {{ item.originKind
+                }}{{
+                  item.originKind === 'NATIVE_LEDGER'
+                    ? ' · Generated native source, not an uploaded file'
+                    : ''
+                }}
               </p>
             </div>
             <button
@@ -105,7 +115,11 @@ const blank = () => ({ account: '', from: '', to: '', journal: '', counterparty:
             [routerLink]="['/app/accounting/gl-sources', s.context.batchId, 'acceptance']"
             >Review general ledger source acceptance</a
           >
-          <a matButton [routerLink]="['/app/accounting/gl-sources', s.context.batchId, 'completeness']">Prepare and review GL completeness</a>
+          <a
+            matButton
+            [routerLink]="['/app/accounting/gl-sources', s.context.batchId, 'completeness']"
+            >Prepare and review GL completeness</a
+          >
           <dl>
             <dt>Immutable source</dt>
             <dd>
@@ -115,9 +129,15 @@ const blank = () => ({ account: '', from: '', to: '', journal: '', counterparty:
             <dd>{{ s.context.entity }} · {{ s.context.periodCode }} · {{ s.context.currency }}</dd>
             <dt>Source state</dt>
             <dd><audit-status [value]="s.context.importState" /></dd>
+            <dt>Source origin</dt>
+            <dd>{{ s.context.originKind }}</dd>
             <dt>File digest</dt>
             <dd>
-              <code>{{ s.context.rawFileSha256 }}</code>
+              @if (s.context.originKind === 'NATIVE_LEDGER') {
+                Generated native source · no uploaded file
+              } @else {
+                <code>{{ s.context.rawFileSha256 }}</code>
+              }
             </dd>
             <dt>Normalized source digest</dt>
             <dd>
@@ -125,11 +145,38 @@ const blank = () => ({ account: '', from: '', to: '', journal: '', counterparty:
             </dd>
             <dt>Import profile / parser</dt>
             <dd>{{ s.context.profileVersion }} / {{ s.context.parserVersion }}</dd>
-            <dt>Imported by / at</dt>
+            <dt>
+              {{
+                s.context.originKind === 'NATIVE_LEDGER' ? 'Captured by / at' : 'Imported by / at'
+              }}
+            </dt>
             <dd>
               <code>{{ s.context.importedByUserId }}</code> · {{ s.context.importedAt }}
             </dd>
           </dl>
+          @if (s.context.originKind === 'NATIVE_LEDGER') {
+            <p>
+              Generated from native ledger evidence. Independent acceptance and completeness remain
+              separate; unavailable source metadata is not inferred.
+            </p>
+            <p>
+              <a
+                matButton
+                [routerLink]="[
+                  '/app/accounting/clients',
+                  s.context.clientId,
+                  'native-gl-sources',
+                  s.context.batchId,
+                ]"
+                >Inspect retained native GL source and generated artifacts</a
+              >
+            </p>
+            <ul>
+              @for (field of s.context.unavailableMetadata; track $index) {
+                <li>Unavailable: {{ field }}</li>
+              }
+            </ul>
+          }
           @if (s.context.selected; as selected) {
             <p>
               {{
@@ -241,8 +288,21 @@ const blank = () => ({ account: '', from: '', to: '', journal: '', counterparty:
             {{ j.journal.postingDate }} · {{ j.journal.currency }}
           </p>
           <p>
-            {{ j.journal.isManual ? 'Manual journal' : 'Source journal' }} ·
-            {{ j.journal.isYearEnd ? 'Year end' : 'In-period' }}
+            {{
+              j.journal.isManual === null
+                ? 'Manual classification unknown'
+                : j.journal.isManual
+                  ? 'Manual journal'
+                  : 'Source journal'
+            }}
+            ·
+            {{
+              j.journal.isYearEnd === null
+                ? 'Year-end classification unknown'
+                : j.journal.isYearEnd
+                  ? 'Year end'
+                  : 'In-period'
+            }}
             @if (j.journal.reversalReference) {
               · Reversal {{ j.journal.reversalReference }}
             }

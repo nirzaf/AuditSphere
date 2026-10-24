@@ -290,6 +290,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
 public interface IClientAccountingDbContext : IAuditSphereDbContext
 {
   DbSet<NativeTrialBalanceSource> NativeTrialBalanceSources { get; }
+  DbSet<NativeGeneralLedgerSource> NativeGeneralLedgerSources { get; }
   DbSet<AdjustmentPlanAction> AdjustmentPlanActions { get; }
   DbSet<AccountingCapabilityProfile> AccountingCapabilityProfiles { get; }
   DbSet<AccountingCapabilityAcceptance> AccountingCapabilityAcceptances { get; }

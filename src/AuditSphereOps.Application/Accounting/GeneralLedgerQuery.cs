@@ -30,7 +30,7 @@ public sealed record GeneralLedgerJournalLineRow(
 
 public sealed record GeneralLedgerJournalDetail(
   string StableJournalId, DateOnly PostingDate, string DocumentNumber, string Currency,
-  bool IsManual, bool IsYearEnd, string? ReversalReference,
+  bool? IsManual, bool? IsYearEnd, string? ReversalReference,
   IReadOnlyList<GeneralLedgerJournalLineRow> Lines,
   int LineCount, decimal TotalDebit, decimal TotalCredit, bool Balanced);
 
@@ -61,6 +61,10 @@ public static class GeneralLedgerQuery
       return CommandResult<GeneralLedgerLinesPage>.Fail(auth.ErrorCode!, auth.Message!);
     if (batch.Status != "SEALED" || batch.SourceKind != AccountingSourceKinds.GeneralLedger)
       return CommandResult<GeneralLedgerLinesPage>.Fail(ErrorCodes.GateBlocked, "Only a sealed GL batch can be read.");
+
+    if (batch.OriginKind == SourceImportOrigins.NativeLedger && !string.IsNullOrWhiteSpace(filter?.Counterparty))
+      return CommandResult<GeneralLedgerLinesPage>.Fail(ErrorCodes.GateBlocked,
+        "Counterparty filtering is unavailable for native GL: party and intercompany metadata were not recorded.");
 
     var joined = db.GeneralLedgerLines.AsNoTracking()
       .Where(x => x.FirmId == batch.FirmId && x.ClientId == batch.ClientId &&
@@ -171,12 +175,14 @@ public static class GeneralLedgerQuery
       x.Id == observed.Id && x.FirmId == actor.FirmId, ct);
     if (current is null || current.ClientId != observed.ClientId || current.EngagementId != observed.EngagementId ||
         current.PeriodId != observed.PeriodId || current.BookId != observed.BookId || current.Status != observed.Status ||
-        current.SourceKind != observed.SourceKind || current.RawFileSha256Hex != observed.RawFileSha256Hex ||
+        current.SourceKind != observed.SourceKind || current.OriginKind != observed.OriginKind || current.RawFileSha256Hex != observed.RawFileSha256Hex ||
         current.NormalizedDatasetDigest != observed.NormalizedDatasetDigest || current.Currency != observed.Currency ||
         current.LegalEntityKey != observed.LegalEntityKey || current.RowCount != observed.RowCount ||
         current.ProfileVersion != observed.ProfileVersion || current.ParserVersion != observed.ParserVersion ||
         current.CreatedByUserId != observed.CreatedByUserId || current.CreatedAt != observed.CreatedAt)
       return CommandResult.Fail(ErrorCodes.StaleRevision, "The ledger source changed. Refresh before reading it again.");
+    var integrity = await NativeGeneralLedgerSourceWorkspace.CheckIntegrityAsync(db, current, ct);
+    if (!integrity.Succeeded) return integrity;
     return await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(observed.FirmId, observed.ClientId, observed.EngagementId, ReadRoles, InternalOnly: true), ct);
   }

@@ -9933,11 +9933,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("intercompany_counterparty");
 
-                    b.Property<bool>("IsManual")
+                    b.Property<bool?>("IsManual")
                         .HasColumnType("boolean")
                         .HasColumnName("is_manual");
 
-                    b.Property<bool>("IsYearEnd")
+                    b.Property<bool?>("IsYearEnd")
                         .HasColumnType("boolean")
                         .HasColumnName("is_year_end");
 
@@ -10036,11 +10036,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("import_batch_id");
 
-                    b.Property<bool>("IsManual")
+                    b.Property<bool?>("IsManual")
                         .HasColumnType("boolean")
                         .HasColumnName("is_manual");
 
-                    b.Property<bool>("IsYearEnd")
+                    b.Property<bool?>("IsYearEnd")
                         .HasColumnType("boolean")
                         .HasColumnName("is_year_end");
 
@@ -10857,6 +10857,120 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.NativeGeneralLedgerSource", b =>
+                {
+                    b.Property<Guid>("ImportBatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("import_batch_id");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("GeneratedRowsHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("generated_rows_hash");
+
+                    b.Property<string>("GeneratedRowsJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("generated_rows_json");
+
+                    b.Property<int>("LineCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_count");
+
+                    b.Property<string>("ManifestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("manifest_hash");
+
+                    b.Property<string>("ManifestJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("manifest_json");
+
+                    b.Property<string>("NativeTrialBalanceManifestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("native_trial_balance_manifest_hash");
+
+                    b.Property<string>("NativeTrialBalanceSourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("native_trial_balance_source_hash");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("SourceIdentityHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_identity_hash");
+
+                    b.Property<int>("TransactionCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("transaction_count");
+
+                    b.Property<Guid>("TrialBalanceDatasetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("trial_balance_dataset_id");
+
+                    b.HasKey("ImportBatchId");
+
+                    b.HasIndex("FirmId", "ActorId", "ActorEpoch", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_native_gl_actor_request");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ImportBatchId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SourceIdentityHash")
+                        .IsUnique()
+                        .HasDatabaseName("ux_native_gl_source_identity");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "TrialBalanceDatasetId")
+                        .HasDatabaseName("IX_native_general_ledger_sources_firm_id_client_id_engagement~1");
+
+                    b.ToTable("native_general_ledger_sources", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_native_gl_source_values", "actor_epoch >= 1 AND transaction_count BETWEEN 1 AND 250000 AND line_count BETWEEN 1 AND 250000 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND native_trial_balance_source_hash ~ '^[0-9a-f]{64}$' AND native_trial_balance_manifest_hash ~ '^[0-9a-f]{64}$' AND request_hash ~ '^[0-9a-f]{64}$' AND source_identity_hash ~ '^[0-9a-f]{64}$' AND manifest_hash ~ '^[0-9a-f]{64}$' AND generated_rows_hash ~ '^[0-9a-f]{64}$' AND jsonb_typeof(manifest_json::jsonb) = 'object' AND jsonb_typeof(generated_rows_json::jsonb) = 'array' AND jsonb_array_length(generated_rows_json::jsonb) = line_count AND octet_length(manifest_json) BETWEEN 2 AND 16777216 AND octet_length(generated_rows_json) BETWEEN 2 AND 33554432 AND manifest_hash = encode(sha256(convert_to(manifest_json, 'UTF8')), 'hex') AND generated_rows_hash = encode(sha256(convert_to(generated_rows_json, 'UTF8')), 'hex')");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.NativeTrialBalanceSource", b =>
                 {
                     b.Property<Guid>("DatasetId")
@@ -11600,6 +11714,14 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("normalized_dataset_digest");
 
+                    b.Property<string>("OriginKind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("EXTERNAL")
+                        .HasColumnName("origin_kind");
+
                     b.Property<string>("ParserVersion")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -11654,6 +11776,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("source_import_batches", null, t =>
                         {
                             t.HasCheckConstraint("ck_source_import_batch_values", "length(trim(source_kind)) > 0 AND length(trim(profile_version)) > 0 AND length(trim(parser_version)) > 0 AND currency ~ '^[A-Z]{3}$' AND expected_chunk_count >= 0 AND expected_transaction_count >= 0 AND expected_line_count >= 0 AND accepted_chunk_count >= 0 AND accepted_transaction_count >= 0 AND accepted_line_count >= 0 AND accepted_chunk_count <= expected_chunk_count AND accepted_transaction_count <= expected_transaction_count AND accepted_line_count <= expected_line_count AND status IN ('LOADING','SEALED','REJECTED')");
+
+                            t.HasCheckConstraint("ck_source_import_origin", "origin_kind IN ('EXTERNAL', 'NATIVE_LEDGER') AND (origin_kind <> 'NATIVE_LEDGER' OR (source_kind = 'GL' AND book_id IS NULL AND raw_file_sha256_hex = '' AND profile_version = 'native-posted-gl.v1' AND parser_version = 'native-gl-export.v1' AND expected_chunk_count = 0 AND accepted_chunk_count = 0))");
                         });
                 });
 
@@ -34108,6 +34232,30 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Accounting.TrialBalanceDataset", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "DatasetId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.NativeGeneralLedgerSource", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.SourceImportBatch", null)
+                        .WithOne()
+                        .HasForeignKey("AuditSphereOps.Domain.Accounting.NativeGeneralLedgerSource", "FirmId", "ClientId", "EngagementId", "ImportBatchId")
+                        .HasPrincipalKey("AuditSphereOps.Domain.Accounting.SourceImportBatch", "FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.TrialBalanceDataset", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "TrialBalanceDatasetId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

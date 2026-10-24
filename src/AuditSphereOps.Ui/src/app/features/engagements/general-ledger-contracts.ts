@@ -8,6 +8,7 @@ import {
   nat,
   nullable,
   obj,
+  oneOf,
   sha256,
   str,
 } from '../../core/decode';
@@ -23,6 +24,7 @@ const selected = obj({
 });
 const summary = obj({
   id: guid,
+  originKind: oneOf('EXTERNAL', 'NATIVE_LEDGER'),
   periodId: guid,
   periodCode: str(100),
   bookId: nullable(guid),
@@ -50,7 +52,9 @@ const context = obj({
   entity: str(500),
   currency: str(10),
   importState: str(30),
-  rawFileSha256: sha256,
+  rawFileSha256: str(64),
+  originKind: oneOf('EXTERNAL', 'NATIVE_LEDGER'),
+  unavailableMetadata: arr(str(2000), 100),
   sourceHash: sha256,
   profileVersion: str(100),
   parserVersion: str(100),
@@ -111,8 +115,8 @@ const journal = obj({
     postingDate: date,
     documentNumber: str(200),
     currency: str(10),
-    isManual: bool,
-    isYearEnd: bool,
+    isManual: nullable(bool),
+    isYearEnd: nullable(bool),
     reversalReference: nullable(str(200)),
     lines: arr(journalLine, 1000),
     lineCount: nat,
@@ -125,6 +129,9 @@ function validContext(c: ReturnType<typeof context>) {
   const s = c.selected;
   if (
     c.importState !== 'SEALED' ||
+    (c.originKind === 'EXTERNAL'
+      ? !/^[a-f0-9]{64}$/i.test(c.rawFileSha256)
+      : c.rawFileSha256 !== '' || c.bookId !== null) ||
     (s &&
       (s.sourceKind !== 'GL' ||
         s.importBatchId === null ||
@@ -140,6 +147,7 @@ export function decodeLedgerCatalogue(raw: unknown) {
     c.page < 1 ||
     c.pageSize !== 20 ||
     c.items.length > c.totalCount ||
+    c.items.some((x) => x.originKind === 'NATIVE_LEDGER' && x.bookId !== null) ||
     new Set(c.items.map((x) => x.id)).size !== c.items.length
   )
     throw new Error('Unsupported ledger catalogue');

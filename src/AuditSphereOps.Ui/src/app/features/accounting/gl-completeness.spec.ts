@@ -30,6 +30,7 @@ const context = {
     entity: 'SYN-COMPLETE',
     currency: 'QAR',
     importState: 'SEALED',
+    originKind: 'EXTERNAL',
     rawFileSha256: h,
     sourceHash: h,
     profileVersion: 'synthetic',
@@ -39,6 +40,7 @@ const context = {
     selected: null,
   },
   periodStatus: 'ACTIVE',
+  nativeOpening: null,
   basis: 'IFRS',
   startDate: '2026-01-01',
   endDate: '2026-12-31',
@@ -137,6 +139,42 @@ const review = {
   approvalBlocker: null,
   reviewBlocker: null,
 };
+const nativeContext = {
+  ...context,
+  source: {
+    ...context.source,
+    originKind: 'NATIVE_LEDGER',
+    bookId: null,
+    rawFileSha256: '',
+    profileVersion: 'native-posted-gl.v1',
+    parserVersion: 'native-gl-export.v1',
+  },
+  nativeOpening: { openingId: opening, manifestHash: h },
+  bookCode: null,
+  priorPeriodId: null,
+};
+const nativeClosing = { ...closing, bookId: null };
+const nativeWorkspace = {
+  ...workspace,
+  context: nativeContext,
+  closingSources: { ...workspace.closingSources, items: [nativeClosing] },
+  openingSources: { ...workspace.openingSources, items: [], totalCount: 0 },
+};
+const nativePlan = { ...plan, context: nativeContext, closing: nativeClosing, opening: null };
+const nativeReview = {
+  ...review,
+  context: nativeContext,
+  bridge: {
+    ...review.bridge,
+    bookId: null,
+    openingTrialBalanceDatasetId: null,
+    openingTrialBalanceHash: h,
+  },
+  residuals: {
+    ...review.residuals,
+    items: [{ ...review.residuals.items[0], opening: '100', movement: '0.123456' }],
+  },
+};
 const url = `/api/ui/gl-sources/${id}/completeness`,
   list = url + '?page=1&openingPage=1',
   pair = url + `/plan?trialBalanceId=${tb}&openingId=${opening}`,
@@ -167,12 +205,12 @@ describe('Native GL completeness', () => {
     TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true });
     TestBed.resetTestingModule();
   });
-  async function open() {
+  async function open(value: object = workspace) {
     const f = TestBed.createComponent(GeneralLedgerCompleteness);
     f.detectChanges();
     TestBed.tick();
     const http = TestBed.inject(HttpTestingController);
-    http.expectOne(list).flush(workspace);
+    http.expectOne(list).flush(value);
     await f.whenStable();
     TestBed.tick();
     f.detectChanges();
@@ -187,6 +225,173 @@ describe('Native GL completeness', () => {
     c.edit('evidenceReference', 'Reviewed source evidence');
     c.recordAssent({ target: { checked: true } } as unknown as Event);
   }
+  it.each(['restore', 'moved', 'keyboard', 'stale'])(
+    'returns keyboard refresh focus only for its current owner (%s)',
+    async (action) => {
+      const { f, c, http } = await open();
+      f.detectChanges();
+      const trigger = Array.from(
+        f.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+      ).find((button) => button.textContent?.trim() === 'Refresh completeness')!;
+      trigger.focus();
+      const pending = c.refresh(),
+        read = http.expectOne(list);
+      f.detectChanges();
+      expect(trigger.disabled).toBe(true);
+      const elsewhere = f.nativeElement.querySelector(
+        'a[href="/app/operations"]',
+      ) as HTMLAnchorElement;
+      // jsdom cannot blur its already-disabled active button. Establish the
+      // observed browser body-focus state through a programmatic focus/blur,
+      // without synthesizing user keyboard/pointer interaction.
+      elsewhere.focus();
+      elsewhere.blur();
+      expect(document.activeElement).toBe(document.body);
+      if (action === 'moved') elsewhere.focus();
+      if (action === 'keyboard')
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+      if (action === 'stale') {
+        TestBed.inject(SessionService).current.set(null);
+        TestBed.inject(SessionService).invalidation.update((n) => n + 1);
+        TestBed.tick();
+      }
+      read.flush(workspace);
+      await pending;
+      await f.whenStable();
+      TestBed.tick();
+      f.detectChanges();
+      expect(document.activeElement).toBe(
+        action === 'restore' ? trigger : action === 'moved' ? elsewhere : document.body,
+      );
+      if (action === 'restore') expect(trigger.disabled).toBe(false);
+      if (action === 'stale') expect(c.workspace()).toBeNull();
+      f.destroy();
+    },
+  );
+  it('uses the inherited native opening without an imported selector and preserves preparation and independent review assent', async () => {
+    expect(decodeCompletenessWorkspace(nativeWorkspace).context.nativeOpening).toEqual(
+      nativeContext.nativeOpening,
+    );
+    const { f, c, http } = await open(nativeWorkspace);
+    expect(c.workspace(), c.error()).not.toBeNull();
+    f.detectChanges();
+    expect(f.nativeElement.textContent).toContain('no reporting book');
+    expect(f.nativeElement.textContent).toContain(opening);
+    expect(f.nativeElement.querySelector('select[aria-label="Opening trial balance"]')).toBeNull();
+    c.edit('openingId', other);
+    expect(c.model().openingId).toBe('');
+    c.edit('trialBalanceId', tb);
+    const loading = c.loadPlan();
+    http.expectOne(url + `/plan?trialBalanceId=${tb}`).flush(nativePlan);
+    await loading;
+    f.detectChanges();
+    expect(f.nativeElement.textContent).toContain('Inherited native opening / manifest');
+    expect(f.nativeElement.textContent).not.toContain('Unknown opening');
+    c.edit('evidenceReference', 'Synthetic native completeness review');
+    await c.submit();
+    http.expectNone((r) => r.method === 'POST');
+    c.recordAssent({ target: { checked: true } } as unknown as Event);
+    const preparing = c.submit(),
+      write = http.expectOne(url);
+    expect(write.request.body).toEqual({
+      trialBalanceId: tb,
+      openingId: null,
+      revision: h,
+      evidenceReference: 'Synthetic native completeness review',
+      reviewed: true,
+    });
+    write.flush({ value: other });
+    await Promise.resolve();
+    await Promise.resolve();
+    http.expectOne(list).flush(nativeWorkspace);
+    await preparing;
+    expect(c.reviewed()).toBe(false);
+    const read = c.loadReview(bridge);
+    http.expectOne(detail).flush(nativeReview);
+    await read;
+    f.detectChanges();
+    expect(f.nativeElement.textContent).not.toContain('Unknown opening');
+    expect(f.nativeElement.textContent).toContain('100.123456');
+    expect(c.canSubmit()).toBe(false);
+    c.recordAssent({ target: { checked: true } } as unknown as Event);
+    expect(c.canSubmit()).toBe(true);
+    const approving = c.submit(),
+      decision = http.expectOne(`/api/ui/gl-completeness/${bridge}/review`);
+    expect(decision.request.body).toEqual({ revision: h, approve: true, reviewed: true });
+    decision.flush({ value: true });
+    await Promise.resolve();
+    await Promise.resolve();
+    http.expectOne(list).flush(nativeWorkspace);
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.waitFor(() =>
+      http.expectOne(detail).flush({
+        ...nativeReview,
+        bridge: {
+          ...nativeReview.bridge,
+          status: 'APPROVED',
+          reviewedByUserId: id,
+          reviewedAt: stamp,
+        },
+        canApprove: false,
+        canReject: false,
+        approvalBlocker: 'Already reviewed.',
+        reviewBlocker: 'Already reviewed.',
+      }),
+    );
+    await approving;
+    expect(c.canSubmit()).toBe(false);
+    expect(c.reviewed()).toBe(false);
+    f.destroy();
+  });
+  it('refuses native missing or mismatched opening proof and preserves external raw-file strictness', async () => {
+    for (const bad of [
+      null,
+      { openingId: 'invalid', manifestHash: h },
+      { openingId: opening, manifestHash: '' },
+    ]) {
+      expect(() =>
+        decodeCompletenessWorkspace({
+          ...nativeWorkspace,
+          context: { ...nativeContext, nativeOpening: bad },
+        }),
+      ).toThrow();
+    }
+    expect(() =>
+      decodeCompletenessWorkspace({
+        ...workspace,
+        context: { ...context, source: { ...context.source, rawFileSha256: '' } },
+      }),
+    ).toThrow();
+    expect(() =>
+      decodeCompletenessWorkspace({
+        ...nativeWorkspace,
+        context: { ...nativeContext, source: { ...nativeContext.source, bookId: id } },
+      }),
+    ).toThrow();
+    expect(() => decodeCompletenessPlan({ ...nativePlan, opening: prior })).toThrow();
+    expect(() =>
+      decodeCompletenessReview({
+        ...nativeReview,
+        bridge: { ...nativeReview.bridge, openingTrialBalanceHash: 'c'.repeat(64) },
+      }),
+    ).toThrow();
+    expect(() =>
+      decodeCompletenessReview({
+        ...nativeReview,
+        context: { ...nativeContext, nativeOpening: null },
+      }),
+    ).toThrow();
+    const { f, c, http } = await open({
+      ...nativeWorkspace,
+      context: { ...nativeContext, nativeOpening: null },
+    });
+    expect(c.workspace()).toBeNull();
+    expect(c.canSubmit()).toBe(false);
+    await c.submit();
+    http.expectNone((r) => r.method === 'POST');
+    f.destroy();
+  });
   it('prepares once with fresh bound assent and observes a durable operation without claiming approval', async () => {
     const { f, c, http } = await open();
     await prepare(c, http);

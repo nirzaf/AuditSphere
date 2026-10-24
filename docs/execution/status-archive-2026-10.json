@@ -24778,6 +24778,19 @@
       "sourceCommit": "4ada464d00c30b217b5c03c8a5c12f68e1dd8733",
       "evidence": "fast CI (ci.yml) success observed 22 Oct 2026 for 4ada464d; later commits pending at time of record",
       "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/39818204512 FULL_CI_PASS for resolved source 48816d27761d71fa71581c514789844afba02d9b only (not current head)"
+    },
+    "nativeTbHandoffBeforeNativeGl20261024": {
+      "status": "PARTIAL_TASK11; bounded tests/browser PASS; exact-current full CI pending",
+      "migration": "20261024052643_NativeTrialBalanceSourceHandoff",
+      "evidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/native-source-handoff-final",
+      "checks": "Domain7/API1/Angular6 PASS; scoped lint/production UI build, OpenAPI and EF drift PASS. Existing opening browser journey1PASS plus builtin repeat1PASS; actual keyboard refresh/retained source captured before expiry. Immutable SQL/atomicity/hash/rollback and raw-package release retained.",
+      "boundary": "Generated Native TB is not uploaded Raw evidence; exact source membership/hashes retained. Activity-only/interim cannot assert complete coverage. Native GL/successor opening/professional/live acceptance remain open.",
+      "remaining": "Exact-current full CI; native GL bridge and successor openings; professional/live acceptance. Builtin read/refresh is not human AT/native zoom.",
+      "sealRace": {
+        "status": "ACTUAL_RED1_GREEN3_PLUS_PINNED_PRESENTATION1",
+        "evidence": ".local/autonomous/evidence/native-source-seal-concurrency-20261024/review.json",
+        "scope": "Own-transaction posting/seal fence; replay/formats/pinned presentation retained. Other caller-isolation variants unverified."
+      }
     }
   },
   "archivedTargetedVerification": {

@@ -187,6 +187,8 @@ public static partial class FinancialStatementService
       package.EngagementId, periodId.Value, ct);
     if (!selected.Succeeded)
       return CommandResult<ResolvedCashFlowSources>.Fail(selected.ErrorCode!, selected.Message!);
+    if (selected.Value is { IsCurrent: false })
+      return CommandResult<ResolvedCashFlowSources>.Fail(ErrorCodes.StaleRevision, selected.Value.CurrentnessBlocker!);
     if (selected.Value?.ImportBatchId is not Guid batchId)
       return CommandResult<ResolvedCashFlowSources>.Fail(ErrorCodes.GateBlocked,
         "Accept the general ledger for this engagement before linking cash-flow movements to source lines.");
@@ -199,6 +201,9 @@ public static partial class FinancialStatementService
         !string.Equals(batch.NormalizedDatasetDigest, selected.Value.SourceIdentityHash, StringComparison.OrdinalIgnoreCase))
       return CommandResult<ResolvedCashFlowSources>.Fail(ErrorCodes.GateBlocked,
         "The accepted general ledger must match this package's period, currency and sealed source identity.");
+
+    var nativePair = await NativeGeneralLedgerSourceWorkspace.CheckPackagePairAsync(typed, batch, package.MappingVersionId, ct);
+    if (!nativePair.Succeeded) return CommandResult<ResolvedCashFlowSources>.Fail(nativePair.ErrorCode!, nativePair.Message!);
 
     var ids = requested.Select(x => x.GeneralLedgerLineId).Distinct().ToArray();
     var sources = await (from line in typed.GeneralLedgerLines.AsNoTracking()

@@ -73,6 +73,7 @@
     <p><a matButton [routerLink]="['/app/accounting/clients', s.clientId, 'native-sources', s.datasetId]">Open retained source link</a>
       <a matButton [routerLink]="['/app/engagements', s.engagementId, 'tb-intake']">Technical validation and intake</a>
       @if (!s.activityOnly && s.isCurrent) { <a matButton [routerLink]="['/app/accounting/sources', s.datasetId, 'acceptance']">Separate independent source acceptance</a> }
+      @if (!s.activityOnly && s.isCurrent && s.validationStatus === 'Accepted') { <a matButton [routerLink]="['/app/accounting/clients', s.clientId, 'native-sources', s.datasetId, 'general-ledger']">Prepare native GL source from this retained trial balance</a> }
     </p>
     <button matButton [disabled]="busy()" (click)="download('rows')">Download generated rows</button>
     <button matButton [disabled]="busy()" (click)="download('manifest')">Download retained manifest</button>

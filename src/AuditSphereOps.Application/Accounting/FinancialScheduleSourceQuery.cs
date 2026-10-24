@@ -40,6 +40,7 @@ public static class FinancialScheduleSourceQuery
     var selected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor, engagement.PracticeClientId,
       engagementId, periodId, ct);
     if (!selected.Succeeded) return CommandResult<FinancialScheduleSources>.Fail(selected.ErrorCode!, selected.Message!);
+    if (selected.Value is { IsCurrent: false }) return Blocked(selected.Value.CurrentnessBlocker!);
     if (selected.Value?.ImportBatchId is not Guid batchId)
       return Blocked("Independently accept the general ledger for this engagement before inspecting schedule sources.");
     var batch = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&

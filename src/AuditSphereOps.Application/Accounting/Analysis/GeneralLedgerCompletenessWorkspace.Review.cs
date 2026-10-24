@@ -22,9 +22,19 @@ public static partial class GeneralLedgerCompletenessWorkspace
       .Union(db.GeneralLedgerLines.Where(x => x.FirmId == bridge.FirmId && x.ClientId == bridge.ClientId && x.EngagementId == bridge.EngagementId && x.ImportBatchId == bridge.ImportBatchId).Select(x => x.AccountCode))
       .Union(db.TrialBalanceRows.Where(x => x.DatasetId == bridge.OpeningTrialBalanceDatasetId).Select(x => x.AccountCode));
 
-  internal static Task<bool> MissingOpeningCoverageAsync(IClientAccountingDbContext db, GeneralLedgerCompletenessBridge bridge, CancellationToken ct) =>
-    bridge.OpeningTrialBalanceDatasetId is null ? Task.FromResult(true) : AccountUniverse(db, bridge)
+  internal static async Task<bool> MissingOpeningCoverageAsync(IClientAccountingDbContext db, GeneralLedgerCompletenessBridge bridge, CancellationToken ct)
+  {
+    var batch = await db.SourceImportBatches.AsNoTracking().SingleAsync(x => x.Id == bridge.ImportBatchId && x.FirmId == bridge.FirmId, ct);
+    if (batch.OriginKind == SourceImportOrigins.NativeLedger)
+    {
+      var native = await NativeGeneralLedgerSourceWorkspace.OpeningAsync(db, batch, ct);
+      if (!native.Succeeded || native.Value is null || native.Value.Source.ManifestHash != bridge.OpeningTrialBalanceHash) return true;
+      var codes = await AccountUniverse(db, bridge).Take(250_001).ToListAsync(ct);
+      return codes.Count > 250_000 || codes.Any(x => !native.Value.Amounts.ContainsKey(x));
+    }
+    return bridge.OpeningTrialBalanceDatasetId is null || await AccountUniverse(db, bridge)
       .Except(db.TrialBalanceRows.Where(x => x.DatasetId == bridge.OpeningTrialBalanceDatasetId).Select(x => x.AccountCode)).AnyAsync(ct);
+  }
 
   public static async Task<CommandResult<CompletenessReview>> ReviewAsync(IClientAccountingDbContext db, ActorContext actor,
     Guid bridgeId, int page = 1, CancellationToken ct = default)
@@ -54,8 +64,8 @@ public static partial class GeneralLedgerCompletenessWorkspace
     var opening = bridge.OpeningTrialBalanceDatasetId is { } openingId ? await CompatibleSources(db, actor, c, true).SingleOrDefaultAsync(x => x.Id == openingId, ct) : null;
     if (closing is null || bridge.OpeningTrialBalanceDatasetId is not null && opening is null)
       return CommandResult<CompletenessReview>.Fail(ErrorCodes.GateBlocked, "The sealed source pair is unavailable or no longer compatible.");
-    var closingHash = closing.NormalizedDatasetDigest.Length == 64 ? closing.NormalizedDatasetDigest : closing.Sha256Hex;
-    var openingHash = opening is null ? "" : opening.NormalizedDatasetDigest.Length == 64 ? opening.NormalizedDatasetDigest : opening.Sha256Hex;
+    var closingHash = SourceDigest(closing);
+    var openingHash = c.NativeOpening?.ManifestHash ?? (opening is null ? "" : opening.NormalizedDatasetDigest.Length == 64 ? opening.NormalizedDatasetDigest : opening.Sha256Hex);
     if (closingHash != bridge.TrialBalanceHash || s.SourceHash != bridge.GeneralLedgerHash || openingHash != bridge.OpeningTrialBalanceHash)
       return CommandResult<CompletenessReview>.Fail(ErrorCodes.ManifestMismatch, "A source digest no longer matches the retained bridge.");
     if (!SourceAcceptanceWorkspace.ValidHash(bridge.AccountResidualDigest) || !SourceAcceptanceWorkspace.ValidHash(bridge.OpeningMovementResidualDigest))
@@ -66,8 +76,15 @@ public static partial class GeneralLedgerCompletenessWorkspace
     var tb = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == bridge.TrialBalanceDatasetId && codes.Contains(x.AccountCode)).GroupBy(x => x.AccountCode).Select(x => new { Code = x.Key, Amount = x.Sum(r => r.Amount) }).ToDictionaryAsync(x => x.Code, x => MoneyPolicy.Normalize(x.Amount), ct);
     var gl = await db.GeneralLedgerLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == bridge.ClientId && x.EngagementId == bridge.EngagementId && x.ImportBatchId == bridge.ImportBatchId && codes.Contains(x.AccountCode)).GroupBy(x => x.AccountCode).Select(x => new { Code = x.Key, Amount = x.Sum(r => r.FunctionalAmount) }).ToDictionaryAsync(x => x.Code, x => MoneyPolicy.Normalize(x.Amount), ct);
     var ob = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == bridge.OpeningTrialBalanceDatasetId && codes.Contains(x.AccountCode)).GroupBy(x => x.AccountCode).Select(x => new { Code = x.Key, Amount = x.Sum(r => r.Amount) }).ToDictionaryAsync(x => x.Code, x => MoneyPolicy.Normalize(x.Amount), ct);
+    if (c.NativeOpening is not null)
+    {
+      var batch = await db.SourceImportBatches.AsNoTracking().SingleAsync(x => x.Id == bridge.ImportBatchId && x.FirmId == actor.FirmId, ct);
+      var native = await NativeGeneralLedgerSourceWorkspace.OpeningAsync(db, batch, ct);
+      if (!native.Succeeded || native.Value is null) return CommandResult<CompletenessReview>.Fail(ErrorCodes.GateBlocked, "The inherited native opening is unavailable.");
+      ob = native.Value.Amounts.Where(x => codes.Contains(x.Key)).ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
+    }
     var rows = codes.Select(code => new CompletenessAccountResidual(code, tb.GetValueOrDefault(code), gl.GetValueOrDefault(code),
-      ob.TryGetValue(code, out var value) ? value : null, MoneyPolicy.Normalize(gl.GetValueOrDefault(code) - tb.GetValueOrDefault(code)),
+      ob.TryGetValue(code, out var value) ? value : null, MoneyPolicy.Normalize(gl.GetValueOrDefault(code) + (c.NativeOpening is null ? 0m : ob.GetValueOrDefault(code)) - tb.GetValueOrDefault(code)),
       ob.TryGetValue(code, out var amount) ? MoneyPolicy.Normalize(tb.GetValueOrDefault(code) - amount - gl.GetValueOrDefault(code)) : null)).ToArray();
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, s.ClientId, s.EngagementId,
       ReviewerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);

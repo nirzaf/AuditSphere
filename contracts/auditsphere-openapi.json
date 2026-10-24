@@ -12052,6 +12052,552 @@
         ]
       }
     },
+    "/api/ui/accounting/clients/{clientId}/native-gl-sources/preview": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NativeGeneralLedgerSourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiValueResponseOfNativeGeneralLedgerSourcePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/native-gl-sources/seal": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NativeGeneralLedgerSourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiValueResponseOfNativeGeneralLedgerSourceView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/native-gl-sources/{importBatchId}": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "importBatchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeGeneralLedgerSourceView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/native-gl-sources/{importBatchId}/artifact": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "importBatchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeGeneralLedgerSourceArtifact"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/accounting/clients/{clientId}/operational-opening-balances/{periodId}": {
       "get": {
         "tags": [
@@ -106232,6 +106778,16 @@
               "null",
               "string"
             ]
+          },
+          "nativeOpening": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NativeGeneralLedgerOpeningSource"
+              }
+            ]
           }
         }
       },
@@ -119313,6 +119869,9 @@
               "null",
               "string"
             ]
+          },
+          "originKind": {
+            "type": "string"
           }
         }
       },
@@ -119575,10 +120134,16 @@
             "type": "string"
           },
           "isManual": {
-            "type": "boolean"
+            "type": [
+              "null",
+              "boolean"
+            ]
           },
           "isYearEnd": {
-            "type": "boolean"
+            "type": [
+              "null",
+              "boolean"
+            ]
           },
           "reversalReference": {
             "type": [
@@ -119947,6 +120512,15 @@
                 "$ref": "#/components/schemas/SelectedSourceDto"
               }
             ]
+          },
+          "originKind": {
+            "type": "string"
+          },
+          "unavailableMetadata": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -120002,6 +120576,9 @@
           "importedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "originKind": {
+            "type": "string"
           }
         }
       },
@@ -124884,6 +125461,433 @@
           },
           "canConfigure": {
             "type": "boolean"
+          }
+        }
+      },
+      "NativeGeneralLedgerOpeningSource": {
+        "required": [
+          "openingId",
+          "manifestHash"
+        ],
+        "type": "object",
+        "properties": {
+          "openingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "manifestHash": {
+            "type": "string"
+          }
+        }
+      },
+      "NativeGeneralLedgerSourceArtifact": {
+        "required": [
+          "importBatchId",
+          "fileName",
+          "contentType",
+          "generatedRowsJson",
+          "generatedRowsHash",
+          "manifestJson",
+          "manifestHash",
+          "sourceIdentityHash",
+          "isCurrent",
+          "currentnessBlocker"
+        ],
+        "type": "object",
+        "properties": {
+          "importBatchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "generatedRowsJson": {
+            "type": "string"
+          },
+          "generatedRowsHash": {
+            "type": "string"
+          },
+          "manifestJson": {
+            "type": "string"
+          },
+          "manifestHash": {
+            "type": "string"
+          },
+          "sourceIdentityHash": {
+            "type": "string"
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "currentnessBlocker": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "NativeGeneralLedgerSourceLine": {
+        "required": [
+          "journalId",
+          "lineId",
+          "clientAccountId",
+          "journalNumber",
+          "postingDate",
+          "accountCode",
+          "debit",
+          "credit",
+          "originalCurrency",
+          "originalAmount",
+          "functionalAmount",
+          "currency",
+          "sourceUser",
+          "sourceSystem",
+          "isManual",
+          "isYearEnd"
+        ],
+        "type": "object",
+        "properties": {
+          "journalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journalNumber": {
+            "type": "string"
+          },
+          "postingDate": {
+            "type": "string"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "debit": {
+            "type": "string"
+          },
+          "credit": {
+            "type": "string"
+          },
+          "originalCurrency": {
+            "type": "string"
+          },
+          "originalAmount": {
+            "type": "string"
+          },
+          "functionalAmount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "sourceUser": {
+            "type": "string"
+          },
+          "sourceSystem": {
+            "type": "string"
+          },
+          "isManual": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "isYearEnd": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "NativeGeneralLedgerSourcePreview": {
+        "required": [
+          "reviewBasis",
+          "trialBalanceDatasetId",
+          "periodId",
+          "asOfDate",
+          "currency",
+          "legalEntityKey",
+          "bookScope",
+          "originKind",
+          "sourceIdentityHash",
+          "manifestHash",
+          "generatedRowsHash",
+          "transactionCount",
+          "lineCount",
+          "totalDebit",
+          "totalCredit",
+          "postingSequence",
+          "nativeOpening",
+          "unavailableMetadata",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "reviewBasis": {
+            "type": "string"
+          },
+          "trialBalanceDatasetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "asOfDate": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "legalEntityKey": {
+            "type": "string"
+          },
+          "bookScope": {
+            "type": "string"
+          },
+          "originKind": {
+            "type": "string"
+          },
+          "sourceIdentityHash": {
+            "type": "string"
+          },
+          "manifestHash": {
+            "type": "string"
+          },
+          "generatedRowsHash": {
+            "type": "string"
+          },
+          "transactionCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lineCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalDebit": {
+            "type": "string"
+          },
+          "totalCredit": {
+            "type": "string"
+          },
+          "postingSequence": {
+            "type": "string"
+          },
+          "nativeOpening": {
+            "$ref": "#/components/schemas/NativeGeneralLedgerOpeningSource"
+          },
+          "unavailableMetadata": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NativeGeneralLedgerSourceLine"
+            }
+          }
+        }
+      },
+      "NativeGeneralLedgerSourceRequest": {
+        "required": [
+          "requestId",
+          "clientId",
+          "engagementId",
+          "trialBalanceDatasetId",
+          "expectedTrialBalanceSourceHash",
+          "periodLedgerReviewed",
+          "evidenceReference"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "engagementId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "trialBalanceDatasetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedTrialBalanceSourceHash": {
+            "type": "string"
+          },
+          "periodLedgerReviewed": {
+            "type": "boolean"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "reviewBasis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewed": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "NativeGeneralLedgerSourceView": {
+        "required": [
+          "importBatchId",
+          "clientId",
+          "engagementId",
+          "trialBalanceDatasetId",
+          "periodId",
+          "asOfDate",
+          "currency",
+          "legalEntityKey",
+          "bookScope",
+          "originKind",
+          "status",
+          "sourceIdentityHash",
+          "manifestHash",
+          "generatedRowsHash",
+          "transactionCount",
+          "lineCount",
+          "totalDebit",
+          "totalCredit",
+          "postingSequence",
+          "nativeOpening",
+          "unavailableMetadata",
+          "isCurrent",
+          "currentnessBlocker",
+          "capturedByUserId",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "importBatchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "engagementId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "trialBalanceDatasetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "asOfDate": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "legalEntityKey": {
+            "type": "string"
+          },
+          "bookScope": {
+            "type": "string"
+          },
+          "originKind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "sourceIdentityHash": {
+            "type": "string"
+          },
+          "manifestHash": {
+            "type": "string"
+          },
+          "generatedRowsHash": {
+            "type": "string"
+          },
+          "transactionCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lineCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalDebit": {
+            "type": "string"
+          },
+          "totalCredit": {
+            "type": "string"
+          },
+          "postingSequence": {
+            "type": "string"
+          },
+          "nativeOpening": {
+            "$ref": "#/components/schemas/NativeGeneralLedgerOpeningSource"
+          },
+          "unavailableMetadata": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "currentnessBlocker": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "capturedByUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -147149,6 +148153,42 @@
               },
               {
                 "$ref": "#/components/schemas/MilestonePlanView"
+              }
+            ]
+          }
+        }
+      },
+      "UiValueResponseOfNativeGeneralLedgerSourcePreview": {
+        "required": [
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NativeGeneralLedgerSourcePreview"
+              }
+            ]
+          }
+        }
+      },
+      "UiValueResponseOfNativeGeneralLedgerSourceView": {
+        "required": [
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NativeGeneralLedgerSourceView"
               }
             ]
           }

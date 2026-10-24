@@ -14,7 +14,10 @@ public sealed record GeneralLedgerAcceptanceReview(
   string RawFileSha256, string SourceHash, string ProfileVersion, string ParserVersion,
   Guid ImportedByUserId, DateTimeOffset ImportedAt, long InputGeneration,
   SourceAcceptanceDecision? Receipt, SelectedSourceDto? Selected,
-  string Revision, bool CanAccept, string? Blocker);
+  string Revision, bool CanAccept, string? Blocker)
+{
+  public string OriginKind { get; init; } = SourceImportOrigins.External;
+}
 
 public static partial class SourceAcceptanceWorkspace
 {
@@ -59,12 +62,14 @@ public static partial class SourceAcceptanceWorkspace
     if (!selected.Succeeded) return CommandResult<GeneralLedgerAcceptanceReview>.Fail(selected.ErrorCode!, selected.Message!);
     var write = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new(actor.FirmId, source.ClientId, source.EngagementId, ReviewerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
+    var nativeCurrent = await NativeGeneralLedgerSourceWorkspace.CheckCurrentAsync(db, source, ct);
     var blocker = receipt is not null ? "This source already has a retained acceptance decision. It will not be accepted again." :
       !write.Succeeded ? "Current scoped reviewer authority and an unblocked engagement are required." :
       source.CreatedByUserId == Guid.Empty || source.CreatedByUserId == actor.UserId ? "A reviewer other than the source importer must accept this revision." :
-      !ValidHash(source.RawFileSha256Hex) || !ValidHash(source.NormalizedDatasetDigest) ? "The sealed source has no valid immutable identity digest." :
+      (source.OriginKind == SourceImportOrigins.External && !ValidHash(source.RawFileSha256Hex)) || !ValidHash(source.NormalizedDatasetDigest) ? "The sealed source has no valid immutable identity digest." :
       period is null || period.Status != AccountingWorkflowStates.Active ? "The source reporting period is unavailable or closed." :
-      frozen ? "The engagement file is frozen. An approved amendment is required." : null;
+      frozen ? "The engagement file is frozen. An approved amendment is required." :
+      !nativeCurrent.Succeeded ? nativeCurrent.Message : null;
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new(actor.FirmId, source.ClientId, source.EngagementId, GeneralLedgerQuery.ReadRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<GeneralLedgerAcceptanceReview>.Fail(auth.ErrorCode!, auth.Message!);
@@ -73,7 +78,7 @@ public static partial class SourceAcceptanceWorkspace
     return CommandResult<GeneralLedgerAcceptanceReview>.Ok(new(source.Id, source.ClientId, source.EngagementId,
       source.PeriodId, period?.PeriodCode ?? "", source.BookId, source.Currency, source.LegalEntityKey, source.Status,
       source.RowCount, source.RawFileSha256Hex, source.NormalizedDatasetDigest, source.ProfileVersion, source.ParserVersion,
-      source.CreatedByUserId, source.CreatedAt, generation.Value, receipt, selected.Value, revision, blocker is null, blocker));
+      source.CreatedByUserId, source.CreatedAt, generation.Value, receipt, selected.Value, revision, blocker is null, blocker) { OriginKind = source.OriginKind });
   }
 
   public static async Task<CommandResult<Guid>> AcceptGeneralLedgerAsync(IClientAccountingDbContext db,

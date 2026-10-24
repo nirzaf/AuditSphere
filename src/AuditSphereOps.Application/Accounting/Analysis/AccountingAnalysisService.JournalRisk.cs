@@ -61,6 +61,8 @@ public static partial class AccountingAnalysisService
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<IReadOnlyList<JournalRiskCandidate>>.Fail(auth.ErrorCode!, auth.Message!);
+    var nativeCurrent = await NativeGeneralLedgerSourceWorkspace.CheckCurrentAsync(db, batch, ct);
+    if (!nativeCurrent.Succeeded) return CommandResult<IReadOnlyList<JournalRiskCandidate>>.Fail(nativeCurrent.ErrorCode!, nativeCurrent.Message!);
     var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == batch.PeriodId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct);
     if (period is null || request.YearEnd < period.StartDate || request.YearEnd > period.EndDate)
@@ -75,6 +77,11 @@ public static partial class AccountingAnalysisService
     if (transactions.Count > MaxJournalRiskTransactions)
       return CommandResult<IReadOnlyList<JournalRiskCandidate>>.Fail(
         ErrorCodes.Accounting.ImportRejected, "Journal risk analysis is bounded; select a smaller sealed batch.");
+
+    if (transactions.Any(x => x.IsManual is null || x.IsYearEnd is null))
+      return CommandResult<IReadOnlyList<JournalRiskCandidate>>.Fail(
+        ErrorCodes.GateBlocked,
+        "Journal risk analysis requires recorded manual and year-end flags. Unknown native metadata cannot be treated as false.");
 
     var transactionIds = transactions.Select(x => x.Id).ToArray();
     var amounts = transactionIds.Length == 0
@@ -96,9 +103,9 @@ public static partial class AccountingAnalysisService
         JournalRiskCriteriaVersion, transaction.Id, transaction.StableJournalId, transaction.PostingDate,
         ruleCode, reason, score, sourceOriginAvailable, amount));
 
-      if (transaction.IsManual)
+      if (transaction.IsManual == true)
         Add("MANUAL_ENTRY", "Review indicator: manual journal requires corroboration; it is not a fraud conclusion.", 70m);
-      if (transaction.IsYearEnd || daysFromYearEnd <= request.YearEndWindowDays)
+      if (transaction.IsYearEnd == true || daysFromYearEnd <= request.YearEndWindowDays)
         Add("YEAR_END_ENTRY", "Review indicator: posting is within the configured year-end window; it is not a fraud conclusion.", 60m);
       if (amount >= request.HighValueThreshold)
         Add("HIGH_VALUE_ENTRY", $"Review indicator: debit amount {amount.ToString("0.00", CultureInfo.InvariantCulture)} meets the configured threshold; it is not a fraud conclusion.", 80m);

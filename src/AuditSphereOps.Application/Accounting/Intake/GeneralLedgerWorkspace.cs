@@ -8,13 +8,20 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Accounting;
 
 public sealed record GeneralLedgerSourceSummary(Guid Id, Guid PeriodId, string PeriodCode,
-  Guid? BookId, string Entity, string Currency, int RowCount, string SourceHash, DateTimeOffset ImportedAt);
+  Guid? BookId, string Entity, string Currency, int RowCount, string SourceHash, DateTimeOffset ImportedAt)
+{
+  public string OriginKind { get; init; } = SourceImportOrigins.External;
+}
 public sealed record GeneralLedgerCatalogue(Guid ClientId, Guid EngagementId,
   IReadOnlyList<GeneralLedgerSourceSummary> Items, int TotalCount, int Page, int PageSize);
 public sealed record GeneralLedgerSourceContext(Guid BatchId, Guid ClientId, Guid EngagementId,
   Guid PeriodId, string PeriodCode, Guid? BookId, string Entity, string Currency, string ImportState,
   string RawFileSha256, string SourceHash, string ProfileVersion, string ParserVersion,
-  Guid ImportedByUserId, DateTimeOffset ImportedAt, SelectedSourceDto? Selected);
+  Guid ImportedByUserId, DateTimeOffset ImportedAt, SelectedSourceDto? Selected)
+{
+  public string OriginKind { get; init; } = SourceImportOrigins.External;
+  public IReadOnlyList<string> UnavailableMetadata { get; init; } = [];
+}
 public sealed record GeneralLedgerSourceWorkspaceDto(GeneralLedgerSourceContext Context,
   GeneralLedgerLineFilter Filter, GeneralLedgerLinesPage Rows, int JournalLineLimit);
 public sealed record GeneralLedgerJournalWorkspaceDto(GeneralLedgerSourceContext Context,
@@ -47,7 +54,7 @@ public static class GeneralLedgerWorkspace
       .Skip((page - 1) * CataloguePageSize).Take(CataloguePageSize)
       .Select(x => new GeneralLedgerSourceSummary(x.batch.Id, x.batch.PeriodId, x.period.PeriodCode,
         x.batch.BookId, x.batch.LegalEntityKey, x.batch.Currency, x.batch.RowCount,
-        x.batch.NormalizedDatasetDigest, x.batch.CreatedAt)).ToListAsync(ct);
+        x.batch.NormalizedDatasetDigest, x.batch.CreatedAt) { OriginKind = x.batch.OriginKind }).ToListAsync(ct);
     if (items.Any(x => !ValidHash(x.SourceHash)))
       return CommandResult<GeneralLedgerCatalogue>.Fail(ErrorCodes.GateBlocked, "A ledger source identity is unavailable. Resolve it before inspection.");
     if (!await db.Engagements.AsNoTracking().AnyAsync(x => x.Id == engagementId &&
@@ -101,7 +108,7 @@ public static class GeneralLedgerWorkspace
     if (!auth.Succeeded) return CommandResult<GeneralLedgerSourceContext>.Fail(auth.ErrorCode!, auth.Message!);
     var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == batch.PeriodId && x.FirmId == actor.FirmId && x.ClientId == batch.ClientId, ct);
-    if (period is null || !ValidHash(batch.RawFileSha256Hex) || !ValidHash(batch.NormalizedDatasetDigest))
+    if (period is null || (batch.OriginKind == SourceImportOrigins.External && !ValidHash(batch.RawFileSha256Hex)) || !ValidHash(batch.NormalizedDatasetDigest))
       return CommandResult<GeneralLedgerSourceContext>.Fail(ErrorCodes.GateBlocked, "The reporting period or immutable source identity is unavailable.");
     var selected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor,
       batch.ClientId, engagementId, batch.PeriodId, ct);
@@ -111,6 +118,8 @@ public static class GeneralLedgerWorkspace
     return CommandResult<GeneralLedgerSourceContext>.Ok(new(batch.Id, batch.ClientId, engagementId, batch.PeriodId,
       period.PeriodCode, batch.BookId, batch.LegalEntityKey, batch.Currency, batch.Status,
       batch.RawFileSha256Hex, batch.NormalizedDatasetDigest, batch.ProfileVersion, batch.ParserVersion,
-      batch.CreatedByUserId, batch.CreatedAt, selected.Value));
+      batch.CreatedByUserId, batch.CreatedAt, selected.Value)
+      { OriginKind = batch.OriginKind, UnavailableMetadata = batch.OriginKind == SourceImportOrigins.NativeLedger
+          ? NativeGeneralLedgerSourceWorkspace.UnavailableMetadata : [] });
   }
 }

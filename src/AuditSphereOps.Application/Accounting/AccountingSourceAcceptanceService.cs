@@ -100,6 +100,8 @@ public static class AccountingSourceAcceptanceService
         if (batch is null)
           return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
             "Only a sealed general-ledger batch can be accepted as the reporting source.");
+        var nativeGl = await NativeGeneralLedgerSourceWorkspace.CheckCurrentAsync(db, batch, ct);
+        if (!nativeGl.Succeeded) return CommandResult<Guid>.Fail(nativeGl.ErrorCode!, nativeGl.Message!);
         sourceHash = batch.NormalizedDatasetDigest;
         importer = batch.CreatedByUserId; periodId = batch.PeriodId;
         if (await db.SourceAcceptanceDecisions.AsNoTracking().AnyAsync(x =>
@@ -148,6 +150,13 @@ public static class AccountingSourceAcceptanceService
       var currentDataset = await db.TrialBalanceDatasets.AsNoTracking().SingleAsync(x => x.Id == nativeDatasetId && x.FirmId == actor.FirmId, ct);
       var native = await NativeTrialBalanceSourceWorkspace.CheckCurrentAsync(db, currentDataset, ct);
       if (!native.Succeeded) return CommandResult<Guid>.Fail(native.ErrorCode!, native.Message!);
+    }
+
+    if (request.ImportBatchId is { } nativeBatchId)
+    {
+      var currentBatch = await db.SourceImportBatches.AsNoTracking().SingleAsync(x => x.Id == nativeBatchId && x.FirmId == actor.FirmId, ct);
+      var nativeGl = await NativeGeneralLedgerSourceWorkspace.CheckCurrentAsync(db, currentBatch, ct);
+      if (!nativeGl.Succeeded) return CommandResult<Guid>.Fail(nativeGl.ErrorCode!, nativeGl.Message!);
     }
 
     var decision = new SourceAcceptanceDecision
@@ -274,6 +283,14 @@ public static class AccountingSourceAcceptanceService
   {
     var selected = new SelectedSourceDto(decision.Id, decision.SourceKind, decision.TrialBalanceDatasetId,
       decision.ImportBatchId, decision.SourceIdentityHash, decision.AcceptedByUserId, decision.CreatedAt, generation);
+    if (decision.ImportBatchId is { } batchId)
+    {
+      var batch = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x => x.Id == batchId && x.FirmId == decision.FirmId, ct);
+      if (batch is null) return selected with { IsCurrent = false, CurrentnessBlocker = "The accepted GL source is unavailable." };
+      var glCurrent = await NativeGeneralLedgerSourceWorkspace.CheckCurrentAsync(db, batch, ct);
+      return selected with { IsCurrent = glCurrent.Succeeded && batch.NormalizedDatasetDigest == decision.SourceIdentityHash,
+        CurrentnessBlocker = !glCurrent.Succeeded ? glCurrent.Message : batch.NormalizedDatasetDigest != decision.SourceIdentityHash ? "The accepted GL identity differs." : null };
+    }
     if (decision.TrialBalanceDatasetId is not { } id) return selected;
     var source = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == decision.FirmId, ct);
     if (source is null || source.SourceKind != NativeTrialBalanceSourceWorkspace.SourceKind) return selected;

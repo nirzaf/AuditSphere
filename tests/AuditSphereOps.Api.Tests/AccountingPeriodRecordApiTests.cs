@@ -429,6 +429,68 @@ public sealed class AccountingPeriodRecordApiTests
     Assert.Empty(await verify.NativeTrialBalanceSources.Where(x => x.FirmId == f.FirmId).ToListAsync());
   }
 
+  [Fact]
+  public async Task NativeLedgerHttpBoundaryRequiresScopeAntiforgeryAndExactSourcePin()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-NATIVE-GL-BOUNDARY");
+    var f = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "AccountingPreparer", f.ClientId, f.EngagementId));
+      await setup.SaveChangesAsync();
+    }
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
+      ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:Subject"] = f.Staff.Subject,
+      ["DevelopmentIdentity:TenantId"] = f.Staff.TenantId,
+      ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false"
+    });
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    var root = $"/api/ui/accounting/clients/{f.ClientId:D}/native-gl-sources";
+    var input = new AuditSphereOps.Application.Accounting.NativeGeneralLedgerSourceRequest(
+      Guid.NewGuid(), f.ClientId, f.EngagementId, Guid.NewGuid(), new string('a', 64), true, "SYNTHETIC-GL-BOUNDARY");
+    async Task<HttpResponseMessage> Post(string path, object body, string? csrf)
+    {
+      using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(body) };
+      if (csrf is not null) request.Headers.Add("X-XSRF-TOKEN", csrf);
+      return await client.SendAsync(request);
+    }
+    using (var unsigned = await Post(root + "/preview", input, null)) Assert.Equal(HttpStatusCode.Unauthorized, unsigned.StatusCode);
+    await client.GetAsync("/auth/sign-in");
+    using var session = await client.GetAsync("/api/ui/session");
+    Assert.Equal(HttpStatusCode.OK, session.StatusCode);
+    var token = Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie")
+      .Single(x => x.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..]);
+    using (var noCsrf = await Post(root + "/preview", input, "invalid")) Assert.Equal(HttpStatusCode.Forbidden, noCsrf.StatusCode);
+    foreach (var action in new[] { "/preview", "/seal" })
+    {
+      using var mismatch = await Post(root + action, input with { ClientId = foreign.ClientId }, token);
+      Assert.Equal(HttpStatusCode.BadRequest, mismatch.StatusCode);
+      Assert.Equal("request.invalid", (await mismatch.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+      var numeric = JsonSerializer.SerializeToNode(input, new JsonSerializerOptions(JsonSerializerDefaults.Web))!.AsObject();
+      numeric["expectedTrialBalanceSourceHash"] = 9007199254740993L;
+      using var invalidType = await Post(root + action, numeric, token);
+      Assert.Equal(HttpStatusCode.BadRequest, invalidType.StatusCode);
+      // A real cookie actor reaches Application authority with an exact pin. This
+      // parser/scope fixture supplies no invented native source or acceptance.
+      using var validPin = await Post(root + action, input, token);
+      Assert.Equal(HttpStatusCode.BadRequest, validPin.StatusCode);
+      Assert.Equal("gate.blocked", (await validPin.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+      using var denied = await Post($"/api/ui/accounting/clients/{foreign.ClientId:D}/native-gl-sources" + action,
+        input with { ClientId = foreign.ClientId, EngagementId = foreign.EngagementId }, token);
+      Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+      Assert.DoesNotContain("sourceIdentityHash", await denied.Content.ReadAsStringAsync());
+    }
+    using var missing = await client.GetAsync(root + $"/{Guid.NewGuid():D}/artifact");
+    Assert.Equal(HttpStatusCode.Forbidden, missing.StatusCode);
+    Assert.Contains("no-store", missing.Headers.CacheControl!.ToString());
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.False(await verify.NativeGeneralLedgerSources.AnyAsync(x => x.FirmId == f.FirmId));
+    Assert.False(await verify.SourceAcceptanceDecisions.AnyAsync(x => x.FirmId == f.FirmId));
+  }
+
   private static ClientReportingPeriod Period(Guid id, Guid firm, Guid client, Guid actor, Guid? priorPeriodId = null,
     string periodCode = "SYNTHETIC-FY2026", DateOnly? startDate = null, DateOnly? endDate = null, long revision = 1) => new()
   {

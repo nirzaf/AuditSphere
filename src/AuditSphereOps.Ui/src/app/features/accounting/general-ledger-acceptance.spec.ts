@@ -12,6 +12,7 @@ const url = `/api/ui/gl-sources/${id}/acceptance`,
   revision = 'a'.repeat(64);
 const source = {
   importBatchId: id,
+  originKind: 'EXTERNAL',
   clientId: id,
   engagementId: id,
   periodId: id,
@@ -109,34 +110,65 @@ describe('Native independent GL source acceptance', () => {
     c.model.set({ evidenceReference: 'Independent GL review', reviewed: true });
     c.recordAssent({ target: { checked: true } } as unknown as Event);
   }
-  it('shows real batch metadata, no TB validation verdict, and submits reviewed GL intent once', async () => {
-    const { f, c, http } = await open();
-    expect(c.review(), c.error()).not.toBeNull();
-    TestBed.tick();
-    f.detectChanges();
-    const text = f.nativeElement.textContent;
-    expect(text).toContain('GL import batch');
-    expect(text).toContain('150');
-    expect(text).toContain('completeness');
-    expect(text).not.toContain('Worker validation');
-    expect(text).not.toContain('Source revision');
-    assent(c);
-    const pending = c.accept();
-    const write = http.expectOne(url);
-    expect(write.request.body).toEqual({
-      revision,
-      reviewed: true,
-      evidenceReference: 'Independent GL review',
-    });
-    write.flush({ value: other });
-    await Promise.resolve();
-    await Promise.resolve();
-    http.expectOne(url).flush(accepted);
-    await pending;
-    expect(c.review()?.receipt?.importBatchId).toBe(id);
-    expect(c.canSubmit()).toBe(false);
-    f.destroy();
-  });
+  it.each(['EXTERNAL', 'NATIVE_LEDGER'])(
+    'shows actual %s origin and submits independently reviewed GL intent once',
+    async (originKind) => {
+      const ledger =
+        originKind === 'NATIVE_LEDGER'
+          ? {
+              ...source,
+              originKind,
+              rawFileSha256: '',
+              profileVersion: 'native-posted-gl.v1',
+              parserVersion: 'native-gl-export.v1',
+            }
+          : source;
+      const { f, c, http } = await open(ledger);
+      expect(c.review(), c.error()).not.toBeNull();
+      TestBed.tick();
+      f.detectChanges();
+      const text = f.nativeElement.textContent;
+      expect(text).toContain(
+        originKind === 'NATIVE_LEDGER' ? 'Generated GL batch' : 'GL import batch',
+      );
+      expect(text).toContain(originKind);
+      if (originKind === 'NATIVE_LEDGER') {
+        expect(text).toContain('no uploaded file');
+        expect(text).toContain('classifications are unknown');
+        expect(text).toContain('Inspect retained generated rows');
+      }
+      expect(text).toContain('150');
+      expect(text).toContain('completeness');
+      expect(text).not.toContain('Worker validation');
+      expect(text).not.toContain('Source revision');
+      await c.accept();
+      http.expectNone((r) => r.method === 'POST');
+      assent(c);
+      const pending = c.accept();
+      const write = http.expectOne(url);
+      expect(write.request.body).toEqual({
+        revision,
+        reviewed: true,
+        evidenceReference: 'Independent GL review',
+      });
+      write.flush({ value: other });
+      await Promise.resolve();
+      await Promise.resolve();
+      http
+        .expectOne(url)
+        .flush({
+          ...accepted,
+          originKind,
+          rawFileSha256: ledger.rawFileSha256,
+          profileVersion: ledger.profileVersion,
+          parserVersion: ledger.parserVersion,
+        });
+      await pending;
+      expect(c.review()?.receipt?.importBatchId).toBe(id);
+      expect(c.canSubmit()).toBe(false);
+      f.destroy();
+    },
+  );
   it('retains the unknown-outcome write fence across reload and reconciles without automatic retries', async () => {
     const first = await open();
     assent(first.c);
@@ -180,6 +212,12 @@ describe('Native independent GL source acceptance', () => {
     expect(() =>
       decodeGeneralLedgerAcceptance({ ...source, rawFileSha256: 'invalid' }, ''),
     ).toThrow();
+    expect(() => decodeGeneralLedgerAcceptance({ ...source, rawFileSha256: '' }, '')).toThrow();
+    expect(() => decodeGeneralLedgerAcceptance({ ...source, sourceHash: '' }, '')).toThrow();
+    expect(() =>
+      decodeGeneralLedgerAcceptance({ ...source, originKind: 'NATIVE_LEDGER' }, ''),
+    ).toThrow();
+    expect(() => decodeGeneralLedgerAcceptance({ ...source, originKind: undefined }, '')).toThrow();
     expect(() =>
       decodeGeneralLedgerAcceptance(
         { ...accepted, receipt: { ...accepted.receipt, trialBalanceDatasetId: id } },

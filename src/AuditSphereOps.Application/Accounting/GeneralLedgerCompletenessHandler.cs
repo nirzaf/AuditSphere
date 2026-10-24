@@ -66,6 +66,12 @@ public sealed class GeneralLedgerCompletenessHandler : IOperationHandler
         (payload.BookId.HasValue && !await accountingDb.ClientReportingBooks.AnyAsync(x =>
           x.Id == payload.BookId && x.FirmId == op.FirmId && x.ClientId == clientId && x.PeriodId == payload.PeriodId, ct)))
       throw new OperationBlockedException("completeness-scope-or-revision-conflict", authorization: true);
+    var native = await NativeGeneralLedgerSourceWorkspace.CheckCurrentAsync(accountingDb, batch, ct);
+    if (!native.Succeeded) throw new OperationBlockedException(native.ErrorCode ?? "native-gl-source-stale");
+    if (batch.OriginKind == SourceImportOrigins.NativeLedger &&
+        (payload.OpeningTrialBalanceDatasetId is not null || !await accountingDb.NativeGeneralLedgerSources.AnyAsync(x =>
+          x.ImportBatchId == batch.Id && x.TrialBalanceDatasetId == dataset.Id, ct)))
+      throw new OperationBlockedException("native-gl-source-pair-conflict");
   }
 
   public async Task<OperationResult> PublishAsync(IAuditSphereDbContext db, DurableOperation op,

@@ -93,6 +93,7 @@ const glSelected = obj({
 });
 const glShape = obj({
   importBatchId: guid,
+  originKind: oneOf('EXTERNAL', 'NATIVE_LEDGER'),
   clientId: guid,
   engagementId: guid,
   periodId: guid,
@@ -123,6 +124,7 @@ export function decodeGeneralLedgerAcceptance(
 ): ReturnType<typeof glShape> & { kind: 'GL' } {
   const v = glShape(raw, path);
   if (
+    (v.originKind === 'NATIVE_LEDGER' && (v.bookId !== null || v.rawFileSha256 !== '')) ||
     (v.receipt &&
       (v.receipt.importBatchId !== v.importBatchId ||
         v.receipt.trialBalanceDatasetId !== null ||
@@ -138,7 +140,7 @@ export function decodeGeneralLedgerAcceptance(
       (v.receipt !== null ||
         v.blocker !== null ||
         !/^[a-f0-9]{64}$/i.test(v.sourceHash) ||
-        !/^[a-f0-9]{64}$/i.test(v.rawFileSha256) ||
+        (v.originKind === 'EXTERNAL' && !/^[a-f0-9]{64}$/i.test(v.rawFileSha256)) ||
         !v.periodCode)) ||
     (!v.canAccept && !v.blocker)
   )
@@ -235,7 +237,15 @@ export function decodeAcceptanceDraft(raw: unknown): { evidenceReference: string
           {{ r.entity }} · {{ r.currency }} · {{ r.periodCode ?? 'No linked reporting period' }}
         </p>
         <dl>
-          <dt>{{ isGeneralLedger ? 'GL import batch' : 'Dataset' }}</dt>
+          <dt>
+            {{
+              r.kind === 'GL'
+                ? r.originKind === 'NATIVE_LEDGER'
+                  ? 'Generated GL batch'
+                  : 'GL import batch'
+                : 'Dataset'
+            }}
+          </dt>
           <dd>{{ sourceIdentity(r) }}</dd>
           <dt>Client</dt>
           <dd>{{ r.clientId }}</dd>
@@ -245,18 +255,34 @@ export function decodeAcceptanceDraft(raw: unknown): { evidenceReference: string
             <dt>Source revision</dt>
             <dd>{{ r.sourceRevision }}</dd>
           } @else {
+            <dt>Source origin</dt>
+            <dd>{{ r.originKind }}</dd>
             <dt>Book</dt>
             <dd>{{ r.bookId ?? 'No linked book' }}</dd>
-            <dt>Imported line count</dt>
+            <dt>
+              {{
+                r.originKind === 'NATIVE_LEDGER' ? 'Generated line count' : 'Imported line count'
+              }}
+            </dt>
             <dd>{{ r.rowCount }}</dd>
             <dt>Raw file digest</dt>
-            <dd>{{ r.rawFileSha256 || 'Unavailable' }}</dd>
+            <dd>
+              {{
+                r.originKind === 'NATIVE_LEDGER'
+                  ? 'Generated native source · no uploaded file'
+                  : r.rawFileSha256 || 'Unavailable'
+              }}
+            </dd>
             <dt>Import profile / parser</dt>
             <dd>{{ r.profileVersion }} / {{ r.parserVersion }}</dd>
           }
           <dt>Source digest</dt>
           <dd>{{ r.sourceHash || 'Unavailable' }}</dd>
-          <dt>Imported by</dt>
+          <dt>
+            {{
+              r.kind === 'GL' && r.originKind === 'NATIVE_LEDGER' ? 'Captured by' : 'Imported by'
+            }}
+          </dt>
           <dd>{{ r.importedByUserId }} · {{ r.importedAt }}</dd>
           @if (r.kind === 'TB') {
             <dt>Worker validation</dt>
@@ -271,6 +297,24 @@ export function decodeAcceptanceDraft(raw: unknown): { evidenceReference: string
           <dt>Current input generation</dt>
           <dd>{{ r.inputGeneration }}</dd>
         </dl>
+        @if (r.kind === 'GL' && r.originKind === 'NATIVE_LEDGER') {
+          <p>
+            Generated native evidence, not an uploaded GL file. Manual and year-end classifications
+            are unknown; unavailable source metadata is not inferred.
+          </p>
+          <p>
+            <a
+              matButton
+              [routerLink]="[
+                '/app/accounting/clients',
+                r.clientId,
+                'native-gl-sources',
+                r.importBatchId,
+              ]"
+              >Inspect retained generated rows, opening and source metadata</a
+            >
+          </p>
+        }
         @if (isGeneralLedger) {
           <p>
             Sealing and source acceptance do not establish GL completeness or a professional
@@ -300,11 +344,12 @@ export function decodeAcceptanceDraft(raw: unknown): { evidenceReference: string
         }
         <p class="identity">Proposed: {{ sourceIdentity(r) }} · {{ r.sourceHash }}</p>
         <p>
-          Selection is for this reporting period and source kind
-          ({{ isGeneralLedger ? 'GL' : 'TB' }}). A different source supersedes the selection in
-          this period only; other periods retain their own accepted source. Earlier decisions
-          remain retained. Acceptance advances input generation; dependent evidence is rechecked
-          against its period-specific source before reuse.
+          Selection is for this reporting period and source kind ({{
+            isGeneralLedger ? 'GL' : 'TB'
+          }}). A different source supersedes the selection in this period only; other periods retain
+          their own accepted source. Earlier decisions remain retained. Acceptance advances input
+          generation; dependent evidence is rechecked against its period-specific source before
+          reuse.
         </p>
       </section>
       @if (r.receipt; as a) {

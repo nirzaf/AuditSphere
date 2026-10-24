@@ -467,6 +467,7 @@ public sealed class SourceImportBatch
   public Guid PeriodId { get; set; }
   public Guid? BookId { get; set; }
   public string SourceKind { get; set; } = string.Empty; // GL | TB | SCHEDULE
+  public string OriginKind { get; set; } = SourceImportOrigins.External;
   public string ProfileVersion { get; set; } = string.Empty;
   public string ParserVersion { get; set; } = string.Empty;
   public string RawFileSha256Hex { get; set; } = string.Empty;
@@ -545,8 +546,9 @@ public sealed class GeneralLedgerTransaction
   public string SourceSystem { get; set; } = string.Empty;
   public string? ReversalReference { get; set; }
   public string Currency { get; set; } = string.Empty;
-  public bool IsManual { get; set; }
-  public bool IsYearEnd { get; set; }
+  // Native source facts may be unavailable; external imports retain their required explicit flags.
+  public bool? IsManual { get; set; } = false;
+  public bool? IsYearEnd { get; set; } = false;
   public DateTimeOffset CreatedAt { get; set; }
 }
 
@@ -572,8 +574,9 @@ public sealed class GeneralLedgerLine
   public string Department { get; set; } = string.Empty;
   public string Project { get; set; } = string.Empty;
   public string IntercompanyCounterparty { get; set; } = string.Empty;
-  public bool IsManual { get; set; }
-  public bool IsYearEnd { get; set; }
+  // Native source facts may be unavailable; external imports retain their required explicit flags.
+  public bool? IsManual { get; set; } = false;
+  public bool? IsYearEnd { get; set; } = false;
   public DateTimeOffset CreatedAt { get; set; }
 }
 

@@ -89,7 +89,11 @@ public sealed record GeneralLedgerLineProjection(
   DateOnly? DocumentDate = null, DateOnly? ServiceDate = null, string ReceiptReference = "");
 
 public sealed record GeneralLedgerPage(
-  IReadOnlyList<GeneralLedgerLineProjection> Rows, bool HasNextPage);
+  IReadOnlyList<GeneralLedgerLineProjection> Rows, bool HasNextPage)
+{
+  public string OriginKind { get; init; } = SourceImportOrigins.External;
+  public IReadOnlyList<string> UnavailableMetadata { get; init; } = [];
+}
 
 public sealed record GeneralLedgerCompletenessRequest(
   Guid ClientId, Guid EngagementId, Guid PeriodId, Guid? BookId,

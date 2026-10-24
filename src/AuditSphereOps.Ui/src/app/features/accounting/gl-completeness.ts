@@ -1,12 +1,16 @@
 import {
+  afterNextRender,
   Component,
   DestroyRef,
+  ElementRef,
   HostListener,
+  Injector,
   computed,
   effect,
   inject,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -40,6 +44,10 @@ const empty = (): CompletenessDraft => ({
   selector: 'audit-gl-completeness',
   imports: [...SHARED, MatButtonModule, RouterLink],
   templateUrl: './gl-completeness.html',
+  host: {
+    '(document:pointerdown)': 'recordFocusInteraction()',
+    '(document:keydown)': 'recordFocusInteraction()',
+  },
   styles: [
     `
       :host {
@@ -126,6 +134,12 @@ export class GeneralLedgerCompleteness implements NavigationProtected {
   private readonly session = inject(SessionService);
   private readonly drafts = inject(TabDrafts);
   private readonly dialog = inject(MatDialog);
+  private readonly renderInjector = inject(Injector);
+  private readonly refreshTrigger = viewChild<unknown, ElementRef<HTMLButtonElement>>(
+    'refreshTrigger',
+    { read: ElementRef },
+  );
+  private focusInteraction = 0;
   readonly id = routeGuid();
   readonly workspace = signal<CompletenessWorkspace | null>(null);
   readonly plan = signal<CompletenessPlan | null>(null);
@@ -186,6 +200,9 @@ export class GeneralLedgerCompleteness implements NavigationProtected {
       !!this.session.current()?.staff
     );
   }
+  recordFocusInteraction() {
+    this.focusInteraction++;
+  }
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
@@ -224,6 +241,16 @@ export class GeneralLedgerCompleteness implements NavigationProtected {
   }
   edit(key: keyof CompletenessDraft, value: string) {
     if (this.busy() || this.loading()) return;
+    if (
+      key === 'openingId' &&
+      value &&
+      this.workspace()?.context.source.originKind === 'NATIVE_LEDGER'
+    ) {
+      this.message.set(
+        'Native opening evidence is inherited from the retained source; no imported opening is selected.',
+      );
+      return;
+    }
     this.model.update((m) => ({ ...m, [key]: value }));
     this.invalidateReview();
     this.reconciled.set(false);
@@ -245,6 +272,11 @@ export class GeneralLedgerCompleteness implements NavigationProtected {
   }
   async refresh(reconcile = false, page = 1, openingPage = 1) {
     if (this.busy() || !this.id() || !this.session.current()?.staff) return;
+    const trigger = this.refreshTrigger()?.nativeElement;
+    const document = trigger?.ownerDocument;
+    const restoreFocus = !!trigger && document?.activeElement === trigger;
+    const interaction = this.focusInteraction,
+      actor = this.session.current();
     const id = this.id()!,
       g = this.session.invalidation(),
       n = ++this.request,
@@ -306,7 +338,27 @@ export class GeneralLedgerCompleteness implements NavigationProtected {
         this.error.set(e instanceof Error ? e.message : 'Completeness is unavailable.');
       }
     } finally {
-      if (this.current(g, id, n)) this.loading.set(false);
+      if (this.current(g, id, n)) {
+        this.loading.set(false);
+        if (restoreFocus)
+          afterNextRender(
+            () => {
+              if (
+                !this.current(g, id, n) ||
+                actor !== this.session.current() ||
+                interaction !== this.focusInteraction ||
+                this.loading() ||
+                this.busy() ||
+                !trigger?.isConnected ||
+                trigger.disabled ||
+                (document?.activeElement !== trigger && document?.activeElement !== document?.body)
+              )
+                return;
+              trigger.focus();
+            },
+            { injector: this.renderInjector },
+          );
+      }
     }
   }
   private planUrl(m: CompletenessDraft) {
@@ -325,6 +377,12 @@ export class GeneralLedgerCompleteness implements NavigationProtected {
     const m = this.intent();
     if (this.loading() || this.busy() || !guidPattern.test(m.trialBalanceId) || !this.workspace())
       return;
+    if (this.workspace()!.context.source.originKind === 'NATIVE_LEDGER' && m.openingId) {
+      this.message.set(
+        'Recover the exact native source intent without an imported opening dataset.',
+      );
+      return;
+    }
     const id = this.id()!,
       g = this.session.invalidation(),
       n = ++this.request;

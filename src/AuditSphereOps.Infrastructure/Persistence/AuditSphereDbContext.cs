@@ -251,6 +251,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<TrialBalanceDataset> TrialBalanceDatasets => Set<TrialBalanceDataset>();
   public DbSet<NativeTrialBalanceSource> NativeTrialBalanceSources => Set<NativeTrialBalanceSource>();
+  public DbSet<NativeGeneralLedgerSource> NativeGeneralLedgerSources => Set<NativeGeneralLedgerSource>();
 
   public DbSet<SourceAcceptanceDecision> SourceAcceptanceDecisions => Set<SourceAcceptanceDecision>();
 
@@ -644,6 +645,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureScopedEvidence(b);
     ConfigureAccounting(b);
     ConfigureNativeTrialBalanceSources(b);
+    ConfigureNativeGeneralLedgerSources(b);
     ConfigureClientAccounting(b);
     ConfigureClientOperationalLedger(b);
     ConfigureClientCounterparties(b);

@@ -33,7 +33,8 @@ const source = obj({
   entity: str(500),
   currency: str(10),
   importState: oneOf('SEALED'),
-  rawFileSha256: sha256,
+  originKind: oneOf('EXTERNAL', 'NATIVE_LEDGER'),
+  rawFileSha256: str(64),
   sourceHash: sha256,
   profileVersion: str(200),
   parserVersion: str(200),
@@ -43,6 +44,7 @@ const source = obj({
 });
 const context = obj({
   source,
+  nativeOpening: nullable(obj({ openingId: guid, manifestHash: sha256 })),
   periodStatus: str(30),
   basis: str(100),
   startDate: date,
@@ -163,6 +165,12 @@ function checkContext(c: ReturnType<typeof context>) {
     t = c.selectedTrialBalance;
   if (
     c.startDate > c.endDate ||
+    (s.originKind === 'NATIVE_LEDGER'
+      ? c.nativeOpening === null ||
+        s.rawFileSha256 !== '' ||
+        s.bookId !== null ||
+        c.bookCode !== null
+      : c.nativeOpening !== null || !/^[a-f0-9]{64}$/i.test(s.rawFileSha256)) ||
     (c.canPrepare && (c.blocker !== null || !['ACTIVE', 'DRAFT'].includes(c.periodStatus))) ||
     (!c.canPrepare && !c.blocker) ||
     (g &&
@@ -205,6 +213,8 @@ export function decodeCompletenessWorkspace(raw: unknown) {
   checkPage(w.openingSources, 20);
   for (const t of w.closingSources.items) checkTb(t, w.context, false);
   for (const t of w.openingSources.items) checkTb(t, w.context, true);
+  if (w.context.source.originKind === 'NATIVE_LEDGER' && w.openingSources.totalCount !== 0)
+    throw new Error('Native opening must be inherited, not selected from imported datasets');
   if (new Set(w.bridges.map((x) => x.id)).size !== w.bridges.length)
     throw new Error('Unsupported bridge history');
   return w;
@@ -215,6 +225,7 @@ export function decodeCompletenessPlan(raw: unknown) {
   checkTb(p.closing, p.context, false);
   if (p.opening) checkTb(p.opening, p.context, true);
   if (
+    (p.context.source.originKind === 'NATIVE_LEDGER' && p.opening !== null) ||
     (p.canPrepare &&
       (!p.context.canPrepare ||
         p.blocker !== null ||
@@ -238,9 +249,12 @@ export function decodeCompletenessReview(raw: unknown) {
     b.bookId !== s.bookId ||
     b.importBatchId !== s.batchId ||
     b.generalLedgerHash !== s.sourceHash ||
-    (b.openingTrialBalanceDatasetId === null
-      ? b.openingTrialBalanceHash !== ''
-      : !/^[a-f0-9]{64}$/i.test(b.openingTrialBalanceHash)) ||
+    (s.originKind === 'NATIVE_LEDGER'
+      ? b.openingTrialBalanceDatasetId !== null ||
+        b.openingTrialBalanceHash !== r.context.nativeOpening!.manifestHash
+      : b.openingTrialBalanceDatasetId === null
+        ? b.openingTrialBalanceHash !== ''
+        : !/^[a-f0-9]{64}$/i.test(b.openingTrialBalanceHash)) ||
     (r.canReject &&
       (r.reviewBlocker !== null ||
         !r.context.canPrepare ||
@@ -250,7 +264,7 @@ export function decodeCompletenessReview(raw: unknown) {
         r.approvalBlocker !== null ||
         b.status !== 'RECONCILED' ||
         b.incompleteExtract ||
-        b.openingTrialBalanceDatasetId === null ||
+        (b.openingTrialBalanceDatasetId === null && r.context.nativeOpening === null) ||
         b.mismatchedAccountCount !== 0 ||
         b.openingMovementMismatchedAccountCount !== 0 ||
         b.journalExceptionCount !== 0 ||

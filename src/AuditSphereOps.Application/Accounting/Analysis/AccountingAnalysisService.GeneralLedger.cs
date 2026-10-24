@@ -41,7 +41,11 @@ public static partial class AccountingAnalysisService
                         line.AccountCode, line.Debit, line.Credit, line.FunctionalAmount, line.OriginalCurrency,
                         transaction.DocumentDate, transaction.ServiceDate, batch.ReceiptReference))
       .Skip(skip).Take(pageSize + 1).ToListAsync(ct);
-    return CommandResult<GeneralLedgerPage>.Ok(new GeneralLedgerPage(rows.Take(pageSize).ToArray(), rows.Count > pageSize));
+    var finalRead = await GeneralLedgerQuery.CheckCurrentAsync(db, actor, batch, ct);
+    if (!finalRead.Succeeded) return CommandResult<GeneralLedgerPage>.Fail(finalRead.ErrorCode!, finalRead.Message!);
+    return CommandResult<GeneralLedgerPage>.Ok(new GeneralLedgerPage(rows.Take(pageSize).ToArray(), rows.Count > pageSize)
+      { OriginKind = batch.OriginKind, UnavailableMetadata = batch.OriginKind == SourceImportOrigins.NativeLedger
+          ? NativeGeneralLedgerSourceWorkspace.UnavailableMetadata : [] });
   }
 
   public static async Task<CommandResult<Guid>> CreateGeneralLedgerCompletenessBridgeAsync(
@@ -84,6 +88,11 @@ public static partial class AccountingAnalysisService
         !string.Equals(dataset.Currency, batch.Currency, StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(dataset.LegalEntityKey, batch.LegalEntityKey, StringComparison.Ordinal))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The TB and GL sources do not describe the same period, book, entity or currency.");
+    var nativeOpening = await NativeGeneralLedgerSourceWorkspace.OpeningAsync(db, batch, ct);
+    if (!nativeOpening.Succeeded) return CommandResult<Guid>.Fail(nativeOpening.ErrorCode!, nativeOpening.Message!);
+    if (nativeOpening.Value is not null && (request.OpeningTrialBalanceDatasetId is not null ||
+        !await db.NativeGeneralLedgerSources.AnyAsync(x => x.ImportBatchId == batch.Id && x.TrialBalanceDatasetId == dataset.Id, ct)))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Native completeness must use its exact pinned closing TB and inherited approved native opening, not another opening dataset.");
     var openingDataset = request.OpeningTrialBalanceDatasetId is { } openingDatasetId
       ? await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x =>
         x.Id == openingDatasetId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
@@ -142,13 +151,15 @@ public static partial class AccountingAnalysisService
 
     var tb = tbTotals.ToDictionary(x => x.AccountCode, x => MoneyPolicy.Normalize(x.Total), StringComparer.Ordinal);
     var opening = openingTotals.ToDictionary(x => x.AccountCode, x => MoneyPolicy.Normalize(x.Total), StringComparer.Ordinal);
+    if (nativeOpening.Value is { } derivedOpening)
+      opening = derivedOpening.Amounts.ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
     var gl = glTotals.ToDictionary(x => x.AccountCode, x => MoneyPolicy.Normalize(x.Total), StringComparer.Ordinal);
     var accounts = tb.Keys.Concat(gl.Keys).Concat(opening.Keys).Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
     var residuals = accounts.Select(code => new
     {
       Code = code,
       TrialBalance = tb.GetValueOrDefault(code),
-      GeneralLedger = gl.GetValueOrDefault(code)
+      GeneralLedger = gl.GetValueOrDefault(code) + (nativeOpening.Value is null ? 0m : opening.GetValueOrDefault(code))
     }).Select(x => new { x.Code, x.TrialBalance, x.GeneralLedger, Difference = MoneyPolicy.Normalize(x.GeneralLedger - x.TrialBalance) }).ToArray();
     var mismatched = residuals.Count(x => x.Difference != 0m);
     var absoluteResidual = MoneyPolicy.Normalize(residuals.Sum(x => Math.Abs(x.Difference)));
@@ -174,9 +185,9 @@ public static partial class AccountingAnalysisService
     var journalExceptionCount = transactionIds.Count(id => !lineGroups.TryGetValue(id, out var lines) ||
       lines.Length < 2 || MoneyPolicy.Normalize(lines.Sum(x => x.Debit) - lines.Sum(x => x.Credit)) != 0m);
     var disclosure = new List<string>();
-    if (openingDataset is null) disclosure.Add("OPENING_DATASET_NOT_PROVIDED");
+    if (openingDataset is null && nativeOpening.Value is null) disclosure.Add("OPENING_DATASET_NOT_PROVIDED");
     if (openingDataset is not null && openingTotals.Count == 0) disclosure.Add("OPENING_DATASET_EMPTY");
-    if (openingDataset is not null && accounts.Any(code => !opening.ContainsKey(code))) disclosure.Add("OPENING_ACCOUNT_COVERAGE_MISSING");
+    if ((openingDataset is not null || nativeOpening.Value is not null) && accounts.Any(code => !opening.ContainsKey(code))) disclosure.Add("OPENING_ACCOUNT_COVERAGE_MISSING");
     if (journalExceptionCount > 0) disclosure.Add("MALFORMED_JOURNAL_GROUPS");
     if (batch.ExpectedTransactionCount > 0 &&
         (batch.ExpectedTransactionCount != batch.AcceptedTransactionCount || batch.ExpectedLineCount != batch.AcceptedLineCount))
@@ -187,10 +198,10 @@ public static partial class AccountingAnalysisService
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
       PeriodId = request.PeriodId, BookId = request.BookId, TrialBalanceDatasetId = dataset.Id, ImportBatchId = batch.Id,
       OpeningTrialBalanceDatasetId = openingDataset?.Id,
-      TrialBalanceHash = (dataset.NormalizedDatasetDigest.Length == 64 ? dataset.NormalizedDatasetDigest : dataset.Sha256Hex).ToLowerInvariant(),
+      TrialBalanceHash = GeneralLedgerCompletenessWorkspace.SourceDigest(dataset).ToLowerInvariant(),
       GeneralLedgerHash = batch.NormalizedDatasetDigest.ToLowerInvariant(), AccountResidualDigest = residualDigest,
-      OpeningTrialBalanceHash = openingDataset is null ? string.Empty :
-        (openingDataset.NormalizedDatasetDigest.Length == 64 ? openingDataset.NormalizedDatasetDigest : openingDataset.Sha256Hex).ToLowerInvariant(),
+      OpeningTrialBalanceHash = nativeOpening.Value?.Source.ManifestHash ?? (openingDataset is null ? string.Empty :
+        (openingDataset.NormalizedDatasetDigest.Length == 64 ? openingDataset.NormalizedDatasetDigest : openingDataset.Sha256Hex).ToLowerInvariant()),
       OpeningMovementResidualDigest = openingMovementDigest,
       TrialBalanceAccountCount = tb.Count, GeneralLedgerAccountCount = gl.Count,
       MatchedAccountCount = residuals.Length - mismatched, MismatchedAccountCount = mismatched,
@@ -323,14 +334,17 @@ public static partial class AccountingAnalysisService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "An incomplete or malformed GL extract cannot be approved as complete.");
     if (approve && await GeneralLedgerCompletenessWorkspace.MissingOpeningCoverageAsync(db, bridge, ct))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Opening account coverage is missing. Unknown opening is never zero.");
-    var currentTbHash = await db.TrialBalanceDatasets.AsNoTracking().Where(x => x.Id == bridge.TrialBalanceDatasetId)
-      .Select(x => x.NormalizedDatasetDigest.Length == 64 ? x.NormalizedDatasetDigest : x.Sha256Hex).SingleOrDefaultAsync(ct);
+    var currentTb = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == bridge.TrialBalanceDatasetId && x.FirmId == actor.FirmId, ct);
+    var currentTbHash = currentTb is null ? null : GeneralLedgerCompletenessWorkspace.SourceDigest(currentTb);
+    var currentBatch = await db.SourceImportBatches.AsNoTracking().SingleAsync(x => x.Id == bridge.ImportBatchId && x.FirmId == actor.FirmId, ct);
+    var nativeOpening = await NativeGeneralLedgerSourceWorkspace.OpeningAsync(db, currentBatch, ct);
+    if (!nativeOpening.Succeeded) return CommandResult.Fail(nativeOpening.ErrorCode!, nativeOpening.Message!);
     var currentGlHash = await db.SourceImportBatches.AsNoTracking().Where(x => x.Id == bridge.ImportBatchId)
       .Select(x => x.NormalizedDatasetDigest).SingleOrDefaultAsync(ct);
     var currentOpeningHash = bridge.OpeningTrialBalanceDatasetId is { } openingDatasetId
       ? await db.TrialBalanceDatasets.AsNoTracking().Where(x => x.Id == openingDatasetId)
         .Select(x => x.NormalizedDatasetDigest.Length == 64 ? x.NormalizedDatasetDigest : x.Sha256Hex).SingleOrDefaultAsync(ct)
-      : string.Empty;
+      : nativeOpening.Value?.Source.ManifestHash ?? string.Empty;
     if (!string.Equals(currentTbHash, bridge.TrialBalanceHash, StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(currentGlHash, bridge.GeneralLedgerHash, StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(currentOpeningHash, bridge.OpeningTrialBalanceHash, StringComparison.OrdinalIgnoreCase))

@@ -13,7 +13,10 @@ namespace AuditSphereOps.Application.Accounting;
 
 public sealed record CompletenessSourceContext(GeneralLedgerSourceContext Source, string PeriodStatus,
   string Basis, DateOnly StartDate, DateOnly EndDate, Guid? PriorPeriodId, string? BookCode,
-  long InputGeneration, SelectedSourceDto? SelectedTrialBalance, string Revision, bool CanPrepare, string? Blocker);
+  long InputGeneration, SelectedSourceDto? SelectedTrialBalance, string Revision, bool CanPrepare, string? Blocker)
+{
+  public NativeGeneralLedgerOpeningSource? NativeOpening { get; init; }
+}
 public sealed record CompletenessTbSource(Guid Id, Guid PeriodId, string PeriodCode, Guid? BookId,
   long Revision, string SourceHash, DateTimeOffset ImportedAt);
 public sealed record CompletenessSourcePage(IReadOnlyList<CompletenessTbSource> Items, int TotalCount, int Page, int PageSize);
@@ -31,6 +34,10 @@ public static partial class GeneralLedgerCompletenessWorkspace
 {
   public const int SourcePageSize = 20;
   internal static readonly string[] ReviewerRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
+  // Preserve the historical Raw bridge identity selection exactly; Native binds semantic source pins.
+  internal static string SourceDigest(TrialBalanceDataset source) =>
+    source.SourceKind == NativeTrialBalanceSourceWorkspace.SourceKind ? source.Sha256Hex :
+    source.NormalizedDatasetDigest.Length == 64 ? source.NormalizedDatasetDigest : source.Sha256Hex;
   internal static string Digest(object value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value))));
   private static bool ValidPage(int page) => page >= 1 && (long)(page - 1) * SourcePageSize <= int.MaxValue;
 
@@ -59,9 +66,11 @@ public static partial class GeneralLedgerCompletenessWorkspace
       frozen ? "The engagement file is frozen. An approved amendment is required." : null;
     var final = await GeneralLedgerQuery.CheckCurrentAsync(db, actor, batch, ct);
     if (!final.Succeeded) return CommandResult<CompletenessSourceContext>.Fail(final.ErrorCode!, final.Message!);
+    var nativeOpening = await NativeGeneralLedgerSourceWorkspace.OpeningAsync(db, batch, ct);
+    if (!nativeOpening.Succeeded) return CommandResult<CompletenessSourceContext>.Fail(nativeOpening.ErrorCode!, nativeOpening.Message!);
     var revision = Digest(new { actor.FirmId, actor.UserId, actor.SessionEpoch, Source = source.Value, period, book, firm, safety, SelectedTb = selected.Value, frozen, blocker });
     return CommandResult<CompletenessSourceContext>.Ok(new(source.Value!, period.Status, period.Basis, period.StartDate, period.EndDate,
-      period.PriorPeriodId, book?.Code, safety.InputGeneration, selected.Value, revision, blocker is null, blocker));
+      period.PriorPeriodId, book?.Code, safety.InputGeneration, selected.Value, revision, blocker is null, blocker) { NativeOpening = nativeOpening.Value?.Source });
   }
 
   private static IQueryable<TrialBalanceDataset> CompatibleSources(IClientAccountingDbContext db, ActorContext actor,
@@ -69,9 +78,11 @@ public static partial class GeneralLedgerCompletenessWorkspace
   {
     var s = context.Source;
     var query = db.TrialBalanceDatasets.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == s.ClientId &&
-      x.EngagementId == s.EngagementId && x.SourceKind == "Raw" && x.ImportState == TrialBalanceImportStates.Sealed &&
+      x.EngagementId == s.EngagementId && (x.SourceKind == "Raw" || x.SourceKind == NativeTrialBalanceSourceWorkspace.SourceKind) && x.ImportState == TrialBalanceImportStates.Sealed &&
       x.ValidationStatus == "Accepted" && x.Balanced && x.Currency == s.Currency && x.LegalEntityKey == s.Entity && x.Basis == context.Basis);
-    if (!opening) return query.Where(x => x.PeriodId == s.PeriodId && x.BookId == s.BookId);
+    if (!opening) return query.Where(x => x.PeriodId == s.PeriodId && x.BookId == s.BookId &&
+      (context.NativeOpening == null || db.NativeGeneralLedgerSources.Any(n => n.ImportBatchId == s.BatchId && n.TrialBalanceDatasetId == x.Id)));
+    if (context.NativeOpening is not null) return query.Where(_ => false);
     if (context.PriorPeriodId is null || context.BookCode is null) return query.Where(_ => false);
     return query.Where(x => x.PeriodId == context.PriorPeriodId && db.ClientReportingBooks.Any(book =>
       book.Id == x.BookId && book.FirmId == actor.FirmId && book.ClientId == s.ClientId && book.PeriodId == context.PriorPeriodId &&
@@ -80,7 +91,7 @@ public static partial class GeneralLedgerCompletenessWorkspace
 
   private static async Task<CompletenessTbSource> ProjectAsync(IClientAccountingDbContext db, TrialBalanceDataset s, CancellationToken ct) =>
     new(s.Id, s.PeriodId!.Value, await db.ClientReportingPeriods.Where(x => x.Id == s.PeriodId && x.FirmId == s.FirmId && x.ClientId == s.ClientId).Select(x => x.PeriodCode).SingleAsync(ct),
-      s.BookId, s.Revision, s.NormalizedDatasetDigest.Length == 64 ? s.NormalizedDatasetDigest : s.Sha256Hex, s.ImportedAt);
+      s.BookId, s.Revision, SourceDigest(s), s.ImportedAt);
   private static async Task<CompletenessSourcePage> PageAsync(IClientAccountingDbContext db, IQueryable<TrialBalanceDataset> query, int page, CancellationToken ct)
   {
     var count = await query.CountAsync(ct);
