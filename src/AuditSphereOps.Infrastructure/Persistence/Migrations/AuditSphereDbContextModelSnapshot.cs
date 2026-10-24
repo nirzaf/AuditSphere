@@ -14206,14 +14206,14 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasAlternateKey("FirmId", "Id")
                         .HasName("AK_audit_cut_off_tests_firm_id_id");
 
-                    b.HasIndex("FirmId", "EngagementId", "SelectionItemId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_audit_cut_off_test_item");
-
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "SelectionId");
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "SelectionItemId")
                         .HasDatabaseName("IX_audit_cut_off_test_records_firm_id_client_id_engagement_id~1");
+
+                    b.HasIndex("FirmId", "EngagementId", "SelectionItemId", "Revision")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_cut_off_test_item_revision");
 
                     b.ToTable("audit_cut_off_test_records", null, t =>
                         {
@@ -16449,14 +16449,14 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasAlternateKey("FirmId", "Id")
                         .HasName("AK_audit_subsequent_matches_firm_id_id");
 
-                    b.HasIndex("FirmId", "EngagementId", "SelectionItemId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_audit_subsequent_match_item");
-
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "SelectionId");
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "SelectionItemId")
                         .HasDatabaseName("IX_audit_subsequent_match_records_firm_id_client_id_engagemen~1");
+
+                    b.HasIndex("FirmId", "EngagementId", "SelectionItemId", "Revision")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_subsequent_match_item_revision");
 
                     b.ToTable("audit_subsequent_match_records", null, t =>
                         {

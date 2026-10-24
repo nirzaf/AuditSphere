@@ -14,14 +14,14 @@ namespace AuditSphereOps.Application.Audit;
 public sealed record CutOffTestRequest(
   Guid SelectionItemId, DateOnly PeriodEndDate, DateOnly TransactionDate,
   DateOnly? DocumentDate, DateOnly? ShipReceiveDate, string WorkPerformed,
-  IReadOnlyList<string> EvidenceReferences);
+  IReadOnlyList<string> EvidenceReferences, long ExpectedRevision = 0);
 
 public sealed record CutOffTestValue(
   Guid CutOffTestId, Guid SelectionItemId, string PeriodEndIndicator, bool IsCutOffException, long Revision);
 
 public sealed record SubsequentMatchRequest(
   Guid SelectionItemId, decimal MatchedAmount, string SubsequentSourceReference,
-  DateOnly? SubsequentDate, string EvidenceReference, string? UnmatchedReason);
+  DateOnly? SubsequentDate, string EvidenceReference, string? UnmatchedReason, long ExpectedRevision = 0);
 
 public sealed record SubsequentMatchValue(
   Guid MatchId, Guid SelectionItemId, string State, decimal ItemSignedAmount,
@@ -57,7 +57,8 @@ public static class AuditSamplingService
     CancellationToken ct = default)
   {
     if (request.SelectionItemId == Guid.Empty || string.IsNullOrWhiteSpace(request.WorkPerformed) ||
-        request.WorkPerformed.Trim().Length > 20000 || request.EvidenceReferences is null)
+        request.WorkPerformed.Trim().Length > 20000 || request.EvidenceReferences is null ||
+        request.ExpectedRevision < 0 || request.ExpectedRevision == long.MaxValue)
       return CommandResult<CutOffTestValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A cut-off test needs the sampled item, work performed and evidence references.");
     var item = await db.AuditSelectionItems.AsNoTracking().SingleOrDefaultAsync(x =>
@@ -68,11 +69,39 @@ public static class AuditSamplingService
       new AuthorizationRequest(item.FirmId, item.ClientId, item.EngagementId, PlanningRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<CutOffTestValue>.Fail(auth.ErrorCode!, auth.Message!);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    // Match fieldwork's firm/client/engagement lock order before locking the sampled item.
+    await AuditFieldworkService.LockConfirmationScopeAsync(db, actor, item.EngagementId, ct);
+    var lockedScope = await AuditPlanningCommandWorkspace.LockAsync(db, actor, item.EngagementId, publishing: true, ct: ct);
+    if (!lockedScope.Succeeded)
+      return CommandResult<CutOffTestValue>.Fail(lockedScope.ErrorCode!, lockedScope.Message!);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(item.FirmId, item.ClientId, item.EngagementId, PlanningRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<CutOffTestValue>.Fail(auth.ErrorCode!, auth.Message!);
+    item = await db.AuditSelectionItems.FromSqlInterpolated($"""
+      SELECT * FROM audit_selection_items
+      WHERE firm_id = {actor.FirmId} AND client_id = {item.ClientId}
+        AND engagement_id = {item.EngagementId} AND id = {item.Id}
+      FOR UPDATE
+      """).AsNoTracking().SingleOrDefaultAsync(ct);
+    if (item is null)
+      return CommandResult<CutOffTestValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var selection = await db.AuditSelections.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == item.SelectionId && x.FirmId == item.FirmId && x.ClientId == item.ClientId &&
       x.EngagementId == item.EngagementId, ct);
     if (selection is null || selection.ProcedureId == Guid.Empty)
       return CommandResult<CutOffTestValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var currentSelection = await RequireCurrentReviewedSelectionAsync(db, actor, selection, ct);
+    if (!currentSelection.Succeeded)
+      return CommandResult<CutOffTestValue>.Fail(currentSelection.ErrorCode!, currentSelection.Message!);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(
+      db, actor, item.EngagementId, "record cut-off test", ct);
+    if (!writable.Succeeded)
+    {
+      if (tx is not null) await tx.CommitAsync(ct);
+      return CommandResult<CutOffTestValue>.Fail(writable.ErrorCode!, writable.Message!);
+    }
 
     var indicator = request.TransactionDate <= request.PeriodEndDate
       ? AuditCutOffDirections.BeforePeriodEnd : AuditCutOffDirections.AfterPeriodEnd;
@@ -83,40 +112,34 @@ public static class AuditSamplingService
       ? supportingDate > request.PeriodEndDate
       : supportingDate <= request.PeriodEndDate;
 
-    var existing = await db.AuditCutOffTestRecords.SingleOrDefaultAsync(x =>
-      x.FirmId == actor.FirmId && x.EngagementId == item.EngagementId && x.SelectionItemId == item.Id, ct);
+    var existing = await db.AuditCutOffTestRecords.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && x.EngagementId == item.EngagementId && x.SelectionItemId == item.Id)
+      .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
     if (existing is not null && existing.RecordedByUserId != actor.UserId)
       return CommandResult<CutOffTestValue>.Fail(ErrorCodes.ScopeDenied,
         "Only the recording auditor can revise this cut-off test.");
-    if (existing is null)
+    var currentRevision = existing?.Revision ?? 0;
+    if (currentRevision != request.ExpectedRevision)
+      return CommandResult<CutOffTestValue>.Fail(ErrorCodes.StaleRevision,
+        "The cut-off evidence changed. Refresh the sample item before revising it.");
+    var revision = new AuditCutOffTestRecord
     {
-      existing = new AuditCutOffTestRecord
-      {
-        Id = Guid.CreateVersion7(), FirmId = item.FirmId, ClientId = item.ClientId,
-        EngagementId = item.EngagementId, SelectionId = item.SelectionId, SelectionItemId = item.Id,
-        ProcedureId = selection.ProcedureId, RecordedByUserId = actor.UserId, RecordedAt = DateTimeOffset.UtcNow
-      };
-      db.AuditCutOffTestRecords.Add(existing);
-    }
-    else
-    {
-      existing.Revision++;
-      existing.RecordedAt = DateTimeOffset.UtcNow;
-    }
-    existing.ProcedureId = selection.ProcedureId;
-    existing.PeriodEndDate = request.PeriodEndDate;
-    existing.TransactionDate = request.TransactionDate;
-    existing.DocumentDate = request.DocumentDate;
-    existing.ShipReceiveDate = request.ShipReceiveDate;
-    existing.PeriodEndIndicator = indicator;
-    existing.IsCutOffException = isException;
-    existing.WorkPerformed = request.WorkPerformed.Trim();
-    existing.EvidenceReferencesJson = System.Text.Json.JsonSerializer.Serialize(
-      request.EvidenceReferences.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray());
+      Id = Guid.CreateVersion7(), FirmId = item.FirmId, ClientId = item.ClientId,
+      EngagementId = item.EngagementId, SelectionId = item.SelectionId, SelectionItemId = item.Id,
+      ProcedureId = selection.ProcedureId, PeriodEndDate = request.PeriodEndDate,
+      TransactionDate = request.TransactionDate, DocumentDate = request.DocumentDate,
+      ShipReceiveDate = request.ShipReceiveDate, PeriodEndIndicator = indicator, IsCutOffException = isException,
+      WorkPerformed = request.WorkPerformed.Trim(), Revision = request.ExpectedRevision + 1,
+      RecordedByUserId = actor.UserId, RecordedAt = DateTimeOffset.UtcNow,
+      EvidenceReferencesJson = JsonSerializer.Serialize(
+        request.EvidenceReferences.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray())
+    };
+    db.AuditCutOffTestRecords.Add(revision);
     await db.SaveChangesAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
 
     return CommandResult<CutOffTestValue>.Ok(new CutOffTestValue(
-      existing.Id, existing.SelectionItemId, existing.PeriodEndIndicator, existing.IsCutOffException, existing.Revision));
+      revision.Id, revision.SelectionItemId, revision.PeriodEndIndicator, revision.IsCutOffException, revision.Revision));
   }
 
   /// <summary>Matches a sampled item to a post-year-end bank/GL entry. The state is derived
@@ -129,7 +152,8 @@ public static class AuditSamplingService
     if (request.SelectionItemId == Guid.Empty || request.MatchedAmount < 0m ||
         string.IsNullOrWhiteSpace(request.SubsequentSourceReference) ||
         request.SubsequentSourceReference.Trim().Length > 200 ||
-        string.IsNullOrWhiteSpace(request.EvidenceReference) || request.EvidenceReference.Trim().Length > 2000)
+        string.IsNullOrWhiteSpace(request.EvidenceReference) || request.EvidenceReference.Trim().Length > 2000 ||
+        request.ExpectedRevision < 0 || request.ExpectedRevision == long.MaxValue)
       return CommandResult<SubsequentMatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A subsequent match needs the item, a non-negative matched amount, the source reference and evidence.");
     var item = await db.AuditSelectionItems.AsNoTracking().SingleOrDefaultAsync(x =>
@@ -140,6 +164,40 @@ public static class AuditSamplingService
       new AuthorizationRequest(item.FirmId, item.ClientId, item.EngagementId, PlanningRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<SubsequentMatchValue>.Fail(auth.ErrorCode!, auth.Message!);
+
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    // Match fieldwork's firm/client/engagement lock order before locking the sampled item.
+    await AuditFieldworkService.LockConfirmationScopeAsync(db, actor, item.EngagementId, ct);
+    var lockedScope = await AuditPlanningCommandWorkspace.LockAsync(db, actor, item.EngagementId, publishing: true, ct: ct);
+    if (!lockedScope.Succeeded)
+      return CommandResult<SubsequentMatchValue>.Fail(lockedScope.ErrorCode!, lockedScope.Message!);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(item.FirmId, item.ClientId, item.EngagementId, PlanningRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<SubsequentMatchValue>.Fail(auth.ErrorCode!, auth.Message!);
+    item = await db.AuditSelectionItems.FromSqlInterpolated($"""
+      SELECT * FROM audit_selection_items
+      WHERE firm_id = {actor.FirmId} AND client_id = {item.ClientId}
+        AND engagement_id = {item.EngagementId} AND id = {item.Id}
+      FOR UPDATE
+      """).AsNoTracking().SingleOrDefaultAsync(ct);
+    if (item is null)
+      return CommandResult<SubsequentMatchValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var selection = await db.AuditSelections.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == item.SelectionId && x.FirmId == item.FirmId && x.ClientId == item.ClientId &&
+      x.EngagementId == item.EngagementId, ct);
+    if (selection is null || selection.ProcedureId == Guid.Empty)
+      return CommandResult<SubsequentMatchValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var currentSelection = await RequireCurrentReviewedSelectionAsync(db, actor, selection, ct);
+    if (!currentSelection.Succeeded)
+      return CommandResult<SubsequentMatchValue>.Fail(currentSelection.ErrorCode!, currentSelection.Message!);
+    var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(
+      db, actor, item.EngagementId, "record subsequent match", ct);
+    if (!writable.Succeeded)
+    {
+      if (tx is not null) await tx.CommitAsync(ct);
+      return CommandResult<SubsequentMatchValue>.Fail(writable.ErrorCode!, writable.Message!);
+    }
 
     var absolute = item.SignedAmount < 0m ? -item.SignedAmount : item.SignedAmount;
     var matched = decimal.Round(request.MatchedAmount, 6, MidpointRounding.ToEven);
@@ -152,42 +210,37 @@ public static class AuditSamplingService
       return CommandResult<SubsequentMatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "An unmatched or partially matched item requires an explanation.");
 
-    var existing = await db.AuditSubsequentMatchRecords.SingleOrDefaultAsync(x =>
-      x.FirmId == actor.FirmId && x.EngagementId == item.EngagementId && x.SelectionItemId == item.Id, ct);
+    var existing = await db.AuditSubsequentMatchRecords.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && x.EngagementId == item.EngagementId && x.SelectionItemId == item.Id)
+      .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
     if (existing is not null && existing.RecordedByUserId != actor.UserId)
       return CommandResult<SubsequentMatchValue>.Fail(ErrorCodes.ScopeDenied,
         "Only the recording auditor can revise this subsequent match.");
-    if (existing is null)
+    var currentRevision = existing?.Revision ?? 0;
+    if (currentRevision != request.ExpectedRevision)
+      return CommandResult<SubsequentMatchValue>.Fail(ErrorCodes.StaleRevision,
+        "The subsequent match changed. Refresh the sample item before revising it.");
+    var revision = new AuditSubsequentMatchRecord
     {
-      existing = new AuditSubsequentMatchRecord
-      {
-        Id = Guid.CreateVersion7(), FirmId = item.FirmId, ClientId = item.ClientId,
-        EngagementId = item.EngagementId, SelectionId = item.SelectionId, SelectionItemId = item.Id,
-        RecordedByUserId = actor.UserId, RecordedAt = DateTimeOffset.UtcNow
-      };
-      db.AuditSubsequentMatchRecords.Add(existing);
-    }
-    else
-    {
-      existing.Revision++;
-      existing.RecordedAt = DateTimeOffset.UtcNow;
-    }
-    existing.ItemSignedAmount = item.SignedAmount;
-    existing.MatchedAmount = matched;
-    existing.Currency = item.Currency;
-    existing.SubsequentSourceReference = request.SubsequentSourceReference.Trim();
-    existing.SubsequentDate = request.SubsequentDate;
-    existing.State = state;
-    existing.UnmatchedReason = state == AuditSubsequentMatchStates.Matched ? null : request.UnmatchedReason!.Trim();
-    existing.EvidenceReference = request.EvidenceReference.Trim();
+      Id = Guid.CreateVersion7(), FirmId = item.FirmId, ClientId = item.ClientId,
+      EngagementId = item.EngagementId, SelectionId = item.SelectionId, SelectionItemId = item.Id,
+      ProcedureId = selection.ProcedureId, ItemSignedAmount = item.SignedAmount, MatchedAmount = matched,
+      Currency = item.Currency, SubsequentSourceReference = request.SubsequentSourceReference.Trim(),
+      SubsequentDate = request.SubsequentDate, State = state,
+      UnmatchedReason = state == AuditSubsequentMatchStates.Matched ? null : request.UnmatchedReason!.Trim(),
+      EvidenceReference = request.EvidenceReference.Trim(), Revision = request.ExpectedRevision + 1,
+      RecordedByUserId = actor.UserId, RecordedAt = DateTimeOffset.UtcNow
+    };
+    db.AuditSubsequentMatchRecords.Add(revision);
     await db.SaveChangesAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
 
     return CommandResult<SubsequentMatchValue>.Ok(new SubsequentMatchValue(
-      existing.Id, existing.SelectionItemId, existing.State, existing.ItemSignedAmount,
-      existing.MatchedAmount, existing.ItemSignedAmount < 0m
-        ? -(existing.ItemSignedAmount + existing.MatchedAmount)
-        : existing.ItemSignedAmount - existing.MatchedAmount,
-      existing.Revision));
+      revision.Id, revision.SelectionItemId, revision.State, revision.ItemSignedAmount,
+      revision.MatchedAmount, revision.ItemSignedAmount < 0m
+        ? -(revision.ItemSignedAmount + revision.MatchedAmount)
+        : revision.ItemSignedAmount - revision.MatchedAmount,
+      revision.Revision));
   }
 
   /// <summary>Paged sample-set view: every selected item with its test result, cut-off
@@ -240,10 +293,14 @@ public static class AuditSamplingService
     var testedCount = await latestTestsForSelection.CountAsync(x => x.Result != AuditItemTestResults.Pending, ct);
     var exceptionCount = await latestTestsForSelection.CountAsync(x => x.Result == AuditItemTestResults.Exception || x.Result == AuditItemTestResults.Limitation, ct);
     var cutOffs = await db.AuditCutOffTestRecords.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId))
+      .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId) &&
+        !db.AuditCutOffTestRecords.Any(newer => newer.FirmId == x.FirmId &&
+          newer.EngagementId == x.EngagementId && newer.SelectionItemId == x.SelectionItemId && newer.Revision > x.Revision))
       .ToListAsync(ct);
     var matches = await db.AuditSubsequentMatchRecords.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId))
+      .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId) &&
+        !db.AuditSubsequentMatchRecords.Any(newer => newer.FirmId == x.FirmId &&
+          newer.EngagementId == x.EngagementId && newer.SelectionItemId == x.SelectionItemId && newer.Revision > x.Revision))
       .ToListAsync(ct);
 
     var views = pageItems.Select(item =>
@@ -271,10 +328,33 @@ public static class AuditSamplingService
       selection.Id, selection.ProcedureId, selection.Method, selection.Rationale, selection.Status,
       selection.SelectedCount, selection.SelectedSignedTotal, selection.InputGeneration,
       testedCount, exceptionCount,
-      await db.AuditCutOffTestRecords.AsNoTracking().CountAsync(x => x.FirmId == actor.FirmId && x.SelectionId == selection.Id, ct),
+      await db.AuditCutOffTestRecords.AsNoTracking().CountAsync(x => x.FirmId == actor.FirmId && x.SelectionId == selection.Id &&
+        !db.AuditCutOffTestRecords.Any(newer => newer.FirmId == x.FirmId && newer.EngagementId == x.EngagementId &&
+          newer.SelectionItemId == x.SelectionItemId && newer.Revision > x.Revision), ct),
       await db.AuditSubsequentMatchRecords.AsNoTracking().CountAsync(x => x.FirmId == actor.FirmId && x.SelectionId == selection.Id &&
-        x.State == AuditSubsequentMatchStates.Matched, ct),
+        x.State == AuditSubsequentMatchStates.Matched &&
+        !db.AuditSubsequentMatchRecords.Any(newer => newer.FirmId == x.FirmId && newer.EngagementId == x.EngagementId &&
+          newer.SelectionItemId == x.SelectionItemId && newer.Revision > x.Revision), ct),
       views,
       totalCount, page, pageSize));
+  }
+
+  private static async Task<CommandResult> RequireCurrentReviewedSelectionAsync(
+    IClientAccountingDbContext db, ActorContext actor, AuditSelection selection, CancellationToken ct)
+  {
+    if (selection.Status != AuditSelectionStatuses.Reviewed)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The selection must be reviewed before cut-off or subsequent testing.");
+    var currentGeneration = Math.Max(1, await db.ClientSafetyStates.AsNoTracking()
+      .Where(x => x.Id == selection.ClientId && x.FirmId == actor.FirmId)
+      .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct) ?? 1);
+    if (selection.InputGeneration != currentGeneration)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The selected population changed; refresh and review the sample before continuing.");
+    if (selection.ScheduleId is { } scheduleId)
+    {
+      var current = await AuditScheduleSourceWorkspace.CheckCurrentScheduleSourceAsync(
+        db, actor, selection.ClientId, selection.EngagementId, scheduleId, ct);
+      if (!current.Succeeded) return current;
+    }
+    return CommandResult.Ok();
   }
 }

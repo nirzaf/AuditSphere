@@ -106,10 +106,14 @@ public static class AuditAreaSummaryQuery
     var currentTests = tests.GroupBy(x => x.SelectionItemId).Select(g =>
       g.OrderByDescending(x => x.Revision).ThenByDescending(x => x.TestedAt).ThenByDescending(x => x.Id).First()).ToList();
     var cutOffs = await db.AuditCutOffTestRecords.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId))
+      .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId) &&
+        !db.AuditCutOffTestRecords.Any(newer => newer.FirmId == x.FirmId &&
+          newer.EngagementId == x.EngagementId && newer.SelectionItemId == x.SelectionItemId && newer.Revision > x.Revision))
       .Select(x => x.IsCutOffException).ToListAsync(ct);
     var matches = await db.AuditSubsequentMatchRecords.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId))
+      .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId) &&
+        !db.AuditSubsequentMatchRecords.Any(newer => newer.FirmId == x.FirmId &&
+          newer.EngagementId == x.EngagementId && newer.SelectionItemId == x.SelectionItemId && newer.Revision > x.Revision))
       .Select(x => x.State).ToListAsync(ct);
     var confirmations = await db.AuditConfirmationCases.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.AreaCode == area)

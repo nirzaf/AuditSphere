@@ -180,8 +180,8 @@ public sealed partial class AuditSphereDbContext
     cutOff.Property(x => x.PeriodEndIndicator).HasMaxLength(30);
     cutOff.Property(x => x.WorkPerformed).HasMaxLength(20000);
     cutOff.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
-    cutOff.HasIndex(x => new { x.FirmId, x.EngagementId, x.SelectionItemId }).IsUnique()
-      .HasDatabaseName("ux_audit_cut_off_test_item");
+    cutOff.HasIndex(x => new { x.FirmId, x.EngagementId, x.SelectionItemId, x.Revision }).IsUnique()
+      .HasDatabaseName("ux_audit_cut_off_test_item_revision");
     cutOff.ToTable("audit_cut_off_test_records", t => t.HasCheckConstraint("ck_audit_cut_off_test_values",
       "revision > 0 AND period_end_indicator IN ('BEFORE_PERIOD_END','AFTER_PERIOD_END')"));
     ScopeToEngagement(cutOff, nameof(AuditCutOffTestRecord.FirmId), nameof(AuditCutOffTestRecord.ClientId), nameof(AuditCutOffTestRecord.EngagementId));
@@ -197,8 +197,8 @@ public sealed partial class AuditSphereDbContext
     subsequent.Property(x => x.State).HasMaxLength(30);
     subsequent.Property(x => x.UnmatchedReason).HasMaxLength(2000);
     subsequent.Property(x => x.EvidenceReference).HasMaxLength(2000);
-    subsequent.HasIndex(x => new { x.FirmId, x.EngagementId, x.SelectionItemId }).IsUnique()
-      .HasDatabaseName("ux_audit_subsequent_match_item");
+    subsequent.HasIndex(x => new { x.FirmId, x.EngagementId, x.SelectionItemId, x.Revision }).IsUnique()
+      .HasDatabaseName("ux_audit_subsequent_match_item_revision");
     subsequent.ToTable("audit_subsequent_match_records", t => t.HasCheckConstraint("ck_audit_subsequent_match_values",
       "revision > 0 AND currency ~ '^[A-Z]{3}$' AND matched_amount >= 0 AND state IN ('MATCHED','PARTIALLY_MATCHED','UNMATCHED')"));
     ScopeToEngagement(subsequent, nameof(AuditSubsequentMatchRecord.FirmId), nameof(AuditSubsequentMatchRecord.ClientId), nameof(AuditSubsequentMatchRecord.EngagementId));

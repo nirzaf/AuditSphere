@@ -79,6 +79,18 @@ public sealed class AuditSamplingServiceTests
         .ToDictionaryAsync(x => x.StableRowId, x => x.Id);
       inPeriodItemId = items["inv-001"];
       nextPeriodItemId = items["inv-002"];
+
+      var unreviewedCutOff = await AuditSamplingService.RecordCutOffTestAsync(db, scope.Actor, new CutOffTestRequest(
+        inPeriodItemId, new DateOnly(2026, 12, 31), new DateOnly(2026, 12, 20),
+        new DateOnly(2026, 12, 20), new DateOnly(2026, 12, 21), "Must not test a submitted selection.",
+        ["unreviewed-evidence"]));
+      Assert.False(unreviewedCutOff.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, unreviewedCutOff.ErrorCode);
+      Assert.Empty(await db.AuditCutOffTestRecords.Where(x => x.SelectionId == selectionId).ToListAsync());
+      var selectionReview = await AuditFieldworkService.ReviewSelectionAsync(db, reviewer,
+        new ReviewSelectionRequest(selectionId, AuditSelectionStatuses.Reviewed,
+          "Independently reviewed the selected receivables against the approved population."));
+      Assert.True(selectionReview.Succeeded, selectionReview.Message);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -102,15 +114,28 @@ public sealed class AuditSamplingServiceTests
       var cutOffRecord = await db.AuditCutOffTestRecords.SingleAsync(x => x.SelectionItemId == nextPeriodItemId);
       Assert.Equal(procedureId, cutOffRecord.ProcedureId);
 
-      // Re-recording by the same auditor revises the row rather than duplicating it.
+      // A correction creates a new immutable revision and retains the original exception evidence.
       var revised = await AuditSamplingService.RecordCutOffTestAsync(db, scope.Actor, new CutOffTestRequest(
         nextPeriodItemId, new DateOnly(2026, 12, 31), new DateOnly(2026, 12, 30),
         new DateOnly(2026, 12, 30), new DateOnly(2026, 12, 29), "Corrected: goods shipped before year end.",
-        ["delivery-note-inv-002-revised"]));
+        ["delivery-note-inv-002-revised"], ExpectedRevision: 1));
       Assert.True(revised.Succeeded);
       Assert.Equal(2, revised.Value!.Revision);
       Assert.False(revised.Value.IsCutOffException);
-      Assert.Equal(1, await db.AuditCutOffTestRecords.CountAsync(x => x.SelectionItemId == nextPeriodItemId));
+      var cutOffHistory = await db.AuditCutOffTestRecords.Where(x => x.SelectionItemId == nextPeriodItemId)
+        .OrderBy(x => x.Revision).ToListAsync();
+      Assert.Equal(2, cutOffHistory.Count);
+      Assert.True(cutOffHistory[0].IsCutOffException);
+      Assert.Equal(1, cutOffHistory[0].Revision);
+      Assert.Equal("delivery-note-inv-002", cutOffHistory[0].EvidenceReferencesJson.Trim('[', ']', '"'));
+      Assert.Equal("delivery-note-inv-002-revised", cutOffHistory[1].EvidenceReferencesJson.Trim('[', ']', '"'));
+      var staleCutOff = await AuditSamplingService.RecordCutOffTestAsync(db, scope.Actor, new CutOffTestRequest(
+        nextPeriodItemId, new DateOnly(2026, 12, 31), new DateOnly(2026, 12, 30),
+        new DateOnly(2026, 12, 30), new DateOnly(2026, 12, 29), "Stale correction must not replace the latest evidence.",
+        ["stale-reference"], ExpectedRevision: 1));
+      Assert.False(staleCutOff.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, staleCutOff.ErrorCode);
+      Assert.Equal(2, await db.AuditCutOffTestRecords.CountAsync(x => x.SelectionItemId == nextPeriodItemId));
 
       // Subsequent settlement: full match settles the item.
       var settled = await AuditSamplingService.MatchSubsequentTransactionAsync(db, scope.Actor, new SubsequentMatchRequest(
@@ -126,6 +151,24 @@ public sealed class AuditSamplingServiceTests
       Assert.True(partial.Succeeded, partial.Message);
       Assert.Equal(AuditSubsequentMatchStates.PartiallyMatched, partial.Value!.State);
       Assert.Equal(200m, partial.Value.UnmatchedAmount);
+
+      var revisedPartial = await AuditSamplingService.MatchSubsequentTransactionAsync(db, scope.Actor, new SubsequentMatchRequest(
+        nextPeriodItemId, 600m, "BANK-2027-02-02-CREDIT-014", new DateOnly(2027, 2, 2), "bank-statement-feb-2027-corrected",
+        "Additional receipt evidence supports a revised allocation.", ExpectedRevision: 1));
+      Assert.True(revisedPartial.Succeeded, revisedPartial.Message);
+      Assert.Equal(2, revisedPartial.Value!.Revision);
+      Assert.Equal(100m, revisedPartial.Value.UnmatchedAmount);
+      var stalePartial = await AuditSamplingService.MatchSubsequentTransactionAsync(db, scope.Actor, new SubsequentMatchRequest(
+        nextPeriodItemId, 550m, "BANK-2027-02-02-CREDIT-014", new DateOnly(2027, 2, 2), "stale-evidence",
+        "Stale revision attempt.", ExpectedRevision: 1));
+      Assert.False(stalePartial.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, stalePartial.ErrorCode);
+      var matchHistory = await db.AuditSubsequentMatchRecords.Where(x => x.SelectionItemId == nextPeriodItemId)
+        .OrderBy(x => x.Revision).ToListAsync();
+      Assert.Equal(2, matchHistory.Count);
+      Assert.Equal(500m, matchHistory[0].MatchedAmount);
+      Assert.Equal(600m, matchHistory[1].MatchedAmount);
+      Assert.All(matchHistory, x => Assert.Equal(procedureId, x.ProcedureId));
 
       // A partial match without an explanation is refused.
       var unexplained = await AuditSamplingService.MatchSubsequentTransactionAsync(db, scope.Actor, new SubsequentMatchRequest(
@@ -149,10 +192,48 @@ public sealed class AuditSamplingServiceTests
       var inv002 = view.Items.Single(x => x.StableRowId == "inv-002");
       Assert.False(inv002.CutOffException); // revised to an in-period shipment
       Assert.Equal(AuditSubsequentMatchStates.PartiallyMatched, inv002.SubsequentState);
-      Assert.Equal(500m, inv002.MatchedAmount);
+      Assert.Equal(600m, inv002.MatchedAmount);
       var untested = view.Items.Single(x => x.StableRowId == "inv-003");
       Assert.Equal(AuditItemTestResults.Pending, untested.TestResult);
       Assert.Null(untested.CutOffTestId);
+
+      // Two stale writers for one item are serialized and only one can create revision three.
+      await using var firstWriter = new AuditSphereDbContext(pg.Options);
+      await using var secondWriter = new AuditSphereDbContext(pg.Options);
+      var firstCorrection = AuditSamplingService.RecordCutOffTestAsync(firstWriter, scope.Actor, new CutOffTestRequest(
+        nextPeriodItemId, new DateOnly(2026, 12, 31), new DateOnly(2026, 12, 30),
+        new DateOnly(2026, 12, 30), new DateOnly(2026, 12, 29), "Concurrent correction A.",
+        ["concurrent-a"], ExpectedRevision: 2));
+      var secondCorrection = AuditSamplingService.RecordCutOffTestAsync(secondWriter, scope.Actor, new CutOffTestRequest(
+        nextPeriodItemId, new DateOnly(2026, 12, 31), new DateOnly(2026, 12, 30),
+        new DateOnly(2026, 12, 30), new DateOnly(2026, 12, 29), "Concurrent correction B.",
+        ["concurrent-b"], ExpectedRevision: 2));
+      var concurrentResults = await Task.WhenAll(firstCorrection, secondCorrection);
+      Assert.Single(concurrentResults, x => x.Succeeded);
+      Assert.Single(concurrentResults, x => !x.Succeeded && x.ErrorCode == ErrorCodes.StaleRevision);
+      await using var historyDb = new AuditSphereDbContext(pg.Options);
+      var concurrentHistory = await historyDb.AuditCutOffTestRecords.Where(x => x.SelectionItemId == nextPeriodItemId)
+        .OrderBy(x => x.Revision).ToListAsync();
+      Assert.Equal(3, concurrentHistory.Count);
+      Assert.Equal(new long[] { 1, 2, 3 }, concurrentHistory.Select(x => x.Revision));
+      var areaSummary = await AuditAreaSummaryQuery.GetAreaSummaryAsync(
+        historyDb, scope.Actor, scope.EngagementId, AuditAreaCodes.Receivables);
+      Assert.True(areaSummary.Succeeded, areaSummary.Message);
+      Assert.Equal(2, areaSummary.Value!.CutOffRecordedCount);
+      Assert.Equal(0, areaSummary.Value.CutOffExceptionCount);
+      Assert.Equal(2, areaSummary.Value.SubsequentRecordedCount);
+      Assert.Equal(1, areaSummary.Value.SubsequentMatchedCount);
+
+      var selectionRow = await historyDb.AuditSelections.SingleAsync(x => x.Id == selectionId);
+      var safety = await historyDb.ClientSafetyStates.SingleAsync(x => x.Id == scope.ClientId && x.FirmId == scope.FirmId);
+      safety.InputGeneration = selectionRow.InputGeneration + 1;
+      await historyDb.SaveChangesAsync();
+      var stalePopulationMatch = await AuditSamplingService.MatchSubsequentTransactionAsync(historyDb, scope.Actor,
+        new SubsequentMatchRequest(nextPeriodItemId, 650m, "BANK-STALE-GENERATION", new DateOnly(2027, 2, 3),
+          "stale-generation-evidence", "Must not match a stale sample population.", ExpectedRevision: 2));
+      Assert.False(stalePopulationMatch.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, stalePopulationMatch.ErrorCode);
+      Assert.Equal(2, await historyDb.AuditSubsequentMatchRecords.CountAsync(x => x.SelectionItemId == nextPeriodItemId));
 
       // A user granted only on the sibling engagement cannot read this sample set.
       var siblingUserId = Guid.NewGuid();
