@@ -35,9 +35,20 @@ an established-but-revoked session intentionally passes the HTTP boundary and is
 `TrustedActorResolver` inside the handler — the two refusal sources are deliberately distinct
 and covered by `HttpBoundarySecurityTests`.
 
-### Audit procedure command boundary
+### Reviewed command boundaries
 
-`/api/ui/procedures/{id}/commands/{state,preview,actions,receipts}` is the only accepted mutation path for procedure results and reviews. `preview` returns the exact canonical request hash; `actions` requires fresh assent plus that hash; `receipts` returns the retained original outcome. The legacy `/procedures/{id}/results` and `/procedure-results/{id}/review` routes fail closed and must not be reintroduced. Application authorization, freshness, freeze, independence and current-evidence gates remain authoritative behind these routes.
+Several capabilities expose one shared transport pattern: `state` returns the current server-projected capabilities, `preview` returns the exact canonical request hash, `actions` requires fresh assent plus that hash, and `receipts/{requestId}` returns the retained original outcome so a lost response is recovered rather than blindly retried.
+
+| Prefix under `/api/ui` | Owner | Notes |
+| --- | --- | --- |
+| `/procedures/{id}/commands` | `AuditProcedureCommandWorkspace` (`UiEndpoints.Fieldwork.cs`) | Only accepted mutation path for procedure results and reviews. The legacy `/procedures/{id}/results` and `/procedure-results/{id}/review` routes fail closed and must not be reintroduced. |
+| `/engagements/{engagementId}/audit-plan/commands` | `AuditPlanningCommandWorkspace` (`UiEndpoints.AuditPlan.cs`) | Materiality, risk and procedure-risk planning actions. |
+| `/findings/{findingId}/commands` | `FindingCommandWorkspace` (`UiEndpoints.AuditRecords.cs`) | Finding responses and management-letter designation. |
+| `/reviews/{reviewPointId}/commands` | `ReviewPointCommandWorkspace` (`UiEndpoints.AuditRecords.cs`) | Clear/reopen; `/reviews/{id}/disposition` delegates to the same workspace. |
+| `/audit/workpapers/{id}/commands` | `WorkpaperCommandWorkspace` (`UiEndpoints.AuditRecords.cs`) | Adds `prepare-save` and `recover`; draft history is never a substitute receipt. |
+| `/operations/commands` | `OperationCommandWorkspace` (`UiEndpoints.OperationCommands.cs`) | Retry, cancel, lift quarantine, approve recovery restart. Older per-operation routes in `UiEndpoints.Operations.cs` refuse without a current preview and explicit assent. |
+
+Billing mutations use request-identity receipts without a preview route: `GET /finance/commands/receipts/{requestId}` (`BillingCommandWorkspace`) recovers record-receipt, allocation and credit-note outcomes. Application authorization, freshness, freeze, independence and current-evidence gates remain authoritative behind every route above; the HTTP shape grants nothing.
 
 ## 3. Rate-Limit Policy Catalog
 

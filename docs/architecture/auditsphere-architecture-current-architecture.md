@@ -172,7 +172,16 @@ flowchart TB
   `Sites.Selected` access; PBC documents are written only into a provisioned, capability-verified
   engagement repository by the isolated Acceptance `pbc` worker group (LIVE / LIVE_PROVIDER
   operations), with exact-version SHA-256 read-back receipts. AuditSphere roles never assign Entra administrator roles,
-  and Microsoft group membership never grants AuditSphere access.
+  and Microsoft group membership never grants AuditSphere access. Outbound Graph mail additionally
+  requires enrolled, detached-signed mail authorization evidence that the runtime gate re-verifies
+  against deployment-owned expected values before token use and before dispatch; enrolled evidence
+  is not proof of send or delivery.
+- **Worker composition is a pure, fail-closed decision** (`WorkerCapabilityProfile`, WU-007).
+  Development and Test compose freely with simulation. Acceptance and Production compose the core
+  `general`/`processing`/`records` groups without external effects; the live `mail`, `pbc` and
+  `client-sites` groups each run in their own process. In Production a live group starts only
+  when it is listed in `Worker:ApprovedLiveGroups` and simulation adapters are off. Provider
+  credential and resource checks stay with each provider; composition is not live acceptance.
 - **Commands and queries are static capability services** returning `CommandResult` /
   `CommandResult<T>`. There is no MediatR/Wolverine handler layer; neither package is pinned.
   This is a recorded variation from R2R-ADR-02 (see
@@ -183,8 +192,19 @@ flowchart TB
 - **Pure calculators** (`LineTranslationCalculator`, `ConsolidationCalculator`,
   `CurrencyTranslationCalculator`, `TrialBalanceCalculator`, advanced-consolidation
   calculators) contain no EF Core, network, clock or random-ID dependencies.
-- **Durable work** (GL completeness, package build/render) runs through the local durable
-  operation infrastructure with revision fencing and idempotent retries.
+- **Durable work** (for example GL completeness, package build/render, PBC transfer and mail,
+  file freeze, workflow reminders and archive copies) runs through the local durable operation
+  infrastructure with revision fencing and idempotent retries. Operator retry, cancel,
+  quarantine-lift and recovery-restart actions are themselves reviewed commands with immutable
+  receipts; queue state is never substituted for a receipt.
+- **Reviewed commands recover, they do not blindly retry.** Browser-initiated mutations that can
+  lose their response persist an actor-owned receipt keyed by a client-supplied request identity
+  and canonical request hash. Many capabilities expose `state`/`preview`/`actions`/`receipts`
+  routes (procedures, audit planning, findings, review points, workpapers, operator commands);
+  others use comparable preview/receipt routes or request-identity receipts (for example
+  assessments, resource planning, staffing, budgets and billing). The
+  [HTTP boundary](auditsphere-architecture-http-boundary-and-contract-current.md) lists the
+  shared transport shape; Application gates remain authoritative.
 - **Audit programme execution** is one reusable procedure workspace over the adopted
   programme: exact command receipts (`audit_procedure_command_receipts`), a
   server-resolved evidence snapshot inside the immutable result, and one shared

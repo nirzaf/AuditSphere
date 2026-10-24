@@ -15,6 +15,6 @@ Interpretation:
 
 - `NOT JUSTIFIED — RETAIN NPGSQL POOLING` means the observed direct pool stayed within the declared thresholds; no pooler change is warranted.
 - `INSUFFICIENT EVIDENCE — NO DEPLOYMENT` means the sample was not representative or did not contain enough observations.
-- An over-threshold direct pool is a capacity-review signal, not approval to deploy PgBouncer. Before any isolated pilot, measure Web and Worker pools separately and test transaction-pooling compatibility for `SET LOCAL`, tenant/session state, advisory locks, prepared statements, temporary tables, cursors, cancellation, and worker recovery.
+- An over-threshold direct pool is a capacity-review signal, not approval to deploy PgBouncer. Before any isolated pilot, measure API and Worker pools separately and test transaction-pooling compatibility for `SET LOCAL`, tenant/session state, advisory locks, prepared statements, temporary tables, cursors, cancellation, and worker recovery.
 
 Production decisions must attach the exported evidence, the database connection budget, workload shape, transaction-duration distribution, and an explicit owner approval. No pooler configuration is included in this repository.

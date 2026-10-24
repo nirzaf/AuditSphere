@@ -18,7 +18,7 @@
 
 4. compare source/restored migration history and the release-checkpoint database count/digest summary; and
 
-5. write the secret-free result to `../evidence/restore-drill-latest.json`, then drop only the generated restore database and temporary directory.
+5. write the secret-free result to `docs/evidence/restore-drill-latest.json` (override with `AUDITSPHERE_EVIDENCE_FILE`), then drop only the generated restore database and temporary directory.
 
 The retained local checkpoint in `docs/evidence/restore-drill-latest.json` is dated 2026-09-24; it is historical evidence, not verification of today's schema or deployed release. It explicitly reports `externalCheckpointStoreVerification: NOT_RUN`, `custodiallySeparateStorage: false`, and `productionRpoRto: NOT_RUN`. Current observations belong in `docs/execution/status.json`; rerunning this script is a separately selected operational action, not a documentation check.
 

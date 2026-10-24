@@ -2,7 +2,13 @@
 
 The API and Worker hosts expose OpenTelemetry `ActivitySource` and `Meter` signals. HTTP spans, Npgsql spans/metrics, runtime metrics, command spans, durable-operation attempt spans, and draft-save timing are diagnostic signals only. Immutable audit events, workpaper submissions, and operation state remain PostgreSQL records.
 
-Set `Telemetry:Otlp:Endpoint` through the deployment configuration when an approved collector is available. The setting is independent from `ExternalEffects:Enabled`; enabling telemetry does not authorize Microsoft Graph, SharePoint, Purview, or any other provider effect. If no endpoint is configured, the application still starts with the sources and meters registered but does not export.
+Registered signals (`Application/Diagnostics/AuditDiagnostics.cs`, `Api/ApiHost.Observability.cs`, `Worker/Program.cs`):
+
+- traces: the `AuditSphereOps.Application` activity source (command and durable-operation spans) and `Npgsql`; the API adds ASP.NET Core and `HttpClient` instrumentation;
+- metrics: the `AuditSphereOps.Application` meter (`auditsphere.operations.claimed`, `.completed`, `.dispositioned`, `auditsphere.operations.duration`, `auditsphere.workpaper.draft.save.duration`), `Npgsql` and runtime instrumentation; the API adds `Microsoft.AspNetCore.Hosting`;
+- service names `AuditSphereOps.Api` and the worker's own resource name.
+
+Set `Telemetry:Otlp:Endpoint` through the deployment configuration when an approved collector is available. It must be an absolute HTTP(S) URI without embedded credentials or query data; startup refuses anything else (`TelemetryEndpoint.Parse`). The setting is independent from `ExternalEffects:Enabled`; enabling telemetry does not authorize Microsoft Graph, SharePoint, Purview, or any other provider effect. If no endpoint is configured, the application still starts with the sources and meters registered but does not export.
 
 Recommended dashboard panels:
 

@@ -46,6 +46,11 @@ Source: `src/AuditSphereOps.Api/HttpBoundary/ApiRateLimiter.cs`. Rejections retu
 | Portfolio CSV export | 1,000 clients (more is refused with typed `400`) | `PortfolioQuery.Workspace.cs` `ExportClientLimit` |
 | Workflow task evidence references | Eight distinct source references per task, including withdrawn references; changes append history | `WorkflowTaskEvidenceQuery.MaximumRules`, `WorkflowEvidenceRuleGuardSql` |
 | Workflow ordering amendment graph | At most 500 workflow tasks and 4,000 effective edges per engagement; evaluate the complete graph or refuse the change | `WorkflowTaskDependencyQuery.MaximumTasks` / `MaximumEdges`, `WorkflowDependencyRevisionGuardSql` |
+| Workflow reminder rule | At most 100 scheduled windows per repeating rule; worker batch size 1–100 | `WorkflowReminderSchedule.MaximumAllowedWindowCount`, `WorkflowReminderOptions` |
+| Audit schedule CSV profile | 10,000,000 bytes and 20,000 rows | `AuditScheduleCsvProfile.MaxBytes` / `MaxRows` |
+| External consolidation component pack | 500 lines per pack | `ConsolidationExternalComponentPackQuery.MaximumPackLines` |
+| Secondary archive copy | 250 MB per copied file | `SharePointClientSiteProvider.ArchiveCopy.cs` `MaximumArchiveCopyBytes` |
+| Mail authorization evidence | 1 MiB canonical payload, 64 KiB detached CMS | `MailAuthorizationAttestationCanonicalizer.MaximumPayloadBytes` / `MaximumCmsBytes` |
 | JSON command body | `HttpBoundary:BodyLimits:MaxJsonBodyBytes` → `413` | `HttpBoundary` |
 
 These are request or aggregate bounds. None limits how many clients, engagements or working papers the firm may hold (specification §1.1).

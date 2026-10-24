@@ -11,6 +11,8 @@
 | Staffing level | Engagement staffing tier: `ENGAGEMENT_PARTNER`, `AUDIT_MANAGER`, `SENIOR_AUDITOR`, `STAFF_ASSOCIATE`. Specification APPROVER / REVIEWER / PREPARER map onto these. | `StaffingLevels` (`Practice/ResourcePlanning.cs`) |
 | Charge-out role | Rate-card role name: Engagement Partner, Audit Manager, Audit Supervisor (alias Senior), Audit Associate (alias Junior). Unknown names get no rate. | `SteChargeOutRateBaseline` |
 | Session epoch | Counter on a user's session; revocation advances it and every protected read/command rechecks it. | `Application/Security/` |
+| Certification review | An independent administrative decision on the exact source of one staff certification. Separate from qualification expiry; it never assigns a role. | `StaffCertificationReview` |
+| Mail authorization evidence | Enrolled, detached-signed readback proving how the mail app identity is restricted (`LegacyApplicationAccessPolicy` or `ExchangeRbacResourceScope`). Re-verified before each send; never proof of delivery. | `MailAuthorizationEvidenceEnrollment`, `MailAuthorizationRuntimeGate` |
 
 ## Commercial and onboarding
 
@@ -52,6 +54,9 @@
 | SRM | Summary Review Memorandum; generated in the final applicable workprogramme review transaction, bound to a digest of reviewed facts. | `DeliverableKinds.SummaryReviewMemorandum` |
 | Critical confirmation | A Bank/AR/AP/Inventory/Legal confirmation flagged critical; while it lacks a returned and evaluated response, the report is held and a holding letter generated. | `AuditDeliverableService`, `HoldingLetterDispatch` |
 | Holding letter | "Pending confirmation" letter queued to the client-management contact. Queued is not delivered; missing routing blocks dispatch. One dispatch per outstanding blocker set. | `DeliverableKinds.HoldingLetter` |
+| Not-applicable (N/A) decision | A preparer's append-only proposal that a procedure does not apply, effective only after an independent Partner disposition. | `AuditProcedureApplicabilityDecision` |
+| Booked source | Snapshot of the independently reviewed Bank reconciliation a confirmation case was prepared from. A missing snapshot means legacy or unverified provenance, never a zero balance. | `AuditConfirmationBookedSource` |
+| Reviewed command receipt | Immutable record of one browser command, keyed by the client's request identity and canonical request hash. After a lost response the client looks up the receipt instead of retrying blindly. | `*CommandReceipt` (for example `FindingCommandReceipt`, `OperatorCommandReceipt`) |
 
 ## PBC portal
 
@@ -90,7 +95,10 @@ Display phases are a second, presentation-only layer over the canonical stages a
 | Workflow projection | Read-only server-computed view of the seven phases with status, responsible role, blockers, at most one next action, Dual-Key readiness cards and local versus provider archive state. | `EngagementWorkflowWorkspaceQuery` |
 | Enhanced Dual-Key Acceptance | Client approval (Key 1) and Partner risk approval (Key 2) shown with the engagement letter and the 50 % advance as separate readiness cards; activation still requires the unconditional advance gate (ADR-0012). | `EngagementWorkflowWorkspaceQuery`, `EngagementActivationAdvanceGateTests` |
 | Workflow task | An existing `WorkTask` bound to a display phase, with optional template revision and step origin, a stable source key and a due-date policy. Task completion never satisfies a gate by itself. Persistence exists and is default-off. | `WorkflowTaskBinding` |
-| Task template, task automator | Specification v2.2 requirements for reusable phase task plans and for safe automation that only creates tasks, reminders and drafts. Not yet delivered; see the [v2.2 delta](../execution/auditsphere-execution-tracker-ste-v21-gap-verification-current.md#v22-workflow-experience-delta). | — |
+| Task template | A reusable phase task plan. Each template revision is immutable and independently reviewed before publication; an engagement pins one exact published revision when its plan is instantiated. | `WorkflowTemplateService`, `EngagementWorkflowPlanService` |
+| Task automator | Safe automation that only creates tasks, reminders and drafts. Delivered in part and default-off: PBC follow-up tasks and PBC reminders, reviewed reminder rules that create optional local tasks, and draft-only fee invoices (ADR-0007). Broader escalation and recurrence policies remain open; see the [v2.2 delta](../execution/auditsphere-execution-tracker-ste-v21-gap-verification-current.md#v22-workflow-experience-delta). | `PbcReminderDiscovery`, `WorkflowReminderRuleService`, `AutomaticFeeInvoices` |
+| Reminder rule | A firm-wide, independently reviewed rule (`TASK_DUE` or `PBC_DUE` source) whose execution creates an internal follow-up task. It never sends mail or approves a source. | `WorkflowReminderRules`, `WorkflowReminderRuleService` |
+| Task activity | Append-only operational trace of a task (created, assigned, completed, cancelled, reopened, …). It explains state; it never sources task, lifecycle or approval state. | `WorkflowTaskActivity` |
 
 ## Status vocabulary used in docs
 

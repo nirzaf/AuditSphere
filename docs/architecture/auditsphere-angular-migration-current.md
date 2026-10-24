@@ -24,6 +24,8 @@ route owner; the later physical retirement did not satisfy those acceptance gate
 
 ## Implemented ownership
 
+The slices below were recorded as they migrated. Angular workspaces added after the Blazor retirement were built natively rather than migrated, so their owners are recorded only in the [code map](auditsphere-architecture-code-map.md): reviewed finding, review-point, workpaper and operator commands (`features/audit/*-command-*`, `features/admin/operations-command-*`); native trial-balance and general-ledger source handoffs (`features/accounting/native-source*`, `native-ledger-source*`) and period evidence; fee settlements (`features/finance/fee-settlements.ts`); time changes, certification reviews and reminder rules (`features/practice/`); engagement activity and manual task creation (`features/engagements/`); consolidation ownership, membership, external packs and component correction; and portal activity, receipts and branding (`features/portal/`). None of these assert parity with a retired screen.
+
 ### Assessment reviewed command backend
 
 The scoped assessment API provides CSRF-protected preview and execute contracts
