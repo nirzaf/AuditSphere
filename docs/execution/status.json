@@ -1109,9 +1109,9 @@
       "portalInternalRiskBoundary": "PASS_FOCUSED_API2; real internal evidence excluded from client reads and internal routes403, including strayPartner grant. Counterfactual detects guard loss. Archive: status-archive-2026-10.json#keys.portalInternalRiskBoundary20261024.",
       "reportingContextReview": "ASCP04 unified activation UNVERIFIED/BLOCKED_DEPENDENCY; existing producers reused. Six recipe clauses traced in manifest.specificationTaskReconciliation.ASCP-04; no Task04 completion claim.",
       "confirmationDirectAuthority": {
-        "status": "PASS_FOCUSED11; CURRENT_CI_REQUIRED",
-        "history": "status-archive-2026-10.json#keys.confirmationAlternativeStatus20261024",
-        "scope": "Current-authority and post-close alternative boundary; broader concurrency/source balances remain open."
+        "status": "PASS_FOCUSED13; CURRENT_CI_REQUIRED",
+        "history": "status-archive-2026-10.json#keys.confirmationReviewPreservation20261024",
+        "scope": "Current authority, post-close and original-review guards; broader concurrency/source lineage remain open."
       },
       "financialPackageBalance": "PASS_FOCUSED3; manual/read/automatic financial-package predicate aligned. Current CI pending. Archive: status-archive-2026-10.json#keys.financialPackageBalanceEligibility20261024.",
       "accountingHandoff": "Tasks10/11/15 source/test trace, not accepted. Native successor/sealed source remain. Archive: status-archive-2026-10.json#keys.accountingHandoffReview20261024.",

@@ -164,6 +164,9 @@ public static partial class AuditFieldworkService
       if (tx is not null) await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
       return writable;
     }
+    if (await db.AuditConfirmationResponses.AsNoTracking().AnyAsync(x => x.Id == live.Id && x.FirmId == actor.FirmId &&
+        (x.ReviewedByUserId != null || x.ReviewedAt != null), ct))
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "The confirmation response has already been reviewed.");
     live.ReviewedByUserId = actor.UserId;
     live.ReviewedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
@@ -239,6 +242,9 @@ public static partial class AuditFieldworkService
       if (tx is not null) await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
       return writable;
     }
+    if (await db.AuditAlternativeProcedures.AsNoTracking().AnyAsync(x => x.Id == live.Id && x.FirmId == actor.FirmId &&
+        (x.Status == AuditAlternativeStatuses.Reviewed || x.ReviewedByUserId != null || x.ReviewedAt != null), ct))
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "The alternative procedure has already been reviewed.");
     live.Status = AuditAlternativeStatuses.Reviewed;
     live.ReviewedByUserId = actor.UserId;
     live.ReviewedAt = DateTimeOffset.UtcNow;

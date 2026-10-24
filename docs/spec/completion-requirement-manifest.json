@@ -7618,7 +7618,9 @@
         "mutationMethod": "DirectConfirmationMutationsRefuseAuthorityRevokedBeforeTheirTransaction",
         "mutationOutcome": "Authorized rollback positives precede official role revocation; approval/dispatch/response/review/alternative/review-alternative/close deny without persisted changes. Six original gaps reproduced; Close already denied.",
         "postCloseMethod": "AlternativeProcedureRefusesCaseClosedBeforeItsTransaction",
-        "postCloseOutcome": "Official independently reviewed Close commits at transaction-start callback; alternative insertion refuses and retains the exact closed snapshot. Authorized insertion/rollback positive retained."
+        "postCloseOutcome": "Official independently reviewed Close commits at transaction-start callback; alternative insertion refuses and retains the exact closed snapshot. Authorized insertion/rollback positive retained.",
+        "reviewPreservationMethod": "DirectConfirmationReviewsPreserveOriginalIndependentReview",
+        "reviewPreservationOutcome": "Response and alternative review by A is retained exactly; same-A replay and independent B replacement return ProtectedState without changing original reviewer/time or any retained snapshot. Application command guard, not universal SQL append-only evidence."
       },
       "evidence": "docs/execution/status.json#targetedVerification.ascpSpecDiscovery20261024.confirmationDirectAuthority",
       "remaining": "Broader status/commit-window interleavings; typed source-derived booked amounts and retained lineage for all areas; human difference explanation and existing difference/review-point links; current full CI and required professional/provider acceptance. No source adapter completion claimed.",

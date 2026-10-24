@@ -270,6 +270,111 @@ public sealed class AuditConfirmationCommandIsolationTests
     Assert.Single(await verify.AuditAlternativeProcedures.Where(x => x.ConfirmationCaseId == caseId).ToListAsync(ct));
   }
 
+  [Theory]
+  [InlineData("RESPONSE")]
+  [InlineData("ALTERNATIVE")]
+  public async Task DirectConfirmationReviewsPreserveOriginalIndependentReview(string evidenceKind)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+    var ct = timeout.Token;
+    var scope = (await PlanningSeed.CreateAsync(pg, role: "Partner")).Primary;
+    var reviewerA = new ActorContext(Guid.NewGuid(), scope.FirmId, 1, ["Partner"]);
+    var reviewerB = new ActorContext(Guid.NewGuid(), scope.FirmId, 1, ["Partner"]);
+    Guid caseId;
+    Guid evidenceId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      AddScopedStaff(setup, scope.Actor.UserId, scope, reviewerA.UserId, "Partner", "confirmation-reviewer-a");
+      AddScopedStaff(setup, scope.Actor.UserId, scope, reviewerB.UserId, "Partner", "confirmation-reviewer-b");
+      await setup.SaveChangesAsync(ct);
+      var created = await AuditFieldworkService.CreateConfirmationAsync(setup, scope.Actor,
+        NewConfirmation(scope.EngagementId), ct);
+      Assert.True(created.Succeeded, created.Message);
+      caseId = created.Value!.ConfirmationCaseId;
+      Assert.True((await AuditFieldworkService.ApproveConfirmationAsync(setup, reviewerA, caseId, ct)).Succeeded);
+      Assert.True((await AuditFieldworkService.RecordDispatchEvidenceAsync(setup, scope.Actor,
+        new(caseId, "Synthetic observed dispatch reference"), ct)).Succeeded);
+      var response = await AuditFieldworkService.RecordConfirmationResponseAsync(setup, scope.Actor,
+        new(caseId, "DIRECT", "PORTAL", "Synthetic retained response", 50m,
+          "Synthetic independently assessed provenance", AuditConfirmationDecisions.AlternativeRequired), ct);
+      Assert.True(response.Succeeded, response.Message);
+      evidenceId = await setup.AuditConfirmationResponses.Where(x => x.ConfirmationCaseId == caseId)
+        .Select(x => x.Id).SingleAsync(ct);
+      if (evidenceKind == "ALTERNATIVE")
+      {
+        Assert.True((await AuditFieldworkService.ReviewConfirmationResponseAsync(setup, reviewerA, new(evidenceId), ct)).Succeeded);
+        var alternative = await AuditFieldworkService.RecordAlternativeProcedureAsync(setup, scope.Actor,
+          new(caseId, "Inspect subsequent clearing", ["Synthetic clearing evidence"], "The balance is supported."), ct);
+        Assert.True(alternative.Succeeded, alternative.Message);
+        evidenceId = await setup.AuditAlternativeProcedures.Where(x => x.ConfirmationCaseId == caseId)
+          .Select(x => x.Id).SingleAsync(ct);
+      }
+    }
+
+    async Task<(bool Succeeded, string? ErrorCode, string? Message)> Review(AuditSphereDbContext db, ActorContext actor)
+    {
+      var result = evidenceKind == "RESPONSE"
+        ? await AuditFieldworkService.ReviewConfirmationResponseAsync(db, actor, new(evidenceId), ct)
+        : await AuditFieldworkService.ReviewAlternativeProcedureAsync(db, actor, new(evidenceId, "Independently reviewed clearing evidence."), ct);
+      return (result.Succeeded, result.ErrorCode, result.Message);
+    }
+
+    async Task<(Guid? ReviewerId, DateTimeOffset? ReviewedAt)> ReviewIdentity(AuditSphereDbContext db)
+    {
+      var row = evidenceKind == "RESPONSE"
+        ? await db.AuditConfirmationResponses.AsNoTracking().Where(x => x.Id == evidenceId)
+          .Select(x => new { x.ReviewedByUserId, x.ReviewedAt }).SingleAsync(ct)
+        : await db.AuditAlternativeProcedures.AsNoTracking().Where(x => x.Id == evidenceId)
+          .Select(x => new { x.ReviewedByUserId, x.ReviewedAt }).SingleAsync(ct);
+      return (row.ReviewedByUserId, row.ReviewedAt);
+    }
+
+    async Task<string> Snapshot(AuditSphereDbContext db) => JsonSerializer.Serialize(new
+    {
+      Case = await db.AuditConfirmationCases.AsNoTracking().SingleAsync(x => x.Id == caseId, ct),
+      Responses = await db.AuditConfirmationResponses.AsNoTracking().Where(x => x.ConfirmationCaseId == caseId).OrderBy(x => x.Id).ToListAsync(ct),
+      Alternatives = await db.AuditAlternativeProcedures.AsNoTracking().Where(x => x.ConfirmationCaseId == caseId).OrderBy(x => x.Id).ToListAsync(ct),
+      Closures = await db.AuditConfirmationClosures.AsNoTracking().Where(x => x.ConfirmationCaseId == caseId).OrderBy(x => x.Id).ToListAsync(ct)
+    });
+
+    string originalSnapshot;
+    (Guid? ReviewerId, DateTimeOffset? ReviewedAt) originalReview;
+    await using (var firstReview = new AuditSphereDbContext(pg.Options))
+    {
+      var allowed = await Review(firstReview, reviewerA);
+      Assert.True(allowed.Succeeded, allowed.Message);
+      originalReview = await ReviewIdentity(firstReview);
+      Assert.Equal(reviewerA.UserId, originalReview.ReviewerId);
+      Assert.NotNull(originalReview.ReviewedAt);
+      if (evidenceKind == "ALTERNATIVE")
+        Assert.Equal(AuditAlternativeStatuses.Reviewed,
+          await firstReview.AuditAlternativeProcedures.Where(x => x.Id == evidenceId).Select(x => x.Status).SingleAsync(ct));
+      originalSnapshot = await Snapshot(firstReview);
+    }
+
+    // Observe both attempts before asserting, so an incorrect same-reviewer replay cannot hide replacement by B.
+    await using var replayDb = new AuditSphereDbContext(pg.Options);
+    var replay = await Review(replayDb, reviewerA);
+    var replayReview = await ReviewIdentity(replayDb);
+    var replaySnapshot = await Snapshot(replayDb);
+    await using var replacementDb = new AuditSphereDbContext(pg.Options);
+    var replacement = await Review(replacementDb, reviewerB);
+    var replacementReview = await ReviewIdentity(replacementDb);
+    var replacementSnapshot = await Snapshot(replacementDb);
+    Assert.True(!replay.Succeeded && !replacement.Succeeded &&
+      originalSnapshot == replaySnapshot && originalSnapshot == replacementSnapshot,
+      $"{evidenceKind} review must retain A's original assent; same-A succeeded={replay.Succeeded}, " +
+      $"same-A rewrote evidence={originalSnapshot != replaySnapshot}, B succeeded={replacement.Succeeded}, " +
+      $"B rewrote evidence={originalSnapshot != replacementSnapshot}.");
+    Assert.Equal(ErrorCodes.ProtectedState, replay.ErrorCode);
+    Assert.Equal(ErrorCodes.ProtectedState, replacement.ErrorCode);
+    Assert.Equal(originalReview, replayReview);
+    Assert.Equal(originalReview, replacementReview);
+    Assert.Equal(originalSnapshot, replaySnapshot);
+    Assert.Equal(originalSnapshot, replacementSnapshot);
+  }
+
   private sealed class RevokeOnConfirmationTransaction(Func<CancellationToken, Task> revoke) : DbTransactionInterceptor
   {
     private int invoked;

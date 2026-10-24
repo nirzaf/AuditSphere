@@ -24707,6 +24707,29 @@
       "browser": "Builtin normal synthetic sign-in; Return collapse/expand, Tab Refresh, Return refresh, Tab Proceed. Stage3 and dual blockers retained; no business mutation. Valid screenshot before fixture expiry; final AccessUnavailable capture occurred after90sec deadline, not a claimed product failure or additional revocation acceptance.",
       "limits": "Both CI paths passed unchanged locally; underlying recovery latency cause not conclusively established. Current immutable fullCI required. No humanAT/nativezoom/completeaccessibility/professional/provider acceptance.",
       "preservedPriorAngularRemaining": "Task07: wider states/native zoom/humanAT; time E2E focused pass; new full CI pending; prior proposal cause unproven."
+    },
+    "confirmationReviewPreservation20261024": {
+      "status": "PASS_FOCUSED13_CURRENT_CI_REQUIRED",
+      "sourceBase": "74ab733574b85440fb98563dea43664c6be01f4e",
+      "checks": "ActualRED2 confirms both same-A replay and B replacement overwrite reviewer/time/fullsnapshot for response and alternative. FinalGREEN13PASS/0FAIL/0SKIP; prior11cases preserved.",
+      "evidence": ".local/autonomous/evidence/confirmation-review-immutability-20261024/review.json",
+      "sourceDigests": {
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Confirmations.cs": "a038c9f90895b6d655f3975769dca99ecdd469c0e9113068c3f9b2885f5bb26c",
+        "tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs": "f0b1907934126ab21267694354505f39c576cfc878afc9a30b7fb30f48a76394",
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Authorization.cs": "e1af98ff4d2fc7ec2bb78ecd015794ee6f601c3a2a2b0282bc10070240830091",
+        "src/AuditSphereOps.Application/Audit/ConfirmationWorkspace.cs": "e0e9fa0b176c0660f955ad511ba0da174effe1f79faa33582a834ed5e87f2c59"
+      },
+      "change": "Two persisted-state guards under existing scope/case locks; preserve original reviewer/time and refuse ProtectedState. Existing workspace restriction is authority; no newly generated professional approval.",
+      "limits": [
+        "No complete Task18/19 acceptance or professional approval claim.",
+        "No added stale-context concurrency cohort; current persisted-state guard is source-reviewed, while paired tests exercise actual sequential replay/replacement.",
+        "Dedicated freeze/critical cohorts not rerun; their code is unchanged, with existing 11-case scope/revocation/closure regressions passing."
+      ],
+      "persistenceBoundary": {
+        "sourceInspection": "Historical read-only plan records mappings/migrations/nearby append-only triggers inspected. No model/schema changes made.",
+        "runtimeEvidence": "The actual migrated guarded local test database allowed both pre-fix overwrites; no schema prevention claimed. No raw catalog/schemaPASS fabricated.",
+        "remaining": "No new entity, DTO, route, schema, generic review policy, provider or external effect."
+      }
     }
   },
   "archivedTargetedVerification": {
