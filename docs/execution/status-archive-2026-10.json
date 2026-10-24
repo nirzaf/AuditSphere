@@ -24534,6 +24534,13 @@
       "scope": "Critical workflow guards,20additional commercial criterion traces and Acceptance-profile review. No product behavior change or live/professional acceptance.",
       "history": "status-archive-2026-10.json#keys.ascpCriticalAcceptanceFollowup20261024",
       "ci": "Superseded3f61/9ef full runs terminal CANCELLED; not passes. Prior871 exact fullPASS is archived separately. Current migration candidate tracked below."
+    },
+    "inheritedParityCrosswalk20261024": {
+      "source": "8dbacc63 docs-on-a9 source",
+      "manifest": "docs/spec/completion-requirement-manifest.json#inheritedParityCrosswalk",
+      "status": "SOURCE_ALIAS_ONLY; FINDING_LEVEL_RECONCILIATION_PENDING",
+      "checks": "All51originaltracker row hashes, requirement/disposition text and referenced existing ACCREQ parentIDs verified. Subject associations13MAPPED/8PARTIAL/30UNMAPPED; all51ASCPaliases remain unassigned without explicit mapping. Distinct financial domains/namespaces retained. No code/test/API/browser revalidation performed or new defect proven by read-only3document sidecar.",
+      "limits": "Historical tracker VERIFIED/FASTCI clauses are retained, not elevated to current acceptance. Current code candidatea9 exactfull40055833218 is tracked separately. Finding-level WU/parity/R2R/ASCP reconciliation still partial."
     }
   },
   "archivedTargetedVerification": {

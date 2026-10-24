@@ -20,7 +20,7 @@ Routing reads now require the joined contact to match the route's firm and clien
 
 ## Module criterion reconciliation (2026-10-24)
 
-The current module requirements now have source-line criterion traces across commercial, administration, audit, reporting and practice management. Each trace distinguishes a located owner/test from an unverified behavior or missing acceptance anchor; no requirement was marked functionally complete from source inspection. Original parent records and earlier child criteria remain intact. Approved ADRs govern interpretation, including draft-only after-letter billing, Microsoft client sign-in and documented sampling judgment. Workflow/invariant and lifecycle aliases preserve domain authority. Earlier work-unit/parity/record-to-report findings still need current-source reconciliation. Archive countdown semantics remain a pending qualified-owner decision under ADR-0018; no historical date or protection was changed. Exact source, counts and checks are recorded in `status.json`.
+Module requirements have source-line traces across commercial, administration, audit, reporting and practice management. Owner/test links are not acceptance; missing anchors stay unverified. Original records remain intact. Approved ADRs govern billing, identity, sampling and domain authority. Workflow/lifecycle aliases and separate inherited parity IDs prevent duplicate obligations. Work-unit/parity/record-to-report findings still need current-source reconciliation. Archive countdown remains pending under ADR-0018. Historical evidence is unchanged; exact source and checks are in `status.json`.
 
 ## Client contact and hierarchy read revocation (2026-10-24)
 

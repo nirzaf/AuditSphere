@@ -1113,7 +1113,8 @@
         "implementationCommit": "a9a93692e73671470131aa807b12f526034445e1"
       },
       "workflowInvariantTrace": "27 workflow/invariant children plus lifecycle scenario aliases; source-only. PriorWU/parity/R2R finding-level reconciliation remains partial. Archive: status-archive-2026-10.json#keys.workflowInvariantTrace20261024.",
-      "criticalGateFollowup": "Historical focused evidence preserved: status-archive-2026-10.json#keys.ascpCriticalAcceptancePointer20261024; no current-CI promotion."
+      "criticalGateFollowup": "Historical focused evidence preserved: status-archive-2026-10.json#keys.ascpCriticalAcceptancePointer20261024; no current-CI promotion.",
+      "inheritedParityCrosswalk": "All51 independentPARITY rows source-hashed;13subjectmapped/8partial/30unmapped, no functional promotion. Details: status-archive-2026-10.json#keys.inheritedParityCrosswalk20261024."
     },
     "archivedOn20261024": {
       "entries": [

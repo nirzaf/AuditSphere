@@ -5824,5 +5824,1190 @@
     ],
     "scenarioAliases": "Eleven5.1 rows point to module criteria,5.2same scenario diagram,5.3same6.1phase mapping. They do not create a second lifecycle or duplicate business outcomes.",
     "limits": "Owner/test source inspection only. Cross-module predicates, full rendered/role matrix, native zoom/qualified human AT, live provider/professional acceptance remain open. Prior WU/parity/R2R finding-level reconciliation remains partial."
+  },
+  "inheritedParityCrosswalk": {
+    "sourcePath": "docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md",
+    "sourceSha256": "3d30f06955f1a81cf223972f8120375b2b6867f234c16dcda5d9fd9ff9356dc8",
+    "observedSourceSha": "8dbacc634e72d0d522f2fe99ea1d73336e83357b",
+    "interpretation": "All51PARITY IDs retain independent namespace and original tracker statements. ACCREQ MAPPED/PARTIAL are subject associations only, never current source/behavior acceptance; tracker VERIFIED/CI text is historical evidence, not a new result. All ASCP aliases remain unresolved pending an explicit finding-level crosswalk; no ordinal conversion or new obligation is inferred. UNMAPPED requires current-source triage; native/firm/consolidation financial domains stay separate.",
+    "rows": [
+      {
+        "id": "PARITY-T001",
+        "trackerTaskId": "T001",
+        "sourceLine": 11,
+        "rowSha256": "73bd003894f40be17d5a782ffc1b81d84d26a9b29864b419f36ff25742a635df",
+        "requirement": "Require the privileged role and firm-wide scope on the same eligible grant",
+        "trackerDisposition": "VERIFIED",
+        "trackerCodeEvidence": "[AuthorizationDecision.cs](../../src/AuditSphereOps.Application/Security/AuthorizationDecision.cs); [status.json](status.json)",
+        "accreqParents": {
+          "status": "MAPPED",
+          "ids": [
+            "ACCREQ-6.7"
+          ],
+          "basis": "Eligible role/grant scope is the existing user-role/security subject; the manifest names the same AuthorizationDecision.cs owner.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/32"
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T002",
+        "trackerTaskId": "T002",
+        "sourceLine": 12,
+        "rowSha256": "83ef89e057af6cd78c2307c2036804c492efbbd5c96c3876cfc91790ac3477d1",
+        "requirement": "Correct emitted decimal and nullable error schemas",
+        "trackerDisposition": "VERIFIED",
+        "trackerCodeEvidence": "[ApiContract.cs](../../src/AuditSphereOps.Api/Contracts/ApiContract.cs); [OpenApiContractTests.cs](../../tests/AuditSphereOps.Api.Tests/OpenApiContractTests.cs); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "API_SCHEMA_INFRASTRUCTURE",
+          "triage": "The allowed manifest has no explicit emitted decimal/nullable error-schema parent. Shared API use does not establish a requirement link."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T003",
+        "trackerTaskId": "T003",
+        "sourceLine": 13,
+        "rowSha256": "85b2af17214548e77690b26ad980c0f84c1673128812a0aa92672471110f00dc",
+        "requirement": "Use actual consolidation lifecycle literals in UI action gates",
+        "trackerDisposition": "VERIFIED",
+        "trackerCodeEvidence": "[scope-workspace.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CONSOLIDATION_DISTINCT_SCOPE",
+          "triage": "No accounting-group consolidation parent is present in the allowed ACCREQ manifest. Consolidation lifecycle states are not engagement lifecycle states, and group ownership/journals are not firm bookkeeping."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T004",
+        "trackerTaskId": "T004",
+        "sourceLine": 14,
+        "rowSha256": "266931e9d9f812fb002fd7102f06ff8820c3c829658a38272822385a51ab9759",
+        "requirement": "Preserve consolidation journal precision and ownership units",
+        "trackerDisposition": "VERIFIED",
+        "trackerCodeEvidence": "[scope-workspace.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CONSOLIDATION_DISTINCT_SCOPE",
+          "triage": "No accounting-group consolidation parent is present in the allowed ACCREQ manifest. Consolidation lifecycle states are not engagement lifecycle states, and group ownership/journals are not firm bookkeeping."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T005",
+        "trackerTaskId": "T005",
+        "sourceLine": 15,
+        "rowSha256": "ccdce422bb98ba295ae2716e21e0b3dce8f6703db02ab5a87056a1380b7f8c5f",
+        "requirement": "Reject invalid nonblank audit exception amounts without losing supported precision",
+        "trackerDisposition": "VERIFIED",
+        "trackerCodeEvidence": "[fieldwork.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "MAPPED",
+          "ids": [
+            "ACCREQ-3.3"
+          ],
+          "basis": "Audit exception input belongs to the existing technical fieldwork flow; the manifest names the same fieldwork.ts owner. The link is at parent level, without inventing a precision assertion.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/2"
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T006",
+        "trackerTaskId": "T006",
+        "sourceLine": 16,
+        "rowSha256": "c5cec80530a07f91dfb31735bcb4e2f8c2fa7acb63ccb8f6a7bd59b0ef87be7f",
+        "requirement": "Bind allocation assent to the exact displayed and submitted manifest",
+        "trackerDisposition": "VERIFIED",
+        "trackerCodeEvidence": "[open-item-allocations.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/open-item-allocations.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T007",
+        "trackerTaskId": "T007",
+        "sourceLine": 17,
+        "rowSha256": "13344cc2b5179a65f2d2aad52193617d627ed9986531bf6bcce8ad53171d638a",
+        "requirement": "Reopen and revise purchase invoice drafts and returned invoices",
+        "trackerDisposition": "VERIFIED",
+        "trackerCodeEvidence": "[purchase-invoice-workflow.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/purchase-invoice-workflow.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T008",
+        "trackerTaskId": "T008",
+        "sourceLine": 18,
+        "rowSha256": "0aff00dfd5697dec1b9e6d8175e0d10ffe9b9f3ea8bcb37cb3a1acf76bcf6c24",
+        "requirement": "Expose accounting group creation with existing firm authority",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; BROWSER_PENDING",
+        "trackerCodeEvidence": "[overview.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/overview.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CONSOLIDATION_DISTINCT_SCOPE",
+          "triage": "No accounting-group consolidation parent is present in the allowed ACCREQ manifest. Consolidation lifecycle states are not engagement lifecycle states, and group ownership/journals are not firm bookkeeping."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T009",
+        "trackerTaskId": "T009",
+        "sourceLine": 19,
+        "rowSha256": "41db6411e0e55c713b153c02332e0cfc5ffb9fadc2d7c55160494a013a980ad0",
+        "requirement": "Expose effective-dated accounting group membership",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; BROWSER_PENDING",
+        "trackerCodeEvidence": "[group-membership.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/group-membership.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CONSOLIDATION_DISTINCT_SCOPE",
+          "triage": "No accounting-group consolidation parent is present in the allowed ACCREQ manifest. Consolidation lifecycle states are not engagement lifecycle states, and group ownership/journals are not firm bookkeeping."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T010",
+        "trackerTaskId": "T010",
+        "sourceLine": 20,
+        "rowSha256": "0ca60ae22c2bb608957e24e10e1a992a078781a375cba0b62b96c08ffd6d7d52",
+        "requirement": "Wire first/new consolidation scope creation",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; BROWSER_PENDING",
+        "trackerCodeEvidence": "[ConsolidationScopeCreationQuery.cs](../../src/AuditSphereOps.Application/Accounting/ConsolidationScopeCreationQuery.cs); [API period-boundary test](../../tests/AuditSphereOps.Api.Tests/ConsolidationWorkspaceApiTests.cs); [Domain finite-membership tests](../../tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.Consolidation.cs); [Angular spec](../../src/AuditSphereOps.Ui/src/app/features/consolidation/overview.spec.ts)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CONSOLIDATION_DISTINCT_SCOPE",
+          "triage": "No accounting-group consolidation parent is present in the allowed ACCREQ manifest. Consolidation lifecycle states are not engagement lifecycle states, and group ownership/journals are not firm bookkeeping."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T011",
+        "trackerTaskId": "T011",
+        "sourceLine": 21,
+        "rowSha256": "187d154a1bef374bc5a8c55140df822dbab488b16b3642fee8e786afc2c01aea",
+        "requirement": "Add contact routing assignment and revocation to the client workspace",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; BROWSER_PENDING",
+        "trackerCodeEvidence": "[client-relationships.ts](../../src/AuditSphereOps.Ui/src/app/features/clients/client-relationships.ts); [assignment API test](../../tests/AuditSphereOps.Api.Tests/ClientContactCreationApiTests.cs)",
+        "accreqParents": {
+          "status": "MAPPED",
+          "ids": [
+            "ACCREQ-4.1.1"
+          ],
+          "basis": "The existing client-profile parent explicitly includes multiple contacts and purpose-based correspondence routing. This inherited finding concerns assignment/revocation UI only.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/5",
+            "docs/spec/completion-requirement-manifest.json#/requirements/5/atomicCriteria/2"
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T012",
+        "trackerTaskId": "T012",
+        "sourceLine": 22,
+        "rowSha256": "bb905978f42448d969b4a893a1f5e4fafc4734e52da9677896a1201a91204532",
+        "requirement": "Add client relationship creation and revocation",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_PENDING",
+        "trackerCodeEvidence": "[PracticeCrmService.Relationships.cs](../../src/AuditSphereOps.Application/Practice/PracticeCrmService.Relationships.cs); [route-binding API test](../../tests/AuditSphereOps.Api.Tests/ClientRelationshipRouteBindingApiTests.cs); [Angular spec](../../src/AuditSphereOps.Ui/src/app/features/clients/client-relationships.spec.ts)",
+        "accreqParents": {
+          "status": "MAPPED",
+          "ids": [
+            "ACCREQ-4.1.1"
+          ],
+          "basis": "The existing hierarchy criterion names the same PracticeCrmService.Relationships.cs owner and organization-relationship subject.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/5",
+            "docs/spec/completion-requirement-manifest.json#/requirements/5/atomicCriteria/1"
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T013",
+        "trackerTaskId": "T013",
+        "sourceLine": 23,
+        "rowSha256": "417df63d9db534573fd6a30552cfc2a03dd828cad68d0a00b6b960c231eed632",
+        "requirement": "Expose current Manager workprogramme approval",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_PENDING",
+        "trackerCodeEvidence": "[completion.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/completion.ts); [completion spec](../../src/AuditSphereOps.Ui/src/app/features/audit/completion.spec.ts)",
+        "accreqParents": {
+          "status": "MAPPED",
+          "ids": [
+            "ACCREQ-4.3.3"
+          ],
+          "basis": "Manager workprogramme approval supports the existing review matrix and the stated compile-after-Manager-approval stage; completion.ts co-location alone is not used to map this to audit opinion selection.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/16",
+            "docs/spec/completion-requirement-manifest.json#/requirements/16/atomicCriteria/1",
+            "docs/spec/completion-requirement-manifest.json#/requirements/16/atomicCriteria/4"
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T014",
+        "trackerTaskId": "T014",
+        "sourceLine": 24,
+        "rowSha256": "16e334b47564e866b01ca2a9a2eb3478e122537af67e107078b2d2b268def70a",
+        "requirement": "Wire controlled procedure wording tailoring",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_PENDING",
+        "trackerCodeEvidence": "[fieldwork.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts); [fieldwork spec](../../src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.spec.ts)",
+        "accreqParents": {
+          "status": "MAPPED",
+          "ids": [
+            "ACCREQ-4.3.2"
+          ],
+          "basis": "Controlled procedure wording supports the workprogram-execution parent, which names fieldwork.ts and controlled custom-procedure editing.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/15",
+            "docs/spec/completion-requirement-manifest.json#/requirements/15/atomicCriteria/2"
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T015",
+        "trackerTaskId": "T015",
+        "sourceLine": 25,
+        "rowSha256": "cd606619c7c02c43a1ba6e758e137fe2012da95dd17127056aa12aab544e012a",
+        "requirement": "Open an editable WORKING workpaper from its procedure",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_PENDING",
+        "trackerCodeEvidence": "[plan.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/plan.ts); [plan spec](../../src/AuditSphereOps.Ui/src/app/features/audit/plan.spec.ts)",
+        "accreqParents": {
+          "status": "PARTIAL",
+          "ids": [
+            "ACCREQ-4.3.2"
+          ],
+          "basis": "Procedure-linked digital workpaper entry supports the existing workprogram/evidence subject.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/15",
+            "docs/spec/completion-requirement-manifest.json#/requirements/15/atomicCriteria/6"
+          ],
+          "unmappedAspectsRequiringTriage": [
+            "The exact WORKING workpaper creation, uncertain-outcome lookup and navigation/context contract are not explicitly linked by the parent manifest; retain this parity finding for triage."
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T016",
+        "trackerTaskId": "T016",
+        "sourceLine": 26,
+        "rowSha256": "24c154916505dd9183d38659d9791dab740ee7dd04abe962d1c1606bd402c2e1",
+        "requirement": "Add manual engagement workflow-task creation",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_PENDING",
+        "trackerCodeEvidence": "[workflow-task-create.ts](../../src/AuditSphereOps.Ui/src/app/features/engagements/workflow-task-create.ts); [component spec](../../src/AuditSphereOps.Ui/src/app/features/engagements/workflow-task-create.spec.ts)",
+        "accreqParents": {
+          "status": "PARTIAL",
+          "ids": [
+            "ACCREQ-6.6"
+          ],
+          "basis": "The existing workflow parent owns EngagementWorkflowTaskService and its task regression cohort; this is a candidate infrastructure parent for manual task creation.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/31"
+          ],
+          "unmappedAspectsRequiringTriage": [
+            "Manual creation is not equivalent to the safe-automation acceptance criterion; the exact manual UI requirement-to-parent relation needs triage."
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T017",
+        "trackerTaskId": "T017",
+        "sourceLine": 27,
+        "rowSha256": "8f2b39006638b641e894be387b1a819fb2953d6e984d62f278e8dc3cbcce4a16",
+        "requirement": "Assign and reassign existing workflow tasks",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[EngagementWorkflowTaskTests.cs](../../tests/AuditSphereOps.Domain.Tests/EngagementWorkflowTaskTests.cs); [work-queue.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/practice/work-queue.spec.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "PARTIAL",
+          "ids": [
+            "ACCREQ-6.6"
+          ],
+          "basis": "The tracker names the same EngagementWorkflowTaskTests.cs cohort that the existing workflow parent lists.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/31"
+          ],
+          "unmappedAspectsRequiringTriage": [
+            "Assignment/reassignment is not independently specified by the safe-automation parent title; retain the exact parity action finding rather than treating test-file co-location as full equivalence."
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T018",
+        "trackerTaskId": "T018",
+        "sourceLine": 28,
+        "rowSha256": "8082073fcf9b210acc7d46dce062a7329e9e7ee87c2dfa4e954caa6d13063620",
+        "requirement": "Recover uncertain sales credit-note submissions and reviews",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[ClientAccountingTests.SalesCreditNotes.cs](../../tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.SalesCreditNotes.cs); [sales-invoice-workflow.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/sales-invoice-workflow.spec.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T019",
+        "trackerTaskId": "T019",
+        "sourceLine": 29,
+        "rowSha256": "eab9acf03ed75c62d349e5faa31dbc8e3b06ee644f36af91c36f8caef419addd",
+        "requirement": "Retain and recover allocation submission/review outcomes",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[ClientOpenItemAllocationWorkflow.cs](../../src/AuditSphereOps.Application/Accounting/ClientOpenItemAllocationWorkflow.cs); [ClientAccountingTests.OpenItemAllocations.cs](../../tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.OpenItemAllocations.cs); [open-item-allocations.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/open-item-allocations.spec.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T020",
+        "trackerTaskId": "T020",
+        "sourceLine": 30,
+        "rowSha256": "fd5e4696931a2c710f872ebbbeeeadbd67a6565ffeead7f09e9df6e262a742de",
+        "requirement": "Recover purchase-invoice draft, submit and return outcomes",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[ClientPurchaseInvoiceWorkflow.cs](../../src/AuditSphereOps.Application/Accounting/ClientPurchaseInvoiceWorkflow.cs); [purchase-invoice-workflow.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/purchase-invoice-workflow.spec.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T021",
+        "trackerTaskId": "T021",
+        "sourceLine": 31,
+        "rowSha256": "b7b309ac2772da400291d5b92d12250020493b3223b458c65d2f57ed8b858548",
+        "requirement": "Recover purchase-credit submission and return outcomes",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[ClientPurchaseCreditNoteWorkflow.cs](../../src/AuditSphereOps.Application/Accounting/ClientPurchaseCreditNoteWorkflow.cs); [purchase-credit-note-workflow.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/purchase-credit-note-workflow.spec.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T022",
+        "trackerTaskId": "T022",
+        "sourceLine": 32,
+        "rowSha256": "8e374b8cde20951353258d63982b66f4f801123c827437c2217ac54bb741ce55",
+        "requirement": "Make manual-settlement draft recovery survive edits and reloads",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[ClientOperationalLedgerWorkspace.Settlements.cs](../../src/AuditSphereOps.Application/Accounting/ClientOperationalLedgerWorkspace.Settlements.cs); [open-item-allocations.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/open-item-allocations.spec.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T023",
+        "trackerTaskId": "T023",
+        "sourceLine": 33,
+        "rowSha256": "c5d55c58b06cae3651c07d29897f34f09f00d2abf17031298b687fd5f1f7f5f6",
+        "requirement": "Paginate supplier selection in both purchase workflows",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[purchase-invoice-workflow.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/purchase-invoice-workflow.spec.ts); [purchase-credit-note-workflow.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/purchase-credit-note-workflow.spec.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T024",
+        "trackerTaskId": "T024",
+        "sourceLine": 34,
+        "rowSha256": "9a9853c0180dcceb475ed9c8b5eee60fa9d76895f7d20b4ad2ef7172545350d4",
+        "requirement": "Expose controlled unallocation from approved allocation history",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[ClientOpenItemAllocationHistoryQuery.cs](../../src/AuditSphereOps.Application/Accounting/ClientOpenItemAllocationHistoryQuery.cs); [Domain regression](../../tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.OpenItemAllocations.cs); [Angular spec](../../src/AuditSphereOps.Ui/src/app/features/accounting/open-item-allocations.spec.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T025",
+        "trackerTaskId": "T025",
+        "sourceLine": 35,
+        "rowSha256": "1c729cce29be236a73addffc279f21e43e1d0d12b40c3b6e5de0a9e5c6b913d5",
+        "requirement": "Resolve component replacement retention before exposing correction",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_PENDING",
+        "trackerCodeEvidence": "[ConsolidationService.Components.cs](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationService.Components.cs) \u00b7 [ProfilesChartsAndConsolidationTests.cs](../../tests/AuditSphereOps.Domain.Tests/ProfilesChartsAndConsolidationTests.cs) \u00b7 [overview.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/overview.ts) \u00b7 [component-correction.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/component-correction.ts) \u00b7 [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CONSOLIDATION_DISTINCT_SCOPE",
+          "triage": "No accounting-group consolidation parent is present in the allowed ACCREQ manifest. Consolidation lifecycle states are not engagement lifecycle states, and group ownership/journals are not firm bookkeeping."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T026",
+        "trackerTaskId": "T026",
+        "sourceLine": 36,
+        "rowSha256": "40924277a3d469a9730823205798d3b52f6f344b3777d9a0f28809f3d37eb922",
+        "requirement": "Surface draft-scope ownership relationships",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[ConsolidationOwnershipWorkspaceQuery.cs](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationOwnershipWorkspaceQuery.cs) \u00b7 [ownership.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/ownership.ts) \u00b7 [ownership.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/ownership.spec.ts) \u00b7 [ConsolidationWorkspaceApiTests.cs](../../tests/AuditSphereOps.Api.Tests/ConsolidationWorkspaceApiTests.cs) \u00b7 [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CONSOLIDATION_DISTINCT_SCOPE",
+          "triage": "No accounting-group consolidation parent is present in the allowed ACCREQ manifest. Consolidation lifecycle states are not engagement lifecycle states, and group ownership/journals are not firm bookkeeping."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T027",
+        "trackerTaskId": "T027",
+        "sourceLine": 37,
+        "rowSha256": "fba52af2d149cdaaba51001e3f99d8d3384655276edd3ec5fa50e14c9cd300e8",
+        "requirement": "Add intercompany matching and independent approval",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; PLAYWRIGHT_E2E_PASS; HUMAN_AT_OPEN",
+        "trackerCodeEvidence": "[ConsolidationService.Intercompany.cs](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationService.Intercompany.cs); [ConsolidationWorkspaceApiTests.cs](../../tests/AuditSphereOps.Api.Tests/ConsolidationWorkspaceApiTests.cs); [AngularConsolidationIntercompanyJourneyTests.cs](../../tests/AuditSphereOps.E2E.Tests/AngularConsolidationIntercompanyJourneyTests.cs); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CONSOLIDATION_DISTINCT_SCOPE",
+          "triage": "No accounting-group consolidation parent is present in the allowed ACCREQ manifest. Consolidation lifecycle states are not engagement lifecycle states, and group ownership/journals are not firm bookkeeping."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T028",
+        "trackerTaskId": "T028",
+        "sourceLine": 38,
+        "rowSha256": "997676fe5e1e14e2bd837c35071b6b771000b1c048373cd324493b4ad7b513eb",
+        "requirement": "Complete external component-pack intake, review and pinning",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[ConsolidationExternalComponentPackQuery.cs](../../src/AuditSphereOps.Application/Accounting/ConsolidationExternalComponentPackQuery.cs); [ConsolidationWorkspaceApiTests.cs](../../tests/AuditSphereOps.Api.Tests/ConsolidationWorkspaceApiTests.cs); [external-packs.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/external-packs.spec.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CONSOLIDATION_DISTINCT_SCOPE",
+          "triage": "No accounting-group consolidation parent is present in the allowed ACCREQ manifest. Consolidation lifecycle states are not engagement lifecycle states, and group ownership/journals are not firm bookkeeping."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T029",
+        "trackerTaskId": "T029",
+        "sourceLine": 39,
+        "rowSha256": "f39e46808274012cc7d6b5cf5f8f5d69175e906cc4d278eac69d513e9766f25e",
+        "requirement": "Preserve portal request drafts during a same-context refresh",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; FULL_RELEASE_IN_PROGRESS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[request.ts](../../src/AuditSphereOps.Ui/src/app/features/portal/request.ts); [request.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/portal/request.spec.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "PARTIAL",
+          "ids": [
+            "ACCREQ-4.1.5"
+          ],
+          "basis": "The client-request portal surface is an existing part of portal onboarding/request review; the manifest and tracker both reference the existing client-portal journey.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/9",
+            "docs/spec/completion-requirement-manifest.json#/requirements/9/atomicCriteria/10"
+          ],
+          "unmappedAspectsRequiringTriage": [
+            "Same-context draft-refresh preservation is a separate parity behavior and is not explicitly required by the portal-status/rework criteria."
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T030",
+        "trackerTaskId": "T030",
+        "sourceLine": 40,
+        "rowSha256": "b8569ba399421bc16a7a52565a18da56cb674c1a7b53b13f6f02291adacb83a2",
+        "requirement": "Let slow package-build status reads finish",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; FULL_RELEASE_IN_PROGRESS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[financial-package-build.ts](../../src/AuditSphereOps.Ui/src/app/features/engagements/financial-package-build.ts); [financial-package-build.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/engagements/financial-package-build.spec.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "FINANCIAL_PACKAGE_PRESENTATION_NOT_EXPLICIT",
+          "triage": "The allowed manifest does not explicitly trace the asynchronous financial-package build or selected pinned-presentation behavior. Audit final-bundle and TB-ingestion labels alone do not establish equivalence."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T031",
+        "trackerTaskId": "T031",
+        "sourceLine": 41,
+        "rowSha256": "31ac6966f37d85e58d21075994e8311faf5f4eda9f927344a95411eed3e190d0",
+        "requirement": "Preserve consolidation pagination and bounded subquery errors",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FAST_CI_PASS; FULL_RELEASE_IN_PROGRESS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[ConsolidationScopeWorkspaceQuery.cs](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationScopeWorkspaceQuery.cs); [ConsolidationQueryTests.cs](../../tests/AuditSphereOps.Domain.Tests/ConsolidationQueryTests.cs); [scope-workspace.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.spec.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CONSOLIDATION_DISTINCT_SCOPE",
+          "triage": "No accounting-group consolidation parent is present in the allowed ACCREQ manifest. Consolidation lifecycle states are not engagement lifecycle states, and group ownership/journals are not firm bookkeeping."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T032",
+        "trackerTaskId": "T032",
+        "sourceLine": 42,
+        "rowSha256": "b2bc88c8bca03de10dae9a158608f5452547417f477f19bb0de36de98fa28274",
+        "requirement": "Provide bounded portal request and package history continuation",
+        "trackerDisposition": "FOCUSED_LOCAL_PASS; FULL_RELEASE_IN_PROGRESS; BROWSER_NOT_RUN",
+        "trackerCodeEvidence": "[ClientPortalWorkspaceQuery.cs](../../src/AuditSphereOps.Application/Documents/ClientPortalWorkspaceQuery.cs); [PortalActionCenterApiTests.cs](../../tests/AuditSphereOps.Api.Tests/PortalActionCenterApiTests.cs); [home.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/portal/home.spec.ts); [request.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/portal/request.spec.ts); [status.json](status.json)",
+        "accreqParents": {
+          "status": "PARTIAL",
+          "ids": [
+            "ACCREQ-4.1.5"
+          ],
+          "basis": "The existing portal-request criterion names ClientPortalWorkspaceQuery.cs, also named in this tracker row.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/9",
+            "docs/spec/completion-requirement-manifest.json#/requirements/9/atomicCriteria/12"
+          ],
+          "unmappedAspectsRequiringTriage": [
+            "Bounded history cursors and package-history continuation are not explicitly mapped by the parent request/rejection criterion."
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T033",
+        "trackerTaskId": "T033",
+        "sourceLine": 43,
+        "rowSha256": "148241bb9c1e584635873844ecdaacdc8db96818470e5c1f3eea50ed24e67000",
+        "requirement": "Show statutory milestone preview before save",
+        "trackerDisposition": "FAST_CI_PASS; BROWSER_ACTION_UNVERIFIED",
+        "trackerCodeEvidence": "[plan.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/plan.ts)",
+        "accreqParents": {
+          "status": "MAPPED",
+          "ids": [
+            "ACCREQ-4.2.2"
+          ],
+          "basis": "The existing resource-scheduling parent explicitly contains statutory milestone relative-date configuration. This is not mapped to materiality merely because plan.ts is shared.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/11",
+            "docs/spec/completion-requirement-manifest.json#/requirements/11/atomicCriteria/2"
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T034",
+        "trackerTaskId": "T034",
+        "sourceLine": 44,
+        "rowSha256": "d342629f39a482fcf3e01e6f2281bb23337af3f703fda7a6e9d7022ee934202a",
+        "requirement": "Show the statement body of a selected pinned presentation",
+        "trackerDisposition": "FAST_CI_PASS; BROWSER_ACTION_UNVERIFIED",
+        "trackerCodeEvidence": "[presentation.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/presentation.ts)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "FINANCIAL_PACKAGE_PRESENTATION_NOT_EXPLICIT",
+          "triage": "The allowed manifest does not explicitly trace the asynchronous financial-package build or selected pinned-presentation behavior. Audit final-bundle and TB-ingestion labels alone do not establish equivalence."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T035",
+        "trackerTaskId": "T035",
+        "sourceLine": 45,
+        "rowSha256": "abc16dac793e10704d9f775729e9a7ab6ec3ffc33c0a8c11ad0fc38c53230b61",
+        "requirement": "Document native client counterparty, account-role, operational-journal, allocation and settlement contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.ClientOpenItemAllocations.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.ClientOpenItemAllocations.cs)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T036",
+        "trackerTaskId": "T036",
+        "sourceLine": 46,
+        "rowSha256": "058d23b4701306eb04635788645fd5eee591d975219bb770283aa212bd64d4d8",
+        "requirement": "Document native client sales, purchase and credit-note contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.ClientPurchaseInvoices.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.ClientPurchaseInvoices.cs)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T037",
+        "trackerTaskId": "T037",
+        "sourceLine": 47,
+        "rowSha256": "b0ca44a49765e74e135c921d354e417e3b5db5707ff669766b363963d2f97e07",
+        "requirement": "Document client accounting setup, chart, currency, mapping and remeasurement contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.Accounting.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Accounting.cs)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T038",
+        "trackerTaskId": "T038",
+        "sourceLine": 48,
+        "rowSha256": "8a3bb8e2c7423aad30e0191032511d509b3f93aadf4b9d4b2b8eb6753f828717",
+        "requirement": "Document trial-balance/GL intake and source-evidence contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.Intake.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Intake.cs)",
+        "accreqParents": {
+          "status": "MAPPED",
+          "ids": [
+            "ACCREQ-4.3.1"
+          ],
+          "basis": "The TB intake contract subject and UiEndpoints.Intake.cs are explicitly listed by the existing TB-ingestion parent. The mapping identifies a supporting contract facet only.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/14"
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T039",
+        "trackerTaskId": "T039",
+        "sourceLine": 49,
+        "rowSha256": "e3966d74e869606863be853fb71e2926b010e858b6cca66a3720aa230fde03e4",
+        "requirement": "Document adjustment-journal and adjustment-plan contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.AdjustmentPlans.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.AdjustmentPlans.cs)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T040",
+        "trackerTaskId": "T040",
+        "sourceLine": 50,
+        "rowSha256": "3c7a0bdcffb5991314f64eb048844de8502a30d70b5caa93974d608b5ca2318b",
+        "requirement": "Document financial package and statement report contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.Packages.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Packages.cs)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "FINANCIAL_PACKAGE_PRESENTATION_NOT_EXPLICIT",
+          "triage": "The allowed manifest does not explicitly trace the asynchronous financial-package build or selected pinned-presentation behavior. Audit final-bundle and TB-ingestion labels alone do not establish equivalence."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T041",
+        "trackerTaskId": "T041",
+        "sourceLine": 51,
+        "rowSha256": "1b0eec3c2f9ab2191e0b6dee8e41b8a95338217db2acd2ff0c8d5455ce768986",
+        "requirement": "Document period-maintenance, reconciliation, evidence and valuation contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.PeriodMaintenance.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.PeriodMaintenance.cs)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CLIENT_NATIVE_ACCOUNTING_DISTINCT_SCOPE",
+          "triage": "No explicit parent for these client-native accounting workflow/contract findings is present in the allowed manifest. Firm billing/bookkeeping and audit review summaries are not substitutes."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T042",
+        "trackerTaskId": "T042",
+        "sourceLine": 52,
+        "rowSha256": "2554bb2852ff07fcd49907abe3a899bbbfab6501df424424112a0aaac2462813",
+        "requirement": "Document group consolidation contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.Consolidation.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Consolidation.cs)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CONSOLIDATION_DISTINCT_SCOPE",
+          "triage": "No accounting-group consolidation parent is present in the allowed ACCREQ manifest. Consolidation lifecycle states are not engagement lifecycle states, and group ownership/journals are not firm bookkeeping."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T043",
+        "trackerTaskId": "T043",
+        "sourceLine": 53,
+        "rowSha256": "5386dab66630304cc2b848ff3824c6ccb60bca01035c922db5028fff95fe436b",
+        "requirement": "Document firm ledger, billing and end-of-service contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.Finance.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Finance.cs)",
+        "accreqParents": {
+          "status": "MAPPED",
+          "ids": [
+            "ACCREQ-4.1.5",
+            "ACCREQ-4.5.2"
+          ],
+          "basis": "Firm billing maps to advance invoicing/receipting; firm ledger and end-of-service map to practice bookkeeping. Client-native bookkeeping is not substituted for the firm ledger.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/9",
+            "docs/spec/completion-requirement-manifest.json#/requirements/22"
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T044",
+        "trackerTaskId": "T044",
+        "sourceLine": 54,
+        "rowSha256": "9b939a8357f86c45ea166074bb424e12684ad0f2da962f57811ceb2611ef67f4",
+        "requirement": "Document commercial lead, quotation, fee-agreement and conversion contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.Commercial.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Commercial.cs)",
+        "accreqParents": {
+          "status": "MAPPED",
+          "ids": [
+            "ACCREQ-3.1"
+          ],
+          "basis": "The existing lead-to-onboarding flow names UiEndpoints.Commercial.cs and the lead, quotation and reviewed onboarding service owners.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/0"
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T045",
+        "trackerTaskId": "T045",
+        "sourceLine": 55,
+        "rowSha256": "36b1992ef2707f484dff12920a552cd628407760d7e3a64857d58b6a7742dbe6",
+        "requirement": "Document client, acceptance, engagement, staffing and budget contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.cs)",
+        "accreqParents": {
+          "status": "MAPPED",
+          "ids": [
+            "ACCREQ-3.1",
+            "ACCREQ-4.2.1",
+            "ACCREQ-4.2.2"
+          ],
+          "basis": "The row subjects are existing client/onboarding, acceptance-risk and resource/staffing requirements. The generic UiEndpoints.cs filename is not used to infer every lifecycle requirement.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/0",
+            "docs/spec/completion-requirement-manifest.json#/requirements/10",
+            "docs/spec/completion-requirement-manifest.json#/requirements/11"
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T046",
+        "trackerTaskId": "T046",
+        "sourceLine": 56,
+        "rowSha256": "3df21ae7b6dbc60be383c7d20f3318560b1e37cabcc30ac9dd8df4e53bfb20a6",
+        "requirement": "Document practice resource, time, workflow and portfolio contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.WorkflowTasks.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.WorkflowTasks.cs)",
+        "accreqParents": {
+          "status": "PARTIAL",
+          "ids": [
+            "ACCREQ-4.2.2",
+            "ACCREQ-4.5.1",
+            "ACCREQ-6.6"
+          ],
+          "basis": "Resource scheduling, practice time/analytics and task workflow each have existing manifest parents and owners.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/11",
+            "docs/spec/completion-requirement-manifest.json#/requirements/21",
+            "docs/spec/completion-requirement-manifest.json#/requirements/31"
+          ],
+          "unmappedAspectsRequiringTriage": [
+            "Portfolio-wide contracts and the exact task/resource/time API response coverage are not fully specified by these parent links."
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T047",
+        "trackerTaskId": "T047",
+        "sourceLine": 57,
+        "rowSha256": "a174b14c60c549964a6085e3751911d7fe0031f8c29bd5f2494f998599fb0a6f",
+        "requirement": "Document audit planning, procedure, fieldwork and confirmation contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.Fieldwork.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Fieldwork.cs)",
+        "accreqParents": {
+          "status": "MAPPED",
+          "ids": [
+            "ACCREQ-3.2",
+            "ACCREQ-4.3.2",
+            "ACCREQ-4.3.4"
+          ],
+          "basis": "Planning, procedure execution and confirmation subjects have existing parents; the latter two explicitly list UiEndpoints.Fieldwork.cs.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/1",
+            "docs/spec/completion-requirement-manifest.json#/requirements/15",
+            "docs/spec/completion-requirement-manifest.json#/requirements/17"
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T048",
+        "trackerTaskId": "T048",
+        "sourceLine": 58,
+        "rowSha256": "6d5df4990dd3095e994b9b428eeab1139df85f51c2b5796a87b85d202ed9ad4c",
+        "requirement": "Document audit completion, records and deliverable contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.Completion.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Completion.cs)",
+        "accreqParents": {
+          "status": "MAPPED",
+          "ids": [
+            "ACCREQ-3.4"
+          ],
+          "basis": "The existing reporting/release/archive flow lists UiEndpoints.Completion.cs and the corresponding deliverable and records owners.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/3"
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T049",
+        "trackerTaskId": "T049",
+        "sourceLine": 59,
+        "rowSha256": "a6dc238278515f88c09594e3f2239e0458ca296b6740ef30cea459a9270fa7c3",
+        "requirement": "Document client portal, PBC and portal journal-management contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.Portal.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Portal.cs)",
+        "accreqParents": {
+          "status": "PARTIAL",
+          "ids": [
+            "ACCREQ-4.1.5",
+            "ACCREQ-4.4.2"
+          ],
+          "basis": "Requested-item portal review maps to portal onboarding; the final deliverable portal slice maps to the bundle parent, which explicitly names UiEndpoints.Portal.cs.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/9",
+            "docs/spec/completion-requirement-manifest.json#/requirements/19",
+            "docs/spec/completion-requirement-manifest.json#/requirements/9/atomicCriteria/10"
+          ],
+          "unmappedAspectsRequiringTriage": [
+            "Portal journal-management contracts have no explicit corresponding parent in this permitted manifest snapshot."
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T050",
+        "trackerTaskId": "T050",
+        "sourceLine": 60,
+        "rowSha256": "9bfd0e6a1ff1f8c0d2b936571d55fbb45efb7fb7102cfae5e79feb39c53e184c",
+        "requirement": "Document administration, setup, Microsoft services and durable-operation contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[UiEndpoints.Administration.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Administration.cs)",
+        "accreqParents": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "reasonCode": "CROSS_CUTTING_ADMIN_NOT_EXPLICIT",
+          "triage": "General administration/setup/Microsoft/durable-operation contracts do not identify a specific engagement-provisioning parent in this row; no blanket mapping to provisioning or architecture is inferred."
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      },
+      {
+        "id": "PARITY-T051",
+        "trackerTaskId": "T051",
+        "sourceLine": 61,
+        "rowSha256": "7fdd2e12c1bbe75462a13ab96621fc069be13fcc39e1325b0db34dfc551a3cde",
+        "requirement": "Document session, search and browser authentication protocol contracts",
+        "trackerDisposition": "FAST_CI_PASS",
+        "trackerCodeEvidence": "[ApiHost.AuthenticationEndpoints.cs](../../src/AuditSphereOps.Api/ApiHost.AuthenticationEndpoints.cs)",
+        "accreqParents": {
+          "status": "PARTIAL",
+          "ids": [
+            "ACCREQ-6.7"
+          ],
+          "basis": "Session/authentication and scoped search support the existing user-role/security parent, whose owner/test references include authorization and global search.",
+          "evidence": [
+            "docs/spec/completion-requirement-manifest.json#/requirements/32"
+          ],
+          "unmappedAspectsRequiringTriage": [
+            "Redirect/HTML protocol shapes and the exact browser authentication contract are not explicit criteria of this parent and have no direct ApiHost.AuthenticationEndpoints.cs link in the manifest."
+          ]
+        },
+        "ascpTaskAliases": {
+          "status": "UNMAPPED",
+          "ids": [],
+          "triageReasonRef": "ASCP_ALIAS_NOT_ESTABLISHED_BY_ALLOWED_SOURCES"
+        }
+      }
+    ],
+    "counts": {
+      "trackerTasks": 51,
+      "uniqueNamespacedTasks": 51,
+      "accreqMapped": 13,
+      "accreqPartialRequiringTriage": 8,
+      "accreqUnmappedRequiringTriage": 30,
+      "ascpAliasMapped": 0,
+      "ascpAliasUnmappedRequiringTriage": 51,
+      "functionalPromotions": 0,
+      "readyTechnicalGapsProven": 0,
+      "trackerDispositionCounts": {
+        "VERIFIED": 7,
+        "FOCUSED_LOCAL_PASS; BROWSER_PENDING": 4,
+        "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_PENDING": 6,
+        "FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN": 10,
+        "FOCUSED_LOCAL_PASS; FAST_CI_PASS; PLAYWRIGHT_E2E_PASS; HUMAN_AT_OPEN": 1,
+        "FOCUSED_LOCAL_PASS; FAST_CI_PASS; FULL_RELEASE_IN_PROGRESS; BROWSER_NOT_RUN": 3,
+        "FOCUSED_LOCAL_PASS; FULL_RELEASE_IN_PROGRESS; BROWSER_NOT_RUN": 1,
+        "FAST_CI_PASS; BROWSER_ACTION_UNVERIFIED": 2,
+        "FAST_CI_PASS": 17
+      }
+    },
+    "remaining": "Source/test/HTTP/rendered revalidation and exact-current CI/browser acceptance not supplied by catalogue references. No ready technical defect proven by this bounded documentation pass."
   }
 }
