@@ -1038,6 +1038,14 @@
       "implementationCommit": "0b87a7548ed56602c3bba3b30bc05e79cb573d66",
       "integrationEvidence": ".local/autonomous/evidence/schedule-intake-20261024/api-angular-source-catalog-integration.json",
       "history": "status-archive-2026-10.json#archivedTargetedVerification.scheduleSourceIndependentReviewHistory20261024"
+    },
+    "t058SamplingEvidenceApiAngular20261024": {
+      "status": "FOCUSED_PASS_FULL_CI_PENDING",
+      "baseline": "62463e0b2a4afb6b3783958811fac0ea32880c1e",
+      "scope": "Cut-off test and subsequent-match recording exposed at /api/ui/selection-items/{id}/cut-off-test and /subsequent-match with append-only expectedRevision fencing; sample-set view now projects cutOffRevision/subsequentRevision; Angular decoders, per-stream revision drafts and fieldwork record forms wired; OpenAPI contract re-emitted.",
+      "checks": "fieldwork.spec.ts 36/36 pass (new revision-fence/refusal case); AuditSamplingServiceTests+FieldworkConnectionsTests 5/5 Release pass; Release API build 0 warnings; verify-openapi current; Angular lint clean; git diff --check clean.",
+      "limits": "No local E2E/browser run (Playwright host unavailable in-session); T058 remains PARTIAL: approved cut-off window policy, finding links and MUS policy decisions remain open. Full CI on 893da808 dispatched, not yet terminal; no FULL_CI_PASS claimed.",
+      "sourceCommit": "893da808b8bff0c395d2b646890b3d9c6f2298a8"
     }
   },
   "externalGates": [
@@ -1611,9 +1619,9 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "05d9a59050b1e4f545ad8a8bed63faa78661f116",
-    "evidence": "Risk-owner currentness correction: actual supported revocation RED1, existing named regression GREEN1 including lower-rank refusal/restoration/latest-owner no-fallback/history and clearance retention. Full run source MATCH/RUNNING; not FULL_CI_PASS.",
-    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40104733947 RUNNING",
-    "precedingFull": "21ce8001 run40103517434 MATCH: Angular and build/contracts pass; Domain/API/E2E still running. It predates the risk-owner correction and is not current acceptance."
+    "sourceCommit": "893da808b8bff0c395d2b646890b3d9c6f2298a8",
+    "evidence": "Sampling cut-off/subsequent API+Angular slice; focused Angular 36 pass, focused Domain 5 pass, OpenAPI current. Exact-source full verification dispatched; not FULL_CI_PASS.",
+    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40132097923 RUNNING (ref 893da808, correlation as-893da808b8bf-samplingui)",
+    "precedingFull": "40131071167 dispatches 6ebc0662 (migration-probe ordering repair) and 40131026731 dispatches 62463e0b (revision fencing) remain RUNNING; 40128614450 on 8feed9c0 showed the Domain harness sequencing failure now superseded by 6ebc0662. None is acceptance for 893da808."
   }
 }

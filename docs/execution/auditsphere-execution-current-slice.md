@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## T058 cut-off and subsequent-match API/Angular integration (2026-10-24)
+
+The `RecordCutOffTestAsync` and `MatchSubsequentTransactionAsync` Application commands previously had no HTTP boundary: staff could not record cut-off tests or subsequent settlements from the running UI. Two `/api/ui/selection-items/{id}` endpoints now expose them with strict ISO-date/decimal request parsing, and the sample-set projection carries `cutOffRevision`/`subsequentRevision` so the Angular fieldwork forms fence each append-only revision stream independently (`expectedRevision` → 409 on staleness; selection-reviewed, generation-current, frozen-file and recorder-ownership guards stay server-enforced). Focused verification on `893da808`: `fieldwork.spec.ts` 36/36, `AuditSamplingServiceTests`+`FieldworkConnectionsTests` 5/5, Release build clean, canonical OpenAPI re-emitted and current, lint clean. Browser/E2E verification of the new forms was not executed locally; exact-source full release verification `40132097923` is running. T058 remains PARTIAL: the approved cut-off window, finding links and MUS methodology policy stay open.
+
 ## T058 cut-off procedure lineage (2026-10-24)
 
 Cut-off and subsequent-match evidence now retains the selected procedure and approved selection lineage. Corrections append a new `ExpectedRevision`-guarded revision under the existing firm/client/engagement and item lock order; current projections use the latest revision, while stale, unreviewed, superseded-source and frozen-file writes fail closed. Focused `AuditSamplingServiceTests` pass on `62463e0b`. This does not complete T058: the approved cut-off window, API/Angular matching and finding workflows, MUS methodology and rendered/professional acceptance remain open.
