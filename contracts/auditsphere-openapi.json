@@ -33864,6 +33864,287 @@
         ]
       }
     },
+    "/api/ui/engagements/{id}/fieldwork/bank-reconciliations": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankReconciliationInspectionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/engagements/{id}/fieldwork/bank-reconciliations/{reconciliationId}": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "reconciliationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankReconciliationInspectionDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/engagements/{id}/manager-review": {
       "get": {
         "tags": [
@@ -97308,6 +97589,411 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "BankReconciliationInspectionDetail": {
+        "required": [
+          "engagementId",
+          "currentInputGeneration",
+          "reconciliation",
+          "ledgerScheduleId",
+          "statementScheduleId",
+          "ledgerSchedule",
+          "statementSchedule",
+          "offset",
+          "limit",
+          "total",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "engagementId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currentInputGeneration": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reconciliation": {
+            "$ref": "#/components/schemas/BankReconciliationInspectionRow"
+          },
+          "ledgerScheduleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "statementScheduleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ledgerSchedule": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BankReconciliationScheduleInspection"
+              }
+            ]
+          },
+          "statementSchedule": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BankReconciliationScheduleInspection"
+              }
+            ]
+          },
+          "offset": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "limit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BankReconciliationItemInspection"
+            }
+          }
+        }
+      },
+      "BankReconciliationInspectionPage": {
+        "required": [
+          "engagementId",
+          "currentInputGeneration",
+          "offset",
+          "limit",
+          "total",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "engagementId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currentInputGeneration": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "offset": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "limit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BankReconciliationInspectionRow"
+            }
+          }
+        }
+      },
+      "BankReconciliationInspectionRow": {
+        "required": [
+          "id",
+          "procedureId",
+          "asOfDate",
+          "currency",
+          "status",
+          "ledgerBalance",
+          "statementBalance",
+          "timingItemTotal",
+          "proposedCorrectionTotal",
+          "residual",
+          "inputGeneration",
+          "generationState",
+          "conclusion",
+          "createdByUserId",
+          "createdAt",
+          "reviewedByUserId",
+          "reviewedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "procedureId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "asOfDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "ledgerBalance": {
+            "type": "string"
+          },
+          "statementBalance": {
+            "type": "string"
+          },
+          "timingItemTotal": {
+            "type": "string"
+          },
+          "proposedCorrectionTotal": {
+            "type": "string"
+          },
+          "residual": {
+            "type": "string"
+          },
+          "inputGeneration": {
+            "type": "string"
+          },
+          "generationState": {
+            "type": "string"
+          },
+          "conclusion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdByUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reviewedByUserId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "reviewedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "BankReconciliationItemInspection": {
+        "required": [
+          "id",
+          "stableItemId",
+          "itemType",
+          "signedAmount",
+          "currency",
+          "description",
+          "sourceReference",
+          "evidenceReference",
+          "sourceScheduleId",
+          "proposedJournalId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stableItemId": {
+            "type": "string"
+          },
+          "itemType": {
+            "type": "string"
+          },
+          "signedAmount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sourceReference": {
+            "type": "string"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "sourceScheduleId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "proposedJournalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "BankReconciliationScheduleInspection": {
+        "required": [
+          "id",
+          "scheduleType",
+          "entityIdentifier",
+          "sourceReceiptReference",
+          "asOfDate",
+          "periodStart",
+          "periodEnd",
+          "currency",
+          "signConvention",
+          "sourceHash",
+          "sourceImportBatchId",
+          "acceptedSourceDecisionId",
+          "acceptedSourceHash",
+          "rowCount",
+          "signedControlTotal",
+          "glControlTotal",
+          "residual",
+          "inputGeneration",
+          "generationState",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scheduleType": {
+            "type": "string"
+          },
+          "entityIdentifier": {
+            "type": "string"
+          },
+          "sourceReceiptReference": {
+            "type": "string"
+          },
+          "asOfDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "periodStart": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "signConvention": {
+            "type": "string"
+          },
+          "sourceHash": {
+            "type": "string"
+          },
+          "sourceImportBatchId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "acceptedSourceDecisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "acceptedSourceHash": {
+            "type": "string"
+          },
+          "rowCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "signedControlTotal": {
+            "type": "string"
+          },
+          "glControlTotal": {
+            "type": "string"
+          },
+          "residual": {
+            "type": "string"
+          },
+          "inputGeneration": {
+            "type": "string"
+          },
+          "generationState": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
           }
         }
       },

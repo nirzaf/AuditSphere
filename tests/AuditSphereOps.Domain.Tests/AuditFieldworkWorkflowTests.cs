@@ -1,11 +1,14 @@
+using System.Data.Common;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -143,6 +146,43 @@ public sealed class AuditFieldworkWorkflowTests
         AuditBankReconciliationStatuses.Approved, "Ledger, statement and timing items reconcile at 19 September 2026."))).Succeeded);
     Assert.Equal(AuditBankReconciliationStatuses.Approved,
       await db.AuditBankReconciliations.Where(x => x.Id == bankReconciliation.Value.BankReconciliationId).Select(x => x.Status).SingleAsync());
+    // Read-only drill-down keeps exact stored source provenance separate from approval/currentness.
+    var bankId = bankReconciliation.Value.BankReconciliationId;
+    var bankBefore = await db.AuditBankReconciliations.AsNoTracking().SingleAsync(x => x.Id == bankId);
+    var bankList = await BankReconciliationInspectionQuery.ListAsync(db, reviewer, scope.EngagementId, limit: 1);
+    Assert.True(bankList.Succeeded, bankList.Message);
+    Assert.Equal(bankId, Assert.Single(bankList.Value!.Rows).Id);
+    Assert.Equal(1, bankList.Value.Total);
+    var inspection = await BankReconciliationInspectionQuery.DetailAsync(db, reviewer, scope.EngagementId, bankId, limit: 1);
+    Assert.True(inspection.Succeeded, inspection.Message);
+    Assert.Equal(3, inspection.Value!.Total);
+    Assert.Single(inspection.Value.Items);
+    Assert.Equal(100m, decimal.Parse(inspection.Value.Reconciliation.LedgerBalance, System.Globalization.CultureInfo.InvariantCulture));
+    Assert.Equal(glHash, inspection.Value.LedgerSchedule!.SourceHash);
+    Assert.Equal(glBatchId, inspection.Value.LedgerSchedule.SourceImportBatchId);
+    Assert.Equal(statementSchedule.Value.ScheduleId, inspection.Value.StatementSchedule!.Id);
+    Assert.Equal("CURRENT_GENERATION", inspection.Value.Reconciliation.GenerationState);
+    Assert.Equal(bankBefore.ReviewedByUserId, inspection.Value.Reconciliation.ReviewedByUserId);
+    var nextBankItem = await BankReconciliationInspectionQuery.DetailAsync(db, reviewer, scope.EngagementId, bankId, offset: 1, limit: 1);
+    Assert.True(nextBankItem.Succeeded, nextBankItem.Message);
+    Assert.NotEqual(inspection.Value.Items[0].Id, Assert.Single(nextBankItem.Value!.Items).Id);
+    Assert.False((await BankReconciliationInspectionQuery.DetailAsync(db, reviewer, fixture.Other.EngagementId, bankId)).Succeeded);
+    Assert.False((await BankReconciliationInspectionQuery.ListAsync(db, reviewer, fixture.Other.EngagementId)).Succeeded);
+    Assert.False((await BankReconciliationInspectionQuery.DetailAsync(db, reviewer, scope.EngagementId, Guid.NewGuid())).Succeeded);
+    Assert.False((await BankReconciliationInspectionQuery.ListAsync(db, reviewer, scope.EngagementId, limit: 26)).Succeeded);
+    await using (var callerTransaction = await db.Database.BeginTransactionAsync())
+    {
+      var callerRead = await BankReconciliationInspectionQuery.DetailAsync(db, reviewer, scope.EngagementId, bankId);
+      Assert.False(callerRead.Succeeded);
+      Assert.Equal(ErrorCodes.ProtectedState, callerRead.ErrorCode);
+      await callerTransaction.RollbackAsync();
+    }
+    var bankAfter = await db.AuditBankReconciliations.AsNoTracking().SingleAsync(x => x.Id == bankId);
+    Assert.Equal(bankBefore.Status, bankAfter.Status);
+    Assert.Equal(bankBefore.Conclusion, bankAfter.Conclusion);
+    Assert.Equal(bankBefore.ReviewedByUserId, bankAfter.ReviewedByUserId);
+    Assert.Equal(bankBefore.ReviewedAt, bankAfter.ReviewedAt);
+
     var missingProposedJournal = await AuditFieldworkService.CreateBankReconciliationAsync(db, scope.Actor,
       new CreateBankReconciliationRequest(scope.EngagementId, procedure.Id, ledgerSchedule.Value.ScheduleId,
         statementSchedule.Value.ScheduleId, new DateOnly(2026, 9, 19),
@@ -266,5 +306,41 @@ public sealed class AuditFieldworkWorkflowTests
     Assert.Contains("difference-aggregate:missing-stale-or-unreviewed", changedSchedule.Value!.Blockers);
     Assert.Equal(2, await db.AuditScheduleRows.CountAsync(x => x.ScheduleId == schedule.Value.ScheduleId));
     Assert.Equal(3, await db.AuditDifferences.CountAsync());
+
+    // Revoke official authority after the evidence snapshot commits. Final authorization must
+    // observe new DB state rather than reuse the repeatable-read snapshot.
+    var administrator = PbcSeed.User(scope.FirmId, "Staff");
+    db.Users.Add(administrator);
+    db.RoleGrants.Add(PbcSeed.Grant(scope.FirmId, administrator, "Administrator"));
+    await db.SaveChangesAsync();
+    var partnerGrant = await db.RoleGrants.Where(x => x.UserId == scope.Actor.UserId && x.RevokedAt == null)
+      .Select(x => x.Id).SingleAsync();
+    var revokeAfterSnapshot = new RevokeAfterBankSnapshot(async ct =>
+    {
+      await using var revokeDb = new AuditSphereDbContext(pg.Options);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(revokeDb,
+        PbcSeed.Actor(administrator, "Administrator"), new(partnerGrant, Reason: "Synthetic bank inspection authority boundary"), ct);
+      Assert.True(revoked.Succeeded, revoked.Message);
+    });
+    var readOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(revokeAfterSnapshot).Options;
+    await using var readDb = new AuditSphereDbContext(readOptions);
+    var revokedRead = await BankReconciliationInspectionQuery.DetailAsync(readDb, scope.Actor, scope.EngagementId, bankId);
+    Assert.True(revokeAfterSnapshot.Invoked);
+    Assert.False(revokedRead.Succeeded);
+    Assert.Null(revokedRead.Value);
+    Assert.Equal(bankBefore.ReviewedAt, (await db.AuditBankReconciliations.AsNoTracking().SingleAsync(x => x.Id == bankId)).ReviewedAt);
   }
+  private sealed class RevokeAfterBankSnapshot(Func<CancellationToken, Task> revoke) : DbTransactionInterceptor
+  {
+    private bool invoked;
+    public bool Invoked => invoked;
+    public override async Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,
+      CancellationToken cancellationToken = default)
+    {
+      if (invoked) return;
+      invoked = true;
+      await revoke(cancellationToken);
+    }
+  }
+
 }

@@ -5,7 +5,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
 import { Api, CommandState, routeGuid } from '../../core/api';
-import { decodeFieldwork, decodeManagerReview, decodeProgramOptions, focusRisks, type Fieldwork } from './fieldwork-contracts';
+import { decodeBankReconciliationDetail, decodeBankReconciliationPage, decodeFieldwork, decodeManagerReview, decodeProgramOptions, focusRisks, type Fieldwork } from './fieldwork-contracts';
 import { SessionService } from '../../core/session';
 import { PlanningCommandState } from './planning-command-state';
 import { PlanningCommandReview } from './planning-command-review';
@@ -44,6 +44,30 @@ export class AuditFieldwork {
   readonly managerReview = this.api.resource(() => this.id() && this.ws.data()?.canReviewSelections
     ? `/api/ui/engagements/${this.id()}/manager-review` : null, decodeManagerReview,
     'Manager review summary unavailable: an authorized reviewer scope is required.');
+  readonly bankInspectionOpen = signal(false);
+  readonly bankOffset = signal(0);
+  readonly bankSelection = signal<string | null>(null);
+  readonly bankItemOffset = signal(0);
+  private readonly bankInspectionHeading = viewChild<ElementRef<HTMLElement>>('bankInspectionHeading');
+  private bankFocusRequest: { current: () => boolean; interaction: number; origin: HTMLElement; version: number } | null = null;
+  private bankFocusVersion = 0;
+  readonly bankList = this.api.resource(() => this.bankInspectionOpen() && this.id() && this.ws.data()?.canReviewSelections && this.managerReview.data()
+    ? `/api/ui/engagements/${this.id()}/fieldwork/bank-reconciliations?offset=${this.bankOffset()}&limit=25` : null,
+    (raw, path) => {
+      const page = decodeBankReconciliationPage(raw, path);
+      if (page.engagementId !== this.id() || page.offset !== this.bankOffset() || page.limit !== 25)
+        throw new Error('Bank evidence does not match this engagement or page.');
+      return page;
+    }, 'Bank reconciliation inspection is unavailable in your current reviewer scope.');
+  readonly bankDetail = this.api.resource(() => this.bankList.data()?.rows.some(row => row.id === this.bankSelection())
+    ? `/api/ui/engagements/${this.id()}/fieldwork/bank-reconciliations/${this.bankSelection()}?offset=${this.bankItemOffset()}&limit=100` : null,
+    (raw, path) => {
+      const detail = decodeBankReconciliationDetail(raw, path);
+      if (detail.engagementId !== this.id() || detail.reconciliation.id !== this.bankSelection() ||
+          detail.offset !== this.bankItemOffset() || detail.limit !== 100)
+        throw new Error('Bank evidence does not match the selected record or page.');
+      return detail;
+    }, 'The selected bank reconciliation is unavailable in your current reviewer scope.');
   readonly cmd = new CommandState(this.api);
   readonly riskLink = new PlanningCommandState(() => this.id(), () => this.ws.data(),
     () => !!this.ws.data()?.canManageFieldwork && !this.ws.loading() && !this.ws.error(),
@@ -99,6 +123,21 @@ export class AuditFieldwork {
         }
       });
     });
+    effect(() => {
+      this.bankList.data(); this.bankList.error(); const listLoading = this.bankList.loading();
+      this.bankDetail.data(); this.bankDetail.error(); const detailLoading = this.bankDetail.loading();
+      untracked(() => {
+        const request = this.bankFocusRequest;
+        if (!request || listLoading || detailLoading || !this.bankInspectionOpen()) return;
+        this.bankFocusRequest = null;
+        afterNextRender(() => {
+          const doc = request.origin.ownerDocument;
+          if (!request.current() || request.version !== this.bankFocusVersion || request.interaction !== this.focusInteraction ||
+              !this.bankInspectionOpen() || (doc.activeElement !== request.origin && doc.activeElement !== doc.body)) return;
+          this.bankInspectionHeading()?.nativeElement.focus();
+        }, { injector: this.renderInjector });
+      });
+    });
     // Aggregate conclusion presentation stays in the host; sampling history is owned by its state object.
     effect(() => {
       const w = this.ws.data();
@@ -123,8 +162,48 @@ export class AuditFieldwork {
     if (wasBusy) this.pendingPriorScopeCommands.add(this.commandGeneration);
     ++this.ownerGeneration; ++this.commandGeneration;
     this.procedure.ownerChanged(); this.sampling.ownerChanged();
+    this.bankInspectionOpen.set(false); this.bankSelection.set(null); this.bankOffset.set(0); this.bankItemOffset.set(0);
+    this.bankFocusRequest = null; ++this.bankFocusVersion;
     this.cmd.busy.set(false); this.cmd.message.set(''); this.cmd.failed.set(false); this.cmd.code.set('');
     this.refreshPriorScopeNotice();
+  }
+  private requestBankFocus(trigger: EventTarget | null): void {
+    ++this.bankFocusVersion;
+    this.bankFocusRequest = trigger instanceof HTMLElement && trigger.ownerDocument.activeElement === trigger
+      ? { origin: trigger, interaction: this.focusInteraction, current: this.captureOwner(), version: this.bankFocusVersion } : null;
+  }
+  openBankInspection(trigger: EventTarget | null): void {
+    if (!this.ws.data()?.canReviewSelections || !this.managerReview.data()) return;
+    if (this.bankInspectionOpen()) { this.bankInspectionHeading()?.nativeElement.focus(); return; }
+    this.requestBankFocus(trigger);
+    this.bankInspectionOpen.set(true);
+  }
+  closeBankInspection(trigger: EventTarget | null): void {
+    const ownsFocus = trigger instanceof HTMLElement && trigger.ownerDocument.activeElement === trigger;
+    // The count trigger remains mounted: return focus before removing the inspection panel.
+    if (ownsFocus) this.bankInspectionTrigger()?.nativeElement.focus();
+    this.bankInspectionOpen.set(false); this.bankSelection.set(null); this.bankFocusRequest = null; ++this.bankFocusVersion;
+  }
+  private readonly bankInspectionTrigger = viewChild<unknown, ElementRef<HTMLButtonElement>>('bankInspectionTrigger', { read: ElementRef });
+  bankPage(offset: number, trigger: EventTarget | null): void {
+    if (this.bankList.loading() || !this.bankList.data() || offset < 0) return;
+    this.requestBankFocus(trigger); this.bankSelection.set(null); this.bankItemOffset.set(0); this.bankOffset.set(offset);
+  }
+  inspectBank(id: string, trigger: EventTarget | null): void {
+    if (!this.bankList.data()?.rows.some(row => row.id === id) || this.bankDetail.loading()) return;
+    this.requestBankFocus(trigger); this.bankItemOffset.set(0); this.bankSelection.set(id);
+  }
+  bankItemsPage(offset: number, trigger: EventTarget | null): void {
+    if (this.bankDetail.loading() || !this.bankDetail.data() || offset < 0) return;
+    this.requestBankFocus(trigger); this.bankItemOffset.set(offset);
+  }
+  refreshBankInspection(trigger: EventTarget | null): void {
+    if (this.bankList.loading() || this.bankDetail.loading()) return;
+    this.requestBankFocus(trigger); this.bankList.reload();
+  }
+  bankGenerationLabel(state: string): string {
+    return state === 'CURRENT_GENERATION' ? 'Matches current input generation' : state === 'STALE_GENERATION'
+      ? 'Retained evidence: input generation changed' : 'Current input generation unavailable';
   }
   @HostListener('document:pointerdown')
   @HostListener('document:keydown')

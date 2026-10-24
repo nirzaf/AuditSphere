@@ -1115,13 +1115,12 @@
         "remaining": "Successor opening, context activation, professional/live and exact-source full CI; caller-owned seal-isolation variants remain unverified."
       },
       "nativeGlHandoff": {
-        "status": "Partial Task11; focused engineering passed; exact full CI pending.",
-        "migration": "20261024071046_NativeGeneralLedgerSourceHandoff",
-        "evidence": ".local/autonomous/evidence/native-gl-handoff-20261024",
-        "checks": "Domain/API, native/external SQL regressions and scoped Angular/lint/build passed. Browser focus RED/GREEN and built-in check passed; exact runs/hashes in evidence.",
-        "boundary": "Native TB, original journals/lines and actual opening retained; unknown metadata stays unknown. Independent GL acceptance exercised; completeness only inspected.",
-        "remaining": "Public DRAFT-to-ACTIVE path, successor opening, full CI and professional/live acceptance. No live migration. Retained history blocks destructive Down; earlier non-null flag binaries need compatibility review.",
-        "implementationCommit": "c0614a5c5a3c6eb0456e88738504197ef59287b1"
+        "status": "Partial Task11; native GL focused engineering passed; current full CI pending.",
+        "history": "status-archive-2026-10.json#keys.nativeGlHandoffBeforeBankInspection20261024"
+      },
+      "bankInspection": {
+        "status": "Scoped read-only inspection: Domain/API/E2E/builtin and affected Angular passed; exact CI pending.",
+        "history": "status-archive-2026-10.json#keys.bankReconciliationInspection20261024"
       }
     },
     "archivedOn20261024": {
@@ -1710,7 +1709,7 @@
   },
   "currentSourceCi": {
     "sourceCommit": "c0614a5c5a3c6eb0456e88738504197ef59287b1",
-    "evidence": "Exact source MATCH at 2026-10-24T07:49:26+00:00; Angular running, remaining full jobs not started. Docs-only follow-ups do not change this code candidate.",
+    "evidence": "Exact source MATCH; Angular, Domain and build/contracts passed; API/E2E pending. Uncommitted bank/successor overlays are not this candidate.",
     "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40075610976 RUNNING; not FULL_CI_PASS."
   }
 }

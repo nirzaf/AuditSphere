@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Scoped bank evidence inspection
+
+Fieldwork now opens a separately authorized, paged read-only view of retained bank reconciliations, linked schedules and typed reconciling items. Stored decimal strings, source identities, missing lineage and generation observations remain distinct from approval or completion. Reads release their consistent snapshot before rechecking current authority; late UI responses retain their owner fence. Focused database/API checks, the existing populated browser journey and a live built-in keyboard inspection support this child. No review decision was recorded by inspection. Reconciliation command UI, typed confirmation-source binding, current published-source CI and broader accessibility/professional acceptance remain separate. Evidence and exact boundaries are in `status.json`.
+
 ## Lifecycle and review-point CI follow-up
 
 Retained CI exposed a deferred lifecycle placeholder outside the viewport. Recovery capture awaited only the receipt although the UI also needs its subsequent state read. The affected journeys pass unchanged locally; test synchronization now follows the rendered trigger and awaits both causal reads without changing product behavior or expected results. The owned built-in fixture also demonstrated keyboard disclosure, refresh and next-action focus with truthful dual-key blockers. Fixture expiry after the live observation is retained separately. Current immutable full CI, wider rendered states, native zoom and qualified human assistive-technology evidence remain open.
@@ -24,7 +28,7 @@ The queue now rechecks grant expiry with a fresh cutoff after its read snapshot,
 
 ## Accounting and confirmation source handoffs
 
-The requirement manifest now records exact recipe owners and existing checks for import-first reporting, native bookkeeping continuity and retained period evidence. Retained Domain cases and unchanged-source Angular file passes support their specific guards, not whole workflows. Native successor openings and a sealed native reporting-source handoff remain implementation targets. The confirmation source trace distinguishes all supported areas: caller-entered amounts are not independently derived booked balances, and an approved bank reconciliation is a candidate source rather than an implemented adapter. Missing real-client approvals block their acceptance leaves, not independent technical work.
+The requirement manifest now records exact recipe owners and existing checks for import-first reporting, native bookkeeping continuity and retained period evidence. Retained Domain cases and unchanged-source Angular file passes support their specific guards, not whole workflows. Native successor openings remain implementation work; retained native TB/GL handoffs are recorded below. The confirmation source trace distinguishes all supported areas: caller-entered amounts are not independently derived booked balances, and an approved bank reconciliation is a candidate source rather than an implemented adapter. Missing real-client approvals block their acceptance leaves, not independent technical work.
 
 ## Balance draft release eligibility
 
@@ -199,21 +203,7 @@ Typing, capability splits, conventions and lint are implemented. Scoped checks c
 
 ## Current master verification and scope (2026-10-21)
 
-The latest backend slice binds archive readiness and early compliance-lock evidence only to an issued financial-package release whose candidate matches the engagement scope. A focused PostgreSQL regression creates a later issued workpaper release and verifies that neither the review digest nor persisted lock evidence switches to it. The focused test, serialized Release solution build, current-source fast CI and API/worker/migration image builds passed on `3c7741be`; exact evidence is in [status.json](status.json). The unfiltered release run remains in progress on older source `76969482`, so full current-source verification is not established.
-
-Accessibility remains `PARTIAL_AGENT_REVIEW`, not human screen-reader sign-off. The rendered shell review on `3c7741be` verified skip-link focus, reverse Tab and no horizontal overflow at 390px; shell sources are unchanged through `23b33597`. Source review on `23b33597` found no actionable issue in the ownership form labels, table caption or pagination names, but no authenticated group fixture was available. The browser/API review remained anonymous; no screen reader was used. Qualified human review with AT/browser versions remains open. No business data changed. Details are archived in [status.json](status.json).
-
-Component corrections fail closed, preserving the original pin/hash/submitter; correction needs a reviewed package and new scope. Five focused Domain cases passed; browser acceptance remains pending.
-
-API/Angular parity T008 (accounting group creation) has focused local evidence: overview spec 9/9, Domain grant/revocation cohort 3/3, API authority boundary 1/1. T009 (effective-dated group membership) has Angular 3/3, Domain 1/1 and API 1/1. T010 now uses inclusive membership/reporting-period overlap throughout creation, package/component eligibility, readiness and ownership choices; disjoint future membership is denied and multiple records for one member do not duplicate readiness. Its focused API test, PostgreSQL workspace/package test and earlier overview spec pass. T011’s routing assignment now has HTTP regression coverage for CSRF, cross-client denial and persisted routing details; its API assignment/revocation, Domain and Angular checks pass, with a mutation proving the same-client guard. The production identity has no group access, and the local app is stopped, so both authorized browser journeys remain pending. No production data changed. Exact commands/results are in [status.json](status.json).
-
-T026 exposes approved membership windows and blocks uncovered ownership periods before dispatch; the API enforces the same boundary. Focused API 1/1, Angular 3/3, Angular and .NET Release solution builds, and OpenAPI checks pass. Fast CI `39667293119` passed on `23b33597`; browser acceptance lacks an authorized group fixture. No full suites ran locally.
-
-T017/T018 assignment and sales-credit recovery, plus T019/T024 allocation receipt recovery and controlled unallocation, now have focused Domain and Angular evidence. Exact counts and test sources are in [status.json](status.json). Browser acceptance remains unverified.
-
-T029/T030 portal draft preservation and slow package-build polling passed their two focused Angular specs (49/49). T031 consolidation pagination/refusal passed the filtered Domain class (3/3) and Angular spec (18/18). T032 portal history now exercises 501 uploads and 2,001 messages in the existing API test; the targeted API test passed 1/1 and reaches the deep pages while retaining foreign-request and invalid-page denials. Browser interaction was not run because the local UI/API ports were closed. Focused counts, source equivalence and CI state are recorded under `apiAngularParityFocused20261021` in [status.json](status.json).
-
-Overdue PBC reviewer escalation is already configured. Event notifications need approved semantics; monthly accounting handover is only PROPOSED, not current implementation authority.
+Historical verification details are preserved verbatim in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#verification-snapshot-archived-during-bank-inspection-continuation). They are not current-source acceptance.
 
 ## Client finance receipt continuation
 

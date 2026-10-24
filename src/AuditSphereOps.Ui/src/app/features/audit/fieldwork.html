@@ -25,13 +25,87 @@
                 <tr><th scope="row">Selections needing review</th><td>{{ summary.selectionsNeedingReview }}</td></tr>
                 <tr><th scope="row">Unresolved review threads</th><td>{{ summary.unresolvedReviewThreads }}</td></tr>
                 <tr><th scope="row">Open confirmations</th><td>{{ summary.openConfirmations }}</td></tr>
-                <tr><th scope="row">Bank reconciliations needing approval</th><td>{{ summary.bankReconciliationsNeedingApproval }}</td></tr>
+                <tr><th scope="row">Bank reconciliations needing approval</th><td><button #bankInspectionTrigger mat-button type="button" aria-controls="bank-reconciliation-inspection"
+                  [attr.aria-expanded]="bankInspectionOpen()" (click)="openBankInspection($event.currentTarget)">Inspect bank reconciliations ({{ summary.bankReconciliationsNeedingApproval }} needing approval)</button></td></tr>
                 <tr><th scope="row">Unevaluated differences</th><td>{{ summary.unevaluatedDifferences }}</td></tr>
               </tbody>
             </table></div>
             @if (summary.blockers.length) {
               <h3>Current blockers</h3>
               <ul>@for (blocker of summary.blockers; track blocker.code) { <li>{{ blocker.label }} <span>({{ blocker.count }})</span></li> }</ul>
+            }
+            @if (bankInspectionOpen()) {
+              <section id="bank-reconciliation-inspection" aria-labelledby="bank-reconciliation-inspection-heading">
+                <h3 #bankInspectionHeading id="bank-reconciliation-inspection-heading" tabindex="-1">Bank reconciliation evidence inspection</h3>
+                <p>Read-only stored evidence. Generation observations reflect this read snapshot; refresh for later changes. Matching input generations do not establish source acceptance, independent approval or completion readiness.</p>
+                <button mat-button type="button" (click)="refreshBankInspection($event.currentTarget)" [disabled]="bankList.loading() || bankDetail.loading()">Refresh bank evidence</button>
+                <button mat-button type="button" (click)="closeBankInspection($event.currentTarget)">Close bank inspection</button>
+                <audit-state [loading]="bankList.loading()" [error]="bankList.error()" label="bank reconciliation list" />
+                @if (bankList.data(); as page) {
+                  <p role="status">{{ page.total }} retained reconciliations · current input generation {{ page.currentInputGeneration ?? 'Unavailable' }}. Approval blockers above remain a separate count.</p>
+                  @if (!page.rows.length) { <p>No reconciliation records on this page.</p> }
+                  @else {
+                    <div class="table-scroll"><table aria-label="Retained bank reconciliations">
+                      <thead><tr><th scope="col">Record / as of</th><th scope="col">Status / generation</th><th scope="col">Stored balances</th><th scope="col">Inspect</th></tr></thead>
+                      <tbody>@for (row of page.rows; track row.id) {
+                        <tr><th scope="row"><code>{{ row.id }}</code><br />{{ row.asOfDate }}</th>
+                          <td>{{ row.status }}<br />{{ bankGenerationLabel(row.generationState) }} · stored {{ row.inputGeneration }}</td>
+                          <td>Ledger <code>{{ row.ledgerBalance }}</code> {{ row.currency }}<br />Statement <code>{{ row.statementBalance }}</code> {{ row.currency }}<br />Residual <code>{{ row.residual }}</code> {{ row.currency }}</td>
+                          <td><button mat-button type="button" [disabled]="bankDetail.loading()" (click)="inspectBank(row.id, $event.currentTarget)" [attr.aria-label]="'Inspect bank reconciliation ' + row.id">Inspect evidence</button></td></tr>
+                      }</tbody>
+                    </table></div>
+                  }
+                  <nav aria-label="Bank reconciliation pages">
+                    <button mat-button type="button" [disabled]="bankList.loading() || page.offset === 0" (click)="bankPage(page.offset - page.limit, $event.currentTarget)">Previous reconciliation page</button>
+                    <span>Page {{ page.offset / page.limit + 1 }} · {{ page.total }} records</span>
+                    <button mat-button type="button" [disabled]="bankList.loading() || page.offset + page.limit >= page.total" (click)="bankPage(page.offset + page.limit, $event.currentTarget)">Next reconciliation page</button>
+                  </nav>
+                  <audit-state [loading]="bankDetail.loading()" [error]="bankDetail.error()" label="bank reconciliation detail" />
+                  @if (bankDetail.data(); as detail) {
+                    @if (detail.reconciliation.id === bankSelection()) {
+                      <h4>Stored reconciliation <code>{{ detail.reconciliation.id }}</code></h4>
+                      <p>{{ detail.reconciliation.status }} · {{ bankGenerationLabel(detail.reconciliation.generationState) }} · as of {{ detail.reconciliation.asOfDate }} · {{ detail.reconciliation.currency }}</p>
+                      <p>Timing items <code>{{ detail.reconciliation.timingItemTotal }}</code> · proposed corrections <code>{{ detail.reconciliation.proposedCorrectionTotal }}</code> · residual <code>{{ detail.reconciliation.residual }}</code></p>
+                      <p>Conclusion: {{ detail.reconciliation.conclusion ?? 'Not retained' }}</p>
+                      <p>Preparer <code>{{ detail.reconciliation.createdByUserId }}</code> · {{ detail.reconciliation.createdAt }}<br />Reviewer <code>{{ detail.reconciliation.reviewedByUserId ?? 'Not reviewed' }}</code> · {{ detail.reconciliation.reviewedAt ?? 'Not retained' }}</p>
+                      <p>Linked procedure <code>{{ detail.reconciliation.procedureId ?? 'Not linked' }}</code></p>
+                      <p>Ledger schedule <code>{{ detail.ledgerScheduleId }}</code> · statement schedule <code>{{ detail.statementScheduleId }}</code></p>
+                      @if (!detail.ledgerSchedule || !detail.statementSchedule) { <p role="status">Some linked schedule evidence is unavailable in this scope. No source values are inferred.</p> }
+                      @for (source of [detail.ledgerSchedule, detail.statementSchedule]; track $index) {
+                        @if (source) {
+                          <h5>{{ $index === 0 ? 'Ledger' : 'Statement' }} source schedule</h5>
+                          <dl>
+                            <dt>Identity / entity / type</dt><dd><code>{{ source.id }}</code> · {{ source.entityIdentifier }} · {{ source.scheduleType }}</dd>
+                            <dt>Status / generation</dt><dd>{{ source.status }} · {{ bankGenerationLabel(source.generationState) }} · stored {{ source.inputGeneration }}</dd>
+                            <dt>As of / period</dt><dd>{{ source.asOfDate ?? 'Not retained' }} · {{ source.periodStart ?? 'Not retained' }} to {{ source.periodEnd ?? 'Not retained' }}</dd>
+                            <dt>Currency / sign convention</dt><dd>{{ source.currency }} · {{ source.signConvention }}</dd>
+                            <dt>Stored control totals / residual / rows</dt><dd><code>{{ source.signedControlTotal }}</code> / <code>{{ source.glControlTotal }}</code> / <code>{{ source.residual }}</code> · {{ source.rowCount }} rows</dd>
+                            <dt>Source receipt</dt><dd>{{ source.sourceReceiptReference || 'Not retained' }}</dd>
+                            <dt>Stored source hash</dt><dd><code>{{ source.sourceHash || 'Not retained' }}</code></dd>
+                            <dt>Import batch / accepted-source decision</dt><dd><code>{{ source.sourceImportBatchId ?? 'Not linked' }}</code> / <code>{{ source.acceptedSourceDecisionId ?? 'Not linked' }}</code></dd>
+                            <dt>Stored accepted-source hash</dt><dd><code>{{ source.acceptedSourceHash || 'Not retained' }}</code></dd>
+                          </dl>
+                        }
+                      }
+                      <h4>Typed reconciling items</h4>
+                      <p role="status">{{ detail.total }} retained items; displaying {{ detail.items.length }} on this page.</p>
+                      <div class="table-scroll"><table aria-label="Stored bank reconciling items">
+                        <thead><tr><th scope="col">Item / type</th><th scope="col">Amount</th><th scope="col">Evidence and source</th></tr></thead>
+                        <tbody>@for (item of detail.items; track item.id) {
+                          <tr><th scope="row">{{ item.stableItemId }} · {{ item.itemType }}<br />{{ item.description }}</th>
+                            <td><code>{{ item.signedAmount }}</code> {{ item.currency }}</td>
+                            <td>{{ item.sourceReference }}<br />{{ item.evidenceReference }}<br />Schedule <code>{{ item.sourceScheduleId ?? 'Not linked' }}</code><br />Proposed journal <code>{{ item.proposedJournalId ?? 'Not linked' }}</code></td></tr>
+                        }</tbody>
+                      </table></div>
+                      <nav aria-label="Bank reconciling item pages">
+                        <button mat-button type="button" [disabled]="bankDetail.loading() || detail.offset === 0" (click)="bankItemsPage(detail.offset - detail.limit, $event.currentTarget)">Previous item page</button>
+                        <span>Page {{ detail.offset / detail.limit + 1 }} · {{ detail.total }} items</span>
+                        <button mat-button type="button" [disabled]="bankDetail.loading() || detail.offset + detail.limit >= detail.total" (click)="bankItemsPage(detail.offset + detail.limit, $event.currentTarget)">Next item page</button>
+                      </nav>
+                    }
+                  }
+                }
+              </section>
             }
             <a [routerLink]="['/app/engagements', id(), 'completion']">Open completion and Summary Review Memorandum</a>
           }

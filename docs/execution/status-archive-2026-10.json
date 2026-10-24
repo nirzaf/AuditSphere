@@ -24796,6 +24796,30 @@
       "sourceCommit": "8227133a5dc00e85cca75d64cff7a9057f0ce12c",
       "evidence": "Full SOURCE_MATCH; Angular and build/contracts/publication PASS; Domain/API/E2E running at 2026-10-24T06:36:47Z. Later docs-only commits do not change this code candidate.",
       "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40069801114 RUNNING; not FULL_CI_PASS."
+    },
+    "nativeGlHandoffBeforeBankInspection20261024": {
+      "status": "Partial Task11; focused engineering passed; exact full CI pending.",
+      "migration": "20261024071046_NativeGeneralLedgerSourceHandoff",
+      "evidence": ".local/autonomous/evidence/native-gl-handoff-20261024",
+      "checks": "Domain/API, native/external SQL regressions and scoped Angular/lint/build passed. Browser focus RED/GREEN and built-in check passed; exact runs/hashes in evidence.",
+      "boundary": "Native TB, original journals/lines and actual opening retained; unknown metadata stays unknown. Independent GL acceptance exercised; completeness only inspected.",
+      "remaining": "Public DRAFT-to-ACTIVE path, successor opening, full CI and professional/live acceptance. No live migration. Retained history blocks destructive Down; earlier non-null flag binaries need compatibility review.",
+      "implementationCommit": "c0614a5c5a3c6eb0456e88738504197ef59287b1"
+    },
+    "bankReconciliationInspection20261024": {
+      "status": "BOUNDED_FOCUSED_PASS; exact published-source CI still required; Tasks17/19/27 partial",
+      "source": "c0614a5c plus bank inspection overlay; local .NET binaries also contain uncommitted successor model overlay, not its acceptance",
+      "verification": {
+        "domain": "Existing FieldworkEvidence_IsScopedAndReviewable1PASS (including final read-authority revocation)",
+        "api": "Existing ExactScope_GuessedIds_BoundedWindows_AndRevokedSessions_FailClosed1PASS",
+        "angular": "Affected fieldwork spec33PASS; scoped lint/buildPASS",
+        "browser": "Named bank E2E1PASS and unchanged repeat1PASS; retained reconciliation stays unreviewed",
+        "builtin": "Tab19 keyboard entry\u2192H3, exact stored amounts/hashes/items, close\u2192entryfocus; capture2026-10-24T08:49:16.652Z before08:50:14.919511expiry; tab19closed and disposablefixture released. Tab18 expired and error-page policy blocked cleanup, no pass claimed for it.",
+        "contract": "Actual host adds2bankGETpaths; existing paths unchanged; canonical emitter/driftPASS"
+      },
+      "sourceBoundary": "Bank08:21bundle index e6e0c23fbf560e77e3dae12b94acbe2f48d3b1979681e549ede7051a3c65bf14 matched before builtin. Node26.8.2 vs pinned26.8.1; exactpin CI pending.",
+      "limits": "Read-only inspection, no reconciliation review/creation UI or typed confirmation source adapter. Synthetic seeded GL is not verified ingestion/provider acceptance. No human AT/native zoom.",
+      "evidence": ".local/autonomous/evidence/bank-reconciliation-inspection-20261024"
     }
   },
   "archivedTargetedVerification": {

@@ -68,6 +68,21 @@ public sealed class ConfirmationApiTests
     Assert.Equal(HttpStatusCode.Forbidden,(await c.GetAsync(path+"/"+Guid.NewGuid())).StatusCode);
     Assert.Equal(HttpStatusCode.BadRequest,(await c.GetAsync(path+"?page=-1")).StatusCode);
     Assert.Equal(HttpStatusCode.BadRequest,(await c.GetAsync(path+"?filter=ANY")).StatusCode);
+    // Bank inspection is a separate authorized read; the aggregate count is not a data grant.
+    var bankPath = $"/api/ui/engagements/{f.EngagementId:D}/fieldwork/bank-reconciliations";
+    Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync(bankPath)).StatusCode);
+    using var bankReviewerFactory = Factory(pg, f.Reviewer);
+    using var bankReviewer = bankReviewerFactory.CreateClient(new() { AllowAutoRedirect = false });
+    await SignIn(bankReviewer);
+    var emptyBanks = await Get(bankReviewer, bankPath);
+    Assert.Equal(f.EngagementId, emptyBanks.GetProperty("engagementId").GetGuid());
+    Assert.Equal(0, emptyBanks.GetProperty("total").GetInt32());
+    Assert.Empty(emptyBanks.GetProperty("rows").EnumerateArray());
+    Assert.Equal(HttpStatusCode.BadRequest, (await bankReviewer.GetAsync(bankPath + "?offset=-1")).StatusCode);
+    Assert.Equal(HttpStatusCode.BadRequest, (await bankReviewer.GetAsync(bankPath + "?limit=26")).StatusCode);
+    Assert.Equal(HttpStatusCode.BadRequest, (await bankReviewer.GetAsync(bankPath + "/" + Guid.NewGuid() + "?limit=101")).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await bankReviewer.GetAsync(bankPath + "/" + Guid.NewGuid())).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await bankReviewer.GetAsync($"/api/ui/engagements/{other.EngagementId:D}/fieldwork/bank-reconciliations")).StatusCode);
     await using(var db=new AuditSphereDbContext(pg.Options)){for(var n=0;n<27;n++)db.AuditConfirmationCases.Add(new AuditSphereOps.Domain.Audit.AuditConfirmationCase{Id=Guid.NewGuid(),FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,AreaCode="CASH_BANK",SourceRecordId=n.ToString(),ContactValidationSource="Approved synthetic contact",Respondent="Synthetic bank",Currency="QAR",ConfirmationDate=new(2026,10,2),CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow});await db.SaveChangesAsync();}
     var first=await Get(c,path);Assert.Equal(25,first.GetProperty("items").GetArrayLength());Assert.True(first.GetProperty("hasMore").GetBoolean());Assert.Equal(2,(await Get(c,path+"?page=1")).GetProperty("items").GetArrayLength());
     await using(var db=new AuditSphereDbContext(pg.Options)){(await db.Users.SingleAsync(x=>x.Id==f.Staff.Id)).SessionEpoch++;await db.SaveChangesAsync();}

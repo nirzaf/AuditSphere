@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,97 @@ public sealed class AngularAuditFieldworkParityJourneyTests
     ["AngularUi__Enabled"] = "true",
     ["AngularUi__CanonicalRoutes"] = "true"
   };
+
+  [Fact]
+  [Trait("CaseId", "AS-BANK-INSPECTION-01")]
+  public async Task BankInspectionShowsRetainedSourceEvidenceWithoutChangingReview()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-BANK-INSPECTION-01");
+    var f = host.Fixture;
+    var sourceHash = Hashing.Sha256Hex("synthetic retained bank GL fixture");
+    var statementHash = Hashing.Sha256Hex("synthetic retained statement fixture");
+    var batchId = Guid.NewGuid();
+    var transactionId = Guid.NewGuid();
+    Guid bankId;
+    await using (var db = host.CreateDbContext())
+    {
+      // Stored synthetic GL fixture only: this test exercises inspection, not file ingestion
+      // or a real professional source acceptance. All schedule/reconciliation commands are real.
+      db.SourceImportBatches.Add(new SourceImportBatch
+      {
+        Id = batchId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        PeriodId = Guid.NewGuid(), SourceKind = "GL", ProfileVersion = "gl-v1", ParserVersion = "parser-v1",
+        RawFileSha256Hex = sourceHash, NormalizedDatasetDigest = sourceHash, LegalEntityKey = "bank-inspection-001", Currency = "QAR",
+        RowCount = 1, ExpectedChunkCount = 1, ExpectedTransactionCount = 1, ExpectedLineCount = 1,
+        AcceptedChunkCount = 1, AcceptedTransactionCount = 1, AcceptedLineCount = 1, Status = "SEALED",
+        ReceiptReference = "BANK-INSPECTION-GL", CreatedByUserId = f.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.GeneralLedgerTransactions.Add(new GeneralLedgerTransaction
+      {
+        Id = transactionId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ImportBatchId = batchId, StableJournalId = "BANK-INSPECTION-J1", DocumentNumber = "BANK-INSPECTION-J1",
+        PostingDate = new(2026, 9, 30), SourceUser = "synthetic", SourceSystem = "LEDGER", Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.GeneralLedgerLines.Add(new GeneralLedgerLine
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ImportBatchId = batchId, TransactionId = transactionId, StableLineId = "BANK-INSPECTION-L1", AccountCode = "1100",
+        Debit = 100.123456m, Credit = 0m, OriginalCurrency = "QAR", OriginalAmount = 100.123456m,
+        FunctionalAmount = 100.123456m, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      var preparer = PbcSeed.Actor(f.Staff, "Staff");
+      var reviewer = PbcSeed.Actor(f.Reviewer, "Reviewer");
+      var ledger = await AuditFieldworkService.CreateScheduleAsync(db, preparer, new CreateScheduleRequest(
+        f.EngagementId, "BANK_LEDGER", "bank-inspection-001", "BANK-INSPECTION-GL", new DateTimeOffset(2026, 9, 30, 0, 0, 0, TimeSpan.Zero),
+        new DateOnly(2026, 1, 1), new DateOnly(2026, 9, 30), "QAR", "debits positive; credits negative", sourceHash, 100.123456m,
+        [new("bank-ledger-row", 1, "1100", "Synthetic retained ledger", 100.123456m, "QAR", null, new DateOnly(2026, 9, 30), null, null, "{}")], batchId));
+      var statement = await AuditFieldworkService.CreateScheduleAsync(db, preparer, new CreateScheduleRequest(
+        f.EngagementId, "BANK_STATEMENT", "bank-inspection-001", "BANK-INSPECTION-STATEMENT", new DateTimeOffset(2026, 9, 30, 0, 0, 0, TimeSpan.Zero),
+        new DateOnly(2026, 1, 1), new DateOnly(2026, 9, 30), "QAR", "debits positive; credits negative", statementHash, 90.123456m,
+        [new("bank-statement-row", 1, "1100", "Synthetic retained statement", 90.123456m, "QAR", null, new DateOnly(2026, 9, 30), null, null, "{}")]));
+      Assert.True(ledger.Succeeded, ledger.Message);
+      Assert.True(statement.Succeeded, statement.Message);
+      Assert.True((await AuditFieldworkService.ReviewScheduleAsync(db, reviewer, new(ledger.Value!.ScheduleId, "Synthetic independent source review.", true))).Succeeded);
+      Assert.True((await AuditFieldworkService.ReviewScheduleAsync(db, reviewer, new(statement.Value!.ScheduleId, "Synthetic independent statement review.", true))).Succeeded);
+      var bank = await AuditFieldworkService.CreateBankReconciliationAsync(db, preparer, new(
+        f.EngagementId, null, ledger.Value.ScheduleId, statement.Value.ScheduleId, new(2026, 9, 30),
+        [new("ledger", "LEDGER", 100.123456m, "Ledger", "BANK-INSPECTION-GL", "ledger-evidence", ledger.Value.ScheduleId),
+         new("statement", "STATEMENT", 90.123456m, "Statement", "BANK-INSPECTION-STATEMENT", "statement-evidence", statement.Value.ScheduleId),
+         new("timing", "TIMING", -10m, "Outstanding synthetic cheque", "BANK-INSPECTION-STATEMENT", "bank-timing-evidence", statement.Value.ScheduleId)]));
+      Assert.True(bank.Succeeded, bank.Message);
+      bankId = bank.Value!.BankReconciliationId;
+    }
+    var origin = await host.StartApiForIdentityAsync(f.Reviewer, Angular);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    var inspectionPath = $"/app/engagements/{f.EngagementId:D}/audit-fieldwork";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(inspectionPath));
+    var entry = page.GetByRole(AriaRole.Button, new() { Name = "Inspect bank reconciliations (1 needing approval)", Exact = true });
+    await entry.FocusAsync(); await page.Keyboard.PressAsync("Enter");
+    var region = page.GetByRole(AriaRole.Region, new() { Name = "Bank reconciliation evidence inspection", Exact = true });
+    await Assertions.Expect(region.GetByRole(AriaRole.Heading, new() { Name = "Bank reconciliation evidence inspection", Exact = true })).ToBeFocusedAsync();
+    await region.GetByRole(AriaRole.Button, new() { Name = "Inspect bank reconciliation " + bankId.ToString("D"), Exact = true }).PressAsync("Enter");
+    await Assertions.Expect(region.GetByText(sourceHash, new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(region.GetByText(statementHash, new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(region.GetByText("bank-timing-evidence", new() { Exact = false })).ToBeVisibleAsync();
+    await Assertions.Expect(region.GetByText("100.123456", new() { Exact = true }).First).ToBeVisibleAsync();
+    await region.GetByRole(AriaRole.Button, new() { Name = "Close bank inspection", Exact = true }).PressAsync("Enter");
+    await Assertions.Expect(entry).ToBeFocusedAsync();
+    await using (var db = host.CreateDbContext())
+    {
+      var retained = await db.AuditBankReconciliations.AsNoTracking().SingleAsync(x => x.Id == bankId);
+      Assert.Equal(AuditBankReconciliationStatuses.Reconciled, retained.Status);
+      Assert.Null(retained.ReviewedByUserId); Assert.Null(retained.ReviewedAt); Assert.Null(retained.Conclusion);
+      Assert.Equal(3, await db.AuditBankReconciliationItems.CountAsync(x => x.BankReconciliationId == bankId));
+    }
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, inspectionPath, "bank-reconciliation-inspection");
+    Assert.Empty(errors);
+  }
 
   [Fact]
   [Trait("CaseId", "AS-PAR-009-ANGULAR-AGGREGATE-DIFFERENCES-01")]

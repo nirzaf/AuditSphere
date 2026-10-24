@@ -1,4 +1,4 @@
-import { arr, bool, dec, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, date, dec, DecodeError, guid, instant, int, nat, nullable, obj, oneOf, text } from '../../core/decode';
 
 export type TailorProcedureCommand = {
   title: string;
@@ -106,3 +106,56 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
   return risks.filter((risk) => risk.destinationCode === line);
 }
 
+
+// Read-only retained bank evidence. Generation equality does not grant review or acceptance.
+const bankGeneration = (value: unknown, path: string): string => {
+  if (typeof value !== 'string' || !/^[1-9][0-9]{0,18}$/.test(value) || BigInt(value) > 9223372036854775807n)
+    throw new DecodeError(`${path}: expected canonical positive generation`);
+  return value;
+};
+const bankGenerationState = oneOf('CURRENT_GENERATION', 'STALE_GENERATION', 'UNAVAILABLE');
+const bankRow = obj({ id: guid, procedureId: nullable(guid), asOfDate: date, currency: text,
+  status: oneOf('RECONCILED', 'UNRECONCILED', 'APPROVED', 'CHANGES_REQUIRED'), ledgerBalance: dec,
+  statementBalance: dec, timingItemTotal: dec, proposedCorrectionTotal: dec, residual: dec,
+  inputGeneration: bankGeneration, generationState: bankGenerationState, conclusion: nullable(text),
+  createdByUserId: guid, createdAt: instant, reviewedByUserId: nullable(guid), reviewedAt: nullable(instant) });
+const bankSchedule = obj({ id: guid, scheduleType: text, entityIdentifier: text, sourceReceiptReference: text,
+  asOfDate: nullable(instant), periodStart: nullable(date), periodEnd: nullable(date), currency: text,
+  signConvention: text, sourceHash: text, sourceImportBatchId: nullable(guid), acceptedSourceDecisionId: nullable(guid),
+  acceptedSourceHash: text, rowCount: nat, signedControlTotal: dec, glControlTotal: dec, residual: dec,
+  inputGeneration: bankGeneration, generationState: bankGenerationState, status: text });
+const bankItem = obj({ id: guid, stableItemId: text,
+  itemType: oneOf('LEDGER', 'STATEMENT', 'TIMING', 'PROPOSED_CORRECTION'), signedAmount: dec, currency: text,
+  description: text, sourceReference: text, evidenceReference: text, sourceScheduleId: nullable(guid), proposedJournalId: nullable(guid) });
+const bankPage = obj({ engagementId: guid, currentInputGeneration: nullable(bankGeneration), offset: nat,
+  limit: nat, total: nat, rows: arr(bankRow, 25) });
+const bankDetail = obj({ engagementId: guid, currentInputGeneration: nullable(bankGeneration), reconciliation: bankRow,
+  ledgerScheduleId: guid, statementScheduleId: guid, ledgerSchedule: nullable(bankSchedule), statementSchedule: nullable(bankSchedule),
+  offset: nat, limit: nat, total: nat, items: arr(bankItem, 100) });
+function requireBankPage(offset: number, limit: number, total: number, count: number, max: number, path: string): void {
+  if (limit < 1 || limit > max || count > limit || count !== Math.min(limit, Math.max(0, total - offset)))
+    throw new DecodeError(`${path}: inconsistent bounded page`);
+}
+function requireBankGeneration(stored: string, current: string | null, state: string, path: string): void {
+  const expected = current === null ? 'UNAVAILABLE' : stored === current ? 'CURRENT_GENERATION' : 'STALE_GENERATION';
+  if (state !== expected) throw new DecodeError(`${path}: inconsistent generation label`);
+}
+export const decodeBankReconciliationPage = (raw: unknown, path: string) => {
+  const page = bankPage(raw, path);
+  requireBankPage(page.offset, page.limit, page.total, page.rows.length, 25, path);
+  for (const row of page.rows) requireBankGeneration(row.inputGeneration, page.currentInputGeneration, row.generationState, path);
+  if (new Set(page.rows.map(row => row.id)).size !== page.rows.length) throw new DecodeError(`${path}: duplicate record`);
+  return page;
+};
+export const decodeBankReconciliationDetail = (raw: unknown, path: string) => {
+  const detail = bankDetail(raw, path);
+  requireBankPage(detail.offset, detail.limit, detail.total, detail.items.length, 100, path);
+  requireBankGeneration(detail.reconciliation.inputGeneration, detail.currentInputGeneration, detail.reconciliation.generationState, path);
+  for (const [schedule, id] of [[detail.ledgerSchedule, detail.ledgerScheduleId], [detail.statementSchedule, detail.statementScheduleId]] as const) {
+    if (!schedule) continue;
+    if (schedule.id !== id) throw new DecodeError(`${path}: mismatched source schedule`);
+    requireBankGeneration(schedule.inputGeneration, detail.currentInputGeneration, schedule.generationState, path);
+  }
+  if (new Set(detail.items.map(item => item.id)).size !== detail.items.length) throw new DecodeError(`${path}: duplicate item`);
+  return detail;
+};

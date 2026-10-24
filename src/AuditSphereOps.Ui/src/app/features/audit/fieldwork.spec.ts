@@ -1,6 +1,8 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
@@ -8,7 +10,7 @@ import { TabDrafts, pendingRequestReference, type DraftRead, type PendingRequest
 import { afterEach, describe, expect, it } from 'vitest';
 import { AuditFieldwork } from './fieldwork';
 import { FieldworkProcedureState } from './fieldwork-procedure-state';
-import { decodeFieldwork, decodeProcedureCommandLookup, decodeProcedureCommandPreview, decodeProcedureCommandReceipt, decodeProcedureCommandState, decodeProcedureReview, decodeProgramOptions, decodeSampleSet, decodeTailorProcedureCommand, focusRisks, type TailorProcedureCommand } from './fieldwork-contracts';
+import { decodeBankReconciliationDetail, decodeBankReconciliationPage, decodeFieldwork, decodeProcedureCommandLookup, decodeProcedureCommandPreview, decodeProcedureCommandReceipt, decodeProcedureCommandState, decodeProcedureReview, decodeProgramOptions, decodeSampleSet, decodeTailorProcedureCommand, focusRisks, type TailorProcedureCommand } from './fieldwork-contracts';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
@@ -783,5 +785,119 @@ describe('Procedure risk link reviewed preparation', () => {
     const { page, workspace } = open(); page.setRiskSelection(id2, id3);
     workspace.set({ ...workspace(), procedures: [{ id: id2, riskId: id1 }] }); TestBed.tick();
     expect(page.riskSelection(workspace().procedures[0] as Parameters<AuditFieldwork['riskSelection']>[0])).toBe(id1);
+  });
+});
+
+describe('Fieldwork bank reconciliation inspection', () => {
+  const stamp = '2026-10-24T00:00:00Z';
+  const row = { id: id2, procedureId: null, asOfDate: '2026-09-30', currency: 'QAR', status: 'RECONCILED',
+    ledgerBalance: '100.123456', statementBalance: '90.123456', timingItemTotal: '-10.000000',
+    proposedCorrectionTotal: '0.000000', residual: '0.000000', inputGeneration: '2', generationState: 'CURRENT_GENERATION',
+    conclusion: null, createdByUserId: id1, createdAt: stamp, reviewedByUserId: null, reviewedAt: null };
+  const page = { engagementId: id1, currentInputGeneration: '2', offset: 0, limit: 25, total: 1, rows: [row] };
+  const source = { id: id1, scheduleType: 'BANK_LEDGER', entityIdentifier: 'BANK-001', sourceReceiptReference: 'retained-receipt',
+    asOfDate: stamp, periodStart: null, periodEnd: null, currency: 'QAR', signConvention: 'debit positive',
+    sourceHash: hash64, sourceImportBatchId: id3, acceptedSourceDecisionId: null, acceptedSourceHash: '', rowCount: 1,
+    signedControlTotal: '100.123456', glControlTotal: '100.123456', residual: '0.000000', inputGeneration: '2',
+    generationState: 'CURRENT_GENERATION', status: 'APPROVED' };
+  const detail = { engagementId: id1, currentInputGeneration: '2', reconciliation: row, ledgerScheduleId: id1,
+    statementScheduleId: id3, ledgerSchedule: source, statementSchedule: null, offset: 0, limit: 100, total: 1,
+    items: [{ id: id3, stableItemId: 'timing-001', itemType: 'TIMING', signedAmount: '-10.000000', currency: 'QAR',
+      description: 'Outstanding cheque', sourceReference: 'retained-source', evidenceReference: 'retained-evidence',
+      sourceScheduleId: null, proposedJournalId: null }] };
+  const path = `/api/ui/engagements/${id1}/fieldwork/bank-reconciliations`;
+  afterEach(() => { TestBed.resetTestingModule(); });
+
+  it('retains exact amounts, missing proof and generation labels while refusing malformed or inconsistent pages', () => {
+    expect(decodeBankReconciliationDetail(detail, '').items[0].signedAmount).toBe('-10.000000');
+    expect(decodeBankReconciliationDetail(detail, '').statementSchedule).toBeNull();
+    expect(decodeBankReconciliationPage({ ...page, currentInputGeneration: '3', rows: [{ ...row, generationState: 'STALE_GENERATION' }] }, '').rows[0].generationState).toBe('STALE_GENERATION');
+    for (const malformed of [
+      { ...page, currentInputGeneration: 2 }, { ...page, currentInputGeneration: '02' },
+      { ...page, currentInputGeneration: '3' }, { ...page, limit: 26 }, { ...page, total: 2 },
+      { ...page, rows: [{ ...row, ledgerBalance: 100.123456 }] },
+    ]) expect(() => decodeBankReconciliationPage(malformed, '')).toThrow();
+    expect(() => decodeBankReconciliationDetail({ ...detail, ledgerSchedule: { ...source, id: id3 } }, '')).toThrow();
+  });
+
+  function open() {
+    const session = { current: signal<{ userId: string; firmId: string; generation: string; staff: boolean } | null>(
+      { userId: id1, firmId: id1, generation: '1', staff: true }), invalidation: signal(0), refresh: vi.fn() };
+    TestBed.configureTestingModule({ providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
+      { provide: SessionService, useValue: session },
+      { provide: ActivatedRoute, useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: id1 })) } }] });
+    const http = TestBed.inject(HttpTestingController), fixture = TestBed.createComponent(AuditFieldwork);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ engagementId: id1, catalogProcedureCount: 0,
+      catalogVersion: '2026.1', program: null, procedures: [], risks: [], differences: [], aggregate: null,
+      aggregateCurrentAndReviewed: false, schedules: [], samplingMethods: [], samplingRuns: [], evidenceCandidates: [], physicalItems: [],
+      canManageFieldwork: false, canReviewSelections: true, canViewReviewNotes: false, canAddOrResolveReviewNotes: false,
+      canRespondToReviewNotes: false });
+    TestBed.tick(); fixture.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/manager-review`).flush({ engagementId: id1, completionReady: false,
+      partnerHandoffReady: false, applicableProcedures: 0, proceduresNeedingReview: 0, itemTestsNeedingReview: 0,
+      selectionsNeedingReview: 0, unresolvedReviewThreads: 0, openConfirmations: 0, bankReconciliationsNeedingApproval: 1,
+      unevaluatedDifferences: 0, summaryReviewMemorandumState: 'NOT_GENERATED', summaryReviewMemorandumVersion: null,
+      summaryReviewMemorandumGeneratedAt: null, blockers: [{ code: 'bank-reconciliation-unapproved', label: 'Bank reconciliation needs approval', count: 1 }] });
+    TestBed.tick(); fixture.detectChanges();
+    const button = (label: string) => {
+      const found = [...fixture.nativeElement.querySelectorAll('button')].find((b) => (b as HTMLButtonElement).textContent?.includes(label)) as HTMLButtonElement | undefined;
+      if (!found) throw new Error(`Missing button ${label}`);
+      return found;
+    };
+    const click = (label: string) => { const b = button(label); b.focus(); b.click(); TestBed.tick(); fixture.detectChanges(); return b; };
+    return { fixture, http, session, button, click };
+  }
+
+  it('opens evidence only from the manager count, pages items and retries reads without losing deliberate focus moves', () => {
+    const { fixture, http, click, button } = open();
+    http.expectNone(r => r.url.startsWith(path));
+    expect(fixture.nativeElement.textContent).not.toContain('100.123456');
+    click('Inspect bank reconciliations');
+    http.expectOne(path + '?offset=0&limit=25').flush(page); TestBed.tick(); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#bank-reconciliation-inspection-heading')).toBe(document.activeElement);
+    click('Inspect evidence');
+    http.expectOne(path + `/${id2}?offset=0&limit=100`).flush({ ...detail, total: 101,
+      items: Array.from({ length: 100 }, (_, i) => ({ ...detail.items[0], id: `33333333-3333-4333-8333-${String(i).padStart(12, '0')}`, stableItemId: `item-${i}` })) });
+    TestBed.tick(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('100.123456');
+    expect(fixture.nativeElement.textContent).toContain(hash64);
+    expect(fixture.nativeElement.textContent).toContain('Some linked schedule evidence is unavailable');
+    expect(button('Next item page').disabled).toBe(false);
+    click('Next item page');
+    http.expectOne(path + `/${id2}?offset=100&limit=100`).flush({ ...detail, offset: 100, total: 101 });
+    TestBed.tick(); fixture.detectChanges();
+    expect(button('Next item page').disabled).toBe(true);
+    click('Refresh bank evidence');
+    expect(button('Refresh bank evidence').disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).not.toContain('retained-evidence');
+    const moved = fixture.nativeElement.querySelector('a') as HTMLAnchorElement; moved.focus();
+    http.expectOne(path + '?offset=0&limit=25').flush('Unavailable', { status: 503, statusText: 'Unavailable' });
+    TestBed.tick(); fixture.detectChanges();
+    expect(document.activeElement).toBe(moved);
+    expect(fixture.nativeElement.textContent).toContain('Temporarily unavailable');
+    click('Refresh bank evidence');
+    http.expectOne(path + '?offset=0&limit=25').flush(page); TestBed.tick(); fixture.detectChanges();
+    http.expectOne(path + `/${id2}?offset=100&limit=100`).flush({ ...detail, offset: 100, total: 101 });
+    TestBed.tick(); fixture.detectChanges();
+    click('Close bank inspection'); TestBed.tick(); fixture.detectChanges();
+    expect(button('Inspect bank reconciliations')).toBe(document.activeElement);
+    expect(fixture.nativeElement.textContent).not.toContain('retained-evidence');
+    http.verify();
+  });
+
+  it('clears a pending inspection on identity loss and refuses a guessed engagement response', () => {
+    const { fixture, http, session, click } = open();
+    click('Inspect bank reconciliations');
+    http.expectOne(path + '?offset=0&limit=25').flush({ ...page, engagementId: id3 }); TestBed.tick(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Unsupported response');
+    expect(fixture.nativeElement.textContent).not.toContain('100.123456');
+    click('Refresh bank evidence');
+    const pending = http.expectOne(path + '?offset=0&limit=25');
+    session.current.set(null); session.invalidation.update(n => n + 1); TestBed.tick(); fixture.detectChanges();
+    expect(pending.cancelled).toBe(true);
+    expect(fixture.componentInstance.bankInspectionOpen()).toBe(false);
+    expect(fixture.nativeElement.textContent).not.toContain('100.123456');
+    http.verify({ ignoreCancelled: true });
   });
 });
