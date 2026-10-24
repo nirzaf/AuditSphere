@@ -205,6 +205,11 @@ public sealed class AngularFirmScopeRevocationParityJourneyTests
         // A revocation epoch can replace the refresh control while its click is in flight.
         // The protected workspace must still converge to the denied state below.
       }
+      catch (TimeoutException)
+      {
+        // A detached refresh control can also surface as System.TimeoutException.
+        // The same final denial assertion below must still succeed.
+      }
     }
 
     await Assertions.Expect(unavailable).ToBeVisibleAsync(new() { Timeout = 15000 });

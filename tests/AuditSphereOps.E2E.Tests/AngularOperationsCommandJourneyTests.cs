@@ -23,12 +23,13 @@ public sealed class AngularOperationsCommandJourneyTests
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-OPERATIONS-COMMAND");
     var firm = host.Fixture; var administrator = PbcSeed.User(firm.FirmId, "Staff"); var operationId = Guid.NewGuid();
+    var administratorGrant = PbcSeed.Grant(firm.FirmId, administrator, "Administrator");
     const string privatePayload = "SYNTHETIC-PRIVATE-OPERATOR-PAYLOAD";
     const string disposition = "Operator deliberately cancelled this synthetic queued work.";
     const string findings = "Operator reconciled the exact synthetic restored recovery session.";
     await using (var db = host.CreateDbContext())
     {
-      db.Users.Add(administrator); db.RoleGrants.Add(PbcSeed.Grant(firm.FirmId, administrator, "Administrator"));
+      db.Users.Add(administrator); db.RoleGrants.Add(administratorGrant);
       db.DurableOperations.Add(new DurableOperation { Id = operationId, FirmId = firm.FirmId, OperationKind = "SYNTHETIC-REVIEWED-OPERATION",
         TargetId = Guid.NewGuid(), CorrelationId = Guid.NewGuid(), ExpectedRevision = 9007199254740993L, AttemptToken = 9007199254740993L,
         AttemptCount = 4, IdempotencyKey = Guid.NewGuid().ToString("N"), RequestDigest = new string('b', 64), RequestBytes = Encoding.UTF8.GetBytes(privatePayload),
@@ -54,8 +55,43 @@ public sealed class AngularOperationsCommandJourneyTests
       Interlocked.Increment(ref writes); using var json = JsonDocument.Parse(request.PostData!);
       requestId = json.RootElement.GetProperty("requestId").GetString(); requestHash = json.RootElement.GetProperty("expectedRequestHash").GetString();
     };
-    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fui%2Fapp%2Foperations");
-    await Assertions.Expect(page.GetByRole(AriaRole.Table, new() { Name = "Latest 50 durable operations", Exact = true })).ToBeVisibleAsync();
+    IReadOnlyList<(int Status, string Body)>? initialResponses = null;
+    try
+    {
+      initialResponses = await PlaywrightResponseCapture.RunMultipleAsync(page,
+        [request => request.Method == "GET" && request.Url == origin + "/api/ui/session",
+         request => request.Method == "GET" && request.Url == origin + "/api/ui/operations"],
+        () => page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fui%2Fapp%2Foperations"));
+      await Assertions.Expect(page.GetByRole(AriaRole.Table, new() { Name = "Latest 50 durable operations", Exact = true })).ToBeVisibleAsync();
+    }
+    catch (Exception exception)
+    {
+      string storedIdentity;
+      try
+      {
+        await using var db = host.CreateDbContext();
+        var user = await db.Users.AsNoTracking().Where(x => x.FirmId == firm.FirmId && x.Id == administrator.Id)
+          .Select(x => new { x.Id, x.FirmId, x.UserKind, x.Disabled, x.SessionEpoch }).SingleOrDefaultAsync();
+        var grant = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == firm.FirmId && x.Id == administratorGrant.Id)
+          .Select(x => new { x.Id, x.UserId, x.Role, x.ClientId, x.EngagementId, x.ExpiresAt, x.RevokedAt }).SingleOrDefaultAsync();
+        var safety = await db.FirmSafetyStates.AsNoTracking().Where(x => x.Id == firm.FirmId)
+          .Select(x => new { x.Id, x.OperatingMode }).SingleOrDefaultAsync();
+        storedIdentity = JsonSerializer.Serialize(new { user, grant, safety });
+      }
+      catch (Exception diagnosticException)
+      {
+        storedIdentity = $"Identity diagnostics unavailable: {diagnosticException.GetType().Name}";
+      }
+      var responses = initialResponses?.Select((response, index) => new
+      {
+        Endpoint = index == 0 ? "/api/ui/session" : "/api/ui/operations", response.Status, response.Body
+      }).ToArray();
+      throw new InvalidOperationException(
+        $"Initial Operations workspace failed. action={action}; dropResponse={dropResponse}; " +
+        $"expectedUserId={administrator.Id}; expectedFirmId={firm.FirmId}; url={page.Url}; " +
+        $"initialResponses={JsonSerializer.Serialize(responses)}; storedIdentity={storedIdentity}; " +
+        $"pageErrors={JsonSerializer.Serialize(errors)}", exception);
+    }
     if (action == "RETRY" && !dropResponse) await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/app/operations", "operations-command");
     switch (action)
     {
