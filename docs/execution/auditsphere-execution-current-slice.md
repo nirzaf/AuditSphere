@@ -14,13 +14,15 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
-## Scoped bank evidence inspection
+## Current confirmation, difference and native-successor work
 
-Fieldwork now opens a separately authorized, paged read-only view of retained bank reconciliations, linked schedules and typed reconciling items. Stored decimal strings, source identities, missing lineage and generation observations remain distinct from approval or completion. Reads release their consistent snapshot before rechecking current authority; late UI responses retain their owner fence. Focused database/API checks, the existing populated browser journey and a live built-in keyboard inspection support this child. No review decision was recorded by inspection. Reconciliation command UI, typed confirmation-source binding, current published-source CI and broader accessibility/professional acceptance remain separate. Evidence and exact boundaries are in `status.json`.
+Explicit Bank-source selection retains the exact independently approved ledger balance, source identity/digest and current/stale provenance. Manual/legacy cases remain unverified; source and confirmation dates stay distinct. Existing case and closure evidence bytes are preserved. A supplied `AGREED` amount cannot differ from the booked amount; authenticity prose is not an approved reconciling explanation.
 
-## Lifecycle and review-point CI follow-up
+Direct difference recording/evaluation now reuse scope locks and recheck current authority inside their transactions. A controlled official role revocation reproduced unauthorized writes before the guard; authorized operations and sibling-scope refusal remain supported. This proves the exercised ordering, not every correction-evidence or caller-owned transaction variant.
 
-Retained CI exposed a deferred lifecycle placeholder outside the viewport. Recovery capture awaited only the receipt although the UI also needs its subsequent state read. The affected journeys pass unchanged locally; test synchronization now follows the rendered trigger and awaits both causal reads without changing product behavior or expected results. The owned built-in fixture also demonstrated keyboard disclosure, refresh and next-action focus with truthful dual-key blockers. Fixture expiry after the live observation is retained separately. Current immutable full CI, wider rendered states, native zoom and qualified human assistive-technology evidence remain open.
+The native successor browser journey retains the actual catalogue response before target-period navigation. Source, original-request recovery, independent approval and financial assertions remain; this is a test-harness correction, not a product or professional decision. Focused source/API/SQL/Angular/browser checks and exact CI boundaries are in `status.json`.
+
+The whole original specification remains active. Response explanation/document/finding lineage, nonempty successor continuity and other engineering remain open; human AT/native zoom, methodology, activation and live acceptance stay separate. Earlier bank-inspection and CI paragraphs are preserved in the [handoff archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
 
 ## Current work-queue grant expiry
 
@@ -408,9 +410,3 @@ Built-in checks exercised actual target/source selection and keyboard preview, e
 ## Bank linked-source freshness
 
 Bank creation and review now reject approved linked schedules whose generation differs from the current client generation. A focused existing workflow reproduced stale-source creation before the fix and passed afterward, retaining the original approved reconciliation and refusing a synthetic historical-invalid review. This is a source-adapter prerequisite, not runtime race proof, typed booked-balance retention or T059/Task 18 completion.
-
-### 2026-10-24 — Task18 typed Bank source subset
-
-Explicit source pins retain approved signed ledger amount/SHA and current/stale provenance; legacy/manual proof stays unverified. Domain2/API2/Angular19/E2E1 and final lint/build/EF passed; builtin readback captured before fixture expiry. Unexplained AGREED variances now refuse before append (API RED1/GREEN1). Other source/link, concurrency, CI and qualified/live gates remain. Details: `status-archive-2026-10.json#archivedTargetedVerification.confirmationBankSource20261024`.
-
-Native successor catalogue E2E body capture repaired; focused PASS.

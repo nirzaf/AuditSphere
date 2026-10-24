@@ -923,6 +923,11 @@
       "checks": "Existing named native successor E2E1PASS; prior337PASS/1FAIL classified; product unchanged.",
       "history": "status-archive-2026-10.json#archivedTargetedVerification.nativeSuccessorCatalogueCapture20261024",
       "sourceCommit": "74d180b752155e064f54127ee08debd84896e4cb"
+    },
+    "differenceDirectAuthority20261024": {
+      "status": "RED2/GREEN3 focused; source/CI publication pending",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.differenceDirectAuthority20261024",
+      "limits": "Record/evaluate revocation ordering only; broader source/correction/transaction acceptance remains."
     }
   },
   "externalGates": [

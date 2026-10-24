@@ -25,6 +25,13 @@ public static partial class AuditFieldworkService
     if (request.ProcedureId is not null && !await IsApplicableProcedureAsync(db, actor.FirmId, auth.ClientId, request.EngagementId, request.ProcedureId.Value, ct))
       return CommandResult<DifferenceValue>.Fail(ErrorCodes.GateBlocked, "The linked procedure is not applicable.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await LockConfirmationScopeAsync(db, actor, request.EngagementId, ct);
+    auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<DifferenceValue>.Fail(auth.ErrorCode!, auth.Message!);
+    if (request.ProcedureId is { } currentProcedureId &&
+        !await IsApplicableProcedureAsync(db, actor.FirmId, auth.ClientId, request.EngagementId, currentProcedureId, ct))
+      return CommandResult<DifferenceValue>.Fail(ErrorCodes.GateBlocked, "The linked procedure is no longer applicable.");
     var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, request.EngagementId, "record audit difference", ct);
     if (!writable.Succeeded)
     {
@@ -82,6 +89,19 @@ public static partial class AuditFieldworkService
           "The correction evidence is stale or does not match the exact posted journal revision.");
     }
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await LockConfirmationScopeAsync(db, actor, existing.EngagementId, ct);
+    auth = await AuthorizeEntityAsync(db, actor, existing, ReviewRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<DifferenceValue>.Fail(auth.ErrorCode!, auth.Message!);
+    var locked = await db.AuditDifferences.FromSqlInterpolated(
+      $"SELECT * FROM audit_differences WHERE id={existing.Id} AND firm_id={actor.FirmId} AND client_id={existing.ClientId} AND engagement_id={existing.EngagementId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    if (locked is null)
+      return CommandResult<DifferenceValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (locked.InputGeneration != await CurrentGenerationAsync(db, locked.ClientId, locked.FirmId, ct))
+      return CommandResult<DifferenceValue>.Fail(ErrorCodes.GenerationStale, "The difference is based on stale inputs.");
+    if (locked.CreatedByUserId == actor.UserId)
+      return CommandResult<DifferenceValue>.Fail(ErrorCodes.ScopeDenied, "The preparer cannot evaluate the same difference.");
     var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, existing.EngagementId, "evaluate audit difference", ct);
     if (!writable.Succeeded)
     {

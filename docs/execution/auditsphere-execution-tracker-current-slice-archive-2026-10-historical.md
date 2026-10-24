@@ -8009,3 +8009,22 @@ Retained source-bound evidence and limits are in the [historical handoff](audits
 Purpose-specific recipient resolution excludes contacts whose validity interval does not overlap the requested UTC date, including explicitly selected overrides. Dispatch receipt creation checks the contact again at the recorded dispatch instant and refuses inactive, future-dated, or expired contacts. A new worker guard at source commit `395d2ef06e53e7c21aece54f8d85f78c482a9514` rechecks proposal recipients immediately before provider send: prospects must retain the same primary email and remain unconverted; client proposals must still resolve to the exact captured contact, routing row and email. Changed or incomplete authority blocks the durable operation before the provider call; the notification remains `QUEUED` for review rather than being silently redirected.
 
 `CommercialPricingPolicyTests.PendingProposalMail_BlocksWhenProspectRecipientChangesBeforeProviderSend` and `PendingProposalMail_BlocksWhenClientCommercialRouteIsRevokedBeforeProviderSend` pass against PostgreSQL on that commit. Exact metadata is in `status.json` under `targetedVerification.practiceProposalSendRecipientAuthority20261018`. This covers proposal notifications only. Fee receipts/vouchers and holding letters still lack this recheck, the dispatch does not retain the initiating actor for current-role reauthorization, and the check is not serialized against a routing mutation that races after the pre-send query. DEC-09, live provider acceptance and integrated browser acceptance remain open, so ASPM-CRM-03 stays partial.
+
+## Source-pinned confirmation and CI history moved on 2026-10-24
+
+These superseded handoff paragraphs are retained verbatim; current scope and acceptance remain in the active handoff and status ledger.
+
+## Scoped bank evidence inspection
+
+Fieldwork now opens a separately authorized, paged read-only view of retained bank reconciliations, linked schedules and typed reconciling items. Stored decimal strings, source identities, missing lineage and generation observations remain distinct from approval or completion. Reads release their consistent snapshot before rechecking current authority; late UI responses retain their owner fence. Focused database/API checks, the existing populated browser journey and a live built-in keyboard inspection support this child. No review decision was recorded by inspection. Reconciliation command UI, typed confirmation-source binding, current published-source CI and broader accessibility/professional acceptance remain separate. Evidence and exact boundaries are in `status.json`.
+
+## Lifecycle and review-point CI follow-up
+
+Retained CI exposed a deferred lifecycle placeholder outside the viewport. Recovery capture awaited only the receipt although the UI also needs its subsequent state read. The affected journeys pass unchanged locally; test synchronization now follows the rendered trigger and awaits both causal reads without changing product behavior or expected results. The owned built-in fixture also demonstrated keyboard disclosure, refresh and next-action focus with truthful dual-key blockers. Fixture expiry after the live observation is retained separately. Current immutable full CI, wider rendered states, native zoom and qualified human assistive-technology evidence remain open.
+
+
+### 2026-10-24 — Task18 typed Bank source subset
+
+Explicit source pins retain approved signed ledger amount/SHA and current/stale provenance; legacy/manual proof stays unverified. Domain2/API2/Angular19/E2E1 and final lint/build/EF passed; builtin readback captured before fixture expiry. Unexplained AGREED variances now refuse before append (API RED1/GREEN1). Other source/link, concurrency, CI and qualified/live gates remain. Details: `status-archive-2026-10.json#archivedTargetedVerification.confirmationBankSource20261024`.
+
+Native successor catalogue E2E body capture repaired; focused PASS.

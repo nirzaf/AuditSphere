@@ -25343,6 +25343,14 @@
         "status": "RUNNING",
         "notFullPass": true
       }
+    },
+    "differenceDirectAuthority20261024": {
+      "status": "FOCUSED_RED2_GREEN3; publication/full CI pending",
+      "scope": "Original Task18 affected source-difference mutations; RecordDifferenceAsync and EvaluateDifferenceAsync only.",
+      "counterexample": "Official RoleAdministrationService revocation commits after preflight and at transaction start. Both old commands persisted unauthorized changes; original retained differences changed (RED2).",
+      "implementation": "Reuse existing firm SHARE/client UPDATE/engagement UPDATE fence; reauthorize current actor/scope after transaction starts. Recording rechecks procedure applicability; evaluation locks exact scoped difference and rechecks generation/maker. Existing freeze and financial guards retained. No schema, HTTP DTO or provider change.",
+      "verification": "Small existing AuditDifferenceCommandIsolationTests cohort GREEN3: authorized positive operations, original open denial target, committed revocation/user epoch and byte-identical retained difference rows, plus existing sibling-client create/read/evaluate/correction/journal-link denials.",
+      "limits": "Only the evidenced revocation ordering and sibling cohort. Corrected-journal/reflection freshness variants, original evaluation immutability policy, caller-owned composition and other correction commands still need their own source-backed treatment. No full-local tests or overall Task18/31 completion."
     }
   },
   "lastUpdatedOn": "2026-10-24"
