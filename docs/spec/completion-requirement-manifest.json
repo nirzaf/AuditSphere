@@ -3574,7 +3574,129 @@
       "evidence": [],
       "workUnits": [
         "WU-027"
-      ]
+      ],
+      "scenarioCrossReferences": {
+        "interpretation": "Scenario aggregates of related module criteria, not additional business obligations or proof of transitions. References can point to a parent where finer decomposition remains incomplete. Underlying authorized commands and evidence gates govern; ADR0004 preserves the derived lifecycle, ADR0007 draft-only after-letter invoice behavior, ADR0017 excludes WhatsApp dispatch, ADR0018 countdown/signing decisions remain pending.",
+        "owner": {
+          "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs",
+          "symbol": "EngagementLifecycleQuery.GetAsync"
+        },
+        "existingTest": {
+          "path": "tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs",
+          "method": "EngagementTraversesCanonicalStagesAndEnforcesScope",
+          "execution": "NOT_RUN_FOR_SCENARIO_TRACE"
+        },
+        "status": "SOURCE_ALIAS_ONLY; INTEGRATION_ACCEPTANCE_PENDING",
+        "rows": [
+          {
+            "id": "LIFECYCLE-01",
+            "sourceLine": 724,
+            "sourceTextSha256": "710d7289ff71caf417510bf596011b85e69e767ea6e59382c96db1ecc10c1993",
+            "relatedRequirementIds": [
+              "ACCREQ-4.1.1-LEAD-SOURCE-CLASSIFICATION",
+              "ACCREQ-4.1.1-MULTI-CONTACT-DIRECTORY"
+            ]
+          },
+          {
+            "id": "LIFECYCLE-02",
+            "sourceLine": 725,
+            "sourceTextSha256": "f35d238c24e3cd64f8e66a31a0935547846e34a9114326a40b96191ed61c8321",
+            "relatedRequirementIds": [
+              "ACCREQ-4.1.1-MANAGEMENT-PROPOSAL",
+              "ACCREQ-4.1.2-BRIEF-FIFTY-FIFTY-TERMS"
+            ]
+          },
+          {
+            "id": "LIFECYCLE-03",
+            "sourceLine": 726,
+            "sourceTextSha256": "33cd85d6d61fcdea7cfbd6e3ab2df64bdd311825b96f6d28f02bdce23617bf31",
+            "relatedRequirementIds": [
+              "ACCREQ-4.1.3-OFFER",
+              "ACCREQ-4.1.3-RISK",
+              "ACCREQ-4.1.3-INDEPENDENT-KEYS"
+            ]
+          },
+          {
+            "id": "LIFECYCLE-04",
+            "sourceLine": 727,
+            "sourceTextSha256": "979ec2fb4c49535c2b761584cd91278c0a9a0d7919dc7795c81d80f159298221",
+            "relatedRequirementIds": [
+              "ACCREQ-4.1.5-ADVANCE-50-PERCENT",
+              "ACCREQ-4.1.5-ADVANCE-INVOICE-TIMING",
+              "ACCREQ-4.1.5-CLIENT-WORKSPACE"
+            ]
+          },
+          {
+            "id": "LIFECYCLE-05",
+            "sourceLine": 728,
+            "sourceTextSha256": "039cee30d7a25ae13eb5522d50f3276891fe088450583cb9a17bb5904ad068d8",
+            "relatedRequirementIds": [
+              "ACCREQ-4.2.2",
+              "ACCREQ-4.2.3",
+              "ACCREQ-4.3.1-MAPPING-MEMORY"
+            ]
+          },
+          {
+            "id": "LIFECYCLE-06",
+            "sourceLine": 729,
+            "sourceTextSha256": "9270030949776b803587b4090df6e6e19189e306ce93bc11c2fb46d1dffd50bc",
+            "relatedRequirementIds": [
+              "ACCREQ-4.3.3-PREPARER-SUBMIT",
+              "ACCREQ-4.3.1-ROW-CONCURRENCY"
+            ]
+          },
+          {
+            "id": "LIFECYCLE-07",
+            "sourceLine": 730,
+            "sourceTextSha256": "c58b5dc3c08a0edd9530944e926b6e155ba204eaabecf75b96a2adc3de62ae43",
+            "relatedRequirementIds": [
+              "ACCREQ-4.3.3-RETURN-REWORK",
+              "ACCREQ-4.3.3-AUTO-SRM",
+              "ACCREQ-4.3.3-SRM-PARTNER-CLEARANCE",
+              "ACCREQ-4.3.4-CRITICAL-REPORT-BLOCK"
+            ]
+          },
+          {
+            "id": "LIFECYCLE-08",
+            "sourceLine": 731,
+            "sourceTextSha256": "e02bd2668ff795b2d3e2675ab161bd873accf542c514030a3ec4c664ecbf7e4b",
+            "relatedRequirementIds": [
+              "ACCREQ-4.4.1-OPINION-CHOICE",
+              "ACCREQ-4.4.1-MODIFIED-BASIS",
+              "ACCREQ-4.4.1-VISIBLE-SIGNATURE-SEAL",
+              "ACCREQ-4.4.1-X509-LEGAL-GATE"
+            ]
+          },
+          {
+            "id": "LIFECYCLE-09",
+            "sourceLine": 732,
+            "sourceTextSha256": "25b04fa2f69a06c43db4957f410c15b2d9d3547e21b878e2a78bd2b169f22b25",
+            "relatedRequirementIds": [
+              "ACCREQ-4.4.2-PARTNER-AUTHORIZED-BUNDLE",
+              "ACCREQ-4.4.2-BALANCE-INVOICE-DRAFT",
+              "ACCREQ-4.1.5-FINAL-REPORT-TEMPORAL-LOCK"
+            ]
+          },
+          {
+            "id": "LIFECYCLE-10",
+            "sourceLine": 733,
+            "sourceTextSha256": "e188f17c0d9f3b73ac4f5b23d940079e1737ef4d511c46847b960d134b2be58b",
+            "relatedRequirementIds": [
+              "ACCREQ-4.4.3-SIGNATURE-TIMER",
+              "ACCREQ-4.4.3-PARTNER-EARLY-LOCK"
+            ]
+          },
+          {
+            "id": "LIFECYCLE-11",
+            "sourceLine": 734,
+            "sourceTextSha256": "74ba78633e74564420cb38f39441fdec860d99864a0760104255fa548d8dafcd",
+            "relatedRequirementIds": [
+              "ACCREQ-4.4.3-AUTHORITATIVE-ARCHIVE-COPY",
+              "ACCREQ-4.4.3-IMMUTABLE-AUDIT-TRAIL"
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "ACCREQ-5.2",
@@ -3604,7 +3726,9 @@
       "evidence": [],
       "workUnits": [
         "WU-027"
-      ]
+      ],
+      "equivalentScenarioParent": "ACCREQ-5.1",
+      "interpretation": "Diagram aliases the transition scenarios; it grants no permissions and creates no second lifecycle or independently counted business obligations."
     },
     {
       "id": "ACCREQ-5.3",
@@ -3634,7 +3758,9 @@
       "evidence": [],
       "workUnits": [
         "WU-027"
-      ]
+      ],
+      "equivalentPhaseMappingParent": "ACCREQ-6.1",
+      "interpretation": "Seven display phases map the same eleven canonical states; preserve current gate authority and validate exact mapping under6.1 without double counting."
     },
     {
       "id": "ACCREQ-6.1",
@@ -3664,7 +3790,33 @@
       "evidence": [],
       "workUnits": [
         "WU-027"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-6.1-READONLY-PRESENTATION-PROJECTION",
+          "sourceLine": 785,
+          "sourceTextSha256": "a15b1434df134d8061da859afe6134262bf632fc6ec535d182432b7399853a97",
+          "expectedOutcome": "Show the seven ordinary-language phases as a deterministic, read-only projection of the existing canonical lifecycle; phase status never advances or replaces a canonical stage, gate, review, or compliance-evidence decision.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementDisplayPhaseMapper.cs",
+            "symbol": "EngagementDisplayPhaseMapper.TryResolve"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowProjectionTests.cs",
+            "method": "EveryCanonicalStageMapsToExactlyOneVisiblePhaseAndUnknownStagesFailClosed",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Source-equivalent to ACCREQ-6.8.1: the existing 11 canonical stages map once to seven display phases. The API /engagements/{id}/workflow calls EngagementWorkflowWorkspaceQuery.GetAsync and Angular EngagementWorkflow renders that report; this is not a second state machine. Test selector is source evidence only and was not run."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "a9a93692e73671470131aa807b12f526034445e1",
+        "status": "SOURCE_TRACE_ONLY; NO_FUNCTIONAL_PROMOTION",
+        "scope": "Bounded workflow/invariant trace; module4 and6.8 repeats cross-referenced; missing anchors UNVERIFIED."
+      }
     },
     {
       "id": "ACCREQ-6.2",
@@ -3694,7 +3846,71 @@
       "evidence": [],
       "workUnits": [
         "WU-027"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-6.2-TRACKER-READINESS-FACTS",
+          "sourceLine": 797,
+          "sourceTextSha256": "c7e502a8021299b9d4bd8fb6269a50343c0ad2e073c7d3b4668e215e7ee15d55",
+          "expectedOutcome": "Show the current phase and status, responsible role/user, relevant saved milestone and operational due date, task progress, server-derived gate readiness, explicit blockers, and only the next permitted action.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementWorkflowWorkspaceQuery.cs",
+            "symbol": "EngagementWorkflowWorkspaceQuery.GetAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowProjectionTests.cs",
+            "method": "WorkflowShowsNearestOpenTaskDatesAndOnlyTheResponsibleRoleGetsTheCanonicalAction",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The query composes the canonical EngagementLifecycleQuery and projects responsible users, blockers, allowlisted next actions, and operational task due dates. Angular EngagementWorkflow renders these fields; saved milestones have a separate component selector, maps saved dates to their workflow phases and keeps task deadlines distinct. The cited query selector covers nearest open task dates and role-authorized action only; no end-to-end acceptance is claimed."
+        },
+        {
+          "id": "ACCREQ-6.2-PHASE-CHECKLISTS-AND-CONTEXTUAL-LINKS",
+          "sourceLine": 797,
+          "sourceTextSha256": "c7e502a8021299b9d4bd8fb6269a50343c0ad2e073c7d3b4668e215e7ee15d55",
+          "expectedOutcome": "Offer expandable phase checklists and contextual links from each phase to the existing client, planning, FSLI, PBC, review, completion, finance, and records workbenches.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.ts",
+            "symbol": "workbenchLinksFor"
+          },
+          "existingTest": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.spec.ts",
+            "method": "routes each link to its existing workbench for this engagement and client",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The component template renders workbenchLinksFor and phaseChecklists. The cited test verifies links resolve to existing engagement/client workbenches; the separate selector builds one checklist per phase in order. These checks were not run and do not establish the underlying workbench decisions or their professional acceptance."
+        },
+        {
+          "id": "ACCREQ-6.2-RESPONSIVE-KEYBOARD-ACCESS",
+          "sourceLine": 797,
+          "sourceTextSha256": "c7e502a8021299b9d4bd8fb6269a50343c0ad2e073c7d3b4668e215e7ee15d55",
+          "expectedOutcome": "Keep the seven-phase tracker and dashboard usable responsively and by keyboard.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow.ts",
+            "symbol": "EngagementWorkflow"
+          },
+          "existingTest": {
+            "path": null,
+            "method": null,
+            "execution": "NOT_RUN; NO_FOCUSED_ANCHOR_ESTABLISHED"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The bounded component inspection found semantic list/navigation/details markup and responsive breakpoints in engagement-workflow.html/.scss. The focused engagement-workflow.spec.ts has no viewport or keyboard-interaction selector for this requirement; source markup alone does not establish accessibility acceptance."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "a9a93692e73671470131aa807b12f526034445e1",
+        "status": "SOURCE_TRACE_ONLY; NO_FUNCTIONAL_PROMOTION",
+        "scope": "Bounded workflow/invariant trace; module4 and6.8 repeats cross-referenced; missing anchors UNVERIFIED."
+      }
     },
     {
       "id": "ACCREQ-6.3",
@@ -3724,7 +3940,147 @@
       "evidence": [],
       "workUnits": [
         "WU-027"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-6.3-ONBOARDING-PHASE-ENTRY",
+          "sourceLine": 801,
+          "sourceTextSha256": "9f3682aa7839a044e825d9c6b95bdeea80c509ad2325675bd689865c64a73223",
+          "expectedOutcome": "Provide the Client Onboarding phase entry to the existing quotation/client-response, dual-key, Engagement Letter, advance-payment, and activation workbenches.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.ts",
+            "symbol": "workbenchLinksFor"
+          },
+          "existingTest": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.spec.ts",
+            "method": "routes each link to its existing workbench for this engagement and client",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Presentation/link trace only. The commercial response, separated client/Partner decisions, letter, 50% advance, and activation rules remain source-equivalent to ACCREQ-4.1.1 through ACCREQ-4.1.5 and ACCREQ-6.8.2 through ACCREQ-6.8.4; client commercial response does not become Partner risk acceptance. ADR-0007 limits any automatic invoice action to DRAFT and leaves finance review/approval/posting/sending/collection separate. The route selector was not run."
+        },
+        {
+          "id": "ACCREQ-6.3-PLANNING-PHASE-ENTRY",
+          "sourceLine": 802,
+          "sourceTextSha256": "b3b8825a537f806c9bacc7ed6dcced9aeb599184ff306d6bd29142807f75b9a0",
+          "expectedOutcome": "Provide the Audit Planning phase entry to existing staffing/deadline, workspace, trial-balance/mapping, materiality, risk, and Partner planning workbenches.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.ts",
+            "symbol": "workbenchLinksFor"
+          },
+          "existingTest": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.spec.ts",
+            "method": "routes each link to its existing workbench for this engagement and client",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The links are presentation only. Domain outcomes remain source-equivalent to ACCREQ-4.2.1 through ACCREQ-4.2.4; changed-input invalidation and stale-materiality blockers remain ACCREQ-6.8.4 and ACCREQ-6.8.7. Partner planning approval remains an authorized human decision. The route selector was not run."
+        },
+        {
+          "id": "ACCREQ-6.3-FIELDWORK-PHASE-ENTRY",
+          "sourceLine": 803,
+          "sourceTextSha256": "d096cd4364b4ab9475ffea972afce7240cd676aa2d5d88b50299369494bd4aa8",
+          "expectedOutcome": "Provide the Audit Fieldwork phase entry to existing FSLI, workprogram/evidence, analytical-review, sampling, preparer, and versioned-result workbenches.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.ts",
+            "symbol": "workbenchLinksFor"
+          },
+          "existingTest": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.spec.ts",
+            "method": "routes each link to its existing workbench for this engagement and client",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The links are presentation only; procedure execution and evidence/review outcomes remain source-equivalent to ACCREQ-4.3.1 through ACCREQ-4.3.4. This criterion creates no new procedure, assertion, evidence type, or approval rule. The route selector was not run."
+        },
+        {
+          "id": "ACCREQ-6.3-MANAGER-REVIEW-PHASE-ENTRY",
+          "sourceLine": 804,
+          "sourceTextSha256": "e71d0cf2a635becac0865237241eb47a600b849620e7f1620c7afe1b69977493",
+          "expectedOutcome": "Provide the Manager Review phase entry to existing independent-review, rejection/rework, review-note, and current-SRM workbenches.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.ts",
+            "symbol": "workbenchLinksFor"
+          },
+          "existingTest": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.spec.ts",
+            "method": "routes each link to its existing workbench for this engagement and client",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Review authority, hierarchy, mandatory rejection comments, history, affected-preparer routing, relevant-note resolution, and SRM currentness remain source-equivalent to ACCREQ-4.3.3 and ACCREQ-6.8.5 through ACCREQ-6.8.7; the phase projection does not make review decisions. The route selector was not run."
+        },
+        {
+          "id": "ACCREQ-6.3-PARTNER-SIGNOFF-PHASE-ENTRY",
+          "sourceLine": 805,
+          "sourceTextSha256": "e9e80a497c27194cd7c1f5efc2b2a6713d6adb6889ce87c69bd01dbf5ecc6777",
+          "expectedOutcome": "Provide the Partner Sign-off phase entry to existing high-risk/SRM review and report-opinion/signature workbenches.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.ts",
+            "symbol": "workbenchLinksFor"
+          },
+          "existingTest": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.spec.ts",
+            "method": "routes each link to its existing workbench for this engagement and client",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The Partner retains the opinion, rationale, and final report decision under ACCREQ-4.4.1 and related current review/release gates in ACCREQ-6.8.6 through ACCREQ-6.8.8. ADR-0016 distinguishes visible PNG appearance from X.509 certificate signing; legal and firm-certificate acceptance remain human gates. The route selector was not run."
+        },
+        {
+          "id": "ACCREQ-6.3-REPORT-DELIVERY-PHASE-ENTRY",
+          "sourceLine": 806,
+          "sourceTextSha256": "fb7b142299b9c9a5188974c921fac9634ec6ad7f5f952cdb29f3eba27981d1c7",
+          "expectedOutcome": "Provide the Report & Delivery phase entry to existing confirmation, audited-statement/report, management-letter, representation-letter, correspondence, fee, and release workbenches.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.ts",
+            "symbol": "workbenchLinksFor"
+          },
+          "existingTest": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.spec.ts",
+            "method": "routes each link to its existing workbench for this engagement and client",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Detailed outcomes remain source-equivalent to ACCREQ-4.4.1 through ACCREQ-4.4.3 and ACCREQ-6.8.8/.9. ADR-0007 permits only draft invoice automation; ADR-0009 makes the release/archive store authoritative and SharePoint a secondary copy; ADR-0016 keeps visual appearance separate from X.509 signing and legal acceptance. No provider or human decision is accepted by this trace. The route selector was not run."
+        },
+        {
+          "id": "ACCREQ-6.3-ARCHIVE-CLOSE-PHASE-ENTRY",
+          "sourceLine": 807,
+          "sourceTextSha256": "4903996b22c9fcb93926a344befd391a8eb33dad8ca27ae55a5fc255b2d6c981",
+          "expectedOutcome": "Provide the Archive & Close phase entry with signature-anchored countdown, authorized early-lock/freeze workbench, and provider protection shown separately; an expired timer alone is not archive success.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.ts",
+            "symbol": "workbenchLinksFor"
+          },
+          "existingTest": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/engagement-workflow-contracts.spec.ts",
+            "method": "routes each link to its existing workbench for this engagement and client",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Archive and effective-lock outcomes remain source-equivalent to ACCREQ-4.4.3 and ACCREQ-6.8.9. Under ADR-0009 the issued release/archive-store bytes remain authoritative and the SharePoint copy is secondary; provider read-back/hash evidence remains a separate gate. No WORM service or additional store selection is implied. The route selector was not run. ADR0018 DEC08 leaves the precise countdown-anchor interpretation pending; do not rewrite historical timestamps or claim qualified acceptance."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "a9a93692e73671470131aa807b12f526034445e1",
+        "status": "SOURCE_TRACE_ONLY; NO_FUNCTIONAL_PROMOTION",
+        "scope": "Bounded workflow/invariant trace; module4 and6.8 repeats cross-referenced; missing anchors UNVERIFIED."
+      }
     },
     {
       "id": "ACCREQ-6.4",
@@ -3757,7 +4113,90 @@
       "evidence": [],
       "workUnits": [
         "WU-010"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-6.4-VERSIONED-REVIEWED-TEMPLATES",
+          "sourceLine": 811,
+          "sourceTextSha256": "c980916030e19c6c9d2df1eaebf8bae27a619a0c62289bf7049e57d5564dc1c6",
+          "expectedOutcome": "Allow authorized practice administrators to draft, edit, review, publish, and supersede versioned templates by engagement type/industry, retaining immutable revision content and the listed operational task metadata.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/WorkflowTemplateService.cs",
+            "symbol": "WorkflowTemplateService.PublishAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/WorkflowTemplateTests.cs",
+            "method": "TemplateReviewPublicationAndSupersessionPinImmutableRevisionContent",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "WorkflowTemplateService.CreateDraftAsync/UpdateDraftAsync/ReviewAsync/PublishAsync provide the source path; the selector covers independent review/publication/supersession and revision content, not every optional task field. Not run; no professional or live acceptance is claimed."
+        },
+        {
+          "id": "ACCREQ-6.4-PINNED-PLAN-HISTORY-AND-GATES",
+          "sourceLine": 811,
+          "sourceTextSha256": "c980916030e19c6c9d2df1eaebf8bae27a619a0c62289bf7049e57d5564dc1c6",
+          "expectedOutcome": "Pin the exact published template revision to each engagement plan; later template changes must not rewrite pinned work or remove/clear mandatory domain gates.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/EngagementWorkflowPlanService.cs",
+            "symbol": "EngagementWorkflowPlanService.ExecuteAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowPlanTests.cs",
+            "method": "PlanPinsPublishedTemplateAndSchedule_AndRecoversRetryWithoutDuplicateTasks",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The plan stores the selected published revision and its schedule/staffing digests. This selector includes a gate check after completion of all instantiated tasks; the non-carry-forward of professional sign-offs is source-equivalent to ACCREQ-6.8.10. Selector not run; no gate acceptance claimed."
+        },
+        {
+          "id": "ACCREQ-6.4-QUEUE-FILTERS",
+          "sourceLine": 811,
+          "sourceTextSha256": "c980916030e19c6c9d2df1eaebf8bae27a619a0c62289bf7049e57d5564dc1c6",
+          "expectedOutcome": "Provide the source-listed My Tasks, Team Work, Waiting for Client, Under Review, Rework, Overdue, and Completed queue filters.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/WorkflowTaskQueueQuery.cs",
+            "symbol": "WorkflowTaskQueueQuery.GetAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowTaskTests.cs",
+            "method": "ExistingWorkTaskOwnsWorkflowBinding_TimeLineageAndScopedRevisionFencing",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The query defines grant-scoped queue views including TEAM, WAITING_FOR_CLIENT, UNDER_REVIEW, CHANGES_REQUIRED, OVERDUE, and COMPLETED. The cited selector exercises My Tasks/Team/Overdue and scope/revocation; bounded current search does not identify one selector covering every required filter. It was not run."
+        },
+        {
+          "id": "ACCREQ-6.4-KANBAN-CALENDAR-VIEWS",
+          "sourceLine": 811,
+          "sourceTextSha256": "c980916030e19c6c9d2df1eaebf8bae27a619a0c62289bf7049e57d5564dc1c6",
+          "expectedOutcome": "Provide Kanban/board and calendar views over operational task queues.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/practice/work-queue.ts",
+            "symbol": "WorkflowWorkQueue"
+          },
+          "existingTest": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/practice/work-queue.spec.ts",
+            "method": "shows prerequisite blocking in each layout from server facts without inventing permission or historical blockers",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The Angular source selects LIST, BOARD, and CALENDAR displays; the cited component selector exercises each layout's server-derived prerequisite display. It was not run and does not establish full responsive/accessibility acceptance."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "a9a93692e73671470131aa807b12f526034445e1",
+        "status": "SOURCE_TRACE_ONLY; NO_FUNCTIONAL_PROMOTION",
+        "scope": "Bounded workflow/invariant trace; module4 and6.8 repeats cross-referenced; missing anchors UNVERIFIED."
+      }
     },
     {
       "id": "ACCREQ-6.5",
@@ -3790,7 +4229,52 @@
       "evidence": [],
       "workUnits": [
         "WU-010"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-6.5-ANNUAL-REFERENCE-SUGGESTIONS",
+          "sourceLine": 815,
+          "sourceTextSha256": "c1d6f546d17a896851b60b362be539b8f440927b76f2ed18d31a50b546bd123a",
+          "expectedOutcome": "Support next-period engagement creation from prior-year client details and historical mapping suggestions as references for fresh work.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/AnnualEngagementPreparationWorkspace.cs",
+            "symbol": "AnnualEngagementPreparationWorkspace.StateAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AnnualEngagementPreparationTests.cs",
+            "method": "ConcurrentReviewedAnnualCreationRetainsSourceAndCreatesOneBlockedPeriodWithNoInheritedDecision",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The current preparation path retains the exact source and exposes bounded current-source suggestions; references do not transfer mapping approvals or client-contact authority. Test selector was not run."
+        },
+        {
+          "id": "ACCREQ-6.5-FRESH-ANNUAL-DECISIONS",
+          "sourceLine": 815,
+          "sourceTextSha256": "c1d6f546d17a896851b60b362be539b8f440927b76f2ed18d31a50b546bd123a",
+          "expectedOutcome": "Require fresh commercial consent, current Partner continuance-risk approval, current TB/materiality, professional audit review, and current reporting decisions for each new annual engagement; prior acceptance/opinion sign-offs are not current authorization.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/AnnualEngagementPreparationWorkspace.cs",
+            "symbol": "AnnualEngagementPreparationWorkspace.ExecuteAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.E2E.Tests/AngularAnnualEngagementJourneyTests.cs",
+            "method": "PriorPeriodReferenceCreatesOneReviewedBlockedAnnualShellWithoutCopyingApprovals",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source creates a blocked new shell and requires fresh work; this is source-equivalent to ACCREQ-4.2.1 and ACCREQ-6.8.10. Commercial consent, continuance/risk, materiality, audit review, and reporting decisions remain with their authorized human/domain workflows. Test selector not run; no professional acceptance claimed."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "a9a93692e73671470131aa807b12f526034445e1",
+        "status": "SOURCE_TRACE_ONLY; NO_FUNCTIONAL_PROMOTION",
+        "scope": "Bounded workflow/invariant trace; module4 and6.8 repeats cross-referenced; missing anchors UNVERIFIED."
+      }
     },
     {
       "id": "ACCREQ-6.6",
@@ -3825,7 +4309,90 @@
       "evidence": [],
       "workUnits": [
         "WU-016"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-6.6-ROUTINE-REMINDER-AUTOMATION",
+          "sourceLine": 834,
+          "sourceTextSha256": "de54149ba1abb41547c09ef70bb03a5c1c149be93ce3bac6c07f89b35f019ad9",
+          "expectedOutcome": "Keep any automation within operational follow-up/reminder work triggered by genuine domain events, without elevating reminders or task state into approvals.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Documents/PbcReminderDiscovery.cs",
+            "symbol": "PbcReminderDiscovery"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PbcReminderTests.cs",
+            "method": "DueReminderIsIdempotentAndDeliveredThroughExistingMailOutbox",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The bounded source/test trace covers the existing optional PBC reminder path only; it does not establish every MAY action (automatic assignment, all escalations, or notifications) as implemented. Reminder delivery/test was not run; no external-provider delivery acceptance is claimed."
+        },
+        {
+          "id": "ACCREQ-6.6-NO-TASK-FORGED-PROFESSIONAL-OR-FINANCIAL-DECISIONS",
+          "sourceLine": 834,
+          "sourceTextSha256": "de54149ba1abb41547c09ef70bb03a5c1c149be93ce3bac6c07f89b35f019ad9",
+          "expectedOutcome": "Task automation must not synthesize approvals, record payment, clear risk, approve materiality, sign opinions, post invoices, issue release, or freeze files.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementWorkflowWorkspaceQuery.cs",
+            "symbol": "EngagementWorkflowWorkspaceQuery.GetAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowPlanTests.cs",
+            "method": "PlanPinsPublishedTemplateAndSchedule_AndRecoversRetryWithoutDuplicateTasks",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Workflow tasks remain operational records and the projection derives readiness from authoritative lifecycle/evidence records; the plan selector checks that completed tasks do not bypass activation gates. This is source-equivalent to ACCREQ-6.8.2 through ACCREQ-6.8.9 and .12, with any invoice automation further limited by ADR-0007 to DRAFT. Human Partner, reviewer, and Finance decisions remain outstanding per engagement; selector not run."
+        },
+        {
+          "id": "ACCREQ-6.6-REAUTHORIZE-IDEMPOTENT-AND-AUDIT",
+          "sourceLine": 834,
+          "sourceTextSha256": "de54149ba1abb41547c09ef70bb03a5c1c149be93ce3bac6c07f89b35f019ad9",
+          "expectedOutcome": "Each automation reauthorizes current scope, uses idempotency/current-version evidence, records its changes, and fails safely on stale inputs.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/EngagementWorkflowTaskService.cs",
+            "symbol": "EngagementWorkflowTaskService.CreateAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowTaskTests.cs",
+            "method": "ExistingWorkTaskOwnsWorkflowBinding_TimeLineageAndScopedRevisionFencing",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The task command source and selector cover exact-scope authorization, idempotency conflict/replay, revision fencing, and retained activity for task creation/assignment. This does not alone cover every background automation's pinned-version and stale-input behavior; selector not run."
+        },
+        {
+          "id": "ACCREQ-6.6-DEPENDENCY-CYCLES-REJECTED",
+          "sourceLine": 834,
+          "sourceTextSha256": "de54149ba1abb41547c09ef70bb03a5c1c149be93ce3bac6c07f89b35f019ad9",
+          "expectedOutcome": "Reject cyclic task dependency graphs.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/WorkflowTemplateService.cs",
+            "symbol": "WorkflowTemplateService.NormalizeAndValidate"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/WorkflowTemplateTests.cs",
+            "method": "TemplateReviewPublicationAndSupersessionPinImmutableRevisionContent",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The cited template test contains a cyclic-draft refusal; the plan service also rejects a cyclic published graph. Existing dependency-amendment cycle selectors cover a separate reviewed overlay path. None was run here."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "a9a93692e73671470131aa807b12f526034445e1",
+        "status": "SOURCE_TRACE_ONLY; NO_FUNCTIONAL_PROMOTION",
+        "scope": "Bounded workflow/invariant trace; module4 and6.8 repeats cross-referenced; missing anchors UNVERIFIED."
+      }
     },
     {
       "id": "ACCREQ-6.7",
@@ -3856,7 +4423,71 @@
       "evidence": [],
       "workUnits": [
         "WU-015"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-6.7-ROLE-SCOPED-VIEWS",
+          "sourceLine": 838,
+          "sourceTextSha256": "5d8c37816cce0eae8e3c0f1e2dd763fe5f8f756fab0c57978972bcb58c0e8592",
+          "expectedOutcome": "Maintain the stated Preparer, Reviewer, Partner, and Client view scopes for assigned fieldwork/rework, review submissions/notes, acceptance/high-risk/opinion/release, and authorized commercial/PBC status respectively.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/WorkflowTaskQueueQuery.cs",
+            "symbol": "WorkflowTaskQueueQuery.GetAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowTaskTests.cs",
+            "method": "ExistingWorkTaskOwnsWorkflowBinding_TimeLineageAndScopedRevisionFencing",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "This owner/test anchors only the grant-scoped operational task queue; the seven-phase report also applies current engagement grants. The bounded trace does not establish all four persona-specific workbench projections in one source/test (particularly Client commercial/PBC-only visibility); parent routing/hierarchy-security work remains separate. Do not infer a new role or scope."
+        },
+        {
+          "id": "ACCREQ-6.7-SERVER-READINESS-SEPARATE-TASK-PERCENT",
+          "sourceLine": 838,
+          "sourceTextSha256": "5d8c37816cce0eae8e3c0f1e2dd763fe5f8f756fab0c57978972bcb58c0e8592",
+          "expectedOutcome": "Compute phase readiness from server-side canonical/evidence records, keep operational task percentage separate, and show readable authoritative blocker reasons.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementWorkflowWorkspaceQuery.cs",
+            "symbol": "EngagementWorkflowWorkspaceQuery.GetAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowProjectionTests.cs",
+            "method": "WorkflowProjectionMatchesCanonicalStageAndEnforcesEngagementScope",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The server projection composes the canonical lifecycle evaluator and passes through its blockers; Angular phaseChecklists separately computes progress from eligible operational tasks. The test is a query-level projection/scope selector only and was not run."
+        },
+        {
+          "id": "ACCREQ-6.7-CLIENT-AML-KYC-EXCLUSION",
+          "sourceLine": 838,
+          "sourceTextSha256": "5d8c37816cce0eae8e3c0f1e2dd763fe5f8f756fab0c57978972bcb58c0e8592",
+          "expectedOutcome": "Do not expose AML/KYC evidence to Client users.",
+          "owner": {
+            "path": null,
+            "symbol": null
+          },
+          "existingTest": {
+            "path": null,
+            "method": null,
+            "execution": "NOT_RUN; NO_FOCUSED_ANCHOR_ESTABLISHED"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "No single client-visibility owner or focused test selector was established in this bounded trace. Literal-marker search was limited to src/AuditSphereOps.Ui/src/app/features/clients and src/AuditSphereOps.Ui/src/app/features/engagements/pbc.ts and found no AML/KYC marker; that limited search is not proof of absence or security acceptance. Keep this requirement unresolved; do not add a new gate from missing anchors."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "a9a93692e73671470131aa807b12f526034445e1",
+        "status": "SOURCE_TRACE_ONLY; NO_FUNCTIONAL_PROMOTION",
+        "scope": "Bounded workflow/invariant trace; module4 and6.8 repeats cross-referenced; missing anchors UNVERIFIED."
+      }
     },
     {
       "id": "ACCREQ-6.8.1",
@@ -4684,7 +5315,71 @@
       "workUnits": [
         "WU-015",
         "WU-039"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-7-LIFECYCLE-AND-CAPABILITY-SEPARATION",
+          "sourceLine": 861,
+          "sourceTextSha256": "5e6e2b46dce82eceb8884514137f203d27052509bdb608ce4cf9b26c79eadd72",
+          "expectedOutcome": "Preserve the existing 11-stage derived lifecycle and five function modules; the seven-phase experience remains a deterministic presentation mapping, while templates, work queues, annual creation, deadline automation, and dashboard analytics remain supporting capabilities.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementWorkflowWorkspaceQuery.cs",
+            "symbol": "EngagementWorkflowWorkspaceQuery.GetAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowProjectionTests.cs",
+            "method": "EveryCanonicalStageMapsToExactlyOneVisiblePhaseAndUnknownStagesFailClosed",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Source-equivalent to ACCREQ-6.1-READONLY-PRESENTATION-PROJECTION and ACCREQ-6.8.1; supporting capability details cross-reference ACCREQ-6.4 through ACCREQ-6.6 rather than creating a second implementation or replacement state machine. The cited mapping selector was not run."
+        },
+        {
+          "id": "ACCREQ-7-AUTHORITATIVE-SERVICES-AND-HUMAN-GATES",
+          "sourceLine": 861,
+          "sourceTextSha256": "5e6e2b46dce82eceb8884514137f203d27052509bdb608ce4cf9b26c79eadd72",
+          "expectedOutcome": "Keep permissions, professional judgments, signed-document integrity, 50/50 commercial terms, and archive protections enforced by their authoritative services; do not turn task completion into these decisions.",
+          "owner": {
+            "path": null,
+            "symbol": null
+          },
+          "existingTest": {
+            "path": null,
+            "method": null,
+            "execution": "NOT_RUN; NO_FOCUSED_ANCHOR_ESTABLISHED"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Source-equivalent to ACCREQ-4.1.5, ACCREQ-4.2.1/.4, ACCREQ-4.3.3, ACCREQ-4.4.1 through ACCREQ-4.4.3, and ACCREQ-6.8.2 through ACCREQ-6.8.9; this cross-module non-regression row has no single owner/test anchor in the bounded workflow trace. ADR-0007 keeps automated invoices DRAFT-only; ADR-0016 separates visible signature appearance from X.509/legal acceptance. ADR-0010's person-entered accrual is outside \u00a7\u00a76.1\u20136.7/7 and is not inferred as workflow automation. Human approvals remain genuine per-engagement decisions."
+        },
+        {
+          "id": "ACCREQ-7-EXTERNAL-IDENTITY-RECORDS-ACCEPTANCE",
+          "sourceLine": 861,
+          "sourceTextSha256": "5e6e2b46dce82eceb8884514137f203d27052509bdb608ce4cf9b26c79eadd72",
+          "expectedOutcome": "Review external Microsoft identity, SharePoint, and records protections separately before labelling the system production compliant.",
+          "owner": {
+            "path": null,
+            "symbol": null
+          },
+          "existingTest": {
+            "path": null,
+            "method": null,
+            "execution": "NOT_RUN; NO_FOCUSED_ANCHOR_ESTABLISHED"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "External review owner and current live evidence are unresolved in this trace. Under ADR-0009 the issued release/archive store is authoritative and SharePoint is a secondary copy requiring provider hash/grant read-back; provider protection stays separate. No write-once guarantee, new store/provider choice, live action, or provider acceptance is implied."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "a9a93692e73671470131aa807b12f526034445e1",
+        "status": "SOURCE_TRACE_ONLY; NO_FUNCTIONAL_PROMOTION",
+        "scope": "Bounded workflow/invariant trace; module4 and6.8 repeats cross-referenced; missing anchors UNVERIFIED."
+      }
     }
   ],
   "verificationPlanObservation": {
@@ -4710,5 +5405,424 @@
     "execution": "Parent source-line hashes/known symbols/test selectors checked; unknown test anchors retained as null with UNVERIFIED disposition. Existing targeted behavior evidence is separate, and no new tests ran for these documentation contributions.",
     "remaining": "Sections5-7 workflow/invariant detail and prior WU/parity/R2R crosswalk remain to reconcile. Rendered/provider/professional leaves and unresolved compound clauses retain exact limits."
   },
-  "sourceTextHashConvention": "SHA-256 of the exact UTF-8 source line, preserving indentation and excluding its line terminator."
+  "sourceTextHashConvention": "SHA-256 of the exact UTF-8 source line, preserving indentation and excluding its line terminator.",
+  "inheritedWorkUnitCrosswalk": {
+    "sourcePath": "docs/architecture/auditsphere-autonomous-completion-remediation-spec.md",
+    "observedSourceSha": "a9a93692e73671470131aa807b12f526034445e1",
+    "interpretation": "Retained WU target recipes are bounded by section8 current-disposition overlay. Existing explicit requirement aliases are preserved/inverted only; no new authority, implementation disposition or acceptance is inferred. Unmapped units need current-source triage; mapped units still need finding-level source/evidence reconciliation.",
+    "rows": [
+      {
+        "id": "WU-001",
+        "title": "Finish the reproducible audit baseline and exhaustive requirement manifest",
+        "sourceLine": 855,
+        "sourceTextSha256": "59e2da494298913a0fd39a35f80cedbd6709c54a283e399aad415e7980fac97d",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-002",
+        "title": "Reconcile current authority, optional profiles and historic instructions",
+        "sourceLine": 905,
+        "sourceTextSha256": "e2e596589c18d1749719242f24d5535b09e9fc2762ecd87db54839c98f1bcd28",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-003",
+        "title": "Rebuild the complete HTTP, OpenAPI, Angular and UX traceability graph",
+        "sourceLine": 946,
+        "sourceTextSha256": "04a3f63482fb79842ffa488aeb2b86d2b040b1819bb51e76f53d182cfb9cc622",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-004",
+        "title": "Verify schema, append-only enforcement and scoped relational integrity",
+        "sourceLine": 988,
+        "sourceTextSha256": "a6de3e25da0532f3f9be18fa68d5f9365185ac14e11164ba1b2cb390c19cc1f3",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-005",
+        "title": "Complete exact reporting-context pins after existing identity prerequisites",
+        "sourceLine": 1029,
+        "sourceTextSha256": "3fab0063898a736be57e904f4f9e26be209b4cd0a3c4313de57cbfc9a5478948",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-006",
+        "title": "Close native AR/AP historical-cutoff semantics without invented dates",
+        "sourceLine": 1069,
+        "sourceTextSha256": "1b455d2d4bd730996875cc1c197a84112750a8cb8394ebb2e0ca7a679233b37f",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-007",
+        "title": "Enable a supported Production live-worker composition",
+        "sourceLine": 1109,
+        "sourceTextSha256": "2709c2a97866d022677f6818ee25a36aafa0c6a733757119e44f772fec78b1d3",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-008",
+        "title": "Bind runtime capability readiness to exact tenant, identity and resource evidence",
+        "sourceLine": 1149,
+        "sourceTextSha256": "1530eb312749f7abcb4ece55a1227fe813cada087d7cdebeed6ead65df221efe",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-009",
+        "title": "Complete evidenced generic firm-invoice delivery",
+        "sourceLine": 1189,
+        "sourceTextSha256": "2ba3b5e6aa075f606288889572d53bd19a94fceb18a8f3eae018cb893fd84ee9",
+        "requirementParents": [
+          "ACCREQ-4.1.5",
+          "ACCREQ-6.8.3"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-010",
+        "title": "Close service-specific recurring work and commercial exception policies",
+        "sourceLine": 1229,
+        "sourceTextSha256": "112bfa2948438328e8f9a0b52d903d0fd2d235bb2d15e6fe4f37ff56842b6f42",
+        "requirementParents": [
+          "ACCREQ-3.1",
+          "ACCREQ-4.1.1",
+          "ACCREQ-4.1.2",
+          "ACCREQ-4.1.4",
+          "ACCREQ-6.4",
+          "ACCREQ-6.5",
+          "ACCREQ-6.8.10"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-011",
+        "title": "Finish source-backed financial presentation and review-currentness closure",
+        "sourceLine": 1269,
+        "sourceTextSha256": "16f329a7fec5a5995ae9b849f0aa19bc6217913f1e6c771e11d658ac5cf155fd",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-012",
+        "title": "Approve and verify accounting methods through independent golden fixtures",
+        "sourceLine": 1309,
+        "sourceTextSha256": "b3de356849d24617cbfbda7abcf738a70b56af23fa719fef72d4f8cf0fcbb4fa",
+        "requirementParents": [
+          "ACCREQ-3.2",
+          "ACCREQ-4.2.4",
+          "ACCREQ-6.8.7"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-013",
+        "title": "Complete group component-currentness and report ownership without touching component books",
+        "sourceLine": 1349,
+        "sourceTextSha256": "a33bdee55e03de7e67a524323b8b2b519ebd604184dc47b11bc826408e4eb3ae",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-014",
+        "title": "Resolve terminal audit D1 and prove noncircular sign/release completion",
+        "sourceLine": 1390,
+        "sourceTextSha256": "1d2938715a6b576ee9e6fa0b10398ac6b7c977d9ed0d3250de4f8ab67f8091ff",
+        "requirementParents": [
+          "ACCREQ-4.3.3",
+          "ACCREQ-4.4.1"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-015",
+        "title": "Complete current-authority, sibling-scope and race-condition verification",
+        "sourceLine": 1430,
+        "sourceTextSha256": "ebebb7b6b17ed38323f6e6e686b9c27645568cd7119a18baf134cc4c041d95ee",
+        "requirementParents": [
+          "ACCREQ-6.7",
+          "ACCREQ-6.8.11",
+          "ACCREQ-7"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-016",
+        "title": "Accept task cancellation/reopening, time corrections and dependent recovery",
+        "sourceLine": 1470,
+        "sourceTextSha256": "63d8eb4f5ec4cf7be91f8aad9a973bb683265233ddff2f3e8214cfa0b0f82b99",
+        "requirementParents": [
+          "ACCREQ-6.6",
+          "ACCREQ-6.8.5",
+          "ACCREQ-6.8.12"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-017",
+        "title": "Implement the offline-safe PowerShell preflight and manifest contract",
+        "sourceLine": 1510,
+        "sourceTextSha256": "0388b2d6ce03c7b76fa315d7b16774bfb1b2328cce3c79cda26fa1f9ecec5efb",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-018",
+        "title": "Provision isolated Entra applications, service principals and public certificates",
+        "sourceLine": 1549,
+        "sourceTextSha256": "82f4bb5d5636f6f80854182b912a99950a1dbe60f845ac0eaef23e7e78e2fc0d",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-019",
+        "title": "Grant exact application permissions and preserve application consent evidence",
+        "sourceLine": 1588,
+        "sourceTextSha256": "e1a0ff6e6ba411e16701d9517655a3579d06b507ade603dd8f690366adac7f45",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-020",
+        "title": "Grant and verify selected document resources independently of site provisioning",
+        "sourceLine": 1628,
+        "sourceTextSha256": "54f5bbe46187d4033e9699962188c1fa9e9e6b6b766e7eec71c60536c9e51850",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-021",
+        "title": "Automate approved client sites and managed staff Full Control reconciliation",
+        "sourceLine": 1667,
+        "sourceTextSha256": "99c1125cf6f03b38eef6efd222c8ad760514985f5e3e6a1252b297ab07e8063c",
+        "requirementParents": [
+          "ACCREQ-4.2.3"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-022",
+        "title": "Implement a safe, explicit Exchange mail permission model",
+        "sourceLine": 1707,
+        "sourceTextSha256": "9ed76bcb9eea158245adb5aa366c0a6a494c5bba8176f3e83680ded56d43feb5",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-023",
+        "title": "Verify authoritative archive custody and read-only SharePoint secondary copies",
+        "sourceLine": 1750,
+        "sourceTextSha256": "edbdb91b4e40543a3b1eea7a0640403a16997a44ebc2cbdd7f723e002bb3617f",
+        "requirementParents": [
+          "ACCREQ-4.4.3",
+          "ACCREQ-6.8.9"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-024",
+        "title": "Wire role-specific live capabilities into the chosen deployment target",
+        "sourceLine": 1793,
+        "sourceTextSha256": "0b3af0de9b34f97e6985ff05d6e64ae3ab21800085a72e8c5f1c68f107ab8383",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-025",
+        "title": "Provide machine-readable M365 readiness and resume-safe verification",
+        "sourceLine": 1833,
+        "sourceTextSha256": "2da3ccc1375331499ec9ce653474a2fbd8a7c04ebb11503e17f40fc23860abe9",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-026",
+        "title": "Apply the approved shell without changing identity or draft ownership",
+        "sourceLine": 1873,
+        "sourceTextSha256": "13010baed048b2f9460f8a6e9df6f6de55a5ecd90585387e94f018db7703aff0",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-027",
+        "title": "Map engagement and activation screens to current evidence, not UI stages",
+        "sourceLine": 1913,
+        "sourceTextSha256": "aca87a07abd60136771dd6ee1555250e42b7a5d75aac148b7863c07d6fec5299",
+        "requirementParents": [
+          "ACCREQ-4.1.3",
+          "ACCREQ-4.1.4",
+          "ACCREQ-4.2.1",
+          "ACCREQ-5.1",
+          "ACCREQ-5.2",
+          "ACCREQ-5.3",
+          "ACCREQ-6.1",
+          "ACCREQ-6.2",
+          "ACCREQ-6.3",
+          "ACCREQ-6.8.1",
+          "ACCREQ-6.8.2",
+          "ACCREQ-6.8.3",
+          "ACCREQ-6.8.4"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-028",
+        "title": "Restyle My Work while preserving new recovery and task-order controls",
+        "sourceLine": 1953,
+        "sourceTextSha256": "fb100a15c3619f9b1584ec7e53893ded45402808db35dbd463ed11e8954a597c",
+        "requirementParents": [
+          "ACCREQ-4.2.2"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-029",
+        "title": "Restyle program and workpaper detail with separate result and submission identities",
+        "sourceLine": 1991,
+        "sourceTextSha256": "ccf6a8e2b6ac4a4f6abf142a83c4446e46d1a83ebcc6d2c1160d6a585e3aa825",
+        "requirementParents": [
+          "ACCREQ-3.3",
+          "ACCREQ-4.3.2",
+          "ACCREQ-4.3.3",
+          "ACCREQ-4.3.4",
+          "ACCREQ-6.8.6",
+          "ACCREQ-6.8.7",
+          "ACCREQ-6.8.8"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-030",
+        "title": "Complete external-source and native accounting navigation without mixing books",
+        "sourceLine": 2030,
+        "sourceTextSha256": "b55962d443d62667b5dfa31df3f90c1fdb31811f4733a283e4aa2b87cc617373",
+        "requirementParents": [
+          "ACCREQ-4.3.1"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-031",
+        "title": "Bind invoice and firm-book summaries to complete authorized finance records",
+        "sourceLine": 2069,
+        "sourceTextSha256": "4da49eefa1fdbb1f3377da23648204874f7d19a71c4c13eb0682810688e128e9",
+        "requirementParents": [
+          "ACCREQ-3.5",
+          "ACCREQ-4.5.2"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-032",
+        "title": "Complete group-workspace controls and distinguish group audit from consolidation",
+        "sourceLine": 2108,
+        "sourceTextSha256": "d929d429d4461a0eef5ac3a01c4c4d1c841e4128a47bd21893abc1669479224e",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-033",
+        "title": "Add only approved portfolio and analytics projections with defined bases",
+        "sourceLine": 2146,
+        "sourceTextSha256": "d591882d78a0e3453c45693a4a54660cbc24e1b59fa24b2965d10524af1b04db",
+        "requirementParents": [
+          "ACCREQ-4.5.1"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-034",
+        "title": "Finish client portal and PBC UX with separate upload, reply and acceptance rights",
+        "sourceLine": 2188,
+        "sourceTextSha256": "3296f82840b448e05074214ec2fb444043c3d5f4c7290207d60d0bb9a52cd66c",
+        "requirementParents": [
+          "ACCREQ-4.1.5"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-035",
+        "title": "Bind completion and financial-report actions to exact final evidence",
+        "sourceLine": 2227,
+        "sourceTextSha256": "ea25bb51cb33b743e6d2b98ca19bacaf13ea3ec70b311e7e4dc16b85a5cef434",
+        "requirementParents": [
+          "ACCREQ-3.4",
+          "ACCREQ-4.4.2",
+          "ACCREQ-4.4.3",
+          "ACCREQ-6.8.8"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-036",
+        "title": "Finish library, administration, operations and denial states truthfully",
+        "sourceLine": 2266,
+        "sourceTextSha256": "fea0adbd081278cfa23cc80a0ef4ea7535e45decaf8ac0d701c5819fdd991dc1",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-037",
+        "title": "Accept all 19 screens through headless responsive and accessibility journeys",
+        "sourceLine": 2304,
+        "sourceTextSha256": "69ae0a9f466a9f59496c7b1ea8aedbadc6ec05e4aef82234c0a7b11cc6dd7dd7",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-038",
+        "title": "Close measurable security, performance, secret and recovery evidence gaps",
+        "sourceLine": 2344,
+        "sourceTextSha256": "6be5a5a17e53a9f22aa935d277646cdebc8b004037ec43148d2dc2c39cc305c9",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      },
+      {
+        "id": "WU-039",
+        "title": "Execute connected firm, client, audit, accounting and recovery journeys",
+        "sourceLine": 2386,
+        "sourceTextSha256": "ffa44a70f199af4ed019a568d4699c36921bf643d9516c0640365c95854cd806",
+        "requirementParents": [
+          "ACCREQ-3.1",
+          "ACCREQ-3.2",
+          "ACCREQ-3.3",
+          "ACCREQ-3.4",
+          "ACCREQ-3.5",
+          "ACCREQ-7"
+        ],
+        "mapping": "EXISTING_EXPLICIT_ALIAS"
+      },
+      {
+        "id": "WU-040",
+        "title": "Assemble exact-SHA full CI and independently accepted release evidence",
+        "sourceLine": 2426,
+        "sourceTextSha256": "32faf554fb2e31c9d411a5b73e727a022239ccd6ecb317b340aa0223883dddbf",
+        "requirementParents": [],
+        "mapping": "NO_EXPLICIT_ALIAS_TRIAGE_REQUIRED"
+      }
+    ]
+  },
+  "workflowInvariantTraceObservation": {
+    "sourceSha": "a9a93692e73671470131aa807b12f526034445e1",
+    "newChildCriteria": 27,
+    "parents": [
+      "6.1",
+      "6.2",
+      "6.3",
+      "6.4",
+      "6.5",
+      "6.6",
+      "6.7",
+      "7"
+    ],
+    "scenarioAliases": "Eleven5.1 rows point to module criteria,5.2same scenario diagram,5.3same6.1phase mapping. They do not create a second lifecycle or duplicate business outcomes.",
+    "limits": "Owner/test source inspection only. Cross-module predicates, full rendered/role matrix, native zoom/qualified human AT, live provider/professional acceptance remain open. Prior WU/parity/R2R finding-level reconciliation remains partial."
+  }
 }

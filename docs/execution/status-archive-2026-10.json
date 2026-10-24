@@ -24497,7 +24497,8 @@
       "checks": "Original46parents/fields and52earlierchildren preserved; all132 exact raw UTF8 source-line hashes validated;80new owner/test anchors checked where resolved; null anchors remain UNVERIFIED. Documentation validators/diff checked. No behavior tests for source-only trace.",
       "authority": "Approved ADR overlays applied: no emailed passwords, no automatic invoice posting/send at letter generation, no blanket sampling requirement, no invented HR scoring or external confirmation recipient mapping.",
       "remaining": "Task01 not complete: detailed \u00a7\u00a75\u20137 traces and previous WU/parity/R2R crosswalk; criterion functional/API/browser/professional/live acceptance not established.",
-      "policy": "POLICY-ARCHIVE-COUNTDOWN-ANCHOR pending per ADR0018 DEC08. Current sign workflow schedules from stored document CreatedAt before distinct SignatureApplication.SignedAt; no countdown/history mutation."
+      "policy": "POLICY-ARCHIVE-COUNTDOWN-ANCHOR pending per ADR0018 DEC08. Current sign workflow schedules from stored document CreatedAt before distinct SignatureApplication.SignedAt; no countdown/history mutation.",
+      "workUnitAliasObservation": "All40 retained WU headings source-hashed and inverted against existing parent workUnits aliases:17mapped/23noexplicitmapping. This locates inherited targets, not a finding-level current-source reconciliation or functional acceptance."
     },
     "ascpEarlierOwnerTests20261024": {
       "ownerTests": "Existing owner tests PASS locally on a09ca4cb (Release): CommercialWorkflowTests 44/44 (tasks 05/06); MaterialityPracticalRoundingTests, EngagementWorkflowPlanTests, AnnualEngagementPreparationTests, PbcWorkflowTaskTests 25/25 (tasks 07-09). No defect found; tasks stay VERIFY_ONLY pending CI journeys. Tasks 10-23 owner cohort PASS 235/235 on c01fc877 (ClientAccounting, FinancialStatement, FinancialPackageGate, Consolidation, AuditConfirmationCommandIsolation, AuditDeliverables, PracticeTime, FirmOperations, SourceManifest). Fast CI c01fc877 success. No defect found; acceptance still needs CI journeys and professional gates.",
@@ -24514,7 +24515,25 @@
       "migration": "20261024024221_ClientContactRoutingOwnerScope, default validated Restrict FK and supporting index; existing contact composite principal key reused. No historical repair/backfill/delete, no development/deployed database migration.",
       "test": "ClientRelationshipsAndRoutingTests.ClientContactRouting_ReadsRequireContactOwnerToMatchRouteOwner",
       "privateEvidence": ".local/autonomous/evidence/client-routing-owner-scope-20261024/evidence.md",
-      "limits": "Application/real isolated PostgreSQL only; no new API shapes/routes, browser acceptance, deployed data preflight or live permission change. Exact-source full CI required."
+      "limits": "Application/real isolated PostgreSQL only; no new API shapes/routes, browser acceptance, deployed data preflight or live permission change. Exact-source full CI required.",
+      "implementationCommit": "a9a93692e73671470131aa807b12f526034445e1",
+      "review": "Parent matched all6source digests to committed files. Private review.json includes base-relative patch including generated migrations; initial artifact calls86af docs head +overlay, not fictional source commit."
+    },
+    "workflowInvariantTrace20261024": {
+      "source": "a9a93692e73671470131aa807b12f526034445e1",
+      "status": "SOURCE_TRACED_NOT_ACCEPTED",
+      "newCriteria": 27,
+      "scope": "Currentrequirements6.1\u20136.7/7;5.1eleven scenario aliases point to existingmodulecriterionIDs;5.2same scenarios,5.3same6.1mapping. All40WUcatalogue headings rawsourcehashed,17existingexplicitmanifestaliases inverted,23unmappedtriagerequired. No new state machine or duplicated business outcomes.",
+      "checks": "Source-line hashes, existing owner symbols/test selectors and referenced IDs validated; unresolved owner/test fields remain null/UNVERIFIED. No behavior tests run for this source-only doc trace. Documentation health/narrative/diffPASS.",
+      "remaining": "Current-source finding-level WU/parity/R2R crosswalk, source-to-HTTP/persisted/rendered complete outcomes, technical accessibility and qualified humanAT/nativezoom, professional/live acceptance. No wholeTask01completionclaim.",
+      "authority": "ADR0004derivedlifecycle/ADR0007draftinvoice/ADR0016visualvscert/ADR0018countdown-policy preserved."
+    },
+    "ascpCriticalAcceptancePointer20261024": {
+      "status": "PASS_LOCAL_FOCUSED; specification PARTIAL",
+      "checks": "Initial5 focused methods; followup22cases plus final2changed-method repeat PASS; deployment32offlineassertions PASS. No full local suite.",
+      "scope": "Critical workflow guards,20additional commercial criterion traces and Acceptance-profile review. No product behavior change or live/professional acceptance.",
+      "history": "status-archive-2026-10.json#keys.ascpCriticalAcceptanceFollowup20261024",
+      "ci": "Superseded3f61/9ef full runs terminal CANCELLED; not passes. Prior871 exact fullPASS is archived separately. Current migration candidate tracked below."
     }
   },
   "archivedTargetedVerification": {

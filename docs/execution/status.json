@@ -1074,16 +1074,9 @@
       "remaining": "Exact live provisioning/membership/denial acceptance remains open; offline proof is preserved in history."
     },
     "ascpSpecDiscovery20261024": {
-      "status": "PARTIAL; tasks 01 and 03 delta implemented, 02 NONE (model), rest VERIFY_ONLY or BLOCKED_DECISION/EXTERNAL",
+      "status": "PARTIAL; tasks01-03 have bounded engineering deltas; remaining task dispositions/evidence retained. Functional, exact-source full CI, professional/live acceptance remain open.",
       "source": "d210d301dd98590ab0ce6606b0336f3d448726b6",
       "history": "status-archive-2026-10.json#keys.ascpSpecDiscovery20261024",
-      "criticalGateFollowup": {
-        "status": "PASS_LOCAL_FOCUSED; specification PARTIAL",
-        "checks": "Initial5 focused methods; followup22cases plus final2changed-method repeat PASS; deployment32offlineassertions PASS. No full local suite.",
-        "scope": "Critical workflow guards,20additional commercial criterion traces and Acceptance-profile review. No product behavior change or live/professional acceptance.",
-        "history": "status-archive-2026-10.json#keys.ascpCriticalAcceptanceFollowup20261024",
-        "ci": "Superseded3f61/9ef full runs terminal CANCELLED; not passes. Prior871 exact fullPASS is archived separately. Current migration candidate tracked below."
-      },
       "custodyTargetGate": "POLICY-INDEPENDENT-CHECKPOINT-CUSTODY added as PENDING in completion-policy-decisions.json (ASCP-28). ADR-0009 authority/secondary-copy choice does not specify an independent live checkpoint target, trust/retention or recovery contract. No provider or permissions chosen.",
       "expenseLedgerReferences": {
         "source": "05b054fdcbbfb44ee2901209d7995c7f78a57bb1 plus scoped-FK model/migration/test overlay",
@@ -1095,14 +1088,14 @@
       },
       "administrationAtomicTrace": "25source-backed4.2 child criteria; no functional promotion. Details: status-archive-2026-10.json#keys.administrationAtomicTrace20261024.",
       "latestExactCi": {
-        "candidate": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
-        "runId": 40054224564,
+        "candidate": "a9a93692e73671470131aa807b12f526034445e1",
+        "runId": 40055833218,
         "sourceMatch": "MATCH",
         "status": "RUNNING",
         "fullPass": false,
-        "passed": "Angular/Domain/build-contracts-publication",
-        "pending": "API/E2E",
-        "limits": "Does not include new uncommitted owner-FK overlay; no current full pass claimed."
+        "passed": "Angular",
+        "pending": "Domain/API/E2E/build-contracts-publication",
+        "limits": "Exact a9 source includes both scope migrations and57readguards; no full current pass or deployed acceptance claimed."
       },
       "clientContactReadScope": {
         "status": "PASS_LOCAL_FOCUSED; FULL_CI_PENDING",
@@ -1113,11 +1106,14 @@
       "moduleAtomicTrace": "132 source-line criteria across18moduleparents; SOURCE_TRACED_NOT_ACCEPTED, no functional promotion. Details: status-archive-2026-10.json#keys.moduleAtomicTrace20261024.",
       "earlierOwnerVerification": "Historical owner-test/PR50 records preserved: status-archive-2026-10.json#keys.ascpEarlierOwnerTests20261024; not current-source acceptance.",
       "clientRoutingOwnerScope": {
-        "status": "PASS_LOCAL_FOCUSED; NEW_CURRENT_CI_REQUIRED",
+        "status": "PASS_LOCAL_FOCUSED; FULL_CI_PENDING",
         "checks": "RED1 privacy exposure -> boundary1PASS + existing routing/authority4PASS; Release/EFdriftPASS. No full local suite.",
         "history": "status-archive-2026-10.json#keys.clientRoutingOwnerScope20261024",
-        "migration": "ClientContactRoutingOwnerScope; invalid historical owners block deployment migration pending authorized review."
-      }
+        "migration": "ClientContactRoutingOwnerScope; invalid historical owners block deployment migration pending authorized review.",
+        "implementationCommit": "a9a93692e73671470131aa807b12f526034445e1"
+      },
+      "workflowInvariantTrace": "27 workflow/invariant children plus lifecycle scenario aliases; source-only. PriorWU/parity/R2R finding-level reconciliation remains partial. Archive: status-archive-2026-10.json#keys.workflowInvariantTrace20261024.",
+      "criticalGateFollowup": "Historical focused evidence preserved: status-archive-2026-10.json#keys.ascpCriticalAcceptancePointer20261024; no current-CI promotion."
     },
     "archivedOn20261024": {
       "entries": [
