@@ -1125,7 +1125,8 @@
       "nativeSuccessorOpening": {
         "status": "Scoped focused/browser checks passed; Task11 remains partial; exact-source CI pending.",
         "history": "status-archive-2026-10.json#keys.nativeSuccessorOpening20261024"
-      }
+      },
+      "bankLinkedSources": "Focused RED1/GREEN1: linked Bank schedules must match current generation. PartialTask18; typed source binding pending. Archive: status-archive-2026-10.json#keys.bankLinkedScheduleGeneration20261024."
     },
     "archivedOn20261024": {
       "entries": [

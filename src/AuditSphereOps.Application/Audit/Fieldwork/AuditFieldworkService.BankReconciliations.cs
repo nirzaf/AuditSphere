@@ -33,6 +33,10 @@ public static partial class AuditFieldworkService
       (x.Id == request.LedgerScheduleId || x.Id == request.StatementScheduleId)).ToListAsync(ct);
     if (schedules.Count != 2 || schedules.Any(x => x.Status != AuditScheduleStatuses.Approved))
       return CommandResult<BankReconciliationValue>.Fail(ErrorCodes.GateBlocked, "Bank reconciliation sources must be independently approved.");
+    var generation = await CurrentGenerationAsync(db, auth.ClientId, actor.FirmId, ct);
+    if (schedules.Any(x => x.InputGeneration != generation))
+      return CommandResult<BankReconciliationValue>.Fail(ErrorCodes.GenerationStale,
+        "The approved bank schedule inputs are stale.");
     var ledger = schedules.Single(x => x.Id == request.LedgerScheduleId);
     var statement = schedules.Single(x => x.Id == request.StatementScheduleId);
     if (!string.Equals(ledger.ScheduleType, "BANK_LEDGER", StringComparison.OrdinalIgnoreCase) ||
@@ -73,7 +77,6 @@ public static partial class AuditFieldworkService
           "Proposed bank corrections must reference same-currency draft journals in this engagement.");
     }
 
-    var generation = await CurrentGenerationAsync(db, auth.ClientId, actor.FirmId, ct);
     var timingTotal = MoneyPolicy.Normalize(normalizedItems.Where(x => x.ItemType == AuditBankReconciliationItemTypes.Timing)
       .Sum(x => x.Input.SignedAmount));
     var proposedTotal = MoneyPolicy.Normalize(normalizedItems.Where(x => x.ItemType == AuditBankReconciliationItemTypes.ProposedCorrection)
@@ -122,7 +125,8 @@ public static partial class AuditFieldworkService
       return CommandResult<BankReconciliationValue>.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review the same bank reconciliation.");
     if (existing.Status == AuditBankReconciliationStatuses.Approved)
       return CommandResult<BankReconciliationValue>.Fail(ErrorCodes.ProtectedState, "An approved bank reconciliation is immutable.");
-    if (existing.InputGeneration != await CurrentGenerationAsync(db, existing.ClientId, existing.FirmId, ct))
+    var currentGeneration = await CurrentGenerationAsync(db, existing.ClientId, existing.FirmId, ct);
+    if (existing.InputGeneration != currentGeneration)
       return CommandResult<BankReconciliationValue>.Fail(ErrorCodes.GenerationStale, "The bank reconciliation inputs are stale.");
     if (decision == AuditBankReconciliationStatuses.Approved && existing.Residual != 0m)
       return CommandResult<BankReconciliationValue>.Fail(ErrorCodes.GateBlocked, "An unreconciled bank residual cannot be approved.");
@@ -131,6 +135,9 @@ public static partial class AuditFieldworkService
       (x.Id == existing.LedgerScheduleId || x.Id == existing.StatementScheduleId)).ToListAsync(ct);
     if (sources.Count != 2 || sources.Any(x => x.Status != AuditScheduleStatuses.Approved))
       return CommandResult<BankReconciliationValue>.Fail(ErrorCodes.GenerationStale, "The approved bank sources changed; refresh the reconciliation.");
+    if (sources.Any(x => x.InputGeneration != currentGeneration))
+      return CommandResult<BankReconciliationValue>.Fail(ErrorCodes.GenerationStale,
+        "The approved bank schedule inputs are stale; refresh the reconciliation.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var live = await db.AuditBankReconciliations.SingleAsync(x => x.Id == existing.Id && x.FirmId == actor.FirmId, ct);
     live.Status = decision;

@@ -307,6 +307,67 @@ public sealed class AuditFieldworkWorkflowTests
     Assert.Equal(2, await db.AuditScheduleRows.CountAsync(x => x.ScheduleId == schedule.Value.ScheduleId));
     Assert.Equal(3, await db.AuditDifferences.CountAsync());
 
+    // A later client generation makes the still-approved Bank source schedules stale.
+    // This is a generation-change fixture, not a runtime interleaving/race simulation.
+    var currentBankGeneration = await db.ClientSafetyStates.AsNoTracking()
+      .Where(x => x.FirmId == scope.FirmId && x.Id == scope.ClientId)
+      .Select(x => x.InputGeneration).SingleAsync();
+    var sourceSchedules = await db.AuditSchedules.AsNoTracking()
+      .Where(x => x.Id == ledgerSchedule.Value.ScheduleId || x.Id == statementSchedule.Value.ScheduleId)
+      .ToListAsync();
+    Assert.Equal(2, sourceSchedules.Count);
+    Assert.All(sourceSchedules, x => Assert.Equal(currentBankGeneration, x.InputGeneration));
+    var bankCountBeforeStaleSourceChecks = await db.AuditBankReconciliations.CountAsync();
+    var staleCurrentGeneration = currentBankGeneration + 1;
+    await db.ClientSafetyStates.Where(x => x.FirmId == scope.FirmId && x.Id == scope.ClientId)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.InputGeneration, staleCurrentGeneration));
+
+    var staleScheduleCreate = await AuditFieldworkService.CreateBankReconciliationAsync(db, reviewer,
+      new CreateBankReconciliationRequest(scope.EngagementId, procedure.Id, ledgerSchedule.Value.ScheduleId,
+        statementSchedule.Value.ScheduleId, new DateOnly(2026, 9, 19),
+        [
+          new("stale-create-ledger", AuditBankReconciliationItemTypes.Ledger, 100m, "Ledger balance", "receipt-bank-ledger-001", "ledger-source-001", ledgerSchedule.Value.ScheduleId),
+          new("stale-create-statement", AuditBankReconciliationItemTypes.Statement, 90m, "Statement balance", "receipt-bank-statement-001", "statement-source-001", statementSchedule.Value.ScheduleId),
+          new("stale-create-timing", AuditBankReconciliationItemTypes.Timing, -10m, "Outstanding cheque", "receipt-bank-statement-001#timing-001", "timing-evidence-001", statementSchedule.Value.ScheduleId)
+        ]));
+
+    // Synthetic historical-invalid Bank state: the Bank record is stamped with the current
+    // generation while its already-approved linked schedules retain the prior generation.
+    // This isolates the review guard; it does not claim to prove a runtime race.
+    var syntheticStaleBankId = Guid.NewGuid();
+    db.AuditBankReconciliations.Add(new AuditBankReconciliation
+    {
+      Id = syntheticStaleBankId, FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
+      ProcedureId = procedure.Id, LedgerScheduleId = ledgerSchedule.Value.ScheduleId,
+      StatementScheduleId = statementSchedule.Value.ScheduleId, AsOfDate = new DateOnly(2026, 9, 19),
+      Currency = "QAR", LedgerBalance = 100m, StatementBalance = 90m, TimingItemTotal = -10m,
+      ProposedCorrectionTotal = 0m, Residual = 0m, InputGeneration = staleCurrentGeneration,
+      Status = AuditBankReconciliationStatuses.Reconciled, CreatedByUserId = scope.Actor.UserId,
+      CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    var staleScheduleReview = await AuditFieldworkService.ReviewBankReconciliationAsync(db, reviewer,
+      new ReviewBankReconciliationRequest(syntheticStaleBankId, AuditBankReconciliationStatuses.Approved,
+        "Synthetic stale linked schedule review must be refused."));
+
+    Assert.False(staleScheduleCreate.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, staleScheduleCreate.ErrorCode);
+    Assert.False(staleScheduleReview.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, staleScheduleReview.ErrorCode);
+    Assert.Equal(bankCountBeforeStaleSourceChecks + 1, await db.AuditBankReconciliations.CountAsync());
+    var originalBankAfterStaleChecks = await db.AuditBankReconciliations.AsNoTracking().SingleAsync(x => x.Id == bankId);
+    Assert.Equal(bankBefore.Status, originalBankAfterStaleChecks.Status);
+    Assert.Equal(bankBefore.ReviewedByUserId, originalBankAfterStaleChecks.ReviewedByUserId);
+    Assert.Equal(bankBefore.ReviewedAt, originalBankAfterStaleChecks.ReviewedAt);
+    Assert.Equal(100m, originalBankAfterStaleChecks.LedgerBalance);
+    Assert.Equal(90m, originalBankAfterStaleChecks.StatementBalance);
+    Assert.Equal(-10m, originalBankAfterStaleChecks.TimingItemTotal);
+    var syntheticStaleBankAfterReview = await db.AuditBankReconciliations.AsNoTracking()
+      .SingleAsync(x => x.Id == syntheticStaleBankId);
+    Assert.Equal(AuditBankReconciliationStatuses.Reconciled, syntheticStaleBankAfterReview.Status);
+    Assert.Null(syntheticStaleBankAfterReview.ReviewedByUserId);
+    Assert.Null(syntheticStaleBankAfterReview.ReviewedAt);
+
     // Revoke official authority after the evidence snapshot commits. Final authorization must
     // observe new DB state rather than reuse the repeatable-read snapshot.
     var administrator = PbcSeed.User(scope.FirmId, "Staff");

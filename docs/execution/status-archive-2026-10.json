@@ -24837,6 +24837,19 @@
         "scope": "42ownedpaths coherent source-bound successor subset + docs; broaderTask11 stillpartial."
       },
       "catalogFinalAuthority": "ActualRED2 after epoch/grant change during finalreadiness\u2192GREEN5 including originalguardcohort; held/frozen catalogue historyreads and disabledprepare/approve flags2PASS. FinalcurrentAPI rebuilt named successorjourney1PASS. Initialreview retained."
+    },
+    "bankLinkedScheduleGeneration20261024": {
+      "scope": "PartialTask18 prerequisite: exact current generation of BOTH linked approved Bank schedules on create/review. Not typed booked-source adapter or T059 closure.",
+      "changes": [
+        "AuditFieldworkService.BankReconciliations.cs",
+        "AuditFieldworkWorkflowTests.cs"
+      ],
+      "evidence": "Private bank-linked-schedule-generation-20261024/parent-handoff.json; source/log/TRX hashes retained.",
+      "red": "Existing FieldworkEvidence_IsScopedAndReviewable1FAIL: oldcreateaccepted staleapproved schedules. Reviewhistoricalinvalidcase called beforeassertions but REDstopsatcreateassert, no separateoldreviewoutcomeclaim.",
+      "green": "Same named existing workflow1PASS/0FAIL/0SKIP,58.5s; retains ledger100/statement90/timing-10 approvedhistory, refusesstalecasecreation andsyntheticcurrentBank/oldSchedule review without reviewer/statusmutations.",
+      "checks": "Domain namedReleasebuild/test anddiffcheckPASS; no fullsuite/localAPI/UI/schema/provider run. Pure backend generationguard, notnewUIcontract.",
+      "limits": "No concurrentinterleaving proof, typedsourceSnapshot persistence, respondent mapping/professionalapproval, externaldispatch or fullTask18acceptance. ExactnewsourceCI pending.",
+      "publication": "Coherent prerequisite prepared; exact commit/run tofollow."
     }
   },
   "archivedTargetedVerification": {
