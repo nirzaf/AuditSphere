@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
@@ -10,6 +11,8 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Data.Common;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -165,6 +168,137 @@ public sealed class AuditScheduleSourceBindingTests
         new AcceptSourceRevisionRequest(fixture.ClientId, fixture.EngagementId,
           AccountingSourceKinds.TrialBalance, pendingDatasetId, null, "evidence"));
       Assert.False(acceptedFirst.Succeeded);
+    }
+  }
+
+  [Fact]
+  public async Task DirectBindingRefusesAuthorityRevokedAfterAuthorizationWithoutChangingExistingBinding()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "Partner");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var administrator = User(fixture.FirmId, "binding-administrator");
+    var firstDataset = await SeedSealedDatasetAsync(pg, fixture, "binding-before-revoke", accepted: true);
+    var secondDataset = await SeedSealedDatasetAsync(pg, fixture, "binding-after-revoke", accepted: true);
+    Guid scheduleId, firstDecisionId, secondDecisionId, grantId;
+    string firstSourceHash;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.Users.Add(administrator);
+      setup.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, UserId = administrator.Id,
+        Role = "Administrator", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = administrator.Id
+      });
+      await setup.SaveChangesAsync(timeout.Token);
+      grantId = await setup.RoleGrants.Where(x => x.FirmId == fixture.FirmId &&
+        x.UserId == preparer.UserId && x.Role == "Partner" && x.RevokedAt == null)
+        .Select(x => x.Id).SingleAsync(timeout.Token);
+      var first = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(setup, reviewer,
+        new(fixture.ClientId, fixture.EngagementId, AccountingSourceKinds.TrialBalance,
+          firstDataset, null, "Synthetic original binding evidence"), timeout.Token);
+      Assert.True(first.Succeeded, first.Message);
+      firstDecisionId = first.Value;
+      var second = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(setup, reviewer,
+        new(fixture.ClientId, fixture.EngagementId, AccountingSourceKinds.TrialBalance,
+          secondDataset, null, "Synthetic attempted replacement evidence"), timeout.Token);
+      Assert.True(second.Succeeded, second.Message);
+      secondDecisionId = second.Value;
+      var created = await AuditFieldworkService.CreateScheduleAsync(setup, preparer,
+        new(fixture.EngagementId, "RECEIVABLES_LEAD", "binding-authority-listing", "binding-authority-receipt",
+          new DateTimeOffset(2026, 12, 31, 0, 0, 0, TimeSpan.Zero),
+          new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "QAR", "debits positive; credits negative",
+          Hashing.Sha256Hex("synthetic-binding-authority-listing"), 100m,
+          [new("original-row", 1, "1100", "Synthetic receivables", 100m, "QAR",
+            null, new DateOnly(2026, 12, 31), null, null, "{\"source\":\"synthetic-listing\"}")]), timeout.Token);
+      Assert.True(created.Succeeded, created.Message);
+      scheduleId = created.Value!.ScheduleId;
+      var allowed = await AuditScheduleSourceBindingService.BindScheduleToAcceptedSourceAsync(
+        setup, preparer, scheduleId, firstDecisionId, timeout.Token);
+      Assert.True(allowed.Succeeded, allowed.Message);
+      Assert.Equal(firstDecisionId, allowed.Value!.AcceptedSourceDecisionId);
+      firstSourceHash = allowed.Value.AcceptedSourceHash;
+    }
+
+    // Refuse a pending deletion without discarding it or flushing it as part of binding.
+    await using (var pending = new AuditSphereDbContext(pg.Options))
+    {
+      var target = await pending.AuditSchedules.SingleAsync(x => x.Id == scheduleId, timeout.Token);
+      pending.AuditSchedules.Remove(target);
+      var refused = await AuditScheduleSourceBindingService.BindScheduleToAcceptedSourceAsync(
+        pending, preparer, scheduleId, secondDecisionId, timeout.Token);
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, refused.ErrorCode);
+      Assert.Equal(EntityState.Deleted, pending.Entry(target).State);
+      await using var unchanged = new AuditSphereDbContext(pg.Options);
+      Assert.Equal(firstDecisionId, (await unchanged.AuditSchedules.AsNoTracking()
+        .SingleAsync(x => x.Id == scheduleId, timeout.Token)).AcceptedSourceDecisionId);
+    }
+
+    var hook = new RevokeBeforeBindingDecisionOrScopeLock(async ct =>
+    {
+      await using var revokeDb = new AuditSphereDbContext(pg.Options);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(revokeDb,
+        Actor(administrator, "Administrator"),
+        new(grantId, Reason: "Synthetic direct binding authority revocation"), ct);
+      Assert.True(revoked.Succeeded, revoked.Message);
+    });
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(hook).Options;
+    await using (var attempt = new AuditSphereDbContext(options))
+    {
+      var result = await AuditScheduleSourceBindingService.BindScheduleToAcceptedSourceAsync(
+        attempt, preparer, scheduleId, secondDecisionId, timeout.Token);
+      Assert.True(hook.Invoked);
+      await using var verify = new AuditSphereDbContext(pg.Options);
+      Assert.NotNull((await verify.RoleGrants.AsNoTracking().SingleAsync(x => x.Id == grantId, timeout.Token)).RevokedAt);
+      Assert.True(await verify.Users.Where(x => x.Id == preparer.UserId).Select(x => x.SessionEpoch)
+        .SingleAsync(timeout.Token) > preparer.SessionEpoch);
+      var retained = await verify.AuditSchedules.AsNoTracking().SingleAsync(x => x.Id == scheduleId, timeout.Token);
+      Assert.False(result.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, result.ErrorCode);
+      Assert.Equal(firstDecisionId, retained.AcceptedSourceDecisionId);
+      Assert.Equal(firstSourceHash, retained.AcceptedSourceHash);
+      Assert.Equal(AuditScheduleStatuses.Reconciled, retained.Status);
+      Assert.Equal(string.Empty, retained.CompletenessDecision);
+      Assert.Equal(100m, retained.SignedControlTotal);
+      Assert.Equal(0m, retained.Residual);
+      var row = Assert.Single(await verify.AuditScheduleRows.AsNoTracking()
+        .Where(x => x.ScheduleId == scheduleId).ToListAsync(timeout.Token));
+      Assert.Equal("original-row", row.StableRowId);
+      Assert.Equal(100m, row.SignedAmount);
+    }
+  }
+
+  private sealed class RevokeBeforeBindingDecisionOrScopeLock(Func<CancellationToken, Task> revoke) : DbCommandInterceptor
+  {
+    private bool authorizationRowsRead;
+    public bool Invoked { get; private set; }
+
+    public override ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("FROM role_grants", StringComparison.OrdinalIgnoreCase))
+        authorizationRowsRead = true;
+      return ValueTask.FromResult(result);
+    }
+
+    public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+      CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+    {
+      // Baseline Bind reads the decision immediately after auth. A guarded Bind first
+      // takes the firm lock; revoke BEFORE that query to avoid waiting behind our own lock.
+      var decisionRead = command.CommandText.Contains("FROM source_acceptance_decisions", StringComparison.OrdinalIgnoreCase);
+      var firmLock = command.CommandText.Contains("FROM firm_safety_states", StringComparison.OrdinalIgnoreCase) &&
+        (command.CommandText.Contains("FOR SHARE", StringComparison.OrdinalIgnoreCase) ||
+         command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase));
+      if (!Invoked && authorizationRowsRead && (decisionRead || firmLock))
+      {
+        Invoked = true;
+        await revoke(cancellationToken);
+      }
+      return result;
     }
   }
 

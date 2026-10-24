@@ -941,6 +941,22 @@
         "repair": "Existing firm/client/engagement lock order and fresh professional/session/grant authorization inside transaction, before save and through commit; dedupe readback also reauthorizes.",
         "checks": "Named new creation + existing review-revocation + original FieldworkEvidence_IsScopedAndReviewable: Passed3 Failed0 Skipped0, 59s. Positive creation/dedupe and unchanged original row count retained. No full local suite.",
         "limits": "No ambient transaction, all-interleaving, typed capture/API/UI or current fullCI acceptance."
+      },
+      "scheduleBindingAuthority": {
+        "status": "Two observed RED boundaries corrected; final focused binding3 plus genuine-source1 and existing PBC review1: Passed5 Failed0 Skipped0, 57s.",
+        "observed": "Direct binding replaced original source after official grant revocation (RED1). Initial fix also accepted binding with tracked pending Deleted target (separate RED1).",
+        "repair": "Standalone owned transaction, firm/client/engagement and exact schedule locks; fresh current professional/session/grant checks through commit. Target ChangeTracker includes Deleted, refusing pending states without discarding them.",
+        "compatibility": "No production public-bind callers found; standalone binding explicitly refuses ambient transactions. Future atomic typed capture needs transaction-required internal composition; not implemented. Existing source-replacement and scoped denial checks retained.",
+        "limits": "No universal race, unrelated pending-context flush, exact-context typed capture or fullCI claim."
+      },
+      "scheduleAcceptedSourceResolution": {
+        "status": "Internal resolver actual local-source fixture PASS1 before timestamp correction; final combined cohort PASS5. Real capture/review API/UI remains NOT_IMPLEMENTED.",
+        "scope": "Exact accepted PBC receipt/current request/upload/completed transfer and verified staged CSV; independently accepted selected TB period/book/basis/entity/currency with ACTIVE context/native currentness; strict PBC canonical entity/ISO period. Explicit account scope, complete TB witnesses, exact signed values, actual older row dates and deterministic manifest.",
+        "observed": "Actual CSV0010=125/0020=75 vs selectedTB100/100: global residual0 yet per-account+25/-25; AllAccountsReconciled false. Genuine service acceptance, repeat manifests identical, undeclared account/wrong date/scope and actual staged-byte tamper refused, no schedules/rows written.",
+        "simulationBoundary": "PBC durable operation uses established local SimulationPbcProviderSink. TB rows loaded/sealed in synthetic ACTIVE context then actual independent source acceptance; no live-provider/import-file product/activation/professional acceptance claim.",
+        "precision": "New PBC acceptance timestamps quantized to retained PostgreSQL microseconds before unchanged v1 digest recipe, consistent with existing project patterns. Source-proven portability correction; no local timestamp failure was observed. Historical bytes/digests unchanged; unprovable legacy reconstruction fails closed.",
+        "remaining": "Register immutable capture/review model with semantic guards, atomic helper composition/original receipts/recovery, API/Angular and browser acceptance. No manifest presence means professional completeness.",
+        "fixtureScope": "Final named source rerun Passed1 Failed0 Skipped0, 3s after removing references to unregistered future capture classes; actual schedule persistence and all source/tamper assertions retained."
       }
     },
     "archivedOn20261024": {

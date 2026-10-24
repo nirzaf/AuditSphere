@@ -40,14 +40,49 @@ public static class AuditScheduleSourceBindingService
     if (scheduleId == Guid.Empty || sourceAcceptanceDecisionId == Guid.Empty)
       return CommandResult<AuditScheduleSourceBindingValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A schedule id and an accepted source decision id are required.");
-    var schedule = await db.AuditSchedules.SingleOrDefaultAsync(x =>
+    var snapshot = await db.AuditSchedules.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == scheduleId && x.FirmId == actor.FirmId, ct);
-    if (schedule is null)
+    if (snapshot is null)
       return CommandResult<AuditScheduleSourceBindingValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, schedule.ClientId, schedule.EngagementId, PlanningRoles, InternalOnly: true), ct);
+      new AuthorizationRequest(actor.FirmId, snapshot.ClientId, snapshot.EngagementId, PlanningRoles,
+        InternalOnly: true, RequireProfessionalWork: true), ct);
     if (!auth.Succeeded)
       return CommandResult<AuditScheduleSourceBindingValue>.Fail(auth.ErrorCode!, auth.Message!);
+    // This public command owns its commit, like schedule creation/review. An atomic typed-intake
+    // composition needs its own transaction-required core, not a partially committed public call.
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<AuditScheduleSourceBindingValue>.Fail(ErrorCodes.ProtectedState,
+        "Standalone schedule binding requires its own transaction.");
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await AuditFieldworkService.LockConfirmationScopeAsync(db, actor, snapshot.EngagementId, ct);
+    var current = await db.AuditSchedules.FromSqlInterpolated(
+      $"SELECT * FROM audit_schedules WHERE firm_id = {actor.FirmId} AND client_id = {snapshot.ClientId} AND engagement_id = {snapshot.EngagementId} AND id = {scheduleId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    if (current is null)
+      return CommandResult<AuditScheduleSourceBindingValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, current.ClientId, current.EngagementId, PlanningRoles,
+        InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<AuditScheduleSourceBindingValue>.Fail(auth.ErrorCode!, auth.Message!);
+    if (db is not DbContext context)
+      return CommandResult<AuditScheduleSourceBindingValue>.Fail(ErrorCodes.ProtectedState,
+        "The tracked schedule cannot be safely refreshed in this context.");
+    // Local omits Deleted entries. Inspect all target states before attaching fresh facts so
+    // binding neither flushes nor silently replaces the caller's pending deletion.
+    var entry = context.ChangeTracker.Entries<AuditSchedule>().SingleOrDefault(x => x.Entity.Id == current.Id);
+    AuditSchedule schedule;
+    if (entry is not null)
+    {
+      if (entry.State != EntityState.Unchanged)
+        return CommandResult<AuditScheduleSourceBindingValue>.Fail(ErrorCodes.StaleRevision,
+          "Save or discard pending schedule changes before binding the source.");
+      entry.CurrentValues.SetValues(current);
+      entry.OriginalValues.SetValues(current);
+      schedule = entry.Entity;
+    }
+    else schedule = db.AuditSchedules.Attach(current).Entity;
     if (schedule.Status == AuditScheduleStatuses.Approved)
       return CommandResult<AuditScheduleSourceBindingValue>.Fail(ErrorCodes.ProtectedState,
         "An approved schedule is immutable; bind the source before approval or prepare a new schedule.");
@@ -65,7 +100,18 @@ public static class AuditScheduleSourceBindingService
 
     schedule.AcceptedSourceDecisionId = decision.Id;
     schedule.AcceptedSourceHash = decision.SourceIdentityHash;
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, schedule.ClientId, schedule.EngagementId, PlanningRoles,
+        InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<AuditScheduleSourceBindingValue>.Fail(auth.ErrorCode!, auth.Message!);
     await db.SaveChangesAsync(ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, schedule.ClientId, schedule.EngagementId, PlanningRoles,
+        InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<AuditScheduleSourceBindingValue>.Fail(auth.ErrorCode!, auth.Message!);
+    await tx.CommitAsync(ct);
 
     return CommandResult<AuditScheduleSourceBindingValue>.Ok(new AuditScheduleSourceBindingValue(
       schedule.Id, decision.Id, decision.SourceIdentityHash, decision.SourceKind,

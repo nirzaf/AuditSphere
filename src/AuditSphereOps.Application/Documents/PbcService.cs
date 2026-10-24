@@ -458,7 +458,10 @@ public static partial class PbcService
       var finalHash = latestUpload.FinalSha256Hex!;
       var providerDigest = latestUpload.ProviderReceiptDigest!;
       var registeredAt = verifiedSubmission.ProviderRegisteredAt;
-      var acceptedAt = DateTimeOffset.UtcNow;
+      // Hash the same instant PostgreSQL will retain; 100 ns clock precision must not make
+      // a newly accepted source digest impossible to reconstruct from its immutable receipt.
+      var acceptedTicks = DateTimeOffset.UtcNow.UtcTicks;
+      var acceptedAt = new DateTimeOffset(acceptedTicks - acceptedTicks % 10, TimeSpan.Zero);
       var sourceDigest = Hashing.Sha256Hex(JsonSerializer.Serialize(new
       {
         Version = "pbc-accepted-source-v1", request.FirmId, request.ClientId, request.EngagementId,
