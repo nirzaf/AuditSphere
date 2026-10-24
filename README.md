@@ -143,6 +143,8 @@ These are recorded, scoped checks—not current-source full CI or whole-product 
 | ☑ Completed | Debug hot reload, Vite security patch, CI, bounded scan capture and evidence guards | Prior checkpoints require revalidation. |
 | ☐ Partially pending | Development performance/configured startup | Readiness, cold-cache/frontend comparisons and session/CSRF acceptance; no overall speedup claimed. |
 
+**Four-phase completion specification:** criterion-level reconciliation is in progress in [issue49](https://github.com/nirzaf/AuditSphere/issues/49). Existing delivered code and owner-test evidence are retained; source tracing is separate from functional, professional and production acceptance.
+
 **Angular quality/accessibility remains partial:** Full CI on `1dfedeb7` passed Angular, Domain, contracts and all 413 API checks; the time-entry refresh/lost-response test correction passes its focused journey; new full CI is pending.  strict typing, capability splits, owner/recovery guards and lint are implemented. Journal/evidence focus and previews, procedure loading and guarded preview focus, populated sampling previews, fieldwork tabs/validation, budget review/cancel, correction-handoff source preservation and named consolidation pagers/keyboard-scrolling journal lines have scoped automated or built-in browser evidence in the [ledger](docs/execution/status.json). Wider rendered states, native zoom and human screen-reader review stay open in the [accessibility checklist](docs/testing/auditsphere-testing-checklist-angular-accessibility-current.md), which lists existing synthetic handoffs. [Routes](src/AuditSphereOps.Ui/src/app/app.routes.ts) locate screens but do not prove parity.
 
 ## Documentation & contributing

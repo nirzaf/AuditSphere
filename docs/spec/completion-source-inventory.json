@@ -36,5 +36,48 @@
   "notes": [
     "Counts are derived from git ls-files at sourceSha; regenerate rather than edit by hand.",
     "Lexical matches are classified by context; no match is treated as a defect solely by keyword."
-  ]
+  ],
+  "latestObservation": {
+    "sourceSha": "96de73809f4b03c2d2fc77ecff128826b4284d88",
+    "gitTree": "1a8e46a4029f6e97a13e41c1d8429cf461d8b0f9",
+    "trackedFiles": {
+      "total": 2731,
+      "config-tooling": 90,
+      "migration": 553,
+      "other": 41,
+      "production": 1050,
+      "specification": 291,
+      "test": 706
+    },
+    "classificationRule": "migration path first; then tests/ or .spec.ts; then src/; docs/; scripts/ .github/ .config/; other. Distinct from historical root classification.",
+    "markerInventory": {
+      "pattern": "TODO|FIXME|NotImplementedException|NotSupportedException|NotImplemented\\(",
+      "scope": "tracked README/docs/src/contracts/tools, package-lock excluded",
+      "matchingLines": 12,
+      "evidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/marker-inventory.txt",
+      "sha256": "87a2de2e5501b550bed69e35bb105deccd443a1d740589d235039ee279c7a756",
+      "disposition": "All12 first-pass marker lines inspected:5 documentation recipes,7 exception filters; no throwing stub observed in this bounded pass. Broader mock/provider DI scan remains pending; not proof of exhaustive absence.",
+      "classification": {
+        "documentationOrSearchRecipe": 5,
+        "exceptionCatchFilter": 7,
+        "throwingStubObserved": 0
+      }
+    },
+    "verification": "SOURCE_INVENTORY_ONLY; no build/test/database/provider action",
+    "historicalRoot": "Root sourceSha/counts remain the retained30347523 observation; only this object describes current discovery.",
+    "allocationSchemaObservation": {
+      "scope": "Task02 allocation entity/configuration and directly named migration chain; not complete deployed-schema reconciliation",
+      "sourceDigests": {
+        "src/AuditSphereOps.Domain/Accounting/ClientOpenItemAllocation.cs": "0195249e4fe3cf21c4455dcaec49d5bb1b5f17949b5b21a4e47b82f570dd8476",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.ClientOpenItemAllocations.cs": "fcd3a77251c005ba15fdd86f9a46064d5b1f1a1a9c8d5169b2ac6b64585ef263",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261007144624_ClientOpenItemAllocations.cs": "c1c2118b155e1490cdce244737e0800ae52e6dc3067d24e22cb574b06a670ead",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/ClientOpenItemAllocationSql.cs": "3f99e0470f6dce60c09eebc79f147806b13a54ac125d18fa3ad36b09b7d1b042",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261008110000_ClientOpeningItemAllocations.cs": "c21eabc6e1caaf10ccd63f086305765387ae46fe62d6d9d694dba6c6185a2a5f"
+      },
+      "observed": "EF source retains19,6 amount precision; firm/client alternate and foreign keys; actor/command uniqueness; Restrict deletes; positive amount and source/hash checks. CreatedAt is retained history, not an economic effective date.",
+      "migrationDecision": "NO_NEW_MIGRATION_PROPOSED; no accepted schema mismatch evidenced by this read. Task12 economic-date policy remains required before a semantic change.",
+      "deployedSchema": "BLOCKED_EXTERNAL: approved target identity/catalog/history not supplied; no database connection or update performed",
+      "remaining": "Final effective SQL/trigger replacement trace, isolated schema guard and target catalog comparison remain verification work."
+    }
+  }
 }
