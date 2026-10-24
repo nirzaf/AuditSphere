@@ -963,7 +963,7 @@
       }
     },
     "t058FullE2eTriage20261025": {
-      "status": "FOCUSED_COHORT_PASS_CURRENT_FULL_CI_PENDING",
+      "status": "FOCUSED_COHORT_PASS_CURRENT_FULL_CI_RUNNING",
       "sourceCommit": "d154e4e14887e6a394a13dc659a45fa8fd4ffbf3",
       "priorFullRun": {
         "runId": 40133039876,
@@ -984,9 +984,117 @@
       "currentFastCi": {
         "runId": 40141556384,
         "sourceCommit": "d154e4e14887e6a394a13dc659a45fa8fd4ffbf3",
-        "status": "RUNNING"
+        "status": "CANCELLED_BY_DOCUMENTATION_FOLLOW_UP_127aa1ae"
       },
-      "limits": "A new current-source full release run has not yet been dispatched while prior run 40133039876 remains active. No full local suites; no claim of T058 completion, full CI, professional approval or live acceptance. T058 still lacks typed imported bank/GL row links, finding linkage, approved cut-off/MUS methodology, broader browser acceptance and qualified methodology acceptance."
+      "latestFastCi": {
+        "runId": 40141737173,
+        "sourceCommit": "127aa1ae9bf0c5e166ad3f1ebe985c12bc292cc5",
+        "status": "SUCCESS",
+        "completedJobs": [
+          "Build · Angular: SUCCESS",
+          "Docs · Health: SUCCESS",
+          "Build · .NET Release: SUCCESS"
+        ]
+      },
+      "currentFullCi": {
+        "runId": 40141797352,
+        "sourceCommit": "127aa1ae9bf0c5e166ad3f1ebe985c12bc292cc5",
+        "sourceMatch": "MATCH",
+        "status": "RUNNING_PRE_IMPLEMENTATION_BASELINE",
+        "completedJobs": [
+          "Resolve: SUCCESS",
+          "Build · Angular and full specs: SUCCESS",
+          "Verify · Build, contracts and publication: SUCCESS",
+          "Domain unfiltered: SUCCESS"
+        ],
+        "pendingJobs": [
+          "API unfiltered",
+          "Playwright E2E unfiltered"
+        ]
+      },
+      "limits": "Pre-implementation baseline full run 40141797352 remains in progress and is not acceptance for commit 71969138. The exact-source full run 40143495963 is tracked in scheduleSourceIndependentReviewDetails20261025. No full local suites; T058 and professional/browser acceptance remain partial."
+    },
+    "scheduleSourceIndependentReviewDetails20261025": {
+      "status": "FOCUSED_PASS_EXACT_SOURCE_CI_RUNNING_BROWSER_NOT_RUN",
+      "codeCommit": "7196913876100f86d19a286ac7f0aa505e6681de",
+      "change": "Independent review preview now carries the exact accepted PBC/TB/period/book context and account tie-outs. A bounded read returns original listing cells for the exact capture hash; reviewer scope is rechecked, preparer self-review is denied, and assent/recording stay blocked until the first exact page loads. Cached rows are hidden while a different page is loading.",
+      "checks": {
+        "domain": {
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AcceptedPbcListingAndSelectedTbCapturePreserveAccountVarianceReceiptsAndOriginalRows'",
+          "result": "2 passed, 0 failed (balanced and unbalanced source cases); exact account tie-outs, original cell values, paging, stale capture hash and preparer self-review denial verified."
+        },
+        "angular": {
+          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/audit/fieldwork.spec.ts'",
+          "result": "37 passed, 0 failed; reviewer preview displays capture-bound source evidence, assent is rejected before rows load, and loaded original cells render."
+        },
+        "angularBuild": {
+          "command": "npm --prefix src/AuditSphereOps.Ui run build",
+          "result": "PASS; existing commercial/settings.scss style-budget warning (7.53 KB vs 4 KB budget)."
+        },
+        "angularLint": {
+          "command": "npm --prefix src/AuditSphereOps.Ui run lint",
+          "result": "PASS."
+        },
+        "openApi": {
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "result": "PASS; generated contract is current with the retained source rows GET route."
+        },
+        "documentation": {
+          "command": "python3 scripts/docs/validate-markdown-documentation.py",
+          "result": "PASS; 228 Markdown files, canonical references, links, path checks and ledger budgets."
+        },
+        "diffCheck": {
+          "command": "git diff --check",
+          "result": "PASS."
+        }
+      },
+      "integrationCoverage": "Domain service and Angular state/template are focused-tested; OpenAPI confirms route publication. No successful HTTP-level or Playwright source-intake reviewer journey currently covers this new rows endpoint.",
+      "browserVerification": {
+        "status": "NOT_RUN",
+        "reason": "Built-in browser inventory had no local AuditSphere reviewer workspace or authenticated synthetic reviewer fixture; only the Entra tab was available."
+      },
+      "ci": {
+        "fast": {
+          "runId": 40143450617,
+          "sourceCommit": "7196913876100f86d19a286ac7f0aa505e6681de",
+          "status": "RUNNING",
+          "completedJobs": [],
+          "pendingJobs": [
+            "Docs · Health",
+            "Build · Angular"
+          ]
+        },
+        "full": {
+          "runId": 40143495963,
+          "sourceCommit": "7196913876100f86d19a286ac7f0aa505e6681de",
+          "sourceMatch": "MATCH",
+          "status": "RUNNING",
+          "completedJobs": [
+            "Resolve · Requested ref: SUCCESS"
+          ],
+          "pendingJobs": [
+            "Build · Angular and full specs"
+          ]
+        },
+        "preChangeFull": {
+          "runId": 40141797352,
+          "sourceCommit": "127aa1ae9bf0c5e166ad3f1ebe985c12bc292cc5",
+          "sourceMatch": "MATCH",
+          "status": "RUNNING_PRE_IMPLEMENTATION_BASELINE",
+          "completedJobs": [
+            "Resolve: SUCCESS",
+            "Angular and full specs: SUCCESS",
+            "Verify build/contracts/publication: SUCCESS",
+            "Domain unfiltered: SUCCESS"
+          ],
+          "pendingJobs": [
+            "API unfiltered",
+            "Playwright E2E unfiltered"
+          ],
+          "note": "This run predates commit 71969138 and is not acceptance for the reviewer-evidence change."
+        }
+      },
+      "remaining": "Focused source/UI checks pass. A successful HTTP/browser reviewer workflow, current exact-source full CI, and separate professional acceptance remain unverified; do not infer live or professional approval."
     }
   },
   "externalGates": [
