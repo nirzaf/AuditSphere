@@ -106,7 +106,7 @@ public sealed class AngularProposalWorkflowJourneyTests
       async () =>
       {
         await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(engagementPath));
-        await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
+        await ShowDeferredLifecycleAsync(page);
       });
     Assert.Equal(200, stage2Status);
     using (var body = JsonDocument.Parse(stage2Body))
@@ -133,7 +133,7 @@ public sealed class AngularProposalWorkflowJourneyTests
         async () =>
         {
           await page.GotoAsync(origin + engagementPath);
-          await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
+          await ShowDeferredLifecycleAsync(page);
         });
     }
     catch (TimeoutException exception)
@@ -169,7 +169,28 @@ public sealed class AngularProposalWorkflowJourneyTests
       Assert.NotNull(proposal.SentAt);
       Assert.False(string.IsNullOrWhiteSpace(proposal.SentOfferSha256));
     }
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, engagementPath, "proposal-lifecycle-current");
     Assert.Empty(errors);
+  }
+
+  private static async Task ShowDeferredLifecycleAsync(IPage page)
+  {
+    // Panels above can finish loading after the first scroll and move this trigger
+    // below the viewport. Follow its rendered position until Angular instantiates it.
+    await page.WaitForFunctionAsync("""
+      () => {
+        const panel = document.querySelector('details.technical-lifecycle');
+        if (!panel?.open) return false;
+        if (panel.querySelector('audit-engagement-lifecycle')) return true;
+        const trigger = panel.querySelector(':scope > p');
+        if (trigger) {
+          const box = trigger.getBoundingClientRect();
+          if (box.top < 0 || box.bottom > innerHeight)
+            trigger.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+        return false;
+      }
+      """);
   }
 
   [Theory]

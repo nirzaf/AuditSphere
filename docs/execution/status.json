@@ -812,7 +812,7 @@
     "angularQuality20261023": {
       "result": "PARTIAL_ACCEPTANCE",
       "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityCiAccessibilityContinuation20261023",
-      "remaining": "Task07: wider states/native zoom/humanAT; time E2E focused pass; new full CI pending; prior proposal cause unproven."
+      "remaining": "Task07 wider states/native zoom/humanAT; current fullCI pending. a9 E2E causal follow-up is recorded separately, not a claimed product fix."
     },
     "autonomousCompletion20261022": {
       "specification": "docs/architecture/auditsphere-autonomous-completion-remediation-spec.md (AS-AUTONOMOUS-COMPLETION-2026-10-22-R2)",
@@ -1115,7 +1115,8 @@
       },
       "financialPackageBalance": "PASS_FOCUSED3; manual/read/automatic financial-package predicate aligned. Current CI pending. Archive: status-archive-2026-10.json#keys.financialPackageBalanceEligibility20261024.",
       "accountingHandoff": "Tasks10/11/15 source/test trace, not accepted. Native successor/sealed source remain. Archive: status-archive-2026-10.json#keys.accountingHandoffReview20261024.",
-      "queueCurrentExpiry": "RED1/GREEN1+calendar2PASS; fullCI pending. Archive: status-archive-2026-10.json#keys.queueCurrentExpiry20261024."
+      "queueCurrentExpiry": "RED1/GREEN1+calendar2PASS; fullCI pending. Archive: status-archive-2026-10.json#keys.queueCurrentExpiry20261024.",
+      "ciE2eFollowup": "Focused7+1PASS and builtin lifecycle subset; currentCI required. Archive: status-archive-2026-10.json#keys.a9E2eCausalFollowup20261024."
     },
     "archivedOn20261024": {
       "entries": [

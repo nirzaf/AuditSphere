@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Lifecycle and review-point CI follow-up
+
+Retained CI exposed a deferred lifecycle placeholder outside the viewport. Recovery capture awaited only the receipt although the UI also needs its subsequent state read. The affected journeys pass unchanged locally; test synchronization now follows the rendered trigger and awaits both causal reads without changing product behavior or expected results. The owned built-in fixture also demonstrated keyboard disclosure, refresh and next-action focus with truthful dual-key blockers. Fixture expiry after the live observation is retained separately. Current immutable full CI, wider rendered states, native zoom and qualified human assistive-technology evidence remain open.
+
 ## Current work-queue grant expiry
 
 The queue now rechecks grant expiry with a fresh cutoff after its read snapshot, while retaining the original UTC calendar date for task views. The regression crosses a real stored expiry boundary while a sibling engagement grant remains valid: the original query released protected rows/counts; the corrected query refuses the readback. Existing calendar/count checks pass. Broader template, recurrence and reminder acceptance remains separate.

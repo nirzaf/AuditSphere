@@ -46,6 +46,7 @@ The existing owned E2E journeys can pause their isolated API/database for a buil
 | `evidence-action-pre-dispatch` | `AngularEvidenceActionsJourneyTests.KeyboardReviewPreviewCancelAndFreshAssentPreserveFocusOwnership` | Allowed selection, rationale, review/cancel and fresh-assent controls. |
 | `consolidation-intercompany` | `AngularConsolidationIntercompanyJourneyTests.RegularScopeRetainsExactOutsidePerimeterMatchForKeyboardReview` | Named pagers, retained amounts, scoped review controls and table scrolling. |
 | `fieldwork-populated-accessibility` | `AngularAuditFieldworkParityJourneyTests.AdoptedProgramReviewedFieldworkAndFrozenWorkpaperSurviveReload` | Programme/procedure context, tabs, evidence and review controls. |
+| `proposal-lifecycle-current` | `AngularProposalWorkflowJourneyTests.ProposalDispatchMovesEngagementLifecycleFromProposalGenerationToDualKeyPending` | Populated proposal-generation to dual-key-pending lifecycle; disclosure keyboard/viewport loading and truthful commercial blockers. |
 
 The handoff expires after 90 seconds. A closed server or cleared session after teardown is a fixture limit, not evidence of an application failure. Record only interactions completed before expiry. Different loopback ports share host cookies; use isolated browser contexts for simultaneous actors, or inspect actors sequentially through normal sign-in. Never treat separate ports as cookie isolation. Automated journey results and built-in observations remain separate evidence; neither replaces human assistive-technology review.
 

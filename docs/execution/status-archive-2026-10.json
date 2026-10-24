@@ -24693,6 +24693,20 @@
         "history": "status-archive-2026-10.json#keys.clientContactReadScope20261024",
         "scope": "App contact/routing/recipient/hierarchy and off-page relationship-count revocation guards; no API schema or DB migration."
       }
+    },
+    "a9E2eCausalFollowup20261024": {
+      "status": "FOCUSED_PASS_CURRENT_FULL_CI_REQUIRED",
+      "failureSource": "a9a93692e73671470131aa807b12f526034445e1",
+      "failureRun": 40055833218,
+      "failureCounters": "E2E333PASS/2FAIL; exactTRX retained",
+      "checks": "Unchanged focused7PASS; causal synchronization7PASS; optional builtin fixture repeat1PASS. No full local suites.",
+      "apiSource": "74ab7335; same controlled App/queue bytes at initial baseline build before commit",
+      "uiSource": "764d1e1f5de6e397e69e98e3dcec7e60d6c905f2; exactCIartifact and unchanged current Angular source",
+      "evidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/a9-e2e-followup/review.json",
+      "changes": "Await exact receipt+subsequent command state before UI assertions; keep deferred trigger in viewport across late layout changes. Original request matcher/timeouts/assertions retained, state200 check added. No product behavior change.",
+      "browser": "Builtin normal synthetic sign-in; Return collapse/expand, Tab Refresh, Return refresh, Tab Proceed. Stage3 and dual blockers retained; no business mutation. Valid screenshot before fixture expiry; final AccessUnavailable capture occurred after90sec deadline, not a claimed product failure or additional revocation acceptance.",
+      "limits": "Both CI paths passed unchanged locally; underlying recovery latency cause not conclusively established. Current immutable fullCI required. No humanAT/nativezoom/completeaccessibility/professional/provider acceptance.",
+      "preservedPriorAngularRemaining": "Task07: wider states/native zoom/humanAT; time E2E focused pass; new full CI pending; prior proposal cause unproven."
     }
   },
   "archivedTargetedVerification": {

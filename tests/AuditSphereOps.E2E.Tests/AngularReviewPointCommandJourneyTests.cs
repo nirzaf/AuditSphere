@@ -108,13 +108,19 @@ public sealed class AngularReviewPointCommandJourneyTests
       int lookupStatus; string lookupBody;
       try
       {
-        (lookupStatus, lookupBody) = await PlaywrightResponseCapture.RunAsync(page,
-          request => request.Method == "GET" && request.Url.Contains($"/api/ui/reviews/{pointId:D}/commands/receipts/{identities[0].Id}?requestHash={identities[0].Hash}", StringComparison.Ordinal),
+        var recoveryReads = await PlaywrightResponseCapture.RunMultipleAsync(page,
+          [
+            request => request.Method == "GET" && request.Url.Contains($"/api/ui/reviews/{pointId:D}/commands/receipts/{identities[0].Id}?requestHash={identities[0].Hash}", StringComparison.Ordinal),
+            request => request.Method == "GET" && Uri.TryCreate(request.Url, UriKind.Absolute, out var uri) &&
+              uri.AbsolutePath == $"/api/ui/reviews/{pointId:D}/commands/state"
+          ],
           () =>
           {
             Volatile.Write(ref recoveryStateCaptureArmed, 1);
             return recovery.GetByRole(AriaRole.Button, new() { Name = "Look up exact disposition receipt", Exact = true }).ClickAsync();
           });
+        (lookupStatus, lookupBody) = recoveryReads[0];
+        Assert.Equal(200, recoveryReads[1].Status);
       }
       catch (TimeoutException exception)
       {
