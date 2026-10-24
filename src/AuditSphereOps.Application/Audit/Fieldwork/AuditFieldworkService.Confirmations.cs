@@ -59,6 +59,13 @@ public static partial class AuditFieldworkService
     if (!auth.Succeeded)
       return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    await LockConfirmationCaseAsync(db, actor, existing!.EngagementId, existing.Id, ct);
+    auth = await AuthorizeEntityAsync(db, actor, existing, PlanningRoles, ct);
+    if (!auth.Succeeded)
+    {
+      if (tx is not null && auth.ErrorCode == ErrorCodes.ProtectedState) await tx.CommitAsync(ct);
+      return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);
+    }
     var live = await db.AuditConfirmationCases.SingleOrDefaultAsync(x => x.Id == request.ConfirmationCaseId && x.FirmId == actor.FirmId, ct);
     if (live is null || live.Status != AuditConfirmationStatuses.Approved)
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.GateBlocked, "Only an approved confirmation can record dispatch evidence.");
@@ -89,6 +96,13 @@ public static partial class AuditFieldworkService
     if (!auth.Succeeded)
       return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    await LockConfirmationCaseAsync(db, actor, existing!.EngagementId, existing.Id, ct);
+    auth = await AuthorizeEntityAsync(db, actor, existing, PlanningRoles, ct);
+    if (!auth.Succeeded)
+    {
+      if (tx is not null && auth.ErrorCode == ErrorCodes.ProtectedState) await tx.CommitAsync(ct);
+      return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);
+    }
     var live = await db.AuditConfirmationCases.SingleOrDefaultAsync(x => x.Id == request.ConfirmationCaseId && x.FirmId == actor.FirmId, ct);
     if (live is null || live.DispatchedAt is null || live.Status is not (AuditConfirmationStatuses.Dispatched or AuditConfirmationStatuses.NoResponse or AuditConfirmationStatuses.AlternativeRequired or AuditConfirmationStatuses.ResponseReceived))
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.GateBlocked, "A response must follow observed dispatch evidence.");
@@ -130,12 +144,19 @@ public static partial class AuditFieldworkService
       return auth;
     if (response!.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The response preparer cannot review the same response.");
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    await LockConfirmationCaseAsync(db, actor, response!.EngagementId, response.ConfirmationCaseId, ct);
+    auth = await AuthorizeEntityAsync(db, actor, response, ReviewRoles, ct);
+    if (!auth.Succeeded)
+    {
+      if (tx is not null && auth.ErrorCode == ErrorCodes.ProtectedState) await tx.CommitAsync(ct);
+      return auth;
+    }
     var latestRevision = await db.AuditConfirmationResponses.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ConfirmationCaseId == response.ConfirmationCaseId)
       .MaxAsync(x => (long?)x.Revision, ct);
     if (latestRevision != response.Revision)
       return CommandResult.Fail(ErrorCodes.StaleRevision, "Only the current confirmation response can be reviewed.");
-    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var live = await db.AuditConfirmationResponses.SingleAsync(x => x.Id == response.Id && x.FirmId == actor.FirmId, ct);
     var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, live.EngagementId, "review confirmation response", ct);
     if (!writable.Succeeded)
@@ -163,6 +184,13 @@ public static partial class AuditFieldworkService
     if (existing is null || existing.Status is not (AuditConfirmationStatuses.NoResponse or AuditConfirmationStatuses.AlternativeRequired))
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.GateBlocked, "Alternative work requires an outstanding or non-response confirmation.");
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    await LockConfirmationCaseAsync(db, actor, existing!.EngagementId, existing.Id, ct);
+    auth = await AuthorizeEntityAsync(db, actor, existing, PlanningRoles, ct);
+    if (!auth.Succeeded)
+    {
+      if (tx is not null && auth.ErrorCode == ErrorCodes.ProtectedState) await tx.CommitAsync(ct);
+      return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);
+    }
     var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, existing.EngagementId, "record alternative procedure", ct);
     if (!writable.Succeeded)
     {
@@ -188,12 +216,19 @@ public static partial class AuditFieldworkService
     var auth = await AuthorizeEntityAsync(db, actor, alternative, ReviewRoles, ct);
     if (!auth.Succeeded)
       return auth;
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    await LockConfirmationCaseAsync(db, actor, alternative!.EngagementId, alternative.ConfirmationCaseId, ct);
+    auth = await AuthorizeEntityAsync(db, actor, alternative, ReviewRoles, ct);
+    if (!auth.Succeeded)
+    {
+      if (tx is not null && auth.ErrorCode == ErrorCodes.ProtectedState) await tx.CommitAsync(ct);
+      return auth;
+    }
     var live = await db.AuditAlternativeProcedures.SingleOrDefaultAsync(x => x.Id == request.AlternativeProcedureId && x.FirmId == actor.FirmId, ct);
     if (live is null)
       return Denied();
     if (live.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review the same alternative procedure.");
-    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, live.EngagementId, "review alternative procedure", ct);
     if (!writable.Succeeded)
     {
@@ -218,6 +253,7 @@ public static partial class AuditFieldworkService
     if (!auth.Succeeded)
       return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    await LockConfirmationScopeAsync(db, actor, existing!.EngagementId, ct);
     var locked = await db.AuditConfirmationCases.FromSqlInterpolated($"SELECT * FROM audit_confirmation_cases WHERE firm_id = {actor.FirmId} AND id = {request.ConfirmationCaseId} FOR UPDATE")
       .AsNoTracking().SingleAsync(ct);
     auth = await AuthorizeEntityAsync(db, actor, locked, ReviewRoles, ct);
@@ -268,6 +304,15 @@ public static partial class AuditFieldworkService
     return CommandResult<ConfirmationValue>.Ok(new(live.Id, live.Status));
   }
 
+  private static async Task LockConfirmationCaseAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, Guid caseId, CancellationToken ct)
+  {
+    await LockConfirmationScopeAsync(db, actor, engagementId, ct);
+    await db.AuditConfirmationCases.FromSqlInterpolated(
+      $"SELECT * FROM audit_confirmation_cases WHERE firm_id = {actor.FirmId} AND engagement_id = {engagementId} AND id = {caseId} FOR UPDATE")
+      .AsNoTracking().LoadAsync(ct);
+  }
+
   private static async Task<CommandResult<ConfirmationValue>> SetConfirmationStatusAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid id, string status, IReadOnlyList<string> roles, CancellationToken ct)
   {
@@ -276,6 +321,13 @@ public static partial class AuditFieldworkService
     if (!auth.Succeeded)
       return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    await LockConfirmationCaseAsync(db, actor, existing!.EngagementId, existing.Id, ct);
+    auth = await AuthorizeEntityAsync(db, actor, existing, roles, ct);
+    if (!auth.Succeeded)
+    {
+      if (tx is not null && auth.ErrorCode == ErrorCodes.ProtectedState) await tx.CommitAsync(ct);
+      return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);
+    }
     var live = await db.AuditConfirmationCases.SingleAsync(x => x.Id == id && x.FirmId == actor.FirmId, ct);
     if (status == AuditConfirmationStatuses.Approved && live.Status != AuditConfirmationStatuses.Draft)
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.ProtectedState, "The confirmation is already beyond draft.");

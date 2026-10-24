@@ -1115,9 +1115,9 @@
       "portalInternalRiskBoundary": "PASS_FOCUSED_API2; real internal evidence excluded from client reads and internal routes403, including strayPartner grant. Counterfactual detects guard loss. Archive: status-archive-2026-10.json#keys.portalInternalRiskBoundary20261024.",
       "reportingContextReview": "ASCP04 unified activation UNVERIFIED/BLOCKED_DEPENDENCY; existing producers reused. Six recipe clauses traced in manifest.specificationTaskReconciliation.ASCP-04; no Task04 completion claim.",
       "confirmationDirectAuthority": {
-        "status": "PASS_FOCUSED4; CURRENT_CI_REQUIRED",
-        "history": "status-archive-2026-10.json#keys.confirmationDirectAuthority20261024",
-        "scope": "Direct creation only; other mutation/source-reconciliation requirements remain open."
+        "status": "PASS_CREATION4/MUTATION10; CURRENT_CI_REQUIRED",
+        "history": "status-archive-2026-10.json#keys.confirmationDirectMutations20261024",
+        "scope": "Creation/mutations official-revocation boundary; status interleavings/source balances remain open."
       },
       "financialPackageBalance": "PASS_FOCUSED3; manual/read/automatic financial-package predicate aligned. Current CI pending. Archive: status-archive-2026-10.json#keys.financialPackageBalanceEligibility20261024."
     },

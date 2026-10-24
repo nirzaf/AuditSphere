@@ -24614,6 +24614,23 @@
       },
       "limits": "Focused3-case PostgreSQL fee-cycle proof and Release compilation only. Canonical automatic predicate equivalence was source-reviewed; no separate automatic-balance journey, full suites, browser/live provider, whole-ASCP06 or current immutable-source CI acceptance is claimed. No schema, public DTO, routes, dependency, UI, docs, staging, commits or push changes.",
       "preservedWorkflowTracePointer": "27 workflow/invariant children plus lifecycle scenario aliases; source-only. PriorWU/parity/R2R finding-level reconciliation remains partial. Archive: status-archive-2026-10.json#keys.workflowInvariantTrace20261024."
+    },
+    "confirmationDirectMutations20261024": {
+      "status": "PASS_LOCAL_FOCUSED_CURRENT_CI_REQUIRED",
+      "base": "764d1e1f5de6e397e69e98e3dcec7e60d6c905f2",
+      "checks": "RED6FAIL/1PASS -> GREEN10PASS/0FAIL/0SKIP; seven mutation theory cases and three unchanged Facts.",
+      "evidence": ".local/autonomous/evidence/confirmation-direct-mutation-revocation-20261024/review.json",
+      "sourceDigests": {
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Confirmations.cs": "af45908f89b454c1f75bece79c1290a69d7008fa2e5a46f8db3c1614b7097c73",
+        "tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs": "cb79ac3c99c1feed9cf2eae2cd050e139de33c48ab4f86d98faa5120afe217bc",
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Authorization.cs": "e1af98ff4d2fc7ec2bb78ecd015794ee6f601c3a2a2b0282bc10070240830091"
+      },
+      "limits": [
+        "Only focused Domain class executed; full suites and exact committed-source CI deferred to parent.",
+        "No browser/API/E2E execution; no schema/DTO/provider/receipt contract changes.",
+        "Critical closure and frozen-file semantics retained by source review; no additional dedicated critical/freeze cohort claimed."
+      ],
+      "remainingStatusCandidate": "Alternative procedure status checked before transaction; post-close race needs actual independent reproduction before repair/acceptance."
     }
   },
   "archivedTargetedVerification": {
