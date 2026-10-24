@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,6 +35,23 @@ public sealed partial class AuditDeliverablesTests
     var w = await SeedAsync(pg);
     await using var db = new AuditSphereDbContext(pg.Options);
     var reviewer = w.A("senior", "Senior");
+
+    var reviewCount = await db.AuditProcedureReviews.CountAsync(x => x.FirmId == w.FirmId);
+    var taskCount = await db.WorkTasks.CountAsync(x => x.FirmId == w.FirmId);
+    var resultStatus = await db.AuditProcedureResults.AsNoTracking().Where(x => x.Id == w.ResultId)
+      .Select(x => x.Status).SingleAsync();
+    foreach (var blankComment in new string?[] { null, "", "   " })
+    {
+      var refused = await AuditProgramService.ReviewResultAsync(db, reviewer,
+        new ReviewProcedureResultRequest(w.ResultId, AuditProcedureReviewDecisions.ChangesRequired, blankComment),
+        createWorkflowReworkTask: true);
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.AuditPlanning.Invalid, refused.ErrorCode);
+      Assert.Equal(reviewCount, await db.AuditProcedureReviews.CountAsync(x => x.FirmId == w.FirmId));
+      Assert.Equal(taskCount, await db.WorkTasks.CountAsync(x => x.FirmId == w.FirmId));
+      Assert.Equal(resultStatus, await db.AuditProcedureResults.AsNoTracking().Where(x => x.Id == w.ResultId)
+        .Select(x => x.Status).SingleAsync());
+    }
 
     var unlinkedInbox = await ProcedureReviewInboxQuery.GetAsync(db, reviewer, new ProcedureReviewInboxRequest());
     Assert.True(unlinkedInbox.Succeeded, unlinkedInbox.Message);

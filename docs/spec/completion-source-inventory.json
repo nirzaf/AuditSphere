@@ -90,6 +90,39 @@
       ],
       "laterReplacementSearch": "No later authored migration replacement found by read-only sidecar; snapshot/configuration opening targets and19,6 scoped constraints align. SQL trigger state is not represented by EF snapshot.",
       "isolatedVerification": "Existing CurrentSettlementSchemaRetainsItsGuardAndPermanentFreezeBlocksDowngrade extended to inspect final opening-item function plus three enabled deferred and three immutable UPDATE/DELETE triggers; PASS in targeted4case cohort. Not a deployed catalog observation."
+    },
+    "providerReachabilityFollowup": {
+      "sourceSha": "9efdc39c3f1abd6e098b443ebce0733f871811d1",
+      "scope": "One tracked src pass: live-provider-not-approved/AllowSimulationAdapters/DevelopmentIdentity/mock/stub/placeholder; excludes UI specs, generated migration designers and package lock.",
+      "matchingLines": 82,
+      "sha256": "5d65fe4a0c69266564fe83ec7316f60d2d52212062553637520fcfad4f16b94c",
+      "criticalFindings": [
+        {
+          "owner": "src/AuditSphereOps.Api/ApiHost.Authentication.cs:ConfigureAuthentication",
+          "observation": "Development identity refuses non-Development/Test, configured OIDC coexistence and missing production OIDC."
+        },
+        {
+          "owner": "src/AuditSphereOps.Api/Authentication/TenantAdministrationComposition.cs:Register",
+          "observation": "Simulation startup refuses non-Development/Test before registering SimulatedMicrosoftTenant."
+        },
+        {
+          "owner": "src/AuditSphereOps.Worker/Program.cs",
+          "observation": "Simulated PBC registration requires explicit Test composition with no live groups; WorkerOptions.Validate rejects simulated/live authority mismatch."
+        },
+        {
+          "owner": "src/AuditSphereOps.Infrastructure/Providers/GraphPbcProviderSink.cs:UploadAsync",
+          "observation": "Unconfigured boundary throws live-provider-not-approved; live worker uses resolver/drive/factory composition."
+        },
+        {
+          "owner": "src/AuditSphereOps.Infrastructure/Providers/GraphReleaseCheckpointStore.cs",
+          "observation": "Intentionally throws live-provider-not-approved for all methods; no runtime registration found. Custody remains blocked, not stub success."
+        },
+        {
+          "owner": "src/AuditSphereOps.Application/Audit/AuditPlanningService.cs:CheckTenantCapability",
+          "observation": "Legacy boolean projection has only test callers in current tracked source; stale Purview comment is not an active provider requirement or complete tenant verification."
+        }
+      ],
+      "disposition": "SOURCE_REVIEW_ONLY;39 UI placeholder lines and4 config/style lines are discovery categories, not proof of correctness. No fake-success defect established in reviewed critical paths; does not replace criterion-level runtime acceptance."
     }
   }
 }

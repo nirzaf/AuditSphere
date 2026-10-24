@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Critical workflow acceptance tracing (2026-10-24)
+
+PR #50 was already remotely merged; the main checkout is synchronized on `master`. Existing critical workflow criteria now have bounded source/test verification plans. Focused checks passed for exhaustive phase mapping, task/queue isolation and revision fencing, independent review, blank rework-comment refusal without retained mutations, and evidence-policy replay without source-approval synthesis. The latter does not prove every domain-event producer. No product behavior changed in this slice; the review guard already existed. Exact evidence and pending CI are in `status.json`. Broader accessibility, professional and provider acceptance remain partial.
+
 ## Completion-spec discovery and remaining scope-denial statuses (2026-10-24)
 
 The external four-phase completion specification (31 resolution tasks) was reconciled against current authority. The requirement manifest now traces all 46 current requirement rows to existing UI, API, service, persistence and test files at the recorded source; `SOURCE_TRACED` is not behavioral, CI or professional acceptance. EF model drift is NONE per fast CI; deployed-schema comparison needs an authorized target read. The remaining commercial, accounting-setup, planning and acceptance mutation routes that returned 400 for `scope.denied` now return 403; validation, CSRF and success statuses are unchanged, and OpenAPI already declared 403. Policy-gated tasks (T003, D1, allocation effective date, renewal) and live tenant, custody, operational and release gates stay blocked. Dispositions and evidence are in `status.json`.

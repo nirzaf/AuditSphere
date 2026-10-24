@@ -1375,7 +1375,28 @@
       "evidence": [],
       "workUnits": [
         "WU-027"
-      ]
+      ],
+      "verificationPlan": {
+        "sourceAnchors": [
+          {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementDisplayPhaseMapper.cs",
+            "symbol": "EngagementDisplayPhaseMapper.TryResolve"
+          }
+        ],
+        "testAnchors": [
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowProjectionTests.cs",
+            "method": "EveryCanonicalStageMapsToExactlyOneVisiblePhaseAndUnknownStagesFailClosed"
+          }
+        ],
+        "invariant": "Every canonical engagement state has exactly one deterministic phase projection.",
+        "expectedOutcome": "Each of the 11 canonical state codes resolves to exactly one of the seven phase codes.",
+        "execution": "PASS_LOCAL_FOCUSED",
+        "missingVerification": "No additional local mapping check required; exact-source CI and rendered acceptance remain separate.",
+        "status": "VERIFY_ONLY",
+        "localEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/critical-workflow-review.json",
+        "observed": "Existing exhaustive mapping method passed, including all11 states, seven phases and invalid-stage refusal."
+      }
     },
     {
       "id": "ACCREQ-6.8.2",
@@ -1412,7 +1433,27 @@
       "evidence": [],
       "workUnits": [
         "WU-027"
-      ]
+      ],
+      "verificationPlan": {
+        "sourceAnchors": [
+          {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "CommercialDocumentService.GenerateDocumentAsync"
+          }
+        ],
+        "testAnchors": [
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"
+          }
+        ],
+        "invariant": "Engagement Letter issuance requires both current client acceptance of the exact offer and current unconditional Partner acceptance.",
+        "expectedOutcome": "No-key and one-key attempts create no letter; issuance succeeds only when both approval keys are current.",
+        "execution": "NOT_RUN_THIS_SLICE",
+        "missingVerification": "Exercise issuance with a current Partner decision and no client acceptance.",
+        "status": "UNVERIFIED",
+        "reason": "The existing issuance test covers no keys, client-only, and both keys, but not the Partner-only state."
+      }
     },
     {
       "id": "ACCREQ-6.8.3",
@@ -1464,7 +1505,37 @@
       "workUnits": [
         "WU-027",
         "WU-009"
-      ]
+      ],
+      "verificationPlan": {
+        "sourceAnchors": [
+          {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "CommercialDocumentService.GenerateDocumentAsync"
+          },
+          {
+            "path": "src/AuditSphereOps.Application/Practice/FeeAgreementService.cs",
+            "symbol": "FeeAgreementService.EnsureReviewedAgreementWithinTransactionAsync"
+          },
+          {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+            "symbol": "EngagementLifecycleService.ActivateAsync"
+          }
+        ],
+        "testAnchors": [
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"
+          },
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach"
+          }
+        ],
+        "invariant": "Current dual-key approval permits the letter but does not satisfy the 50% advance payment gate.",
+        "expectedOutcome": "The agreement splits the fee 50/50; activation remains blocked until the entire advance milestone is currently paid.",
+        "execution": "NOT_RUN_THIS_SLICE",
+        "missingVerification": "Execute both cited focused tests in the approved test environment."
+      }
     },
     {
       "id": "ACCREQ-6.8.4",
@@ -1505,7 +1576,33 @@
       "evidence": [],
       "workUnits": [
         "WU-027"
-      ]
+      ],
+      "verificationPlan": {
+        "sourceAnchors": [
+          {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "CommercialDocumentService.GenerateDocumentAsync"
+          },
+          {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementRiskEvidence.cs",
+            "symbol": "EngagementRiskEvidence.ForPeriodAsync"
+          }
+        ],
+        "testAnchors": [
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "Dispatch_BindsArtifactToCurrentQuotation_AndDownstreamUsesAcceptedTerms"
+          },
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"
+          }
+        ],
+        "invariant": "Client acceptance stays bound to the dispatched quotation identity and Partner risk acceptance stays bound to the current client-input generation.",
+        "expectedOutcome": "A changed offer or risk basis makes the affected evidence stale and prevents downstream letter/agreement use.",
+        "execution": "NOT_RUN_THIS_SLICE",
+        "missingVerification": "Execute the cited offer-revision and risk-generation regression methods."
+      }
     },
     {
       "id": "ACCREQ-6.8.5",
@@ -1540,7 +1637,27 @@
       "evidence": [],
       "workUnits": [
         "WU-016"
-      ]
+      ],
+      "verificationPlan": {
+        "sourceAnchors": [
+          {
+            "path": "src/AuditSphereOps.Application/Practice/EngagementWorkflowTaskService.cs",
+            "symbol": "EngagementWorkflowTaskService.CompleteAsync"
+          }
+        ],
+        "testAnchors": [
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/PbcWorkflowTaskTests.cs",
+            "method": "EnabledWorkflowCreatesOneScopedFollowUpPerSentPbc_AndCompletionWaitsForAcceptance"
+          }
+        ],
+        "invariant": "Workflow task completion cannot clear or replace a rejected/conditional approval or an active engagement hold.",
+        "expectedOutcome": "Completing an operational task cannot mutate or replace the underlying rejected/conditional acceptance decision or active hold; protected professional actions remain gated. Administrative task completion itself is not universally prohibited.",
+        "execution": "NOT_RUN_THIS_SLICE",
+        "missingVerification": "Search and execute the nearest existing task/gate isolation case before adding coverage; the cited PBC test alone does not prove rejection/conditional-decision and active-hold immutability.",
+        "status": "UNVERIFIED",
+        "reason": "The cited test covers the linked PBC acceptance gate only, not approval decisions or engagement holds."
+      }
     },
     {
       "id": "ACCREQ-6.8.6",
@@ -1576,7 +1693,40 @@
       "evidence": [],
       "workUnits": [
         "WU-029"
-      ]
+      ],
+      "verificationPlan": {
+        "sourceAnchors": [
+          {
+            "path": "src/AuditSphereOps.Application/Audit/AuditProgramService.cs",
+            "symbol": "AuditProgramService.ReviewResultAsync"
+          },
+          {
+            "path": "src/AuditSphereOps.Application/Audit/ReviewNotesService.cs",
+            "symbol": "ReviewNotesService.RequireReviewerAboveAsync"
+          }
+        ],
+        "testAnchors": [
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews"
+          },
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagerReview.cs",
+            "method": "ChangesRequiredReviewCreatesOneLinkedOperationalReworkTaskWithoutChangingReviewAuthority"
+          },
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagerReview.cs",
+            "method": "ChangesRequiredReviewCreatesOneLinkedOperationalReworkTaskWithoutChangingReviewAuthority"
+          }
+        ],
+        "invariant": "Review authority is independent of the preparer and a ChangesRequired decision requires a substantive rework comment.",
+        "expectedOutcome": "Peer review is denied; a blank rework comment is refused; the accepted comment remains linked to the rework task and open review notes block approval.",
+        "execution": "PASS_LOCAL_FOCUSED",
+        "missingVerification": "Broader rendered review workflows and qualified acceptance remain separate.",
+        "status": "VERIFY_ONLY",
+        "localEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/critical-workflow-review.json",
+        "observed": "Existing rework method extended and passed for null/empty/whitespace comment refusals with no retained mutations; existing independent reviewer/open-note method also passed."
+      }
     },
     {
       "id": "ACCREQ-6.8.7",
@@ -1622,7 +1772,37 @@
       "workUnits": [
         "WU-029",
         "WU-012"
-      ]
+      ],
+      "verificationPlan": {
+        "sourceAnchors": [
+          {
+            "path": "src/AuditSphereOps.Application/Audit/ReviewNotesService.cs",
+            "symbol": "ReviewNotesService.OpenBlockersAsync"
+          },
+          {
+            "path": "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Completion.cs",
+            "symbol": "AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync"
+          },
+          {
+            "path": "src/AuditSphereOps.Application/Audit/MaterialityEngineService.cs",
+            "symbol": "MaterialityEngineService.IsPartnerApprovedCurrentAsync"
+          }
+        ],
+        "testAnchors": [
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed"
+          },
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced"
+          }
+        ],
+        "invariant": "Open review notes and noncurrent approved materiality remain blockers to subsequent professional decisions.",
+        "expectedOutcome": "Partner clearance is denied until notes are resolved and reviewed again; stale materiality blocks current completion and approval.",
+        "execution": "NOT_RUN_THIS_SLICE",
+        "missingVerification": "Execute the cited note-clearance and stale-materiality tests."
+      }
     },
     {
       "id": "ACCREQ-6.8.8",
@@ -1663,7 +1843,25 @@
       "workUnits": [
         "WU-029",
         "WU-035"
-      ]
+      ],
+      "verificationPlan": {
+        "sourceAnchors": [
+          {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+            "symbol": "AuditDeliverableService.GenerateReportAsync"
+          }
+        ],
+        "testAnchors": [
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment"
+          }
+        ],
+        "invariant": "A currently critical confirmation without a returned, independently evaluated response blocks report issuance.",
+        "expectedOutcome": "Report generation returns no report deliverable and produces a holding letter while the critical response remains outstanding.",
+        "execution": "NOT_RUN_THIS_SLICE",
+        "missingVerification": "Execute the cited critical-confirmation report-release test."
+      }
     },
     {
       "id": "ACCREQ-6.8.9",
@@ -1697,7 +1895,25 @@
       "evidence": [],
       "workUnits": [
         "WU-023"
-      ]
+      ],
+      "verificationPlan": {
+        "sourceAnchors": [
+          {
+            "path": "src/AuditSphereOps.Application/Records/FileFreezeService.cs",
+            "symbol": "FileFreezeService.FreezeAsync"
+          }
+        ],
+        "testAnchors": [
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity"
+          }
+        ],
+        "invariant": "A frozen archival state follows the committed effective local lock; provider immutability is reported separately.",
+        "expectedOutcome": "After the due freeze commits, professional writes are refused and ExternalReadOnly remains BLOCKED_EXTERNAL absent observed provider protection.",
+        "execution": "NOT_RUN_THIS_SLICE",
+        "missingVerification": "Execute the cited worker-driven freeze and archive-boundary test."
+      }
     },
     {
       "id": "ACCREQ-6.8.10",
@@ -1737,7 +1953,33 @@
       "evidence": [],
       "workUnits": [
         "WU-010"
-      ]
+      ],
+      "verificationPlan": {
+        "sourceAnchors": [
+          {
+            "path": "src/AuditSphereOps.Application/Acceptance/AnnualEngagementPreparationWorkspace.cs",
+            "symbol": "AnnualEngagementPreparationWorkspace.ExecuteAsync"
+          },
+          {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementCreationWorkspace.cs",
+            "symbol": "EngagementCreationWorkspace.ExecuteAsync"
+          }
+        ],
+        "testAnchors": [
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/AnnualEngagementPreparationTests.cs",
+            "method": "ConcurrentReviewedAnnualCreationRetainsSourceAndCreatesOneBlockedPeriodWithNoInheritedDecision"
+          },
+          {
+            "path": "tests/AuditSphereOps.E2E.Tests/AngularAnnualEngagementJourneyTests.cs",
+            "method": "PriorPeriodReferenceCreatesOneReviewedBlockedAnnualShellWithoutCopyingApprovals"
+          }
+        ],
+        "invariant": "A recurring annual engagement starts with a fresh blocked shell and does not inherit prior-period professional decisions or sign-offs.",
+        "expectedOutcome": "Exactly one new period is created with no inherited decision; fresh review and approval are required.",
+        "execution": "NOT_RUN_THIS_SLICE",
+        "missingVerification": "Execute the cited annual-creation regression methods."
+      }
     },
     {
       "id": "ACCREQ-6.8.11",
@@ -1768,7 +2010,32 @@
       "evidence": [],
       "workUnits": [
         "WU-015"
-      ]
+      ],
+      "verificationPlan": {
+        "sourceAnchors": [
+          {
+            "path": "src/AuditSphereOps.Application/Security/AuthorizationDecision.cs",
+            "symbol": "AuthorizationDecision.AuthorizeAsync"
+          },
+          {
+            "path": "src/AuditSphereOps.Application/Practice/WorkflowTaskQueueQuery.cs",
+            "symbol": "WorkflowTaskQueueQuery.GetAsync"
+          }
+        ],
+        "testAnchors": [
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowTaskTests.cs",
+            "method": "ExistingWorkTaskOwnsWorkflowBinding_TimeLineageAndScopedRevisionFencing"
+          }
+        ],
+        "invariant": "A client-scoped actor cannot read records belonging to an unrelated sibling client.",
+        "expectedOutcome": "The assigned client's records are visible and sibling-client records are denied or absent from the projection.",
+        "execution": "PASS_LOCAL_FOCUSED",
+        "missingVerification": "This bounded task/queue cohort does not establish all application isolation paths.",
+        "status": "VERIFY_ONLY",
+        "localEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/critical-workflow-review.json",
+        "observed": "Existing workflow task method passed sibling queue filtering, out-of-scope denial, revocation and revision fencing."
+      }
     },
     {
       "id": "ACCREQ-6.8.12",
@@ -1803,7 +2070,48 @@
       "evidence": [],
       "workUnits": [
         "WU-016"
-      ]
+      ],
+      "verificationPlan": {
+        "sourceAnchors": [
+          {
+            "path": "src/AuditSphereOps.Application/Practice/EngagementWorkflowTaskService.cs",
+            "symbol": "EngagementWorkflowTaskService.CreateAsync"
+          },
+          {
+            "path": "src/AuditSphereOps.Application/Documents/PbcReminderDiscovery.cs",
+            "symbol": "PbcReminderDiscovery.EnqueuePendingAsync"
+          },
+          {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeTimeService.WorkflowEvidence.cs",
+            "symbol": "PracticeTimeService.ChangeWorkflowEvidenceAsync"
+          }
+        ],
+        "testAnchors": [
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowTaskTests.cs",
+            "method": "ExistingWorkTaskOwnsWorkflowBinding_TimeLineageAndScopedRevisionFencing"
+          },
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/PbcWorkflowTaskTests.cs",
+            "method": "EnabledWorkflowCreatesOneScopedFollowUpPerSentPbc_AndCompletionWaitsForAcceptance"
+          },
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/PbcReminderTests.cs",
+            "method": "DueReminderIsIdempotentAndDeliveredThroughExistingMailOutbox"
+          },
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/WorkflowEvidenceRuleTests.cs",
+            "method": "EvidencePolicyIsScopedRevisionedAppendOnlyAndReplayableWithoutApprovingSources"
+          }
+        ],
+        "invariant": "Automation retries are idempotent and cannot create or accept forged domain events.",
+        "expectedOutcome": "Replaying the same task request creates no duplicate task; concurrent reminder retries create one receipt and one outbox operation; forged domain-event input is rejected.",
+        "execution": "PASS_LOCAL_FOCUSED",
+        "missingVerification": "Reminder cases were not executed in this slice; broader event producer/receipt lineage remains to be traced.",
+        "status": "VERIFY_ONLY",
+        "localEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/critical-workflow-review.json",
+        "observed": "Existing workflow task and evidence-policy methods passed, including scoped replay and no fabricated materiality approval."
+      }
     },
     {
       "id": "ACCREQ-7",
@@ -1841,5 +2149,16 @@
         "WU-039"
       ]
     }
-  ]
+  ],
+  "verificationPlanObservation": {
+    "sourceSha": "e0a124bf4b7e7ce789b80f30efb1ed930350a076",
+    "scope": "Existing twelve ACCREQ-6.8.* criteria only; not a complete requirement denominator. Source symbols/test selectors checked; no duplicate product implementation.",
+    "reviewCorrections": [
+      "Exhaustive11state/seven-phase assertion already exists in EngagementWorkflowProjectionTests.",
+      "Task queue sibling isolation already exists in EngagementWorkflowTaskTests; global-search evidence alone was insufficient.",
+      "Task completion cannot synthesize protected approvals; arbitrary coordination tasks are not universally forbidden while a hold exists.",
+      "Cited event-lineage anchors are incomplete, not proof that event producers are absent."
+    ],
+    "execution": "Five unique existing focused methods passed (three plus corrected two-method followup); twelve plans remain source-bounded and overall requirement statuses are not promoted."
+  }
 }
