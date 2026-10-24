@@ -24445,7 +24445,25 @@
         "verification": "20 exact source-line hashes, existing owner symbols and test anchors validated. Source trace only; sidecar ran no tests. Parent commercial test evidence recorded separately.",
         "overlays": "Password clauses SUPERSEDED_ADR_0003; concurrent advance issuance SUPERSEDED_ADR_0007, operative rule is atomic agreement/milestones and optional after-letter draft-only automation. Distinct Internal Audit/AUP templates preserved.",
         "remaining": "Compound manual-input/payment-reference/status/rework clauses still need deeper criterion decomposition and exact rendered/live evidence; source tracing is not acceptance."
+      },
+      "precedingFullCi": {
+        "sha": "871eca68cf73d516a1c034c0d36be2b243fd00df",
+        "runId": 40036364799,
+        "status": "FULL_CI_PASS_FOR_871_ONLY",
+        "resolvedSourceMatch": "MATCH",
+        "releaseContractVerified": true,
+        "currentMasterAcceptance": false,
+        "limits": "Predates merged PR50, scope403 and later critical-test changes; not current master acceptance."
       }
+    },
+    "expenseJournalPostingScope20261024": {
+      "baseSha": "05b054fdcbbfb44ee2901209d7995c7f78a57bb1",
+      "status": "PASS_LOCAL_FOCUSED; CURRENT_FULL_CI_PENDING",
+      "migration": "20261024014728_FirmExpenseJournalPostingFirmScope",
+      "implementation": "Nullable (FirmId,JournalId) and (FirmId,PostingId) Restrict references use existing principal keys; supporting indexes. No account/actor/authorization/posting/pair/status semantics changed.",
+      "proof": "RED1: foreign journal/post accepted, samefirm controls and priorFKdenials correct. GREEN2: named schema and normal expense-posting methodsPASS/0FAIL/0SKIP; final EF drift NONE, APIRelease0warnings/errors.",
+      "evidence": ".local/autonomous/evidence/expense-ledger-scope-20261024/review.json",
+      "boundaries": "Owned isolated loopback testDB only; no dev/production apply or data repair. Existing invalid data will fail FK validation; that migration-on-invalid-history path was not separately replayed. Deployed preflight/rollout remains unverified."
     }
   },
   "archivedTargetedVerification": {

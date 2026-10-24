@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Expense journal and posting reference scope (2026-10-24)
+
+Firm expenses now bind optional journal and posting references to their owning firm. Nullable links and ordinary expense posting remain supported. The existing schema test reproduced acceptance of foreign-firm ledger targets before the additive constraint migration and passed afterward; exact evidence is in `status.json`. No historical rows were repaired, and no development or deployed database was migrated. Existing invalid references must be resolved through an authorized data-review process before deployment; full current-source CI and deployed acceptance remain open.
+
 ## Critical workflow acceptance tracing (2026-10-24)
 
 PR #50 was already remotely merged; the main checkout is synchronized on `master`. Existing critical workflow criteria now have bounded source/test verification plans. Focused checks passed for exhaustive phase mapping, task/queue isolation and revision fencing, independent review, blank rework-comment refusal without retained mutations, and evidence-policy replay without source-approval synthesis. The latter does not prove every domain-event producer. Follow-up checks exercise missing client approval at letter generation and retain adverse decisions and an open professional hold after ordinary task completion. Existing commercial, note, confirmation, materiality, freeze, annual and worker-profile checks passed locally. No product behavior changed in these test slices; the guards already existed. Exact evidence and pending CI are in `status.json`. Broader accessibility, professional and provider acceptance remain partial.

@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Npgsql;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -183,8 +184,46 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       db.FirmAccounts.AddRange(accounts);
+      foreach (var fixture in new[] { own, foreign })
+      {
+        db.RoleGrants.AddRange(
+          PbcSeed.Grant(fixture.FirmId, fixture.Staff, "FinanceManager"),
+          PbcSeed.Grant(fixture.FirmId, fixture.Reviewer, "FinanceReviewer"));
+        db.FirmFinanceProfiles.Add(new FirmFinanceProfile
+        {
+          Id = Guid.NewGuid(), FirmId = fixture.FirmId, FunctionalCurrency = "QAR",
+          ProfileKind = BillingStates.TestProfile, Approved = true,
+          ApprovedByUserId = fixture.Reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow,
+          CreatedAt = DateTimeOffset.UtcNow
+        });
+      }
       await db.SaveChangesAsync();
     }
+
+    async Task<(Guid JournalId, Guid PostingId)> CreatePostedJournalAsync(
+      PbcSeed.Fixture fixture, Guid expenseAccountId, Guid bankAccountId, string journalNumber, string sourceKey)
+    {
+      var finance = PbcSeed.Actor(fixture.Staff, "FinanceManager");
+      var reviewer = PbcSeed.Actor(fixture.Reviewer, "FinanceReviewer");
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var period = await LedgerService.CreateFirmPeriodAsync(db, finance, new CreateFirmPeriodRequest("2026-10"));
+      Assert.True(period.Succeeded, period.Message);
+      var journal = await LedgerService.CreateFirmJournalDraftAsync(db, finance,
+        new CreateFirmJournalDraftRequest(period.Value, journalNumber, "MANUAL", sourceKey, 1, "MANUAL", "QAR",
+          [new FirmJournalLineRequest(expenseAccountId, "Synthetic scope debit", 1m, 0m),
+           new FirmJournalLineRequest(bankAccountId, "Synthetic scope credit", 0m, 1m)]));
+      Assert.True(journal.Succeeded, journal.Message);
+      var submitted = await LedgerService.SubmitFirmJournalAsync(db, finance, journal.Value);
+      Assert.True(submitted.Succeeded, submitted.Message);
+      var approved = await LedgerService.ApproveFirmJournalAsync(db, reviewer, journal.Value);
+      Assert.True(approved.Succeeded, approved.Message);
+      var posting = await LedgerService.PostFirmJournalAsync(db, finance, journal.Value);
+      Assert.True(posting.Succeeded, posting.Message);
+      return (journal.Value, posting.Value);
+    }
+
+    var ownLedger = await CreatePostedJournalAsync(own, accounts[0].Id, accounts[1].Id, "J-SCOPE", "SCOPE-OWN");
+    var foreignLedger = await CreatePostedJournalAsync(foreign, accounts[2].Id, accounts[3].Id, "J-SCOPE", "SCOPE-FOREIGN");
 
     await using var connection = new NpgsqlConnection(pg.ConnectionString);
     await connection.OpenAsync();
@@ -193,7 +232,9 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     var evidenceHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(evidence)).ToLowerInvariant();
     var expenseIds = new List<Guid>();
 
-    async Task<string> InsertExpenseAsync(Guid expenseAccountId, Guid paymentAccountId, Guid preparerId, Guid reviewerId)
+    async Task<string> InsertExpenseAsync(
+      Guid expenseAccountId, Guid paymentAccountId, Guid preparerId, Guid reviewerId,
+      Guid? journalId = null, Guid? postingId = null, string status = "APPROVED")
     {
       var expenseId = Guid.NewGuid();
       expenseIds.Add(expenseId);
@@ -204,13 +245,13 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
         await using var command = new NpgsqlCommand("""
           INSERT INTO firm_expenses
             (id, firm_id, expense_date, category, payee, description, amount, currency,
-             expense_account_id, payment_account_id, evidence_file_name, evidence_content_type,
-             evidence_content, evidence_sha256, status, prepared_by_user_id, reviewed_by_user_id,
-             reviewed_at, created_at)
+             expense_account_id, payment_account_id, journal_id, posting_id,
+             evidence_file_name, evidence_content_type, evidence_content, evidence_sha256,
+             status, prepared_by_user_id, reviewed_by_user_id, reviewed_at, created_at)
           VALUES
             (@id, @firm_id, @expense_date, 'OTHER', 'Synthetic payee', 'Scope probe', 1.00, 'QAR',
-             @expense_account_id, @payment_account_id, 'receipt.pdf', 'application/pdf',
-             @evidence_content, @evidence_sha256, 'APPROVED', @prepared_by_user_id,
+             @expense_account_id, @payment_account_id, @journal_id, @posting_id,
+             'receipt.pdf', 'application/pdf', @evidence_content, @evidence_sha256, @status, @prepared_by_user_id,
              @reviewed_by_user_id, @reviewed_at, @created_at)
           """, connection, transaction);
         command.Parameters.AddWithValue("id", expenseId);
@@ -218,8 +259,11 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
         command.Parameters.AddWithValue("expense_date", new DateOnly(2026, 10, 23));
         command.Parameters.AddWithValue("expense_account_id", expenseAccountId);
         command.Parameters.AddWithValue("payment_account_id", paymentAccountId);
+        command.Parameters.AddWithValue("journal_id", (object?)journalId ?? DBNull.Value);
+        command.Parameters.AddWithValue("posting_id", (object?)postingId ?? DBNull.Value);
         command.Parameters.AddWithValue("evidence_content", evidence);
         command.Parameters.AddWithValue("evidence_sha256", evidenceHash);
+        command.Parameters.AddWithValue("status", status);
         command.Parameters.AddWithValue("prepared_by_user_id", preparerId);
         command.Parameters.AddWithValue("reviewed_by_user_id", reviewerId);
         command.Parameters.AddWithValue("reviewed_at", DateTimeOffset.UtcNow);
@@ -236,12 +280,27 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       return outcome;
     }
 
-    var sameFirmControl = await InsertExpenseAsync(accounts[0].Id, accounts[1].Id, own.Admin.Id, own.Staff.Id);
+    var sameFirmNullableLinksControl = await InsertExpenseAsync(
+      accounts[0].Id, accounts[1].Id, own.Admin.Id, own.Staff.Id);
+    var sameFirmJournalControl = await InsertExpenseAsync(
+      accounts[0].Id, accounts[1].Id, own.Admin.Id, own.Staff.Id, ownLedger.JournalId);
+    var sameFirmPostingControl = await InsertExpenseAsync(
+      accounts[0].Id, accounts[1].Id, own.Admin.Id, own.Staff.Id,
+      ownLedger.JournalId, ownLedger.PostingId, "POSTED");
+    var foreignJournal = await InsertExpenseAsync(
+      accounts[0].Id, accounts[1].Id, own.Admin.Id, own.Staff.Id, foreignLedger.JournalId);
+    var foreignPosting = await InsertExpenseAsync(
+      accounts[0].Id, accounts[1].Id, own.Admin.Id, own.Staff.Id,
+      postingId: foreignLedger.PostingId, status: "POSTED");
     var foreignExpenseAccount = await InsertExpenseAsync(accounts[2].Id, accounts[1].Id, own.Admin.Id, own.Staff.Id);
     var foreignPaymentAccount = await InsertExpenseAsync(accounts[0].Id, accounts[3].Id, own.Admin.Id, own.Staff.Id);
     var foreignPreparer = await InsertExpenseAsync(accounts[0].Id, accounts[1].Id, foreign.Admin.Id, own.Staff.Id);
     var foreignReviewer = await InsertExpenseAsync(accounts[0].Id, accounts[1].Id, own.Admin.Id, foreign.Admin.Id);
-    output.WriteLine($"SAME_FIRM_REFERENCES: {sameFirmControl}");
+    output.WriteLine($"SAME_FIRM_NULLABLE_LINKS: {sameFirmNullableLinksControl}");
+    output.WriteLine($"SAME_FIRM_JOURNAL: {sameFirmJournalControl}");
+    output.WriteLine($"SAME_FIRM_POSTING: {sameFirmPostingControl}");
+    output.WriteLine($"FOREIGN_JOURNAL: {foreignJournal}");
+    output.WriteLine($"FOREIGN_POSTING: {foreignPosting}");
     output.WriteLine($"FOREIGN_EXPENSE_ACCOUNT: {foreignExpenseAccount}");
     output.WriteLine($"FOREIGN_PAYMENT_ACCOUNT: {foreignPaymentAccount}");
     output.WriteLine($"FOREIGN_PREPARER: {foreignPreparer}");
@@ -252,7 +311,11 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       "SELECT count(*) FROM firm_expenses WHERE id = ANY(@expense_ids)", connection);
     rollbackCheck.Parameters.AddWithValue("expense_ids", expenseIds.ToArray());
     Assert.Equal(0L, await rollbackCheck.ExecuteScalarAsync());
-    Assert.Equal("ACCEPTED rows=1", sameFirmControl);
+    Assert.Equal("ACCEPTED rows=1", sameFirmNullableLinksControl);
+    Assert.Equal("ACCEPTED rows=1", sameFirmJournalControl);
+    Assert.Equal("ACCEPTED rows=1", sameFirmPostingControl);
+    Assert.Equal("REFUSED SqlState=23503 Constraint=fk_firm_expense_journal_scope", foreignJournal);
+    Assert.Equal("REFUSED SqlState=23503 Constraint=fk_firm_expense_posting_scope", foreignPosting);
     Assert.Equal("REFUSED SqlState=23503 Constraint=fk_firm_expense_expense_account_scope", foreignExpenseAccount);
     Assert.Equal("REFUSED SqlState=23503 Constraint=fk_firm_expense_payment_account_scope", foreignPaymentAccount);
     Assert.Equal("REFUSED SqlState=23503 Constraint=fk_firm_expense_prepared_by_user_scope", foreignPreparer);

@@ -24985,7 +24985,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ExpenseDate");
 
+                    b.HasIndex("FirmId", "JournalId");
+
                     b.HasIndex("FirmId", "PaymentAccountId");
+
+                    b.HasIndex("FirmId", "PostingId");
 
                     b.HasIndex("FirmId", "ReviewedByUserId");
 
@@ -36914,6 +36918,13 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_firm_expense_expense_account_scope");
 
+                    b.HasOne("AuditSphereOps.Domain.Practice.FirmJournal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "JournalId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_firm_expense_journal_scope");
+
                     b.HasOne("AuditSphereOps.Domain.Practice.FirmAccount", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "PaymentAccountId")
@@ -36921,6 +36932,13 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_firm_expense_payment_account_scope");
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.FirmPosting", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "PostingId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_firm_expense_posting_scope");
 
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
