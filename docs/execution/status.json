@@ -1103,7 +1103,6 @@
         "history": "status-archive-2026-10.json#keys.clientContactReadScope20261024",
         "scope": "App contact/routing/recipient/hierarchy and off-page relationship-count revocation guards; no API schema or DB migration."
       },
-      "moduleAtomicTrace": "132 source-line criteria across18moduleparents; SOURCE_TRACED_NOT_ACCEPTED, no functional promotion. Details: status-archive-2026-10.json#keys.moduleAtomicTrace20261024.",
       "clientRoutingOwnerScope": {
         "status": "PASS_LOCAL_FOCUSED; FULL_CI_PENDING",
         "checks": "RED1 privacy exposure -> boundary1PASS + existing routing/authority4PASS; Release/EFdriftPASS. No full local suite.",
@@ -1119,7 +1118,8 @@
         "history": "status-archive-2026-10.json#keys.confirmationDirectMutations20261024",
         "scope": "Creation/mutations official-revocation boundary; status interleavings/source balances remain open."
       },
-      "financialPackageBalance": "PASS_FOCUSED3; manual/read/automatic financial-package predicate aligned. Current CI pending. Archive: status-archive-2026-10.json#keys.financialPackageBalanceEligibility20261024."
+      "financialPackageBalance": "PASS_FOCUSED3; manual/read/automatic financial-package predicate aligned. Current CI pending. Archive: status-archive-2026-10.json#keys.financialPackageBalanceEligibility20261024.",
+      "accountingHandoff": "Tasks10/11/15 source/test trace, not accepted. Native successor/sealed source remain. Archive: status-archive-2026-10.json#keys.accountingHandoffReview20261024."
     },
     "archivedOn20261024": {
       "entries": [

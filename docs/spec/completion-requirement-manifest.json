@@ -7603,7 +7603,7 @@
     "ASCP-18": {
       "specificationFile": "External four-phase31-task AuditSphere_Atomic_Implementation_Spec.md",
       "specificationSha256": "48443a258b9c4e12bb8bf4c1fd081734addb4d14a6514599d5b998b87812db9a",
-      "scope": "Recipe4 direct creation current-authority transaction boundary only; not all Task18 recipes or T059 acceptance.",
+      "scope": "Direct creation and seven mutation paths at official role-revocation transaction-start boundary; source reconciliation remains separate.",
       "observedBaseSha": "f93eefbbbdffb7bf90f370e1ea7d65ac8eac145d",
       "disposition": "IMPLEMENT_DELTA_LOCALLY_VERIFIED",
       "sourceOwners": [
@@ -7614,12 +7614,418 @@
       "regression": {
         "path": "tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs",
         "method": "DirectConfirmationCreationRefusesAuthorityRevokedBeforeItsTransaction",
-        "expectedOutcome": "After official role revocation commits at transaction-start boundary, direct creation refuses without publishing a case; earlier authorized case remains."
+        "expectedOutcome": "After official role revocation commits at transaction-start boundary, direct creation refuses without publishing a case; earlier authorized case remains.",
+        "mutationMethod": "DirectConfirmationMutationsRefuseAuthorityRevokedBeforeTheirTransaction",
+        "mutationOutcome": "Authorized rollback positives precede official role revocation; approval/dispatch/response/review/alternative/review-alternative/close deny without persisted changes. Six original gaps reproduced; Close already denied."
       },
       "evidence": "docs/execution/status.json#targetedVerification.ascpSpecDiscovery20261024.confirmationDirectAuthority",
-      "remaining": "Other direct mutations and commit-window interleavings; source/ledger/schedule-derived booked amount, human difference explanation and existing difference/review-point links; full current CI and required professional/provider acceptance. Source-contract sidecar pending; no invented source balance or policy.",
+      "remaining": "Remaining commit-window/status interleavings; typed source-derived booked amount and retained lineage for all areas; human difference explanations and existing difference/review-point links; current full CI and required professional/provider acceptance. Source trace is not source adapter implementation.",
       "acceptance": "PARTIAL_LOCAL_VERIFICATION",
-      "taskComplete": false
+      "taskComplete": false,
+      "sourceReconciliation": {
+        "observedSourceSha": "eb4e0dc0128bf939afaebb321c29ec6e21ff465d",
+        "disposition": "SOURCE_CONTRACTS_TRACED_NO_ADAPTER_IMPLEMENTED",
+        "areaContracts": [
+          {
+            "area": "BANK",
+            "sourceContracts": [
+              "bank-reconciliation",
+              "approved-schedule",
+              "accepted-gl",
+              "accepted-tb"
+            ],
+            "exactExistingAmount": "AuditBankReconciliation.LedgerBalance",
+            "exactExistingCurrency": "AuditBankReconciliation.Currency",
+            "exactSourceIdentity": [
+              "AuditBankReconciliation.Id",
+              "LedgerScheduleId",
+              "StatementScheduleId",
+              "InputGeneration",
+              "ReviewedByUserId",
+              "ReviewedAt",
+              "AuditSchedule.SourceHash",
+              "AuditSchedule.SourceImportBatchId",
+              "AuditSchedule.AcceptedSourceDecisionId",
+              "AuditSchedule.AcceptedSourceHash"
+            ],
+            "currentConfirmationResolver": null,
+            "disposition": "ONE_NARROW_ADAPTER_CANDIDATE",
+            "acceptance": "UNVERIFIED",
+            "remaining": "Explicitly selected reconciliation must match the intended Bank request scope/date/currency. No inferred bank/respondent/account grouping; typed source input and retained source lineage are not already present in current confirmation fields."
+          },
+          {
+            "area": "AR",
+            "sourceContracts": [
+              "approved-schedule",
+              "sampling",
+              "accounting-reconciliation",
+              "accepted-tb",
+              "accepted-gl",
+              "native-open-items"
+            ],
+            "exactExistingAmount": null,
+            "availableAmounts": [
+              "AuditScheduleRow.SignedAmount",
+              "AuditSelectionItem.SignedAmount",
+              "AccountingReconciliationItem.SignedAmount",
+              "AccountingReconciliation.SourceTotal/GlTotal",
+              "ClientSalesInvoiceOpenItem.OriginalAmount"
+            ],
+            "currency": "Exact row/item currency or resolved parent period currency; do not assume one for mixed sources.",
+            "currentConfirmationResolver": null,
+            "disposition": "UNVERIFIED_RESPONDENT_BALANCE_CONTRACT",
+            "acceptance": "UNVERIFIED",
+            "remaining": "No typed existing resolver maps legacy SourceRecordId/Respondent to a particular approved current debtor balance. Exact row/invoice/account values exist but cannot silently become a whole counterparty balance; do not invent summation, credit netting or conversion."
+          },
+          {
+            "area": "AP",
+            "sourceContracts": [
+              "approved-schedule",
+              "sampling",
+              "accounting-reconciliation",
+              "accepted-tb",
+              "accepted-gl",
+              "native-open-items"
+            ],
+            "exactExistingAmount": null,
+            "availableAmounts": [
+              "AuditScheduleRow.SignedAmount",
+              "AccountingReconciliationItem.SignedAmount",
+              "AccountingReconciliation.SourceTotal/GlTotal",
+              "ClientPurchaseInvoiceOpenItem.OriginalAmount"
+            ],
+            "currency": "Exact row/item or resolved source period currency.",
+            "currentConfirmationResolver": null,
+            "disposition": "UNVERIFIED_RESPONDENT_BALANCE_CONTRACT",
+            "acceptance": "UNVERIFIED",
+            "remaining": "Existing source records do not establish an automatic creditor respondent balance selector. Sign direction, debit balances, supplier netting and source cutoff cannot be guessed from account or respondent labels."
+          },
+          {
+            "area": "INVENTORY",
+            "sourceContracts": [
+              "approved-schedule",
+              "sampling",
+              "accounting-reconciliation",
+              "inventory-valuation",
+              "accepted-tb"
+            ],
+            "exactExistingAmount": null,
+            "availableAmounts": [
+              "AuditScheduleRow.SignedAmount",
+              "AccountingReconciliation.SourceTotal/GlTotal",
+              "InventoryValuationAssessment.BookAmount/CalculatedAmount/Quantity"
+            ],
+            "currency": "Valuation has no Currency field; resolve exact source period/row.",
+            "currentConfirmationResolver": null,
+            "disposition": "UNVERIFIED_CUSTODIAN_ITEM_BOOKED_SOURCE",
+            "acceptance": "UNVERIFIED",
+            "remaining": "No typed item/site/custodian booked-balance resolver was established. Generic schedule rows are candidates only when actual source semantics are explicit; caller BookAmount is not independent booked-ledger derivation."
+          },
+          {
+            "area": "LEGAL",
+            "sourceContracts": [
+              "approved-schedule",
+              "accepted-tb"
+            ],
+            "exactExistingAmount": null,
+            "currency": null,
+            "currentConfirmationResolver": null,
+            "disposition": "UNVERIFIED_LEGAL_MONETARY_SOURCE_CONTRACT",
+            "acceptance": "UNVERIFIED",
+            "remaining": "Current Legal taxonomy exists. Targeted audit/accounting domain and schedule/reconciliation sources did not establish a typed legal-matter booked-value resolver. Generic evidence/account values do not authorize legal valuation, a monetary applicability assumption or zero/default balance."
+          }
+        ],
+        "sourceContracts": [
+          {
+            "id": "approved-schedule",
+            "entities": [
+              "schedule",
+              "schedule-row"
+            ],
+            "owners": [
+              "schedule-create",
+              "schedule-review",
+              "schedule-bind",
+              "schedule-staleness"
+            ],
+            "amount": "AuditScheduleRow.SignedAmount; AuditSchedule.SignedControlTotal only when the intended scope is exactly that approved whole schedule.",
+            "currency": "AuditScheduleRow.Currency / AuditSchedule.Currency",
+            "versionAndDigest": "AuditSchedule.Id, SourceHash, SourceReceiptReference, InputGeneration and optional AcceptedSourceDecisionId/AcceptedSourceHash. No numeric Revision field.",
+            "acceptedStatus": "APPROVED with CompletenessDecision. Accepted source binding is optional, not presumed.",
+            "limit": "ScheduleType and OriginalValuesJson are generic. Approval alone does not prove every manual row is a ledger-derived respondent balance. SourceHash is a retained source hash, not a newly computed confirmation manifest."
+          },
+          {
+            "id": "sampling",
+            "entities": [
+              "selection",
+              "selection-item",
+              "population"
+            ],
+            "owners": [
+              "selection-create",
+              "selection-review"
+            ],
+            "amount": "AuditSelectionItem.SignedAmount can be tied to AuditScheduleRow.SignedAmount only after exact row-parent lineage is verified. PopulationVersion.MonetaryControlTotal is a population control total.",
+            "currency": "SelectionItem.Currency and its exact parent schedule/population context.",
+            "versionAndDigest": "Selection.Id, ScheduleId/PopulationVersionId, ScheduleRowId/StableRowId, InputGeneration and reviewed actor/time; no new source digest is invented.",
+            "acceptedStatus": "REVIEWED selection with approved source.",
+            "limit": "Population-only item values can still be caller supplied. No typed population row/digest/respondent booked-balance resolver was established. Reviewed sampling alone is not booked-source proof."
+          },
+          {
+            "id": "bank-reconciliation",
+            "entities": [
+              "bank",
+              "schedule",
+              "gl-batch"
+            ],
+            "owners": [
+              "bank-create",
+              "bank-review",
+              "schedule-create",
+              "schedule-bind",
+              "selected-gl"
+            ],
+            "amount": "AuditBankReconciliation.LedgerBalance, retained from AuditSchedule.SignedControlTotal; not StatementBalance or a new net of reconciling items.",
+            "currency": "AuditBankReconciliation.Currency; matching source schedule/batch currency.",
+            "versionAndDigest": "Bank reconciliation Id, InputGeneration, Status/ReviewedByUserId/ReviewedAt; LedgerScheduleId/StatementScheduleId and source hashes/batch/accepted decision. No own numeric Revision or digest property exists.",
+            "acceptedStatus": "APPROVED, independently reviewed, zero residual and current generation; exact source schedules remain approved.",
+            "limit": "No current confirmation source selector/SourceRecordId encoding connects this entity. Bank respondent/account grouping cannot be inferred from names or EntityIdentifier. Application immutability guards were observed; full DB append-only assurance was not established."
+          },
+          {
+            "id": "accepted-tb",
+            "entities": [
+              "tb-dataset",
+              "tb-row"
+            ],
+            "owners": [
+              "selected-tb",
+              "reconciliation-create"
+            ],
+            "amount": "TrialBalanceRow.Amount is an exact signed account balance; SourceDebit/SourceCredit retain input sides.",
+            "currency": "TrialBalanceRow.Currency and TrialBalanceDataset.Currency",
+            "versionAndDigest": "Dataset.Id/Revision/NormalizedDatasetDigest/raw hash/import profile; row.Id and DatasetId. Existing owners may disclose legacy Sha256Hex fallback.",
+            "acceptedStatus": "SEALED, validation Accepted, Balanced plus separately selected ACCEPTED source decision; validation is not independent source acceptance.",
+            "limit": "No bank account, customer/supplier/custodian/legal-matter key is present in a TB row. No arbitrary account-to-area mapping, respondent grouping or currency conversion."
+          },
+          {
+            "id": "accepted-gl",
+            "entities": [
+              "gl-batch",
+              "gl-line"
+            ],
+            "owners": [
+              "selected-gl",
+              "gl-source-lines",
+              "reconciliation-create"
+            ],
+            "amount": "Debit/Credit and FunctionalAmount are line activity. OriginalAmount belongs to OriginalCurrency. Existing FinancialScheduleSourceLine contains signed line amount/currency/LineHash.",
+            "currency": "Batch.Currency is source functional currency; OriginalCurrency is distinct.",
+            "versionAndDigest": "SEALED SourceImportBatch.Id/NormalizedDatasetDigest/raw hash/ProfileVersion/ParserVersion; exact line.Id/TransactionId/StableLineId and accepted decision.",
+            "acceptedStatus": "Scoped sealed batch plus selected ACCEPTED decision and exact requested parent context.",
+            "limit": "PartyIdentifier or a single line/net movement is not automatically an as-of booked party balance. GL period selector has no book input; do not assume exactness across books."
+          },
+          {
+            "id": "accounting-reconciliation",
+            "entities": [
+              "reconciliation",
+              "reconciliation-item",
+              "reconciliation-proof"
+            ],
+            "owners": [
+              "reconciliation-create",
+              "reconciliation-review"
+            ],
+            "amount": "SourceTotal/GlTotal are existing selected-account aggregates. AccountingReconciliationItem.SignedAmount is a specific reconciling item, not necessarily the whole debtor/creditor balance.",
+            "currency": "Item.Currency; parent has no Currency property, so resolve its period/source currency.",
+            "versionAndDigest": "Reconciliation.Id/Revision/SupersedesReconciliationId/SourceHash/InputGeneration and exact proof ItemManifestDigest/FormulaVersion/source IDs.",
+            "acceptedStatus": "Existing independent approval/current source/zero unexplained residual/latest exact item proof.",
+            "limit": "Area and StableItemId are not typed respondent identifiers. Do not spread parent totals across parties or infer sign/netting policy."
+          },
+          {
+            "id": "inventory-valuation",
+            "entities": [
+              "inventory",
+              "reconciliation"
+            ],
+            "owners": [
+              "inventory-create",
+              "reconciliation-review"
+            ],
+            "amount": "InventoryValuationAssessment.BookAmount is supplied by the caller; CalculatedAmount follows the existing valuation formula and is a different value.",
+            "currency": "Assessment has no Currency property; source period currency must be resolved.",
+            "versionAndDigest": "Id/Version/ReconciliationId/ReconciliationSourceHash/InputGeneration/AsOfDate/AssumptionsHash/MethodologyVersion.",
+            "acceptedStatus": "Reviewed valuation/currentness is not proof that BookAmount was independently derived for an item/custodian.",
+            "limit": "Do not substitute quantity, cost/NRV result or aggregate inventory account for an unspecified confirmation booked amount."
+          },
+          {
+            "id": "native-open-items",
+            "entities": [
+              "ar-open-item",
+              "ap-open-item"
+            ],
+            "owners": [
+              "native-open-items"
+            ],
+            "amount": "Posted invoice open item OriginalAmount. BalancesAsync derives current open/applied amounts through current approved allocations/opening evidence.",
+            "currency": "OpenItem.Currency",
+            "versionAndDigest": "Item.Id with InvoiceId/SubmissionId/JournalId/PostedAt; no engagement/source-snapshot digest property claimed.",
+            "acceptedStatus": "Native posted client evidence is separate from accepted audit-engagement source selection.",
+            "limit": "CustomerId/SupplierId is useful but no automatic party sum, historical economic cutoff or frozen audit-engagement source is established. Native mode must not become a prerequisite for import-first clients."
+          }
+        ],
+        "currentOwners": {
+          "request": {
+            "path": "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkServiceContracts.cs",
+            "symbol": "CreateConfirmationRequest",
+            "line": 71,
+            "observation": "Caller SourceRecordId text and decimal BookedAmount; no typed booked-source reference contract."
+          },
+          "case-create": {
+            "path": "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Confirmations.cs",
+            "symbol": "AuditFieldworkService.CreateConfirmationAsync",
+            "line": 14,
+            "observation": "Parent-owned source inspected for booked/source assignment only; parent authorization work is excluded."
+          },
+          "batch-create": {
+            "path": "src/AuditSphereOps.Application/Audit/AuditConfirmationBatchService.cs",
+            "symbol": "AuditConfirmationBatchService.CreateConfirmationBatchAsync",
+            "line": 46,
+            "observation": "Current batch likewise receives and persists caller source text/amount; not a source-balance resolver."
+          },
+          "workspace": {
+            "path": "src/AuditSphereOps.Application/Audit/ConfirmationWorkspace.cs",
+            "symbol": "ConfirmationWorkspace",
+            "line": 34,
+            "observation": "Parent-owned reviewed workspace inspected only for source/amount forwarding."
+          },
+          "schedule-create": {
+            "path": "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Schedules.cs",
+            "symbol": "AuditFieldworkService.CreateScheduleAsync",
+            "line": 11,
+            "observation": "BANK_LEDGER requires scoped sealed GL source matching hash/entity/currency and server-resolved account control total. Unbound generic schedules still receive rows/hash/control input."
+          },
+          "schedule-review": {
+            "path": "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Schedules.cs",
+            "symbol": "AuditFieldworkService.ReviewScheduleAsync",
+            "line": 99,
+            "observation": "Independent completeness review requires zero residual. It does not make all manual schedules ledger-derived respondent balances."
+          },
+          "schedule-bind": {
+            "path": "src/AuditSphereOps.Application/Audit/AuditScheduleSourceBindingService.cs",
+            "symbol": "AuditScheduleSourceBindingService.BindScheduleToAcceptedSourceAsync",
+            "line": 36,
+            "observation": "Pins same-client/engagement accepted decision/hash before schedule approval, not derivation of each row from source."
+          },
+          "schedule-staleness": {
+            "path": "src/AuditSphereOps.Application/Audit/AuditScheduleSourceBindingService.cs",
+            "symbol": "AuditScheduleSourceBindingService.GetSourceStalenessAsync",
+            "line": 78,
+            "observation": "Current helper uses engagement-wide latest accepted source; do not substitute it for exact kind/period/book identity."
+          },
+          "selection-create": {
+            "path": "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Selections.cs",
+            "symbol": "AuditFieldworkService.CreateSelectionAsync",
+            "line": 11,
+            "observation": "Schedule branch resolves stable source rows and copies their signed amount/currency. Population-only branch may copy caller selected amount."
+          },
+          "selection-review": {
+            "path": "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Selections.cs",
+            "symbol": "AuditFieldworkService.ReviewSelectionAsync",
+            "line": 86,
+            "observation": "Independent reviewed selection and current generation; no universal respondent balance resolver."
+          },
+          "bank-create": {
+            "path": "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.BankReconciliations.cs",
+            "symbol": "AuditFieldworkService.CreateBankReconciliationAsync",
+            "line": 11,
+            "observation": "LedgerBalance copied from approved BANK_LEDGER SignedControlTotal; approved BANK_STATEMENT, same date/currency/scope checked."
+          },
+          "bank-review": {
+            "path": "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.BankReconciliations.cs",
+            "symbol": "AuditFieldworkService.ReviewBankReconciliationAsync",
+            "line": 106,
+            "observation": "Independent approval requires current generation, zero residual, approved source schedules; approved reconciliation rereview is refused."
+          },
+          "selected-tb": {
+            "path": "src/AuditSphereOps.Application/Accounting/AccountingSourceAcceptanceService.cs",
+            "symbol": "AccountingSourceAcceptanceService.GetSelectedTrialBalanceForPeriodAsync",
+            "line": 228,
+            "observation": "Exact TB source selection by period/book/basis/currency/legal entity returns accepted decision/hash and generation."
+          },
+          "selected-gl": {
+            "path": "src/AuditSphereOps.Application/Accounting/AccountingSourceAcceptanceService.cs",
+            "symbol": "AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync",
+            "line": 199,
+            "observation": "Period-scoped accepted GL selection has no explicit book argument. Verify actual batch book/context rather than assuming arbitrary-book exactness."
+          },
+          "gl-source-lines": {
+            "path": "src/AuditSphereOps.Application/Accounting/FinancialScheduleSourceQuery.cs",
+            "symbol": "FinancialScheduleSourceQuery.GetAsync",
+            "line": 24,
+            "observation": "Authorized accepted sealed GL source discovery supplies exact line identity/signed amount/currency/LineHash; not party aggregation or professional approval."
+          },
+          "reconciliation-create": {
+            "path": "src/AuditSphereOps.Application/Accounting/Analysis/AccountingAnalysisService.Reconciliation.cs",
+            "symbol": "AccountingAnalysisService.CreateReconciliationAsync",
+            "line": 14,
+            "observation": "SourceTotal/GlTotal resolved from exact selected TB/GL account population and source identity, not respondent text."
+          },
+          "reconciliation-review": {
+            "path": "src/AuditSphereOps.Application/Accounting/Analysis/AccountingAnalysisService.Reconciliation.cs",
+            "symbol": "AccountingAnalysisService.ApproveReconciliationAsync",
+            "line": 400,
+            "observation": "Checks retained source/current generation and latest reconciled proof/item manifest."
+          },
+          "inventory-create": {
+            "path": "src/AuditSphereOps.Application/Accounting/Analysis/AccountingAnalysisService.Valuations.cs",
+            "symbol": "AccountingAnalysisService.CreateInventoryValuationAsync",
+            "line": 53,
+            "observation": "Retains source reconciliation/version, but BookAmount is copied from request.BookAmount; CalculatedAmount is a separate valuation output."
+          },
+          "native-open-items": {
+            "path": "src/AuditSphereOps.Application/Accounting/ClientOpenItemAllocationWorkflow.cs",
+            "symbol": "ClientOpenItemAllocationWorkflow.BalancesAsync",
+            "line": 53,
+            "observation": "Native client current allocation/opening projection; not a frozen audit-engagement external subledger balance."
+          },
+          "fieldwork-query": {
+            "path": "src/AuditSphereOps.Application/Audit/AuditFieldworkWorkspaceQuery.cs",
+            "symbol": "AuditFieldworkWorkspaceQuery.GetAsync",
+            "line": 89,
+            "observation": "Existing approved schedule discovery; no implied area-specific source resolver."
+          },
+          "storage": {
+            "path": "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Fieldwork.cs",
+            "symbol": "ConfigureFieldwork",
+            "line": 12,
+            "observation": "Existing scoped relationships and case fields; no current typed booked-source/digest field assumed."
+          }
+        },
+        "technicalOrMethodologyInputs": [
+          {
+            "area": "BANK",
+            "kind": "TECHNICAL_CONTRACT",
+            "required": "Typed selected existing reconciliation input and minimal retained lineage design. Copying an already-approved LedgerBalance needs no newly invented valuation policy or blanket professional gate."
+          },
+          {
+            "area": "AR/AP",
+            "kind": "QUALIFIED_ONLY_IF_NEW_AGGREGATION_REQUIRED",
+            "required": "Obtain actual approved source/party-balance contract first. Only if existing methodology does not decide requested aggregation/sign/netting/credits/as-of/currency treatment, obtain qualified owner evidence; do not invent a new gate solely from missing anchors."
+          },
+          {
+            "area": "INVENTORY",
+            "kind": "QUALIFIED_MEANING_IF_UNRESOLVED",
+            "required": "Identify whether request is quantity or a specific item/custodian booked monetary value and its authoritative retained source/basis/currency. Existing caller BookAmount/NRV is not this decision."
+          },
+          {
+            "area": "LEGAL",
+            "kind": "QUALIFIED_MONETARY_APPLICABILITY",
+            "required": "Identify actual retained matter/document source and whether a monetary booked amount applies, with its approved meaning/date/currency. No platform legal valuation or automatic zero; this is an unresolved source meaning, not a new blanket legal gate."
+          }
+        ],
+        "immutabilityLimit": "Record identities, sealed/approved status, independent review, version/source hashes and currentness are reported at actual owners. Comments/status alone do not prove universal database append-only enforcement or respondent semantics; generic manual sources are not universally accepted.",
+        "limits": "Authorization edits after this observation do not derive booked balances. Confirmation creation assignment was inspected only for caller-source/amount semantics; no manual source was silently validated, no legacy text reinterpreted, no amount invented. Bank selection/retained-lineage technical contract remains ready for design; other areas need exact existing contracts before any aggregation or valuation."
+      }
     },
     "ASCP-06": {
       "scope": "Financial-package release prerequisite for manual balance draft and projected eligibility; shared automatic predicate only.",
@@ -7635,6 +8041,2030 @@
       "regression": "AuditSphereOps.Domain.Tests.CommercialWorkflowTests.AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
       "evidence": "docs/execution/status-archive-2026-10.json#keys.financialPackageBalanceEligibility20261024",
       "remaining": "Exact-source full CI, automatic balance journey, broader commercial/provider/browser acceptance and preserved professional decisions."
+    },
+    "ASCP-10": {
+      "specificationSha256": "48443a258b9c4e12bb8bf4c1fd081734addb4d14a6514599d5b998b87812db9a",
+      "scope": "Import-first accounting/mapping/journal-to-statement handoff",
+      "disposition": "SOURCE_TRACED_TARGET_ACCEPTANCE_UNVERIFIED",
+      "taskComplete": false,
+      "acceptance": "NOT_ACCEPTED",
+      "recipes": [
+        {
+          "recipeNumber": 1,
+          "sourceLine": 726,
+          "sourceText": "1. Trace bounded CSV and genuine XLSX parsing through validation/quarantine, source counts/control totals, immutable normalized digest, sealing and independently authorized acceptance. Preserve original/source artifacts and actionable rejected-row information.",
+          "sourceTextSha256": "ad1467899a6b3ff91137d73d12b74d809ae10974f414bfb09399ed4db0a34fe6",
+          "currentOwnerAnchors": [
+            "csv",
+            "xlsx",
+            "tb-import",
+            "tb-validation",
+            "tb-accept"
+          ],
+          "existingTestSelectors": [
+            "parse",
+            "malformed",
+            "xlsx",
+            "xlsx-deny",
+            "duplicate",
+            "rejected",
+            "source-accept"
+          ],
+          "engineeringDisposition": "VERIFY_ONLY",
+          "finding": "Real bounded parsers, source digests, loading/sealed validation, typed rejected issues and independent source acceptance already exist. Reuse these engines.",
+          "remaining": "Selected retained cases support their specific invariants. End-to-end original-artifact custody/quarantine and all actionable parse-rejection UI paths remain unverified as a complete Task10 handoff.",
+          "fullTargetOwner": "SUPPORTING_OWNERS_LISTED_FULL_TARGET_UNVERIFIED",
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "parse",
+            "malformed",
+            "xlsx",
+            "xlsx-deny",
+            "duplicate",
+            "rejected",
+            "source-accept"
+          ],
+          "ownerFilesMatchingA9": [
+            "csv",
+            "xlsx",
+            "tb-import",
+            "tb-validation",
+            "tb-accept"
+          ]
+        },
+        {
+          "recipeNumber": 2,
+          "sourceLine": 727,
+          "sourceText": "2. Bind current/prior-year sources to exact client/engagement/period/book/currency and approved mapping revision. Mapping memory produces suggestions, not silent approval. Treat absent comparatives and zero as different states.",
+          "sourceTextSha256": "4610f058c56a5cbd04feb8fb0c818906d65185fec7ba41a2e24cc2fa1793603c",
+          "currentOwnerAnchors": [
+            "tb-import",
+            "mapping",
+            "mapping-review",
+            "package-build"
+          ],
+          "existingTestSelectors": [
+            "source-scope",
+            "chart",
+            "comparative",
+            "scope-denial"
+          ],
+          "engineeringDisposition": "VERIFY_ONLY",
+          "finding": "Current sources resolve exact period/book/basis/client/engagement; mapping pins approved chart/version and package consumes exact mapping/plan IDs.",
+          "remaining": "Full current/prior source-to-package journey, mapping-memory suggestion-only behavior and absent-versus-zero presentation are not established together by the selected tests. No silent approval or rebinding is authorized.",
+          "fullTargetOwner": "SUPPORTING_OWNERS_LISTED_FULL_TARGET_UNVERIFIED",
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "source-scope",
+            "chart",
+            "comparative",
+            "scope-denial"
+          ],
+          "ownerFilesMatchingA9": [
+            "tb-import",
+            "mapping",
+            "mapping-review",
+            "package-build"
+          ]
+        },
+        {
+          "recipeNumber": 3,
+          "sourceLine": 728,
+          "sourceText": "3. Verify balanced decimal arithmetic, approved account/FSLI identity and exact journal review\u2192submit\u2192return\u2192post/reversal lineage. Do not add a second rounding rule or coerce money into JavaScript number.",
+          "sourceTextSha256": "3a792bcd026f5ca5ec0ecdcd4148e538ef0e58212a67c6f968ebcbf53dc029f2",
+          "currentOwnerAnchors": [
+            "journal",
+            "journal-submit",
+            "journal-reversal",
+            "journal-ui"
+          ],
+          "existingTestSelectors": [
+            "journal-denial",
+            "reversal",
+            "journal-ui",
+            "scope-denial"
+          ],
+          "engineeringDisposition": "VERIFY_ONLY",
+          "finding": "Balanced decimal reporting adjustment and review/rework/reversal owners exist; UI uses existing reviewed command contracts.",
+          "remaining": "Selected Domain cases do not execute the Angular review/submit/return/post journey. Keep six-decimal/ToEven authority and exact string money; no second rounding policy or external posting acceptance.",
+          "fullTargetOwner": "SUPPORTING_OWNERS_LISTED_FULL_TARGET_UNVERIFIED",
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "journal-denial",
+            "reversal",
+            "scope-denial"
+          ],
+          "ownerFilesMatchingA9": [
+            "journal",
+            "journal-submit",
+            "journal-reversal",
+            "journal-ui"
+          ]
+        },
+        {
+          "recipeNumber": 4,
+          "sourceLine": 729,
+          "sourceText": "4. Test each reflection treatment through the existing bridge and adjustment-plan eligibility. Avoid applying an audit adjustment again when already reflected in source; never assume an exported journal was externally posted.",
+          "sourceTextSha256": "01a1bcf3ef73cb9753e3113bfcab2e80c98f7c9a8089a7dafa13ba17f4c91506",
+          "currentOwnerAnchors": [
+            "reflection",
+            "plan-finalize",
+            "plan-command",
+            "journal-export"
+          ],
+          "existingTestSelectors": [
+            "bridge-cycle",
+            "stale-reflection",
+            "reversal",
+            "plan-ui"
+          ],
+          "engineeringDisposition": "VERIFY_ONLY",
+          "finding": "SourceReconciliationService owns evidence-based reflection. Plan finalization rejects stale/unknown/partial reflection and applies only NotReflected journals; export remains an instruction.",
+          "remaining": "All reflection treatments and actual external source posting evidence must remain distinct. Existing selected tests support no-double-adjustment/stale guards; they do not supply external posting confirmation.",
+          "fullTargetOwner": "SUPPORTING_OWNERS_LISTED_FULL_TARGET_UNVERIFIED",
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "bridge-cycle",
+            "stale-reflection",
+            "reversal"
+          ],
+          "ownerFilesMatchingA9": [
+            "reflection",
+            "plan-finalize",
+            "plan-command",
+            "journal-export"
+          ]
+        },
+        {
+          "recipeNumber": 5,
+          "sourceLine": 730,
+          "sourceText": "5. Confirm accepted source/mapping changes invalidate current analysis/materiality/packages and expose the required refresh/review action without rebinding historical work.",
+          "sourceTextSha256": "35adc891559a7e0a22b65c8fb6e16329811bdf3cd629e006bfad2de4579dedc0",
+          "currentOwnerAnchors": [
+            "tb-accept",
+            "review-current",
+            "package-build"
+          ],
+          "existingTestSelectors": [
+            "source-accept",
+            "stale-reflection",
+            "reviews"
+          ],
+          "engineeringDisposition": "UNVERIFIED",
+          "finding": "Accepted-source decisions increment InputGeneration and package/current-review checks consume exact current source facts. These are direct narrower currentness owners.",
+          "remaining": "A single traced source-or-mapping change -> analysis/materiality/packages -> explicit refresh/review journey is not established by this bounded slice. No claim that limited anchors prove another implementation absent.",
+          "fullTargetOwner": null,
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "source-accept",
+            "stale-reflection",
+            "reviews"
+          ],
+          "ownerFilesMatchingA9": [
+            "tb-accept",
+            "review-current",
+            "package-build"
+          ]
+        },
+        {
+          "recipeNumber": 6,
+          "sourceLine": 731,
+          "sourceText": "6. Close only missing split-dashboard drill-down or currentness/denial/retry states using existing routes and decoders. Integrate fresh source results into planning and statements while keeping operational native activity separate.",
+          "sourceTextSha256": "9aec4823d017bdf83aa363c5e915d40bc3785d1c474843b0d76a23f30df3b2df",
+          "currentOwnerAnchors": [
+            "gl-query",
+            "accept-ui",
+            "journal-ui",
+            "plan-ui",
+            "package-build"
+          ],
+          "existingTestSelectors": [
+            "source-ui",
+            "journal-ui",
+            "plan-ui"
+          ],
+          "engineeringDisposition": "UNVERIFIED",
+          "finding": "Existing imported GL drilldown and reviewed acceptance/journal/plan routes provide reuse paths; native operational movement remains a separate ledger.",
+          "remaining": "A missing split-dashboard/refresh/denial/retry behavior was not proven. Full fresh-source planning/statement handoff and relevant UI/API journeys remain unverified. No route or dashboard replacement is proposed.",
+          "fullTargetOwner": null,
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [],
+          "ownerFilesMatchingA9": [
+            "gl-query",
+            "accept-ui",
+            "journal-ui",
+            "plan-ui",
+            "package-build"
+          ]
+        }
+      ],
+      "ciEvidence": {
+        "runId": 40055833218,
+        "resolvedSha": "a9a93692e73671470131aa807b12f526034445e1",
+        "sourceMatch": "MATCH",
+        "scope": "Only named retained Domain cases and exact source/test bytes; not current combined full CI, UI/API/browser, whole recipe or professional acceptance.",
+        "angularFileEvidence": "Shared register records exact-source Angular file passes on764d; not structured individual-case evidence or current overall full pass."
+      },
+      "reviewLimits": "Named retained a9 Domain cases and exact-source764d Angular file passes support only their stated invariants. No local reruns, browser/API/persistence extrapolation, whole-recipe/full-current-CI/professional acceptance. Missing complete-target owners/checks remain unverified.",
+      "engineeringBoundary": "Unavailable real-client mandate/cutover evidence blocks dependent live acceptance, not independent technical source-contract work. Native successor opening and sealed reporting source remain implementation targets; limited search or analogous producer tests do not prove them delivered.",
+      "sharedAccountingHandoffRegister": {
+        "sourceOwners": {
+          "csv": {
+            "path": "src/AuditSphereOps.Application/Accounting/TrialBalanceCsvImporter.cs",
+            "symbol": "TrialBalanceCsvImporter.Parse",
+            "line": 51,
+            "coverageScope": "Bounded typed CSV with precision validation and normalized identity; not client external posting."
+          },
+          "xlsx": {
+            "path": "src/AuditSphereOps.Application/Accounting/TrialBalanceXlsxImporter.cs",
+            "symbol": "TrialBalanceXlsxImporter.Parse",
+            "line": 21,
+            "coverageScope": "Real bounded literal XLSX parser; rejects macro/formula/external-link content."
+          },
+          "tb-import": {
+            "path": "src/AuditSphereOps.Application/Accounting/TrialBalanceImportService.cs",
+            "symbol": "TrialBalanceImportService.ImportParsedAsync",
+            "line": 234,
+            "coverageScope": "Exact period/book/basis and scope resolution, immutable normalized source digest, loading/sealing and durable validation operation."
+          },
+          "tb-validation": {
+            "path": "src/AuditSphereOps.Application/Accounting/TrialBalanceValidationHandler.cs",
+            "symbol": "TrialBalanceValidationHandler.PublishAsync",
+            "line": 47,
+            "coverageScope": "Persisted typed rejected-data issues/control validation; validation Accepted is distinct from independent source acceptance."
+          },
+          "tb-accept": {
+            "path": "src/AuditSphereOps.Application/Accounting/AccountingSourceAcceptanceService.cs",
+            "symbol": "AccountingSourceAcceptanceService.AcceptSourceRevisionAsync",
+            "line": 29,
+            "coverageScope": "Independent accepted sealed source selection and client InputGeneration increment, with append-only decision and final authorization."
+          },
+          "accept-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/source-acceptance.ts",
+            "symbol": "SourceAcceptance",
+            "line": 451,
+            "coverageScope": "Current exact reviewed source acceptance UI; selected Angular checks are unrun here."
+          },
+          "mapping": {
+            "path": "src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Mapping.cs",
+            "symbol": "FinancialStatementService.CreateMappingVersionCoreAsync",
+            "line": 23,
+            "coverageScope": "Server-scoped dataset and explicit approved chart/version/effective-period applicability; not mapping-memory auto-approval."
+          },
+          "mapping-review": {
+            "path": "src/AuditSphereOps.Application/Accounting/MappingApprovalWorkspace.cs",
+            "symbol": "MappingApprovalWorkspace.GetAsync",
+            "line": 28,
+            "coverageScope": "Exact reviewed mapping/source/allocations/current authority projection."
+          },
+          "journal": {
+            "path": "src/AuditSphereOps.Application/Accounting/AdjustmentJournalService.cs",
+            "symbol": "AdjustmentJournalService.PostAsync",
+            "line": 427,
+            "coverageScope": "Reporting adjustment journal posting with independent review; remains separate from native operational and firm ledgers."
+          },
+          "journal-submit": {
+            "path": "src/AuditSphereOps.Application/Accounting/AdjustmentJournalService.cs",
+            "symbol": "AdjustmentJournalService.SubmitDraftAsync",
+            "line": 214,
+            "coverageScope": "Exact balanced submitted revision, including returned draft rework."
+          },
+          "journal-reversal": {
+            "path": "src/AuditSphereOps.Application/Accounting/AdjustmentJournalService.cs",
+            "symbol": "AdjustmentJournalService.CreateReversalDraftAsync",
+            "line": 267,
+            "coverageScope": "Retained reversal-of linkage rather than mutation of posted original."
+          },
+          "journal-export": {
+            "path": "src/AuditSphereOps.Application/Accounting/AdjustmentJournalService.cs",
+            "symbol": "AdjustmentJournalService.BuildInstructionExportAsync",
+            "line": 328,
+            "coverageScope": "External client-book instruction export is not evidence of external posting/reflection."
+          },
+          "reflection": {
+            "path": "src/AuditSphereOps.Application/Accounting/AdjustmentPlanService.cs",
+            "symbol": "SourceReconciliationService.ResolveAsync",
+            "line": 20,
+            "coverageScope": "Authorized source reflection decision; reflected/partial require evidence, not equal totals."
+          },
+          "plan-finalize": {
+            "path": "src/AuditSphereOps.Application/Accounting/AdjustmentPlanService.cs",
+            "symbol": "AdjustmentPlanService.FinalizeCoreAsync",
+            "line": 186,
+            "coverageScope": "Rejects changed/unknown/partial reflection and applies only NotReflected entries once."
+          },
+          "plan-command": {
+            "path": "src/AuditSphereOps.Application/Accounting/AdjustmentPlanWorkspace.Commands.cs",
+            "symbol": "AdjustmentPlanWorkspace.ExecuteCommandAsync",
+            "line": 206,
+            "coverageScope": "Existing reviewed plan publication/receipt/recovery path; no replacement adjustment engine."
+          },
+          "gl-query": {
+            "path": "src/AuditSphereOps.Application/Accounting/GeneralLedgerQuery.cs",
+            "symbol": "GeneralLedgerQuery.GetJournalDrillDownAsync",
+            "line": 114,
+            "coverageScope": "Imported GL exact scoped journal drilldown, independent of client-native movement."
+          },
+          "journal-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/journal.ts",
+            "symbol": "AdjustmentJournal",
+            "line": 52,
+            "coverageScope": "Current reviewed journal UI over decimal-string contracts and existing routes."
+          },
+          "plan-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/plan-command.ts",
+            "symbol": "PlanCommand",
+            "line": 21,
+            "coverageScope": "Current exact plan preview/assent/retry UI; no task-derived approval."
+          },
+          "profile": {
+            "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Profiles.cs",
+            "symbol": "ClientAccountingService.ReviseProfileAsync",
+            "line": 62,
+            "coverageScope": "Source-mode/book-identity changes after periods require a reviewed cutover; existing guarded native creation and external-source continuation remain distinct."
+          },
+          "native-authority": {
+            "path": "src/AuditSphereOps.Application/Accounting/ClientOperationalLedgerWorkspace.cs",
+            "symbol": "ClientOperationalLedgerWorkspace.NativeProfileAsync",
+            "line": 287,
+            "coverageScope": "Requires native profile plus current accepted client bookkeeping mandate; withdrawal never grants new posting."
+          },
+          "native-post": {
+            "path": "src/AuditSphereOps.Application/Accounting/ClientOperationalLedgerWorkspace.cs",
+            "symbol": "ClientOperationalLedgerWorkspace.ReviewAndPostAsync",
+            "line": 203,
+            "coverageScope": "Independent client-owned balanced native posting, with current mandate recheck before commit."
+          },
+          "opening": {
+            "path": "src/AuditSphereOps.Application/Accounting/ClientOperationalOpeningBalanceWorkspace.cs",
+            "symbol": "ClientOperationalOpeningBalanceWorkspace.CreateAsync",
+            "line": 42,
+            "coverageScope": "Exact period revision/chart/currency/source evidence hash; optional real party/control-account invoice detail reconciles to balances."
+          },
+          "opening-review": {
+            "path": "src/AuditSphereOps.Application/Accounting/ClientOperationalOpeningBalanceWorkspace.cs",
+            "symbol": "ClientOperationalOpeningBalanceWorkspace.ApproveAsync",
+            "line": 174,
+            "coverageScope": "Independent exact manifest approval and period-currentness checks, not a generic prior-period carry-forward contract."
+          },
+          "native-gl": {
+            "path": "src/AuditSphereOps.Application/Accounting/ClientOperationalGeneralLedgerWorkspace.cs",
+            "symbol": "ClientOperationalGeneralLedgerWorkspace.GetAsync",
+            "line": 29,
+            "coverageScope": "Repeatable-read rows/totals and PostingSnapshotThrough sequence fence, explicit approved opening plus posted movement. Live view is not sealed reporting evidence."
+          },
+          "native-journal-snapshots": {
+            "path": "src/AuditSphereOps.Application/Accounting/ClientOperationalLedgerWorkspace.Snapshots.cs",
+            "symbol": "ClientOperationalLedgerWorkspace.GetSnapshotsAsync",
+            "line": 22,
+            "coverageScope": "Retained submitted journal revision contents; this is narrower than a native ledger-to-reporting source snapshot."
+          },
+          "native-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/operational-journals.ts",
+            "symbol": "decodeOperationalLedger",
+            "line": 105,
+            "coverageScope": "Client/period/decimal-string/posting-sequence decoder for live native browsing; full continuation flow not established."
+          },
+          "opening-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/operational-opening-balances.ts",
+            "symbol": "ClientOperationalOpeningBalances",
+            "line": 136,
+            "coverageScope": "Exact period/cutover source manifest and independent approval UI; no proof of successor-from-closed-source flow."
+          },
+          "setup-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/workspace.ts",
+            "symbol": "AccountingWorkspace",
+            "line": 313,
+            "coverageScope": "Current explicit source-mode/profile/period/book/basis workspace; switching mode does not waive accepted mandate/cutover."
+          },
+          "package-build": {
+            "path": "src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Package.cs",
+            "symbol": "FinancialStatementService.BuildFinancialPackageAsync",
+            "line": 13,
+            "coverageScope": "Existing exact mapping/plan/source period/book/basis pins; imported reporting and native official books remain separate."
+          },
+          "render": {
+            "path": "src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Render.cs",
+            "symbol": "FinancialStatementService.RenderPackageOfficeArtifactAsync",
+            "line": 209,
+            "coverageScope": "Persisted package-bound required office artifacts; no broad export redesign."
+          },
+          "seal": {
+            "path": "src/AuditSphereOps.Application/Accounting/PackageSealService.cs",
+            "symbol": "PackageSealService.SealPackageAsync",
+            "line": 90,
+            "coverageScope": "Required formats and persisted byte-hash/content/source identities sealed; package seal is not final commercial-bundle release."
+          },
+          "manifest": {
+            "path": "src/AuditSphereOps.Application/Accounting/PackageManifestQuery.cs",
+            "symbol": "PackageManifestQuery.GetManifestAsync",
+            "line": 29,
+            "coverageScope": "Current-authorized retained financial package/seal manifest reads."
+          },
+          "reviews": {
+            "path": "src/AuditSphereOps.Application/Accounting/FinancialPackageReviewService.cs",
+            "symbol": "FinancialPackageReviewService.RecordAsync",
+            "line": 57,
+            "coverageScope": "Retained stage decisions against exact package/presentation/composition inputs; synthetic decisions are not genuine qualified acceptance."
+          },
+          "review-current": {
+            "path": "src/AuditSphereOps.Application/Accounting/FinancialPackageReviewService.cs",
+            "symbol": "FinancialPackageReviewService.RequireCurrentEvidenceAsync",
+            "line": 493,
+            "coverageScope": "Current exact stage chain, independent/current authority, package/composition/artifact and source evidence gates."
+          },
+          "period-close": {
+            "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Periods.cs",
+            "symbol": "ClientAccountingService.ClosePeriodAsync",
+            "line": 140,
+            "coverageScope": "Actual outstanding analyses/risk/package reviews gate period close, not operational task-list state."
+          },
+          "period-rollforward": {
+            "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Periods.cs",
+            "symbol": "ClientAccountingService.RollForwardPeriodAsync",
+            "line": 49,
+            "coverageScope": "Existing draft period/book/opening-evidence roll-forward; not proof of native operational invoice/opening carry-forward."
+          },
+          "restatement": {
+            "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Restatements.cs",
+            "symbol": "ClientAccountingService.ApprovePeriodRestatementAsync",
+            "line": 23,
+            "coverageScope": "Controlled independently reviewed period restatement retaining issued financial evidence."
+          },
+          "maintenance": {
+            "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.PeriodMaintenanceReceipts.cs",
+            "symbol": "ClientAccountingService.ExecuteReviewedPeriodMaintenanceAsync",
+            "line": 28,
+            "coverageScope": "Locked exact reviewed intent/effect and immutable original-actor receipt; no duplicate receipt infrastructure."
+          },
+          "lookup": {
+            "path": "src/AuditSphereOps.Application/Accounting/PeriodMaintenanceWorkspace.cs",
+            "symbol": "PeriodMaintenanceWorkspace.LookupAsync",
+            "line": 167,
+            "coverageScope": "Scope/current actor/epoch plus original intent hash distinguish missing, matching and conflicting receipts."
+          },
+          "evidence": {
+            "path": "src/AuditSphereOps.Application/Accounting/AccountingPeriodEvidenceQuery.cs",
+            "symbol": "AccountingPeriodEvidenceQuery.ReadSnapshotAsync",
+            "line": 275,
+            "coverageScope": "Exact scoped category evidence read snapshots with final authority fence; full pagination acceptance not inferred from this helper."
+          },
+          "evidence-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/period-evidence.ts",
+            "symbol": "AccountingPeriodEvidence",
+            "line": 582,
+            "coverageScope": "Independent retained-evidence category UI with explicit unavailable/not-assessed states."
+          },
+          "period-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/period.ts",
+            "symbol": "AccountingPeriodRecord",
+            "line": 116,
+            "coverageScope": "Exact retained period handoffs and category paging UI."
+          },
+          "maintenance-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/rollforward.ts",
+            "symbol": "PeriodRollforward",
+            "line": 118,
+            "coverageScope": "Existing reviewed exact-hash rollforward UI and outcome recovery."
+          },
+          "restatement-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/restatements.ts",
+            "symbol": "PeriodRestatements",
+            "line": 134,
+            "coverageScope": "Existing reviewed controlled amendment/recovery UI."
+          },
+          "receipt-storage": {
+            "path": "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.PeriodMaintenanceReceipts.cs",
+            "symbol": "ConfigurePeriodMaintenanceReceipts",
+            "line": 10,
+            "coverageScope": "Existing append-only exact reviewed-intent receipt storage; no replacement tables."
+          },
+          "receipt-down": {
+            "path": "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261016094656_PeriodMaintenanceReviewedReceipts.cs",
+            "symbol": "Down",
+            "line": 112,
+            "coverageScope": "Existing downgrade refuses retained maintenance receipts; not a claim about every historic migration."
+          }
+        },
+        "testSelectors": {
+          "parse": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AdjustmentBridgeTests.cs",
+            "method": "AppendixD_Parses14Rows_WithD2ControlTotals",
+            "line": 23,
+            "sourceCoverage": "Bounded sample source counts/control totals.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "e2bcc3e6-1f7c-3ea1-f42e-6cd40eb5aba0",
+                "testName": "AuditSphereOps.Domain.Tests.TrialBalanceCsvParserTests.AppendixD_Parses14Rows_WithD2ControlTotals",
+                "outcome": "Passed",
+                "duration": "00:00:00.0047010"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.TrialBalanceCsvParserTests.AppendixD_Parses14Rows_WithD2ControlTotals"
+          },
+          "malformed": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AdjustmentBridgeTests.cs",
+            "method": "MixedCurrency_DuplicateAccount_ExcessScale_Formula_AreRejected",
+            "line": 81,
+            "sourceCoverage": "Representative malformed/precision/ambiguity checks.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "9de5df8b-0531-c4e6-4545-36fcdeeb9e7c",
+                "testName": "AuditSphereOps.Domain.Tests.TrialBalanceCsvParserTests.MixedCurrency_DuplicateAccount_ExcessScale_Formula_AreRejected",
+                "outcome": "Passed",
+                "duration": "00:00:00.0005800"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.TrialBalanceCsvParserTests.MixedCurrency_DuplicateAccount_ExcessScale_Formula_AreRejected"
+          },
+          "xlsx": {
+            "path": "tests/AuditSphereOps.Domain.Tests/TrialBalanceXlsxImporterTests.cs",
+            "method": "LiteralWorkbook_UsesRawBytesAndSharedNormalizedIdentity",
+            "line": 12,
+            "sourceCoverage": "Actual workbook parsing shares normalized identity and raw-byte evidence hash.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "65215613-20d4-0a6c-6045-8ae58a66c9c2",
+                "testName": "AuditSphereOps.Domain.Tests.TrialBalanceXlsxImporterTests.LiteralWorkbook_UsesRawBytesAndSharedNormalizedIdentity",
+                "outcome": "Passed",
+                "duration": "00:00:00.0005220"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.TrialBalanceXlsxImporterTests.LiteralWorkbook_UsesRawBytesAndSharedNormalizedIdentity"
+          },
+          "xlsx-deny": {
+            "path": "tests/AuditSphereOps.Domain.Tests/TrialBalanceXlsxImporterTests.cs",
+            "method": "FormulaAndMacroWorkbooksAreRejected",
+            "line": 26,
+            "sourceCoverage": "Real unsupported workbook rejection; no new parser required.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "40550d25-c001-8eaa-4735-45ce36bdc11a",
+                "testName": "AuditSphereOps.Domain.Tests.TrialBalanceXlsxImporterTests.FormulaAndMacroWorkbooksAreRejected",
+                "outcome": "Passed",
+                "duration": "00:00:00.0094513"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.TrialBalanceXlsxImporterTests.FormulaAndMacroWorkbooksAreRejected"
+          },
+          "duplicate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AdjustmentBridgeTests.cs",
+            "method": "Import_EquivalentNormalizedContent_IsExplainedAsDuplicate",
+            "line": 270,
+            "sourceCoverage": "Duplicate normalized source does not append rows.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "ffb7571a-1565-0ef3-361d-5906dad7547a",
+                "testName": "AuditSphereOps.Domain.Tests.AdjustmentBridgeTests.Import_EquivalentNormalizedContent_IsExplainedAsDuplicate",
+                "outcome": "Passed",
+                "duration": "00:00:01.3238123"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.AdjustmentBridgeTests.Import_EquivalentNormalizedContent_IsExplainedAsDuplicate"
+          },
+          "rejected": {
+            "path": "tests/AuditSphereOps.Domain.Tests/SourceAcceptanceAndComparativesTests.cs",
+            "method": "RejectedDataset_PersistsTypedIssuesAndQueryReturnsThem",
+            "line": 196,
+            "sourceCoverage": "Persisted source errors remain queryable.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "d96bb74b-e82a-4fbb-cfd4-a947379d09da",
+                "testName": "AuditSphereOps.Domain.Tests.SourceAcceptanceAndComparativesTests.RejectedDataset_PersistsTypedIssuesAndQueryReturnsThem",
+                "outcome": "Passed",
+                "duration": "00:00:00.9187436"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.SourceAcceptanceAndComparativesTests.RejectedDataset_PersistsTypedIssuesAndQueryReturnsThem"
+          },
+          "source-accept": {
+            "path": "tests/AuditSphereOps.Domain.Tests/SourceAcceptanceAndComparativesTests.cs",
+            "method": "SourceAcceptance_SelectsSealedSourceAndBumpsGeneration",
+            "line": 27,
+            "sourceCoverage": "Source acceptance and generation boundary, not full downstream refresh acceptance.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "a7e3457c-d8e8-ff60-1f9d-7901f3c376a8",
+                "testName": "AuditSphereOps.Domain.Tests.SourceAcceptanceAndComparativesTests.SourceAcceptance_SelectsSealedSourceAndBumpsGeneration",
+                "outcome": "Passed",
+                "duration": "00:00:01.0963132"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.SourceAcceptanceAndComparativesTests.SourceAcceptance_SelectsSealedSourceAndBumpsGeneration"
+          },
+          "source-scope": {
+            "path": "tests/AuditSphereOps.Domain.Tests/SourceAcceptanceAndComparativesTests.cs",
+            "method": "TrialBalanceAcceptance_SelectionRemainsIndependentByPeriodAndBook",
+            "line": 79,
+            "sourceCoverage": "Per-context source selection remains independent.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "2a259d5f-580a-e40c-31f9-b3bdd8d29c88",
+                "testName": "AuditSphereOps.Domain.Tests.SourceAcceptanceAndComparativesTests.TrialBalanceAcceptance_SelectionRemainsIndependentByPeriodAndBook",
+                "outcome": "Passed",
+                "duration": "00:00:00.9754839"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.SourceAcceptanceAndComparativesTests.TrialBalanceAcceptance_SelectionRemainsIndependentByPeriodAndBook"
+          },
+          "comparative": {
+            "path": "tests/AuditSphereOps.Domain.Tests/SourceAcceptanceAndComparativesTests.cs",
+            "method": "ComparativeDifference_ReturnsPerLineDeltas",
+            "line": 459,
+            "sourceCoverage": "Per-line current/prior differences only; not all absent-versus-zero UI states.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "f574f31d-c62d-dc07-7d70-d586946d43f6",
+                "testName": "AuditSphereOps.Domain.Tests.SourceAcceptanceAndComparativesTests.ComparativeDifference_ReturnsPerLineDeltas",
+                "outcome": "Passed",
+                "duration": "00:00:00.8056932"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.SourceAcceptanceAndComparativesTests.ComparativeDifference_ReturnsPerLineDeltas"
+          },
+          "chart": {
+            "path": "tests/AuditSphereOps.Domain.Tests/FinancialStatementTests.cs",
+            "method": "MappingApplicability_BindsApprovedClientChartVersion",
+            "line": 471,
+            "sourceCoverage": "Explicit approved client-chart mapping applicability.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "0e212090-1882-e2c5-5e03-a715c16942f1",
+                "testName": "AuditSphereOps.Domain.Tests.FinancialStatementTests.MappingApplicability_BindsApprovedClientChartVersion",
+                "outcome": "Passed",
+                "duration": "00:00:01.0982206"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.FinancialStatementTests.MappingApplicability_BindsApprovedClientChartVersion"
+          },
+          "bridge-cycle": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AdjustmentBridgeTests.cs",
+            "method": "FullCycle_ValidatePostReflect_ProfitStays175k",
+            "line": 367,
+            "sourceCoverage": "Existing no-double-adjustment/reflection cycle with expected financial result.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "2ac7bcc6-89e8-a60d-febe-b44a6ff70142",
+                "testName": "AuditSphereOps.Domain.Tests.AdjustmentBridgeTests.FullCycle_ValidatePostReflect_ProfitStays175k",
+                "outcome": "Passed",
+                "duration": "00:00:01.8035777"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.AdjustmentBridgeTests.FullCycle_ValidatePostReflect_ProfitStays175k"
+          },
+          "stale-reflection": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AdjustmentBridgeTests.cs",
+            "method": "StalePlan_AfterReflectionChange_IsBlocked",
+            "line": 514,
+            "sourceCoverage": "Reflection change prevents stale plan finalization.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "47393c02-c1e3-c728-963a-638f8395fd80",
+                "testName": "AuditSphereOps.Domain.Tests.AdjustmentBridgeTests.StalePlan_AfterReflectionChange_IsBlocked",
+                "outcome": "Passed",
+                "duration": "00:00:01.1424202"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.AdjustmentBridgeTests.StalePlan_AfterReflectionChange_IsBlocked"
+          },
+          "journal-denial": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AdjustmentBridgeTests.cs",
+            "method": "Guards_RejectUnbalancedJournal_DuplicateNumber_DuplicatePlanLine",
+            "line": 588,
+            "sourceCoverage": "Balanced reporting adjustments and duplicate protections.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "b55394a7-7098-8615-318d-8e37c5920ca7",
+                "testName": "AuditSphereOps.Domain.Tests.AdjustmentBridgeTests.Guards_RejectUnbalancedJournal_DuplicateNumber_DuplicatePlanLine",
+                "outcome": "Passed",
+                "duration": "00:00:01.0590059"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.AdjustmentBridgeTests.Guards_RejectUnbalancedJournal_DuplicateNumber_DuplicatePlanLine"
+          },
+          "reversal": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AdjustmentBridgeTests.cs",
+            "method": "ClientBookCorrection_RequiresManagementDecision_AndSupportsReversal",
+            "line": 644,
+            "sourceCoverage": "Client-book correction instruction/decision and reversal lineage, not externally verified posting.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "4529aec9-f2d4-9d58-8302-35009f637fa1",
+                "testName": "AuditSphereOps.Domain.Tests.AdjustmentBridgeTests.ClientBookCorrection_RequiresManagementDecision_AndSupportsReversal",
+                "outcome": "Passed",
+                "duration": "00:00:01.3234265"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.AdjustmentBridgeTests.ClientBookCorrection_RequiresManagementDecision_AndSupportsReversal"
+          },
+          "scope-denial": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AdjustmentBridgeTests.cs",
+            "method": "CrossScope_JournalAndImport_AreDenied",
+            "line": 552,
+            "sourceCoverage": "Imported/reporting boundaries deny sibling scope.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "82f9e81d-363a-dc8c-b835-9fd22231e027",
+                "testName": "AuditSphereOps.Domain.Tests.AdjustmentBridgeTests.CrossScope_JournalAndImport_AreDenied",
+                "outcome": "Passed",
+                "duration": "00:00:01.4698556"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.AdjustmentBridgeTests.CrossScope_JournalAndImport_AreDenied"
+          },
+          "profile-mode": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.Profiles.cs",
+            "method": "ExternalSourceProfileCannotSwitchToNativeAfterReportingPeriodsExist",
+            "line": 281,
+            "sourceCoverage": "Existing source-mode guard; no real qualified cutover evidence.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "bebb3442-6853-b03b-f25e-65bfe622e88d",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.ExternalSourceProfileCannotSwitchToNativeAfterReportingPeriodsExist",
+                "outcome": "Passed",
+                "duration": "00:00:00.7837946"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.ExternalSourceProfileCannotSwitchToNativeAfterReportingPeriodsExist"
+          },
+          "native-profile": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.Profiles.cs",
+            "method": "NativeBookkeepingModeRequiresAcceptedClientServiceAndReviewer",
+            "line": 249,
+            "sourceCoverage": "Accepted native-service/reviewer gates, synthetic fixture only.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "191661dd-9a67-fb43-2313-1c3a55ebb776",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.NativeBookkeepingModeRequiresAcceptedClientServiceAndReviewer",
+                "outcome": "Passed",
+                "duration": "00:00:00.9134900"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.NativeBookkeepingModeRequiresAcceptedClientServiceAndReviewer"
+          },
+          "native-post": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.OperationalLedger.cs",
+            "method": "NativeJournalRequiresBalancedDraftIndependentApprovalAndPostsOnce",
+            "line": 15,
+            "sourceCoverage": "Native posting/revision/history/sequence paging assertions; not sealed reporting-source handoff.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "a41919e2-b8ff-ee6a-e0a6-5cc942b26692",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.NativeJournalRequiresBalancedDraftIndependentApprovalAndPostsOnce",
+                "outcome": "Passed",
+                "duration": "00:00:03.7477647"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.NativeJournalRequiresBalancedDraftIndependentApprovalAndPostsOnce"
+          },
+          "native-scope": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.OperationalLedger.cs",
+            "method": "NativeJournalRejectsUnbalancedAmountsAndSiblingClientReads",
+            "line": 550,
+            "sourceCoverage": "Native balance and sibling denial.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "31d8203a-4f81-8d9d-a426-f47464d4f7b5",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.NativeJournalRejectsUnbalancedAmountsAndSiblingClientReads",
+                "outcome": "Passed",
+                "duration": "00:00:00.6120217"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.NativeJournalRejectsUnbalancedAmountsAndSiblingClientReads"
+          },
+          "opening": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.OperationalLedger.cs",
+            "method": "NativeOpeningBalanceRequiresExactEvidenceAndIndependentApprovalAndSeparatesMovement",
+            "line": 569,
+            "sourceCoverage": "Exact approved opening manifest and movement separation.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "15c8a2d8-ade9-c337-2da4-283dd56b8fac",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.NativeOpeningBalanceRequiresExactEvidenceAndIndependentApprovalAndSeparatesMovement",
+                "outcome": "Passed",
+                "duration": "00:00:01.2276918"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.NativeOpeningBalanceRequiresExactEvidenceAndIndependentApprovalAndSeparatesMovement"
+          },
+          "opening-detail": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.OperationalLedger.cs",
+            "method": "ReviewedOpeningInvoiceDetailReconcilesToArAndAppearsInAsOfBalances",
+            "line": 646,
+            "sourceCoverage": "Real invoice-level opening lineage/control reconciliation, not invented detail.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "8cdb988d-019e-10e0-7558-5397cb221b4e",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.ReviewedOpeningInvoiceDetailReconcilesToArAndAppearsInAsOfBalances",
+                "outcome": "Passed",
+                "duration": "00:00:02.0641560"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.ReviewedOpeningInvoiceDetailReconcilesToArAndAppearsInAsOfBalances"
+          },
+          "seal": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PackageSealTests.cs",
+            "method": "Seal_RequiresAllFormatsAndBindsExactBytes",
+            "line": 15,
+            "sourceCoverage": "Required artifact format and exact byte seal boundary.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "c80c9361-52a6-167d-2c3f-da44ec4c2dee",
+                "testName": "Sealing requires every format, is idempotent for the same bytes and detects tampering",
+                "outcome": "Passed",
+                "duration": "00:00:00.8366995"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.PackageSealTests.Seal_RequiresAllFormatsAndBindsExactBytes"
+          },
+          "seal-validation": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PackageSealTests.cs",
+            "method": "MissingMandatoryValidation_BlocksSealStatusSealAndManagementDecision",
+            "line": 98,
+            "sourceCoverage": "Missing validation blocks seal/review.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "19a0a2d1-ffaa-64c5-1e42-637bd4e2bafb",
+                "testName": "AuditSphereOps.Domain.Tests.PackageSealTests.MissingMandatoryValidation_BlocksSealStatusSealAndManagementDecision",
+                "outcome": "Passed",
+                "duration": "00:00:01.0018246"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.PackageSealTests.MissingMandatoryValidation_BlocksSealStatusSealAndManagementDecision"
+          },
+          "reviews": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.FinancialPackages.cs",
+            "method": "FinancialPackageReviews_AreStageBoundAndImmutable_AndReleaseRequiresSelectedComposition",
+            "line": 88,
+            "sourceCoverage": "Exact immutable review/composition decisions.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "92e13867-7bc8-a693-8999-d75e883cb239",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.FinancialPackageReviews_AreStageBoundAndImmutable_AndReleaseRequiresSelectedComposition",
+                "outcome": "Passed",
+                "duration": "00:00:00.8775473"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.FinancialPackageReviews_AreStageBoundAndImmutable_AndReleaseRequiresSelectedComposition"
+          },
+          "partner": {
+            "path": "tests/AuditSphereOps.Domain.Tests/FinancialPackageGateTests.cs",
+            "method": "PartnerStage_RequiresACurrentPartnerGrantOnThisEngagement",
+            "line": 312,
+            "sourceCoverage": "Real role/engagement authority requirement in source test; synthetic actor not professional acceptance.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "83a0995b-f228-3b0b-8a8a-8cd89892a512",
+                "testName": "AuditSphereOps.Domain.Tests.FinancialPackageGateTests.PartnerStage_RequiresACurrentPartnerGrantOnThisEngagement",
+                "outcome": "Passed",
+                "duration": "00:00:01.2960652"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.FinancialPackageGateTests.PartnerStage_RequiresACurrentPartnerGrantOnThisEngagement"
+          },
+          "close": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.PeriodClose.cs",
+            "method": "PeriodClose_RequiresCurrentReviewsForMatchingFinancialPackages",
+            "line": 107,
+            "sourceCoverage": "Close rejects missing/current-review mismatch.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "d8684b20-af3c-4244-0287-db9b9fc26068",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.PeriodClose_RequiresCurrentReviewsForMatchingFinancialPackages",
+                "outcome": "Passed",
+                "duration": "00:00:01.9343516"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.PeriodClose_RequiresCurrentReviewsForMatchingFinancialPackages"
+          },
+          "restatement": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.PeriodClose.cs",
+            "method": "ClosedPeriodRestatement_PreservesIssuedPackagesAndRequiresIndependentApproval",
+            "line": 14,
+            "sourceCoverage": "Original issued evidence and independent restatement.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "4a30ce63-61f2-41a9-90ec-3c5b4567e55e",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.ClosedPeriodRestatement_PreservesIssuedPackagesAndRequiresIndependentApproval",
+                "outcome": "Passed",
+                "duration": "00:00:01.0031866"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.ClosedPeriodRestatement_PreservesIssuedPackagesAndRequiresIndependentApproval"
+          },
+          "period-rollforward": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.PeriodClose.cs",
+            "method": "PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence",
+            "line": 128,
+            "sourceCoverage": "Generic period/book roll-forward; not native operational carry-forward.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "47164afe-bf51-5dfc-9536-5cb975e367e1",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence",
+                "outcome": "Passed",
+                "duration": "00:00:00.8617598"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence"
+          },
+          "receipt-history": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.PeriodMaintenanceReceipts.cs",
+            "method": "Maintenance_AllThreeActionsRecoverOriginalSnapshotsBeforeCurrentGates",
+            "line": 62,
+            "sourceCoverage": "Original immutable receipt recovery across all three actions.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "202b9afc-fa6e-6d9d-dcc6-f6120d5c8c5d",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.Maintenance_AllThreeActionsRecoverOriginalSnapshotsBeforeCurrentGates",
+                "outcome": "Passed",
+                "duration": "00:00:01.3035797"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.Maintenance_AllThreeActionsRecoverOriginalSnapshotsBeforeCurrentGates"
+          },
+          "receipt-intent": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.PeriodMaintenanceReceipts.cs",
+            "method": "Maintenance_ExactPreviewHashRequiredAndChangedFieldsCannotReuseIdentity",
+            "line": 106,
+            "sourceCoverage": "Exact reviewed intent and conflict.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "ca47a6e1-f8a0-7927-2a7d-6cef50918c02",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.Maintenance_ExactPreviewHashRequiredAndChangedFieldsCannotReuseIdentity",
+                "outcome": "Passed",
+                "duration": "00:00:01.3891990"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.Maintenance_ExactPreviewHashRequiredAndChangedFieldsCannotReuseIdentity"
+          },
+          "receipt-concurrent": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.PeriodMaintenanceReceipts.cs",
+            "method": "Maintenance_ConcurrentIdenticalIntentPublishesOneEffectAndOneReceipt",
+            "line": 129,
+            "sourceCoverage": "Parameterized concurrent exact retry cases, no duplicate publication.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "1e5f0b03-1a28-d153-9d7b-cf1b8daa7a2f",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.Maintenance_ConcurrentIdenticalIntentPublishesOneEffectAndOneReceipt(action: \"CREATE_RESTATEMENT\")",
+                "outcome": "Passed",
+                "duration": "00:00:01.0831957"
+              },
+              {
+                "testId": "bd6ccef2-4268-df45-cf7a-3c8e69f75d9c",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.Maintenance_ConcurrentIdenticalIntentPublishesOneEffectAndOneReceipt(action: \"APPROVE_RESTATEMENT\")",
+                "outcome": "Passed",
+                "duration": "00:00:01.0508613"
+              },
+              {
+                "testId": "d6792904-fb94-ad87-27c9-2995649e48ea",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.Maintenance_ConcurrentIdenticalIntentPublishesOneEffectAndOneReceipt(action: \"ROLL_FORWARD\")",
+                "outcome": "Passed",
+                "duration": "00:00:01.1213700"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.Maintenance_ConcurrentIdenticalIntentPublishesOneEffectAndOneReceipt"
+          },
+          "receipt-stale": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.PeriodMaintenanceReceipts.cs",
+            "method": "Maintenance_StaleBasisAndSelfReviewCannotPublish",
+            "line": 170,
+            "sourceCoverage": "Stale source basis and self-review deny publication.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "cb32162b-92bb-ab62-9789-c0b50a24d800",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.Maintenance_StaleBasisAndSelfReviewCannotPublish",
+                "outcome": "Passed",
+                "duration": "00:00:00.9649913"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.Maintenance_StaleBasisAndSelfReviewCannotPublish"
+          },
+          "receipt-scope": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.PeriodMaintenanceReceipts.cs",
+            "method": "MaintenanceReceiptScopeRejectsEngagementOnlyExpiredAndForeignActors",
+            "line": 389,
+            "sourceCoverage": "Scope/session/actor receipt boundary.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "3b7af677-a100-e91d-0d41-25f4eab3f026",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.MaintenanceReceiptScopeRejectsEngagementOnlyExpiredAndForeignActors",
+                "outcome": "Passed",
+                "duration": "00:00:01.1927280"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.MaintenanceReceiptScopeRejectsEngagementOnlyExpiredAndForeignActors"
+          },
+          "receipt-down": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.PeriodMaintenanceReceipts.cs",
+            "method": "MaintenanceMigrationPreservesExistingRecordsAndRefusesRetainedReceiptDowngrade",
+            "line": 447,
+            "sourceCoverage": "Existing migration retains receipt evidence on downgrade.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "ad064023-f37f-a02e-663a-f74ebd43fed9",
+                "testName": "AuditSphereOps.Domain.Tests.ClientAccountingTests.MaintenanceMigrationPreservesExistingRecordsAndRefusesRetainedReceiptDowngrade",
+                "outcome": "Passed",
+                "duration": "00:00:04.3719082"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.ClientAccountingTests.MaintenanceMigrationPreservesExistingRecordsAndRefusesRetainedReceiptDowngrade"
+          },
+          "period-handoff": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AccountingPeriodRecordQueryTests.cs",
+            "method": "RevocationDuringHandoffReadsRefusesTheEntirePeriodProjection",
+            "line": 14,
+            "sourceCoverage": "Period projection final revocation fence only; not evidence-category pagination acceptance.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedA9Cases": [
+              {
+                "testId": "963bb047-3fbe-7acf-b603-6c8445c9877f",
+                "testName": "AuditSphereOps.Domain.Tests.AccountingPeriodRecordQueryTests.RevocationDuringHandoffReadsRefusesTheEntirePeriodProjection",
+                "outcome": "Passed",
+                "duration": "00:00:01.1964103"
+              }
+            ],
+            "retainedEvidenceStatus": "SELECTED_PASS_RETAINED_A9_TEST_SOURCE_MATCHED",
+            "fullyQualifiedSelector": "AuditSphereOps.Domain.Tests.AccountingPeriodRecordQueryTests.RevocationDuringHandoffReadsRefusesTheEntirePeriodProjection"
+          },
+          "source-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/source-acceptance.spec.ts",
+            "method": "submits exactly reviewed intent and retains an independent decision",
+            "line": 105,
+            "sourceCoverage": "Exact reviewed UI source intent; not in Domain TRX.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedEvidenceStatus": "NOT_RUN_NO_DOMAIN_TRX_CLAIM",
+            "ciFileEvidence": {
+              "runId": 40061458603,
+              "resolvedSha": "764d1e1f5de6e397e69e98e3dcec7e60d6c905f2",
+              "sourceMatch": "MATCH",
+              "sourceSha256": "388a468e32872b002ee82a3f1fb0c89e9e2e0480fb96fb702954f17f9ef5f38d",
+              "fileSummary": "\u2713  auditsphere-ui  src/app/features/accounting/source-acceptance.spec.ts (5 tests) 123ms",
+              "executionScope": "Full file passed in unfiltered Angular CI; source contains selected existing test. File log, not individual-test structured result; not browser/API/persistence proof."
+            }
+          },
+          "journal-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/journal.spec.ts",
+            "method": "requires fresh preview and assent and dispatches exactly once",
+            "line": 131,
+            "sourceCoverage": "Current journal UI command state; unrun.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedEvidenceStatus": "NOT_RUN_NO_DOMAIN_TRX_CLAIM",
+            "ciFileEvidence": {
+              "runId": 40061458603,
+              "resolvedSha": "764d1e1f5de6e397e69e98e3dcec7e60d6c905f2",
+              "sourceMatch": "MATCH",
+              "sourceSha256": "b981d32f1c31807d9e00abb0311653aa29c686f74359d21b7b01c4ff87b16184",
+              "fileSummary": "\u2713  auditsphere-ui  src/app/features/accounting/journal.spec.ts (18 tests) 885ms",
+              "executionScope": "Full file passed in unfiltered Angular CI; source contains selected existing test. File log, not individual-test structured result; not browser/API/persistence proof."
+            }
+          },
+          "plan-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/plan-command.spec.ts",
+            "method": "rejects numeric amounts, partial eligible reflection, inconsistent lookup and draft assent",
+            "line": 47,
+            "sourceCoverage": "Decimal-string/partial reflection UI contract; unrun.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedEvidenceStatus": "NOT_RUN_NO_DOMAIN_TRX_CLAIM",
+            "ciFileEvidence": {
+              "runId": 40061458603,
+              "resolvedSha": "764d1e1f5de6e397e69e98e3dcec7e60d6c905f2",
+              "sourceMatch": "MATCH",
+              "sourceSha256": "d7e8d539571f9d739bce7c4c02969b81c90d345c1e159065a168b0e5831fb0d1",
+              "fileSummary": "\u2713  auditsphere-ui  src/app/features/accounting/plan-command.spec.ts (7 tests) 148ms",
+              "executionScope": "Full file passed in unfiltered Angular CI; source contains selected existing test. File log, not individual-test structured result; not browser/API/persistence proof."
+            }
+          },
+          "opening-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/operational-opening-balances.spec.ts",
+            "method": "validates a balanced client-period manifest and rejects tampered context",
+            "line": 39,
+            "sourceCoverage": "Native opening decoder scope/hash/amounts; unrun.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedEvidenceStatus": "NOT_RUN_NO_DOMAIN_TRX_CLAIM",
+            "ciFileEvidence": {
+              "runId": 40061458603,
+              "resolvedSha": "764d1e1f5de6e397e69e98e3dcec7e60d6c905f2",
+              "sourceMatch": "MATCH",
+              "sourceSha256": "e4f3dec8d213e5be49c56e7cbe477664a481058f53f99bb9df01219886b04de9",
+              "fileSummary": "\u2713  auditsphere-ui  src/app/features/accounting/operational-opening-balances.spec.ts (3 tests) 52ms",
+              "executionScope": "Full file passed in unfiltered Angular CI; source contains selected existing test. File log, not individual-test structured result; not browser/API/persistence proof."
+            }
+          },
+          "native-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/operational-journals.spec.ts",
+            "method": "binds posted movement pages to the exact client and period using decimal strings",
+            "line": 27,
+            "sourceCoverage": "Native live browsing contract; unrun.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedEvidenceStatus": "NOT_RUN_NO_DOMAIN_TRX_CLAIM",
+            "ciFileEvidence": {
+              "runId": 40061458603,
+              "resolvedSha": "764d1e1f5de6e397e69e98e3dcec7e60d6c905f2",
+              "sourceMatch": "MATCH",
+              "sourceSha256": "70e6705c6a6a70346fcf6d3925dfe52599d7a95c3510e836ed04acbecbcbc689",
+              "fileSummary": "\u2713  auditsphere-ui  src/app/features/accounting/operational-journals.spec.ts (19 tests) 166ms",
+              "executionScope": "Full file passed in unfiltered Angular CI; source contains selected existing test. File log, not individual-test structured result; not browser/API/persistence proof."
+            }
+          },
+          "package-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/package.spec.ts",
+            "method": "builds a formal review request bound to the exact selected composition",
+            "line": 87,
+            "sourceCoverage": "Exact selected-composition UI request; unrun.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedEvidenceStatus": "NOT_RUN_NO_DOMAIN_TRX_CLAIM",
+            "ciFileEvidence": {
+              "runId": 40061458603,
+              "resolvedSha": "764d1e1f5de6e397e69e98e3dcec7e60d6c905f2",
+              "sourceMatch": "MATCH",
+              "sourceSha256": "0fe9ea4a1c7bd768c163c3462f244ddac18bca74ae4c7301be8cefee47eeee04",
+              "fileSummary": "\u2713  auditsphere-ui  src/app/features/accounting/package.spec.ts (13 tests) 26ms",
+              "executionScope": "Full file passed in unfiltered Angular CI; source contains selected existing test. File log, not individual-test structured result; not browser/API/persistence proof."
+            }
+          },
+          "period-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/period.spec.ts",
+            "method": "shows explicit not-assessed coverage and pages the confirmed category wrapper with accessible controls",
+            "line": 149,
+            "sourceCoverage": "Evidence-category UI behavior; unrun, not an a9 Domain case.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedEvidenceStatus": "NOT_RUN_NO_DOMAIN_TRX_CLAIM",
+            "ciFileEvidence": {
+              "runId": 40061458603,
+              "resolvedSha": "764d1e1f5de6e397e69e98e3dcec7e60d6c905f2",
+              "sourceMatch": "MATCH",
+              "sourceSha256": "3691c17e318666ea6e60413f51cb1095ab5b604271fcd46ef58ceffa32b0270f",
+              "fileSummary": "\u2713  auditsphere-ui  src/app/features/accounting/period.spec.ts (16 tests) 923ms",
+              "executionScope": "Full file passed in unfiltered Angular CI; source contains selected existing test. File log, not individual-test structured result; not browser/API/persistence proof."
+            }
+          },
+          "rollforward-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/rollforward.spec.ts",
+            "method": "binds execution to the canonical preview hash, actor epoch and fresh assent",
+            "line": 70,
+            "sourceCoverage": "Exact maintenance preview/epoch UI; unrun.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedEvidenceStatus": "NOT_RUN_NO_DOMAIN_TRX_CLAIM",
+            "ciFileEvidence": {
+              "runId": 40061458603,
+              "resolvedSha": "764d1e1f5de6e397e69e98e3dcec7e60d6c905f2",
+              "sourceMatch": "MATCH",
+              "sourceSha256": "66f2bba0fea276de094bb0d109e5b0cbf131b9717f6d1d7ecde7bd0f221673eb",
+              "fileSummary": "\u2713  auditsphere-ui  src/app/features/accounting/rollforward.spec.ts (29 tests) 101ms",
+              "executionScope": "Full file passed in unfiltered Angular CI; source contains selected existing test. File log, not individual-test structured result; not browser/API/persistence proof."
+            }
+          },
+          "restatement-ui": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/accounting/restatements.spec.ts",
+            "method": "guards duplicate programmatic execution while busy and uncertain",
+            "line": 81,
+            "sourceCoverage": "Unknown-outcome and duplicate UI guard; unrun.",
+            "sidecarExecution": "NOT_RUN_BY_TRACING_SIDECAR",
+            "retainedEvidenceStatus": "NOT_RUN_NO_DOMAIN_TRX_CLAIM",
+            "ciFileEvidence": {
+              "runId": 40061458603,
+              "resolvedSha": "764d1e1f5de6e397e69e98e3dcec7e60d6c905f2",
+              "sourceMatch": "MATCH",
+              "sourceSha256": "fa2eb02250899841a9452dbf23b07c7b918762c12644c7558a9efa142bdd2767",
+              "fileSummary": "\u2713  auditsphere-ui  src/app/features/accounting/restatements.spec.ts (34 tests) 95ms",
+              "executionScope": "Full file passed in unfiltered Angular CI; source contains selected existing test. File log, not individual-test structured result; not browser/API/persistence proof."
+            }
+          }
+        },
+        "fileDigests": {
+          "src/AuditSphereOps.Application/Accounting/TrialBalanceCsvImporter.cs": {
+            "currentSha256": "7b85a36ceb10f31a6b2bfb94c85e0e89b69074b666316b3a8145ffccd67be8e0",
+            "a9Sha256": "7b85a36ceb10f31a6b2bfb94c85e0e89b69074b666316b3a8145ffccd67be8e0",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/TrialBalanceXlsxImporter.cs": {
+            "currentSha256": "9d596fa6a4ee7464d2a6e76e0d2879947669aaef10aab89eda91bc230482778f",
+            "a9Sha256": "9d596fa6a4ee7464d2a6e76e0d2879947669aaef10aab89eda91bc230482778f",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/TrialBalanceImportService.cs": {
+            "currentSha256": "309910ab0bd17734b908823d18080b1c88ca1ab5aa10fc8960d27c580b9d1a9d",
+            "a9Sha256": "309910ab0bd17734b908823d18080b1c88ca1ab5aa10fc8960d27c580b9d1a9d",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/TrialBalanceValidationHandler.cs": {
+            "currentSha256": "89a0aaedcfe615a4d31eb403c454396455f9c2cac96620f6d911ccd352c597df",
+            "a9Sha256": "89a0aaedcfe615a4d31eb403c454396455f9c2cac96620f6d911ccd352c597df",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/AccountingSourceAcceptanceService.cs": {
+            "currentSha256": "7f97959faf137b8508c544f069cafaf4be7a501bb19321a28e4f13f2bad67e84",
+            "a9Sha256": "7f97959faf137b8508c544f069cafaf4be7a501bb19321a28e4f13f2bad67e84",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/source-acceptance.ts": {
+            "currentSha256": "181c17e19109cfa2f60dba4259725747c532ffb885916ff6486e7af690d36aba",
+            "a9Sha256": "181c17e19109cfa2f60dba4259725747c532ffb885916ff6486e7af690d36aba",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Mapping.cs": {
+            "currentSha256": "def8c3e64a5898a2a595f84bea991e8b1939026292fcee028b3c5ceee8ca948e",
+            "a9Sha256": "def8c3e64a5898a2a595f84bea991e8b1939026292fcee028b3c5ceee8ca948e",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/MappingApprovalWorkspace.cs": {
+            "currentSha256": "940233e17b43bc21aa18f599a0d0bd8cc94186edf51dcc4a9776d5cc26f2744e",
+            "a9Sha256": "940233e17b43bc21aa18f599a0d0bd8cc94186edf51dcc4a9776d5cc26f2744e",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/AdjustmentJournalService.cs": {
+            "currentSha256": "d4d28b1e61964887002ff0c26aa224eb63a35c3e187ec631ccdb080f2268b69f",
+            "a9Sha256": "d4d28b1e61964887002ff0c26aa224eb63a35c3e187ec631ccdb080f2268b69f",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/AdjustmentPlanService.cs": {
+            "currentSha256": "5ac6830aac5dbe1bbba314de5b1e53e351a00ad0cb8e41d9cab63067bb6a9277",
+            "a9Sha256": "5ac6830aac5dbe1bbba314de5b1e53e351a00ad0cb8e41d9cab63067bb6a9277",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/AdjustmentPlanWorkspace.Commands.cs": {
+            "currentSha256": "c9fe990b3cf3d567b01a21973890046122e80f66b365971e0158c0236bd2865d",
+            "a9Sha256": "c9fe990b3cf3d567b01a21973890046122e80f66b365971e0158c0236bd2865d",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/GeneralLedgerQuery.cs": {
+            "currentSha256": "64befd52dbb514f31ec96fb512765df1745eb0fab4851b69f9bc3f8287bb4504",
+            "a9Sha256": "64befd52dbb514f31ec96fb512765df1745eb0fab4851b69f9bc3f8287bb4504",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/journal.ts": {
+            "currentSha256": "241589ebb321a49e0b6eb3dbe09007bf59f6e39059eb08158c82756b29a58a20",
+            "a9Sha256": "241589ebb321a49e0b6eb3dbe09007bf59f6e39059eb08158c82756b29a58a20",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/plan-command.ts": {
+            "currentSha256": "d2e9e329d261e14a19cb5d965e2f554dd95961c3f9d6568c5ce717193faaf807",
+            "a9Sha256": "d2e9e329d261e14a19cb5d965e2f554dd95961c3f9d6568c5ce717193faaf807",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Profiles.cs": {
+            "currentSha256": "b9bbde5d800a1295f76dbdaaebfbf523752a8e9f871fe22be8461aed498b1ddf",
+            "a9Sha256": "b9bbde5d800a1295f76dbdaaebfbf523752a8e9f871fe22be8461aed498b1ddf",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/ClientOperationalLedgerWorkspace.cs": {
+            "currentSha256": "4302240101fbc32738536dbfb6ec3e64feef802cb32a394555ea0a1afbb3c6f8",
+            "a9Sha256": "4302240101fbc32738536dbfb6ec3e64feef802cb32a394555ea0a1afbb3c6f8",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/ClientOperationalOpeningBalanceWorkspace.cs": {
+            "currentSha256": "02c63edc2ce7650717c37a2f0c2c74cb9eb6feb542f596ede70649c49e0d2442",
+            "a9Sha256": "02c63edc2ce7650717c37a2f0c2c74cb9eb6feb542f596ede70649c49e0d2442",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/ClientOperationalGeneralLedgerWorkspace.cs": {
+            "currentSha256": "1a18da532177d9c8a832e07fa0d3ad27adf3d889df694b0ce7d8344c7ae9c28d",
+            "a9Sha256": "1a18da532177d9c8a832e07fa0d3ad27adf3d889df694b0ce7d8344c7ae9c28d",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/ClientOperationalLedgerWorkspace.Snapshots.cs": {
+            "currentSha256": "510c9bd9d2e273e25757c792a9a5ba51732dc19d70daf07b9f437d75bcd94093",
+            "a9Sha256": "510c9bd9d2e273e25757c792a9a5ba51732dc19d70daf07b9f437d75bcd94093",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/operational-journals.ts": {
+            "currentSha256": "89bf6dda7c16d5ed0bd5a3ae31cb7f5789511590b0c352b21174b6699a88ec15",
+            "a9Sha256": "89bf6dda7c16d5ed0bd5a3ae31cb7f5789511590b0c352b21174b6699a88ec15",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/operational-opening-balances.ts": {
+            "currentSha256": "fb053b266baa2b38205daeedba4d6c73613533f6772ce99288666a133e7aa257",
+            "a9Sha256": "fb053b266baa2b38205daeedba4d6c73613533f6772ce99288666a133e7aa257",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/workspace.ts": {
+            "currentSha256": "674d1386126195177cd5428bf33b99c0541a54b142a409c13574243e41350bfd",
+            "a9Sha256": "674d1386126195177cd5428bf33b99c0541a54b142a409c13574243e41350bfd",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Package.cs": {
+            "currentSha256": "1461a0786057d53e808e5a9739cdf3a67db91651183b51a9d79f02b4a385c652",
+            "a9Sha256": "1461a0786057d53e808e5a9739cdf3a67db91651183b51a9d79f02b4a385c652",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Render.cs": {
+            "currentSha256": "def2c635399704d4c2245fd8176cb50db7354c933244e047e1c9b9bb6731a056",
+            "a9Sha256": "def2c635399704d4c2245fd8176cb50db7354c933244e047e1c9b9bb6731a056",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/PackageSealService.cs": {
+            "currentSha256": "33704abe83392e0c3945974fa6fe50c58a24ce76f1d8fe266a60d00325cd0816",
+            "a9Sha256": "33704abe83392e0c3945974fa6fe50c58a24ce76f1d8fe266a60d00325cd0816",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/PackageManifestQuery.cs": {
+            "currentSha256": "fc4f7de96eea7bf9364be2e483e47e5ab4019728644da5e34795778ca39d788e",
+            "a9Sha256": "fc4f7de96eea7bf9364be2e483e47e5ab4019728644da5e34795778ca39d788e",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/FinancialPackageReviewService.cs": {
+            "currentSha256": "02297ecef7096a7d2c9f2b6314bf2f977fb634a82bdfffaa29f151b494d91703",
+            "a9Sha256": "02297ecef7096a7d2c9f2b6314bf2f977fb634a82bdfffaa29f151b494d91703",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Periods.cs": {
+            "currentSha256": "e26f58ca55b42eb109baf4812d2a369a2924e8732a9476a54f43e37a6ce4fed5",
+            "a9Sha256": "e26f58ca55b42eb109baf4812d2a369a2924e8732a9476a54f43e37a6ce4fed5",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Restatements.cs": {
+            "currentSha256": "63c145120cf0505356517aee240ea2cbf06b93fe419093e8b246e3e40214212c",
+            "a9Sha256": "63c145120cf0505356517aee240ea2cbf06b93fe419093e8b246e3e40214212c",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.PeriodMaintenanceReceipts.cs": {
+            "currentSha256": "ebd0392392d4e3193e2daebb4518938cb64aa7782b128fb7fc62eee90268489c",
+            "a9Sha256": "ebd0392392d4e3193e2daebb4518938cb64aa7782b128fb7fc62eee90268489c",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/PeriodMaintenanceWorkspace.cs": {
+            "currentSha256": "8e735a605a3d50d5efe3f23c7fc8686e339ed15f4e50883cc31487e9e41f32d1",
+            "a9Sha256": "8e735a605a3d50d5efe3f23c7fc8686e339ed15f4e50883cc31487e9e41f32d1",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Application/Accounting/AccountingPeriodEvidenceQuery.cs": {
+            "currentSha256": "779501e3f28716f127924cf426b118eaca486eef1f4eac3027df25b0527ef22b",
+            "a9Sha256": "779501e3f28716f127924cf426b118eaca486eef1f4eac3027df25b0527ef22b",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/period-evidence.ts": {
+            "currentSha256": "6d6689d82d3c106f9980398f2cb3b1ce38de3b79a2b3c4b8d258155b78b3f2e0",
+            "a9Sha256": "6d6689d82d3c106f9980398f2cb3b1ce38de3b79a2b3c4b8d258155b78b3f2e0",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/period.ts": {
+            "currentSha256": "bec3e35d96faa74cf2224559ff4ba273cb00f37553452ef7bc20349d125a5c54",
+            "a9Sha256": "bec3e35d96faa74cf2224559ff4ba273cb00f37553452ef7bc20349d125a5c54",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/rollforward.ts": {
+            "currentSha256": "f764d7f07ccc61215854b15917dd00aa863163523f93fa811f1031427b6ca3d8",
+            "a9Sha256": "f764d7f07ccc61215854b15917dd00aa863163523f93fa811f1031427b6ca3d8",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/restatements.ts": {
+            "currentSha256": "0a51285c90aca5848a601f3ead4ce0d9118625214845aee851b284a4847cc1aa",
+            "a9Sha256": "0a51285c90aca5848a601f3ead4ce0d9118625214845aee851b284a4847cc1aa",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.PeriodMaintenanceReceipts.cs": {
+            "currentSha256": "a7b179113d0b89a698b03587b9404f3bb34b0e9e53c7093f3b8003025677f31a",
+            "a9Sha256": "a7b179113d0b89a698b03587b9404f3bb34b0e9e53c7093f3b8003025677f31a",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261016094656_PeriodMaintenanceReviewedReceipts.cs": {
+            "currentSha256": "639dbf14f90469ddc42b933b569d1b07f136a2014b2d37e48bda0680728267bf",
+            "a9Sha256": "639dbf14f90469ddc42b933b569d1b07f136a2014b2d37e48bda0680728267bf",
+            "byteIdenticalToA9": true
+          },
+          "tests/AuditSphereOps.Domain.Tests/AdjustmentBridgeTests.cs": {
+            "currentSha256": "a9ef1ed414a874eddaea5ca6eeb485ab41f573a3ff383f6692996983a7062c17",
+            "a9Sha256": "a9ef1ed414a874eddaea5ca6eeb485ab41f573a3ff383f6692996983a7062c17",
+            "byteIdenticalToA9": true
+          },
+          "tests/AuditSphereOps.Domain.Tests/TrialBalanceXlsxImporterTests.cs": {
+            "currentSha256": "5eda1b11fab0207d66bf5a0e17f63bac93b8230e3fbfc4e9dc74c563cdc73837",
+            "a9Sha256": "5eda1b11fab0207d66bf5a0e17f63bac93b8230e3fbfc4e9dc74c563cdc73837",
+            "byteIdenticalToA9": true
+          },
+          "tests/AuditSphereOps.Domain.Tests/SourceAcceptanceAndComparativesTests.cs": {
+            "currentSha256": "94ff29f1fc31ebdb69c1b4662a43027c8c3c17160afe091f01f77c49aea89f9d",
+            "a9Sha256": "94ff29f1fc31ebdb69c1b4662a43027c8c3c17160afe091f01f77c49aea89f9d",
+            "byteIdenticalToA9": true
+          },
+          "tests/AuditSphereOps.Domain.Tests/FinancialStatementTests.cs": {
+            "currentSha256": "2656ca2293a75d5e81688d96cbfbcaedc9454960cc1065e1d3e0f0509a728672",
+            "a9Sha256": "2656ca2293a75d5e81688d96cbfbcaedc9454960cc1065e1d3e0f0509a728672",
+            "byteIdenticalToA9": true
+          },
+          "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.Profiles.cs": {
+            "currentSha256": "1b39d9645ec8fdbaa97518cb16cd2fcaf17b28b17680586cc431fd659a0ad823",
+            "a9Sha256": "1b39d9645ec8fdbaa97518cb16cd2fcaf17b28b17680586cc431fd659a0ad823",
+            "byteIdenticalToA9": true
+          },
+          "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.OperationalLedger.cs": {
+            "currentSha256": "1a1bc3531e02c49affc9e8253158e4afcfeee155e3d5cbf7646757d321181065",
+            "a9Sha256": "1a1bc3531e02c49affc9e8253158e4afcfeee155e3d5cbf7646757d321181065",
+            "byteIdenticalToA9": true
+          },
+          "tests/AuditSphereOps.Domain.Tests/PackageSealTests.cs": {
+            "currentSha256": "4f182882683fc88da8ed348c94edfa4a58858ea74929696e83eb70ddf10f7eb8",
+            "a9Sha256": "4f182882683fc88da8ed348c94edfa4a58858ea74929696e83eb70ddf10f7eb8",
+            "byteIdenticalToA9": true
+          },
+          "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.FinancialPackages.cs": {
+            "currentSha256": "b71ceadfa428bde69c236db8cb8fd92cd6f57361e7e35f3a2ced145caa0b5ded",
+            "a9Sha256": "b71ceadfa428bde69c236db8cb8fd92cd6f57361e7e35f3a2ced145caa0b5ded",
+            "byteIdenticalToA9": true
+          },
+          "tests/AuditSphereOps.Domain.Tests/FinancialPackageGateTests.cs": {
+            "currentSha256": "d829087390f3e6569819bf7e75aed17b4de9add444f523eca42b9ffb084f4323",
+            "a9Sha256": "d829087390f3e6569819bf7e75aed17b4de9add444f523eca42b9ffb084f4323",
+            "byteIdenticalToA9": true
+          },
+          "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.PeriodClose.cs": {
+            "currentSha256": "c097f7e740a748cd7cfb2aa0be1efd2b37e6bf0fa04baf7f6cb21afe5331202a",
+            "a9Sha256": "c097f7e740a748cd7cfb2aa0be1efd2b37e6bf0fa04baf7f6cb21afe5331202a",
+            "byteIdenticalToA9": true
+          },
+          "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.PeriodMaintenanceReceipts.cs": {
+            "currentSha256": "1d96931e7360a62fc4dbf7f09a0ed50db44a532ec28f413d2b66daf109f3f017",
+            "a9Sha256": "1d96931e7360a62fc4dbf7f09a0ed50db44a532ec28f413d2b66daf109f3f017",
+            "byteIdenticalToA9": true
+          },
+          "tests/AuditSphereOps.Domain.Tests/AccountingPeriodRecordQueryTests.cs": {
+            "currentSha256": "a6dcd66158f5175a8f01ff1558f6b35c7ae1a2cc697b6bab0e6f359524f1a68c",
+            "a9Sha256": "a6dcd66158f5175a8f01ff1558f6b35c7ae1a2cc697b6bab0e6f359524f1a68c",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/source-acceptance.spec.ts": {
+            "currentSha256": "388a468e32872b002ee82a3f1fb0c89e9e2e0480fb96fb702954f17f9ef5f38d",
+            "a9Sha256": "388a468e32872b002ee82a3f1fb0c89e9e2e0480fb96fb702954f17f9ef5f38d",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/journal.spec.ts": {
+            "currentSha256": "b981d32f1c31807d9e00abb0311653aa29c686f74359d21b7b01c4ff87b16184",
+            "a9Sha256": "b981d32f1c31807d9e00abb0311653aa29c686f74359d21b7b01c4ff87b16184",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/plan-command.spec.ts": {
+            "currentSha256": "d7e8d539571f9d739bce7c4c02969b81c90d345c1e159065a168b0e5831fb0d1",
+            "a9Sha256": "d7e8d539571f9d739bce7c4c02969b81c90d345c1e159065a168b0e5831fb0d1",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/operational-opening-balances.spec.ts": {
+            "currentSha256": "e4f3dec8d213e5be49c56e7cbe477664a481058f53f99bb9df01219886b04de9",
+            "a9Sha256": "e4f3dec8d213e5be49c56e7cbe477664a481058f53f99bb9df01219886b04de9",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/operational-journals.spec.ts": {
+            "currentSha256": "70e6705c6a6a70346fcf6d3925dfe52599d7a95c3510e836ed04acbecbcbc689",
+            "a9Sha256": "70e6705c6a6a70346fcf6d3925dfe52599d7a95c3510e836ed04acbecbcbc689",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/package.spec.ts": {
+            "currentSha256": "0fe9ea4a1c7bd768c163c3462f244ddac18bca74ae4c7301be8cefee47eeee04",
+            "a9Sha256": "0fe9ea4a1c7bd768c163c3462f244ddac18bca74ae4c7301be8cefee47eeee04",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/period.spec.ts": {
+            "currentSha256": "3691c17e318666ea6e60413f51cb1095ab5b604271fcd46ef58ceffa32b0270f",
+            "a9Sha256": "3691c17e318666ea6e60413f51cb1095ab5b604271fcd46ef58ceffa32b0270f",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/rollforward.spec.ts": {
+            "currentSha256": "66f2bba0fea276de094bb0d109e5b0cbf131b9717f6d1d7ecde7bd0f221673eb",
+            "a9Sha256": "66f2bba0fea276de094bb0d109e5b0cbf131b9717f6d1d7ecde7bd0f221673eb",
+            "byteIdenticalToA9": true
+          },
+          "src/AuditSphereOps.Ui/src/app/features/accounting/restatements.spec.ts": {
+            "currentSha256": "fa2eb02250899841a9452dbf23b07c7b918762c12644c7558a9efa142bdd2767",
+            "a9Sha256": "fa2eb02250899841a9452dbf23b07c7b918762c12644c7558a9efa142bdd2767",
+            "byteIdenticalToA9": true
+          },
+          "docs/architecture/auditsphere-architecture-code-map.md": {
+            "currentSha256": "fcca6b0a2de45aacea6d89be134d4b26c033f43379e4dadbfdd9eaca8f88cfa6",
+            "a9Sha256": "fcca6b0a2de45aacea6d89be134d4b26c033f43379e4dadbfdd9eaca8f88cfa6",
+            "byteIdenticalToA9": true
+          },
+          "docs/architecture/adr/auditsphere-architecture-adr-0013-approved-mapping-lineage-for-practice-time-approved.md": {
+            "currentSha256": "2c7a91dbacfbcb6d2e37598119e443e1a3ca05f44704a6ad2eee1dce7ccf0fc4",
+            "a9Sha256": "2c7a91dbacfbcb6d2e37598119e443e1a3ca05f44704a6ad2eee1dce7ccf0fc4",
+            "byteIdenticalToA9": true
+          },
+          "docs/architecture/adr/auditsphere-architecture-adr-0014-monetary-scale-and-rounding-approved.md": {
+            "currentSha256": "29fbdcd490759b75266372655c78bc4b5040ea0aa2ffdbbe5f6558318776b0f7",
+            "a9Sha256": "29fbdcd490759b75266372655c78bc4b5040ea0aa2ffdbbe5f6558318776b0f7",
+            "byteIdenticalToA9": true
+          }
+        },
+        "evidenceBoundary": "Selected named retained a9 Domain PASS applies only to its exact case and recorded source/test digests. It is not a f93 execution, full CI claim, qualified approval or whole recipe acceptance. Angular/API/E2E were not run by this sidecar. Unresolved complete-target owners/checks remain null; supporting analogs are not target completion."
+      },
+      "sourceRegister": "specificationTaskReconciliation.ASCP-10.sharedAccountingHandoffRegister"
+    },
+    "ASCP-11": {
+      "specificationSha256": "48443a258b9c4e12bb8bf4c1fd081734addb4d14a6514599d5b998b87812db9a",
+      "scope": "Native-bookkeeping continuity/source-snapshot handoff",
+      "disposition": "SOURCE_TRACED_TARGET_ACCEPTANCE_UNVERIFIED",
+      "taskComplete": false,
+      "acceptance": "NOT_ACCEPTED",
+      "recipes": [
+        {
+          "recipeNumber": 1,
+          "sourceLine": 773,
+          "sourceText": "1. Confirm the exact accepted bookkeeping mandate, profile source mode and reviewed cutover effective period. Inspect any newly delivered cutover before scheduling a replacement. Withdrawn mandate may retain reads, but never authorize new posting.",
+          "sourceTextSha256": "bdf87be51a326c8b3185c9e4dffc0d728d634ef55d070393a9d41fa885c8ec2a",
+          "currentOwnerAnchors": [
+            "profile",
+            "native-authority",
+            "native-post",
+            "setup-ui"
+          ],
+          "existingTestSelectors": [
+            "profile-mode",
+            "native-profile",
+            "native-post"
+          ],
+          "engineeringDisposition": "BLOCKED_DEPENDENCY",
+          "finding": "Native commands require a native source mode and a current accepted client bookkeeping mandate, with posting rechecks. Existing profile code refuses post-period source-identity changes without reviewed cutover.",
+          "remaining": "A real accepted mandate and reviewed cutover effective-period handoff are not supplied by synthetic tests or this read-only slice. No replacement cutover service was established by targeted current filenames and profile/operational source inspection. This does not claim all native clients lack valid authority.",
+          "fullTargetOwner": null,
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "profile-mode",
+            "native-profile",
+            "native-post"
+          ],
+          "ownerFilesMatchingA9": [
+            "profile",
+            "native-authority",
+            "native-post",
+            "setup-ui"
+          ]
+        },
+        {
+          "recipeNumber": 2,
+          "sourceLine": 774,
+          "sourceText": "2. Check opening chart/mapping/party/control-account/currency lineage and sum reconciliation. Aggregate-only opening balances must disclose missing invoice-level detail; never synthesize receivables/payables.",
+          "sourceTextSha256": "d4009223b401201ecc832b3c4bb005a5af4f74f011d4b5137040ad7bc82a2918",
+          "currentOwnerAnchors": [
+            "opening",
+            "opening-review",
+            "opening-ui"
+          ],
+          "existingTestSelectors": [
+            "opening",
+            "opening-detail",
+            "opening-ui"
+          ],
+          "engineeringDisposition": "VERIFY_ONLY",
+          "finding": "Opening manifests bind exact period revision/chart/currency/source hash; optional real counterparty/control-account detail must reconcile to opening balances.",
+          "remaining": "Aggregate-only detail must remain disclosed; selected tests are technical evidence, not genuine client cutover approval or complete future-period continuity. No synthetic AR/AP items.",
+          "fullTargetOwner": "SUPPORTING_OWNERS_LISTED_FULL_TARGET_UNVERIFIED",
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "opening",
+            "opening-detail"
+          ],
+          "ownerFilesMatchingA9": [
+            "opening",
+            "opening-review",
+            "opening-ui"
+          ]
+        },
+        {
+          "recipeNumber": 3,
+          "sourceLine": 775,
+          "sourceText": "3. Where required and still absent, implement reviewed successor-period opening from an exact closed, approved source. Persist the source identity/digest and independent approval. Do not carry forward operational movement twice or move old invoices into a new period by mutating their origin.",
+          "sourceTextSha256": "caf094c2f7a595ac247c49a2be21fb93ebd9fbbf2f154f2e830aa8178cd599d8",
+          "currentOwnerAnchors": [
+            "opening",
+            "opening-review",
+            "period-rollforward"
+          ],
+          "existingTestSelectors": [
+            "opening",
+            "period-rollforward"
+          ],
+          "engineeringDisposition": "UNVERIFIED",
+          "finding": "Existing opening publication and generic period/book roll-forward are real, separate owners. Generic draft-book roll-forward is not proof of operational successor opening/invoice carry-forward.",
+          "remaining": "Exact closed approved native source -> reviewed successor opening with source digest, stale-source rejection, no duplicate movement and preserved invoice origin has no established target owner/check in this bounded trace. Needs accepted continuity/cutover/source contract before a ready delta can be selected.",
+          "fullTargetOwner": null,
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "opening",
+            "period-rollforward"
+          ],
+          "ownerFilesMatchingA9": [
+            "opening",
+            "opening-review",
+            "period-rollforward"
+          ]
+        },
+        {
+          "recipeNumber": 4,
+          "sourceLine": 776,
+          "sourceText": "4. Keep GL/TB paging bound to its current snapshot and posting sequence, including later backdated postings. Native TB combines approved opening and period movements explicitly; historical adjustments remain a separate layer.",
+          "sourceTextSha256": "a577ca207cc2b2b679e8b6939684679918d040edebd804c1b50d86d9986ceb7c",
+          "currentOwnerAnchors": [
+            "native-gl",
+            "native-ui"
+          ],
+          "existingTestSelectors": [
+            "native-post",
+            "opening",
+            "native-ui"
+          ],
+          "engineeringDisposition": "VERIFY_ONLY",
+          "finding": "Current native GL/TB uses a repeatable-read snapshot plus posting sequence continuation fence. Approved opening and native posted movements are explicit separate amounts; reporting adjustments remain separate.",
+          "remaining": "The retained native case contains paging/posting-sequence assertions; UI contract is unrun. This stable live paging view alone is not sealed historical audit-source evidence.",
+          "fullTargetOwner": "SUPPORTING_OWNERS_LISTED_FULL_TARGET_UNVERIFIED",
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "native-post",
+            "opening"
+          ],
+          "ownerFilesMatchingA9": [
+            "native-gl",
+            "native-ui"
+          ]
+        },
+        {
+          "recipeNumber": 5,
+          "sourceLine": 777,
+          "sourceText": "5. Produce a sealed reporting-source snapshot/export only through an existing accepted-source contract or a narrowly additive approved one. Freeze exact rows, control totals, cutoff and source identities; a live mutable query cannot serve as historical audit evidence.",
+          "sourceTextSha256": "778bfa530532845217a2cfb536d38dcf0333bb55d1563d1612d9a8f62ed58e04",
+          "currentOwnerAnchors": [
+            "native-gl",
+            "native-journal-snapshots",
+            "tb-import",
+            "tb-accept"
+          ],
+          "existingTestSelectors": [
+            "native-post",
+            "source-accept",
+            "source-scope"
+          ],
+          "engineeringDisposition": "BLOCKED_DEPENDENCY",
+          "finding": "Live native GL/TB, immutable submitted-journal contents and accepted external TB imports are distinct existing mechanisms. None is automatically the required sealed native ledger-to-reporting handoff.",
+          "remaining": "Target native reporting-source snapshot/export owner and exact freeze/cutoff/control/source identities contract remain unverified. Integrate only an accepted-source contract or a narrowly approved additive contract; no new reporting-context subsystem. Existing snapshots are not full target acceptance.",
+          "fullTargetOwner": null,
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "native-post",
+            "source-accept",
+            "source-scope"
+          ],
+          "ownerFilesMatchingA9": [
+            "native-gl",
+            "native-journal-snapshots",
+            "tb-import",
+            "tb-accept"
+          ]
+        },
+        {
+          "recipeNumber": 6,
+          "sourceLine": 778,
+          "sourceText": "6. Provide explicit UI selection of source mode/cutoff, current/stale opening state and the reviewed continuation action. No inventory operations, payroll execution, bank initiation or tax filing are implied.",
+          "sourceTextSha256": "bca701c826ace1702b250d14668a200927596d2a86405d06ea66cb62685ead72",
+          "currentOwnerAnchors": [
+            "setup-ui",
+            "opening-ui",
+            "native-ui"
+          ],
+          "existingTestSelectors": [
+            "opening-ui",
+            "native-ui"
+          ],
+          "engineeringDisposition": "UNVERIFIED",
+          "finding": "Current setup exposes source mode; current opening UI reviews exact period/cutover evidence; native browsing decodes exact scoped movement.",
+          "remaining": "Full explicit mode/cutoff/current-stale opening/authorized successor continuation journey is unverified. It cannot be inferred from opening labels or live filters. No inventory/payroll/payment-initiation/tax-filing scope is added.",
+          "fullTargetOwner": null,
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [],
+          "ownerFilesMatchingA9": [
+            "setup-ui",
+            "opening-ui",
+            "native-ui"
+          ]
+        }
+      ],
+      "ciEvidence": {
+        "runId": 40055833218,
+        "resolvedSha": "a9a93692e73671470131aa807b12f526034445e1",
+        "sourceMatch": "MATCH",
+        "scope": "Only named retained Domain cases and exact source/test bytes; not current combined full CI, UI/API/browser, whole recipe or professional acceptance.",
+        "angularFileEvidence": "Shared register records exact-source Angular file passes on764d; not structured individual-case evidence or current overall full pass."
+      },
+      "reviewLimits": "Named retained a9 Domain cases and exact-source764d Angular file passes support only their stated invariants. No local reruns, browser/API/persistence extrapolation, whole-recipe/full-current-CI/professional acceptance. Missing complete-target owners/checks remain unverified.",
+      "engineeringBoundary": "Unavailable real-client mandate/cutover evidence blocks dependent live acceptance, not independent technical source-contract work. Native successor opening and sealed reporting source remain implementation targets; limited search or analogous producer tests do not prove them delivered.",
+      "sourceRegister": "specificationTaskReconciliation.ASCP-10.sharedAccountingHandoffRegister"
+    },
+    "ASCP-15": {
+      "specificationSha256": "48443a258b9c4e12bb8bf4c1fd081734addb4d14a6514599d5b998b87812db9a",
+      "scope": "Exact-package review/period close/controlled roll-forward",
+      "disposition": "SOURCE_TRACED_TARGET_ACCEPTANCE_UNVERIFIED",
+      "taskComplete": false,
+      "acceptance": "NOT_ACCEPTED",
+      "recipes": [
+        {
+          "recipeNumber": 1,
+          "sourceLine": 961,
+          "sourceText": "1. Inspect composition, input/currentness manifest, generated artifact set and package seal. Verify every required file belongs to the same exact source and reviewed content; reject partial or mismatched renders.",
+          "sourceTextSha256": "6a5a8e47fbe2885166a28607687efd3be149765fe6099120505130756baca92f",
+          "currentOwnerAnchors": [
+            "package-build",
+            "render",
+            "seal",
+            "manifest"
+          ],
+          "existingTestSelectors": [
+            "seal",
+            "seal-validation",
+            "reviews"
+          ],
+          "engineeringDisposition": "VERIFY_ONLY",
+          "finding": "Current package artifacts/seals pin required formats, exact source/content revisions and byte hashes; direct selected seal tests are retained at a9.",
+          "remaining": "Full generated artifact set/composition review and visual acceptance are not executed here. A sealed financial package is not the final five-part audit/commercial bundle.",
+          "fullTargetOwner": "SUPPORTING_OWNERS_LISTED_FULL_TARGET_UNVERIFIED",
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "seal",
+            "seal-validation",
+            "reviews"
+          ],
+          "ownerFilesMatchingA9": [
+            "package-build",
+            "render",
+            "seal",
+            "manifest"
+          ]
+        },
+        {
+          "recipeNumber": 2,
+          "sourceLine": 962,
+          "sourceText": "2. Tie preparer/reviewer/client-management decisions to exact package/composition revisions, not merely an engagement or filename. Revalidate independent authority and sources at seal/release.",
+          "sourceTextSha256": "bd36aa54fa6ef892b8aa430addbe01202ff87fb7be30357793ecee42e9deccc4",
+          "currentOwnerAnchors": [
+            "reviews",
+            "review-current",
+            "seal"
+          ],
+          "existingTestSelectors": [
+            "reviews",
+            "partner",
+            "package-ui"
+          ],
+          "engineeringDisposition": "VERIFY_ONLY",
+          "finding": "Stage decisions and currentness checks bind exact package/presentation/composition and current Partner authority, rejecting stale chains or unavailable artifacts.",
+          "remaining": "Synthetic Domain review records do not provide genuine preparer/reviewer/client-management/Partner decisions. Current API/Angular end-to-end acceptance and qualified release evidence remain separate.",
+          "fullTargetOwner": "SUPPORTING_OWNERS_LISTED_FULL_TARGET_UNVERIFIED",
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "reviews",
+            "partner"
+          ],
+          "ownerFilesMatchingA9": [
+            "reviews",
+            "review-current",
+            "seal"
+          ]
+        },
+        {
+          "recipeNumber": 3,
+          "sourceLine": 963,
+          "sourceText": "3. Evaluate period-close prerequisites from actual approved books/packages and required evidence. A task-list Done or an earlier package review cannot close a changed period.",
+          "sourceTextSha256": "840922bd385e4788a10d84790c4d10b666c93e5ae7f37a972f6cb15eb1081fc8",
+          "currentOwnerAnchors": [
+            "period-close",
+            "review-current"
+          ],
+          "existingTestSelectors": [
+            "close",
+            "seal-validation",
+            "receipt-stale"
+          ],
+          "engineeringDisposition": "VERIFY_ONLY",
+          "finding": "Period close uses actual analyses/risk/package-review guards; current package approval/composition evidence is checked rather than task completion.",
+          "remaining": "The complete current period/book/package/evidence acceptance journey remains unverified. Preserve Task03/Task10/Task14 prerequisite handoffs; an earlier review does not approve a changed period.",
+          "fullTargetOwner": "SUPPORTING_OWNERS_LISTED_FULL_TARGET_UNVERIFIED",
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "close",
+            "seal-validation",
+            "receipt-stale"
+          ],
+          "ownerFilesMatchingA9": [
+            "period-close",
+            "review-current"
+          ]
+        },
+        {
+          "recipeNumber": 4,
+          "sourceLine": 964,
+          "sourceText": "4. Preserve controlled amendment/reopen/restatement and opening roll-forward lineage through existing maintenance receipts. Original-actor recovery must distinguish no receipt, matching receipt and conflicting intent.",
+          "sourceTextSha256": "d434d39fa3360bf13b98b0947edf8887b15529e33e713f2433926e8fc19175f6",
+          "currentOwnerAnchors": [
+            "restatement",
+            "period-rollforward",
+            "maintenance",
+            "lookup",
+            "maintenance-ui",
+            "restatement-ui"
+          ],
+          "existingTestSelectors": [
+            "restatement",
+            "period-rollforward",
+            "receipt-history",
+            "receipt-intent",
+            "receipt-concurrent",
+            "receipt-stale",
+            "receipt-scope",
+            "rollforward-ui",
+            "restatement-ui"
+          ],
+          "engineeringDisposition": "VERIFY_ONLY",
+          "finding": "Existing controlled restatement/period roll-forward and exact immutable maintenance receipts retain original actor/intent and distinguish missing, matching and conflicting recovery.",
+          "remaining": "Selected retained cases support the named receipt/period invariants only. Generic period/book roll-forward is not Task11 native operational carry-forward; do not duplicate receipts or rebind issued packages.",
+          "fullTargetOwner": "SUPPORTING_OWNERS_LISTED_FULL_TARGET_UNVERIFIED",
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "restatement",
+            "period-rollforward",
+            "receipt-history",
+            "receipt-intent",
+            "receipt-concurrent",
+            "receipt-stale",
+            "receipt-scope"
+          ],
+          "ownerFilesMatchingA9": [
+            "restatement",
+            "period-rollforward",
+            "maintenance",
+            "lookup",
+            "maintenance-ui",
+            "restatement-ui"
+          ]
+        },
+        {
+          "recipeNumber": 5,
+          "sourceLine": 965,
+          "sourceText": "5. Validate retained period evidence pagination and exact record handoffs. UI history must not collapse earlier revisions or hide failed/unavailable evidence behind a green current badge.",
+          "sourceTextSha256": "ed4c16091ed8031e61603d852fa5c0381edf9f08d6da186368598bd7e0447f73",
+          "currentOwnerAnchors": [
+            "evidence",
+            "evidence-ui",
+            "period-ui"
+          ],
+          "existingTestSelectors": [
+            "period-handoff",
+            "period-ui"
+          ],
+          "engineeringDisposition": "UNVERIFIED",
+          "finding": "Existing exact category evidence queries use scoped snapshots/final authority fences; period UI presents explicit coverage and category pages.",
+          "remaining": "The retained period-handoff case checks revocation on the period projection, not all retained-evidence category pagination/history. No direct full category-pagination Domain selector was established; the named Angular case is unrun. Earlier revisions and unavailable evidence must stay visible without assumed acceptance.",
+          "fullTargetOwner": null,
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "period-handoff"
+          ],
+          "ownerFilesMatchingA9": [
+            "evidence",
+            "evidence-ui",
+            "period-ui"
+          ]
+        },
+        {
+          "recipeNumber": 6,
+          "sourceLine": 966,
+          "sourceText": "6. Add schema only when a concrete pin/constraint is absent. Keep old sealed outputs readable under current authorization; no data-deleting Down for retained financial evidence.",
+          "sourceTextSha256": "ec6898cb29ec15d725d16a34c300de452f78e83930df7f35f2a285127db44ade",
+          "currentOwnerAnchors": [
+            "manifest",
+            "receipt-storage",
+            "receipt-down"
+          ],
+          "existingTestSelectors": [
+            "receipt-down",
+            "seal",
+            "receipt-scope"
+          ],
+          "engineeringDisposition": "VERIFY_ONLY",
+          "finding": "Existing receipt storage and a tested receipt downgrade refusal are direct reuse evidence; old manifests remain under current authorization. No concrete missing schema constraint was proven.",
+          "remaining": "Do not extrapolate one receipt migration test to every historical financial migration. Any new schema requires a proven specific missing pin/constraint and retained-history rollback rule; no such ready delta is selected here.",
+          "fullTargetOwner": "SUPPORTING_OWNERS_LISTED_FULL_TARGET_UNVERIFIED",
+          "fullTargetAcceptanceTest": null,
+          "acceptance": "UNVERIFIED",
+          "qualifiedApprovalClaimed": false,
+          "selectedRetainedPassTests": [
+            "receipt-down",
+            "seal",
+            "receipt-scope"
+          ],
+          "ownerFilesMatchingA9": [
+            "manifest",
+            "receipt-storage",
+            "receipt-down"
+          ]
+        }
+      ],
+      "ciEvidence": {
+        "runId": 40055833218,
+        "resolvedSha": "a9a93692e73671470131aa807b12f526034445e1",
+        "sourceMatch": "MATCH",
+        "scope": "Only named retained Domain cases and exact source/test bytes; not current combined full CI, UI/API/browser, whole recipe or professional acceptance.",
+        "angularFileEvidence": "Shared register records exact-source Angular file passes on764d; not structured individual-case evidence or current overall full pass."
+      },
+      "reviewLimits": "Named retained a9 Domain cases and exact-source764d Angular file passes support only their stated invariants. No local reruns, browser/API/persistence extrapolation, whole-recipe/full-current-CI/professional acceptance. Missing complete-target owners/checks remain unverified.",
+      "engineeringBoundary": "Unavailable real-client mandate/cutover evidence blocks dependent live acceptance, not independent technical source-contract work. Native successor opening and sealed reporting source remain implementation targets; limited search or analogous producer tests do not prove them delivered.",
+      "sourceRegister": "specificationTaskReconciliation.ASCP-10.sharedAccountingHandoffRegister"
     }
   }
 }

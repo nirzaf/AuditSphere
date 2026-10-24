@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Accounting and confirmation source handoffs
+
+The requirement manifest now records exact recipe owners and existing checks for import-first reporting, native bookkeeping continuity and retained period evidence. Retained Domain cases and unchanged-source Angular file passes support their specific guards, not whole workflows. Native successor openings and a sealed native reporting-source handoff remain implementation targets. The confirmation source trace distinguishes all supported areas: caller-entered amounts are not independently derived booked balances, and an approved bank reconciliation is a candidate source rather than an implemented adapter. Missing real-client approvals block their acceptance leaves, not independent technical work.
+
 ## Balance draft release eligibility
 
 Manual balance drafts and their screen eligibility now require an issued financial-package release in the exact firm, client and engagement, matching the automatic path and approved draft-only policy. A workpaper release is insufficient. Existing fee-cycle variants retain denial/no-mutation, genuine package release, payment and replay assertions. Full current-source CI and broader commercial/browser acceptance remain open; see `status.json` for scoped evidence.
@@ -367,13 +371,7 @@ The resource grid now returns and displays the exact saved leave, training and p
 
 The source API response, generated OpenAPI schema, selected-range decoder, and focused Domain/Angular/browser checks cover the new projection. Exact commands and counts are recorded in [`status.json`](status.json#targetedVerification.resourceAvailabilityProjection20261018). Fast CI run `39109639455` passed on the exact source commit; it is not the full release regression suite. The existing local browser server on port 5029 still serves a shell whose route content is blank; that manual check remains blocked by the stale local host rather than treated as acceptance. ASPM-RES-01 remains PARTIAL pending broad role, range-boundary, responsive/accessibility and current release acceptance.
 
-## Phase- and risk-attributed resource allocations (2026-10-18)
-
-Resource allocations now preserve separate planned-hour lines for each engagement, staff member, Sunday-based week, audit phase and optional risk area. The reviewed preview, request hash, durable receipt and PostgreSQL uniqueness/receipt guards bind the exact line. Different phase/risk lines coexist and all contribute to the weekly capacity total. Historical rows backfill to visible `UNASSIGNED` attribution, remain in capacity totals, and can be removed only through a reviewed zero-minute action for that exact legacy line; new positive allocations require an assignable phase. The Angular form requires the phase, normalizes a selected date to Sunday, and displays phase/risk on saved lines. Existing staffing and enabled-staff authorization checks remain in force.
-
-Focused checks on source commit `5996f36d49bf89feba9c99a7fab7c567c5f41c95`: PostgreSQL Domain regression 1/1 (two lines, aggregate capacity, exact-line removal and retry); resource Angular spec 15/15; resource E2E cohort 4/4; API and E2E Release builds with 0 warnings/errors; EF model drift and OpenAPI checks pass. Angular production build passes with the existing `commercial/settings.scss` warning (7.53 kB vs 4.00 kB). Fast CI run `39108092465` was in progress when this handoff was written; release-wide suites remain CI/CD work.
-
-Built-in browser inspection reached the existing local server on port 5029, where the Resources navigation selected but the workspace stayed blank because the stale shell referenced missing lazy chunk `chunk-Eamlq2bo.js`. I left that running process untouched, so the current source UI was not manually browser-verified. Broader date-boundary, role, responsive/accessibility acceptance and full current-SHA CI remain open. The focused allocation evidence is in `status.json` at `targetedVerification.practiceResourcePhaseRisk20261018`; the earlier eligibility-only record is preserved in the status archive.
+Earlier resource-allocation evidence is retained in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#phase--and-risk-attributed-resource-allocations-2026-10-18).
 
 ## Correspondence contact validity and proposal send-boundary recheck (2026-10-18)
 
