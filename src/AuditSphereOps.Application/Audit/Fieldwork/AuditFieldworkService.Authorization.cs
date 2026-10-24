@@ -46,6 +46,28 @@ public static partial class AuditFieldworkService
       $"SELECT * FROM engagements WHERE firm_id = {actor.FirmId} AND id = {engagementId} FOR UPDATE").LoadAsync(ct);
   }
 
+  /// <summary>Canonical scope fences for an already-authorized internal lifecycle read that has
+  /// no actor parameter. Callers must establish authorization before invoking this overload.</summary>
+  internal static async Task<bool> LockConfirmationScopeForAuthorizedScopeAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid clientId, Guid engagementId, CancellationToken ct)
+  {
+    if (await db.FirmSafetyStates.FromSqlInterpolated(
+          $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR SHARE")
+        .AsNoTracking().SingleOrDefaultAsync(ct) is null)
+      return false;
+    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == firmId && x.Id == engagementId, ct);
+    if (engagement is null || engagement.PracticeClientId != clientId)
+      return false;
+    if (await db.ClientSafetyStates.FromSqlInterpolated(
+          $"SELECT * FROM client_safety_states WHERE firm_id = {firmId} AND id = {clientId} FOR UPDATE")
+        .AsNoTracking().SingleOrDefaultAsync(ct) is null)
+      return false;
+    return await db.Engagements.FromSqlInterpolated(
+        $"SELECT * FROM engagements WHERE firm_id = {firmId} AND practice_client_id = {clientId} AND id = {engagementId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct) is not null;
+  }
+
   private static async Task<ScopedAuthorization> AuthorizeEngagementAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, IReadOnlyList<string> roles, CancellationToken ct)
   {

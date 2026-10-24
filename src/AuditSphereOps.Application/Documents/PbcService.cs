@@ -342,6 +342,24 @@ public static partial class PbcService
     return CommandResult<PbcDownload>.Ok(new(intent.FileName, intent.ContentType, intent.DeclaredByteCount, paths));
   }
 
+  /// <summary>Verifies the accepted staged bytes for an already-authorized scoped source consumer.
+  /// It exposes no path or content and must not be used as a public authorization boundary.</summary>
+  internal static async Task<CommandResult> VerifyAcceptedStagedContentForAuthorizedScopeAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid clientId, Guid engagementId, Guid uploadIntentId,
+    string expectedFileName, string expectedSha256, long expectedByteCount, CancellationToken ct)
+  {
+    var intent = await db.PbcUploadIntents.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == uploadIntentId && x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId, ct);
+    if (intent is null || intent.State != PbcUploadStates.Received ||
+        intent.FileName != expectedFileName || intent.DeclaredByteCount != expectedByteCount ||
+        intent.ReceivedByteCount != expectedByteCount ||
+        !string.Equals(intent.FinalSha256Hex, expectedSha256, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(intent.DeclaredSha256Hex, expectedSha256, StringComparison.OrdinalIgnoreCase))
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The accepted schedule content identity changed.");
+    var verified = await VerifyStagedChunksAsync(db, firmId, intent, ct);
+    return verified.Error is null ? CommandResult.Ok() : CommandResult.Fail(verified.Error, verified.Message);
+  }
+
   private static PbcCommunication Message(PbcRequest request, Guid authorUserId, string kind,
     string body, DateTimeOffset now) => new()
     {

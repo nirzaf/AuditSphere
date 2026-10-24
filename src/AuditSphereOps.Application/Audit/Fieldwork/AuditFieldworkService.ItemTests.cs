@@ -26,18 +26,44 @@ public static partial class AuditFieldworkService
         result is AuditItemTestResults.Exception or AuditItemTestResults.Limitation && string.IsNullOrWhiteSpace(request.FollowUp))
       return Invalid<ItemTestValue>("Item tests require work and a bounded result; pass/exception outcomes need evidence, and exceptions or limitations need follow-up.");
     var selection = await db.AuditSelections.AsNoTracking().SingleAsync(x => x.Id == item.SelectionId && x.FirmId == actor.FirmId, ct);
+    var typedSource = selection.ScheduleId is { } scheduleId && await db.AuditScheduleSourceCaptures.AsNoTracking()
+      .AnyAsync(x => x.FirmId == actor.FirmId && x.ScheduleId == scheduleId, ct);
+    await using var tx = typedSource ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (typedSource)
+    {
+      await LockConfirmationScopeAsync(db, actor, item.EngagementId, ct);
+      auth = await AuthorizeEntityAsync(db, actor, item, PlanningRoles, ct);
+      if (!auth.Succeeded) return CommandResult<ItemTestValue>.Fail(auth.ErrorCode!, auth.Message!);
+      var currentItem = await db.AuditSelectionItems.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == item.Id && x.FirmId == actor.FirmId && x.ClientId == item.ClientId &&
+        x.EngagementId == item.EngagementId && x.SelectionId == item.SelectionId, ct);
+      if (currentItem is null) return Denied<ItemTestValue>();
+      item = currentItem;
+      var refreshedSelection = await db.AuditSelections.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == item.SelectionId && x.FirmId == actor.FirmId && x.ClientId == item.ClientId &&
+        x.EngagementId == item.EngagementId, ct);
+      if (refreshedSelection is null) return Denied<ItemTestValue>();
+      selection = refreshedSelection;
+    }
     if (selection.Status != AuditSelectionStatuses.Reviewed)
       return CommandResult<ItemTestValue>.Fail(ErrorCodes.GateBlocked, "The selection must be reviewed before item testing.");
     if (selection.InputGeneration != await CurrentGenerationAsync(db, selection.ClientId, selection.FirmId, ct))
       return CommandResult<ItemTestValue>.Fail(ErrorCodes.GenerationStale, "The selected population changed; item testing is stale.");
+    if (typedSource)
+    {
+      var current = await AuditScheduleSourceWorkspace.CheckCurrentScheduleSourceAsync(
+        db, actor, selection.ClientId, selection.EngagementId, selection.ScheduleId!.Value, ct);
+      if (!current.Succeeded) return CommandResult<ItemTestValue>.Fail(current.ErrorCode!, current.Message!);
+    }
     var generation = await CurrentGenerationAsync(db, selection.ClientId, selection.FirmId, ct);
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var legacyTx = typedSource ? null : await db.Database.BeginTransactionAsync(ct);
     // Professional mutations of a frozen audit baseline are refused under the same transaction boundary
     // as the write (STE-REM-09).
     var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, item.EngagementId, "record item test", ct);
     if (!writable.Succeeded)
     {
-      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      if (typedSource) await tx!.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      else await legacyTx!.CommitAsync(ct);
       return CommandResult<ItemTestValue>.Fail(writable.ErrorCode!, writable.Message!);
     }
     // Sampled-item execution is a substantive test route: it requires the same approved planning
@@ -76,7 +102,16 @@ public static partial class AuditFieldworkService
     };
     db.AuditItemTests.Add(test);
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (typedSource)
+    {
+      var current = await AuditScheduleSourceWorkspace.CheckCurrentScheduleSourceAsync(
+        db, actor, selection.ClientId, selection.EngagementId, selection.ScheduleId!.Value, ct);
+      if (!current.Succeeded) return CommandResult<ItemTestValue>.Fail(current.ErrorCode!, current.Message!);
+      auth = await AuthorizeEntityAsync(db, actor, item, PlanningRoles, ct);
+      if (!auth.Succeeded) return CommandResult<ItemTestValue>.Fail(auth.ErrorCode!, auth.Message!);
+    }
+    if (typedSource) await tx!.CommitAsync(ct);
+    else await legacyTx!.CommitAsync(ct);
     return CommandResult<ItemTestValue>.Ok(new(test.Id, test.Revision, test.Result));
   }
 
@@ -95,8 +130,34 @@ public static partial class AuditFieldworkService
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review the same item test.");
     var selection = await db.AuditSelections.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == test.SelectionId && x.FirmId == actor.FirmId, ct);
+    if (selection is null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The selection must remain reviewed before item-test review.");
+    var typedSource = selection.ScheduleId is { } scheduleId && await db.AuditScheduleSourceCaptures.AsNoTracking()
+      .AnyAsync(x => x.FirmId == actor.FirmId && x.ScheduleId == scheduleId, ct);
+    await using var tx = typedSource ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (typedSource)
+    {
+      await LockConfirmationScopeAsync(db, actor, test.EngagementId, ct);
+      auth = await AuthorizeEntityAsync(db, actor, test, ReviewRoles, ct);
+      if (!auth.Succeeded) return auth;
+      var currentTest = await db.AuditItemTests.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == test.Id && x.FirmId == actor.FirmId && x.ClientId == test.ClientId &&
+        x.EngagementId == test.EngagementId && x.SelectionId == test.SelectionId, ct);
+      if (currentTest is null) return Denied();
+      test = currentTest;
+      selection = await db.AuditSelections.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == test.SelectionId && x.FirmId == actor.FirmId && x.ClientId == test.ClientId &&
+        x.EngagementId == test.EngagementId, ct);
+      if (selection is null) return CommandResult.Fail(ErrorCodes.GateBlocked, "The selection must remain reviewed before item-test review.");
+    }
     if (selection is null || selection.Status != AuditSelectionStatuses.Reviewed)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The selection must remain reviewed before item-test review.");
+    if (typedSource)
+    {
+      var current = await AuditScheduleSourceWorkspace.CheckCurrentScheduleSourceAsync(
+        db, actor, test.ClientId, test.EngagementId, selection.ScheduleId!.Value, ct);
+      if (!current.Succeeded) return current;
+    }
     var latestRevision = await db.AuditItemTests.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.SelectionItemId == test.SelectionItemId)
       .MaxAsync(x => (long?)x.Revision, ct);
@@ -104,11 +165,12 @@ public static partial class AuditFieldworkService
       return CommandResult.Fail(ErrorCodes.StaleRevision, "Only the current item-test revision can be reviewed.");
     if (test.InputGeneration != await CurrentGenerationAsync(db, test.ClientId, test.FirmId, ct))
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The item-test inputs changed; record a current revision.");
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var legacyTx = typedSource ? null : await db.Database.BeginTransactionAsync(ct);
     var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, test.EngagementId, "review item test", ct);
     if (!writable.Succeeded)
     {
-      await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      if (typedSource) await tx!.CommitAsync(ct); // persist the recorded refused attempt before refusing
+      else await legacyTx!.CommitAsync(ct);
       return CommandResult.Fail(writable.ErrorCode!, writable.Message!);
     }
     // Item-test review applies the same effective risk policy and rejects a review against an
@@ -144,7 +206,16 @@ public static partial class AuditFieldworkService
       Decision = decision, Comment = TrimOrNull(request.Comment), ReviewerUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (typedSource)
+    {
+      var current = await AuditScheduleSourceWorkspace.CheckCurrentScheduleSourceAsync(
+        db, actor, test.ClientId, test.EngagementId, selection.ScheduleId!.Value, ct);
+      if (!current.Succeeded) return current;
+      auth = await AuthorizeEntityAsync(db, actor, test, ReviewRoles, ct);
+      if (!auth.Succeeded) return auth;
+    }
+    if (typedSource) await tx!.CommitAsync(ct);
+    else await legacyTx!.CommitAsync(ct);
     return CommandResult.Ok();
   }
 }

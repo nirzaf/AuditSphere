@@ -1021,17 +1021,18 @@
       "review": "Independent static review identified tracked early-failure cleanup and repeated SQL population scans; corrected and reverified. SQL uses scoped lookup objects/grouped aggregates; runtime scaling not benchmarked."
     },
     "scheduleSourceIndependentReview20261024": {
-      "status": "PARTIALLY_VERIFIED_BACKEND_API_UI_PENDING",
+      "status": "PARTIALLY_VERIFIED_SOURCE_GUARDS_API_UI_PENDING",
       "baseline": "c55f1e0d185eb9e6c2b5ec6cc9be17565b425f66",
-      "scope": "Exact preview-bound independent approval/return, one immutable decision, original actor/session receipt recovery; typed source eligibility for sampling, selection creation and picker. Legacy/historical reads preserved.",
+      "scope": "Exact preview-bound independent approval/return and receipt recovery; current typed-source eligibility for selection review, item-test record/review and final readiness. Legacy/historical reads preserved.",
       "checks": {
         "initialReview": "3 PASS / 0 FAIL / 0 SKIP",
         "consumerCohort": "4 PASS / 1 FAIL: raw JSON representation rejected a current source; legacy sampling/isolation and empty rollback passed.",
-        "affectedCorrection": "2 PASS / 0 FAIL / 0 SKIP after only descriptor value-comparison fix; matching/mismatching fixtures cover review, IO preview, replay/conflict, tamper and generation refusal."
+        "affectedCorrection": "2 PASS / 0 FAIL / 0 SKIP after only descriptor value-comparison fix; matching/mismatching fixtures cover review, IO preview, replay/conflict, tamper and generation refusal.",
+        "sourceCurrentness": "Focused AuditScheduleIntakeSourcesTests: 3 PASS / 0 FAIL / 0 SKIP; current approved source permits selection and item-test review, tampered staged bytes block selection review, item-test writes/review and add a generic readiness blocker without changing retained history."
       },
       "integrity": "Original manifest hash, source IDs/digests/context/generation and per-account gates unchanged.",
-      "limits": "API/UI and rendered workflow not implemented; broader selection/item-test and final-readiness source integration remains pending before intake release. Caller-owned transaction variants and runtime scaling not verified. No human/professional/provider approval. Full CI only through pipeline.",
-      "evidence": ".local/autonomous/evidence/schedule-intake-20261024/independent-review-review.json"
+      "limits": "Source-intake API/UI and rendered workflow remain pending. Test covers current source and actual staged-byte tamper; accepted-TB replacement, lifecycle parity, lock-revocation and caller-owned transaction variants remain unverified. No human/professional/provider approval. Full CI only through pipeline.",
+      "evidence": ".local/autonomous/evidence/schedule-intake-20261024/selection-item-readiness-source-guards-reviewed.trx"
     }
   },
   "externalGates": [

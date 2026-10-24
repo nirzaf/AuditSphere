@@ -64,9 +64,26 @@ public static partial class AuditFieldworkService
     blockers.AddRange(openNoteIds.Select(id => $"review-note:{id}:unresolved"));
     blockers.AddRange(await db.AuditSelections.AsNoTracking().Where(x => x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && x.Status != AuditSelectionStatuses.Reviewed)
       .Select(x => $"selection:{x.Id}:unreviewed").ToListAsync(ct));
-    var reviewedSelections = await db.AuditSelections.AsNoTracking().Where(x =>
-      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && x.Status == AuditSelectionStatuses.Reviewed)
-      .Select(x => x.Id).ToArrayAsync(ct);
+    var selections = await db.AuditSelections.AsNoTracking().Where(x =>
+      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId)
+      .Select(x => new { x.Id, x.ScheduleId, x.Status }).ToArrayAsync(ct);
+    var typedScheduleIds = selections.Where(x => x.ScheduleId.HasValue).Select(x => x.ScheduleId!.Value).Distinct().ToArray();
+    var capturedScheduleIds = typedScheduleIds.Length == 0 ? [] : await db.AuditScheduleSourceCaptures.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId &&
+        typedScheduleIds.Contains(x.ScheduleId))
+      .Select(x => x.ScheduleId).Distinct().ToArrayAsync(ct);
+    var staleTypedScheduleIds = new HashSet<Guid>();
+    foreach (var scheduleId in capturedScheduleIds)
+    {
+      var current = await AuditScheduleSourceWorkspace.CheckCurrentScheduleSourceForAuthorizedScopeAsync(
+        db, firmId, clientId, engagementId, scheduleId, ct);
+      if (!current.Succeeded) staleTypedScheduleIds.Add(scheduleId);
+    }
+    if (staleTypedScheduleIds.Count > 0)
+      blockers.Add("schedule-source:stale-or-unavailable");
+
+    var reviewedSelections = selections.Where(x => x.Status == AuditSelectionStatuses.Reviewed &&
+      (x.ScheduleId is null || !staleTypedScheduleIds.Contains(x.ScheduleId.Value))).Select(x => x.Id).ToArray();
     var selectedItemIds = await db.AuditSelectionItems.AsNoTracking().Where(x =>
       x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && reviewedSelections.Contains(x.SelectionId))
       .Select(x => x.Id).ToArrayAsync(ct);

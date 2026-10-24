@@ -196,37 +196,41 @@ public static partial class AuditScheduleSourceWorkspace
     AuditScheduleIntakeSources.ResolveAsync(db, actor, reader, clientId, engagementId, fields.PbcAcceptanceReceiptId,
       fields.AcceptedSourceDecisionId, fields.SourceDate, fields.Columns, fields.SelectedControlAccountCodes, ct);
 
-  private static async Task<CommandResult> LockSourceAsync(IClientAccountingDbContext db, ActorContext actor,
+  private static Task<CommandResult> LockSourceAsync(IClientAccountingDbContext db, ActorContext actor,
+    Guid clientId, Guid engagementId, AuditScheduleSourceFields fields, CancellationToken ct) =>
+    LockSourceAsync(db, actor.FirmId, clientId, engagementId, fields, ct);
+
+  internal static async Task<CommandResult> LockSourceAsync(IClientAccountingDbContext db, Guid firmId,
     Guid clientId, Guid engagementId, AuditScheduleSourceFields fields, CancellationToken ct)
   {
     var receipt = await db.PbcAcceptanceReceipts.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == actor.FirmId && x.ClientId == clientId && x.EngagementId == engagementId &&
+      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId &&
       x.Id == fields.PbcAcceptanceReceiptId, ct);
     if (receipt is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var pbc = await db.PbcRequests.FromSqlInterpolated(
-      $"SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND id = {receipt.PbcRequestId} FOR SHARE")
+      $"SELECT * FROM pbc_requests WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND id = {receipt.PbcRequestId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (pbc is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var decision = await db.SourceAcceptanceDecisions.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == actor.FirmId && x.ClientId == clientId && x.EngagementId == engagementId &&
+      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId &&
       x.Id == fields.AcceptedSourceDecisionId && x.SourceKind == "TB", ct);
     if (decision?.TrialBalanceDatasetId is not { } datasetId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == actor.FirmId && x.ClientId == clientId && x.EngagementId == engagementId && x.Id == datasetId, ct);
+      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && x.Id == datasetId, ct);
     if (dataset?.PeriodId is not { } periodId)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The source reporting period is unavailable.");
     // Native ancestry obtains its existing ordered read fences before any descendant book lock.
     var native = await NativeTrialBalanceSourceWorkspace.CheckCurrentAsync(db, dataset, ct);
     if (!native.Succeeded) return native;
     var period = await db.ClientReportingPeriods.FromSqlInterpolated(
-      $"SELECT * FROM client_reporting_periods WHERE firm_id = {actor.FirmId} AND client_id = {clientId} AND id = {periodId} FOR SHARE")
+      $"SELECT * FROM client_reporting_periods WHERE firm_id = {firmId} AND client_id = {clientId} AND id = {periodId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (period is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (dataset.BookId is { } bookId)
     {
       var book = await db.ClientReportingBooks.FromSqlInterpolated(
-        $"SELECT * FROM client_reporting_books WHERE firm_id = {actor.FirmId} AND client_id = {clientId} AND period_id = {periodId} AND id = {bookId} FOR SHARE")
+        $"SELECT * FROM client_reporting_books WHERE firm_id = {firmId} AND client_id = {clientId} AND period_id = {periodId} AND id = {bookId} FOR SHARE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if (book is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     }

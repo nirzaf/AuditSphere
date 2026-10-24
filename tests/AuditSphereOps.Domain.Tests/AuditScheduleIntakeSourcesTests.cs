@@ -60,7 +60,8 @@ public sealed class AuditScheduleIntakeSourcesTests
     {
       setup.RoleGrants.AddRange(
         PbcSeed.Grant(f.FirmId, f.Staff, "Partner", f.ClientId, f.EngagementId),
-        PbcSeed.Grant(f.FirmId, f.Reviewer, "AccountingReviewer", f.ClientId, f.EngagementId));
+        PbcSeed.Grant(f.FirmId, f.Reviewer, "AccountingReviewer", f.ClientId, f.EngagementId),
+        PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner", f.ClientId, f.EngagementId));
       setup.ClientReportingPeriods.Add(new ClientReportingPeriod
       {
         Id = periodId, FirmId = f.FirmId, ClientId = f.ClientId, PeriodCode = "FY2026",
@@ -425,7 +426,13 @@ public sealed class AuditScheduleIntakeSourcesTests
       }
 
       var currentProcedureId = Guid.NewGuid();
+      var pendingProcedureId = Guid.NewGuid();
       var unusedProcedureId = Guid.NewGuid();
+      Guid currentSelectionId = Guid.Empty;
+      Guid pendingSelectionId = Guid.Empty;
+      Guid reviewedItemTestId = Guid.Empty;
+      Guid pendingItemTestId = Guid.Empty;
+      Guid pendingSelectionItemId = Guid.Empty;
       var samplingRequest = new RunSamplingRequest(f.EngagementId, currentProcedureId, scheduleToReview,
         "RANDOM", null, null, 1, 73, "Synthetic source-bound sample of the accepted listing.");
       CreateSelectionRequest SelectionFor(Guid procedureId) => new(f.EngagementId, procedureId,
@@ -434,21 +441,52 @@ public sealed class AuditScheduleIntakeSourcesTests
       if (balanced)
       {
         await using var consumer = new AuditSphereDbContext(pg.Options);
-        consumer.AuditProcedures.AddRange(new[] { currentProcedureId, unusedProcedureId }.Select(id => new AuditProcedure
+        consumer.AuditProcedures.AddRange(new[] { currentProcedureId, pendingProcedureId, unusedProcedureId }.Select(id => new AuditProcedure
         {
           Id = id, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-          SourceProcedureId = id == currentProcedureId ? "SYNTHETIC-CURRENT" : "SYNTHETIC-UNUSED",
+          SourceProcedureId = id == currentProcedureId ? "SYNTHETIC-CURRENT" :
+            id == pendingProcedureId ? "SYNTHETIC-PENDING" : "SYNTHETIC-UNUSED",
           Title = "Synthetic listing source consumption",
           ApplicabilityStatus = AuditApplicabilityStatuses.Applicable, Status = AuditProcedureStatuses.Planned,
           CreatedAt = DateTimeOffset.UtcNow
         }));
         await consumer.SaveChangesAsync(ct);
+        await PlanningBasisSeed.EstablishAsync(consumer, f.FirmId, f.ClientId, f.EngagementId, staff, reviewer,
+          [("0010", "Trade receivables", 125m, "TRADE_RECEIVABLES", "ASSETS"),
+           ("0020", "Other receivables", 75m, "OTHER_RECEIVABLES", "ASSETS"),
+           ("4000", "Revenue", -200m, "REVENUE", "INCOME")]);
         var preview = await AuditFieldworkService.PreviewSamplingAsync(consumer, staff, samplingRequest, ct);
         Assert.True(preview.Succeeded, preview.Message);
         Assert.Equal(1, preview.Value!.Outcome.SelectedCount);
         var selected = await AuditFieldworkService.CreateSelectionAsync(consumer, staff, SelectionFor(currentProcedureId), ct);
         Assert.True(selected.Succeeded, selected.Message);
         Assert.Equal(200m, selected.Value!.SelectedSignedTotal);
+        currentSelectionId = selected.Value.SelectionId;
+        var pending = await AuditFieldworkService.CreateSelectionAsync(consumer, staff, SelectionFor(pendingProcedureId), ct);
+        Assert.True(pending.Succeeded, pending.Message);
+        pendingSelectionId = pending.Value!.SelectionId;
+
+        var selectionReview = await AuditFieldworkService.ReviewSelectionAsync(consumer, reviewer,
+          new ReviewSelectionRequest(currentSelectionId, AuditSelectionStatuses.Reviewed, null), ct);
+        Assert.True(selectionReview.Succeeded, selectionReview.Message);
+        var selectedItems = await consumer.AuditSelectionItems.AsNoTracking()
+          .Where(x => x.SelectionId == currentSelectionId).OrderBy(x => x.StableRowId).ToArrayAsync(ct);
+        Assert.Equal(2, selectedItems.Length);
+        pendingSelectionItemId = selectedItems[1].Id;
+        var reviewedTest = await AuditFieldworkService.RecordItemTestAsync(consumer, staff,
+          new RecordItemTestRequest(selectedItems[0].Id, "Agreed the selected receivable row to its retained source.",
+            ["synthetic:accepted-receivables:row-a"], AuditItemTestResults.Pass, null, null, null), ct);
+        Assert.True(reviewedTest.Succeeded, reviewedTest.Message);
+        reviewedItemTestId = reviewedTest.Value!.AuditItemTestId;
+        var testReview = await AuditFieldworkService.ReviewItemTestAsync(consumer, reviewer,
+          new ReviewItemTestRequest(reviewedItemTestId, AuditItemTestReviewDecisions.Reviewed,
+            "Agreed to retained evidence."), ct);
+        Assert.True(testReview.Succeeded, testReview.Message);
+        var pendingTest = await AuditFieldworkService.RecordItemTestAsync(consumer, staff,
+          new RecordItemTestRequest(pendingSelectionItemId, "Recorded the open test before source expiry.",
+            [], AuditItemTestResults.Pending, null, null, null), ct);
+        Assert.True(pendingTest.Succeeded, pendingTest.Message);
+        pendingItemTestId = pendingTest.Value!.AuditItemTestId;
       }
       async Task AssertConsumersRefuseStaleSource()
       {
@@ -459,10 +497,34 @@ public sealed class AuditScheduleIntakeSourcesTests
         var selected = await AuditFieldworkService.CreateSelectionAsync(consumer, staff, SelectionFor(unusedProcedureId), ct);
         Assert.False(selected.Succeeded);
         Assert.NotEqual(ErrorCodes.IdempotencyConflict, selected.ErrorCode);
-        Assert.Equal(1, await consumer.AuditSelections.CountAsync(ct));
-        Assert.Equal(2, await consumer.AuditSelectionItems.CountAsync(ct));
+        Assert.Equal(2, await consumer.AuditSelections.CountAsync(ct));
+        Assert.Equal(4, await consumer.AuditSelectionItems.CountAsync(ct));
         Assert.False(await consumer.AuditSelections.AnyAsync(x => x.ProcedureId == unusedProcedureId, ct));
-        var original = await consumer.AuditSelections.AsNoTracking().SingleAsync(ct);
+        var pendingReview = await AuditFieldworkService.ReviewSelectionAsync(consumer, reviewer,
+          new ReviewSelectionRequest(pendingSelectionId, AuditSelectionStatuses.Reviewed, null), ct);
+        Assert.False(pendingReview.Succeeded);
+        var pending = await consumer.AuditSelections.AsNoTracking().SingleAsync(x => x.Id == pendingSelectionId, ct);
+        Assert.Equal(AuditSelectionStatuses.Submitted, pending.Status);
+        var testCount = await consumer.AuditItemTests.CountAsync(ct);
+        var reviewCount = await consumer.AuditItemTestReviews.CountAsync(ct);
+        var recordAfterExpiry = await AuditFieldworkService.RecordItemTestAsync(consumer, staff,
+          new RecordItemTestRequest(pendingSelectionItemId, "Must not record against an expired source.",
+            [], AuditItemTestResults.Pending, null, null, null), ct);
+        Assert.False(recordAfterExpiry.Succeeded);
+        Assert.Equal(testCount, await consumer.AuditItemTests.CountAsync(ct));
+        var reviewAfterExpiry = await AuditFieldworkService.ReviewItemTestAsync(consumer, reviewer,
+          new ReviewItemTestRequest(pendingItemTestId, AuditItemTestReviewDecisions.Reviewed,
+            "Must not review against an expired source."), ct);
+        Assert.False(reviewAfterExpiry.Succeeded);
+        Assert.Equal(reviewCount, await consumer.AuditItemTestReviews.CountAsync(ct));
+        var readiness = await AuditFieldworkService.EvaluateCompletionAsync(consumer, reviewer, f.EngagementId, ct);
+        Assert.True(readiness.Succeeded, readiness.Message);
+        Assert.Contains("schedule-source:stale-or-unavailable", readiness.Value!.Blockers);
+        Assert.Equal(AuditSelectionStatuses.Reviewed,
+          (await consumer.AuditSelections.AsNoTracking().SingleAsync(x => x.Id == currentSelectionId, ct)).Status);
+        Assert.True(await consumer.AuditItemTestReviews.AsNoTracking().AnyAsync(x =>
+          x.AuditItemTestId == reviewedItemTestId && x.Decision == AuditItemTestReviewDecisions.Reviewed, ct));
+        var original = await consumer.AuditSelections.AsNoTracking().SingleAsync(x => x.Id == currentSelectionId, ct);
         Assert.Equal(currentProcedureId, original.ProcedureId);
         Assert.Equal(originalCapture.Receipt.InputGeneration, original.InputGeneration.ToString(CultureInfo.InvariantCulture));
       }

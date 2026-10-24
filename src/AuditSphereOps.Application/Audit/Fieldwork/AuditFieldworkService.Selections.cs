@@ -112,23 +112,50 @@ public static partial class AuditFieldworkService
     if (decision is not (AuditSelectionStatuses.Reviewed or AuditSelectionStatuses.ChangesRequired) ||
         decision == AuditSelectionStatuses.ChangesRequired && string.IsNullOrWhiteSpace(request.Comment))
       return Invalid<SelectionValue>("Selection review requires a valid decision and a comment for changes.");
-    var selection = await db.AuditSelections.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.SelectionId && x.FirmId == actor.FirmId, ct);
-    var auth = await AuthorizeEntityAsync(db, actor, selection, ReviewRoles, ct);
+    var snapshot = await db.AuditSelections.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.SelectionId && x.FirmId == actor.FirmId, ct);
+    var auth = await AuthorizeEntityAsync(db, actor, snapshot, ReviewRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<SelectionValue>.Fail(auth.ErrorCode!, auth.Message!);
+    var typedSource = snapshot?.ScheduleId is { } scheduleId && await db.AuditScheduleSourceCaptures.AsNoTracking()
+      .AnyAsync(x => x.FirmId == actor.FirmId && x.ScheduleId == scheduleId, ct);
+    await using var tx = typedSource ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (typedSource)
+    {
+      await LockConfirmationScopeAsync(db, actor, snapshot!.EngagementId, ct);
+      var scopedAuth = await AuthorizeEngagementAsync(db, actor, snapshot.EngagementId, ReviewRoles, ct);
+      if (!scopedAuth.Succeeded || scopedAuth.ClientId != snapshot.ClientId)
+        return CommandResult<SelectionValue>.Fail(scopedAuth.ErrorCode ?? ErrorCodes.ScopeDenied, scopedAuth.Message ?? "Access denied.");
+    }
     var live = await db.AuditSelections.SingleOrDefaultAsync(x => x.Id == request.SelectionId && x.FirmId == actor.FirmId, ct);
-    if (live is null)
+    if (live is null || snapshot is null || live.ClientId != snapshot.ClientId || live.EngagementId != snapshot.EngagementId ||
+        live.ScheduleId != snapshot.ScheduleId)
       return Denied<SelectionValue>();
     if (live.CreatedByUserId == actor.UserId)
       return CommandResult<SelectionValue>.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review the same selection.");
     if (live.InputGeneration != await CurrentGenerationAsync(db, live.ClientId, live.FirmId, ct))
       return CommandResult<SelectionValue>.Fail(ErrorCodes.GenerationStale, "The selected population changed; reselect the items.");
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var legacyTx = typedSource ? null : await db.Database.BeginTransactionAsync(ct);
+    if (typedSource)
+    {
+      var current = await AuditScheduleSourceWorkspace.CheckCurrentScheduleSourceAsync(
+        db, actor, live.ClientId, live.EngagementId, live.ScheduleId!.Value, ct);
+      if (!current.Succeeded) return CommandResult<SelectionValue>.Fail(current.ErrorCode!, current.Message!);
+    }
     live.Status = decision;
     live.ReviewedByUserId = actor.UserId;
     live.ReviewedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (typedSource)
+    {
+      var current = await AuditScheduleSourceWorkspace.CheckCurrentScheduleSourceAsync(
+        db, actor, live.ClientId, live.EngagementId, live.ScheduleId!.Value, ct);
+      if (!current.Succeeded) return CommandResult<SelectionValue>.Fail(current.ErrorCode!, current.Message!);
+      var scopedAuth = await AuthorizeEngagementAsync(db, actor, live.EngagementId, ReviewRoles, ct);
+      if (!scopedAuth.Succeeded || scopedAuth.ClientId != live.ClientId)
+        return CommandResult<SelectionValue>.Fail(scopedAuth.ErrorCode ?? ErrorCodes.ScopeDenied, scopedAuth.Message ?? "Access denied.");
+    }
+    if (typedSource) await tx!.CommitAsync(ct);
+    else await legacyTx!.CommitAsync(ct);
     return CommandResult<SelectionValue>.Ok(new(live.Id, live.SelectedCount, live.SelectedSignedTotal, live.Status));
   }
 }

@@ -65,7 +65,7 @@ internal static class AuditScheduleIntakeSources
     if (!authority.Succeeded) return Denied<AuditScheduleIntakeSourceFacts>(authority);
     var pbcResult = await LoadPbcAsync(db, actor.FirmId, clientId, engagementId, pbcAcceptanceReceiptId, ct);
     if (!pbcResult.Succeeded) return CopyFailure<PbcFacts, AuditScheduleIntakeSourceFacts>(pbcResult);
-    var tbResult = await LoadTbAsync(db, actor, clientId, engagementId, acceptedTbDecisionId, sourceDate, ct);
+    var tbResult = await LoadTbAsync(db, actor.FirmId, clientId, engagementId, acceptedTbDecisionId, sourceDate, ct);
     if (!tbResult.Succeeded) return CopyFailure<TbFacts, AuditScheduleIntakeSourceFacts>(tbResult);
     var pbc = pbcResult.Value!;
     var tb = tbResult.Value!;
@@ -140,7 +140,7 @@ internal static class AuditScheduleIntakeSources
     // Fresh stored facts after all byte reads. This is a read fence, not an atomic filesystem/DB snapshot.
     var currentPbc = await LoadPbcAsync(db, actor.FirmId, clientId, engagementId, pbcAcceptanceReceiptId, ct);
     if (!currentPbc.Succeeded) return CopyFailure<PbcFacts, AuditScheduleIntakeSourceFacts>(currentPbc);
-    var currentTb = await LoadTbAsync(db, actor, clientId, engagementId, acceptedTbDecisionId, sourceDate, ct);
+    var currentTb = await LoadTbAsync(db, actor.FirmId, clientId, engagementId, acceptedTbDecisionId, sourceDate, ct);
     if (!currentTb.Succeeded) return CopyFailure<TbFacts, AuditScheduleIntakeSourceFacts>(currentTb);
     if (currentPbc.Value != pbc || currentTb.Value != tb) return Stale<AuditScheduleIntakeSourceFacts>();
     var currentControls = await LoadControlsAsync(db, tb, codes, ct);
@@ -158,11 +158,12 @@ internal static class AuditScheduleIntakeSources
 
   // Reuses the actual accepted-source fact owners without inventing a byte reader or
   // reparsing retained rows. PrepareDownload verifies real staged chunk/count/hash receipts.
-  internal static async Task<CommandResult> CheckRetainedSourcesCurrentAsync(
-    IClientAccountingDbContext db, ActorContext actor, AuditScheduleSourceCapture capture, CancellationToken ct)
+  internal static async Task<CommandResult> CheckRetainedSourcesCurrentForAuthorizedScopeAsync(
+    IClientAccountingDbContext db, Guid firmId, Guid clientId, Guid engagementId,
+    AuditScheduleSourceCapture capture, CancellationToken ct)
   {
-    var authority = await AuthorizeAsync(db, actor, capture.ClientId, capture.EngagementId, ct);
-    if (!authority.Succeeded) return authority;
+    if (capture.FirmId != firmId || capture.ClientId != clientId || capture.EngagementId != engagementId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     try
     {
       if (Hashing.Sha256Hex(capture.ManifestJson) != capture.ManifestHash)
@@ -172,32 +173,30 @@ internal static class AuditScheduleIntakeSources
       if (!manifest.TryGetProperty("Pbc", out var originalPbc) ||
           !manifest.TryGetProperty("TrialBalance", out var originalTb))
         return CommandResult.Fail(ErrorCodes.ProtectedState, "The retained source descriptors are unavailable.");
-      var pbc = await LoadPbcAsync(db, actor.FirmId, capture.ClientId, capture.EngagementId,
+      var pbc = await LoadPbcAsync(db, firmId, clientId, engagementId,
         capture.PbcAcceptanceReceiptId, ct);
       if (!pbc.Succeeded) return CommandResult.Fail(pbc.ErrorCode!, pbc.Message!);
-      var tb = await LoadTbAsync(db, actor, capture.ClientId, capture.EngagementId,
+      var tb = await LoadTbAsync(db, firmId, clientId, engagementId,
         capture.AcceptedSourceDecisionId, capture.SourceDate, ct);
       if (!tb.Succeeded) return CommandResult.Fail(tb.ErrorCode!, tb.Message!);
       if (!SameRetainedFacts(originalPbc, pbc.Value!.Json) || !SameRetainedFacts(originalTb, tb.Value!.Json) ||
           tb.Value.DatasetId != capture.TrialBalanceDatasetId || tb.Value.PeriodId != capture.PeriodId ||
           tb.Value.PeriodRevision != capture.PeriodRevision || tb.Value.Generation != capture.InputGeneration)
         return CommandResult.Fail(ErrorCodes.GenerationStale, "The captured schedule source or reporting context changed.");
-      var download = await PbcService.PrepareDownloadAsync(db, actor, pbc.Value.UploadIntentId, ct);
-      if (!download.Succeeded) return CommandResult.Fail(download.ErrorCode!, download.Message!);
-      if (download.Value is null || download.Value.FileName != pbc.Value.FileName ||
-          download.Value.ByteCount != pbc.Value.ByteCount)
-        return CommandResult.Fail(ErrorCodes.GenerationStale, "The accepted schedule content identity changed.");
+      var staged = await PbcService.VerifyAcceptedStagedContentForAuthorizedScopeAsync(db, firmId, clientId,
+        engagementId, pbc.Value.UploadIntentId, pbc.Value.FileName, pbc.Value.Hash, pbc.Value.ByteCount, ct);
+      if (!staged.Succeeded) return staged;
       // Recheck stored facts after filesystem awaits, even for a caller-owned transaction.
-      var finalPbc = await LoadPbcAsync(db, actor.FirmId, capture.ClientId, capture.EngagementId,
+      var finalPbc = await LoadPbcAsync(db, firmId, clientId, engagementId,
         capture.PbcAcceptanceReceiptId, ct);
       if (!finalPbc.Succeeded) return CommandResult.Fail(finalPbc.ErrorCode!, finalPbc.Message!);
-      var finalTb = await LoadTbAsync(db, actor, capture.ClientId, capture.EngagementId,
+      var finalTb = await LoadTbAsync(db, firmId, clientId, engagementId,
         capture.AcceptedSourceDecisionId, capture.SourceDate, ct);
       if (!finalTb.Succeeded) return CommandResult.Fail(finalTb.ErrorCode!, finalTb.Message!);
       if (!SameRetainedFacts(originalPbc, finalPbc.Value!.Json) || !SameRetainedFacts(originalTb, finalTb.Value!.Json) ||
           finalTb.Value.Generation != capture.InputGeneration || finalTb.Value.PeriodRevision != capture.PeriodRevision)
         return CommandResult.Fail(ErrorCodes.GenerationStale, "The captured schedule source changed while reading evidence.");
-      return await AuthorizeAsync(db, actor, capture.ClientId, capture.EngagementId, ct);
+      return CommandResult.Ok();
     }
     catch (Exception error) when (error is IOException or UnauthorizedAccessException)
     {
@@ -321,17 +320,17 @@ internal static class AuditScheduleIntakeSources
     Guid? BookId, long? BookRevision, string? Basis, string Currency, string LegalEntityKey,
     long Generation, string Hash, DateOnly PeriodStart, DateOnly PeriodEnd, string Json);
 
-  private static async Task<CommandResult<TbFacts>> LoadTbAsync(IClientAccountingDbContext db, ActorContext actor,
+  private static async Task<CommandResult<TbFacts>> LoadTbAsync(IClientAccountingDbContext db, Guid firmId,
     Guid clientId, Guid engagementId, Guid decisionId, DateOnly sourceDate, CancellationToken ct)
   {
     var decision = await db.SourceAcceptanceDecisions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == decisionId &&
-      x.FirmId == actor.FirmId && x.ClientId == clientId && x.EngagementId == engagementId, ct);
+      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId, ct);
     if (decision is null) return Scope<TbFacts>();
     if (decision.Decision != "ACCEPTED" || decision.SourceKind != AccountingSourceKinds.TrialBalance ||
         decision.TrialBalanceDatasetId is not { } datasetId || decision.ImportBatchId is not null)
       return Fail<TbFacts>("Select an independently accepted TB source.");
     var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == datasetId &&
-      x.FirmId == actor.FirmId && x.ClientId == clientId && x.EngagementId == engagementId, ct);
+      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId, ct);
     if (dataset is null || dataset.ImportState != TrialBalanceImportStates.Sealed ||
         dataset.ValidationStatus != "Accepted" || !dataset.Balanced || dataset.Revision < 1 ||
         dataset.SourceKind is not ("Raw" or NativeTrialBalanceSourceWorkspace.SourceKind) ||
@@ -340,7 +339,7 @@ internal static class AuditScheduleIntakeSources
         decision.AcceptedByUserId == Guid.Empty || decision.AcceptedByUserId == dataset.ImportedByUserId)
       return Fail<TbFacts>("The accepted TB revision is not a sealed, balanced, independent source.");
     var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.Id == periodId &&
-      x.FirmId == actor.FirmId && x.ClientId == clientId, ct);
+      x.FirmId == firmId && x.ClientId == clientId, ct);
     if (period is null || period.Status != AccountingWorkflowStates.Active || period.Revision < 1 || period.StartDate > period.EndDate || period.EndDate != sourceDate ||
         period.Currency != dataset.Currency || dataset.Basis is not null && dataset.Basis != period.Basis)
       return Fail<TbFacts>("The listing source date must match the exact TB reporting-period end and context.");
@@ -348,14 +347,14 @@ internal static class AuditScheduleIntakeSources
     if (dataset.BookId is { } bookId)
     {
       book = await db.ClientReportingBooks.AsNoTracking().SingleOrDefaultAsync(x => x.Id == bookId &&
-        x.FirmId == actor.FirmId && x.ClientId == clientId && x.PeriodId == periodId, ct);
+        x.FirmId == firmId && x.ClientId == clientId && x.PeriodId == periodId, ct);
       if (book is null || book.Status != AccountingWorkflowStates.Active || book.Revision < 1 || book.Currency != dataset.Currency ||
           dataset.Basis is not null && book.Basis != dataset.Basis)
         return Fail<TbFacts>("The exact TB reporting book is unavailable or inconsistent.");
     }
     var native = await NativeTrialBalanceSourceWorkspace.CheckCurrentAsync(db, dataset, ct);
     if (!native.Succeeded) return Denied<TbFacts>(native);
-    var selected = await AccountingSourceAcceptanceService.GetSelectedTrialBalanceForPeriodAsync(db, actor,
+    var selected = await AccountingSourceAcceptanceService.GetSelectedTrialBalanceForAuthorizedScopeAsync(db, firmId,
       clientId, engagementId, period.Id, dataset.BookId, dataset.Basis, dataset.Currency, dataset.LegalEntityKey, ct);
     if (!selected.Succeeded) return CopyFailure<SelectedSourceDto?, TbFacts>(selected);
     if (selected.Value is null || selected.Value.DecisionId != decision.Id || selected.Value.TrialBalanceDatasetId != dataset.Id ||
