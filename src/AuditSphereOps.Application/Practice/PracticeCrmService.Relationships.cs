@@ -414,16 +414,16 @@ public static partial class PracticeCrmService
       .Skip(page * pageSize).Take(pageSize)
       .Select(x => new ClientRelationshipCandidate(x.Id, x.LegalName)).ToListAsync(ct);
 
-    // Recheck the exact grants used for the returned names to avoid returning a stale choice after revocation.
+    // The total also depends on off-page choices, so recheck every scope used by this projection.
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, sourceAuthorization, ct)).Succeeded ||
         (firmWide.Succeeded && !(await AuthorizationDecision.AuthorizeAsync(db, actor, firmWideRequest, ct)).Succeeded))
       return CommandResult<ClientRelationshipCandidates>.Fail(ErrorCodes.ScopeDenied, "Client unavailable.");
     if (!firmWide.Succeeded)
     {
-      foreach (var item in items)
+      foreach (var candidateId in authorizedClientIds)
       {
         var current = await AuthorizationDecision.AuthorizeAsync(db, actor,
-          new AuthorizationRequest(actor.FirmId, ClientId: item.Id, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+          new AuthorizationRequest(actor.FirmId, ClientId: candidateId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
         if (!current.Succeeded)
           return CommandResult<ClientRelationshipCandidates>.Fail(ErrorCodes.ScopeDenied, "Relationship choices changed. Refresh and try again.");
       }
@@ -435,8 +435,9 @@ public static partial class PracticeCrmService
   public static async Task<CommandResult<ClientOrganizationHierarchyDto>> GetClientHierarchyAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct = default)
   {
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, ClientId: clientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    var authorization = new AuthorizationRequest(actor.FirmId, ClientId: clientId,
+      RequiredRoles: CommercialRoles, InternalOnly: true);
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, authorization, ct);
     if (!auth.Succeeded) return CommandResult<ClientOrganizationHierarchyDto>.Fail(auth.ErrorCode!, auth.Message!);
 
     var client = await db.PracticeClients.AsNoTracking().SingleOrDefaultAsync(x => x.Id == clientId && x.FirmId == actor.FirmId, ct);
@@ -467,6 +468,15 @@ public static partial class PracticeCrmService
     var names = await db.PracticeClients.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && clientIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.LegalName, ct);
+
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, authorization, ct);
+    if (!auth.Succeeded) return CommandResult<ClientOrganizationHierarchyDto>.Fail(auth.ErrorCode!, auth.Message!);
+    foreach (var counterpartId in authorizedCounterparts.ToArray())
+    {
+      var current = await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, ClientId: counterpartId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+      if (!current.Succeeded) authorizedCounterparts.Remove(counterpartId);
+    }
 
     var parents = new List<ClientRelationshipDto>();
     var subsidiaries = new List<ClientRelationshipDto>();

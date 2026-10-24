@@ -24472,6 +24472,15 @@
       "children": 25,
       "scope": "Existing4.2.1-4.2.4 rows, exact source-line SHA/owner/test anchors validated. Parent reviewed ADR overlays, commercial/Partner channel distinction and source taxonomy not maximum folder count.",
       "limits": "Grouped clauses still need deeper mapping; functional/boundary/rendered/provider evidence not inferred. No sidecar test/build executed."
+    },
+    "clientContactReadScope20261024": {
+      "base": "b7b5301e20b92f1c091dddcc0ccea3f5ec2cc84c plus owned routing/relationship/test overlays",
+      "status": "PASS_LOCAL_FOCUSED; CURRENT_FULL_CI_PENDING",
+      "rootCause": "Client contact/routing/recipient/hierarchy projections lacked current-scope reauthorization after protected reads. Relationship choices rechecked only visible page scopes, leaving an off-page Total basis unchecked.",
+      "changes": "Use existing AuthorizationDecision after read materialization. Root-client revocation returns no data; revoked hierarchy counterparts omitted; choice metadata checks every used scoped-client grant. Existing routes/DTOs, writer fences, recipient business rules, and cancellation preserved.",
+      "proof": "Original routing3FAIL and hierarchy2FAIL after same-epoch grant revocation; initial fix6PASS; extra off-page count regression2PASS/1FAIL; complete fix final7PASS/0FAIL/0SKIP. Existing positive routing and immutable dispatch test retained.",
+      "evidence": ".local/autonomous/evidence/contact-routing-read-scope-20261024/review.json",
+      "limits": "Isolated synthetic PostgreSQL Application checks only; no full local suite, HTTP/browser run, schema change, live role/permission effect or complete Task03 claim. Count projection reauthorization adds work proportional to scoped choice set, matching the existing initial per-scope checks."
     }
   },
   "archivedTargetedVerification": {

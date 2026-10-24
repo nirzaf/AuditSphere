@@ -692,8 +692,11 @@ public sealed class ClientRelationshipsAndRoutingTests
     Assert.Single(await db.CorrespondenceDispatchRecords.AsNoTracking().ToListAsync());
   }
 
-  [Fact]
-  public async Task RecipientResolution_RequiresCurrentCommercialScope_AndOverridesDoNotBypass()
+  [Theory]
+  [InlineData("LIST")]
+  [InlineData("ROUTED")]
+  [InlineData("OVERRIDE")]
+  public async Task RecipientResolution_RequiresCurrentCommercialScope_AndOverridesDoNotBypass(string readPath)
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var seed = await PbcSeed.SeedAsync(pg);
@@ -717,6 +720,9 @@ public sealed class ClientRelationshipsAndRoutingTests
     var resolved = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db, partner, seed.ClientId, CorrespondencePurposes.Commercial, today);
     Assert.Equal(RecipientResolutionStatus.Resolved, resolved.Status);
     Assert.Equal(contactId, resolved.ClientContactId);
+    var routings = await PracticeCrmService.GetClientContactRoutingsAsync(db, partner, seed.ClientId);
+    Assert.True(routings.Succeeded, routings.Message);
+    Assert.Equal(contactId, Assert.Single(routings.Value!).ClientContactId);
 
     // An engagement-scoped grant never covers client-level routing configuration.
     var engagementScoped = PbcSeed.User(seed.FirmId, "Staff");
@@ -765,10 +771,56 @@ public sealed class ClientRelationshipsAndRoutingTests
     var foreign = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db, partner, foreignFirmClient, CorrespondencePurposes.Commercial, today);
     Assert.Equal(RecipientResolutionStatus.Denied, foreign.Status);
     Assert.Null(foreign.ClientContactId);
+
+    // A same-epoch grant revocation after the protected read must suppress its result as well.
+    var racingUser = PbcSeed.User(seed.FirmId, "Staff");
+    var racingGrant = PbcSeed.Grant(seed.FirmId, racingUser, "Manager", clientId: seed.ClientId);
+    db.Users.Add(racingUser);
+    db.RoleGrants.Add(racingGrant);
+    await db.SaveChangesAsync();
+    var racingActor = PbcSeed.Actor(racingUser, "Manager");
+    var hook = new RevokeAfterProtectedRead(readPath == "OVERRIDE" ? "client_contacts" : "client_contact_routings", async () =>
+    {
+      await using var revoke = new AuditSphereDbContext(pg.Options);
+      Assert.Equal(1, await revoke.RoleGrants.Where(x => x.Id == racingGrant.Id)
+        .ExecuteUpdateAsync(x => x.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow)));
+    });
+    await using var raced = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(hook).Options);
+    if (readPath == "LIST")
+    {
+      var denied = await PracticeCrmService.GetClientContactRoutingsAsync(raced, racingActor, seed.ClientId);
+      Assert.True(hook.Fired);
+      Assert.Equal(racingActor.SessionEpoch, await db.Users.AsNoTracking().Where(x => x.Id == racingUser.Id)
+        .Select(x => x.SessionEpoch).SingleAsync());
+      Assert.False(denied.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+      Assert.Null(denied.Value);
+    }
+    else
+    {
+      var denied = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(raced, racingActor, seed.ClientId,
+        CorrespondencePurposes.Commercial, today, readPath == "OVERRIDE" ? contactId : null,
+        readPath == "OVERRIDE" ? "Reviewed board designation" : null);
+      Assert.True(hook.Fired);
+      Assert.Equal(racingActor.SessionEpoch, await db.Users.AsNoTracking().Where(x => x.Id == racingUser.Id)
+        .Select(x => x.SessionEpoch).SingleAsync());
+      Assert.Equal(RecipientResolutionStatus.Denied, denied.Status);
+      Assert.Null(denied.ClientContactId);
+      Assert.Null(denied.FullName);
+      Assert.Null(denied.Email);
+      Assert.Null(denied.Role);
+      Assert.Null(denied.RoutingId);
+      Assert.False(denied.WasOverridden);
+      Assert.DoesNotContain("Fatima", denied.Message ?? "");
+    }
   }
 
-  [Fact]
-  public async Task OrganizationHierarchy_HidesCounterpartNodesOutsideCurrentCommercialScope()
+  [Theory]
+  [InlineData("SOURCE")]
+  [InlineData("COUNTERPART")]
+  [InlineData("CANDIDATE_COUNT")]
+  public async Task OrganizationHierarchy_HidesCounterpartNodesOutsideCurrentCommercialScope(string revokedScope)
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var seed = await PbcSeed.SeedAsync(pg);
@@ -796,9 +848,9 @@ public sealed class ClientRelationshipsAndRoutingTests
     // The scoped manager covers the holding client and one subsidiary only.
     var scoped = PbcSeed.User(seed.FirmId, "Staff");
     db.Users.Add(scoped);
-    db.RoleGrants.AddRange(
-      PbcSeed.Grant(seed.FirmId, scoped, "Manager", clientId: seed.ClientId),
-      PbcSeed.Grant(seed.FirmId, scoped, "Manager", clientId: visibleSubId));
+    var sourceGrant = PbcSeed.Grant(seed.FirmId, scoped, "Manager", clientId: seed.ClientId);
+    var counterpartGrant = PbcSeed.Grant(seed.FirmId, scoped, "Manager", clientId: visibleSubId);
+    db.RoleGrants.AddRange(sourceGrant, counterpartGrant);
     await db.SaveChangesAsync();
     var scopedActor = PbcSeed.Actor(scoped, "Manager");
 
@@ -827,6 +879,49 @@ public sealed class ClientRelationshipsAndRoutingTests
     Assert.True(subTree.Succeeded);
     Assert.Single(subTree.Value!.Parents);
     Assert.Equal(seed.ClientId, subTree.Value.Parents[0].PrimaryClientId);
+
+    var revokedGrantId = revokedScope == "SOURCE" ? sourceGrant.Id : counterpartGrant.Id;
+    var hook = new RevokeAfterProtectedRead("practice_clients", async () =>
+    {
+      await using var revoke = new AuditSphereDbContext(pg.Options);
+      Assert.Equal(1, await revoke.RoleGrants.Where(x => x.Id == revokedGrantId)
+        .ExecuteUpdateAsync(x => x.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow)));
+    }, requiredText: revokedScope == "CANDIDATE_COUNT" ? "count(*)" : "ANY");
+    await using var raced = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(hook).Options);
+    if (revokedScope == "CANDIDATE_COUNT")
+    {
+      // A revoked choice on an earlier page must not remain disclosed in Total on an empty later page.
+      var currentCandidates = await PracticeCrmService.GetClientRelationshipCandidatesAsync(
+        raced, scopedActor, seed.ClientId, search: null, page: 1, pageSize: 10);
+      Assert.True(hook.Fired);
+      Assert.Equal(scopedActor.SessionEpoch, await db.Users.AsNoTracking().Where(x => x.Id == scoped.Id)
+        .Select(x => x.SessionEpoch).SingleAsync());
+      Assert.False(currentCandidates.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, currentCandidates.ErrorCode);
+      Assert.Null(currentCandidates.Value);
+      return;
+    }
+    var currentTree = await PracticeCrmService.GetClientHierarchyAsync(raced, scopedActor, seed.ClientId);
+    Assert.True(hook.Fired);
+    Assert.Equal(scopedActor.SessionEpoch, await db.Users.AsNoTracking().Where(x => x.Id == scoped.Id)
+      .Select(x => x.SessionEpoch).SingleAsync());
+    if (revokedScope == "SOURCE")
+    {
+      Assert.False(currentTree.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, currentTree.ErrorCode);
+      Assert.Null(currentTree.Value);
+    }
+    else
+    {
+      Assert.True(currentTree.Succeeded, currentTree.Message);
+      Assert.Empty(currentTree.Value!.Subsidiaries);
+      Assert.Empty(currentTree.Value.Parents);
+      Assert.Empty(currentTree.Value.Affiliates);
+      var currentJson = System.Text.Json.JsonSerializer.Serialize(currentTree.Value);
+      Assert.DoesNotContain(visibleSubId.ToString("D"), currentJson, StringComparison.OrdinalIgnoreCase);
+      Assert.DoesNotContain("Visible Logistics W.L.L.", currentJson, StringComparison.Ordinal);
+    }
   }
 
   [Theory]
@@ -1047,6 +1142,22 @@ public sealed class ClientRelationshipsAndRoutingTests
     catch (OperationCanceledException) when (timeout.IsCancellationRequested)
     {
       Assert.Fail($"PostgreSQL did not show session {waitingPid} blocked by firm-fence holder {blockingPid}.");
+    }
+  }
+
+  private sealed class RevokeAfterProtectedRead(string table, Func<Task> revoke, string? requiredText = null) : DbCommandInterceptor
+  {
+    private int fired;
+    public bool Fired => Volatile.Read(ref fired) != 0;
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains(table, StringComparison.OrdinalIgnoreCase) &&
+          (requiredText is null || command.CommandText.Contains(requiredText, StringComparison.OrdinalIgnoreCase)) &&
+          Interlocked.CompareExchange(ref fired, 1, 0) == 0)
+        await revoke();
+      return result;
     }
   }
 

@@ -96,8 +96,9 @@ public static partial class PracticeCrmService
   public static async Task<CommandResult<IReadOnlyList<ClientContactRoutingDto>>> GetClientContactRoutingsAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct = default)
   {
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, ClientId: clientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    var authorization = new AuthorizationRequest(actor.FirmId, ClientId: clientId,
+      RequiredRoles: CommercialRoles, InternalOnly: true);
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, authorization, ct);
     if (!auth.Succeeded) return CommandResult<IReadOnlyList<ClientContactRoutingDto>>.Fail(auth.ErrorCode!, auth.Message!);
 
     var query = from r in db.ClientContactRoutings.AsNoTracking()
@@ -121,6 +122,8 @@ public static partial class PracticeCrmService
                   c.IsActive);
 
     var list = await query.ToListAsync(ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, authorization, ct);
+    if (!auth.Succeeded) return CommandResult<IReadOnlyList<ClientContactRoutingDto>>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<IReadOnlyList<ClientContactRoutingDto>>.Ok(list);
   }
 
@@ -258,8 +261,9 @@ public static partial class PracticeCrmService
 
     // Recipient routing is client-level commercial data: resolution (including the override path)
     // requires current internal commercial scope for this client and never bypasses it (STE-REM-03).
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, ClientId: clientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    var authorization = new AuthorizationRequest(actor.FirmId, ClientId: clientId,
+      RequiredRoles: CommercialRoles, InternalOnly: true);
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, authorization, ct);
     if (!auth.Succeeded) return RecipientResolutionResult.Denied(normalizedPurpose);
 
     if (overrideContactId.HasValue)
@@ -273,6 +277,8 @@ public static partial class PracticeCrmService
       var overrideContact = await db.ClientContacts.AsNoTracking().SingleOrDefaultAsync(x =>
         x.Id == overrideContactId.Value && x.PracticeClientId == clientId && x.FirmId == actor.FirmId, ct);
 
+      if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, authorization, ct)).Succeeded)
+        return RecipientResolutionResult.Denied(normalizedPurpose);
       if (overrideContact is null)
       {
         return new RecipientResolutionResult(RecipientResolutionStatus.NoRecipient, null, null, null, null, null,
@@ -299,6 +305,8 @@ public static partial class PracticeCrmService
       select new { Routing = r, Contact = c }
     ).ToListAsync(ct);
 
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, authorization, ct)).Succeeded)
+      return RecipientResolutionResult.Denied(normalizedPurpose);
     if (activeRoutings.Count == 0)
     {
       return RecipientResolutionResult.NoRecipient(normalizedPurpose);

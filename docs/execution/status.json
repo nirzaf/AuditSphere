@@ -1104,7 +1104,13 @@
         "sourceMatch": "MATCH",
         "status": "RUNNING",
         "fullPass": false,
-        "limits": "Superseded05b40050827848 cancellation requested after replacement sourceMATCH; no failed job observed. This ledger-only followup does not create another code candidate."
+        "limits": "Preceding af3 candidate excludes current contact-read scope fix. New exact candidate will be dispatched after commit; no current FULL_CI_PASS claimed."
+      },
+      "clientContactReadScope": {
+        "status": "PASS_LOCAL_FOCUSED; NEW_CURRENT_CI_REQUIRED",
+        "checks": "RED routing3/hierarchy2, count1 attributable privacy failures -> final7PASS/0FAIL/0SKIP. No full local suite.",
+        "history": "status-archive-2026-10.json#keys.clientContactReadScope20261024",
+        "scope": "App contact/routing/recipient/hierarchy and off-page relationship-count revocation guards; no API schema or DB migration."
       }
     },
     "archivedOn20261024": {
