@@ -391,7 +391,7 @@ Earlier parity implementation observations are retained in the [historical hando
 
 ## Recent focused evidence
 
-Risk-owner revocation RED1/GREEN1: invalid latest owners cannot fall back to history. Direct schedule creation/review reproduced writes after official revocation (RED each); scope/current-authority guards pass the creation, review and fieldwork cohort. History is retained. Verified PBC/TB per-account resolution and guarded binding pass focused checks. Capture/review UI and full CI remain open. Details: [status.json](status.json).
+Official revocation cannot authorize stale risk owners or direct schedule creation/review/binding. Focused checks retain prior history; internal create/bind/review commit only with their owning transaction. Verified PBC/TB per-account resolution remains separate from pending capture/review UI and full CI. See [status.json](status.json) and the historical handoff.
 
 ## Native generated reporting sources
 

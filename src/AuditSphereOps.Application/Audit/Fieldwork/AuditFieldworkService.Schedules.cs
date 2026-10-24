@@ -8,9 +8,22 @@ namespace AuditSphereOps.Application.Audit;
 
 public static partial class AuditFieldworkService
 {
-  public static async Task<CommandResult<ScheduleValue>> CreateScheduleAsync(
-    IClientAccountingDbContext db, ActorContext actor, CreateScheduleRequest request, CancellationToken ct = default)
+  public static Task<CommandResult<ScheduleValue>> CreateScheduleAsync(
+    IClientAccountingDbContext db, ActorContext actor, CreateScheduleRequest request, CancellationToken ct = default) =>
+    ExecuteCreateScheduleAsync(db, actor, request, ownTransaction: true, ct);
+
+  // The owning intake command must roll back its entire transaction on any failure. Success here
+  // is provisional until that owner commits; this entry point never acknowledges durable capture.
+  internal static Task<CommandResult<ScheduleValue>> CreateScheduleInTransactionAsync(
+    IClientAccountingDbContext db, ActorContext actor, CreateScheduleRequest request, CancellationToken ct = default) =>
+    ExecuteCreateScheduleAsync(db, actor, request, ownTransaction: false, ct);
+
+  private static async Task<CommandResult<ScheduleValue>> ExecuteCreateScheduleAsync(
+    IClientAccountingDbContext db, ActorContext actor, CreateScheduleRequest request, bool ownTransaction, CancellationToken ct)
   {
+    if (!ownTransaction && db.Database.CurrentTransaction is null)
+      return CommandResult<ScheduleValue>.Fail(ErrorCodes.ProtectedState,
+        "Schedule composition requires an existing transaction owned by the command.");
     if (request.Rows is null || request.Rows.Count == 0 || string.IsNullOrWhiteSpace(request.ScheduleType) ||
         string.IsNullOrWhiteSpace(request.EntityIdentifier) || string.IsNullOrWhiteSpace(request.SourceReceiptReference) ||
         !IsCurrency(request.Currency) || !IsHash(request.SourceHash) || string.IsNullOrWhiteSpace(request.SignConvention))
@@ -30,7 +43,7 @@ public static partial class AuditFieldworkService
     var auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = ownTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
     await LockConfirmationScopeAsync(db, actor, request.EngagementId, ct);
     auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
     if (!auth.Succeeded)
@@ -70,7 +83,7 @@ public static partial class AuditFieldworkService
       auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
       if (!auth.Succeeded)
         return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
-      await tx.CommitAsync(ct);
+      if (tx is not null) await tx.CommitAsync(ct);
       return CommandResult<ScheduleValue>.Ok(ToScheduleValue(existing));
     }
 
@@ -105,13 +118,24 @@ public static partial class AuditFieldworkService
     auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<ScheduleValue>.Ok(ToScheduleValue(schedule));
   }
 
-  public static async Task<CommandResult<ScheduleValue>> ReviewScheduleAsync(
-    IAuditSphereDbContext db, ActorContext actor, ReviewScheduleRequest request, CancellationToken ct = default)
+  public static Task<CommandResult<ScheduleValue>> ReviewScheduleAsync(
+    IAuditSphereDbContext db, ActorContext actor, ReviewScheduleRequest request, CancellationToken ct = default) =>
+    ExecuteReviewScheduleAsync(db, actor, request, ownTransaction: true, ct);
+
+  internal static Task<CommandResult<ScheduleValue>> ReviewScheduleInTransactionAsync(
+    IAuditSphereDbContext db, ActorContext actor, ReviewScheduleRequest request, CancellationToken ct = default) =>
+    ExecuteReviewScheduleAsync(db, actor, request, ownTransaction: false, ct);
+
+  private static async Task<CommandResult<ScheduleValue>> ExecuteReviewScheduleAsync(
+    IAuditSphereDbContext db, ActorContext actor, ReviewScheduleRequest request, bool ownTransaction, CancellationToken ct)
   {
+    if (!ownTransaction && db.Database.CurrentTransaction is null)
+      return CommandResult<ScheduleValue>.Fail(ErrorCodes.ProtectedState,
+        "Schedule composition requires an existing transaction owned by the command.");
     if (string.IsNullOrWhiteSpace(request.CompletenessDecision))
       return Invalid<ScheduleValue>("A completeness decision is required.");
     var scheduleSnapshot = await db.AuditSchedules.AsNoTracking()
@@ -119,7 +143,7 @@ public static partial class AuditFieldworkService
     var auth = await AuthorizeEntityAsync(db, actor, scheduleSnapshot, ReviewRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = ownTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
     await LockConfirmationScopeAsync(db, actor, scheduleSnapshot!.EngagementId, ct);
     var current = await db.AuditSchedules.FromSqlInterpolated(
       $"SELECT * FROM audit_schedules WHERE firm_id = {actor.FirmId} AND client_id = {scheduleSnapshot.ClientId} AND engagement_id = {scheduleSnapshot.EngagementId} AND id = {request.ScheduleId} FOR UPDATE")
@@ -142,7 +166,7 @@ public static partial class AuditFieldworkService
     auth = await AuthorizeEntityAsync(db, actor, current, ReviewRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<ScheduleValue>.Ok(new(current.Id, schedule.Status, current.RowCount, current.SignedControlTotal, current.Residual));
   }
 

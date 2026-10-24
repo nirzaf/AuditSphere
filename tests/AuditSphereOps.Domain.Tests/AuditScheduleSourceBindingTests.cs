@@ -271,6 +271,83 @@ public sealed class AuditScheduleSourceBindingTests
     }
   }
 
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task ScheduleCompositionCommitsOnlyWithItsOwningTransaction(bool commit)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await SeedAsync(pg);
+    var maker = Actor(f.Preparer, "Partner");
+    var reviewer = Actor(f.Reviewer, "Reviewer");
+    var datasetId = await SeedSealedDatasetAsync(pg, f, "atomic", accepted: true);
+    Guid decisionId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.RoleGrants.Add(Grant(f.FirmId, f.Reviewer, "Reviewer", f.ClientId, f.EngagementId));
+      await setup.SaveChangesAsync();
+      var accepted = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(setup,
+        Actor(f.Reviewer, "AccountingReviewer"), new(f.ClientId, f.EngagementId,
+          AccountingSourceKinds.TrialBalance, datasetId, null, "Synthetic independent transaction source"));
+      Assert.True(accepted.Succeeded, accepted.Message);
+      decisionId = accepted.Value;
+    }
+    var request = new CreateScheduleRequest(f.EngagementId, "RECEIVABLES_LEAD", "ATOMIC",
+      "transaction-owned-listing", new DateTimeOffset(2026, 12, 31, 0, 0, 0, TimeSpan.Zero),
+      new(2026, 1, 1), new(2026, 12, 31), "QAR", "debits positive; credits negative",
+      Hashing.Sha256Hex("synthetic-atomic-listing"), 100m,
+      [new("original", 2, "1100", "Synthetic original", 100m, "QAR", null, null, null, null, "{}")]);
+    Guid scheduleId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(ErrorCodes.ProtectedState,
+        (await AuditFieldworkService.CreateScheduleInTransactionAsync(db, maker, request)).ErrorCode);
+      Assert.Equal(ErrorCodes.ProtectedState,
+        (await AuditFieldworkService.ReviewScheduleInTransactionAsync(db, reviewer,
+          new(Guid.NewGuid(), "No transaction", true))).ErrorCode);
+      await using var tx = await db.Database.BeginTransactionAsync();
+      var created = await AuditFieldworkService.CreateScheduleInTransactionAsync(db, maker, request);
+      Assert.True(created.Succeeded, created.Message);
+      scheduleId = created.Value!.ScheduleId;
+      var repeated = await AuditFieldworkService.CreateScheduleInTransactionAsync(db, maker, request);
+      Assert.True(repeated.Succeeded, repeated.Message);
+      Assert.Equal(scheduleId, repeated.Value!.ScheduleId);
+      var bound = await AuditScheduleSourceBindingService.BindScheduleToAcceptedSourceInTransactionAsync(
+        db, maker, scheduleId, decisionId);
+      Assert.True(bound.Succeeded, bound.Message);
+      var reviewed = await AuditFieldworkService.ReviewScheduleInTransactionAsync(db, reviewer,
+        new(scheduleId, "Synthetic independent review of the exact original", true));
+      Assert.True(reviewed.Succeeded, reviewed.Message);
+      Assert.Equal(AuditScheduleStatuses.Approved, reviewed.Value!.Status);
+      Assert.Same(tx, db.Database.CurrentTransaction);
+      // No child command may commit or dispose the caller's transaction, including dedupe.
+      await using (var outside = new AuditSphereDbContext(pg.Options))
+      {
+        Assert.Empty(await outside.AuditSchedules.AsNoTracking().ToListAsync());
+        Assert.Empty(await outside.AuditScheduleRows.AsNoTracking().ToListAsync());
+      }
+      if (commit) await tx.CommitAsync();
+      else await tx.RollbackAsync();
+    }
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var persisted = await verify.AuditSchedules.AsNoTracking().ToListAsync();
+    if (!commit)
+    {
+      Assert.Empty(persisted);
+      Assert.Empty(await verify.AuditScheduleRows.AsNoTracking().ToListAsync());
+      return;
+    }
+    var retained = Assert.Single(persisted);
+    Assert.Equal(scheduleId, retained.Id);
+    Assert.Equal(decisionId, retained.AcceptedSourceDecisionId);
+    Assert.Equal(AuditScheduleStatuses.Approved, retained.Status);
+    Assert.Equal(f.Preparer.Id, retained.CreatedByUserId);
+    Assert.Equal("Synthetic independent review of the exact original", retained.CompletenessDecision);
+    var row = Assert.Single(await verify.AuditScheduleRows.AsNoTracking().ToListAsync());
+    Assert.Equal("original", row.StableRowId);
+    Assert.Equal(100m, row.SignedAmount);
+  }
+
   private sealed class RevokeBeforeBindingDecisionOrScopeLock(Func<CancellationToken, Task> revoke) : DbCommandInterceptor
   {
     private bool authorizationRowsRead;

@@ -33,9 +33,24 @@ public static class AuditScheduleSourceBindingService
   /// <summary>Binds a lead schedule to an accepted R2R source revision (Module 21 source
   /// acceptance). The decision must be accepted and belong to the same client/engagement
   /// as the schedule; the accepted identity hash is captured for later staleness checks.</summary>
-  public static async Task<CommandResult<AuditScheduleSourceBindingValue>> BindScheduleToAcceptedSourceAsync(
+  public static Task<CommandResult<AuditScheduleSourceBindingValue>> BindScheduleToAcceptedSourceAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid scheduleId, Guid sourceAcceptanceDecisionId,
-    CancellationToken ct = default)
+    CancellationToken ct = default) =>
+    BindScheduleToAcceptedSourceCoreAsync(db, actor, scheduleId, sourceAcceptanceDecisionId, true, ct);
+
+  /// <summary>
+  /// Requires an existing caller-owned transaction. Success is provisional, not a commit.
+  /// The caller must roll back the whole transaction on any failure, including provisional
+  /// tracked changes; this entry never begins, commits or disposes the caller's transaction.
+  /// </summary>
+  internal static Task<CommandResult<AuditScheduleSourceBindingValue>> BindScheduleToAcceptedSourceInTransactionAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid scheduleId, Guid sourceAcceptanceDecisionId,
+    CancellationToken ct = default) =>
+    BindScheduleToAcceptedSourceCoreAsync(db, actor, scheduleId, sourceAcceptanceDecisionId, false, ct);
+
+  private static async Task<CommandResult<AuditScheduleSourceBindingValue>> BindScheduleToAcceptedSourceCoreAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid scheduleId, Guid sourceAcceptanceDecisionId,
+    bool ownTransaction, CancellationToken ct)
   {
     if (scheduleId == Guid.Empty || sourceAcceptanceDecisionId == Guid.Empty)
       return CommandResult<AuditScheduleSourceBindingValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
@@ -49,12 +64,14 @@ public static class AuditScheduleSourceBindingService
         InternalOnly: true, RequireProfessionalWork: true), ct);
     if (!auth.Succeeded)
       return CommandResult<AuditScheduleSourceBindingValue>.Fail(auth.ErrorCode!, auth.Message!);
-    // This public command owns its commit, like schedule creation/review. An atomic typed-intake
-    // composition needs its own transaction-required core, not a partially committed public call.
-    if (db.Database.CurrentTransaction is not null)
+    // Keep the standalone public contract separate from caller-owned atomic composition.
+    if (ownTransaction && db.Database.CurrentTransaction is not null)
       return CommandResult<AuditScheduleSourceBindingValue>.Fail(ErrorCodes.ProtectedState,
         "Standalone schedule binding requires its own transaction.");
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (!ownTransaction && db.Database.CurrentTransaction is null)
+      return CommandResult<AuditScheduleSourceBindingValue>.Fail(ErrorCodes.ProtectedState,
+        "Internal schedule binding requires an existing transaction.");
+    await using var tx = ownTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
     await AuditFieldworkService.LockConfirmationScopeAsync(db, actor, snapshot.EngagementId, ct);
     var current = await db.AuditSchedules.FromSqlInterpolated(
       $"SELECT * FROM audit_schedules WHERE firm_id = {actor.FirmId} AND client_id = {snapshot.ClientId} AND engagement_id = {snapshot.EngagementId} AND id = {scheduleId} FOR UPDATE")
@@ -111,7 +128,7 @@ public static class AuditScheduleSourceBindingService
         InternalOnly: true, RequireProfessionalWork: true), ct);
     if (!auth.Succeeded)
       return CommandResult<AuditScheduleSourceBindingValue>.Fail(auth.ErrorCode!, auth.Message!);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
 
     return CommandResult<AuditScheduleSourceBindingValue>.Ok(new AuditScheduleSourceBindingValue(
       schedule.Id, decision.Id, decision.SourceIdentityHash, decision.SourceKind,
