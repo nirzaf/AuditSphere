@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Documents;
@@ -154,6 +155,7 @@ public sealed class AuditScheduleIntakeSourcesTests
         $"AcceptedAt={receiptFacts.AcceptedAt:O}, stored ticks remainder={receiptFacts.AcceptedAt.Ticks % 10}, " +
         $"retained SourceDigest={receiptFacts.SourceDigest}");
       var facts = result.Value!;
+      Assert.Equal(PbcStates.Accepted, facts.CurrentPbcRequestState);
       Assert.Equal(200m, facts.SignedTotal);
       Assert.Equal(200m, facts.ClosingControl);
       Assert.Equal(0m, facts.Residual);
@@ -186,6 +188,49 @@ public sealed class AuditScheduleIntakeSourcesTests
         receiptId, decisionId, sourceDate.AddDays(-1), columns, ["0010", "0020"], ct);
       Assert.False(wrongDate.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, wrongDate.ErrorCode);
+
+      // Supported closure changes the current request state, not its immutable accepted source.
+      var retainedReceiptJson = JsonSerializer.Serialize(receiptFacts);
+      var generationBeforeClose = await resolve.ClientSafetyStates.AsNoTracking()
+        .Where(x => x.FirmId == f.FirmId && x.Id == f.ClientId).Select(x => x.InputGeneration).SingleAsync(ct);
+      long closedRevision;
+      await using (var close = new AuditSphereDbContext(pg.Options))
+      {
+        var acceptedRequest = await close.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == requestId, ct);
+        Assert.Equal(PbcStates.Accepted, acceptedRequest.State);
+        Assert.Equal(receiptFacts.AcceptedRequestRevision, acceptedRequest.Revision);
+        var closed = await PbcService.ChangeStateAsync(close, reviewer,
+          new(requestId, PbcStates.Closed, acceptedRequest.Revision), ct);
+        Assert.True(closed.Succeeded, closed.Message);
+        var closedRequest = await close.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == requestId, ct);
+        Assert.Equal(PbcStates.Closed, closedRequest.State);
+        closedRevision = closedRequest.Revision;
+        Assert.Equal(receiptFacts.AcceptedRequestRevision + 1, closedRevision);
+        Assert.Equal(receiptFacts.ReviewerUserId, closedRequest.AcceptedByUserId);
+        Assert.Equal(receiptFacts.AcceptedAt, closedRequest.AcceptedAt);
+        Assert.Equal(retainedReceiptJson, JsonSerializer.Serialize(
+          await close.PbcAcceptanceReceipts.AsNoTracking().SingleAsync(x => x.Id == receiptId, ct)));
+      }
+      Assert.Equal(generationBeforeClose, await resolve.ClientSafetyStates.AsNoTracking()
+        .Where(x => x.FirmId == f.FirmId && x.Id == f.ClientId).Select(x => x.InputGeneration).SingleAsync(ct));
+      var afterClose = await AuditScheduleIntakeSources.ResolveAsync(resolve, staff, reader, f.ClientId, f.EngagementId,
+        receiptId, decisionId, sourceDate, columns, ["0010", "0020"], ct);
+      Assert.True(afterClose.Succeeded,
+        $"Supported assigned-reviewer closure must preserve the accepted source. {afterClose.ErrorCode}: {afterClose.Message}");
+      Assert.Equal(facts.ManifestJson, afterClose.Value!.ManifestJson);
+      Assert.Equal(facts.ManifestSha256, afterClose.Value.ManifestSha256);
+      Assert.Equal(facts.RawFileSha256, afterClose.Value.RawFileSha256);
+      Assert.Equal(facts.PbcSourceDigest, afterClose.Value.PbcSourceDigest);
+      Assert.Equal(receiptId, afterClose.Value.PbcAcceptanceReceiptId);
+      Assert.Equal(closedRevision, afterClose.Value.PbcRequestRevision);
+      Assert.Equal(PbcStates.Closed, afterClose.Value.CurrentPbcRequestState);
+      // Current workflow state belongs outside immutable source identity; never pretend CLOSED is ACCEPTED.
+      using (var manifest = JsonDocument.Parse(afterClose.Value.ManifestJson))
+      {
+        var sourceRequest = manifest.RootElement.GetProperty("Pbc").GetProperty("Request");
+        Assert.False(sourceRequest.TryGetProperty("State", out _));
+        Assert.False(sourceRequest.TryGetProperty("Revision", out _));
+      }
 
       // Last: change the actual staged file, retaining all real accepted receipts and provider bytes.
       var chunk = await resolve.PbcUploadChunks.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == staged.UploadIntentId, ct);

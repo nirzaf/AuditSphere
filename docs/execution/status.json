@@ -963,6 +963,14 @@
         "scope": "Public create/review/bind signatures and owned-transaction guards preserved through private shared implementations. Internal create/bind/review require existing transaction, keep authorization/source/maker checks and never begin/commit/dispose caller transaction. Caller must roll back its entire transaction on any failure.",
         "evidence": "Existing binding/revocation/fieldwork cohort plus two original transaction cases: provisional create/dedupe/bind/independent-review remain invisible to a separate connection; outer rollback removes both schedule/rows, outer commit alone publishes exact source/original row. Missing-transaction internal calls refuse.",
         "limits": "No public ambient-transaction support, savepoint isolation, typed capture/review receipt, API/UI or professional acceptance claimed. No full local suite."
+      },
+      "acceptedPbcClosureContinuity": {
+        "status": "Actual source continuity RED1/GREEN1; broader source capture/review remains pending.",
+        "red": "Actual assigned reviewer closed the accepted request; original receipt bytes and accounting generation remained unchanged, but resolver refused the source.",
+        "repair": "Accept only exact accepted revision or known next closed revision. Current state/revision retained outside immutable source manifest and in fresh-read fence; never pretend CLOSED is ACCEPTED. Other receipt/upload/transfer/hash/context/role and tamper gates unchanged.",
+        "checks": "Existing genuine-source method Passed1 Failed0 Skipped0, 50s: stable complete manifest/hash, receipt/data identity after official close, actual CLOSED metadata/revision and final staged-byte tamper refusal.",
+        "provenance": "Local test binary included pending two-table source-capture migration/SQL overlay with empty capture/review tables. Initial rehearsal failed SQL42601; parenthesized CASE expressions corrected before final pass. This proves the tested source-read flow and empty install only, not data-bearing capture/SQL/Down/API/UI acceptance.",
+        "limits": "No legacy receipt/hash rewrites, re-enabled uploads or live-provider/professional acceptance. No full local suite."
       }
     },
     "archivedOn20261024": {

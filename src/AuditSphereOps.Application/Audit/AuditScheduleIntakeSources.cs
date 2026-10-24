@@ -17,7 +17,7 @@ namespace AuditSphereOps.Application.Audit;
 
 internal sealed record AuditScheduleIntakeSourceFacts(
   Guid FirmId, Guid ClientId, Guid EngagementId, Guid PbcAcceptanceReceiptId,
-  Guid PbcRequestId, long PbcRequestRevision, Guid PbcUploadIntentId, long UploadIntentRevision,
+  Guid PbcRequestId, long PbcRequestRevision, string CurrentPbcRequestState, Guid PbcUploadIntentId, long UploadIntentRevision,
   Guid AcceptedTbDecisionId, Guid TrialBalanceDatasetId, long DatasetRevision,
   Guid PeriodId, long PeriodRevision, Guid? BookId, long? BookRevision, string? Basis,
   string LegalEntityKey, string Currency, long InputGeneration, DateOnly SourceDate,
@@ -147,14 +147,14 @@ internal static class AuditScheduleIntakeSources
     authority = await AuthorizeAsync(db, actor, clientId, engagementId, ct);
     if (!authority.Succeeded) return Denied<AuditScheduleIntakeSourceFacts>(authority);
     return CommandResult<AuditScheduleIntakeSourceFacts>.Ok(new(actor.FirmId, clientId, engagementId,
-      pbcAcceptanceReceiptId, pbc.RequestId, pbc.RequestRevision, pbc.UploadIntentId, pbc.UploadRevision,
+      pbcAcceptanceReceiptId, pbc.RequestId, pbc.RequestRevision, pbc.RequestState, pbc.UploadIntentId, pbc.UploadRevision,
       acceptedTbDecisionId, tb.DatasetId, tb.DatasetRevision, tb.PeriodId, tb.PeriodRevision, tb.BookId,
       tb.BookRevision, tb.Basis, tb.LegalEntityKey, tb.Currency, tb.Generation, sourceDate, ScheduleType,
       parsed.ProfileVersion, pbc.FileName, pbc.Hash, pbc.ByteCount, pbc.SourceDigest, tb.Hash, parsed,
       Array.AsReadOnly(codes), ties, signedTotal, closingControl, residual, manifest, Hashing.Sha256Hex(manifest)));
   }
 
-  private sealed record PbcFacts(Guid RequestId, long RequestRevision, Guid UploadIntentId,
+  private sealed record PbcFacts(Guid RequestId, long RequestRevision, string RequestState, Guid UploadIntentId,
     long UploadRevision, string FileName, string Hash, long ByteCount, string SourceDigest,
     string EntityScope, string PeriodStart, string PeriodEnd, string Json);
 
@@ -168,8 +168,14 @@ internal static class AuditScheduleIntakeSources
       x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId, ct);
     var upload = await db.PbcUploadIntents.AsNoTracking().SingleOrDefaultAsync(x => x.Id == receipt.PbcUploadIntentId &&
       x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && x.PbcRequestId == receipt.PbcRequestId, ct);
-    if (request is null || upload is null || request.State != PbcStates.Accepted ||
-        request.Revision != receipt.AcceptedRequestRevision || request.AcceptedByUserId != receipt.ReviewerUserId ||
+    // Closure is a supported one-revision workflow transition, not a new source acceptance.
+    // Preserve its actual state/revision in the read fence, outside the immutable source manifest.
+    var supportedRequest = request is not null &&
+      (request.State == PbcStates.Accepted && request.Revision == receipt.AcceptedRequestRevision ||
+       request.State == PbcStates.Closed && receipt.AcceptedRequestRevision < long.MaxValue &&
+       request.Revision == receipt.AcceptedRequestRevision + 1);
+    if (request is null || upload is null || !supportedRequest ||
+        request.AcceptedByUserId != receipt.ReviewerUserId ||
         request.ReviewerUserId != receipt.ReviewerUserId || request.AcceptedAt != receipt.AcceptedAt ||
         receipt.ReviewerUserId == Guid.Empty || receipt.ReviewerUserId == receipt.UploaderUserId ||
         upload.State != PbcUploadStates.Received || upload.Revision != receipt.UploadIntentRevision ||
@@ -226,7 +232,7 @@ internal static class AuditScheduleIntakeSources
       },
       Request = new
       {
-        request.Id, request.State, request.Revision, request.EntityScope, request.PeriodStart, request.PeriodEnd,
+        request.Id, request.EntityScope, request.PeriodStart, request.PeriodEnd,
         request.Area, request.RequestedFormat, request.ReviewerUserId, request.AcceptedByUserId, request.AcceptedAt
       },
       Upload = new
@@ -242,7 +248,7 @@ internal static class AuditScheduleIntakeSources
         Status = operation.Status.ToString(), operation.ResultIdentity, operation.ResultDigest, operation.CompletedAt
       }
     });
-    return CommandResult<PbcFacts>.Ok(new(request.Id, request.Revision, upload.Id, upload.Revision,
+    return CommandResult<PbcFacts>.Ok(new(request.Id, request.Revision, request.State, upload.Id, upload.Revision,
       receipt.FileName, receipt.ContentSha256Hex, receipt.ByteCount, receipt.SourceDigest,
       request.EntityScope, request.PeriodStart, request.PeriodEnd, json));
   }

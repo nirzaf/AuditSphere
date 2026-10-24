@@ -391,7 +391,7 @@ Earlier parity implementation observations are retained in the [historical hando
 
 ## Recent focused evidence
 
-Official revocation cannot authorize stale risk owners or direct schedule creation/review/binding. Focused checks retain prior history; internal create/bind/review commit only with their owning transaction. Verified PBC/TB per-account resolution remains separate from pending capture/review UI and full CI. See [status.json](status.json) and the historical handoff.
+Official revocation cannot authorize stale risk owners or direct schedule creation/review/binding. Focused checks retain prior history; internal create/bind/review commit only with their owning transaction. PBC closure preserves verified source identity. Per-account resolution remains separate from pending capture/review UI and full CI. See [status.json](status.json) and the historical handoff.
 
 ## Native generated reporting sources
 
