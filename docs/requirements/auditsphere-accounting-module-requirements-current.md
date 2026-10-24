@@ -1,861 +1,544 @@
-# STE Audit Management Tool
+# AuditSphere — Five-Module Functional Requirements
 
-## Functional Requirements & End-to-End System Workflow Specification
+| Attribute | Value |
+| --- | --- |
+| Revision | 2.3 — proposed for adoption |
+| Prepared | 24 October 2026 |
+| Scope | Five existing modules; seven display phases; eleven derived audit lifecycle states |
+| Implementation status | Unverified in this document review |
+| Purpose | Operational and accounting requirements across all five existing modules |
 
-| Attribute | Specification Details |
-| :--- | :--- |
-| **Document Version** | 2.2 |
-| **Source Baseline** | Audit Management Tool Specification v2.2 (Google Drive source). v2.2 keeps the five modules, the eleven canonical states and all v2.1 requirements, and adds the seven-phase workflow layer (Workflow Experience Addendum, §4.1.3 Enhanced Dual-Key Acceptance, §5.3, §6 and §7). Delivery status of the v2.2 additions is recorded in the [v2.2 workflow-experience delta](../execution/auditsphere-execution-tracker-ste-v21-gap-verification-current.md#v22-workflow-experience-delta), not here. |
-| **Document Status** | `CURRENT` |
-| **Target Focus** | Business Logic, Functional Requirements, Task Sequences & Module Workflows |
-| **Auditing Standards Context** | International Standards on Auditing (ISA) & International Financial Reporting Standards (IFRS) |
-| **Primary Currency** | Qatari Riyal (QAR) |
-| **System Architecture** | Modular Monolith (ASP.NET Core / Angular 22 canonical UI / PostgreSQL). Original wording: ~~Blazor Interactive Server~~, superseded by ADR-0002. The former Blazor host was retired and merged as `e7ebe27c`; historical parity and rollback were not accepted. |
+> **Authority:** This is a review-derived revision candidate. A filename ending in `current` is the requested naming convention; it does not establish approval or implementation. The six repository counterparts were not inspected. Source-reported approved ADRs and executed contracts remain controlling until an authorized change is adopted. Proposed changes and D01–D10 decisions do not silently override them.
 
----
+The [complete proposed specification](auditsphere-requirements-specification-complete-practice-management-proposed.md) governs the proposed design across this package. The [preserved v2.2 source](auditsphere-requirements-source-ste-audit-management-specification-v22.md) supplies historical requirements and approved source overlays. Companion documents use the same control identifiers and do not add product modules.
 
-## Approved deviations
+## Filename and scope
 
-The entries below are operative decision overlays, and the source requirements that follow are preserved for provenance. The approved or accepted decision records here control current interpretation where source prose differs; a decision does not prove implementation, live-provider acceptance or qualified professional treatment. Do not rewrite an executed client contract or infer a professional decision from this specification.
+The supplied material uses this filename for the broader STE requirements. This revision therefore retains all five modules. Client bookkeeping, audit execution, financial reporting, consolidation and the firm's internal books retain their existing owners; “accounting module” in the filename does not introduce a sixth module or narrow the product to bookkeeping.
 
-- **ADR-0002 (Angular canonical UI):** Angular 22 is the canonical user interface. The Blazor rollback host was retired by owner decision and merged as `e7ebe27c`; retirement does not mean migration parity or rollback acceptance was established. Affects the header architecture row.
-- **ADR-0003 (Microsoft sign-in for the client portal):** no temporary passwords are emailed or stored; the first-sign-in requirement of the Microsoft identity path applies. For newly converted clients, portal access also requires both keys, activation and the paid advance. Live tenant acceptance remains separate. Affects the §3.1 portal box and the §4.1.5 portal bullets.
-- **ADR-0004 (lifecycle as a derived projection):** the §5 stages are computed from gate records and never stored or set directly. Affects §5.
-- **ADR-0005 and ADR-0016 (visual appearance and certificate signing):** the PNG signature and seal remain the visible appearance. A firm-held X.509 certificate can sign the final report; when certificate signing is required, missing or invalid certificate material fails closed with no image-only fallback. eSignature providers and Purview remain out of scope. The firm's real-certificate and legal acceptance, and whether production must require certificate signing, remain separate gates. Affects §4.1.4 and §§4.4.1–4.4.2.
-- **ADR-0006 (one SharePoint site per client; Full Control for assigned staff):** the site and staff-access decision does not establish archive immutability or provider read-only protection. The archive-copy rule is controlled by ADR-0009 below.
-- **ADR-0007 (approved 50/50 fee milestones and draft-only automation):** the gated engagement letter creates the reviewed fee agreement and its advance and balance milestones. Optional automation is off by default and creates invoice drafts only: the advance draft is eligible after the letter; the balance draft is eligible only after the advance is paid and the linked financial package is released. A draft is not approved, posted, sent or collected. A draft-report date alone is not the balance-invoice trigger. Preserve the terms and evidence of already accepted or executed contracts. Affects §§3.1, 3.4, 4.1.2, 4.1.5 and 4.4.2.
-- **ADR-0009 (archive authority, from spike SPK-01):** the append-only release and archive store is authoritative for issued evidence. A separate read-only SharePoint archive library is a secondary copy. Its state is `OBSERVED` only after both exact file hashes and expected grants are read back; until then it remains `BLOCKED_EXTERNAL`. A local freeze does not protect the SharePoint copy, and the UI or regulator export must not claim provider immutability. Affects §4.4.3.
-- **ADR-0010 (end-of-service accrual, from STE-NXT-009):** end-of-service benefits are accrued as a provision entered by a person, not expensed only when paid. Affects §3.5.
-- **ADR-0011 and ADR-0017 (materiality without normalization):** the PBT benchmark is mapped balances excluding tax; no normalization adjustments are applied. Affects §4.2.4.
-- **ADR-0012 (unconditional advance activation gate; ACCEPTED):** activation into `PORTAL_ACTIVE_PLANNING` requires a linked fee agreement and its 50% `ADVANCE` milestone in `PAID` state, representing full payment and allocation. No configuration bypass is permitted. An invoice, partial payment or missing agreement is insufficient. This does not retroactively change an executed contract. Affects §§4.1.5 and 5.1.
-- **ADR-0017 (STE v2.2 delegated product decisions):** WhatsApp is a lead-channel label only; nothing is ingested from or sent through it, and proposals are dispatched by email. Acceptance records `EMAIL`, `SIGNED_LETTER`, `IN_PERSON` or `PHONE` (required for acceptance, optional for decline); the value labels evidence and sends nothing. Add continuance questions RV-031 (legal notice, claim or demand received; adverse when yes) and RV-032 (prior-year professional fees settled; adverse when no), preserving existing questions and historical answers. The firm week is Sunday–Thursday with Friday/Saturday as weekend and Sunday–Saturday allocation weeks; public holidays are recorded as unavailability, with no inferred holiday table, and statutory-relative milestone dates remain the rule (the dates in the source are examples). The staffed Engagement Partner is required for SRM clearance, opinion, report signing, signed-representation verification and bundle assembly. Planning approval covers current materiality and risk routing; a recorded critical-estimate flag bands Red; high inherent risk is likelihood 3 with magnitude at least 2; Amber work is performed by Senior Auditor or above and reviewed by an Audit Manager. Sampling versus full-population testing is documented senior judgment; no sample is universally required. Affects §§3.1–3.5, 4.1–4.3, 5.1–5.2 and 6.3.
-- **ADR-0018 (practice reporting bases):** approved non-billable/no-charge time counts in actual hours and cost but has no charge-out value; standard value, realization and contract contribution use approved billable time only, and missing rate/currency makes those figures unavailable. Utilization is approved billable minutes divided by capacity net of recorded unavailability; show all approved hours separately. Age every posted firm invoice (advance, final, time or other); do not include client-bookkeeping invoices, and refuse a report for an invoice bound to multiple milestones. Monthly P&L uses one row per accounting month and the same month one year earlier as comparator. The dashboard names currently staffed users at the level owning each step but grants no permissions. Apply Senior/Supervisor/Junior/Associate rate aliases wherever rates are looked up. Staff-level performance measures and visibility, facility/benefit expense taxonomy, broader fee/partial-payment policy and the professional/legal items listed in ADR-0018 remain undecided. Affects §§3.5 and 4.5.1–4.5.2.
+Use this file for functional implementation planning. Use the complete proposed specification for the full architecture, security/operations, 165 procedures, 54 acceptance scenarios and owner decisions. Repeated control text is synchronized from that same reviewed source.
 
-## Executive Table of Contents
+<a id="rev-scope"></a>
 
-- [Workflow Experience Addendum — Version 2.2](#workflow-experience-addendum--version-22)
-  - [Visual overview — seven user-facing phases](#visual-overview--seven-user-facing-phases)
-  - [Two-layer authority model](#two-layer-authority-model)
-- [1. Requirement Gathering & Operational Context](#1-requirement-gathering--operational-context)
-  - [1.1 Business Objectives & Problem Statement](#11-business-objectives--problem-statement)
-  - [1.2 User Personas & Responsibility Matrix](#12-user-personas--responsibility-matrix)
-- [2. Project Modules Connectivity & Architecture](#2-project-modules-connectivity--architecture)
-- [3. End-to-End Project Task Flows & Sequence Maps](#3-end-to-end-project-task-flows--sequence-maps)
-  - [3.1 Flow 1: Lead Ingestion to Dual-Key Client Onboarding](#31-flow-1-lead-ingestion-to-dual-key-client-onboarding)
-  - [3.2 Flow 2: Planning, Resource Scheduling & Materiality Formulation](#32-flow-2-planning-resource-scheduling--materiality-formulation)
-  - [3.3 Flow 3: Technical Fieldwork Execution & Multi-Tier Review Matrix](#33-flow-3-technical-fieldwork-execution--multi-tier-review-matrix)
-  - [3.4 Flow 4: Reporting, 5-Part Deliverable Release & Compliance Archive](#34-flow-4-reporting-5-part-deliverable-release--compliance-archive)
-  - [3.5 Flow 5: Practice Management, Time Realization & Firm Bookkeeping](#35-flow-5-practice-management-time-realization--firm-bookkeeping)
-- [4. Module-by-Module Functional Requirements](#4-module-by-module-functional-requirements)
-  - [4.1 Module 1: Commercial & CRM Pipeline](#41-module-1-commercial--crm-pipeline)
-  - [4.2 Module 2: Administration, Governance & Planning](#42-module-2-administration-governance--planning)
-  - [4.3 Module 3: Technical Execution & Audit Fieldwork](#43-module-3-technical-execution--audit-fieldwork)
-  - [4.4 Module 4: Reporting & Final Deliverables](#44-module-4-reporting--final-deliverables)
-  - [4.5 Module 5: Practice Analytics & Internal Bookkeeping](#45-module-5-practice-analytics--internal-bookkeeping)
-- [5. System State Machine & Lifecycle Transitions](#5-system-state-machine--lifecycle-transitions)
-  - [5.1 State Machine Transition Matrix](#51-state-machine-transition-matrix)
-  - [5.2 State Machine Visual Workflow](#52-state-machine-visual-workflow)
-  - [5.3 Display Phases and Canonical States](#53-display-phases-and-canonical-states)
-- [6. Simplified Seven-Phase Engagement Workflow — New Requirements](#6-simplified-seven-phase-engagement-workflow--new-requirements)
-  - [6.1 Purpose and mapping](#61-purpose-and-mapping)
-  - [6.2 Engagement dashboard](#62-engagement-dashboard)
-  - [6.3 Phase detail requirements](#63-phase-detail-requirements)
-  - [6.4 Reusable practice templates](#64-reusable-practice-templates)
-  - [6.5 Recurring audit engagements](#65-recurring-audit-engagements)
-  - [6.6 Safe workflow automation](#66-safe-workflow-automation)
-  - [6.7 User role, security and progress rules](#67-user-role-security-and-progress-rules)
-  - [6.8 Acceptance criteria](#68-acceptance-criteria)
-- [7. Architectural Non-Regression Requirements — New](#7-architectural-non-regression-requirements--new)
+## Five modules with complete ownership
 
----
+Existing accounting, consolidation, PBC, workflow, technical-library and platform capabilities remain inside the five-module product boundary. The source's R2R module numbers are retained as provenance; this revision does not add those as separate top-level modules.
 
-# Workflow Experience Addendum — Version 2.2
+| Existing module | Business responsibility | Owns | Boundary |
+| --- | --- | --- | --- |
+| **M1 Commercial & CRM Pipeline** | Lead through agreed terms | Client/contact profile, group relationships, proposals, dispatched revisions, commercial acceptance, Engagement Letter and commercial fee terms | Risk clearance comes from M2; invoices, cash and firm postings belong to M5. |
+| **M2 Administration, Governance & Planning** | Eligibility, resources and plan | Acceptance/continuance, independence, assignments, calendar, service applicability, approved templates, directory provisioning requests, materiality and risk planning | Administrator access does not confer Partner authority. Planning consumes an accepted accounting dataset from M3. |
+| **M3 Technical Execution & Audit Fieldwork** | Accounting preparation and audit evidence | TB/GL intake, native client accounting already in scope, mapping, adjustments, reconciliation, consolidation preparation, procedures, PBC, sampling, confirmations, reviews and SRM | Firm books and client books remain separate; consolidation never posts into component books. |
+| **M4 Reporting & Final Deliverables** | Reviewed output through archive | Entity/group financial statements, notes, report composition, opinion, signed representations verification, signing, five-part bundle, release manifests, read-only freeze and inspection exports | Consumes M3 snapshots and M5 fee-note records. It cannot auto-approve financial or professional decisions. |
+| **M5 Practice Analytics & Internal Bookkeeping** | Firm operations and financial control | Time, capacity analytics, rates, budgets, realization, fee milestones, firm invoices/credit notes/receipts/allocations, expenses, firm ledger, TB, P&L and AR ageing | Client sales/purchase invoices are never firm revenue. Charge-out value is not payroll cost. |
 
-The product SHALL present a Karbon-inspired, easy-to-follow seven-phase engagement workflow while preserving all five functional modules and the eleven mandatory backend lifecycle states in Section 5. The display phases are a projection of audited business records; they are NOT a second state machine. Completing a UI task never substitutes for a verified acceptance, finance, audit review, Partner, release or archive command.
+**Supporting capabilities are not new modules.** Identity, authorization, audit events, technical templates, document versioning, scheduled tasks, background operations, notifications and telemetry are shared implementation capabilities of the existing modules. Preserve their current ownership where the repository confirms it; this specification does not require renaming projects or moving every file.
 
-Seven visible phases: 1. Client Onboarding; 2. Audit Planning; 3. Audit Fieldwork; 4. Manager Review; 5. Partner Sign-off; 6. Report & Delivery; 7. Archive & Close.
+<a id="rev-authority"></a>
 
-Design principles: show current phase, responsible role, next action, due date, completion progress and exact blockers; expand advanced checks inside a phase; display Waiting for Client, Under Review, Rework Required and Blocked clearly. Keep internal lifecycle codes away from ordinary navigation. The existing detailed requirements remain authoritative.
+### Source hierarchy and status
 
-## Visual overview — seven user-facing phases
+1. The user's scope constraint governs this review: improve the existing product without new modules.
+2. Approved decisions reproduced in the attached v2.2 Markdown control interpretation where older source prose differs. They remain source-reported decisions; this review does not approve new ADRs.
+3. Use v2.2 requirements and their operative overlays together. Keep executed contract terms and historical engagement evidence unchanged.
+4. Use the HTML's existing accounting/consolidation extensions and the audit working process to fill detail inside current capabilities.
+5. Apply this proposed revision after owner adoption. Entries in [the decision register](auditsphere-requirements-specification-complete-practice-management-proposed.md#rev-decisions) do not silently overrule existing policies.
+6. Historical service names, code presence and earlier CI labels provide investigation leads, not proof of current implementation.
 
-The diagram below is a **simplified user-facing projection**, not a new backend state machine. In particular, Dual-Key Acceptance is a subsection of Client Onboarding, and the advance-payment gate remains distinct.
+### Existing service routes
 
-```mermaid
-flowchart LR
-    ON["1. Client Onboarding"] --> PLAN["2. Audit Planning"]
-    PLAN --> FIELD["3. Audit Fieldwork"]
-    FIELD --> REVIEW["4. Manager Review"]
-    REVIEW --> DEC{"Review accepted?"}
-    DEC -->|"No: documented rework"| FIELD
-    DEC -->|"Yes"| PARTNER["5. Partner Sign-off"]
-    PARTNER --> REPORT["6. Report and Delivery"]
-    REPORT --> ARCHIVE["7. Archive and Close"]
-    classDef decision fill:#fff1d6,stroke:#b88b2c,color:#5d4316
-    classDef archived fill:#e0f4e5,stroke:#21844a,color:#165d34
-    class DEC decision
-    class ARCHIVE archived
-```
+| Route already named in the sources | Required interpretation | Completion boundary |
+| --- | --- | --- |
+| External/statutory audit | Use all applicable audit gates and the existing eleven-state derived lifecycle. | Audited financial statements, audit report, required bundle, archive and professional review. |
+| Imported accounting preparation | External books remain source of record. Reviewed adjustments and financial preparation do not imply external posting or an audit opinion. | Reconciled financial package under the selected service mandate and reporting framework. |
+| Authorized native client bookkeeping | Activate only for an explicitly authorized book and period, after reviewed opening balances/cutover and applicable independence clearance. | Posted client ledger, reconciliations, period controls and statements. Optional ancillary capabilities do not block the core path. |
+| Group consolidation | Group engagement consumes approved component snapshots and authorized external packs. | Group-only adjustments and reviewed consolidated financial output; component ledgers unchanged. |
+| Agreed-upon procedures and internal audit | Separate the templates and mandates. ISRS 4400 relates to AUP; it is not a blanket standard for internal audit. Approve applicability before activation. | No automatic ISA opinion or assurance claim. D03 defines missing route details without adding product modules. |
 
-## Two-layer authority model
+The eleven canonical labels describe the supplied audit lifecycle. Do not rename them, add a parallel state machine or manufacture approvals to accommodate a non-audit service. Record the service mandate and applicability using existing engagement/task/report capabilities. A non-audit route whose contracts and deliverables are not specified remains explicitly unsupported for production until D03 is resolved.
+
+### Retained scope limits
+
+Inventory, payroll, tax and loan audit workprograms test client records; they do not authorize inventory operations, payroll processing, procurement, payment initiation or external tax filing. Purview and external eSignature providers remain outside the approved boundary. WhatsApp remains a lead-source label. There is no new CRM product, HR system, payment gateway, scanning service, analytics warehouse or separate quality-management product in this proposal.
+
+
+<a id="rev-lifecycle"></a>
+
+## Derive progress from current evidence
+
+Keep the eleven canonical audit states and seven display phases. Tasks support work; domain commands and valid evidence determine progression.
+
+| Phase | Canonical state | Evidence required to leave the state |
+| --- | --- | --- |
+| 1 Onboarding | `LEAD_INGESTION` | Validated minimum entity/contact details and scoped proposed service. |
+| 1 Onboarding | `PROPOSAL_GENERATION` | Approved exact proposal revision and evidenced email dispatch. |
+| 1 Onboarding | `DUAL_KEY_PENDING` | Current commercial acceptance and current unconditional assigned-Partner risk clearance; no blocking hold. |
+| 1 Onboarding | `ADVANCE_BILLING` | Authorized Engagement Letter/terms evidence, linked fee agreement, full 50% advance paid and allocated, activation command and required onboarding controls. |
+| 2 Planning | `PORTAL_ACTIVE_PLANNING` | Required provisioning evidenced; staffing, accepted TB/mapping, materiality and risk routing current; assigned Partner planning approval. |
+| 3 Fieldwork | `FIELDWORK_EXECUTION` | All applicable procedures assigned to fieldwork are submitted against current versions; exclusions/tailoring authorized. Later review/signing/release procedures are due at their own phase gates. |
+| 4 Manager review | `MANAGERIAL_REVIEW` | Independent review complete; all blocking notes resolved with reviewer acceptance; current SRM; required confirmations cleared under current policy. |
+| 5 Partner sign-off | `PARTNER_APPROVAL` | Partner review/clearance and opinion; required quality review; management-approved statements and verified signed representations; final report signed against the approved snapshot. |
+| 6 Report and delivery | `DELIVERABLE_RELEASE` | Five required items pinned, final fee note valid under the agreed sequence, authorized immutable bundle release and evidenced delivery disposition; portal upload fence committed. |
+| 7 Archive and close | `COMPLIANCE_COUNTDOWN` | Authorized early freeze or due freeze completes successfully. Secondary SharePoint observation is a separate condition, not inferred from the timer. |
+| 7 Archive and close | `ARCHIVED_READ_ONLY` | Terminal for the frozen engagement version; authorized read/export remains. Corrections use explicit linked amendments/reissues, never overwrite the original. |
+
+This is a proposed normalized gate reading, not a claim about current code. D01 covers package/billing semantics, D02 the archive clock and D03 non-audit routes. Gate changes require review rather than inferred implementation. Preserve ADR-0004's projection: no editable stage column and no task completion API that directly sets a lifecycle state.
+
+<a id="CTRL-01"></a>
+
+### CTRL-01 Approval dependency and invalidation matrix
+
+| Change | Pending decisions that become stale or need impact review | Must remain preserved |
+| --- | --- | --- |
+| Quote revision, fee, scope, service, entity or period | Affected commercial acceptance, letter eligibility and linked fee activation basis; reevaluate risk where its basis changed. | Dispatched offers, authentic responses, executed contracts and payment history. |
+| Due-diligence facts, independence/conflict or ownership | Risk clearance and downstream eligibility affected by that clearance; open a hold where required. | Prior decisions and their actual generations/actors. |
+| TB/GL source, mapping or approved adjustment set | Materiality, affected risk assessments/lead schedules, financial-package review, affected workpapers and SRM/sign/release eligibility. | Prior imported datasets, original evidence and previously issued report bytes. |
+| Procedure result, population/sample or linked evidence | Affected procedure submission/review, dependent SRM and report readiness. Unrelated sections need not be discarded. | Old result, reviewer comments, sample definition and evidence versions. |
+| Reporting policy/template, FX rates or comparative/restatement basis | Affected statement/consolidation outputs, reviews and release approvals. | Previously approved reporting contexts and group runs. |
+| Representation letter, opinion text, statement approval or final document bytes | Report signature/package acceptance; require correct re-signing and re-release before a new issue. | Original signatures and issue manifest, with supersession relationship. |
+| Payment reversal, unallocation or contract amendment | Current commercial eligibility and unexecuted dependent commands; require authorized finance resolution. | Historical activation/release facts; no automatic erasure or withdrawal of an issued audit report. |
+| Identity disabled, staff reassigned or scope revoked | Future access, queued operations and new protected decisions. Historical approval validity follows professional impact assessment. | Authentic historical actor identity and completed evidence. |
+
+Record dependency IDs/revisions and calculated digest where appropriate. A current approval proves review of those inputs, not all future revisions. Preserve the original decision, mark current eligibility stale, explain the affected dependency and route only necessary rework. After issuance, immutable release history wins: new evidence creates a correction workflow rather than a silent regression of the issued record.
+
+<a id="CTRL-02"></a>
+
+### CTRL-02 Dashboard and task behavior
+
+The engagement workspace always shows client, entity, period, service route, source mode, phase, responsible staffed person, due date, task progress, gate readiness and next permitted action. Display “Waiting for client”, “Under review”, “Rework required”, “Stale inputs”, “Blocked externally” and “Archive overdue” as explanatory conditions, not new lifecycle states. “100% tasks” never means “approved for release”.
+
+Provide existing My Tasks, Team Work, waiting/review/rework/overdue/completed filters and list/Kanban/calendar views over the same records. Reject cyclic task dependencies, preserve completed task history, pin template versions and recalculate due dates with explicit change evidence. Autosave must expose unsaved/conflict/error status and preserve the user's draft when a revision conflict occurs. Links carry current client/engagement context and handle revoked, superseded or deleted targets safely.
+
+Annual rollover copies approved templates, suitable client facts and mapping suggestions only. Require fresh commercial consent, continuance, staff assignments, TB/materiality, current evidence, reviews and opinion. Never copy prior-year approvals as current, reopen archived files as editable, or imply that imported historical balances have been newly audited.
+
+
+<a id="rev-m1"></a>
+
+## Commercial and CRM pipeline
+
+Convert an evidenced client mandate into an engagement without conflating an accepted quotation, professional risk approval, agreed terms or received payment.
+
+<a id="M1-01"></a>
+
+### M1-01 Client profiles and communication routing
+
+Retain legal entities, registration/tax identifiers, parent/subsidiary/affiliate relationships and the multi-contact directory. Record contact authority, validity and purpose-specific routing for MD/GM commercial decisions, CFO/finance billing and liaison PBC work. Detect possible duplicate entities before conversion; an authorized merge preserves source IDs, engagements and history. Corporate relationship membership never grants access to another entity's files.
+
+Phone, WhatsApp, email, web forms and in-person referrals remain lead-source classifications. No WhatsApp ingestion/dispatch is implied. Revalidate the actual recipient and allowed contact role immediately before outbound dispatch, not only when the document was drafted. Keep sensitive risk assessments out of customer-visible content.
+
+<a id="M1-02"></a>
+
+### M1-02 Quotation and proposal versions
+
+Provide the short quotation and comprehensive proposal with scope, service type, entity, period, currency, fee, 50/50 terms, milestones and approved firm/team content. Draft, review, dispatch and response are distinct facts. Freeze the exact dispatched version and its attachments, recipient, channel, timestamp and provider disposition. Track acceptance, decline, expiry and supersession. A changed fee, period, scope, currency or applicable terms requires a new client response.
+
+<a id="M1-03"></a>
+
+### M1-03 Independent dual-key acceptance
+
+Key 1 is acceptance of the exact dispatched offer by an authorized contact, with the approved response-channel label and supporting evidence. Key 2 is current unconditional clearance by the staffed Engagement Partner against the current due-diligence generation. Conditional, missing, rejected, stale or wrong-scope decisions do not satisfy a key. Both keys are required at letter generation and activation. Neither a task checkbox nor an administrator override can manufacture them.
+
+Keep two approval cards with owner, status, version, date and evidence; show Engagement Letter eligibility separately from the advance-payment card. A declined proposal can be revised/re-dispatched or closed with a recorded reason. New facts after acceptance trigger targeted reassessment and an appropriate hold.
+
+<a id="M1-04"></a>
+
+### M1-04 Engagement Letter and agreed terms
+
+Generate only from the current dual-key clearance and appropriate versioned service template. Record legal entity, scope, period, responsibilities, reporting framework, fee schedule, deadlines and authorized signatories. Distinguish generated, Partner-authorized, dispatched and accepted/executed terms. Quote acceptance alone must not be presented as proof of the client's acceptance of a materially different Engagement Letter.
+
+Retain existing signature/seal policy and the Microsoft identity route. Do not email temporary passwords. Capture evidence that engagement terms are agreed before professional work begins; if a specific mandate uses a different legally valid evidence form, pin that approved form. An amendment to an executed engagement is a new linked version, not an overwrite.
+
+<a id="M1-05"></a>
+
+### M1-05 Advance and activation handoff
+
+M1 supplies the accepted fee/letter basis to M5. Optional automation, disabled by default, may create an advance invoice draft. Separate authorized actions approve/post/send it and record cash. Activate only when the linked 50% ADVANCE milestone is fully paid and allocated, both acceptance keys remain current and all other applicable onboarding holds are clear. An issued invoice, receipt draft, promise to pay or partial payment does not unlock planning.
+
+For a QAR 20,000 agreement the required advance is QAR 10,000. A QAR 6,000 receipt plus a QAR 4,000 receipt unlocks the payment gate only after both are validly recorded and allocated to that advance. Reversing an allocation opens a current finance exception; it never deletes the earlier activation evidence. Existing executed contract terms are preserved.
+
+<a id="M1-06"></a>
+
+### M1-06 Onboarding outcomes and recovery
+
+Expose exact blockers for absent client consent, stale risk approval, unsigned/unagreed terms, unallocated receipts, identity provisioning or provider failure. Keep business readiness separate from technical provisioning. Use one authorized activation receipt; retries reuse it. If provisioning partially succeeds, retain remote IDs and reconcile before another create. Client access remains limited until its full activation conditions are satisfied.
+
+Traceability: v2.2 §§3.1, 4.1, 6.3; ADR-0003/0007/0012/0017; HTML M1 baseline (original HTML source) and commercial flow (original HTML source). Terms-evidence and recovery detail are proposed clarifications; executed contracts are not changed.
+
+
+<a id="rev-m2"></a>
+
+## Administration governance and planning
+
+Make eligibility, review independence and the plan explicit before execution. Record professional judgment and its evidence; calculations support the decision.
+
+<a id="M2-01"></a>
+
+### M2-01 Acceptance continuance and independence
+
+Preserve separate new-client and annual-continuance questionnaires, including beneficial ownership, AML/KYC, integrity, conflicts, independence, litigation, fraud, finance changes and prior-year fees. Retain RV-031 and RV-032 and their approved adverse-answer meanings. Missing information, adverse answers and changes route to remediation or a recorded decision; they do not disappear through a score. Keep documents, answers, evidence and decisions versioned.
+
+Where the firm also prepares books or financial statements, record the professional assessment of self-review and other independence threats for that engagement. Management must retain responsibility for client records, accounting judgments and statement approval. A product capability flag does not establish that the firm may legally/professionally provide the combined services. Define required safeguards and assignments within existing governance.
+
+<a id="M2-02"></a>
+
+### M2-02 Roles assignment and independent review
+
+Preserve PREPARER, REVIEWER, APPROVER and CLIENT as the business personas while using existing scoped capabilities for finance, administration and technical operations. Require a staffed Partner for acceptance, planning approval, high-risk/SRM clearance, opinion, report signing, signed-representation verification and bundle assembly. A technical administrator or firm-wide directory role is insufficient.
+
+Prevent self-review of workpapers, adjustments and protected approvals where independence is required. Acting at two seniority levels does not make a person independent of their own preparation. Record reassignment, delegation limits, absence coverage and current professional eligibility. Amber work is performed by Senior Auditor or above and reviewed by an Audit Manager. Preserve mandatory Manager execution/Partner review for Red work unless an approved source decision states a narrower rule.
+
+<a id="M2-03"></a>
+
+### M2-03 Quality-review applicability
+
+Replace stale ISQC 1 references with the applicable ISQM 1, ISQM 2 and ISA 220 (Revised) context. Add an engagement-level decision recording whether an engagement quality review is required, why, the eligible independent reviewer and completion evidence. When required, incomplete review blocks report dating/signing. This is an applicability control in existing governance/review, not a new module. The application does not, by itself, constitute the firm's whole quality-management system. [R4](auditsphere-requirements-specification-complete-practice-management-proposed.md#ref-quality)
+
+<a id="M2-04"></a>
+
+### M2-04 Capacity calendar and deadlines
+
+Use the Sunday–Thursday firm workweek, Friday/Saturday weekend and Sunday–Saturday allocation week from ADR-0017. Track actual availability, leave and recorded public holidays without inventing a holiday table. Show over-allocation/conflicts before assigning work; retain authorized exceptions. Set milestones relative to the engagement's actual statutory/contract deadline rather than hard-coded example dates.
+
+Store instants in UTC, display business times in Asia/Qatar by default and treat financial dates/date-only deadlines consistently. A change to year-end or deadline recalculates proposed dates for review and preserves prior commitments. Do not silently move completed tasks or statutory deadlines.
+
+<a id="M2-05"></a>
+
+### M2-05 Workspace and reusable templates
+
+Retain one SharePoint site per client and the five-folder taxonomy: Administration & Planning; Trial Balance & Schedules; Fieldwork & Testing; Drafts & Deliverables; Final Signed Archive. Verify the intended tenant, site marker, library and grants rather than trusting a URL or folder name. Distinguish reserved/requested/provisioned/observed facts; failed provider work remains visible.
+
+Version technical-library content, task templates, workprograms and industry variations. Each engagement pins a published version. Changes to the library do not rewrite active or historical work. Require an authorized tailored-program review; record additions and exclusions with reasons and risk links. Maintain existing technical reference and knowledge content without adding a separate product module.
+
+<a id="M2-06"></a>
+
+### M2-06 Materiality and risk policy
+
+Retain the approved unnormalized PBT benchmark (mapped balances excluding tax), Revenue, Assets and Equity/Net Assets alternatives. Require an accepted dataset, reproducible benchmark account membership, rationale for the selected base/percentage and assigned-Partner approval. Zero, negative or inappropriate bases require selection of another professionally justified benchmark; do not silently take an absolute PBT or normalize it.
+
+| Existing policy value | Proposed precise interpretation |
+| --- | --- |
+| PBT 5–10%; revenue 0.5–2%; assets 0.5–1%; equity/net assets 1–2% | Firm policy ranges requiring documented judgment; not percentages mandated by ISA. |
+| PM | Use the source abbreviation for overall/planning materiality; label it clearly to avoid confusion with performance materiality. |
+| TE / performance materiality 50–75% of PM | Preserve the configured source rule; distinguish engagement performance materiality from tolerable misstatement for a specific sample. |
+| SAD threshold 3–5% of PM | Label “clearly trivial threshold”; the schedule of audit differences is the record, not the threshold itself. Qualitative concerns remain recordable. |
+| Rounding within ±5% | Store raw value, proposed rounded value, difference and reviewer rationale; preserve the cap and approval. |
+| Green / Amber / Red | Routing indicators using absolute FSLI exposure and qualitative overrides. Green is not automatic exclusion from work. |
+
+Preserve the critical-estimate Red override and high inherent-risk definition of likelihood 3 with magnitude at least 2. D04 proposes equality handling as Red at or above PM and Amber at or above TE below PM, subject to professional approval and reconciliation with actual existing rules. Until resolved, equality must not fall through an unclassified branch. Sampling or full-population testing remains documented senior judgment, not a universal sample requirement.
+
+<a id="M2-07"></a>
+
+### M2-07 Planning approval and applicability
+
+Approve the current scope, service mandate, reporting framework/edition, applicable workprogram, risk/assertion responses, materiality, staffing, review routing and milestones as one versioned plan. Link each significant risk to its planned procedures and responsible reviewer. New source data, materiality, risks or tailored program changes trigger impact review and invalidate affected approval eligibility. Required procedures cannot be deleted by an ordinary task edit.
+
+Traceability: v2.2 §§4.2, 6.3–6.5; ADR-0011/0017/0018; HTML planning/fieldwork (original HTML source); workflow area 1. Quality-review applicability and the clarified policy vocabulary are proposed completions within this module.
+
+
+<a id="rev-m3"></a>
+
+## Technical execution and audit fieldwork
+
+Preserve the financial source, record every transformation and connect each conclusion to evidence. The same approved numbers feed the financial statements and audit working papers.
+
+<a id="M3-01"></a>
+
+### M3-01 TB and GL intake with accountable mapping
+
+Stage uploaded Excel/CSV data with file hash, uploader, source system, entity, period, currency, sheet/row lineage, row counts, source debit/credit totals and import-schema version. Preserve original bytes and accepted normalized records. Reject wrong-scope/period/currency data, duplicate keys that break the chosen grain, invalid precision and unbalanced accepted TBs. Quarantine errors and show an actionable row-level report. No hidden balancing plug or partial publication.
+
+Specify the source grain: opening/movement/closing totals or a closing-balance TB, and do not sum cumulative snapshots as movements. Accept a distinct GL population with dates and journal/line identity; validate its relationship to the TB and any exclusions. A duplicate upload is a detected repeat or a deliberately superseding version. Large files use bounded background staging and cancel safely before publication.
+
+Version the chart and FSLI taxonomy; reject parent cycles and invalid mappings. Historical mapping memory proposes matches, which an authorized reviewer confirms. Every posting account with relevant balance/movement must map or have a reviewed disposition. Mapping approval pins the dataset and chart; changing either makes the affected mapping/outputs stale. Comparative opening balances reconcile to the prior-year approved closing basis, with explicit differences/restatement evidence.
+
+<a id="M3-02"></a>
+
+### M3-02 Adjustments and the financial close bridge
+
+Maintain the bridge **original accepted TB + included approved adjustments/reclassifications = adjusted reporting TB**. Every entry has balanced debits/credits, scope/period/currency, explanation, category, supporting evidence, preparer and independent reviewer. Keep proposal, management response, audit approval, client-book posting and report inclusion as different facts. Record rejected/unadjusted differences in the misstatement schedule rather than losing them.
+
+Link a posted native-book adjustment to its proposal. If an updated source TB already contains it, do not add the same adjustment again as a reporting overlay. Reversals reference the original and create new evidence. Compare aggregated and qualitative unadjusted differences with the approved materiality basis; record the Partner's conclusion and impact on the report. An automatic threshold does not select an opinion.
+
+<a id="M3-03"></a>
+
+### M3-03 Authorized native client bookkeeping
+
+Keep external-source mode for existing clients until an explicit approved cutover identifies book, period, opening TB, supporting receivable/payable balances, source freeze boundary and reconciliation. Activate native mode only after balanced opening data and authority checks. Subsequent TB/GL exports come from posted native records; a parallel external TB cannot become a second source of truth for the same period without a reviewed transition.
+
+Complete the existing journal, sales/purchase invoice and credit-note paths: draft, review, posting, numbering, due date, currency, accounts, cancellation before posting, and credit/reversal after posting. Posting is atomic and balanced. Track receipts/payments as records and allocations; this does not initiate bank payments. Prevent over-allocation, double allocation, cross-client settlement and posting into closed periods. AR/AP controls reconcile to the GL.
+
+Close a period only after required journals, reconciliations and checks pass. Reopening requires scoped authority, reason, impact assessment and preservation of the old closing snapshot; affected reports become stale. Tax/VAT and ancillary capabilities remain individually gated. Do not make them a prerequisite for the core non-tax bookkeeping path or imply universal tax readiness.
+
+<a id="M3-04"></a>
+
+### M3-04 Reconciliations and movement schedules
+
+Reconcile bank, AR, AP, inventory and fixed-asset schedules to the applicable GL/TB; retain source population, control total, difference, reconciling items, explanation, evidence and reviewer. Record unresolved differences even below materiality; a threshold changes attention or review policy, not arithmetic truth. Build lead schedules with opening balance, additions/movements, approved adjustments and closing balance. A signed schedule references the actual source and workpaper version.
+
+<a id="M3-05"></a>
+
+### M3-05 Workprogram evidence and sampling
+
+Implement all [20 source areas and 165 procedures](auditsphere-requirements-specification-complete-practice-management-proposed.md#rev-workprograms) as reusable workprogram content. Each procedure records applicability, assertion/risk, objective, method/population, selection method where applicable, work performed, evidence, exception, conclusion, preparer, reviewer and version. N/A requires authorized reasoning; “done” without evidence or a documented conclusion is insufficient. Preserve digital and physical-binder references, including location and custody where relevant.
+
+MUS, systematic random and stratified methods retain population hash/version, units, parameters, seed or deterministic selection basis, selected IDs, exclusions and judgment. Validate zero/negative amounts and duplicated population items according to the method. Do not substitute an unsupported sample formula for professional assessment. Full-population testing is allowed with documented judgment. Altering a population or sample invalidates the affected testing conclusion.
+
+Keep the split P&L/B/S workspace with current/prior balances, movements and links to analytical review/workprograms. Label unavailable/zero-baseline percentage comparisons instead of inventing infinite or zero percentages. Independent work on different rows proceeds concurrently; edits to the same reviewed result produce a revision conflict, not a silent overwrite.
+
+<a id="M3-06"></a>
+
+### M3-06 PBC and controlled confirmations
+
+Each PBC request identifies requested item, entity/period, owner, due date and acceptable evidence. Each upload is a new version linked to the request; show Pending Upload, Under Review, Approved or Rejected/Re-upload Required with the auditor's rejection reason. Requests for clarification preserve earlier files and comments. Freeze upload permissions on final release; retain authorized download access under the closure policy.
+
+Track confirmation target, independent contact verification, dispatch evidence, response source, differences, reminders, alternative procedures and reviewer conclusion. Auditor-controlled routing and original evidence must not be replaced by an unchecked client-forwarded response. Preserve the approved Critical flag and its holding-letter/release block until the critical requirement is satisfied. Holding-letter generation does not mean it was sent or received.
+
+ISA 505 distinguishes nonresponses requiring alternative work from cases where a necessary positive confirmation cannot be replaced by alternatives. The existing Critical rule is a stricter firm release policy; changing it needs D05. Do not silently downgrade a Critical item to bypass a block. [R5](auditsphere-requirements-specification-complete-practice-management-proposed.md#ref-handbook)
+
+<a id="M3-07"></a>
+
+### M3-07 Review points and completion
+
+Submit an immutable result version; independent reviewers accept it or return it with mandatory actionable comments. A preparer response does not close a review point until the authorized reviewer accepts it. Track open/resolved/reopened notes, linked procedure, accountable owner and history. No unresolved blocking note, stale approval or missing applicable procedure may disappear from the completion checklist.
+
+Compile the SRM from the actual current risk, workpaper, confirmation, misstatement, estimate, going-concern and subsequent-event records. The Manager's recommendation and Partner's clearance are human decisions pinned to that SRM version. Complete required EQR before report dating. A change after completion creates explicit impact review/rework.
+
+<a id="M3-08"></a>
+
+### M3-08 Group consolidation without component mutation
+
+Retain group/perimeter, ownership, component reporting packs, currency translation, intercompany matching and group-only journals. Approve the control/consolidation assessment; ownership percentage alone does not prove control. Pin component entity/book/period, framework/policies, currency, source and mapping versions, authorization and reviewed external-pack provenance. Reject incompatible periods or provide the professionally approved alignment evidence. [R11](auditsphere-requirements-specification-complete-practice-management-proposed.md#ref-ifrs10)
+
+Use reviewed purpose-specific FX rates and dates; closing, transaction, average and historical rates are not interchangeable. Any permitted average must be justified by the applicable policy. Reconcile CTA, equity and NCI from approved ownership/rate information; do not default every equity movement to a closing rate. [R12](auditsphere-requirements-specification-complete-practice-management-proposed.md#ref-ias21)
+
+Intercompany matches consume identified source exposures once; partial matches track remaining quantities/amounts. Differences route for resolution rather than an unexplained plug. Balance elimination journals and record the approved run inputs. Changes create a new run; no elimination or consolidation workflow writes to a component client ledger. Preserve before/after component financial-data hashes and version counts as acceptance evidence.
+
+Traceability: v2.2 §4.3 and client-accounting boundary; HTML EXT-ACC-01–06, EXT-CON-01–05, 07 (original HTML source), 08 (original HTML source), 09 (original HTML source); complete DOCX workflow. The detailed failure contracts are proposed clarifications of these existing capabilities.
+
+
+<a id="rev-m4"></a>
+
+## Reporting final deliverables and archive
+
+A reproducible financial package, a signed audit report and an externally delivered bundle are distinct artifacts. Their approval and issuance must refer to the same versioned evidence.
 
 ```mermaid
 flowchart TB
-    subgraph UI["Presentation and orchestration layer"]
-        PHASE["Seven visible phases"] --> TASK["Tasks, templates, work queues and reminders"]
-    end
-    subgraph CORE["Authoritative business and compliance layer"]
-        EVIDENCE["Versioned business evidence"] --> PROJECTION["Eleven-state derived lifecycle"]
-        COMMAND["Authorized domain commands and gates"] --> EVIDENCE
-    end
-    TASK -->|"Request authorized action"| COMMAND
-    PROJECTION -->|"Project current phase, blockers and permitted next action"| PHASE
-    TASK -.->|"May not directly set stage or forge approval"| PROJECTION
+  F["Reviewed financial package"] --> P["Authorized financial-package publication"]
+  P --> I["Eligible balance draft then finance posting"]
+  F --> G["Current audit completion and signed representations"]
+  G --> S["Partner opinion and report signing"]
+  I --> B["Five-part bundle and exact manifest"]
+  S --> B
+  B --> R["Partner release and portal upload fence"]
+  R --> D["Delivery and recipient evidence"]
+  R --> C["Separate secondary-copy verification"]
+  S --> T["Signature-based deadline or early lock"]
+  R --> E["Archive assembly of authoritative evidence"]
+  T --> E
+  E --> A["Committed local freeze"]
 ```
 
----
+<a id="M4-01"></a>
 
-# 1. Requirement Gathering & Operational Context
+### M4-01 Complete financial statement package
 
-## 1.1 Business Objectives & Problem Statement
+Generate entity/group statements only from the pinned approved reporting context and adjusted/consolidated dataset. Support the already-scoped statement of financial position, profit or loss and applicable comprehensive-income presentation, cash flows, changes in equity, comparative figures, accounting policies and notes. Each output line and numeric note can be traced to mapping, source rows, adjustments or an approved supporting schedule.
 
-* **Elimination of Per-File Licensing Penalties:** Existing commercial platforms enforce rigid licensing tiers (e.g., limits of 130 client files) that charge steep incremental fees for additional files. The in-house platform must support an unlimited number of client entities, historical engagements, and working papers with zero subscription penalties.
-* **Unified Engagement Lifecycle:** Centralize commercial sales, administrative governance, compliance clearance, audit fieldwork execution, multi-tier quality reviews, client deliverable generation, and internal firm practice management into a single, cohesive workflow.
-* **Standardized Auditing Governance:** Standardize firm-wide execution in strict alignment with International Standards on Auditing (ISA), including:
-  * **ISA 210:** Agreeing the Terms of Audit Engagements (Engagement Letters).
-  * **ISA 220 & ISQC 1:** Quality Control for an Audit of Financial Statements (Client Acceptance & Continuance).
-  * **ISA 230:** Audit Documentation (60-day assembly and regulatory locking).
-  * **ISA 320:** Materiality in Planning and Performing an Audit.
-  * **ISA 505:** External Confirmations.
-  * **ISA 570:** Going Concern.
-  * **ISA 700 & 705:** Forming an Opinion and Reporting on Financial Statements.
+Validate assets = liabilities + equity; profit/OCI movements agree to equity; opening + movements = closing for each equity component; cash-flow closing cash agrees to the approved balance-sheet cash reconciliation; and note totals/cross-references agree to the primary statements. Capture non-cash movements, acquisitions/disposals, FX and other reconciling items explicitly. A cash-flow statement cannot be reliably inferred from two TB snapshots alone.
 
-### Client accounting service boundary
+Use a versioned disclosure checklist with applicability, preparer, reviewer, linked evidence and rationale for N/A. Flag missing narrative, unresolved estimates, stale notes and comparative inconsistencies. No unreviewed “IFRS compliant” watermark or automatic compliance certification. Management authorization of the complete statements, including notes, is separate from the auditor's review.
 
-AuditSphere continues to support import-first accounting preparation, audit, and consolidation. For a specifically authorized client accounting service, the product may additionally support native client-owned double-entry bookkeeping, client sales and purchase invoices and credit notes, GL/TB, and financial statements. VAT/tax and other ancillary modules are optional and independently gated; they do not block the core bookkeeping path. This does not authorize inventory, procurement operations, payroll execution, payment initiation, external tax filing, or changes to the firm's ledger or group-consolidation boundaries. Existing clients retain their current external-source behavior unless an explicit, reviewed cutover changes it. Firm invoices remain firm revenue; client invoices and proposed audit adjustments must never be represented as firm ledger activity or client-book postings respectively. Client isolation, balanced postings, review, and immutable history are mandatory across all modes. These new capabilities are delivered incrementally and are not considered available until their native API/UI paths and controls are verified.
+<a id="M4-02"></a>
 
----
+### M4-02 Output formats and version identity
 
-## 1.2 User Personas & Responsibility Matrix
+Produce genuine PDF, DOCX and XLSX outputs from one typed approved presentation dataset, retaining report ID, period, currency, status and template revision. Keep draft/approved/issued states visible; an export does not approve the data. Verify totals and content match across formats, fonts and pagination are readable, required notes are present and cross-references resolve. Editable exports are convenience copies; identify the exact issued signed artifact as authoritative.
 
-| User Role | Target Persona | Functional Scope & Core Responsibilities | Key Access Boundary |
-| :--- | :--- | :--- | :--- |
-| **PREPARER** | Audit Associate / Junior Auditor | • Executes assigned financial statement line item (FSLI) audit test procedures.<br/>• Uploads digital working papers and inputs physical binder index codes (`X-1, Box 3`).<br/>• Submits completed testing packages for managerial review.<br/>• Logs daily operational hours against assigned engagement tasks. | Limited to assigned workprograms; no sign-off or external communication rights. |
-| **REVIEWER** | Audit Senior / Audit Manager | • Verifies substantive testing and recalculated schedules.<br/>• Issues inline review notes and initiates the rework loop for incomplete tests.<br/>• Determines sampling parameters and calculates engagement materiality.<br/>• Prepares the Summary Review Memorandum (SRM) for the partner.<br/>• Tracks engagement budgets, team hours, and delivery milestones. | Engagement-wide review; can return tests for rework; cannot sign final audit opinion. |
-| **APPROVER** | Engagement Partner | • Evaluates and signs off on the Dual-Key Acceptance Gate (AML/KYC).<br/>• Authorizes commercial proposals and executes Engagement Letters.<br/>• Clears high-risk (Red) audit areas and formally signs off on the SRM.<br/>• Selects the final Audit Opinion, applies digital signatures and firm seals.<br/>• Authorizes final deliverable bundles and enforces regulatory file locks. | Full firm and engagement sign-off authority; final gatekeeper for releases. |
-| **CLIENT** | Client Coordinator / CFO / MD | • Accesses an isolated, tokenized external workspace (PBC Portal).<br/>• Views requested audit documentation with real-time review status badges.<br/>• Uploads requested financial schedules, trial balances, and voucher evidence.<br/>• Receives invoices, receipts, holding letters, and final deliverables.<br/>• Access freezes automatically upon engagement sign-off. | Isolated tenant portal; read/upload only; access terminates on engagement closure. |
+Pin rendering inputs and preserve the exact issued bytes/hash. Re-rendering may change non-business metadata, so the issued artifact is retrieved from immutable storage rather than recreated and assumed byte-identical. Corrected financial figures or wording require a superseding reviewed version.
 
----
+<a id="M4-03"></a>
 
-# 2. Project Modules Connectivity & Architecture
+### M4-03 Prerequisites before report signing
 
-The five core functional modules communicate across strict data boundaries. An engagement progresses sequentially through gates, ensuring administrative and compliance requirements are met before field testing begins.
+Before the Partner dates/signs the final auditor's report, require current completed procedures/reviews, resolved Critical-confirmation blockers, final materiality/misstatement conclusions, current SRM and Partner clearance, completed required EQR, management authorization of the exact financial statements, verified signed management representations, and current going-concern/subsequent-event work. Check signatories, periods, financial figures and evidence versions.
 
-```mermaid
-flowchart TD
-    subgraph M1["Module 1: Commercial & CRM Pipeline"]
-        direction TB
-        M1_Lead["Lead Ingestion (Multi-channel)"]
-        M1_Prop["Commercial Proposal (Quote / RFP)"]
-        M1_Gate{"Dual-Key Gate (Client + Partner)"}
-        M1_EL["Engagement Letter (ISA 210)"]
-        M1_Adv["50% Advance Invoice"]
-        M1_Lead --> M1_Prop --> M1_Gate
-        M1_Gate -->|"Both Approved"| M1_EL --> M1_Adv
-    end
+Written representations must be dated close to, and no later than, the auditor's report date. A representation-letter template awaiting signature is not the required signed evidence. Generate templates early; include the completed representation evidence in the final package. This moves a critical check ahead of signing and repeats it at release. [R5](auditsphere-requirements-specification-complete-practice-management-proposed.md#ref-handbook)
 
-    subgraph M2["Module 2: Administration, Governance & Planning"]
-        direction TB
-        M2_Gov["Acceptance & Continuance (ISA 220)"]
-        M2_Tax["Taxonomy Provisioning (5-Folder Tree)"]
-        M2_Sched["Resource Scheduling & Milestones"]
-        M2_Mat["3-Tier Materiality Engine (PM, TE, SAD)"]
-        M2_Gov --> M2_Tax --> M2_Sched --> M2_Mat
-    end
+<a id="M4-04"></a>
 
-    subgraph M3["Module 3: Technical Execution & Fieldwork"]
-        direction TB
-        M3_TB["TB Ingestion & Auto-Mapping"]
-        M3_Dash["Split Dashboard (P&L & B/S)"]
-        M3_WP["Workprograms & Hybrid Evidence"]
-        M3_Conf["Confirmations Gatekeeper (ISA 505)"]
-        M3_Review["Three-Tier Review & SRM (ISA 220)"]
-        M3_TB --> M3_Dash --> M3_WP --> M3_Conf --> M3_Review
-    end
+### M4-04 Opinion and report construction
 
-    subgraph M4["Module 4: Reporting, Deliverables & File Archive"]
-        direction TB
-        M4_Op["4-Way Opinion Dropdown (ISA 700/705)"]
-        M4_Sig["Digital Signature & Official Firm Seal"]
-        M4_Bundle["5-Part Deliverable Release Bundle"]
-        M4_Inv["50% Final Fee Invoice"]
-        M4_Lock["60-Day Compliance Lock (ISA 230)"]
-        M4_Op --> M4_Sig --> M4_Bundle --> M4_Inv --> M4_Lock
-    end
+Keep the Partner-exclusive four-way selector, with “Unmodified” as the standard label and “Clean/Unqualified” as familiar explanatory terminology. Qualified, adverse and disclaimer reports require the professional basis, affected matters and quantitative/qualitative reasoning, with applicable FSLIs/disclosures. Support a pervasive or evidence-limitation matter without forcing a fictitious single FSLI. Validate that required sections match the selected template/framework.
 
-    subgraph M5["Module 5: Practice Management & Internal Bookkeeping"]
-        direction TB
-        M5_Time["Daily Time Tracking & Role Charge-Out Rates"]
-        M5_Real["Engagement Profitability & Realization"]
-        M5_Ledger["Internal Practice Ledger & Operating Expenses"]
-        M5_Report["Firm Trial Balance, P&L & AR Aging"]
-        M5_Time --> M5_Real
-        M5_Ledger --> M5_Report
-    end
+The software can assemble approved text and show consistency checks; it cannot infer the opinion merely from materiality, a dropdown, a score or missing confirmation. Going-concern sections, emphasis/other-matter paragraphs and key audit matters where applicable need explicit applicability and professional review. They are not extra opinion categories or new modules.
 
-    M1_Adv ==>|"Handshake 1: Risk Clearance & 50% Deposit Paid"| M2_Gov
-    M2_Mat ==>|"Handshake 2: Planning Approved & TB Ingested"| M3_TB
-    M3_Review ==>|"Handshake 3: Partner Cleared SRM & Confirmations"| M4_Op
-    M3_WP -.->|"Labor Hours Actuals"| M5_Time
-    M4_Inv -.->|"50% Final Fee Note"| M5_Ledger
-    M1_Adv -.->|"50% Advance Receipt"| M5_Ledger
-```
+<a id="M4-05"></a>
 
----
+### M4-05 Signature and seal contract
 
-# 3. End-to-End Project Task Flows & Sequence Maps
+Preserve the visible PNG signature/seal and the optional/required firm-certificate policy from ADR-0005/0016. Record signing mode, approved signer/authority, exact document digest, certificate identity where used, signing result and validation evidence. Visual-only output is permitted only when certificate signing is optional and no certificate is configured. Required-but-missing material blocks signing. Any configured but invalid or unusable certificate blocks signing even when the required flag is false; there is no silent image-only fallback.
 
-## 3.1 Flow 1: Lead Ingestion to Dual-Key Client Onboarding
+A PNG is visual appearance, not cryptographic protection. A CMS signature is not automatically a PDF-native PAdES signature, a trusted timestamp or long-term validation. Define the actual supported format, certificate-chain/expiry/revocation handling and verification method in D06. Do not claim a legal signature level the implementation and qualified review have not established. Keep private signing material outside browser/UI access and out of ordinary audit logs.
 
-The onboarding path enforces an automated state machine. An Engagement Letter cannot be generated until commercial terms are accepted by the client and risk clearance is formally approved by the Engagement Partner.
+<a id="M4-06"></a>
 
-```mermaid
-flowchart TD
-    Start(["Client Contact Initiated<br/>(Phone / WhatsApp / Email / Referral)"]) --> Profiling["Entity & Contact Profiling<br/>(Group Structure, Tax ID, Signatories)"]
-    Profiling --> Scope["Generate Commercial Scope"]
-    
-    Scope --> Quote["Brief Quotation<br/>(1–2 Pages, 50/50 Fee Terms)"]
-    Scope --> Proposal["Comprehensive Technical Proposal<br/>(Team CVs, Methodology, Credentials)"]
-    
-    Quote --> Submit["Submit Proposal / Quote to Client"]
-    Proposal --> Submit
+### M4-06 Financial package fee note and final bundle sequence
 
-    Submit --> GateEval{"Dual-Key Acceptance Gatekeeper"}
+**Recommended D01 interpretation:** an authorized release/publication of the approved financial package is a separate event from releasing the final five-part client bundle. Only after the linked package is released and the full advance is paid may the existing automation create a balance-invoice draft. An authorized finance actor separately reviews/posts the final fee note. Bundle assembly then references that immutable fee-note version. This removes the circular prerequisite and preserves draft-only automation.
 
-    subgraph DualKey["Dual-Key Authorization (Parallel Requirements)"]
-        Key1["Key 1: Client Commercial Approval<br/>(Client digitally confirms quote fee)"]
-        Key2["Key 2: Partner Risk Clearance (ISA 220)<br/>(Partner signs AML/KYC background check)"]
-    end
+Confirm these event names and semantics against the existing commands before implementing; do not silently relabel client delivery as an internal release. If the current product has one conflated command, split the responsibilities within M4/M5 using the smallest change and an explicit adopted decision. Never reinterpret executed 50/50 contracts or introduce final-payment-before-report withholding through this document.
 
-    GateEval -.-> Key1
-    GateEval -.-> Key2
-
-    Key1 --> CheckCondition{"Both Conditions Met?"}
-    Key2 --> CheckCondition
-
-    CheckCondition -->|"No: Hard Block"| Halt["Halt Pipeline<br/>(Engagement Letter blocked)"]
-    CheckCondition -->|"Yes: Cleared"| GenEL["Auto-Generate Engagement Letter (ISA 210)<br/>& Issue 50% Advance Commercial Invoice"]
-
-    GenEL --> Payment["Client Settles 50% Advance Payment"]
-    Payment --> PostPayment{"Post-Payment Automated Handshake"}
-
-    PostPayment --> Receipt["Issue Official Receipt Voucher<br/>(Automated receipt dispatch)"]
-    PostPayment --> Portal["Provision Client Portal Workspace<br/>• System emails temporary credentials (superseded, ADR-0003)<br/>• Mandatory password reset on first login (superseded, ADR-0003)<br/>• Document upload window activates<br/>• Implemented: Microsoft sign-in with a first-sign-in requirement (ADR-0003)"]
-```
-
-> [!IMPORTANT]
-> **Dual-Key Invariant:** Under no circumstances can an Engagement Letter or Client Portal be provisioned without both Key 1 (Client Commercial Acceptance) and Key 2 (Partner AML/KYC Clearance) recorded in the database.
-
----
-
-## 3.2 Flow 2: Planning, Resource Scheduling & Materiality Formulation
-
-Once an engagement is onboarded, the system initializes project administration, provisions the document structure, assigns staff, and calculates materiality thresholds from Trial Balance benchmarks.
-
-```mermaid
-flowchart TD
-    DualKeyClear(["Partner Clearance of Dual-Key Gate"]) --> ProvisionDir["Automated Engagement Directory Provisioning<br/>├── 01_Administration & Planning<br/>├── 02_Trial Balance & Schedules<br/>├── 03_Fieldwork & Testing<br/>├── 04_Drafts & Deliverables<br/>└── 05_Final Signed Archive"]
-
-    ProvisionDir --> Scheduling["Resource Scheduling & Assignment<br/>• Allocate Partner (Approver), Manager (Reviewer), Associates (Preparers)<br/>• Configure milestones based on statutory reporting cutoff"]
-
-    Scheduling --> IngestTB["Ingest Client Trial Balance (TB)<br/>(Excel / CSV upload with automated account code mapping)"]
-
-    IngestTB --> MatEngine["3-Tier Materiality Calculation Engine"]
-
-    subgraph MatDetails["Materiality Calculation Engine Steps"]
-        direction TB
-        BaseSel["1. Benchmark Base Selection<br/>• Profit Before Tax: 5%–10%<br/>• Revenue: 0.5%–2%<br/>• Total Assets: 0.5%–1%<br/>• Equity / Net Assets: 1%–2%"]
-        Metrics["2. Compute Core Metrics<br/>• Planning Materiality (PM) = Base × Selected %<br/>• Tolerable Error (TE) = 50%–75% of PM<br/>• SAD Threshold (Trivial) = 3%–5% of PM"]
-        Rounding["3. Practical Rounding Tolerance<br/>• Manager may round within strict ±5% limit (e.g., 53,421 → 53,000)"]
-        RiskColor["4. Account Risk Stratification<br/>• GREEN = Balance < TE (Low Risk: Junior Auditor)<br/>• AMBER = TE < Balance < PM (Moderate Risk: Senior)<br/>• RED = Balance > PM or High Inherent Risk (Critical: Manager/Partner)"]
-        BaseSel --> Metrics --> Rounding --> RiskColor
-    end
-
-    MatEngine --> MatDetails
-    MatDetails --> SignOff(["Formal Partner Sign-Off on Planning & Materiality"])
-```
-
-### 3-Tier Materiality Thresholds & Stratification Guide
-
-| Materiality Metric | Benchmark Formula / Percentage | Operational Purpose |
-| :--- | :--- | :--- |
-| **Planning Materiality (PM)** | Benchmark Base × Chosen % (e.g., PBT 5–10%, Revenue 0.5–2%, Assets 0.5–1%) | Maximum misstatement threshold before financial statements are considered materially misstated. |
-| **Tolerable Error (TE) / Performance Materiality** | 50% (High Inherent Risk) to 75% (Low Inherent Risk) of PM | Working threshold used to determine sample sizes and identify individual line items requiring substantive testing. |
-| **Summary of Audit Differences (SAD)** | 3% to 5% of PM | Trivial threshold below which misstatements do not need to be accumulated on the audit difference schedule. |
-| **Practical Rounding Rule** | Strict ±5% adjustment limit | Managers may round raw values for operational practicality (e.g., QAR 53,421 rounded to QAR 53,000) before Partner sign-off. |
-
----
-
-## 3.3 Flow 3: Technical Fieldwork Execution & Multi-Tier Review Matrix
-
-This phase constitutes the operational testing core. Line items on the Financial Statement Dashboard launch dedicated workprograms with row-level concurrency, allowing team members to execute testing in parallel without file lockout.
-
-```mermaid
-flowchart TD
-    PlanApproved(["Partner Sign-Off on Planning & Materiality"]) --> SplitView["Split Financial Statement Dashboard View"]
-
-    subgraph DashboardView["Split Dashboard Interface (Row-Level Concurrency)"]
-        direction TB
-        PL["PROFIT & LOSS (P/L) STATEMENT<br/>• Revenue / Sales ......... [AR Test] [Audit Workprogram]<br/>• Cost of Goods Sold ..... [AR Test] [Audit Workprogram]<br/>• Operating Expenses ..... [AR Test] [Audit Workprogram]"]
-        BS["BALANCE SHEET (B/S) STATEMENT<br/>• PPE & Intangibles ...... [AR Test] [Audit Workprogram]<br/>• Inventory .............. [AR Test] [Audit Workprogram]<br/>• Accounts Receivable .... [AR Test] [Audit Workprogram]<br/>• Cash & Bank Equivalents  [AR Test] [Audit Workprogram]"]
-    end
-
-    SplitView --> DashboardView
-
-    DashboardView --> LaunchAR["[Launch Analytical Review (AR)]<br/>• Multi-period variance calculation<br/>• Plausibility & ratio assessment<br/>• ISA 570 Going Concern evaluation"]
-    DashboardView --> LaunchWP["[Launch Substantive Workprogram]<br/>• Pre-configured procedural checklist<br/>• Ad-hoc custom step injection<br/>• Population & sampling calculators (MUS / Stratified)<br/>• Hybrid evidence cross-referencing:<br/>  - Digital file attachment<br/>  - Physical binder index: [X-1, Box 3]"]
-
-    LaunchAR --> Preparer["PREPARER (Junior Auditor)<br/>Executes test steps, attaches evidence, submits workpackage"]
-    LaunchWP --> Preparer
-
-    Preparer --> SubmitReview["Submit for Review"]
-
-    subgraph ReviewMatrix["Three-Tier Review Matrix & Rejection Loop"]
-        direction TB
-        MgrReview["REVIEWER (Audit Senior / Manager)<br/>Verifies substantive testing and recalculations"]
-        Decision{"Review Assessment"}
-        ReworkAction["Return with Mandatory Comments<br/>(Status reverts to 'Under Rework')"]
-        PromoteAction["Promote & Clear Procedures"]
-
-        MgrReview --> Decision
-        Decision -->|"Exceptions / Incomplete"| ReworkAction
-        Decision -->|"Passed"| PromoteAction
-    end
-
-    SubmitReview --> MgrReview
-    ReworkAction -->|"Reassigned for Rework"| Preparer
-
-    PromoteAction --> SRM["Compile Summary Review Memorandum (SRM)<br/>• Aggregates unadjusted audit differences against SAD<br/>• Compiles open risks, AJEs, and critical estimates<br/>• Manager recommendation for sign-off"]
-
-    SRM --> ConfGate{"External Confirmations Gatekeeper (ISA 505)<br/>Check Bank, AR, AP, and Legal Statuses"}
-
-    ConfGate -->|"Critical Confirmation Missing"| HoldingBlock["BLOCK Final Report Release<br/>Trigger Automated 'Holding Letter' to Client"]
-    ConfGate -->|"All Critical Confirmations Cleared"| PartnerReview["APPROVER (Engagement Partner)<br/>• Inspects SRM and evaluates unadjusted differences<br/>• Mandatory direct review of RED risk areas<br/>• Clears fieldwork completion"]
-```
-
-### Split Financial Statement Dashboard Schematic
-
-```
-┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                 SPLIT FINANCIAL STATEMENT DASHBOARD                                    │
-├────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ PROFIT & LOSS (P/L) STATEMENT                               CY (QAR)     PY (QAR)   Var (%)   Actions  │
-│ • Revenue / Sales .......................................  4,520,000    3,890,000   +16.2%    [AR] [WP]│
-│ • Cost of Goods Sold .................................... (2,810,000)  (2,450,000)  +14.7%    [AR] [WP]│
-│ • Operating Expenses ....................................   (940,000)    (810,000)  +16.0%    [AR] [WP]│
-├────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ BALANCE SHEET (B/S) STATEMENT                               CY (QAR)     PY (QAR)   Var (%)   Actions  │
-│ • Property, Plant & Equipment (PPE) .....................  1,850,000    1,920,000    -3.6%    [AR] [WP]│
-│ • Inventory .............................................    720,000      610,000   +18.0%    [AR] [WP]│
-│ • Accounts Receivable ...................................  1,140,000      980,000   +16.3%    [AR] [WP]│
-│ • Cash & Bank Equivalents ...............................    890,000      740,000   +20.3%    [AR] [WP]│
-└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-  Legend: [AR] = Launch Analytical Review Interface | [WP] = Launch Substantive Workprogram
-```
-
----
-
-## 3.4 Flow 4: Reporting, 5-Part Deliverable Release & Compliance Archive
-
-Following Partner clearance of the SRM and confirmations, the engagement moves to formal closure. The Partner selects the opinion, embeds credentials, and releases the deliverables bundle alongside the final invoice.
-
-```mermaid
-flowchart TD
-    ClearedSRM(["Partner Clearance of SRM & External Confirmations"]) --> OpinionSelect{"Partner Selects Audit Opinion Category<br/>(ISA 700 / 705)"}
-
-    OpinionSelect -->|"1. Clean / Unqualified"| CleanPath["Standard Unqualified Opinion"]
-    OpinionSelect -->|"2. Qualified Opinion"| ModPath["Modified Opinion Workflow"]
-    OpinionSelect -->|"3. Disclaimer of Opinion"| ModPath
-    OpinionSelect -->|"4. Adverse Opinion"| ModPath
-
-    subgraph ModBuilder["Conditional Qualification Builder (ISA 705)"]
-        direction TB
-        ForceFSLI["Force selection of affected FSLI"]
-        MandatoryText["Expose mandatory text box for quantitative/qualitative rationale"]
-        InjectBasis["Inject rationale into 'Basis for Qualified/Modified Opinion' paragraph"]
-        ForceFSLI --> MandatoryText --> InjectBasis
-    end
-
-    ModPath --> ModBuilder
-    CleanPath --> SignSeal
-    InjectBasis --> SignSeal["Apply Partner Digital Signature & Official Firm Seal PNG"]
-
-    SignSeal --> BundleComp["Auto-Compile Mandatory 5-Part Commercial Deliverables Bundle"]
-
-    subgraph DeliverablesBundle["Mandatory 5-Part Deliverables Bundle"]
-        direction TB
-        D1["Deliverable 1: Independent Auditor's Report & Certified Financial Statements"]
-        D2["Deliverable 2: Management Letter (Deficiency → Impact → Recommendation)"]
-        D3["Deliverable 3: Letter of Representation (LOR formatted for client letterhead)"]
-        D4["Deliverable 4: Management Correspondences Audit Trail (Confirmation records)"]
-        D5["Deliverable 5: Final Balance Fee Note (Automated release of remaining 50% bill)"]
-    end
-
-    BundleComp --> DeliverablesBundle
-
-    DeliverablesBundle --> FreezePortal["Client Portal Upload Privileges Frozen<br/>(Workspace switched to Read-Only; client downloads certified bundle)"]
-
-    FreezePortal --> ArchivalTimer["60-Day Compliance Archival Countdown (ISA 230)<br/>• Initiates 60-day timer from signature date<br/>• Early manual lock available to Partner"]
-
-    ArchivalTimer --> PermanentArchive(["Permanent Regulatory Lock<br/>• Entire engagement folder converted to Read-Only<br/>• Deletions and modifications permanently blocked<br/>• Immutable audit trail preserved for regulator inspection"])
-```
-
----
-
-## 3.5 Flow 5: Practice Management, Time Realization & Firm Bookkeeping
-
-In parallel with client engagements, the platform captures operational actuals, calculates realization metrics, and maintains the firm's internal practice ledger.
-
-```mermaid
-flowchart TD
-    DailyHours["Staff Logs Daily Hours<br/>(Tagged by Engagement, Phase & FSLI)"] --> RealEngine["Tiered Charge-Out Rates & Realization Engine"]
-
-    subgraph RateCards["Role Charge-Out Rates (QAR / Hour)"]
-        direction TB
-        R_Part["Engagement Partner: 1,000 QAR / h"]
-        R_Mgr["Audit Manager: 750 QAR / h"]
-        R_Sup["Audit Supervisor / Senior: 500 QAR / h"]
-        R_Assoc["Audit Associate / Junior: 200 QAR / h"]
-    end
-
-    RealEngine --> RateCards
-
-    subgraph CalcBlock["Realization & Variance Calculations"]
-        direction TB
-        CostCalc["Total Engagement Cost = Σ (Logged Hours × Role Charge-Out Rate)"]
-        ProfitCalc["Engagement Profitability = Contracted Audit Fee − Total Cost"]
-        VarCalc["Variance Analysis = Budgeted Phase Hours vs. Actual Hours Logged"]
-        CostCalc --> ProfitCalc
-        CostCalc --> VarCalc
-    end
-
-    RateCards --> CalcBlock
-
-    CalcBlock --> PracticeLedger["Practice Ledger & Internal Bookkeeping"]
-
-    subgraph Expenses["Firm Operational Expenses"]
-        direction TB
-        E1["Office Rent & Facility Costs"]
-        E2["Staff Salaries, End of Service & Benefits"]
-        E3["Operational Overhead & Administrative Expenses"]
-        E4["Petty Cash Disbursals"]
-    end
-
-    PracticeLedger --> Expenses
-
-    subgraph FirmOutputs["Internal Financial Reporting Outputs"]
-        direction TB
-        O1["Internal Firm Monthly Trial Balance"]
-        O2["Internal Firm Profit & Loss (P&L) Statement"]
-        O3["Client Accounts Receivable Aging Schedule<br/>(50% Advance / 50% Final Fee)"]
-    end
-
-    Expenses --> FirmOutputs
-```
-
----
-
-# 4. Module-by-Module Functional Requirements
-
-## 4.1 Module 1: Commercial & CRM Pipeline
-
-### 4.1.1 Lead Capture & Client Profiles
-
-* **Multi-Channel Ingestion:** Ingest leads across Phone, WhatsApp, Email, Web Forms, and In-Person Referrals.
-* **Corporate Hierarchy:** Maintain organizational trees covering Holdings, Subsidiaries, and Affiliated Entities.
-* **Role-Based Communication Routing:** Maintain a Multi-Contact Directory with explicit notification routing:
-  * **Managing Director / General Manager:** Recipient of Commercial Proposals, Engagement Letters, and final audit deliverable packages.
-  * **Chief Financial Officer / Finance Director:** Recipient of Commercial Invoices, Payment Receipts, and Fee Notes.
-  * **Chief Accountant / Audit Liaison:** Recipient of operational PBC (Provided by Client) document requests and confirmation tracking.
-
-### 4.1.2 Commercial Proposal Engine
-
-* **Brief Quotation (RFQ/RFP):** Output a 1–2 page standardized summary showing engagement scope, statutory period, professional fees, payment terms (50% advance / 50% upon draft report), and estimated execution timeline.
-* **Comprehensive Proposal:** Auto-compile a multi-page professional presentation incorporating:
-  1. Firm Profile, History, and Commercial Registrations.
-  2. Assigned Engagement Partner & Audit Team CVs.
-  3. Industry-specific Credentials and Portfolio Evidence.
-  4. Audit Methodology Overview (ISA compliance framework).
-  5. Fee Schedule, Milestone Deliverables, and Execution Timeline.
-
-### 4.1.3 Dual-Key Onboarding Gatekeeper
-
-The system shall strictly disallow the generation of an Engagement Letter until two independent authorization keys are marked active in the database:
-* **Key 1 (Commercial Approval):** Recorded confirmation of client quote acceptance.
-* **Key 2 (Risk Clearance):** Partner completion and digital sign-off of the Client Acceptance/Continuance Checklist (ISA 220).
-
-#### Enhanced Dual-Key Acceptance — mandatory workflow requirements for version 2.2
-
-**Approval decision matrix**
-
-| Key 1: client commercial acceptance | Key 2: Partner risk clearance | Engagement Letter | Planning activation |
-| --- | --- | --- | --- |
-| Missing | Missing | Blocked | Blocked |
-| Approved | Missing or stale | Blocked | Blocked |
-| Missing or stale | Approved | Blocked | Blocked |
-| Current and valid | Current and unconditional | Eligible for separately authorized issuance | Blocked until 50% advance is fully paid and allocated |
-| Current and valid | Current and unconditional; 50% advance allocated | Eligible for separately authorized issuance | Eligible, subject to other holds and authorization checks |
-
-**Actor sequence**
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant CRM as Commercial Workspace
-    participant Partner
-    participant Risk as Acceptance Records
-    participant Docs as Engagement Documents
-    participant Finance
-    participant Planning
-    Client->>CRM: Accept exact dispatched quotation revision
-    CRM->>Risk: Persist commercial response evidence
-    Partner->>Risk: Review AML, KYC, independence and continuance
-    Partner->>Risk: Record current risk decision
-    CRM->>Risk: Recheck both independent approval keys
-    alt Both keys current and approved
-        Risk-->>Docs: Engagement Letter generation eligible
-        Docs->>Finance: Initiate 50 percent advance fee workflow
-        Finance->>Finance: Record and allocate payment
-        alt Advance fully paid and no outstanding hold
-            Finance-->>Planning: Activation may proceed through authorized command
-        else Unpaid, partial, stale or held
-            Finance-->>Planning: Activation blocked with exact reasons
-        end
-    else Missing or invalid approval
-        Risk-->>CRM: Block document — show missing or stale key
-    end
-```
-
-- **Key 1 — Client Commercial Acceptance:** Capture the client's acceptance of the exact dispatched quotation revision, scope, legal entity, service route, period, currency, fee and 50/50 payment terms. Record authorized contact, response channel, timestamp and linked acceptance evidence. A changed offer requires a renewed acceptance.
-- **Key 2 — Partner Risk Clearance:** Independently require the Engagement Partner's current, unconditional client acceptance/continuance decision against the current due-diligence generation. Require AML/KYC, beneficial ownership, independence, conflicts, management integrity and other relevant risk checks. Conditional, rejected, superseded or stale decisions never clear this key.
-- **Gate outcomes:** neither key ⇒ blocked, two approvals needed; only Key 1 ⇒ awaiting Partner risk clearance; only Key 2 ⇒ awaiting client commercial acceptance; both current keys ⇒ eligible for Engagement Letter, NOT automatically activated.
-- The full 50% advance payment is a separate gate after the two keys: generate the Engagement Letter and advance invoice under their existing authorization rules; activate engagement and portal-enabled planning only after the linked 50% advance is fully paid and allocated. A partially paid or merely invoiced advance is not sufficient.
-- **Changes and exceptions:** a declined proposal returns to revision/re-dispatch or closure; a conditional or refused Partner decision returns to risk remediation and fresh unconditional review; open holds, stale commercial revisions and mismatched client/service scopes block protected operations. Never let task completion, workflow rules or staff overrides bypass these guards.
-- **Onboarding interface:** provide two independent approval cards, each showing Pending, Awaiting Evidence, Approved, Rejected or Stale as applicable, owner, time, evidence link, revision and authorized next action. Show a separate Engagement Letter readiness row and a third 50% Advance Payment card. Hide sensitive AML/KYC findings from the client portal.
-- **Audit history:** preserve the authentic approving actor, decision generation, source evidence, timestamps and reason for rejection; re-evaluate both keys at document generation and activation, and reject stale or concurrently changed inputs.
-- **Worked example:** on an accepted QAR 20,000 quotation, Partner acceptance is still mandatory before an Engagement Letter may be issued. Both keys permit letter issuance and the QAR 10,000 advance invoice, but activation waits until the full QAR 10,000 is received and allocated.
-
-*Implementation note:* the unconditional 50% advance activation gate is recorded in ADR-0012. The matrix describes required behaviour; it does not by itself prove it. Verification status is in the v2.2 delta of the gap-verification tracker.
-
-### 4.1.4 Engagement Letter Generation (ISA 210)
-
-* **Template Selection:** Automatically pull standardized templates based on engagement type:
-  * External Statutory Audit Template (ISA 210).
-  * Internal Audit / Agreed-Upon Procedures Template (ISRS 4400).
-* **Minimal Manual Input:** Pre-populate from entity profile; require minimal manual field input (Client Legal Name, Period Covered, Agreed Fee, Submission Deadlines).
-* **Partner Authorization:** Apply Partner digital stamp and signature upon generation.
-
-### 4.1.5 Advance Invoicing, Receipting & Portal Onboarding
-
-* **Advance Invoicing:** Generate the 50% Advance Invoice concurrently with the Engagement Letter.
-* **Payment Recording:** Record payment settlement with transaction reference data (cheque number, bank transfer reference code).
-* **Automated Receipt Generation:** Instantly compile and dispatch an official payment receipt voucher to the client upon recording payment.
-* **Automated Client Portal Provisioning:**
-  * Auto-generate an isolated workspace for the client.
-  * Email temporary access credentials to the designated Client Audit Liaison.
-  * Enforce mandatory password reset on first login before document submission features are unlocked.
-  * *Superseded by approved ADR-0003: the client portal signs in with Microsoft and a first-sign-in requirement. No local password is issued, stored or emailed. The two bullets above are the original wording, kept for provenance. Live tenant acceptance remains a separate gate.*
-  * Surface real-time status badges on requested items: `Pending Upload`, `Under Review`, `Approved`, `Rejected / Re-upload Required`.
-  * **Mandatory Rejection Reason:** If an item is rejected, the auditor must enter a mandatory rejection reason that surfaces immediately on the client's screen.
-  * **Temporal Lock:** Client document upload privileges automatically freeze when the final audit report is released.
-
----
-
-## 4.2 Module 2: Administration, Governance & Planning
-
-### 4.2.1 Dual-Track Acceptance & Continuance Risk Gatekeeper
-
-* **Track A: New Client Acceptance Path:**
-  * Mandatory questionnaires: Ultimate Beneficial Ownership (UBO), Anti-Money Laundering (AML) background check, Know Your Customer (KYC) documentation, assessment of management integrity, financial viability evaluation, independence and conflict of interest checks.
-* **Track B: Recurring Client Continuance Path:**
-  * Delta review checklist: Settlement of prior-year professional fees, key management or shareholding changes, substantial new credit facilities or loans, ongoing litigation or legal notices, reported fraud or regulatory investigations.
-* **Mandatory Partner Sign-Off:** Block project transition to operational planning until the Partner executes the digital acceptance gate.
-
-### 4.2.2 Resource Allocation & Scheduling
-
-* **Visual Capacity Calendar:** Track team availability, target utilization, and leave schedules.
-* **Explicit Role Assignment:** Assign explicit roles per engagement: Engagement Partner (Approver), Audit Manager/Senior (Reviewer), and Associates (Preparers).
-* **Statutory Milestones:** Configure operational milestones relative to statutory cutoffs (e.g., December 31 year-end → fieldwork commences January Week 1 → draft report by February 15 → final signed report by March 15).
-
-### 4.2.3 Engagement Directory Provisioning
-
-Upon Partner risk acceptance, the system automatically provisions the standard 5-folder engagement taxonomy:
-```
-[Engagement Root Directory]
-├── 01_Administration & Planning
-├── 02_Trial Balance & Schedules
-├── 03_Fieldwork & Testing
-├── 04_Drafts & Deliverables
-└── 05_Final Signed Archive
-```
-
-### 4.2.4 3-Tier Materiality Calculation Engine
-
-* **Dynamic Benchmarking:** Link calculation directly to ingested Trial Balance balances:
-  * **Normalized Profit Before Tax (PBT):** 5.0% – 10.0%
-  * **Total Revenue:** 0.5% – 2.0%
-  * **Total Assets:** 0.5% – 1.0%
-  * **Equity / Net Assets:** 1.0% – 2.0%
-* **Core Output Calculations:**
-  * **Planning Materiality (PM):** Benchmark Base × percentage.
-  * **Tolerable Error (TE) / Performance Materiality:** 50% – 75% of PM.
-  * **Summary of Audit Differences (SAD) Threshold:** 3% – 5% of PM (trivial error cutoff).
-* **Rounding Rule:** Allow managers to apply practical rounding to computed materiality values within a strict ±5.0% maximum limit prior to Partner approval.
-* **Visual Color-Coded Risk Stratification:**
-  * **Green (Low Risk):** Balance below TE; standard automated audit programs; assignable to junior staff.
-  * **Amber (Moderate Risk):** Balance between TE and PM; requires senior substantive testing and sampling.
-  * **Red (Critical / High Risk):** Balance exceeds PM, involves critical accounting estimates, or carries high inherent risk; requires mandatory Manager-level execution and Partner review.
-
----
-
-## 4.3 Module 3: Technical Execution & Audit Fieldwork
-
-### 4.3.1 Trial Balance Ingestion & Split Dashboard Interface
-
-* **Trial Balance Ingestion:** Ingest Trial Balance files via Excel/CSV (exported from QuickBooks, Tally, Zoho, SAP, etc.).
-* **Automated FSLI Mapping:** Automated mapping to standardized Financial Statement Line Items (FSLI) with historical memory.
-* **Split Dashboard Interface:**
-  * Displays **Profit & Loss (P/L) Statement** on the upper half and **Balance Sheet (B/S)** on the lower half.
-  * Displays Current Year Balance, Prior Year Comparative, and Percentage Variance per row.
-  * Every line item features two interactive action triggers:
-    * `[AR Test]`: Opens the Analytical Review Interface.
-    * `[Audit Workprogram]`: Opens substantive audit procedures.
-* **Row-Level Concurrency:** Ensure multiple auditors can simultaneously work on different line items (e.g., Auditor A on Sales, Auditor B on Fixed Assets) without file lockouts or overwrite conflicts.
-
-### 4.3.2 Workprogram Execution & Evidence Cross-Referencing
-
-* **Pre-Loaded Standard Checklists:** Standard procedural checklists per FSLI (Ownership, Valuation, Completeness, Existence, Cut-off).
-* **Ad-Hoc Step Insertion:** Allow field auditors to insert custom, editable procedural rows into active workprograms to address unique engagement risks.
-* **Sampling Engine:** Built-in calculators for Monetary Unit Sampling (MUS), Systematic Random Sampling, and Stratified Attribute Sampling.
-* **Hybrid Evidence Linking:**
-  * **Digital Evidence:** Direct link to electronic spreadsheets, PDFs, and PBC uploads.
-  * **Physical Evidence Reference:** Dedicated text field for physical file index tracking (e.g., `File Index: X-1, Box 3, Shelf B`).
-* **Analytical Review & Going Concern:** Standard templates for comparative financial analysis and mandatory ISA 570 Going Concern compliance checklists.
-
-### 4.3.3 Three-Tier Review Matrix & Workflow Governance
-
-* **Preparer Execution:** Executes procedures, cross-references digital/physical evidence, and clicks `[Submit for Review]`.
-* **Reviewer Rejection Loop:**
-  * Manager reviews completed tests.
-  * Can flag individual steps, input mandatory review notes, and click `[Return with Comments]`, automatically reverting the status to `Under Rework` and reassigning the Preparer.
-* **Summary Review Memorandum (SRM):**
-  * Auto-compiled upon Manager approval of all workprograms.
-  * Summarizes high-level audit variances, adjustments (AJEs), unadjusted differences against SAD/PM, and significant accounting estimates.
-* **Approver Clearance:** Partner conducts targeted reviews of high-risk (Red) areas and the SRM, formally signing off to unlock reporting.
-
-### 4.3.4 Third-Party Confirmations Dashboard & Gatekeeper
-
-* **Central Tracking Grid:** Track Bank, Accounts Receivable, Accounts Payable, Inventory, and Legal confirmations.
-* **Holding Letter Blocker:** If any confirmation marked as Critical remains unreturned, the system blocks the release of the final audit report and auto-generates a "Pending Confirmation / Holding Letter" to client management.
-
----
-
-## 4.4 Module 4: Reporting & Final Deliverables
-
-### 4.4.1 Audit Opinion Selection Engine (ISA 700 / 705)
-
-* **Partner-Exclusive Opinion Selector:** Dedicated dropdown selector accessible exclusively by the Engagement Partner:
-  1. Clean / Unqualified Opinion
-  2. Qualified Opinion
-  3. Disclaimer of Opinion
-  4. Adverse Opinion
-* **Conditional Qualification Builder:** Selecting Qualified, Disclaimer, or Adverse dynamically prompts the Partner to select the affected FSLI and input a mandatory textual justification. The system injects this text directly into the "Basis for Qualified/Modified Opinion" paragraph in compliance with ISA 705.
-* **Digital Credentials:** Embeds the Partner's digital signature and official firm seal onto the final certified document.
-
-### 4.4.2 Mandatory 5-Part Commercial Deliverables Bundle
-
-Once the Partner authorizes the file, the system compiles the final package:
-1. **Deliverable 1: Independent Auditor's Report & Audited Financial Statements:** Certified, sealed, and digitally signed PDF.
-2. **Deliverable 2: Management Letter:** Structured internal control observations report (Deficiency → Impact → Auditor Recommendation).
-3. **Deliverable 3: Letter of Representation (LOR):** Formatted representation template populated with engagement figures, ready to be exported for printing on client letterhead, signed by executive management, and re-uploaded.
-4. **Deliverable 4: Management Correspondences Audit Trail:** Summary of all formal audit inquiries, confirmation results, and cleared queries.
-5. **Deliverable 5: Final Balance Fee Note:** Automated trigger generating the invoice for the remaining 50% professional fee balance.
-
-### 4.4.3 Regulatory File Lock & Compliance Archival (ISA 230)
-
-* **60-Day Archival Timer:** Enforce an automated 60-day regulatory file completion countdown timer starting from the date of the Partner's signature.
-* **Permanent Read-Only Lock:** Upon timer expiration (or manual Partner command), convert the entire engagement archive to Read-Only status. Deletions, modifications, and overwrites are permanently blocked.
-* **Immutable Audit Trail:** Maintain an immutable, timestamped audit log of all system actions, reviews, and sign-offs.
-
----
-
-## 4.5 Module 5: Practice Analytics & Internal Bookkeeping
-
-### 4.5.1 Real-Time Profitability & Utilization Analytics
-
-* **Tiered Charge-Out Rates Engine:**
-  * Engagement Partner: **1,000 QAR / hour**
-  * Audit Manager: **750 QAR / hour**
-  * Audit Supervisor / Senior: **500 QAR / hour**
-  * Audit Associate / Junior: **200 QAR / hour**
-* **Engagement Profitability Calculation:**
-
-$$\text{Engagement Profitability} = \text{Contracted Audit Fee} - \sum (\text{Staff Hours Logged} \times \text{Charge-Out Rate})$$
-
-* **Variance Analysis:** Track budget vs. actual hours variance per engagement phase to evaluate realization rates and staff performance.
-
-### 4.5.2 Practice Ledger & Internal Bookkeeping
-
-* **Dedicated Operational Accounting Ledger:** Record firm internal operations:
-  * Office Rent & Facility Costs
-  * Staff Salaries, End of Service & Benefits
-  * Partner Withdrawals
-  * Petty Cash Disbursals
-* **Internal Financial Reporting:** Generate an internal firm Trial Balance, Monthly Profit & Loss Statement, and Client Accounts Receivable Aging Schedule (tracking 50% Advance and 50% Final Fee payments).
-
----
-
-# 5. System State Machine & Lifecycle Transitions
-
-## 5.1 State Machine Transition Matrix
-
-| # | Current State | Allowed Actions | Gate / Condition to Advance | Next State | Boundary / Enforced Rule |
-| :-: | :--- | :--- | :--- | :--- | :--- |
-| **1** | `LEAD_INGESTION` | Log inquiry, capture company and contact data | Minimum entity and primary contact data validated | `PROPOSAL_GENERATION` | Lead stage only; no client workspace created. |
-| **2** | `PROPOSAL_GENERATION` | Build Brief Quote or Comprehensive Proposal, dispatch to client | Proposal dispatched via Email / WhatsApp | `DUAL_KEY_PENDING` | Quotes enforce standard 50/50 fee terms. |
-| **3** | `DUAL_KEY_PENDING` | Complete Client Acceptance Checklist (AML/KYC), record client commercial approval | **Dual-Key Clearance:** Both Client Acceptance AND Partner AML Approval confirmed | `ADVANCE_BILLING` | Hard block: EL cannot generate without both keys. |
-| **4** | `ADVANCE_BILLING` | Generate Engagement Letter & 50% Advance Invoice | 50% advance payment confirmed and recorded | `PORTAL_ACTIVE_PLANNING` | Portal remains inactive until advance payment clears. |
-| **5** | `PORTAL_ACTIVE_PLANNING` | Provision Client Portal, schedule team, ingest Trial Balance, calculate materiality | Planning signed off by Partner, TB mapped to FSLIs | `FIELDWORK_EXECUTION` | Materiality rounding capped at ±5.0%. |
-| **6** | `FIELDWORK_EXECUTION` | Execute workprograms, attach digital/physical evidence, log confirmation requests | All assigned FSLI procedures submitted by Preparers | `MANAGERIAL_REVIEW` | Row-level concurrency active on Split Dashboard. |
-| **7** | `MANAGERIAL_REVIEW` | Review workpapers, issue review notes/rework, compile SRM | Zero open review notes, SRM compiled, critical confirmations returned | `PARTNER_APPROVAL` | Any open review note reverts status to Under Rework. |
-| **8** | `PARTNER_APPROVAL` | Partner inspects SRM, reviews Red-risk areas, selects Audit Opinion | Partner applies digital signature and firm seal | `DELIVERABLE_RELEASE` | Modified opinions require mandatory justification. |
-| **9** | `DELIVERABLE_RELEASE` | Generate 5-part deliverables package, issue 50% balance invoice, freeze client portal uploads | Final package generated and delivered to client | `COMPLIANCE_COUNTDOWN` | Client portal upload privileges immediately freeze. |
-| **10** | `COMPLIANCE_COUNTDOWN` | Review final archive; Partner may trigger early lock | 60 calendar days elapsed since signature date OR manual lock triggered | `ARCHIVED_READ_ONLY` | ISA 230 regulatory file assembly timer. |
-| **11** | `ARCHIVED_READ_ONLY` | Read-only viewing and regulator inspection export | File is permanently locked; modifications strictly disallowed | *Terminal State* | Immutable, tamper-evident audit archive. |
-
----
-
-**Implementation note for the dispatch-channel requirement:** the source requirement above names Email and WhatsApp. The current product can queue email through its configured server-side mail provider; WhatsApp is a lead-source value only and has no outbound dispatch integration. Provider acceptance is not proof of recipient delivery or reading.
-
-## 5.2 State Machine Visual Workflow
-
-```mermaid
-stateDiagram-v2
-    [*] --> LEAD_INGESTION: Client Ingestion (Phone / WhatsApp / Email / Web)
-    LEAD_INGESTION --> PROPOSAL_GENERATION: Minimum Entity Profile Validated
-    PROPOSAL_GENERATION --> DUAL_KEY_PENDING: Quote or Comprehensive Proposal Dispatched
-    
-    DUAL_KEY_PENDING --> ADVANCE_BILLING: Dual-Key Cleared (Client Approval + Partner AML/KYC)
-    DUAL_KEY_PENDING --> [*]: Hard Block / Prospect Rejected
-
-    ADVANCE_BILLING --> PORTAL_ACTIVE_PLANNING: 50% Advance Payment Recorded & Receipt Issued
-    PORTAL_ACTIVE_PLANNING --> FIELDWORK_EXECUTION: Directory Provisioned, Staff Scheduled, TB Mapped & Materiality Signed Off
-    
-    FIELDWORK_EXECUTION --> MANAGERIAL_REVIEW: Preparer Submits All Assigned Procedures
-    MANAGERIAL_REVIEW --> FIELDWORK_EXECUTION: Review Notes Issued (Under Rework status triggered)
-    MANAGERIAL_REVIEW --> PARTNER_APPROVAL: Zero Open Notes, SRM Compiled & Critical Confirmations Cleared
-    
-    PARTNER_APPROVAL --> DELIVERABLE_RELEASE: Opinion Selected, Partner Digital Signature & Seal Applied
-    DELIVERABLE_RELEASE --> COMPLIANCE_COUNTDOWN: 5-Part Bundle Released, Final 50% Invoice Issued & Portal Uploads Frozen
-    
-    COMPLIANCE_COUNTDOWN --> ARCHIVED_READ_ONLY: 60 Calendar Days Elapsed (ISA 230) OR Manual Partner Lock
-    ARCHIVED_READ_ONLY --> [*]: Permanently Sealed Read-Only Archive
-```
-
-## 5.3 Display Phases and Canonical States
-
-The eleven canonical states in §5.1 remain authoritative. Sections 6 and 7 present a simpler seven-phase user-facing workflow but do not replace these gate conditions. The diagram in §5.2 is not itself a permission model: transitions follow their underlying business commands and evidentiary gates.
-
-| Display phase | Canonical states represented |
+| Required final bundle item | Required readiness |
 | --- | --- |
-| 1. Client Onboarding | `LEAD_INGESTION`, `PROPOSAL_GENERATION`, `DUAL_KEY_PENDING`, `ADVANCE_BILLING` |
-| 2. Audit Planning | `PORTAL_ACTIVE_PLANNING` |
-| 3. Audit Fieldwork | `FIELDWORK_EXECUTION` |
-| 4. Manager Review | `MANAGERIAL_REVIEW` |
-| 5. Partner Sign-off | `PARTNER_APPROVAL` |
-| 6. Report and Delivery | `DELIVERABLE_RELEASE` |
-| 7. Archive and Close | `COMPLIANCE_COUNTDOWN`, `ARCHIVED_READ_ONLY` |
+| 1 Auditor's report and audited financial statements | Same approved context; final report signed under policy; exact authoritative bytes retained. |
+| 2 Management Letter | Reviewed deficiency, impact, recommendation and management response where relevant; explicit reviewed no-findings document if applicable. |
+| 3 Letter of Representation | Completed signed version verified before report signing; template and prior versions retained separately. |
+| 4 Management Correspondence audit trail | Reviewed client-appropriate correspondence/confirmation summary. Exclude internal AML, confidential reviewer notes and unauthorized third-party data. |
+| 5 Final balance fee note | Correct contract/milestone, approved/posted invoice version, currency and remaining fee; not an unsent draft mislabelled as issued. |
 
----
+<a id="M4-07"></a>
 
-# 6. Simplified Seven-Phase Engagement Workflow — New Requirements
+### M4-07 Release delivery and client freeze
 
-## 6.1 Purpose and mapping
+Reevaluate current authority, dependency pins and all bundle gates at release. Persist a manifest containing each item ID/version/hash, reporting context, signing evidence, Partner authorization, recipients and release time. Commit the authoritative issued record and upload fence atomically with the outbound intent. A changed file invalidates the prepared bundle; it cannot inherit the prior signature or approval.
 
-This user-interface and task orchestration layer SHALL NOT modify the canonical Section 5 lifecycle state names, stage gates, reviews, or compliance evidence. Map stages as follows:
+Allow only authorized recipients/download grants; expire/revoke access under policy without deleting issued evidence. Track prepared, released and delivery disposition independently. Provider acceptance does not prove client receipt; retain proof of portal availability/download or other verified delivery where available. Failed transmission remains recoverable without issuing a different bundle or removing the upload fence. No new payment gate is imposed on report delivery.
 
-- Phase 1 Client Onboarding: `LEAD_INGESTION`, `PROPOSAL_GENERATION`, `DUAL_KEY_PENDING`, `ADVANCE_BILLING`.
-- Phase 2 Audit Planning: `PORTAL_ACTIVE_PLANNING`.
-- Phase 3 Audit Fieldwork: `FIELDWORK_EXECUTION`.
-- Phase 4 Manager Review: `MANAGERIAL_REVIEW`, with procedure-level rework loop back to affected fieldwork.
-- Phase 5 Partner Sign-off: `PARTNER_APPROVAL`.
-- Phase 6 Report & Delivery: `DELIVERABLE_RELEASE`.
-- Phase 7 Archive & Close: `COMPLIANCE_COUNTDOWN` and `ARCHIVED_READ_ONLY`.
+<a id="M4-08"></a>
 
-## 6.2 Engagement dashboard
+### M4-08 Archive assembly retention and corrections
 
-Show a seven-step visual tracker with simple titles, responsible user, relevant milestone/date, task completion, gate readiness, explicit blockers and the next permitted action. Offer expandable phase checklists and contextual links to client, planning, financial statement line item, PBC, review, completion, finance and records workbenches. Distinguish task completion from regulatory clearance. Make the design responsive and keyboard accessible.
+Retain ADR-0009: the authoritative append-only release/archive store holds issued evidence, and the SharePoint archive is a separate secondary copy. `OBSERVED` applies only after exact hashes and expected grants are read back; otherwise preserve its blocked/pending condition. Read-only grants are not a guarantee against a privileged administrator. Hashes detect changed content; they do not prevent all deletion or tampering.
 
-## 6.3 Phase detail requirements
+Retain the approved signature-based 60-day timer pending D02. Record report date separately and flag any discrepancy affecting professional assembly timing. ISA 230 describes final-file assembly ordinarily within 60 days after the report date; this is distinct from retention. During assembly, do not treat new audit work or new conclusions as routine administrative cleanup. [R5](auditsphere-requirements-specification-complete-practice-management-proposed.md#ref-handbook)
 
-- **Client Onboarding:** quotation and client response, separated dual-key approvals, Engagement Letter, 50% invoice/payment and activation eligibility.
-- **Audit Planning:** staff and deadlines, workspace provisioning, TB import, approved mapping, materiality PM/TE/SAD, risk routing and Partner planning approval. Updated inputs must invalidate stale approvals.
-- **Audit Fieldwork:** FSLI action links, workprograms, evidence, analytical reviews, sampling, preparer assignments and versioned result submission.
-- **Manager Review:** independent reviewer authority and risk-based hierarchy; mandatory comments on rejection; preserve history and route affected work back to its preparer; resolve all relevant review notes; compile a current SRM.
-- **Partner Sign-off:** review high-risk areas/SRM, select an ISA opinion and rationale when modified, and sign the final report under approved credentials.
-- **Report & Delivery:** independently evaluated critical confirmations, controlled audited statement and report delivery, management letter, LOR, correspondence, final fee note and release checkpoints.
-- **Archive & Close:** signature-anchored 60-day countdown, authorized early lock and effective local read-only freeze. Show external provider retention/protection independently; an expired timer alone is not archive success.
+Timer expiry requests a freeze; only a successful committed freeze produces `ARCHIVED_READ_ONLY`. A failed/overdue freeze is visible and escalated. Do not invent `ARCHIVED_LOCKED`. Retention duration, legal holds and disposal authorization need a qualified jurisdiction/firm policy; sixty days is not deletion eligibility. Preserve the original frozen version. Later permitted additions/corrections record why, who, when and review, with a linked supplementary record or superseding issue; ordinary users cannot edit the original.
 
-## 6.4 Reusable practice templates
+Regulator/inspection exports include the permitted manifest, evidence index, provenance and decision history; verify hashes and scope before export. Restricted third-party/internal information follows explicit recipient authorization. Customer-master archival, engagement freeze and financial-period close remain different operations.
 
-Permit administrator-approved versioned templates by engagement type and industry, with editable task groups, owners, due-date offsets, dependencies, effort estimates, client requests and ad-hoc tasks. Pin a template revision to each engagement; changes to templates do not silently rewrite existing work. These templates cannot remove mandatory domain gates. Provide My Tasks, Team Work, Waiting for Client, Under Review, Rework, Overdue and Completed list filters plus Kanban/calendar views.
+Traceability: v2.2 §4.4, ADR-0005/0007/0009/0016/0017, EXT-ACC-06, EXT-SEC-01–04, Diagram 12 (original HTML source); workflow areas 16–20. D01/D02/D06 preserve unresolved business/professional choices visibly.
 
-## 6.5 Recurring audit engagements
 
-Support creating the next annual engagement with reusable templates, prior-year client details and historical mapping suggestions. Require fresh commercial consent, current Partner continuance risk approval, current TB/materiality, professional audit review and reporting decisions. Never carry prior-year acceptance or opinion sign-offs forward as valid authorization.
+<a id="rev-m5"></a>
 
-## 6.6 Safe workflow automation
+## Practice analytics and internal bookkeeping
 
-```mermaid
-flowchart LR
-    T["Versioned task template"] --> RUN["Engagement task instances"]
-    RUN --> AUTO["Task automator"]
-    AUTO --> GOOD["Permitted: assignments, follow-ups, reminders and escalation"]
-    AUTO --> G{"Needs protected professional or financial decision?"}
-    G -->|"Yes"| C["Submit to authorized domain command and independent actor"]
-    G -->|"No"| GOOD
-    C --> V["Check role, client scope, evidence and current revision"]
-    V --> E["Persist authentic decision and audit event"]
-    E --> PROJ["Recompute canonical lifecycle projection"]
-    classDef decision fill:#fff1d6,stroke:#b88b2c,color:#5d4316
-    class G decision
-```
+Separate work performed, standard charge-out value, actual costs, invoices, collected cash and recognized revenue. Each measure must explain its basis and source.
 
-Automators MAY assign tasks, create follow-up checklists, set reminders and due dates, escalate overdue PBC requests and notify permitted users after genuine domain events. They SHALL NOT synthesize approvals, record payment, clear risk, approve materiality, sign an opinion, post invoices, issue release or freeze files. Every automation must reauthorize, use idempotency keys, pin current versions, log its changes and fail safely on stale inputs. Task graphs must reject dependency cycles.
+<a id="M5-01"></a>
 
-## 6.7 User role, security and progress rules
+### M5-01 Time budget and rate history
 
-Preparer sees assigned fieldwork/rework; Reviewer sees submissions and review notes; Partner sees acceptance, high-risk areas, opinion and release; Client sees only authorized commercial and PBC status. Calculate phase readiness from server-side records, not mutable task flags. Track task percentage separately from mandatory gate satisfaction, avoid leaking AML/KYC evidence to client users and show readable blocker reasons.
+Record time against authorized engagement, phase/task and valid applicable FSLI where supplied. Require date, duration, billable/no-charge classification and narrative proportionate to the work. Reject invalid/negative durations, incompatible scope and duplicate submissions; show overlaps or unreasonable daily totals for review. Time moves through draft/submitted/approved/rejected states with reason and edit history. Amend approved time through a reviewed correction.
 
-## 6.8 Acceptance criteria
+Retain effective-dated rates and the Senior/Supervisor/Junior/Associate aliases. Snapshot the rate basis used for approved calculations; later rate edits do not silently reprice historic reports. The source's QAR 1,000/750/500/200 rates are policy inputs, not an assertion about real staff costs. Show missing rate/currency as unavailable. Track original budget, approved revisions, actual approved hours and remaining forecast separately.
 
-Acceptance criteria to verify:
+<a id="M5-02"></a>
 
-1. All 11 canonical states map to exactly one of seven phases.
-2. Absent/one-key approvals block Engagement Letter issuance.
-3. Both keys allow the letter but do not bypass the full 50% advance.
-4. Changed offer or risk basis invalidates the affected approval.
-5. Rejection/conditional clearance and open holds cannot be overwritten through tasks.
-6. Independent reviewer and mandatory rework comments remain enforced.
-7. Open review notes and stale materiality block subsequent professional decisions.
-8. Critical confirmation cases block report release.
-9. Frozen archival state requires an effective committed lock and does not imply external immutability.
-10. Recurring templates never copy professional sign-offs as current.
-11. Scoped actors cannot access unrelated clients.
-12. Automation retries cannot duplicate or forge domain events.
+### M5-02 Financial metric definitions
 
----
+| Metric | Definition for adoption | Guard |
+| --- | --- | --- |
+| Approved actual hours | All approved billable and non-billable/no-charge time. | Exclude draft/rejected time; retain corrections. |
+| Standard charge-out value | Sum of approved billable hours × applicable charge-out rate. | No-charge time has zero charge-out value; missing rate/currency makes the metric unavailable. |
+| Contract realization | Agreed net contract fee ÷ standard charge-out value. | Label contract basis; zero/missing denominator is undefined, not 0% or 100%. |
+| Standard-fee contribution | Agreed net contract fee minus standard charge-out value. | ADR-0018 billable-time basis; this is not accounting profit or actual staff-cost margin. |
+| Actual engagement resource cost | All approved hours × approved internal cost rate, plus included approved direct costs. | Proposed cost view only where approved cost data/visibility exists; otherwise unavailable. Do not substitute charge-out rates. |
+| Utilization | Approved billable minutes ÷ scheduled capacity net of recorded unavailability. | Same period/scope; show all approved hours separately; zero capacity is undefined. |
+| Billing and collections | Posted net firm invoices/credits and allocated cash, shown independently. | Do not treat an invoice as received cash or presume billing equals revenue recognition. |
+| Firm accounting profit | Posted recognized income less posted expense under the approved firm accounting policy. | Reconcile to the firm ledger and period; not the contract-contribution calculation. |
 
-# 7. Architectural Non-Regression Requirements — New
+The source approves standard-value/realization/contribution and utilization bases; resolve any ambiguous numerator or additional staff-level measure in D07 before changing a live dashboard. Restrict salary/cost-rate and individual performance visibility to explicitly authorized users. Do not publish rankings or infer personnel decisions from these figures.
 
-All domain commands and evidence records remain the sole authority for progression. The existing 11-stage derived lifecycle and five function modules remain unchanged. The seven-phase user experience is a deterministic presentation mapping. Task templates, personal work queues, recurring-engagement creation, deadline automation and dashboard analytics are separate supporting capabilities. All permissions, professional judgments, signed document integrity, 50/50 commercial terms and archive protections must continue to be enforced by authoritative services. Review external Microsoft identity/SharePoint/records protections separately before labelling them production compliant.
+<a id="M5-03"></a>
+
+### M5-03 Fee agreements invoice lifecycle and allocations
+
+Pin fee agreements and ADVANCE/BALANCE milestones to the accepted letter/terms. Preserve the unconditional fully paid advance gate. Default-off automation creates drafts only, after the correct eligibility event. Authorize invoice review/post/send and cash/credit actions separately. A posted invoice maps unambiguously to its approved fee basis/milestone; refuse ambiguous multiple-milestone reporting rather than double-counting it.
+
+Capture payment date, currency, bank/cheque reference, amount, posting record and allocation. Allocation cannot exceed available receipt or open invoice amount; preserve unallocated credits and partial balances. Concurrent allocation is serialized or otherwise proven safe. A correction uses credit, reversal or unallocation history; it never edits posted facts in place. Receipt dispatch has its own evidentiary status.
+
+A fully paid advance is a commercial activation condition, not an automatic revenue-recognition rule. The approved accounting policy determines advance/deferred-income or receivable postings and subsequent recognition. Prevent duplicate recognition when the final fee is billed. Refund, write-off, overpayment and contract-change handling must preserve approval, account impact and the original audit trail; D07 resolves policy choices.
+
+<a id="M5-04"></a>
+
+### M5-04 Firm ledger and period control
+
+Retain the firm's chart, balanced journal posting, rent/facilities, salaries/benefits, overhead, petty cash and Partner withdrawals. Classify withdrawals under the approved equity/current-account policy rather than automatically treating them as expenses. End-of-service benefits follow ADR-0010 as a person-entered provision/accrual with evidence and approval; no autonomous legal-benefit estimate is introduced.
+
+Use the same reviewed posting, reversal, period-close and correction controls as appropriate to firm books. Link invoicing, receipts and expenses to resulting ledger entries and reconcile receivable controls. Native client invoices, audit proposed entries and group elimination journals never enter the firm's ledger. Preserve the financial domain in every posting/export endpoint.
+
+<a id="M5-05"></a>
+
+### M5-05 Management reports and reconciliation
+
+Produce a firm TB, one P&L row per accounting month with the same month one year earlier, approved budget/actual hours and contract-value analysis, and as-of-date AR ageing for all posted firm invoices (advance, final, time or other). Calculate outstanding amounts using transactions effective at the requested date; future receipts do not alter historical ageing. Reconcile the receivables report to the ledger control with explicit credits/adjustments.
+
+Use agreed due-date ageing buckets, consistent timezone/date rules and a clear treatment of credits/overpayments. Never include client-bookkeeping receivables. Multi-currency reports show source currency and approved translation basis instead of adding unlike currencies. Users can drill from a total to the permitted underlying invoices/time/ledger records without bypassing scope.
+
+Traceability: v2.2 §§3.5, 4.5; ADR-0007/0010/0012/0018; EXT-FIN-01–04; Diagram 10 (original HTML source). Cost visibility, recognition and broader fee exceptions remain professionally owned decisions rather than invented settled policy.
+
+## Shared financial and transaction contracts
+
+<a id="ARCH-03"></a>
+
+### ARCH-03 Financial ownership and reporting identity
+
+**Three posting domains remain distinct:** firm practice books, each client legal entity's accounting books, and group consolidation journals. A shared database does not make their posting commands interchangeable. Treat `FirmId`, `ClientId`, `EngagementId`, legal entity/book, financial period and, where applicable, group/run identity as first-class ownership.
+
+A reporting manifest pins the client/entity or group, engagement/service route, period, functional and presentation currencies, framework and edition, accounting-policy revision, source mode, accepted source version, mapping version, approved adjustment set, comparison/restatement basis, relevant rate set and output-template revision. Add workpaper/SRM/representation/opinion/signature references when producing audit deliverables. Use existing entities where possible; the required contract does not assert that a named implementation class already exists.
+
+Use decimal amounts and the existing `numeric(19,6)` design; use decimal strings at money API boundaries and the recorded rounding policy. Validate range and scale before import/posting. Currency settlement/display precision is separate from calculation precision. Record any permitted rounding difference explicitly; never hide an unbalanced posting with a display-rounding adjustment.
+
+
+<a id="ARCH-04"></a>
+
+### ARCH-04 Relationships and database invariants
+
+- Scope-aware foreign keys/unique constraints and server checks prevent cross-client attachments, payments, mappings, review receipts and journals. Server-resolved identity controls scope; an identifier submitted by the browser grants no authority.
+- Enforce one authoritative source mode per client book/period, immutable posted journal identity, unique posting/idempotency receipts and legal-entity invoice-number rules. Published versions are superseded, not overwritten.
+- Validate whole-journal balance in the posting transaction and prohibit changes to posted lines except recorded reversal/replacement. Row-level checks alone cannot validate a sum across journal lines.
+- Use optimistic revision tokens for forms and reviewed packages; use short locks or an equivalent proven transaction strategy for contended allocations, posting, publication and freeze. Reject stale writes with actionable current-version information.
+- Keep business corrections, cancelled work and excluded imports discoverable in history. Hard deletion of issued or posted evidence is not a normal user action.
+
+
+<a id="ARCH-05"></a>
+
+### ARCH-05 Protected command contract
+
+Every protected command identifies its resource, expected revision, idempotency key when repeatable, requested action and required rationale/evidence. The server supplies the actor and authoritative scope. It authenticates, verifies active scoped grants and professional capacity, evaluates gate/input freshness, commits business change plus audit receipt plus durable intent atomically, and returns a stable result with correlation ID. Repeat the scope/freshness checks within the committing boundary where races matter.
+
+Document error codes for `AUTHENTICATION_REQUIRED`, `FORBIDDEN`, `INPUT_INVALID`, `REVISION_CONFLICT`, `GATE_BLOCKED`, `DEPENDENCY_UNAVAILABLE` and `OUTCOME_UNCERTAIN`; align them to existing HTTP conventions after repository inspection. Do not claim a universal HTTP 423 rule or invent a new lifecycle status. Keep sensitive denial details out of client responses.
+
+
+<a id="ARCH-06"></a>
+
+### ARCH-06 Transactions and recoverable external effects
+
+Commit the local mutation, audit evidence and operation intent in one local transaction. Perform email, Graph, SharePoint and remote publication outside that transaction. Use scoped, payload-bound idempotency: the same key and same payload returns the prior operation; the same key with a different payload is rejected. Leases need fencing so an expired worker cannot publish after a successor takes ownership. These contracts refine the source's existing operation/outbox design. [R8](auditsphere-requirements-specification-complete-practice-management-proposed.md#ref-ef-transactions) [R9](auditsphere-requirements-specification-complete-practice-management-proposed.md#ref-ef-concurrency)
+
+| Failure | Required result and recovery |
+| --- | --- |
+| Double click or lost local response | Return the original receipt/operation; no second financial posting, document or approval. |
+| Provider throttling or known transient failure | Bounded retry with backoff and provider Retry-After; retain the original payload and actor. |
+| Timeout after possible remote create/send | Mark the existing operation uncertain and reconcile its deterministic remote identity before retrying a create/send. |
+| Worker crash after remote success | Recover and verify the existing remote effect, then complete the local receipt without duplicating the effect. |
+| Authority revoked while job waits/runs | Stop future unauthorized effects. Preserve evidence of effects that already happened; require authorized reconciliation before publication. |
+| Permanent failure or unexpected provider drift | Show the failed/blocked capability, exact operational reason, responsible owner and an authorized retry/reconcile action. |
+
+Do not promise exactly-once delivery across remote services. Distinguish queued, provider-accepted, delivered where verifiable, and recipient-read where explicitly evidenced. A mail API accepting a message does not prove receipt or reading.
+
+## Supporting controls and evidence
+
+| Concern | Authoritative proposed controls |
+| --- | --- |
+| Runtime boundaries and compatible stack | [ARCH-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#ARCH-01) · [ARCH-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#ARCH-02) |
+| Identity, scoped access and external access boundaries | [SEC-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#SEC-01) · [SEC-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#SEC-02) · [SEC-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#SEC-03) |
+| Deployment, operating targets, restore and monitoring | [OPS-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#OPS-01) · [OPS-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#OPS-02) · [OPS-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#OPS-03) · [OPS-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#OPS-04) |
+| Accessible and recoverable user workflows | [UX-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#UX-01) |
+| All source procedures | [rev-workprograms](auditsphere-requirements-specification-complete-practice-management-proposed.md#rev-workprograms) |
+| Acceptance evidence and delivery sequence | [rev-acceptance](auditsphere-requirements-specification-complete-practice-management-proposed.md#rev-acceptance) |
+| Owner adoption decisions and checked primary references | [rev-decisions](auditsphere-requirements-specification-complete-practice-management-proposed.md#rev-decisions) |
+
+Requirement ownership and acceptance mappings are indexed in the [domain and requirements catalogue](auditsphere-requirements-catalog-domain-glossary-current.md).

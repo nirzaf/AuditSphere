@@ -1,105 +1,216 @@
-# AuditSphere — Domain Glossary
+# AuditSphere — Requirements Catalogue and Domain Glossary
 
-**Status: CURRENT.** One meaning per term. Where the STE specification and the code use different words for the same thing, both appear and the code identifier is the one to use in new code. Code values are string constants in `src/AuditSphereOps.Domain/` unless a path says otherwise.
-
-## Roles and scope
-
-| Term | Meaning | Code |
-| --- | --- | --- |
-| RoleGrant | An explicit grant of an application role at one scope. The only source of AuthorizationDecision; Microsoft group membership never grants AuditSphere access. | `Domain/Security/Users.cs`, `Application/Security/` |
-| Scope | Breadth of a grant: `FIRM_WIDE`, `CLIENT`, `ENGAGEMENT`, or `GROUP` (consolidation group, stored as a group grant). An engagement grant never reaches a sibling engagement. | `RoleAssignmentService` |
-| Staffing level | Engagement staffing tier: `ENGAGEMENT_PARTNER`, `AUDIT_MANAGER`, `SENIOR_AUDITOR`, `STAFF_ASSOCIATE`. Specification APPROVER / REVIEWER / PREPARER map onto these. | `StaffingLevels` (`Practice/ResourcePlanning.cs`) |
-| Charge-out role | Rate-card role name: Engagement Partner, Audit Manager, Audit Supervisor (alias Senior), Audit Associate (alias Junior). Unknown names get no rate. | `SteChargeOutRateBaseline` |
-| Session epoch | Counter on a user's session; revocation advances it and every protected read/command rechecks it. | `Application/Security/` |
-| Certification review | An independent administrative decision on the exact source of one staff certification. Separate from qualification expiry; it never assigns a role. | `StaffCertificationReview` |
-| Mail authorization evidence | Enrolled, detached-signed readback proving how the mail app identity is restricted (`LegacyApplicationAccessPolicy` or `ExchangeRbacResourceScope`). Re-verified before each send; never proof of delivery. | `MailAuthorizationEvidenceEnrollment`, `MailAuthorizationRuntimeGate` |
-
-## Commercial and onboarding
-
-| Term | Meaning | Code |
-| --- | --- | --- |
-| Lead channel | How contact started: Phone, WhatsApp, Email, Web Form, Referral, In-person. A label only; no channel integration. | `Practice/Crm.cs` |
-| Client relationship | Group structure link: `PARENT`, `SUBSIDIARY`, `AFFILIATE`. | `ClientRelationshipKinds` |
-| Contact routing | Which contact receives which document class (proposals/letters/reports, invoices/receipts, PBC requests, completion). | `PracticeCrmService.Routing.cs` |
-| Quotation / Brief quotation | Versioned 1–2 page price offer from approved rate cards. | `QuotationService`, `QuotationCalculator` |
-| Proposal / Tender | Comprehensive five-chapter proposal (firm profile, team CVs, credentials, methodology, fees and timeline). | `CommercialDocumentService.Tender.cs` |
-| Dual-key gate | Key 1 = recorded client commercial acceptance; Key 2 = current unconditional Partner risk clearance for the same service. Both are required before an engagement letter. | `AcceptanceDecisionService`, `CommercialDocumentService` |
-| Engagement letter | ISA 210 terms. Template chosen by service route: statutory audit, internal audit, or agreed-upon procedures (ISRS 4400). Unsupported routes fail closed. | `EngagementLetterTemplates.cs` |
-| Fee agreement / milestones | The reviewed agreement and its 50 % advance and 50 % balance milestones, created with the letter. | `FeeAgreementService`, `FeeAgreementWorkspaceQuery` |
-| Advance invoice preparation state | Why the advance draft invoice exists or does not yet (including "pending — automation disabled"). | `AdvanceInvoicePreparationStates` |
-| Client conversion | The record that turns a lead into a client and captures portal intent. | `Practice/ClientConversion.cs` |
-
-## Planning and materiality
-
-| Term | Meaning | Code |
-| --- | --- | --- |
-| Benchmark | Base for planning materiality: `REVENUE` (0.5–2 %), `PROFIT_BEFORE_TAX` (5–10 %), `TOTAL_ASSETS` (0.5–1 %), `NET_ASSETS` (1–2 %). PBT is mapped balances excluding tax, **not normalized**. | `MaterialityBenchmarks`, `MaterialityCalculator.RateRanges` |
-| PM | Planning materiality = benchmark × rate. | `MaterialityCalculator` |
-| TE | Tolerable error / performance materiality = PM × 50–75 %. | `PerformanceRange` |
-| SAD threshold | Summary of Audit Differences trivial cutoff = PM × 3–5 %. | `TrivialRange` |
-| Practical rounding | Manager-only adjustment of PM/TE/SAD within ±5 % of computed values; append-only decision creating a new effective draft that the Partner then approves. | `MaterialityPracticalRounding`, `MaterialityEngineService` |
-| Risk band | `GREEN` balance below TE; `AMBER` between TE and PM with low inherent risk; `RED` above PM, critical estimate or high inherent risk (mandatory Manager execution and Partner review). | `RiskBands`, `ProcedureRiskBandEvaluator` |
-| Five-folder workspace | `01_Administration & Planning` … `05_Final Signed Archive`, provisioned on acceptance at `/Client/Year/01–05`. | `EngagementWorkspaceProvisioningHandler` |
-
-## Fieldwork and review
-
-| Term | Meaning | Code |
-| --- | --- | --- |
-| FSLI | Financial statement line item; the unit the split dashboard, workprogrammes, risk bands and modified opinions attach to. | Mapping and statement services |
-| Audit area | Workprogramme area code: `CASH_BANK`, `RECEIVABLES`, `INVENTORY`, `REVENUE`, `PAYABLES`, `FIXED_ASSETS`, `EXPENSES`, `PAYROLL`, `LOANS`, `EQUITY`, … | `AuditAreaCodes` (`Audit/Fieldwork.cs`) |
-| AR test | Analytical review of one FSLI (multi-period variance, ratios), including the ISA 570 going-concern horizon for audit engagements. | Analytical review services |
-| Ad-hoc step | Practitioner-added procedure row in an active workprogramme; revisions count toward completion. | `FieldworkConnections` |
-| Physical evidence index | Binder reference such as `X-1, Box 3, Shelf B`, with movement history and two-way procedure links. | `FieldworkConnections` |
-| Under Rework | Specification term for a returned item. Code uses `CHANGES_REQUIRED` and anchored review notes; open notes block approval. | `AuditAreaAssessmentStatuses`, review notes |
-| SRM | Summary Review Memorandum; generated in the final applicable workprogramme review transaction, bound to a digest of reviewed facts. | `DeliverableKinds.SummaryReviewMemorandum` |
-| Critical confirmation | A Bank/AR/AP/Inventory/Legal confirmation flagged critical; while it lacks a returned and evaluated response, the report is held and a holding letter generated. | `AuditDeliverableService`, `HoldingLetterDispatch` |
-| Holding letter | "Pending confirmation" letter queued to the client-management contact. Queued is not delivered; missing routing blocks dispatch. One dispatch per outstanding blocker set. | `DeliverableKinds.HoldingLetter` |
-| Not-applicable (N/A) decision | A preparer's append-only proposal that a procedure does not apply, effective only after an independent Partner disposition. | `AuditProcedureApplicabilityDecision` |
-| Booked source | Snapshot of the independently reviewed Bank reconciliation a confirmation case was prepared from. A missing snapshot means legacy or unverified provenance, never a zero balance. | `AuditConfirmationBookedSource` |
-| Reviewed command receipt | Immutable record of one browser command, keyed by the client's request identity and canonical request hash. After a lost response the client looks up the receipt instead of retrying blindly. | `*CommandReceipt` (for example `FindingCommandReceipt`, `OperatorCommandReceipt`) |
-
-## PBC portal
-
-| Specification badge | Code state (`PbcStates`) |
+| Attribute | Value |
 | --- | --- |
-| Pending Upload | `SENT`, `ACKNOWLEDGED`, `PARTIALLY_RECEIVED` |
-| Under Review | `RECEIVED`, `UNDER_REVIEW`, `RESUBMITTED` |
-| Approved | `ACCEPTED`, `CLOSED` |
-| Rejected / Re-upload Required | `CLARIFICATION_REQUIRED` (reason mandatory and shown to the client) |
+| Revision | 2.3 — proposed for adoption |
+| Prepared | 24 October 2026 |
+| Scope | Five existing modules; seven display phases; eleven derived audit lifecycle states |
+| Implementation status | Unverified in this document review |
+| Purpose | Common terms, control ownership, lifecycle labels and traceability |
 
-This badge mapping is inferred from the state names and the portal behaviour described in the STE coverage table; confirm it against the portal badge component before relying on it in a UI change. `DRAFT` requests are never visible to the client. Upload transport states (`PbcUploadStates`) are separate: `STARTED`, `CHUNKING`, `STAGED`, `RECEIVED`, `FAILED`, `EXPIRED`.
+> **Authority:** This is a review-derived revision candidate. A filename ending in `current` is the requested naming convention; it does not establish approval or implementation. The six repository counterparts were not inspected. Source-reported approved ADRs and executed contracts remain controlling until an authorized change is adopted. Proposed changes and D01–D10 decisions do not silently override them.
 
-## Completion and archive
+The [complete proposed specification](auditsphere-requirements-specification-complete-practice-management-proposed.md) governs the proposed design across this package. The [preserved v2.2 source](auditsphere-requirements-source-ste-audit-management-specification-v22.md) supplies historical requirements and approved source overlays. Companion documents use the same control identifiers and do not add product modules.
 
-| Term | Meaning | Code |
+## How to use this catalogue
+
+The catalogue indexes proposed controls; it is not a list of implemented features. Control IDs originate in this revision. WF identifiers were assigned to the supplied workflow procedures for traceability; M365 story IDs are proposed identifiers in the onboarding companion. Actual code names, endpoints and persisted schema must be reconciled during implementation.
+
+Approved source rules remain controlling until a corresponding change is adopted. The complete proposed specification contains the explanations, decision register and primary references behind the definitions below.
+
+## Domain glossary
+
+| Term | Meaning and boundary | Controlling proposed text |
 | --- | --- | --- |
-| Opinion type | `UNMODIFIED` (specification "Clean / Unqualified"), `QUALIFIED`, `ADVERSE`, `DISCLAIMER`. Modified types require an FSLI from the approved taxonomy and a basis paragraph. | `AuditOpinionTypes` |
-| Deliverable kind | `SUMMARY_REVIEW_MEMORANDUM`, `AUDIT_FINDINGS_REPORT`, `MANAGEMENT_LETTER`, `INDEPENDENT_AUDITORS_REPORT`, `HOLDING_LETTER`, `REPRESENTATION_LETTER`. | `DeliverableKinds` |
-| Five-part bundle | Immutable ZIP: signed report and certified statements, management letter, verified signed LOR, correspondence trail, posted balance invoice; per-file hashes plus manifest. | `AuditDeliverableService.Bundle.cs` |
-| Visual credential | Registered PNG signature or versioned firm-seal PNG. Not a certificate-backed signature. | `RegisterSignatureAsync`, `RegisterFirmSealAsync` |
-| File freeze | `SCHEDULED` (60 days after report signature) → terminal `FROZEN`; supplementary-record requests and Partner decisions never reopen the archive. | `FileFreezeStates`, `FileFreezeService` |
-| Early compliance lock | Partner lock before day 60, bound to a reviewed archive-readiness digest and countdown revision. | `FileFreezeService.RequestEarlyComplianceLockAsync` |
-| External read-only | Whether SharePoint read-only was `NOT_REQUESTED`, `REQUESTED`, `OBSERVED` or `BLOCKED_EXTERNAL`. Local freeze does not imply provider protection. | `ExternalReadOnlyStates` |
+| **Firm** | Practice/business ownership boundary for staff capabilities, practice books and firm-controlled records. | [ARCH-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#ARCH-03) |
+| **Microsoft tenant** | Allowed external identity/directory boundary. It must be bound to the correct immutable provider identity; an email address alone is not authorization. | [SEC-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#SEC-01) |
+| **Client / legal entity** | Customer and accounting entity context. Parent, subsidiary or affiliate relationships do not grant access to related entities. | [M1-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#M1-01) |
+| **Engagement** | Scoped professional mandate for an entity or group, period and service route, with its own staffing, evidence and decisions. | [rev-scope](auditsphere-requirements-specification-complete-practice-management-proposed.md#rev-scope) |
+| **Service profile** | Approved applicability, framework, templates and completion contract for the named service. Unsupported routes remain unavailable. | [M2-07](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-07) |
+| **Firm books** | The practice’s own ledger, invoices, receipts, expenses, provisions and financial reports. | [M5-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#M5-04) |
+| **Client books** | The specific client entity’s accounting records. Their sales and purchase invoices are not practice revenue or expenses. | [M3-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-03) |
+| **Group journals** | Consolidation adjustments and eliminations confined to the group reporting context; they do not update component books. | [M3-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-08) |
+| **Source mode** | The one authoritative imported-accounting or authorized native-bookkeeping basis for a client book and period. | [M3-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-03) |
+| **Trial balance (TB)** | Accepted account-balance dataset for a specific entity, period and currency; balance alone does not establish completeness or correct ownership. | [M3-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-01) |
+| **General ledger (GL)** | Transaction population supporting balances, movements, analytical work and audit selections. | [M3-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-01) |
+| **FSLI** | Financial Statement Line Item: the approved reporting and workpaper classification used for relevant accounts and risks. | [M3-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-01) |
+| **Mapping version** | Reviewed relationship from posting accounts to the approved taxonomy for a pinned source/chart version. | [M3-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-01) |
+| **Audit adjustment** | A proposed adjustment with explicit acceptance/refusal, posting or report-only disposition and evidence. It must affect reports once. | [M3-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-02) |
+| **Adjusted TB** | Reporting balances derived from the accepted source and applicable approved adjustment disposition. | [M3-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-02) |
+| **Unadjusted difference** | A proposed difference not included in the accepted accounting/reporting adjustment set, retained for documented evaluation. | [M3-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-02) |
+| **Reporting manifest/context** | Pinned identity, period, currencies, framework/policy, source, mappings, adjustments, comparisons, rates and output-template versions. | [ARCH-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#ARCH-03) |
+| **Movement bridge** | Supported reconciliation of opening/closing balances and the relevant cash, non-cash, FX, acquisition and other movements. | [M4-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-01) |
+| **Native cutover** | Reviewed opening balances and authority to switch a client book/period to native accounting without concurrent conflicting source authority. | [M3-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-03) |
+| **Period close** | Financial posting control for a book/period; it is separate from client-master archival and audit-file freeze. | [M3-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-03) |
+| **Component snapshot** | Approved versioned entity financial inputs consumed by a group run. | [M3-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-08) |
+| **Consolidation perimeter** | Approved entities, control/method and effective dates included in the group reporting run. | [M3-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-08) |
+| **NCI** | Non-controlling interests as applicable under the adopted group-reporting policy; complex treatments require an approved supported case. | [M3-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-08) |
+| **CTA** | Currency translation adjustment within the applicable group/reporting policy and supported currency inputs. | [M3-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-08) |
+| **Dual-key acceptance** | Current commercial acceptance of the exact offer plus current unconditional staffed-Partner risk clearance. Payment is a separate gate. | [M1-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#M1-03) |
+| **Engagement Letter** | Versioned professional terms. Generated, authorized, dispatched and accepted/executed are different facts. | [M1-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#M1-04) |
+| **Advance / balance milestone** | The approved 50/50 fee basis. Activation requires the full advance to be paid and allocated; balance draft eligibility follows the agreed package event. | [M1-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#M1-05) |
+| **Receipt allocation** | Controlled application of available received cash to an open firm invoice/milestone; over-allocation and duplicate posting are prohibited. | [M5-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#M5-03) |
+| **Gate** | Server-evaluated business prerequisite established by current authorized evidence, not by a completed UI task. | [CTRL-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#CTRL-02) |
+| **Current approval** | Human decision against identified input revisions and scope, still applicable to the protected action. | [CTRL-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#CTRL-01) |
+| **Stale approval/input** | Previously valid evidence whose current dependency has changed; retain history and route the affected work for reassessment. | [CTRL-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#CTRL-01) |
+| **Planning materiality (PM)** | Source terminology requiring professional interpretation as the relevant overall financial-statement materiality; preserve approved benchmarks and policies pending D04. | [M2-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-06) |
+| **TE / performance materiality** | Source terminology and configured 50–75% relationship require distinction from tolerable misstatement for a specific sample; D04 governs terminology. | [M2-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-06) |
+| **SAD threshold** | Source label for the clearly-trivial difference threshold; it must not erase a qualitative concern or be confused with a list of unadjusted differences. | [M2-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-06) |
+| **PBT benchmark** | Mapped profit before tax excluding tax balances, without normalization under the retained approved decision. | [M2-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-06) |
+| **Green / Amber / Red** | Work and review routing indicators using exposure and qualitative overrides. Green does not automatically exclude an audit procedure. | [M2-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-06) |
+| **Critical confirmation** | Firm-policy classification that retains its stricter completion/release blocker until an authorized policy changes it. | [M3-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-06) |
+| **PBC** | Prepared-by-client request/evidence work within an authorized engagement; client upload, submission and reviewer acceptance are different facts. | [M3-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-06) |
+| **Workprogram procedure** | Versioned, tailored work instruction with owner, evidence, result, conclusion and review, due at its applicable phase gate. | [M3-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-05) |
+| **SRM** | Summary Review Memorandum compiled from current engagement findings and completion evidence; Manager recommendation and Partner clearance remain human decisions. | [M3-07](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-07) |
+| **EQR** | Engagement quality review where required, completed by an eligible independent reviewer before report dating/signing. | [M2-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-03) |
+| **LOR** | Letter of Representation: the exact signed management representations verified before final report dating/signing. | [M4-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-03) |
+| **Unmodified opinion** | Standard label retained alongside familiar explanatory terms Clean/Unqualified; selection is Partner-controlled. | [M4-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-04) |
+| **Visual signature/seal** | Visible document appearance. An image does not establish cryptographic protection or a particular legal assurance level. | [M4-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-05) |
+| **Certificate signing** | Approved cryptographic signing against exact bytes. Required missing or any configured unusable certificate fails closed. | [M4-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-05) |
+| **Financial-package publication** | D01 proposes a separately authorized event from final client-bundle release; its exact command semantics require adoption. | [M4-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-06) |
+| **Final bundle** | Five required items: auditor report/audited statements, Management Letter, signed LOR, appropriate correspondence trail and final balance fee note. | [M4-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-06) |
+| **Release manifest** | Immutable issue record tying exact item versions/hashes, context, signing evidence, Partner authority, recipients and release time. | [M4-07](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-07) |
+| **Delivery evidence** | Observed recipient/portal disposition. Provider acceptance does not by itself prove client receipt or reading. | [M4-07](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-07) |
+| **Upload fence** | Committed protection of the released audit engagement’s intake; it must not block unrelated authorized periods/services. | [M4-07](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-07) |
+| **Authoritative issued store** | Append-only release/archive authority for exact issued bytes and manifests under the retained source decision. | [M4-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-08) |
+| **Secondary archive copy** | Separately verified SharePoint copy; local freeze alone does not prove its hashes, permissions or immutability. | [M4-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-08) |
+| **OBSERVED / BLOCKED_EXTERNAL** | Retained external-copy observation labels. OBSERVED needs readback of exact hashes and expected grants; these are not additional audit lifecycle states. | [M4-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-08) |
+| **Archive assembly / committed freeze** | Assembly is the controlled closing activity; only a successful committed freeze derives ARCHIVED_READ_ONLY. | [M4-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-08) |
+| **Retention / hold** | Professionally and jurisdictionally owned preservation/disposal policy, separate from the 60-day assembly timer. | [M4-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-08) |
+| **Idempotency** | Same scoped key and payload reuses the prior local outcome; a changed payload conflicts. Remote uncertain effects require reconciliation. | [ARCH-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#ARCH-06) |
+| **Operation intent / worker lease** | Durable external-work request with exclusive/fenced execution ownership and reauthorization before protected publication. | [ARCH-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#ARCH-06) |
+| **Selected-site permission** | Approved application consent plus a grant on the actual allowed SharePoint resource, verified under the correct tenant/app identity. | [SEC-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#SEC-02) |
+| **Standard charge-out value** | Approved billable hours multiplied by the applicable charge-out rate; missing rate/currency makes the measure unavailable. | [M5-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#M5-02) |
+| **Standard-fee contribution** | Agreed net fee minus standard charge-out value; it is not actual resource margin or firm accounting profit. | [M5-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#M5-02) |
+| **Utilization** | Approved billable minutes divided by capacity net of recorded unavailability for the same scope/period. | [M5-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#M5-02) |
+| **Firm accounting profit** | Posted recognized income less posted expenses under the approved accounting policy, reconciled to firm books. | [M5-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#M5-02) |
+| **As-of AR ageing** | Firm receivables computed using effective transactions at the requested date; later receipts do not rewrite historical ageing. | [M5-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#M5-05) |
+| **RPO / RTO** | Proposed recovery-point and recovery-time objectives requiring owner adoption and measured coordinated restore evidence. | [OPS-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#OPS-03) |
 
-## Lifecycle
+## Five-module ownership
 
-The specification §5 states are a **derived projection** (`CanonicalEngagementStages` in `Application/Acceptance/EngagementLifecycleQuery.cs`, endpoint `GET /api/ui/engagements/{id}/lifecycle`), not a stored status column: `LEAD_INGESTION` → `PROPOSAL_GENERATION` → `DUAL_KEY_PENDING` → `ADVANCE_BILLING` → `PORTAL_ACTIVE_PLANNING` → `FIELDWORK_EXECUTION` → `MANAGERIAL_REVIEW` → `PARTNER_APPROVAL` → `DELIVERABLE_RELEASE` → `COMPLIANCE_COUNTDOWN` → `ARCHIVED_READ_ONLY`. A stage advances only when the underlying gates' records exist (ADR-0004).
+| Existing module | Business responsibility | Owns | Boundary |
+| --- | --- | --- | --- |
+| **M1 Commercial & CRM Pipeline** | Lead through agreed terms | Client/contact profile, group relationships, proposals, dispatched revisions, commercial acceptance, Engagement Letter and commercial fee terms | Risk clearance comes from M2; invoices, cash and firm postings belong to M5. |
+| **M2 Administration, Governance & Planning** | Eligibility, resources and plan | Acceptance/continuance, independence, assignments, calendar, service applicability, approved templates, directory provisioning requests, materiality and risk planning | Administrator access does not confer Partner authority. Planning consumes an accepted accounting dataset from M3. |
+| **M3 Technical Execution & Audit Fieldwork** | Accounting preparation and audit evidence | TB/GL intake, native client accounting already in scope, mapping, adjustments, reconciliation, consolidation preparation, procedures, PBC, sampling, confirmations, reviews and SRM | Firm books and client books remain separate; consolidation never posts into component books. |
+| **M4 Reporting & Final Deliverables** | Reviewed output through archive | Entity/group financial statements, notes, report composition, opinion, signed representations verification, signing, five-part bundle, release manifests, read-only freeze and inspection exports | Consumes M3 snapshots and M5 fee-note records. It cannot auto-approve financial or professional decisions. |
+| **M5 Practice Analytics & Internal Bookkeeping** | Firm operations and financial control | Time, capacity analytics, rates, budgets, realization, fee milestones, firm invoices/credit notes/receipts/allocations, expenses, firm ledger, TB, P&L and AR ageing | Client sales/purchase invoices are never firm revenue. Charge-out value is not payroll cost. |
 
-## Workflow experience (specification v2.2)
+## Seven display phases and eleven canonical audit states
 
-Display phases are a second, presentation-only layer over the canonical stages above. They never add a stored status, never replace a gate and never change a financial boundary.
+The following codes are the retained audit lifecycle. Display conditions such as waiting for client, rework required, stale inputs, blocked externally and archive overdue are explanatory conditions, not additional lifecycle states.
 
-| Term | Meaning | Code identifier |
+| Phase | Canonical state | Evidence required to leave the state |
 | --- | --- | --- |
-| Display phase | One of seven user-facing phases: `CLIENT_ONBOARDING`, `AUDIT_PLANNING`, `AUDIT_FIELDWORK`, `MANAGER_REVIEW`, `PARTNER_SIGNOFF`, `REPORT_DELIVERY`, `ARCHIVE_CLOSE`. Each groups one or more canonical stages (onboarding covers lead ingestion through advance billing; archive covers the compliance countdown and read-only stages). | `EngagementDisplayPhaseMapper` |
-| Workflow projection | Read-only server-computed view of the seven phases with status, responsible role, blockers, at most one next action, Dual-Key readiness cards and local versus provider archive state. | `EngagementWorkflowWorkspaceQuery` |
-| Enhanced Dual-Key Acceptance | Client approval (Key 1) and Partner risk approval (Key 2) shown with the engagement letter and the 50 % advance as separate readiness cards; activation still requires the unconditional advance gate (ADR-0012). | `EngagementWorkflowWorkspaceQuery`, `EngagementActivationAdvanceGateTests` |
-| Workflow task | An existing `WorkTask` bound to a display phase, with optional template revision and step origin, a stable source key and a due-date policy. Task completion never satisfies a gate by itself. Persistence exists and is default-off. | `WorkflowTaskBinding` |
-| Task template | A reusable phase task plan. Each template revision is immutable and independently reviewed before publication; an engagement pins one exact published revision when its plan is instantiated. | `WorkflowTemplateService`, `EngagementWorkflowPlanService` |
-| Task automator | Safe automation that only creates tasks, reminders and drafts. Delivered in part and default-off: PBC follow-up tasks and PBC reminders, reviewed reminder rules that create optional local tasks, and draft-only fee invoices (ADR-0007). Broader escalation and recurrence policies remain open; see the [v2.2 delta](../execution/auditsphere-execution-tracker-ste-v21-gap-verification-current.md#v22-workflow-experience-delta). | `PbcReminderDiscovery`, `WorkflowReminderRuleService`, `AutomaticFeeInvoices` |
-| Reminder rule | A firm-wide, independently reviewed rule (`TASK_DUE` or `PBC_DUE` source) whose execution creates an internal follow-up task. It never sends mail or approves a source. | `WorkflowReminderRules`, `WorkflowReminderRuleService` |
-| Task activity | Append-only operational trace of a task (created, assigned, completed, cancelled, reopened, …). It explains state; it never sources task, lifecycle or approval state. | `WorkflowTaskActivity` |
+| 1 Onboarding | `LEAD_INGESTION` | Validated minimum entity/contact details and scoped proposed service. |
+| 1 Onboarding | `PROPOSAL_GENERATION` | Approved exact proposal revision and evidenced email dispatch. |
+| 1 Onboarding | `DUAL_KEY_PENDING` | Current commercial acceptance and current unconditional assigned-Partner risk clearance; no blocking hold. |
+| 1 Onboarding | `ADVANCE_BILLING` | Authorized Engagement Letter/terms evidence, linked fee agreement, full 50% advance paid and allocated, activation command and required onboarding controls. |
+| 2 Planning | `PORTAL_ACTIVE_PLANNING` | Required provisioning evidenced; staffing, accepted TB/mapping, materiality and risk routing current; assigned Partner planning approval. |
+| 3 Fieldwork | `FIELDWORK_EXECUTION` | All applicable procedures assigned to fieldwork are submitted against current versions; exclusions/tailoring authorized. Later review/signing/release procedures are due at their own phase gates. |
+| 4 Manager review | `MANAGERIAL_REVIEW` | Independent review complete; all blocking notes resolved with reviewer acceptance; current SRM; required confirmations cleared under current policy. |
+| 5 Partner sign-off | `PARTNER_APPROVAL` | Partner review/clearance and opinion; required quality review; management-approved statements and verified signed representations; final report signed against the approved snapshot. |
+| 6 Report and delivery | `DELIVERABLE_RELEASE` | Five required items pinned, final fee note valid under the agreed sequence, authorized immutable bundle release and evidenced delivery disposition; portal upload fence committed. |
+| 7 Archive and close | `COMPLIANCE_COUNTDOWN` | Authorized early freeze or due freeze completes successfully. Secondary SharePoint observation is a separate condition, not inferred from the timer. |
+| 7 Archive and close | `ARCHIVED_READ_ONLY` | Terminal for the frozen engagement version; authorized read/export remains. Corrections use explicit linked amendments/reissues, never overwrite the original. |
 
-## Status vocabulary used in docs
+## Revised control catalogue
 
-`CURRENT`, `APPROVED`, `PROPOSED`, `HISTORICAL_SOURCE`, `SUPERSEDED` (document authority); `PASS_LOCAL_SLICE`, `LOCAL_VERIFIED`, `PARTIAL`, `READY_FOR_REVIEW`, `BLOCKED_EXTERNAL`, `OUT_OF_SCOPE` (evidence and gate state, recorded only in `docs/execution/status.json`).
+The 50 control groups below are indexed to the 54 defined acceptance scenarios. A link means the scenario addresses that control group; it does not imply every behavior is tested or implemented. The full scenario text and evidence requirements remain in the complete specification.
+
+| Control | Requirement group | Existing owner | Acceptance scenarios |
+| --- | --- | --- | --- |
+| [ARCH-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#ARCH-01) | Runtime and dependency boundaries | Shared; existing module owner applies | [AC-54](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-54) |
+| [ARCH-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#ARCH-02) | Version baseline and compatibility | Shared; existing module owner applies | [AC-53](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-53) |
+| [ARCH-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#ARCH-03) | Financial ownership and reporting identity | Shared; existing module owner applies | [AC-13](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-13), [AC-29](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-29) |
+| [ARCH-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#ARCH-04) | Relationships and database invariants | Shared; existing module owner applies | [AC-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-05), [AC-19](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-19), [AC-43](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-43) |
+| [ARCH-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#ARCH-05) | Protected command contract | Shared; existing module owner applies | [AC-45](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-45) |
+| [ARCH-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#ARCH-06) | Transactions and recoverable external effects | Shared; existing module owner applies | [AC-14](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-14), [AC-32](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-32), [AC-44](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-44), [AC-45](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-45) |
+| [CTRL-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#CTRL-01) | Approval dependency and invalidation matrix | Shared; existing module owner applies | [AC-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-02), [AC-24](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-24) |
+| [CTRL-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#CTRL-02) | Dashboard and task behavior | Shared; existing module owner applies | [AC-12](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-12), [AC-51](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-51) |
+| [M1-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#M1-01) | Client profiles and communication routing | M1 | [AC-50](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-50) |
+| [M1-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#M1-02) | Quotation and proposal versions | M1 | [AC-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-01), [AC-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-02), [AC-50](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-50) |
+| [M1-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#M1-03) | Independent dual-key acceptance | M1 | [AC-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-01), [AC-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-02) |
+| [M1-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#M1-04) | Engagement Letter and agreed terms | M1 | [AC-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-03), [AC-52](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-52) |
+| [M1-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#M1-05) | Advance and activation handoff | M1 | [AC-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-04), [AC-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-05) |
+| [M1-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#M1-06) | Onboarding outcomes and recovery | M1 | [AC-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-06) |
+| [M2-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-01) | Acceptance continuance and independence | M2 | [AC-07](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-07) |
+| [M2-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-02) | Roles assignment and independent review | M2 | [AC-09](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-09), [AC-22](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-22) |
+| [M2-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-03) | Quality-review applicability | M2 | [AC-10](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-10) |
+| [M2-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-04) | Capacity calendar and deadlines | M2 | [AC-11](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-11) |
+| [M2-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-05) | Workspace and reusable templates | M2 | [AC-12](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-12), [AC-46](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-46) |
+| [M2-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-06) | Materiality and risk policy | M2 | [AC-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-08), [AC-09](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-09) |
+| [M2-07](auditsphere-requirements-specification-complete-practice-management-proposed.md#M2-07) | Planning approval and applicability | M2 | [AC-07](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-07), [AC-29](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-29), [AC-52](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-52) |
+| [M3-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-01) | TB and GL intake with accountable mapping | M3 | [AC-13](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-13), [AC-14](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-14), [AC-15](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-15), [AC-16](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-16) |
+| [M3-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-02) | Adjustments and the financial close bridge | M3 | [AC-17](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-17) |
+| [M3-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-03) | Authorized native client bookkeeping | M3 | [AC-18](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-18), [AC-19](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-19) |
+| [M3-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-04) | Reconciliations and movement schedules | M3 | [AC-20](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-20) |
+| [M3-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-05) | Workprogram evidence and sampling | M3 | [AC-12](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-12), [AC-21](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-21) |
+| [M3-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-06) | PBC and controlled confirmations | M3 | [AC-23](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-23) |
+| [M3-07](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-07) | Review points and completion | M3 | [AC-22](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-22), [AC-24](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-24) |
+| [M3-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#M3-08) | Group consolidation without component mutation | M3 | [AC-36](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-36), [AC-37](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-37), [AC-38](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-38) |
+| [M4-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-01) | Complete financial statement package | M4 | [AC-16](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-16), [AC-26](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-26), [AC-27](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-27), [AC-29](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-29), [AC-38](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-38) |
+| [M4-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-02) | Output formats and version identity | M4 | [AC-28](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-28) |
+| [M4-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-03) | Prerequisites before report signing | M4 | [AC-23](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-23), [AC-25](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-25) |
+| [M4-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-04) | Opinion and report construction | M4 | [AC-26](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-26), [AC-52](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-52) |
+| [M4-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-05) | Signature and seal contract | M4 | [AC-30](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-30) |
+| [M4-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-06) | Financial package fee note and final bundle sequence | M4 | [AC-31](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-31) |
+| [M4-07](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-07) | Release delivery and client freeze | M4 | [AC-32](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-32), [AC-33](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-33) |
+| [M4-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#M4-08) | Archive assembly retention and corrections | M4 | [AC-34](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-34), [AC-35](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-35) |
+| [M5-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#M5-01) | Time budget and rate history | M5 | [AC-11](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-11), [AC-39](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-39) |
+| [M5-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#M5-02) | Financial metric definitions | M5 | [AC-39](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-39), [AC-40](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-40) |
+| [M5-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#M5-03) | Fee agreements invoice lifecycle and allocations | M5 | [AC-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-04), [AC-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-05), [AC-31](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-31), [AC-41](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-41) |
+| [M5-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#M5-04) | Firm ledger and period control | M5 | [AC-42](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-42) |
+| [M5-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#M5-05) | Management reports and reconciliation | M5 | [AC-41](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-41), [AC-42](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-42) |
+| [SEC-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#SEC-01) | Session identity and authorization coverage | Shared; existing module owner applies | [AC-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-06), [AC-10](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-10), [AC-43](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-43), [AC-44](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-44) |
+| [SEC-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#SEC-02) | Microsoft 365 and SharePoint boundaries | Shared; existing module owner applies | [AC-46](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-46) |
+| [SEC-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#SEC-03) | Document privacy and safe handling | Shared; existing module owner applies | [AC-33](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-33), [AC-47](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-47) |
+| [OPS-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#OPS-01) | Deployment and configuration | Shared; existing module owner applies | [AC-49](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-49), [AC-53](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-53) |
+| [OPS-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#OPS-02) | Proposed operating envelope | Shared; existing module owner applies | [AC-48](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-48) |
+| [OPS-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#OPS-03) | Backup restore and durable evidence | Shared; existing module owner applies | [AC-49](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-49) |
+| [OPS-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#OPS-04) | Monitoring and support actions | Shared; existing module owner applies | [AC-48](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-48) |
+| [UX-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#UX-01) | Usability and accessibility | Shared; existing module owner applies | [AC-11](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-11), [AC-47](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-47), [AC-51](auditsphere-requirements-specification-complete-practice-management-proposed.md#AC-51) |
+
+## Original audit-workflow catalogue
+
+All 20 source areas are existing workprogram content. The full 165 procedure texts, identifiers and phase labels are in the linked complete specification. Counts refer to source procedures, not product modules or implementation completion.
+
+| Source ID | Original audit area | Procedures | Owner | Required product evidence |
+| --- | --- | --- | --- | --- |
+| [WF-01](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-01) | Planning & Risk Assessment | 9 | M2, M3 | Accepted source, opening-balance tie-out, risk/assertion response and approved plan. |
+| [WF-02](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-02) | Cash & Bank | 8 | M3 | Bank/ledger/statement/confirmation reconciliation with reviewed reconciling items. |
+| [WF-03](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-03) | Trade Receivables | 9 | M3 | Ageing tie-out, responses/alternatives, subsequent receipts, cut-off and ECL evidence. |
+| [WF-04](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-04) | Inventory | 8 | M3 | Count/valuation/NRV/cut-off workpaper; client inventory listing remains the source. |
+| [WF-05](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-05) | Revenue / Sales | 8 | M3 | Revenue population, risk-based selections, source documents, credit notes and cut-off. |
+| [WF-06](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-06) | Purchases & Trade Payables | 8 | M3 | Payables reconciliation, confirmations, subsequent payments and unrecorded-liability search. |
+| [WF-07](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-07) | Fixed Assets | 9 | M3 | Asset roll-forward, additions/disposals, depreciation, capitalization and impairment review. |
+| [WF-08](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-08) | Expenses | 9 | M3 | Expense reconciliation, analytics, approvals, classifications and cut-off tests. |
+| [WF-09](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-09) | Payroll | 8 | M3 | Payroll testing on client records; contracts, recalculations and payments, without payroll execution. |
+| [WF-10](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-10) | Loans & Borrowings | 9 | M3 | Loan roll-forward, confirmations, terms, interest, classification and covenant evidence. |
+| [WF-11](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-11) | Equity / Share Capital | 7 | M3, M4 | Equity movements, authorized capital/dividends and retained-earnings reconciliation. |
+| [WF-12](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-12) | Related Parties | 7 | M2, M3, M4 | Related-party completeness, balances/transactions and disclosure review. |
+| [WF-13](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-13) | Tax & Statutory Liabilities | 7 | M3, M4 | Tax source computations, liabilities, payments and disclosures; no external tax filing. |
+| [WF-14](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-14) | Journal Entries & Fraud | 8 | M3 | Complete journal population, unusual entries, authorization and fraud/override conclusions. |
+| [WF-15](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-15) | Analytical Review | 8 | M3 | Comparative analytics and ratios with supported explanations and defined denominators. |
+| [WF-16](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-16) | Going Concern | 9 | M3, M4 | Management assessment, forecast/assumption evidence and dated auditor conclusion. |
+| [WF-17](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-17) | Subsequent Events | 8 | M3, M4 | Dated post-year-end coverage and adjustment/disclosure disposition before report. |
+| [WF-18](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-18) | Financial Statements & Disclosures | 9 | M4 | All primary statements, comparatives, notes, policies and mathematical cross-checks. |
+| [WF-19](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-19) | Audit Differences & Adjustments | 7 | M3, M4 | Adjustment disposition, management response, posting evidence and unadjusted differences. |
+| [WF-20](auditsphere-requirements-specification-complete-practice-management-proposed.md#WF-20) | Final Completion & Audit Report | 10 | M3, M4 | Current completion evidence, cleared reviews, representations, approvals and signed output. |
+
+## Evidence classification
+
+| Classification | Required meaning |
+| --- | --- |
+| Implemented and verified | Current behavior demonstrated with identified code/run/environment and relevant workflow evidence. |
+| Partial | Some applicable outcomes exist; remaining limitations and failing/unverified paths are recorded. |
+| Missing | Current inspection establishes the required behavior is absent. |
+| Not applicable | Approved reason tied to the engagement/service/profile, not an unexplained omission. |
+| Unverified | Insufficient current evidence. A plan, file, diagram or previous CI run alone is not implementation verification. |
+
+For each assessment retain requirement ID, source/profile, owner, current commit, relevant code location, run/test, environment/provider, result and reviewer. This review assigns no implementation percentage.
+
+## Adoption decisions
+
+[D01–D10 and their owners](auditsphere-requirements-specification-complete-practice-management-proposed.md#rev-decisions) govern unresolved professional, finance and operational choices. The proposed interpretation does not itself approve a policy change.
