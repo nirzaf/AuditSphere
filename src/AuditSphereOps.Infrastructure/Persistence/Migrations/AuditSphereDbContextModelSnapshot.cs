@@ -4296,8 +4296,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasAlternateKey("FirmId", "ClientId", "Id");
-
                     b.HasIndex("FirmId", "ApprovedByUserId");
 
                     b.HasIndex("FirmId", "CreatedByUserId");
@@ -4308,6 +4306,96 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("client_operational_opening_balances", null, t =>
                         {
                             t.HasCheckConstraint("ck_client_operational_opening_balance", "period_revision >= 1 AND currency ~ '^[A-Z]{3}$' AND length(trim(evidence_reference)) > 0 AND evidence_sha256 ~ '^[a-f0-9]{64}$' AND jsonb_typeof(manifest_json) = 'object' AND manifest_sha256 ~ '^[a-f0-9]{64}$' AND ((approved_by_user_id IS NULL AND approved_at IS NULL) OR (approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL AND approved_by_user_id <> created_by_user_id))");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOperationalOpeningSuccessorProof", b =>
+                {
+                    b.Property<Guid>("OpeningId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("opening_id");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("PriorPeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("prior_period_id");
+
+                    b.Property<long>("PriorPeriodRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("prior_period_revision");
+
+                    b.Property<string>("ProofHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("proof_hash");
+
+                    b.Property<string>("ProofJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("proof_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<Guid>("SourceDatasetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_dataset_id");
+
+                    b.Property<string>("SourceIdentityHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_identity_hash");
+
+                    b.HasKey("OpeningId");
+
+                    b.HasIndex("FirmId", "ClientId", "OpeningId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "PriorPeriodId")
+                        .HasDatabaseName("IX_client_operational_opening_successor_proofs_firm_id_client~1");
+
+                    b.HasIndex("FirmId", "ActorId", "ActorEpoch", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_native_opening_successor_request");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SourceDatasetId")
+                        .HasDatabaseName("IX_client_operational_opening_successor_proofs_firm_id_client~2");
+
+                    b.ToTable("client_operational_opening_successor_proofs", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_native_opening_successor_proof", "actor_epoch >= 1 AND prior_period_revision >= 1\nAND request_id <> '00000000-0000-0000-0000-000000000000'::uuid\nAND source_identity_hash ~ '^[0-9a-f]{64}$'\nAND proof_hash ~ '^[0-9a-f]{64}$' AND request_hash ~ '^[0-9a-f]{64}$'\nAND octet_length(proof_json) BETWEEN 2 AND 16777216\nAND proof_hash = encode(sha256(convert_to(proof_json, 'UTF8')), 'hex')\nAND jsonb_typeof(proof_json::jsonb) = 'object'\nAND proof_json::jsonb @> jsonb_build_object(\n  'Version', 'native-opening-successor.v1', 'OpeningId', opening_id,\n  'FirmId', firm_id, 'ClientId', client_id, 'EngagementId', engagement_id,\n  'PriorPeriodId', prior_period_id, 'PriorPeriodRevision', prior_period_revision,\n  'SourceDatasetId', source_dataset_id, 'SourceIdentityHash', source_identity_hash)\nAND COALESCE((proof_json::jsonb->>'OpeningManifestHash') ~ '^[0-9a-f]{64}$', false)\nAND proof_json::jsonb ? 'OpeningManifestHash'");
                         });
                 });
 
@@ -32725,6 +32813,37 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "PeriodId")
                         .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ClientOperationalOpeningSuccessorProof", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientOperationalOpeningBalance", null)
+                        .WithOne()
+                        .HasForeignKey("AuditSphereOps.Domain.Accounting.ClientOperationalOpeningSuccessorProof", "FirmId", "ClientId", "OpeningId")
+                        .HasPrincipalKey("AuditSphereOps.Domain.Accounting.ClientOperationalOpeningBalance", "FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "PriorPeriodId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.TrialBalanceDataset", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "SourceDatasetId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

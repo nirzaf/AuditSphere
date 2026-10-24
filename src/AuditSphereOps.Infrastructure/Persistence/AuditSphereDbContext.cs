@@ -365,6 +365,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<ClientOperationalPostingReceipt> ClientOperationalPostingReceipts => Set<ClientOperationalPostingReceipt>();
   public DbSet<ClientOperationalJournalSnapshot> ClientOperationalJournalSnapshots => Set<ClientOperationalJournalSnapshot>();
   public DbSet<ClientOperationalOpeningBalance> ClientOperationalOpeningBalances => Set<ClientOperationalOpeningBalance>();
+  public DbSet<ClientOperationalOpeningSuccessorProof> ClientOperationalOpeningSuccessorProofs => Set<ClientOperationalOpeningSuccessorProof>();
   public DbSet<ClientOperationalJournal> ClientOperationalJournals => Set<ClientOperationalJournal>();
   public DbSet<ClientOperationalJournalLine> ClientOperationalJournalLines => Set<ClientOperationalJournalLine>();
   public DbSet<ClientOperationalJournalDecision> ClientOperationalJournalDecisions => Set<ClientOperationalJournalDecision>();
@@ -648,6 +649,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureNativeGeneralLedgerSources(b);
     ConfigureClientAccounting(b);
     ConfigureClientOperationalLedger(b);
+    ConfigureClientOpeningSuccessors(b);
     ConfigureClientCounterparties(b);
     ConfigureClientSalesInvoices(b);
     ConfigureClientSalesInvoiceWorkflow(b);

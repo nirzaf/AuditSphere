@@ -24820,6 +24820,16 @@
       "sourceBoundary": "Bank08:21bundle index e6e0c23fbf560e77e3dae12b94acbe2f48d3b1979681e549ede7051a3c65bf14 matched before builtin. Node26.8.2 vs pinned26.8.1; exactpin CI pending.",
       "limits": "Read-only inspection, no reconciliation review/creation UI or typed confirmation source adapter. Synthetic seeded GL is not verified ingestion/provider acceptance. No human AT/native zoom.",
       "evidence": ".local/autonomous/evidence/bank-reconciliation-inspection-20261024"
+    },
+    "nativeSuccessorOpening20261024": {
+      "scope": "Partial Task11: source-bound zeroP&L/empty historical subledger successor, not full continuity or public activation.",
+      "migration": "20261024082359_ClientOpeningSuccessorProof; additive immutable supplement preserves original v1. Retained Down refuses; empty Down/Up preserves legacy bytes.",
+      "checks": "NSFApp meaningfulRED3\u2192GREEN3; directSQL genuineFacts/wrongOpeningRED1 with missingFactsPASS\u2192GREEN5 incl2gen/retention/DownUp; existing2gen+descendantpackagePASS1; deterministic ancestorReopen/sealPASS1; Angular7/lint/buildPASS; APIRelease/EF/OpenAPIdriftPASS; named successorE2EPASS1 + builtinheld repeatsPASS2; unchangedmanualE2EPASS1. No full local suites.",
+      "builtin": "Tab20capture09:39:19.998Z before09:39:34.916544Z expiry; after blocklayout correction tab21capture09:42:23.857Z before09:42:40.498712Z expiry. Keyboard previewH3,135debit/135credit, actual source/manifest/population andzeroAR/AP, uncheckedassent/createdisabled. Tabsclosed/fixturesreleased; originalEntra1preserved. No builtinmutation or humanAT/nativezoom claim.",
+      "provenance": "Private evidence native-successor-opening-20261024; native-successor-guards-20261024; successor-opening-api-ui-20261024. Owned fixtures use synthetic mandate/ACTIVE context, actual capture/worker-validation/sourceacceptance/close/independentreview commands. Package validations/text artifacts are scaffolds, not rendered report approval. Final catalogue read-auth correction rebuilt/reverified via named API/browser journey; built-in visual capture precedes that backend-only guard correction.",
+      "limits": "No nonempty-item carryforward/automatic P&L close, chart/currency conversion, public period activation, live migration/deployment, fullproduct/professional/provider acceptance. Race checks observed legal ordering, not every isolation/ordering. Approval requestId is not a durable retained receipt. Initial selector/timing test failures retained; no product fix claimed from those.",
+      "publication": "Prepared coherent code slice; exact new commit/CI to be recorded after push.",
+      "catalogFinalAuthority": "ActualRED2 after epoch/grant change during finalreadiness\u2192GREEN5 including originalguardcohort; held/frozen catalogue historyreads and disabledprepare/approve flags2PASS. FinalcurrentAPI rebuilt named successorjourney1PASS. Initialreview retained."
     }
   },
   "archivedTargetedVerification": {

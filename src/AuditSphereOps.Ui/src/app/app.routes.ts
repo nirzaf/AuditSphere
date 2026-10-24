@@ -62,6 +62,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/finance/end-of-service').then(m => m.EndOfServiceProvision) },
   { path: 'app/practice/invoices/:id', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Invoice · AuditSphere',
     loadComponent: () => import('./features/finance/invoice').then(m => m.InvoiceDetail) },
+  { path: 'app/accounting/clients/:clientId/operational-opening-balances', canActivate: [staffGuard], title: 'Native successor opening · AuditSphere',
+    loadComponent: () => import('./features/accounting/operational-opening-balances').then(m => m.NativeSuccessorOpeningPage) },
   { path: 'app/accounting/clients/:clientId/native-sources/new', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Capture native trial balance source · AuditSphere',
     loadComponent: () => import('./features/accounting/native-source').then(m => m.NativeSourcePage) },
   { path: 'app/accounting/clients/:clientId/native-sources/:datasetId/general-ledger', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Capture native general ledger source · AuditSphere',

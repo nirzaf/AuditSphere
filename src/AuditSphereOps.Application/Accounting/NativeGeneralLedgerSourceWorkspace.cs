@@ -58,6 +58,12 @@ public static partial class NativeGeneralLedgerSourceWorkspace
     var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.TrialBalanceDatasetId &&
       x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.EngagementId == request.EngagementId, ct);
     if (dataset?.PeriodId is not { } periodId) return Fail<NativeGeneralLedgerSourceView>(ErrorCodes.ScopeDenied, "Access denied.");
+    if (await db.ClientOperationalOpeningSuccessorProofs.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
+      db.ClientOperationalOpeningBalances.Any(o => o.Id == x.OpeningId && o.PeriodId == periodId), ct))
+    {
+      var successorFence = await ClientOperationalOpeningBalanceWorkspace.LockSuccessorPeriodsAsync(db, actor.FirmId, request.ClientId, periodId, ct);
+      if (!successorFence.Succeeded) return Fail<NativeGeneralLedgerSourceView>(successorFence.ErrorCode!, successorFence.Message!);
+    }
     await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={request.ClientId} AND id={periodId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     var captured = await CaptureAsync(db, actor, request, ct);
     if (!captured.Succeeded) return Fail<NativeGeneralLedgerSourceView>(captured.ErrorCode!, captured.Message!);

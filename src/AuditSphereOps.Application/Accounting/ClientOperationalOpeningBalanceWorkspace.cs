@@ -26,7 +26,7 @@ public sealed record ClientOperationalOpeningBalanceView(Guid Id, Guid ClientId,
   IReadOnlyList<ClientOperationalOpeningBalanceLine> Lines, IReadOnlyList<ClientOperationalOpeningBalanceItem> OpenItems);
 
 /// <summary>Creates and independently approves immutable native-book opening-balance snapshots.</summary>
-public static class ClientOperationalOpeningBalanceWorkspace
+public static partial class ClientOperationalOpeningBalanceWorkspace
 {
   private static readonly string[] Preparers = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
   private static readonly string[] Reviewers = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
@@ -179,6 +179,8 @@ public static class ClientOperationalOpeningBalanceWorkspace
       $"SELECT * FROM client_operational_opening_balances WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={openingId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (origin is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (await db.ClientOperationalOpeningSuccessorProofs.AnyAsync(x => x.OpeningId == openingId, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Review and assent to the exact successor proof through successor approval.");
     var auth = await Authorize(db, actor, clientId, Reviewers, ct);
     if (!auth.Succeeded) return auth;
     if (origin.ApprovedByUserId.HasValue || origin.CreatedByUserId == actor.UserId)

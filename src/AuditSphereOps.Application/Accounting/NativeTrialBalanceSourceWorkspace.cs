@@ -91,6 +91,12 @@ public static partial class NativeTrialBalanceSourceWorkspace
       await tx.DisposeAsync();
       return await ViewAsync(db, actor, existing.DatasetId, ct);
     }
+    if (await db.ClientOperationalOpeningSuccessorProofs.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
+      db.ClientOperationalOpeningBalances.Any(o => o.Id == x.OpeningId && o.PeriodId == request.PeriodId), ct))
+    {
+      var successorFence = await ClientOperationalOpeningBalanceWorkspace.LockSuccessorPeriodsAsync(db, actor.FirmId, request.ClientId, request.PeriodId, ct);
+      if (!successorFence.Succeeded) return Fail<NativeTrialBalanceSourceView>(successorFence.ErrorCode!, successorFence.Message!);
+    }
     await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={request.ClientId} AND id={request.PeriodId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     var capture = await CaptureAsync(db, actor, request, ct);
     if (!capture.Succeeded) return Fail<NativeTrialBalanceSourceView>(capture.ErrorCode!, capture.Message!);

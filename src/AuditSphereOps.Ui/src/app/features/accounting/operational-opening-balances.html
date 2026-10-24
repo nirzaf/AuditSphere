@@ -1,0 +1,149 @@
+<section aria-labelledby="native-openings-heading">
+    <h4 id="native-openings-heading">Reviewed client opening balance</h4>
+    <p>Choose an open period to enter its opening position. The source reference and SHA-256 identify your retained evidence; evidence files are not uploaded here. Account codes are checked against the approved client chart by the server.</p>
+    <label for="opening-period">Opening period</label>
+    <select [disabled]="busy() || successorBusy()" id="opening-period" [ngModel]="periodId" (ngModelChange)="selectPeriod($event)">
+      <option value="">Choose period</option>@for (period of periods(); track period.id) { <option [value]="period.id">{{ period.code }} · {{ period.start }} – {{ period.end }} · {{ period.currency }} · {{ period.status }}</option> }
+    </select>
+    @if (periodId) {
+      <p>Choose manual cutover entry or an exact accepted native predecessor for an existing successor period. This workflow does not create or activate a period.</p>
+      <button matButton type="button" [disabled]="busy() || successorBusy() || successorUncertain()" (click)="setSuccessorMode(false)">Manual opening entry</button>
+      <button matButton type="button" [disabled]="busy() || successorBusy() || successorUncertain()" (click)="setSuccessorMode(true)">Native predecessor opening</button>
+      @if (successorLoading()) { <p role="status">Loading scoped successor source and retained proof context…</p> }
+      @if (successorMessage()) { <p role="status">{{ successorMessage() }}</p> }
+      <button matButton type="button" [disabled]="busy() || successorBusy() || successorLoading()" (click)="loadSuccessorCatalog()">Refresh successor context and recover retained outcome</button>
+    }
+    @if (error()) { <p role="alert">{{ error() }}</p> }
+    @if (periodId && !opening() && !loading() && readSucceeded() && !successorMode()) {
+      <form #openingForm="ngForm" (ngSubmit)="openingForm.valid && create()">
+        <fieldset [disabled]="busy() || uncertain() || !manualReady() || !selected() || selected()?.status === 'CLOSED'"><legend>Opening position · {{ selected()?.start }} · {{ selected()?.currency }}</legend>
+          <p>Opening rows must balance and use active balance-sheet posting accounts. No balancing plug is generated.</p>
+          <label>Source evidence reference <input name="openingEvidenceReference" [(ngModel)]="evidenceReference" maxlength="1000" required (ngModelChange)="reviewed.set(false)" /></label>
+          <label>Source evidence SHA-256 <input name="openingEvidenceHash" [(ngModel)]="evidenceSha256" minlength="64" maxlength="64" pattern="[A-Fa-f0-9]{64}" required (ngModelChange)="reviewed.set(false)" /></label>
+          <div class="table-scroll"><table><caption>Opening balance lines</caption><thead><tr><th>Account code</th><th>Debit</th><th>Credit</th><th>Action</th></tr></thead>
+            <tbody>@for (line of lines(); track $index; let i = $index) { <tr><td><input [name]="'openingAccount' + i" [attr.aria-label]="'Opening account code row ' + (i + 1)" [(ngModel)]="line.accountCode" maxlength="100" required (ngModelChange)="edited()" /></td>
+              <td><input [name]="'openingDebit' + i" [attr.aria-label]="'Opening debit row ' + (i + 1)" [(ngModel)]="line.debit" inputmode="decimal" required pattern="(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{1,6})?" (ngModelChange)="edited()" /></td>
+              <td><input [name]="'openingCredit' + i" [attr.aria-label]="'Opening credit row ' + (i + 1)" [(ngModel)]="line.credit" inputmode="decimal" required pattern="(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{1,6})?" (ngModelChange)="edited()" /></td>
+              <td><button matButton type="button" [disabled]="busy() || lines().length <= 2" (click)="removeLine(i)">Remove line</button></td></tr> }</tbody>
+            <tfoot><tr><th>Total</th><td>{{ total('debit') }}</td><td>{{ total('credit') }}</td><td></td></tr></tfoot>
+          </table></div>
+          <button matButton type="button" [disabled]="busy() || lines().length >= 5000" (click)="addLine()">Add account line</button>
+          <fieldset><legend>Optional invoice-level AR/AP detail</legend>
+            <p>When supplied, each schedule must exactly reconcile to its approved AR/AP control balance. Without supporting detail, ageing and settlement remain explicitly aggregate-only.</p>
+            @for (item of openItems(); track $index; let i = $index) {
+              <div>
+                <label>Control role <select [name]="'openingRole' + i" [(ngModel)]="item.role" (ngModelChange)="edited()"><option value="AR">Customer receivable</option><option value="AP">Supplier payable</option></select></label>
+                <label>Party <select [name]="'openingParty' + i" [(ngModel)]="item.counterpartyId" required (ngModelChange)="edited()"><option value="">Choose party</option>@for (party of counterparties(); track party.id) { @if (party.role === 'BOTH' || party.role === (item.role === 'AR' ? 'CUSTOMER' : 'SUPPLIER')) { <option [value]="party.id">{{ party.displayName }}</option> } }</select></label>
+                <label>Invoice reference <input [name]="'openingReference' + i" [(ngModel)]="item.reference" maxlength="200" required (ngModelChange)="edited()" /></label>
+                <label>Due date <input type="date" [name]="'openingDue' + i" [(ngModel)]="item.dueDate" (ngModelChange)="edited()" /></label>
+                <label>Approved control account code <input [name]="'openingControl' + i" [(ngModel)]="item.accountCode" maxlength="100" required (ngModelChange)="edited()" /></label>
+                <label>Open amount <input [name]="'openingAmount' + i" [(ngModel)]="item.amount" inputmode="decimal" pattern="(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{1,6})?" required (ngModelChange)="edited()" /></label>
+                <button matButton type="button" [disabled]="busy()" (click)="removeOpenItem(i)">Remove opening item</button>
+              </div>
+            }
+            <button matButton type="button" [disabled]="busy() || openItems().length >= 5000" (click)="addOpenItem()">Add opening invoice</button>
+            @if (counterparties().length < partyTotal()) { <button matButton type="button" [disabled]="busy()" (click)="loadCounterparties(partyPage() + 1)">Load more client parties</button> }
+          </fieldset>
+          <label><input name="openingReviewed" type="checkbox" [ngModel]="reviewed()" (ngModelChange)="reviewed.set($event)" /> I reviewed the client, cutover date, source reference, account mapping, and exact opening balances.</label>
+          <button matButton type="button" [disabled]="openingForm.invalid || busy() || uncertain() || !reviewed() || !balanced() || selected()?.status === 'CLOSED'" (click)="openingForm.valid && create()">Save opening snapshot for independent review</button>
+        </fieldset>
+      </form>
+      @if (selected()?.status === 'CLOSED') { <p role="note">This period is closed; a new opening snapshot cannot be created.</p> }
+    }
+    @if (opening(); as snapshot) {
+    <section aria-label="Immutable opening snapshot">
+        <p>{{ snapshot.asOfDate }} · {{ snapshot.currency }} · period revision {{ snapshot.periodRevision }} · chart {{ snapshot.chartVersionId }}</p>
+        <p>Source: {{ snapshot.evidenceReference }} · SHA-256 {{ snapshot.evidenceSha256 }}</p>
+        <p>Manifest SHA-256 {{ snapshot.manifestSha256 }} · prepared by {{ snapshot.createdByUserId }} · {{ snapshot.createdAt }}</p>
+        <div class="table-scroll"><table><caption>Retained opening balance source</caption><thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
+          <tbody>@for (line of (successorView() ? snapshot.lines.slice(successorLinePage() * 100, successorLinePage() * 100 + 100) : snapshot.lines); track line.accountCode) { <tr><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr> }</tbody></table></div>
+        @if (successorView()) { <mat-paginator aria-label="Retained successor opening account pages" [length]="snapshot.lines.length" [pageSize]="100" [pageSizeOptions]="[100]" [pageIndex]="successorLinePage()" (page)="successorLinePage.set($event.pageIndex)" /> }
+        @if (snapshot.openItems.length) { <div class="table-scroll"><table><caption>Reviewed opening AR/AP invoice detail</caption><thead><tr><th>Role</th><th>Party</th><th>Invoice</th><th>Due</th><th>Control</th><th>Open amount</th></tr></thead><tbody>@for (item of snapshot.openItems; track item.id) { <tr><td>{{ item.role }}</td><td>{{ item.counterpartyName }}</td><td>{{ item.reference }}</td><td>{{ item.dueDate ?? '—' }}</td><td>{{ item.accountCode }}</td><td>{{ item.amount }}</td></tr> }</tbody></table></div> }
+        @if (snapshot.approvedByUserId) { <p role="status">Independently approved by {{ snapshot.approvedByUserId }} · {{ snapshot.approvedAt }}. This snapshot is immutable.</p> }
+        @else {
+          <p role="status">Awaiting independent review. The preparer cannot approve this snapshot.</p>
+          @if (manualReady() && successorCatalog()?.origin === 'MANUAL' && snapshot.createdByUserId !== userId() && selected()?.status !== 'CLOSED' && selected()?.revision === snapshot.periodRevision) {
+            <label><input type="checkbox" [ngModel]="approvalReviewed()" (ngModelChange)="approvalReviewed.set($event)" /> I reviewed this exact opening manifest, evidence identity, period revision, and account lines.</label>
+            <button matButton type="button" [disabled]="busy() || uncertain() || !approvalReviewed()" (click)="approve(snapshot)">Approve opening snapshot</button>
+          }
+        }
+      </section>
+    }
+    @if (successorMode()) {
+      <section aria-labelledby="native-successor-heading">
+        <h3 #successorHeading id="native-successor-heading" tabindex="-1">Exact native successor opening</h3>
+        <p>Only server-supported closed, independently accepted native sources are eligible. Unsupported source facts are shown as blockers; no balances, account treatment or period activation are inferred.</p>
+        @if (successorCatalog(); as catalog) {
+          <p>Target revision {{ catalog.periodRevision }} · actual predecessor {{ catalog.priorPeriodCode ?? 'Not linked' }} · {{ catalog.priorPeriodStatus ?? 'Unavailable' }} · revision {{ catalog.priorPeriodRevision ?? 'Unavailable' }}</p>
+          @if (catalog.blocker) { <p role="status">{{ catalog.blocker }}</p> }
+          @if (!opening() && !successorPending()) {
+            <fieldset [disabled]="busy() || successorBusy() || successorLoading() || successorUncertain() || !catalog.canPrepare">
+              <legend>Explicit predecessor source selection</legend>
+              <label>Accepted native trial balance source
+                <select [ngModel]="successorSourceId" (ngModelChange)="successorSourceId = $event; successorEdited()">
+                  <option value="">Choose exact retained source</option>
+                  @for (source of catalog.sources; track source.datasetId) { <option [value]="source.datasetId">{{ source.legalEntityKey }} · {{ source.datasetId }} · {{ source.validationStatus }} · {{ source.eligible ? 'Eligible for preview' : 'Blocked' }}</option> }
+                </select>
+              </label>
+              @if (selectedSuccessor(); as source) {
+                <p>Source identity <code>{{ source.sourceIdentityHash }}</code> · engagement <code>{{ source.engagementId }}</code></p>
+                @if (source.blocker) { <p role="status">{{ source.blocker }}</p> }
+                <p><a [routerLink]="['/app/accounting/clients', clientId(), 'native-sources', source.datasetId]">Inspect exact retained native source</a></p>
+              }
+              <p><label>Successor evidence reference <input [ngModel]="successorEvidence" (ngModelChange)="successorEvidence = $event; successorEdited()" maxlength="1000" /></label></p>
+              <button matButton type="button" [disabled]="!selectedSuccessor()?.eligible || !successorEvidence.trim()" (click)="previewSuccessor($event.currentTarget)">Preview exact successor opening</button>
+            </fieldset>
+            <nav aria-label="Native predecessor source pages">
+              <button matButton type="button" [disabled]="successorLoading() || successorBusy() || catalog.page === 0" (click)="loadSuccessorCatalog(catalog.page - 1)">Previous native source page</button>
+              <span>{{ catalog.total }} retained sources · page {{ catalog.page + 1 }}</span>
+              <button matButton type="button" [disabled]="successorLoading() || successorBusy() || (catalog.page + 1) * catalog.pageSize >= catalog.total" (click)="loadSuccessorCatalog(catalog.page + 1)">Next native source page</button>
+            </nav>
+          }
+        }
+        @if (successorPreview(); as preview) {
+          <p>As of {{ preview.asOfDate }} · {{ preview.currency }} · {{ preview.basis }} · {{ preview.bookScope }}</p>
+          <p>Source identity <code>{{ preview.sourceIdentityHash }}</code><br />Prospective opening manifest <code>{{ preview.prospectiveOpeningManifestHash }}</code><br />Source population <code>{{ preview.populationHash }}</code></p>
+          <p>{{ preview.lines.length }} exact account rows available across the pages below. Review the retained population before giving assent.</p>
+          <div class="table-scroll"><table><caption>Exact successor opening preview</caption><thead><tr><th scope="col">Account</th><th scope="col">Debit</th><th scope="col">Credit</th></tr></thead>
+            <tbody>@for (line of preview.lines.slice(successorLinePage() * 100, successorLinePage() * 100 + 100); track line.accountId) {
+              <tr><th scope="row">{{ line.accountCode }} · {{ line.accountName }}</th><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr>
+            }</tbody></table></div>
+          <mat-paginator aria-label="Successor preview account pages" [length]="preview.lines.length" [pageSize]="100" [pageSizeOptions]="[100]" [pageIndex]="successorLinePage()" (page)="successorLinePage.set($event.pageIndex)" />
+          <div class="table-scroll"><table><caption>Retained approved control identities</caption><thead><tr><th scope="col">Role</th><th scope="col">Account / configuration / decision</th><th scope="col">Closing debit / credit</th></tr></thead>
+            <tbody>@for (control of preview.controls; track control.role) { <tr><th scope="row">{{ control.role }}</th><td>{{ control.accountId }} / {{ control.configurationId }} / {{ control.decisionId }}</td><td>{{ control.closingDebit }} / {{ control.closingCredit }}</td></tr> }</tbody>
+          </table></div>
+          @for (blocker of preview.blockers; track $index) { <p role="status">{{ blocker }}</p> }
+          <label><input type="checkbox" [disabled]="successorBusy()" [ngModel]="successorReviewed()" (ngModelChange)="successorReviewed.set($event)" /> I reviewed the exact source, target and predecessor revisions, all opening rows, control identities and prospective manifest.</label>
+          <button matButton type="button" [disabled]="successorBusy() || !preview.ready || !successorReviewed() || successorUncertain()" (click)="createSuccessor()">Create successor opening for independent review</button>
+        }
+        @if (successorView(); as view) {
+          <p role="status">{{ view.isCurrent ? 'Retained successor proof matches current source checks' : 'Retained successor proof is not current' }} · {{ view.currentnessBlocker ?? '' }}</p>
+          <p>Original predecessor <code>{{ view.priorPeriodId }}</code> · source dataset <code>{{ view.sourceDatasetId }}</code></p>
+          <a [routerLink]="['/app/accounting/clients', clientId(), 'native-sources', view.sourceDatasetId]">Inspect retained predecessor trial balance</a>
+          <p>Exact source identity <code>{{ view.sourceIdentityHash }}</code><br />Retained successor proof <code>{{ view.proofHash }}</code><br />Opening manifest <code>{{ view.opening.manifestSha256 }}</code><br />Population <code>{{ view.populationHash }}</code></p>
+          @for (control of view.controls; track control.role) { <p>{{ control.role }} control <code>{{ control.accountId }}</code> · configuration <code>{{ control.configurationId }}</code> · decision <code>{{ control.decisionId }}</code> · closing {{ control.closingDebit }} / {{ control.closingCredit }}</p> }
+          @if (successorCatalog()?.canApprove && view.isCurrent && !view.opening.approvedByUserId) {
+            <label><input type="checkbox" [disabled]="successorBusy()" [ngModel]="successorApprovalReviewed()" (ngModelChange)="successorApprovalReviewed.set($event)" /> I independently reviewed this exact successor proof and opening manifest, original source and account population.</label>
+            <button matButton type="button" [disabled]="successorBusy() || !successorApprovalReviewed()" (click)="approveSuccessor()">Approve exact successor proof and opening</button>
+          }
+        }
+        @if (successorPending(); as pending) {
+          <p role="alert">Original {{ pending.action === 'CREATE' ? 'creation' : 'approval' }} request retained. Refresh reads its outcome; no automatic retry occurs.</p>
+          <p>Request <code>{{ pending.request.requestId }}</code> · exact manifest <code>{{ pending.manifestHash }}</code></p>
+          @if (pending.action === 'CREATE') {
+            <p>Original target <code>{{ pending.request.periodId }}</code> · revision {{ pending.request.expectedPeriodRevision }}<br />
+              Original predecessor <code>{{ pending.request.priorPeriodId }}</code> · revision {{ pending.request.expectedPriorPeriodRevision }}<br />
+              Source dataset <code>{{ pending.request.nativeTrialBalanceDatasetId }}</code> · engagement <code>{{ pending.request.engagementId }}</code><br />
+              Exact source identity <code>{{ pending.request.expectedSourceIdentityHash }}</code><br />Evidence reference {{ pending.request.evidenceReference }}</p>
+            <a [routerLink]="['/app/accounting/clients', clientId(), 'native-sources', pending.request.nativeTrialBalanceDatasetId]">Inspect the original recovery source</a>
+            <button matButton type="button" [disabled]="successorBusy() || successorLoading() || !successorCatalog()" (click)="validateSuccessorRecovery()">Validate original successor recovery preview</button>
+            <p>Recovery uses the original reviewed intent; it does not approve changed balances or create a new request identity.</p>
+            <label><input type="checkbox" [disabled]="successorBusy()" [ngModel]="successorReviewed()" (ngModelChange)="successorReviewed.set($event)" /> I reviewed the retained original intent and want to recover that same successor creation request.</label>
+            <button matButton type="button" [disabled]="successorBusy() || !successorRecoveryReady() || !successorReviewed()" (click)="createSuccessor()">Recover original successor creation</button>
+          }
+        }
+      </section>
+    }
+    @if (uncertain()) { <p role="alert">The last action outcome is unknown. Refresh the selected period before taking another action.</p> }
+    <button matButton type="button" [disabled]="!periodId || busy() || successorBusy()" (click)="load()">Refresh opening snapshot</button>
+  </section>

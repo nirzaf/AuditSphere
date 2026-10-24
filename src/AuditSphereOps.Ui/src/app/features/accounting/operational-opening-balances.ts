@@ -1,6 +1,13 @@
-import { Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
+import { afterNextRender, Component, DestroyRef, effect, ElementRef, inject, Injector, input, signal, untracked, viewChild } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { MatPaginatorModule } from '@angular/material/paginator';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { Api, routeGuid } from '../../core/api';
+import { SHARED } from '../../core/ui';
+import { decodeNativeContext } from './native-source-contracts';
+import { TabDrafts } from '../../core/tab-drafts';
+import { arr, bool, guid, nat, nullable, obj, oneOf, sha256, text } from '../../core/decode';
 import { MatButtonModule } from '@angular/material/button';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
@@ -64,74 +71,101 @@ export function decodeOpeningBalance(value: unknown, clientId: string, period: P
   return value as Opening;
 }
 
+interface SuccessorRequest {
+  requestId: string; clientId: string; engagementId: string; periodId: string; expectedPeriodRevision: string;
+  priorPeriodId: string; expectedPriorPeriodRevision: string; nativeTrialBalanceDatasetId: string;
+  expectedSourceIdentityHash: string; evidenceReference: string; reviewBasis?: string; reviewed: boolean;
+}
+interface SuccessorApproval {
+  requestId: string; clientId: string; engagementId: string; openingId: string; expectedPeriodRevision: string;
+  expectedOpeningManifestHash: string; expectedSuccessorProofHash: string; reviewed: boolean;
+}
+type SuccessorPending = { action: 'CREATE'; request: SuccessorRequest; manifestHash: string } |
+  { action: 'APPROVE'; request: SuccessorApproval; manifestHash: string };
+const exactRevision = (v: unknown, path: string): string => {
+  if (typeof v !== 'string' || !/^[1-9][0-9]{0,18}$/.test(v) || BigInt(v) > 9223372036854775807n)
+    throw new Error(`${path}: invalid exact revision`);
+  return v;
+};
+const successorLine = obj({ accountId: guid, accountCode: text, accountName: text,
+  debit: (v: unknown) => { if (!validAmount(v)) throw new Error('Invalid exact debit'); return v; },
+  credit: (v: unknown) => { if (!validAmount(v)) throw new Error('Invalid exact credit'); return v; } });
+const successorControl = obj({ role: oneOf('AR', 'AP'), configurationId: guid, decisionId: guid, accountId: guid,
+  closingDebit: (v: unknown) => { if (!validAmount(v)) throw new Error('Invalid exact control debit'); return v; },
+  closingCredit: (v: unknown) => { if (!validAmount(v)) throw new Error('Invalid exact control credit'); return v; } });
+export const decodeSuccessorCatalog = obj({ clientId: guid, periodId: guid, periodRevision: exactRevision,
+  priorPeriodId: nullable(guid), priorPeriodRevision: nullable(exactRevision), priorPeriodCode: nullable(text), priorPeriodStatus: nullable(text),
+  origin: oneOf('NONE', 'MANUAL', 'NATIVE_SUCCESSOR'), existingOpeningId: nullable(guid),
+  retainedSuccessor: nullable(obj({ openingId: guid, engagementId: guid, requestId: guid })),
+  canPrepare: bool, canApprove: bool, page: nat, pageSize: nat, total: nat,
+  sources: arr(obj({ datasetId: guid, engagementId: guid, legalEntityKey: text, sourceIdentityHash: sha256,
+    validationStatus: text, eligible: bool, blocker: nullable(text) }), 5), blocker: nullable(text) });
+export const decodeSuccessorPreview = obj({ reviewBasis: sha256, sourceIdentityHash: sha256, prospectiveOpeningManifestHash: sha256,
+  periodId: guid, periodRevision: exactRevision, priorPeriodId: guid, priorPeriodRevision: exactRevision, asOfDate: text,
+  currency: text, basis: text, bookScope: oneOf('PERIOD_LEDGER_NO_BOOK'), lines: arr(successorLine, 5000),
+  controls: arr(successorControl, 2), populationHash: sha256, ready: bool, blockers: arr(text, 100) });
+type SuccessorCatalog = ReturnType<typeof decodeSuccessorCatalog>;
+type SuccessorPreview = ReturnType<typeof decodeSuccessorPreview>;
+interface SuccessorView { opening: Opening; sourceIdentityHash: string; proofHash: string; proofJson: string;
+  isCurrent: boolean; currentnessBlocker: string | null; sourceDatasetId: string; priorPeriodId: string;
+  engagementId: string; populationHash: string; controls: ReturnType<typeof successorControl>[] }
+export function decodeSuccessorView(raw: unknown, clientId: string, period: Period): SuccessorView {
+  const v = object(raw), opening = decodeOpeningBalance(v['opening'], clientId, period);
+  if (!opening || typeof v['sourceIdentityHash'] !== 'string' || !hashPattern.test(v['sourceIdentityHash']) ||
+      opening.evidenceSha256 !== v['sourceIdentityHash'] || typeof v['proofHash'] !== 'string' || !hashPattern.test(v['proofHash']) ||
+      typeof v['proofJson'] !== 'string' || v['proofJson'].length > 10_000_000 || typeof v['isCurrent'] !== 'boolean' ||
+      !(v['currentnessBlocker'] === null || typeof v['currentnessBlocker'] === 'string')) throw new Error('Invalid retained successor');
+  const proof = object(JSON.parse(v['proofJson'])), facts = object(proof['Facts']);
+  if (proof['Version'] !== 'native-opening-successor.v1' || proof['ClientId'] !== clientId || proof['OpeningId'] !== opening.id ||
+      proof['OpeningManifestHash'] !== opening.manifestSha256 || proof['SourceIdentityHash'] !== v['sourceIdentityHash'] ||
+      facts['TargetPeriodId'] !== opening.periodId || typeof proof['EngagementId'] !== 'string' || !guidPattern.test(proof['EngagementId']) ||
+      typeof proof['PriorPeriodId'] !== 'string' || !guidPattern.test(proof['PriorPeriodId']) ||
+      typeof proof['SourceDatasetId'] !== 'string' || !guidPattern.test(proof['SourceDatasetId']) ||
+      typeof facts['PopulationHash'] !== 'string' || !hashPattern.test(facts['PopulationHash']) || !Array.isArray(facts['Controls']) || facts['Controls'].length > 2)
+    throw new Error('Retained successor proof scope mismatch');
+  const controls = facts['Controls'].map(raw => {
+    const c = object(raw);
+    return successorControl({ role: c['Role'], configurationId: c['ConfigurationId'], decisionId: c['DecisionId'], accountId: c['AccountId'],
+      closingDebit: c['ClosingDebit'], closingCredit: c['ClosingCredit'] }, 'proof.controls');
+  });
+  return { opening, sourceIdentityHash: v['sourceIdentityHash'], proofHash: v['proofHash'], proofJson: v['proofJson'],
+    isCurrent: v['isCurrent'], currentnessBlocker: v['currentnessBlocker'] as string | null, sourceDatasetId: proof['SourceDatasetId'],
+    priorPeriodId: proof['PriorPeriodId'], engagementId: proof['EngagementId'], populationHash: facts['PopulationHash'], controls };
+}
+function decodeSuccessorPending(raw: unknown): SuccessorPending | null {
+  try {
+    const value = object(raw), r = object(value['request']);
+    if (!['CREATE', 'APPROVE'].includes(String(value['action'])) || typeof value['manifestHash'] !== 'string' || !hashPattern.test(value['manifestHash']) ||
+        !['requestId', 'clientId', 'engagementId'].every(k => typeof r[k] === 'string' && guidPattern.test(String(r[k]))) || r['reviewed'] !== true)
+      return null;
+    exactRevision(r['expectedPeriodRevision'], 'revision');
+    if (value['action'] === 'CREATE') {
+      if (!['periodId', 'priorPeriodId', 'nativeTrialBalanceDatasetId'].every(k => typeof r[k] === 'string' && guidPattern.test(String(r[k]))) ||
+          !['expectedSourceIdentityHash', 'reviewBasis'].every(k => typeof r[k] === 'string' && hashPattern.test(String(r[k]))) ||
+          typeof r['evidenceReference'] !== 'string' || !r['evidenceReference'].trim() || r['evidenceReference'].length > 1000) return null;
+      exactRevision(r['expectedPriorPeriodRevision'], 'prior revision');
+    } else if (typeof r['openingId'] !== 'string' || !guidPattern.test(r['openingId']) ||
+        !['expectedOpeningManifestHash', 'expectedSuccessorProofHash'].every(k => typeof r[k] === 'string' && hashPattern.test(String(r[k])))) return null;
+    const common = { requestId: r['requestId'] as string, clientId: r['clientId'] as string,
+      engagementId: r['engagementId'] as string, expectedPeriodRevision: r['expectedPeriodRevision'] as string, reviewed: true };
+    if (value['action'] === 'CREATE') return { action: 'CREATE', manifestHash: value['manifestHash'], request: { ...common,
+      periodId: r['periodId'] as string, priorPeriodId: r['priorPeriodId'] as string,
+      expectedPriorPeriodRevision: r['expectedPriorPeriodRevision'] as string,
+      nativeTrialBalanceDatasetId: r['nativeTrialBalanceDatasetId'] as string,
+      expectedSourceIdentityHash: r['expectedSourceIdentityHash'] as string,
+      evidenceReference: r['evidenceReference'] as string, reviewBasis: r['reviewBasis'] as string } };
+    if (value['manifestHash'] !== r['expectedOpeningManifestHash']) return null;
+    return { action: 'APPROVE', manifestHash: value['manifestHash'], request: { ...common,
+      openingId: r['openingId'] as string, expectedOpeningManifestHash: r['expectedOpeningManifestHash'] as string,
+      expectedSuccessorProofHash: r['expectedSuccessorProofHash'] as string } };
+  } catch { return null; }
+}
+
 @Component({
   selector: 'audit-client-operational-opening-balances',
-  imports: [FormsModule, MatButtonModule],
-  template: `<section aria-labelledby="native-openings-heading">
-    <h4 id="native-openings-heading">Reviewed client opening balance</h4>
-    <p>Choose an open period to enter its opening position. The source reference and SHA-256 identify your retained evidence; evidence files are not uploaded here. Account codes are checked against the approved client chart by the server.</p>
-    <label for="opening-period">Opening period</label>
-    <select id="opening-period" [ngModel]="periodId" (ngModelChange)="selectPeriod($event)">
-      <option value="">Choose period</option>@for (period of periods(); track period.id) { <option [value]="period.id">{{ period.code }} · {{ period.start }} – {{ period.end }} · {{ period.currency }} · {{ period.status }}</option> }
-    </select>
-    @if (error()) { <p role="alert">{{ error() }}</p> }
-    @if (periodId && !opening() && !loading() && readSucceeded()) {
-      <form #openingForm="ngForm" (ngSubmit)="openingForm.valid && create()">
-        <fieldset [disabled]="busy() || uncertain() || !selected() || selected()?.status === 'CLOSED'"><legend>Opening position · {{ selected()?.start }} · {{ selected()?.currency }}</legend>
-          <p>Opening rows must balance and use active balance-sheet posting accounts. No balancing plug is generated.</p>
-          <label>Source evidence reference <input name="openingEvidenceReference" [(ngModel)]="evidenceReference" maxlength="1000" required (ngModelChange)="reviewed.set(false)" /></label>
-          <label>Source evidence SHA-256 <input name="openingEvidenceHash" [(ngModel)]="evidenceSha256" minlength="64" maxlength="64" pattern="[A-Fa-f0-9]{64}" required (ngModelChange)="reviewed.set(false)" /></label>
-          <div class="table-scroll"><table><caption>Opening balance lines</caption><thead><tr><th>Account code</th><th>Debit</th><th>Credit</th><th>Action</th></tr></thead>
-            <tbody>@for (line of lines(); track $index; let i = $index) { <tr><td><input [name]="'openingAccount' + i" [attr.aria-label]="'Opening account code row ' + (i + 1)" [(ngModel)]="line.accountCode" maxlength="100" required (ngModelChange)="edited()" /></td>
-              <td><input [name]="'openingDebit' + i" [attr.aria-label]="'Opening debit row ' + (i + 1)" [(ngModel)]="line.debit" inputmode="decimal" required pattern="(?:0|[1-9][0-9]{0,14})(?:\\.[0-9]{1,6})?" (ngModelChange)="edited()" /></td>
-              <td><input [name]="'openingCredit' + i" [attr.aria-label]="'Opening credit row ' + (i + 1)" [(ngModel)]="line.credit" inputmode="decimal" required pattern="(?:0|[1-9][0-9]{0,14})(?:\\.[0-9]{1,6})?" (ngModelChange)="edited()" /></td>
-              <td><button matButton type="button" [disabled]="busy() || lines().length <= 2" (click)="removeLine(i)">Remove line</button></td></tr> }</tbody>
-            <tfoot><tr><th>Total</th><td>{{ total('debit') }}</td><td>{{ total('credit') }}</td><td></td></tr></tfoot>
-          </table></div>
-          <button matButton type="button" [disabled]="busy() || lines().length >= 5000" (click)="addLine()">Add account line</button>
-          <fieldset><legend>Optional invoice-level AR/AP detail</legend>
-            <p>When supplied, each schedule must exactly reconcile to its approved AR/AP control balance. Without supporting detail, ageing and settlement remain explicitly aggregate-only.</p>
-            @for (item of openItems(); track $index; let i = $index) {
-              <div>
-                <label>Control role <select [name]="'openingRole' + i" [(ngModel)]="item.role" (ngModelChange)="edited()"><option value="AR">Customer receivable</option><option value="AP">Supplier payable</option></select></label>
-                <label>Party <select [name]="'openingParty' + i" [(ngModel)]="item.counterpartyId" required (ngModelChange)="edited()"><option value="">Choose party</option>@for (party of counterparties(); track party.id) { @if (party.role === 'BOTH' || party.role === (item.role === 'AR' ? 'CUSTOMER' : 'SUPPLIER')) { <option [value]="party.id">{{ party.displayName }}</option> } }</select></label>
-                <label>Invoice reference <input [name]="'openingReference' + i" [(ngModel)]="item.reference" maxlength="200" required (ngModelChange)="edited()" /></label>
-                <label>Due date <input type="date" [name]="'openingDue' + i" [(ngModel)]="item.dueDate" (ngModelChange)="edited()" /></label>
-                <label>Approved control account code <input [name]="'openingControl' + i" [(ngModel)]="item.accountCode" maxlength="100" required (ngModelChange)="edited()" /></label>
-                <label>Open amount <input [name]="'openingAmount' + i" [(ngModel)]="item.amount" inputmode="decimal" pattern="(?:0|[1-9][0-9]{0,14})(?:\\.[0-9]{1,6})?" required (ngModelChange)="edited()" /></label>
-                <button matButton type="button" [disabled]="busy()" (click)="removeOpenItem(i)">Remove opening item</button>
-              </div>
-            }
-            <button matButton type="button" [disabled]="busy() || openItems().length >= 5000" (click)="addOpenItem()">Add opening invoice</button>
-            @if (counterparties().length < partyTotal()) { <button matButton type="button" [disabled]="busy()" (click)="loadCounterparties(partyPage() + 1)">Load more client parties</button> }
-          </fieldset>
-          <label><input name="openingReviewed" type="checkbox" [ngModel]="reviewed()" (ngModelChange)="reviewed.set($event)" /> I reviewed the client, cutover date, source reference, account mapping, and exact opening balances.</label>
-          <button matButton type="button" [disabled]="openingForm.invalid || busy() || uncertain() || !reviewed() || !balanced() || selected()?.status === 'CLOSED'" (click)="openingForm.valid && create()">Save opening snapshot for independent review</button>
-        </fieldset>
-      </form>
-      @if (selected()?.status === 'CLOSED') { <p role="note">This period is closed; a new opening snapshot cannot be created.</p> }
-    }
-    @if (opening(); as snapshot) {
-    <section aria-label="Immutable opening snapshot">
-        <p>{{ snapshot.asOfDate }} · {{ snapshot.currency }} · period revision {{ snapshot.periodRevision }} · chart {{ snapshot.chartVersionId }}</p>
-        <p>Source: {{ snapshot.evidenceReference }} · SHA-256 {{ snapshot.evidenceSha256 }}</p>
-        <p>Manifest SHA-256 {{ snapshot.manifestSha256 }} · prepared by {{ snapshot.createdByUserId }} · {{ snapshot.createdAt }}</p>
-        <div class="table-scroll"><table><caption>Retained opening balance source</caption><thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
-          <tbody>@for (line of snapshot.lines; track line.accountCode) { <tr><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr> }</tbody></table></div>
-        @if (snapshot.openItems.length) { <div class="table-scroll"><table><caption>Reviewed opening AR/AP invoice detail</caption><thead><tr><th>Role</th><th>Party</th><th>Invoice</th><th>Due</th><th>Control</th><th>Open amount</th></tr></thead><tbody>@for (item of snapshot.openItems; track item.id) { <tr><td>{{ item.role }}</td><td>{{ item.counterpartyName }}</td><td>{{ item.reference }}</td><td>{{ item.dueDate ?? '—' }}</td><td>{{ item.accountCode }}</td><td>{{ item.amount }}</td></tr> }</tbody></table></div> }
-        @if (snapshot.approvedByUserId) { <p role="status">Independently approved by {{ snapshot.approvedByUserId }} · {{ snapshot.approvedAt }}. This snapshot is immutable.</p> }
-        @else {
-          <p role="status">Awaiting independent review. The preparer cannot approve this snapshot.</p>
-          @if (snapshot.createdByUserId !== userId() && selected()?.status !== 'CLOSED' && selected()?.revision === snapshot.periodRevision) {
-            <label><input type="checkbox" [ngModel]="approvalReviewed()" (ngModelChange)="approvalReviewed.set($event)" /> I reviewed this exact opening manifest, evidence identity, period revision, and account lines.</label>
-            <button matButton type="button" [disabled]="busy() || uncertain() || !approvalReviewed()" (click)="approve(snapshot)">Approve opening snapshot</button>
-          }
-        }
-      </section>
-    }
-    @if (uncertain()) { <p role="alert">The last action outcome is unknown. Refresh the selected period before taking another action.</p> }
-    <button matButton type="button" [disabled]="!periodId || busy()" (click)="load()">Refresh opening snapshot</button>
-  </section>`
+  imports: [FormsModule, MatButtonModule, MatPaginatorModule, RouterLink],
+  host: { '(document:pointerdown)': 'recordSuccessorInteraction()', '(document:keydown)': 'recordSuccessorInteraction()' },
+  templateUrl: './operational-opening-balances.html'
 })
 export class ClientOperationalOpeningBalances {
   readonly clientId = input.required<string>();
@@ -139,6 +173,32 @@ export class ClientOperationalOpeningBalances {
   readonly currency = input.required<string>();
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
+  private readonly requestedSuccessorSource = inject(ActivatedRoute, { optional: true })?.snapshot?.queryParamMap.get('successorSource') ?? null;
+  private readonly api = inject(Api);
+  private readonly drafts = inject(TabDrafts);
+  private readonly renderInjector = inject(Injector);
+  private readonly successorHeading = viewChild<ElementRef<HTMLElement>>('successorHeading');
+  private successorEpoch = 0;
+  private successorRead = 0;
+  private successorInteraction = 0;
+  readonly successorMode = signal(false);
+  readonly successorCatalog = signal<SuccessorCatalog | null>(null);
+  readonly successorPreview = signal<SuccessorPreview | null>(null);
+  readonly successorRecoveryReady = signal(false);
+  readonly successorView = signal<SuccessorView | null>(null);
+  readonly successorLoading = signal(false);
+  readonly successorBusy = signal(false);
+  readonly successorUncertain = signal(false);
+  readonly successorReviewed = signal(false);
+  readonly successorApprovalReviewed = signal(false);
+  readonly successorPending = signal<SuccessorPending | null>(null);
+  readonly successorMessage = signal('');
+  readonly successorPage = signal(0);
+  readonly successorLinePage = signal(0);
+  successorSourceId = '';
+  successorEvidence = '';
+  private successorIntent: SuccessorRequest | null = null;
+
   readonly opening = signal<Opening | null>(null);
   readonly counterparties = signal<Counterparty[]>([]); readonly partyPage = signal(0); readonly partyTotal = signal(0);
   readonly loading = signal(false); readonly busy = signal(false); readonly uncertain = signal(false);
@@ -149,12 +209,12 @@ export class ClientOperationalOpeningBalances {
   private requestId = 0; private operation?: Subscription;
   private readonly invalidate = effect(() => {
     this.clientId(); this.periods(); this.currency(); this.session.invalidation();
-    untracked(() => { this.operation?.unsubscribe(); ++this.requestId; this.periodId = ''; this.opening.set(null); this.counterparties.set([]); this.partyPage.set(0); this.partyTotal.set(0); this.loading.set(false); this.busy.set(false); this.uncertain.set(false); this.error.set(''); this.readSucceeded.set(false); this.reset(); });
+    untracked(() => { this.operation?.unsubscribe(); ++this.requestId; this.resetSuccessor(); this.periodId = ''; this.opening.set(null); this.counterparties.set([]); this.partyPage.set(0); this.partyTotal.set(0); this.loading.set(false); this.busy.set(false); this.uncertain.set(false); this.error.set(''); this.readSucceeded.set(false); this.reset(); });
   });
-  constructor() { inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
+  constructor() { inject(DestroyRef).onDestroy(() => { this.operation?.unsubscribe(); ++this.successorEpoch; }); }
   selected(): Period | undefined { return this.periods().find(p => p.id === this.periodId); }
   userId(): string { return this.session.current()?.userId ?? ''; }
-  selectPeriod(id: string): void { this.periodId = id; this.opening.set(null); this.reset(); this.uncertain.set(false); this.error.set(''); this.readSucceeded.set(false); this.counterparties.set([]); this.partyPage.set(0); this.partyTotal.set(0); if (id) { this.load(); this.loadCounterparties(0); } }
+  selectPeriod(id: string): void { if (this.successorBusy()) return; this.resetSuccessor(); this.periodId = id; this.opening.set(null); this.reset(); this.uncertain.set(false); this.error.set(''); this.readSucceeded.set(false); this.counterparties.set([]); this.partyPage.set(0); this.partyTotal.set(0); if (id) { this.load(); this.loadCounterparties(0); } }
   reset(): void { this.evidenceReference = ''; this.evidenceSha256 = ''; this.reviewed.set(false); this.approvalReviewed.set(false); this.lines.set([{ accountCode: '', debit: '0', credit: '0' }, { accountCode: '', debit: '0', credit: '0' }]); this.openItems.set([]); }
   edited(): void { this.reviewed.set(false); }
   addLine(): void { if (this.lines().length < 5000) this.lines.update(rows => [...rows, { accountCode: '', debit: '0', credit: '0' }]); this.edited(); }
@@ -188,19 +248,19 @@ export class ClientOperationalOpeningBalances {
     catch { return '—'; }
   }
   load(): void {
-    const period = this.selected(); if (!period || this.busy()) return;
+    const period = this.selected(); if (!period || this.busy() || this.successorBusy()) return;
     const request = ++this.requestId, generation = this.session.invalidation(), client = this.clientId();
     this.loading.set(true); this.error.set(''); this.readSucceeded.set(false);
     this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${client}/operational-opening-balances/${period.id}`).pipe(timeout(15000)).subscribe({
       next: value => { if (request !== this.requestId || generation !== this.session.invalidation() || client !== this.clientId()) return;
-        try { this.opening.set(decodeOpeningBalance(value, client, period)); this.readSucceeded.set(true); this.uncertain.set(false); this.approvalReviewed.set(false); this.error.set(''); }
+        try { this.opening.set(decodeOpeningBalance(value, client, period)); void this.loadSuccessorCatalog(); this.readSucceeded.set(true); this.uncertain.set(false); this.approvalReviewed.set(false); this.error.set(''); }
         catch { this.opening.set(null); this.error.set('Opening snapshot did not match the selected client period.'); }
         this.loading.set(false);
       }, error: failure => { if (request === this.requestId) { this.loading.set(false); this.opening.set(null); this.error.set('Opening snapshot is unavailable. Retry before creating or reviewing it.'); if (failure.status === 401) this.session.clear(); } }
     });
   }
   create(): void {
-    const period = this.selected(); if (!period || period.status === 'CLOSED' || !this.readSucceeded() || this.opening() || this.busy() || this.uncertain() || !this.reviewed() || !this.balanced() || !hashPattern.test(this.evidenceSha256.trim())) return;
+    const period = this.selected(); if (!period || !this.manualReady() || period.status === 'CLOSED' || !this.readSucceeded() || this.opening() || this.busy() || this.uncertain() || !this.reviewed() || !this.balanced() || !hashPattern.test(this.evidenceSha256.trim())) return;
     const request = ++this.requestId, generation = this.session.invalidation(), client = this.clientId(); this.busy.set(true); this.error.set('');
     this.operation = this.http.post<unknown>(`/api/ui/accounting/clients/${client}/operational-opening-balances`, {
       periodId: period.id, periodRevision: period.revision, asOfDate: period.start, currency: period.currency,
@@ -216,7 +276,7 @@ export class ClientOperationalOpeningBalances {
     });
   }
   approve(snapshot: Opening): void {
-    const period = this.selected(); if (!period || period.status === 'CLOSED' || period.revision !== snapshot.periodRevision || snapshot.createdByUserId === this.userId() || !this.approvalReviewed() || this.busy() || this.uncertain()) return;
+    const period = this.selected(); if (!period || !this.manualReady() || this.successorCatalog()?.origin !== 'MANUAL' || period.status === 'CLOSED' || period.revision !== snapshot.periodRevision || snapshot.createdByUserId === this.userId() || !this.approvalReviewed() || this.busy() || this.uncertain()) return;
     const request = ++this.requestId, generation = this.session.invalidation(), client = this.clientId(); this.busy.set(true); this.error.set('');
     this.operation = this.http.post(`/api/ui/accounting/clients/${client}/operational-opening-balances/${snapshot.id}/approve`, {
       periodRevision: snapshot.periodRevision, manifestSha256: snapshot.manifestSha256, reviewed: true
@@ -226,4 +286,213 @@ export class ClientOperationalOpeningBalances {
           'Approval outcome is unconfirmed. Refresh the selected period before another action.'); if (failure.status === 401) this.session.clear(); } }
     });
   }
+  recordSuccessorInteraction(): void { ++this.successorInteraction; }
+  private successorBase(): string { return `/api/ui/accounting/clients/${this.clientId()}/operational-opening-successors`; }
+  private successorDraftScope() {
+    // Storage namespace only; this sentinel is never a source/proof hash or a publication input.
+    return { entity: `native-successor/${this.clientId()}/${this.periodId}`, baseRevision: '0'.repeat(64) };
+  }
+  private successorOwner(): () => boolean {
+    const epoch = this.successorEpoch, client = this.clientId(), period = this.periodId,
+      invalidation = this.session.invalidation(), actor = this.session.current()?.userId;
+    return () => epoch === this.successorEpoch && client === this.clientId() && period === this.periodId &&
+      invalidation === this.session.invalidation() && actor === this.session.current()?.userId;
+  }
+  private resetSuccessor(): void {
+    ++this.successorEpoch; ++this.successorRead;
+    this.successorMode.set(false); this.successorCatalog.set(null); this.successorView.set(null); this.successorPreview.set(null); this.successorRecoveryReady.set(false);
+    this.successorLoading.set(false); this.successorBusy.set(false); this.successorUncertain.set(false);
+    this.successorPending.set(null); this.successorReviewed.set(false); this.successorApprovalReviewed.set(false);
+    this.successorMessage.set(''); this.successorPage.set(0); this.successorLinePage.set(0);
+    this.successorSourceId = ''; this.successorEvidence = ''; this.successorIntent = null;
+  }
+  manualReady(): boolean { return !!this.successorCatalog() && !this.successorLoading() && !this.successorBusy() && !this.successorUncertain() && !this.successorMode(); }
+  setSuccessorMode(native: boolean): void {
+    if (this.busy() || this.successorBusy() || this.successorUncertain()) return;
+    this.successorMode.set(native); this.successorEdited();
+  }
+  successorEdited(): void {
+    if (this.successorPending()) return;
+    this.successorPreview.set(null); this.successorIntent = null; this.successorReviewed.set(false); this.successorLinePage.set(0);
+  }
+  selectedSuccessor() { return this.successorCatalog()?.sources.find(x => x.datasetId === this.successorSourceId); }
+  async loadSuccessorCatalog(page = this.successorPage()): Promise<void> {
+    const period = this.selected(); if (!period || this.successorBusy()) return;
+    const current = this.successorOwner(), read = ++this.successorRead, client = this.clientId();
+    this.successorLoading.set(true); this.successorCatalog.set(null); this.successorPreview.set(null); this.successorRecoveryReady.set(false);
+    this.successorView.set(null); this.successorReviewed.set(false); this.successorApprovalReviewed.set(false);
+    try {
+      const catalog = await this.api.get(`${this.successorBase()}/catalog/${period.id}?page=${page}&pageSize=5`, decodeSuccessorCatalog);
+      if (!current() || read !== this.successorRead) return;
+      if (catalog.clientId !== client || catalog.periodId !== period.id || catalog.page !== page || catalog.pageSize !== 5 ||
+          catalog.sources.length !== Math.min(5, Math.max(0, catalog.total - page * 5)) ||
+          catalog.origin === 'NONE' && (catalog.existingOpeningId !== null || catalog.retainedSuccessor !== null || catalog.canApprove) ||
+          catalog.origin === 'MANUAL' && (catalog.existingOpeningId === null || catalog.retainedSuccessor !== null || catalog.canApprove) ||
+          catalog.origin === 'NATIVE_SUCCESSOR' && (!catalog.retainedSuccessor || catalog.existingOpeningId !== catalog.retainedSuccessor.openingId))
+        throw new Error('Successor catalogue did not match the exact client/target period.');
+      this.successorCatalog.set(catalog); this.successorPage.set(page);
+      if (this.requestedSuccessorSource && catalog.sources.some(x => x.datasetId === this.requestedSuccessorSource)) {
+        this.successorSourceId = this.requestedSuccessorSource; this.successorMode.set(true);
+      }
+      const saved = this.drafts.readPendingSubmission(this.successorDraftScope(), decodeSuccessorPending);
+      if (saved.state === 'ready') {
+        const pending = saved.draft.value;
+        if (pending.request.clientId !== client || pending.action === 'CREATE' && pending.request.periodId !== period.id)
+          throw new Error('The retained successor request belongs to different scope.');
+        this.successorPending.set(pending); this.successorUncertain.set(true); this.successorMode.set(true);
+        this.successorMessage.set('An original request is unresolved. Read retained evidence or explicitly recover that exact request; no new intent is sent automatically.');
+      } else if (saved.state !== 'absent') {
+        this.successorUncertain.set(true); this.successorMode.set(true);
+        this.successorMessage.set('The prior request checkpoint is unavailable or invalid. Reconcile retained evidence before sending any new opening action.');
+      }
+      if (catalog.retainedSuccessor) {
+        const view = await this.api.get(`${this.successorBase()}/${catalog.retainedSuccessor.openingId}`,
+          raw => decodeSuccessorView(raw, client, period));
+        if (!current() || read !== this.successorRead) return;
+        if (view.opening.id !== catalog.retainedSuccessor.openingId || view.engagementId !== catalog.retainedSuccessor.engagementId)
+          throw new Error('Retained successor proof did not match the scoped catalogue.');
+        this.successorView.set(view); this.opening.set(view.opening); this.successorMode.set(true);
+        const pending = this.successorPending();
+        const creationMatches = pending?.action === 'CREATE' && catalog.retainedSuccessor.requestId === pending.request.requestId &&
+          view.opening.createdByUserId === this.userId() && view.sourceIdentityHash === pending.request.expectedSourceIdentityHash &&
+          view.opening.manifestSha256 === pending.manifestHash;
+        const approvalMatches = pending?.action === 'APPROVE' && view.opening.id === pending.request.openingId &&
+          view.opening.manifestSha256 === pending.request.expectedOpeningManifestHash && view.proofHash === pending.request.expectedSuccessorProofHash &&
+          view.opening.approvedByUserId === this.userId();
+        if (creationMatches || approvalMatches) this.clearSuccessorPending('Matching retained successor evidence recovered. No new intent was created.');
+      }
+    } catch (error) {
+      if (current() && read === this.successorRead) {
+        this.successorCatalog.set(null); this.successorView.set(null);
+        this.successorMessage.set(error instanceof Error ? error.message : 'Successor evidence is unavailable.');
+      }
+    } finally { if (current() && read === this.successorRead) this.successorLoading.set(false); }
+  }
+  private successorFocus(trigger: EventTarget | null, current: () => boolean): () => void {
+    if (!(trigger instanceof HTMLElement) || trigger.ownerDocument.activeElement !== trigger) return () => undefined;
+    const interaction = this.successorInteraction, doc = trigger.ownerDocument;
+    return () => afterNextRender(() => {
+      if (current() && interaction === this.successorInteraction &&
+          (doc.activeElement === trigger || doc.activeElement === doc.body)) this.successorHeading()?.nativeElement.focus();
+    }, { injector: this.renderInjector });
+  }
+  async previewSuccessor(trigger: EventTarget | null): Promise<void> {
+    const catalog = this.successorCatalog(), source = this.selectedSuccessor();
+    if (!catalog?.canPrepare || !source?.eligible || !catalog.priorPeriodId || !catalog.priorPeriodRevision ||
+        this.busy() || this.successorBusy() || this.successorUncertain() || !this.successorEvidence.trim() || this.successorEvidence.trim().length > 1000) return;
+    const current = this.successorOwner(), focus = this.successorFocus(trigger, current);
+    const request: SuccessorRequest = { requestId: crypto.randomUUID(), clientId: this.clientId(), engagementId: source.engagementId,
+      periodId: catalog.periodId, expectedPeriodRevision: catalog.periodRevision, priorPeriodId: catalog.priorPeriodId,
+      expectedPriorPeriodRevision: catalog.priorPeriodRevision, nativeTrialBalanceDatasetId: source.datasetId,
+      expectedSourceIdentityHash: source.sourceIdentityHash, evidenceReference: this.successorEvidence.trim(), reviewed: false };
+    this.successorBusy.set(true); this.successorPreview.set(null); this.successorReviewed.set(false); this.successorMessage.set('');
+    const result = await this.api.command<unknown>(this.successorBase() + '/preview', request);
+    if (!current()) return;
+    this.successorBusy.set(false);
+    if (!result.ok) { this.successorMessage.set(result.message); return; }
+    try {
+      const preview = decodeSuccessorPreview(result.value, 'preview');
+      if (preview.periodId !== request.periodId || preview.periodRevision !== request.expectedPeriodRevision ||
+          preview.priorPeriodId !== request.priorPeriodId || preview.priorPeriodRevision !== request.expectedPriorPeriodRevision ||
+          preview.sourceIdentityHash !== request.expectedSourceIdentityHash || preview.asOfDate !== this.selected()?.start ||
+          preview.currency !== this.selected()?.currency || preview.lines.length < 2 || preview.controls.length !== 2)
+        throw new Error('Preview did not match the exact successor intent.');
+      this.successorIntent = request; this.successorPreview.set(preview); this.successorLinePage.set(0);
+      focus();
+    } catch { this.successorMessage.set('The successor preview could not be validated. No create action is available.'); }
+  }
+  private clearSuccessorPending(message: string): void {
+    if (!this.drafts.clear(this.successorDraftScope().entity)) {
+      this.successorMessage.set('Retained evidence is readable, but the pending checkpoint could not be cleared. Further writes stay blocked.'); return;
+    }
+    this.successorPending.set(null); this.successorUncertain.set(false); this.successorReviewed.set(false);
+    this.successorApprovalReviewed.set(false); this.successorMessage.set(message);
+  }
+  async validateSuccessorRecovery(): Promise<void> {
+    const pending = this.successorPending();
+    if (pending?.action !== 'CREATE' || this.busy() || this.successorBusy() || this.successorLoading() || !this.successorCatalog()) return;
+    const current = this.successorOwner();
+    this.successorBusy.set(true); this.successorRecoveryReady.set(false); this.successorReviewed.set(false);
+    this.successorPreview.set(null);
+    // Resolve the original source directly, including when it is absent from the current candidate page.
+    const result = await this.api.command<unknown>(this.successorBase() + '/preview', { ...pending.request, reviewed: false });
+    if (!current()) return;
+    this.successorBusy.set(false);
+    if (!result.ok) { this.successorMessage.set(result.message); return; }
+    try {
+      const preview = decodeSuccessorPreview(result.value, 'recoveryPreview'), request = pending.request;
+      if (!preview.ready || preview.reviewBasis !== request.reviewBasis ||
+          preview.prospectiveOpeningManifestHash !== pending.manifestHash ||
+          preview.periodId !== request.periodId || preview.periodRevision !== request.expectedPeriodRevision ||
+          preview.priorPeriodId !== request.priorPeriodId || preview.priorPeriodRevision !== request.expectedPriorPeriodRevision ||
+          preview.sourceIdentityHash !== request.expectedSourceIdentityHash || preview.asOfDate !== this.selected()?.start ||
+          preview.currency !== this.selected()?.currency || preview.lines.length < 2 || preview.controls.length !== 2)
+        throw new Error('The original preview changed. Retain the request and reconcile its outcome; no changed intent can be replayed.');
+      this.successorPreview.set(preview); this.successorLinePage.set(0); this.successorRecoveryReady.set(true);
+      this.successorMessage.set('Original intent is still exact and ready. Review the population and give fresh assent before explicit recovery.');
+    } catch (error) { this.successorMessage.set(error instanceof Error ? error.message : 'Original preview is unavailable.'); }
+  }
+  async createSuccessor(): Promise<void> {
+    const preview = this.successorPreview(); const old = this.successorPending();
+    if (this.busy() || this.successorBusy() || !this.successorReviewed() || old && (old.action !== 'CREATE' || !this.successorRecoveryReady()) ||
+        !old && (!preview?.ready || !this.successorIntent)) return;
+    const pending: SuccessorPending = old ?? { action: 'CREATE', request: { ...this.successorIntent!, reviewBasis: preview!.reviewBasis, reviewed: true },
+      manifestHash: preview!.prospectiveOpeningManifestHash };
+    await this.sendSuccessor(pending);
+  }
+  async approveSuccessor(): Promise<void> {
+    const view = this.successorView(), catalog = this.successorCatalog(), old = this.successorPending();
+    if (!view || !catalog?.canApprove || !view.isCurrent || this.busy() || this.successorBusy() || !this.successorApprovalReviewed() ||
+        view.opening.createdByUserId === this.userId() || old && old.action !== 'APPROVE') return;
+    const pending: SuccessorPending = old ?? { action: 'APPROVE', manifestHash: view.opening.manifestSha256,
+      request: { requestId: crypto.randomUUID(), clientId: this.clientId(), engagementId: view.engagementId, openingId: view.opening.id,
+        expectedPeriodRevision: view.opening.periodRevision, expectedOpeningManifestHash: view.opening.manifestSha256,
+        expectedSuccessorProofHash: view.proofHash, reviewed: true } };
+    await this.sendSuccessor(pending);
+  }
+  private async sendSuccessor(pending: SuccessorPending): Promise<void> {
+    if (!this.drafts.save(this.successorDraftScope(), pending, decodeSuccessorPending, true)) {
+      this.successorMessage.set('The exact request could not be retained in this tab. No write was sent.'); return;
+    }
+    const current = this.successorOwner(), wasUncertain = this.successorUncertain();
+    this.successorPending.set(pending); this.successorRecoveryReady.set(false); this.successorBusy.set(true); this.successorReviewed.set(false); this.successorApprovalReviewed.set(false);
+    const path = pending.action === 'CREATE' ? '/create' : `/${pending.request.openingId}/approve`;
+    const result = await this.api.command<unknown>(this.successorBase() + path, pending.request);
+    if (!current()) return;
+    this.successorBusy.set(false);
+    if (!result.ok) {
+      this.successorUncertain.set(result.unknown || wasUncertain); this.successorMessage.set(result.message);
+      if (!result.unknown && !wasUncertain) {
+        this.clearSuccessorPending(result.message); this.successorPreview.set(null); this.successorIntent = null;
+      }
+      return;
+    }
+    this.successorUncertain.set(true);
+    await this.loadSuccessorCatalog();
+  }
+
+}
+
+/** Route adapter only; the existing operational opening owner retains all manual/native actions. */
+@Component({
+  selector: 'audit-native-successor-opening-page',
+  imports: [ClientOperationalOpeningBalances, RouterLink, ...SHARED],
+  template: `
+    <nav aria-label="Breadcrumb"><a routerLink="/app/accounting">Accounting workspace</a> / Native successor opening</nav>
+    <h1>Native successor opening</h1>
+    <audit-state [loading]="context.loading()" [error]="context.error()" label="authorized native client periods" />
+    @if (context.data(); as client) {
+      @if (client.profile; as profile) {
+        <p>{{ client.name }} · choose an existing target period with its actual predecessor linkage. No period is created or activated here.</p>
+        @if (client.hasMorePeriods) { <p role="status">Only the latest 100 periods are available here. No undisplayed target is selected.</p> }
+        <audit-client-operational-opening-balances [clientId]="client.clientId" [currency]="profile.currency" [periods]="client.periods" />
+      }
+    }
+  `,
+})
+export class NativeSuccessorOpeningPage {
+  private readonly api = inject(Api);
+  readonly clientId = routeGuid('clientId');
+  readonly context = this.api.resource(() => this.clientId() ? `/api/ui/accounting/clients/${this.clientId()}` : null,
+    raw => decodeNativeContext(raw, this.clientId()!));
 }

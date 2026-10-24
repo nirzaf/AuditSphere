@@ -41,6 +41,7 @@ public static partial class UiEndpoints
   {
     MapNativeTrialBalanceSourceEndpoints(group);
     MapNativeGeneralLedgerSourceEndpoints(group);
+    MapNativeSuccessorOpeningEndpoints(group);
     group.MapGet("/accounting/clients/{clientId:guid}/operational-opening-balances/{periodId:guid}", async (Guid clientId,
       Guid periodId, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {

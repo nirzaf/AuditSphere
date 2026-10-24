@@ -309,7 +309,7 @@ public sealed partial class ClientAccountingTests
     new(Guid.CreateVersion7(), f.Scope.ClientA, f.Scope.EngagementA, f.PeriodId, 1, new DateOnly(2026, 12, 31),
       "NATIVE-TEST-ENTITY", true, "Synthetic native ledger source evidence");
 
-  private static async Task<NativeBehaviourFixture> CreateNativeBehaviourFixtureAsync(PgTestSchema pg, bool withOpening = true)
+  private static async Task<NativeBehaviourFixture> CreateNativeBehaviourFixtureAsync(PgTestSchema pg, bool withOpening = true, bool successorAccounts = false, bool openingControlBalance = false)
   {
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
@@ -351,6 +351,15 @@ public sealed partial class ClientAccountingTests
         new("capital", "3000", "Capital", "EQUITY", "CREDIT", true)
       ]);
       Assert.True(accounts.Succeeded, accounts.Message);
+      if (successorAccounts)
+      {
+        var controls = await ClientAccountingService.AddAccountsAsync(db, preparer, chartId,
+        [new("receivable", "1100", "Receivable control", "ASSET", "DEBIT", true),
+         new("payable", "2100", "Payable control", "LIABILITY", "CREDIT", true),
+         new("income", "4000", "Income", "INCOME", "CREDIT", true),
+         new("expense", "5000", "Expense", "EXPENSE", "DEBIT", true)]);
+        Assert.True(controls.Succeeded, controls.Message);
+      }
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -359,7 +368,9 @@ public sealed partial class ClientAccountingTests
       {
         var opening = await ClientOperationalOpeningBalanceWorkspace.CreateAsync(db, preparer,
           new(scope.ClientA, periodId, 1, new DateOnly(2026, 1, 1), "QAR", "Synthetic approved opening source",
-            new string('c', 64), [new("1000", 100m, 0m), new("3000", 0m, 100m)]));
+            new string('c', 64), openingControlBalance
+              ? [new("1000", 100m, 0m), new("1100", 10m, 0m), new("3000", 0m, 110m)]
+              : [new("1000", 100m, 0m), new("3000", 0m, 100m)]));
         Assert.True(opening.Succeeded, opening.Message);
         openingId = opening.Value;
         var retained = await ClientOperationalOpeningBalanceWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId);

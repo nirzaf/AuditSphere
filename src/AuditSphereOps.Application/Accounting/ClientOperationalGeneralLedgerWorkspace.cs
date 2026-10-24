@@ -133,6 +133,17 @@ public static class ClientOperationalGeneralLedgerWorkspace
       if (opening.ApprovedByUserId is null)
         return CommandResult<ClientOperationalGeneralLedgerView>.Fail(ErrorCodes.GateBlocked,
           "The period opening balance exists but has not received independent approval.");
+      var retainedOpening = await db.ClientOperationalOpeningBalances.AsNoTracking().SingleAsync(x =>
+        x.FirmId == actor.FirmId && x.ClientId == clientId && x.Id == opening.Id, ct);
+      var proofScope = await db.ClientOperationalOpeningSuccessorProofs.AsNoTracking().SingleOrDefaultAsync(x => x.OpeningId == opening.Id, ct);
+      if (proofScope is not null)
+      {
+        var sourceAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+          new AuthorizationRequest(actor.FirmId, clientId, proofScope.EngagementId, RequiredRoles: ReaderRoles, InternalOnly: true), ct);
+        if (!sourceAuth.Succeeded) return CommandResult<ClientOperationalGeneralLedgerView>.Fail(sourceAuth.ErrorCode!, sourceAuth.Message!);
+        var currentOpening = await ClientOperationalOpeningBalanceWorkspace.CheckSuccessorCurrentAsync(db, retainedOpening, ct);
+        if (!currentOpening.Succeeded) return CommandResult<ClientOperationalGeneralLedgerView>.Fail(currentOpening.ErrorCode!, currentOpening.Message!);
+      }
       var openingDate = DateOnly.ParseExact(opening.AsOfDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
       var openingLines = opening.Lines.Where(x =>
         (accountCodeFrom is null || string.CompareOrdinal(x.AccountCode, accountCodeFrom) >= 0) &&

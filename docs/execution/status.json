@@ -1121,6 +1121,10 @@
       "bankInspection": {
         "status": "Scoped read-only inspection: Domain/API/E2E/builtin and affected Angular passed; exact CI pending.",
         "history": "status-archive-2026-10.json#keys.bankReconciliationInspection20261024"
+      },
+      "nativeSuccessorOpening": {
+        "status": "Scoped focused/browser checks passed; Task11 remains partial; exact-source CI pending.",
+        "history": "status-archive-2026-10.json#keys.nativeSuccessorOpening20261024"
       }
     },
     "archivedOn20261024": {

@@ -62,6 +62,11 @@ public static class ClientOpenItemAllocationWorkflow
     if (latestOpening is not null && !ClientOperationalOpeningBalanceWorkspace.ValidManifest(latestOpening))
       return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.ProtectedState,
         "The approved opening schedule failed integrity validation; refresh and resolve the retained source before using ageing.");
+    if (latestOpening is not null)
+    {
+      var current = await ClientOperationalOpeningBalanceWorkspace.CheckSuccessorConsumptionAsync(db, actor, latestOpening, ct);
+      if (!current.Succeeded) return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(current.ErrorCode!, current.Message!);
+    }
     var items = await OpenItems(db, actor, clientId, ct, asOfDate, periodId);
     var applied = await EffectiveLines(db, actor.FirmId, clientId, ct);
     var sourceApplied = await EffectiveSourceLines(db, actor.FirmId, clientId, ct);
@@ -101,6 +106,11 @@ public static class ClientOpenItemAllocationWorkflow
       return CommandResult<ClientOpenItemControlReconciliationView>.Fail(ErrorCodes.ProtectedState,
         "The retained opening manifest failed integrity validation.");
 
+    if (opening is not null)
+    {
+      var current = await ClientOperationalOpeningBalanceWorkspace.CheckSuccessorConsumptionAsync(db, actor, opening, ct);
+      if (!current.Succeeded) return CommandResult<ClientOpenItemControlReconciliationView>.Fail(current.ErrorCode!, current.Message!);
+    }
     var roleRows = await (from role in db.ClientAccountRoleConfigurations.AsNoTracking()
       join decision in db.ClientAccountRoleDecisions.AsNoTracking() on new { role.FirmId, role.ClientId, ConfigurationId = role.Id }
         equals new { decision.FirmId, decision.ClientId, decision.ConfigurationId }
@@ -453,6 +463,11 @@ public static class ClientOpenItemAllocationWorkflow
     if (latestOpening is not null && !ClientOperationalOpeningBalanceWorkspace.ValidManifest(latestOpening))
       return CommandResult<ClientOpenItemAllocationPreview>.Fail(ErrorCodes.ProtectedState,
         "The approved opening schedule failed integrity validation; allocation is blocked until the retained source is restored.");
+    if (latestOpening is not null)
+    {
+      var current = await ClientOperationalOpeningBalanceWorkspace.CheckSuccessorConsumptionAsync(db, actor, latestOpening, ct);
+      if (!current.Succeeded) return CommandResult<ClientOpenItemAllocationPreview>.Fail(current.ErrorCode!, current.Message!);
+    }
     var all = await OpenItems(db, actor, clientId, ct);
     var source = all.SingleOrDefault(x => x.Kind == request.SourceKind && x.Id == request.SourceItemId && x.Credit);
     if (source is null) return CommandResult<ClientOpenItemAllocationPreview>.Fail(ErrorCodes.ProtectedState, "The credit or imported settlement source is unavailable or not eligible.");

@@ -289,6 +289,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
 
 public interface IClientAccountingDbContext : IAuditSphereDbContext
 {
+  DbSet<ClientOperationalOpeningSuccessorProof> ClientOperationalOpeningSuccessorProofs { get; }
   DbSet<NativeTrialBalanceSource> NativeTrialBalanceSources { get; }
   DbSet<NativeGeneralLedgerSource> NativeGeneralLedgerSources { get; }
   DbSet<AdjustmentPlanAction> AdjustmentPlanActions { get; }

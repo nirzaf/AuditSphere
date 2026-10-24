@@ -32,6 +32,12 @@ public static partial class NativeTrialBalanceSourceWorkspace
     if (period.Revision != request.ExpectedPeriodRevision || period.Status is not ("ACTIVE" or "DRAFT") ||
         request.AsOfDate < period.StartDate || request.AsOfDate > period.EndDate)
       return Fail<Capture>(ErrorCodes.StaleRevision, "The exact open period revision and an as-of date inside it are required.");
+    var proofScope = await db.ClientOperationalOpeningSuccessorProofs.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
+      db.ClientOperationalOpeningBalances.Any(o => o.Id == x.OpeningId && o.PeriodId == period.Id))
+      .Select(x => (Guid?)x.EngagementId).SingleOrDefaultAsync(ct);
+    if (proofScope.HasValue && proofScope.Value != request.EngagementId)
+      return Fail<Capture>(ErrorCodes.ScopeDenied, "The successor opening belongs to another source engagement.");
     var pins = await ReadPinsAsync(db, actor.FirmId, request.ClientId, period.Id, ct);
     if (!pins.Succeeded) return Fail<Capture>(pins.ErrorCode!, pins.Message!);
     if (period.Currency != pins.Value!.Currency)
@@ -71,7 +77,7 @@ public static partial class NativeTrialBalanceSourceWorkspace
   }
 
   private static async Task<CommandResult<SourcePins>> ReadPinsAsync(IClientAccountingDbContext db,
-    Guid firmId, Guid clientId, Guid periodId, CancellationToken ct)
+    Guid firmId, Guid clientId, Guid periodId, CancellationToken ct, bool checkSuccessor = true)
   {
     var profile = await db.ClientAccountingProfiles.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.ClientId == clientId, ct);
     var mandate = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == firmId && x.PracticeClientId == clientId &&
@@ -84,6 +90,11 @@ public static partial class NativeTrialBalanceSourceWorkspace
       x.FirmId == firmId && x.ClientId == clientId && x.PeriodId == periodId, ct);
     if (opening is not null && (opening.ApprovedByUserId is null || opening.ApprovedAt is null || !ClientOperationalOpeningBalanceWorkspace.ValidManifest(opening)))
       return Fail<SourcePins>(ErrorCodes.GateBlocked, "The exact opening source must retain its independent approval and valid manifest.");
+    if (opening is not null && checkSuccessor)
+    {
+      var successor = await CheckOpeningSuccessorChainAsync(db, opening, ct);
+      if (!successor.Succeeded) return Fail<SourcePins>(successor.ErrorCode!, successor.Message!);
+    }
     var journals = await db.ClientOperationalJournals.AsNoTracking().Where(x => x.FirmId == firmId && x.ClientId == clientId &&
       x.PeriodId == periodId && x.Status == "POSTED").OrderBy(x => x.PostingSequence).ThenBy(x => x.Id).Take(250_001).ToListAsync(ct);
     if (journals.Count > 250_000) return Fail<SourcePins>(ErrorCodes.GateBlocked, "The native posting population exceeds the bounded source capture.");
@@ -155,6 +166,14 @@ public static partial class NativeTrialBalanceSourceWorkspace
     });
     if (System.Text.Encoding.UTF8.GetByteCount(membership) > 16 * 1024 * 1024)
       return Fail<SourcePins>(ErrorCodes.GateBlocked, "The native source membership exceeds its retained evidence bound.");
+    var successorProof = opening is null ? null : await db.ClientOperationalOpeningSuccessorProofs.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.OpeningId == opening.Id, ct);
+    if (successorProof is not null)
+    {
+      var extended = System.Text.Json.Nodes.JsonNode.Parse(membership)!.AsObject();
+      extended.Add("OpeningSuccessorProof", JsonSerializer.SerializeToNode(new { successorProof.OpeningId, successorProof.ProofHash }));
+      membership = extended.ToJsonString();
+    }
     var postingHash = Hash(new { journals, lines, submissions, decisions, receipts, sales, purchases, salesCredits, purchaseCredits, settlements, reversals });
     return CommandResult<SourcePins>.Ok(new(Hash(profile), Hash(mandate), opening is null ? null : Hash(opening),
       postingHash, Hash(new { accounts, charts }), journals.Select(x => x.PostingSequence ?? 0).DefaultIfEmpty().Max(), profile.FunctionalCurrency, membership));

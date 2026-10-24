@@ -1,7 +1,9 @@
+import { BehaviorSubject } from 'rxjs';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { ClientOperationalOpeningBalances, decodeOpeningBalance } from './operational-opening-balances';
+import { ClientOperationalOpeningBalances, NativeSuccessorOpeningPage, decodeOpeningBalance, decodeSuccessorView } from './operational-opening-balances';
 import { SessionService } from '../../core/session';
 
 const client = '11111111-1111-4111-8111-111111111111';
@@ -18,21 +20,51 @@ const response = (approvedByUserId: string | null = null) => ({ id: openingId, c
   lines: [{ accountCode: '1000', accountName: 'Cash', debit: '100.000000', credit: '0.000000' },
     { accountCode: '3000', accountName: 'Capital', debit: '0.000000', credit: '100.000000' }], openItems: [] });
 
+const sourceId = '77777777-7777-4777-8777-777777777777';
+const priorId = '88888888-8888-4888-8888-888888888888';
+const engagementId = '99999999-9999-4999-8999-999999999999';
+const successorBase = `/api/ui/accounting/clients/${client}/operational-opening-successors`;
+const catalogUrl = successorBase + `/catalog/${periodId}?page=0&pageSize=5`;
+const exactRevision = '9007199254740993';
+const catalog = (origin = 'NONE', requestId = openingId, canApprove = false) => ({ clientId: client, periodId,
+  periodRevision: exactRevision, priorPeriodId: priorId, priorPeriodRevision: '4', priorPeriodCode: 'FY2025', priorPeriodStatus: 'CLOSED',
+  origin, existingOpeningId: origin === 'NONE' ? null : openingId,
+  retainedSuccessor: origin === 'NATIVE_SUCCESSOR' ? { openingId, engagementId, requestId } : null,
+  canPrepare: origin === 'NONE', canApprove, page: 0, pageSize: 5, total: 1,
+  sources: [{ datasetId: sourceId, engagementId, legalEntityKey: 'TEST-ENTITY', sourceIdentityHash: 'a'.repeat(64),
+    validationStatus: 'Accepted', eligible: true, blocker: null }], blocker: null });
+const preview = () => ({ reviewBasis: 'e'.repeat(64), sourceIdentityHash: 'a'.repeat(64), prospectiveOpeningManifestHash: 'b'.repeat(64),
+  periodId, periodRevision: exactRevision, priorPeriodId: priorId, priorPeriodRevision: '4', asOfDate: period.start,
+  currency: 'QAR', basis: 'IFRS', bookScope: 'PERIOD_LEDGER_NO_BOOK', populationHash: 'd'.repeat(64), ready: true, blockers: [],
+  lines: response().lines.map((line, index) => ({ ...line, accountId: index === 0 ? chart : openingId })),
+  controls: [{ role: 'AR', configurationId: maker, decisionId: client, accountId: priorId, closingDebit: '0.000000', closingCredit: '0.000000' },
+    { role: 'AP', configurationId: reviewer, decisionId: periodId, accountId: sourceId, closingDebit: '0.000000', closingCredit: '0.000000' }] });
+const successorView = (approvedByUserId: string | null = null) => ({ opening: { ...response(approvedByUserId), periodRevision: exactRevision },
+  sourceIdentityHash: 'a'.repeat(64), proofHash: 'c'.repeat(64), isCurrent: true, currentnessBlocker: null,
+  proofJson: JSON.stringify({ Version: 'native-opening-successor.v1', ClientId: client, OpeningId: openingId,
+    OpeningManifestHash: 'b'.repeat(64), SourceIdentityHash: 'a'.repeat(64), SourceDatasetId: sourceId, PriorPeriodId: priorId, EngagementId: engagementId,
+    Facts: { TargetPeriodId: periodId, PopulationHash: 'd'.repeat(64), Controls: preview().controls.map(c => ({ Role: c.role,
+      ConfigurationId: c.configurationId, DecisionId: c.decisionId, AccountId: c.accountId, ClosingDebit: c.closingDebit, ClosingCredit: c.closingCredit })) } }) });
+
 describe('Reviewed client opening balances', () => {
   let http: HttpTestingController;
   beforeEach(() => {
-    TestBed.configureTestingModule({ imports: [ClientOperationalOpeningBalances], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ imports: [ClientOperationalOpeningBalances], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
+      { provide: ActivatedRoute, useValue: { paramMap: new BehaviorSubject(convertToParamMap({ clientId: client })),
+        snapshot: { queryParamMap: convertToParamMap({}) } } }] });
     http = TestBed.inject(HttpTestingController);
   });
   afterEach(() => { http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); });
-  function setup(userId = maker) {
+  async function setup(userId = maker) {
     TestBed.inject(SessionService).current.set({ userId, firmId: client, generation: '1', staff: true });
     const fixture = TestBed.createComponent(ClientOperationalOpeningBalances);
     fixture.componentRef.setInput('clientId', client); fixture.componentRef.setInput('currency', 'QAR'); fixture.componentRef.setInput('periods', [period]); fixture.detectChanges();
     const select = fixture.nativeElement.querySelector('#opening-period') as HTMLSelectElement;
     select.value = periodId; select.dispatchEvent(new Event('change')); fixture.detectChanges();
     http.expectOne(`/api/ui/accounting/clients/${client}/operational-opening-balances/${periodId}`).flush(null);
+    http.expectOne(catalogUrl).flush(catalog());
     http.expectOne(`/api/ui/accounting/clients/${client}/counterparties?page=0&pageSize=25`).flush({ clientId: client, role: null, page: 0, pageSize: 25, total: 0, bookkeepingActive: true, counterparties: [] });
+    await fixture.whenStable(); fixture.detectChanges();
     return fixture;
   }
 
@@ -44,8 +76,8 @@ describe('Reviewed client opening balances', () => {
     expect(() => decodeOpeningBalance({ ...response(), manifestSha256: 'bad' }, client, period)).toThrow();
   });
 
-  it('creates from the exact period revision and recovers the immutable manifest by reading it back', () => {
-    const fixture = setup(); const c = fixture.componentInstance;
+  it('creates from the exact period revision and recovers the immutable manifest by reading it back', async () => {
+    const fixture = await setup(); const c = fixture.componentInstance;
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelectorAll('table tbody tr').length).toBe(2);
     expect(fixture.nativeElement.querySelector("input[aria-label='Opening account code row 1']")).toBeTruthy();
@@ -57,22 +89,124 @@ describe('Reviewed client opening balances', () => {
     expect(create.request.body.openItems).toEqual([]);
     create.flush({ id: openingId });
     const read = http.expectOne(`/api/ui/accounting/clients/${client}/operational-opening-balances/${periodId}`);
-    read.flush(response()); fixture.detectChanges();
+    read.flush(response()); http.expectOne(catalogUrl).flush(catalog('MANUAL')); await fixture.whenStable(); fixture.detectChanges();
     expect(c.opening()?.manifestSha256).toBe('b'.repeat(64));
     expect(fixture.nativeElement.textContent).toContain('Awaiting independent review');
     const buttons = fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>;
     expect(Array.from(buttons).some(b => b.textContent?.includes('Approve opening snapshot'))).toBe(false);
   });
 
-  it('lets a different reviewer approve the exact manifest and then displays retained approval evidence', () => {
-    const fixture = setup(reviewer); const c = fixture.componentInstance;
-    c.opening.set(decodeOpeningBalance(response(), client, period)); fixture.detectChanges();
+  it('lets a different reviewer approve the exact manifest and then displays retained approval evidence', async () => {
+    const fixture = await setup(reviewer); const c = fixture.componentInstance;
+    c.load(); http.expectOne(`/api/ui/accounting/clients/${client}/operational-opening-balances/${periodId}`).flush(response());
+    http.expectOne(catalogUrl).flush(catalog('MANUAL')); await fixture.whenStable(); fixture.detectChanges();
     c.approvalReviewed.set(true); c.approve(c.opening()!);
     const approve = http.expectOne({ method: 'POST', url: `/api/ui/accounting/clients/${client}/operational-opening-balances/${openingId}/approve` });
     expect(approve.request.body).toEqual({ periodRevision: '8', manifestSha256: 'b'.repeat(64), reviewed: true });
     approve.flush(null);
-    http.expectOne(`/api/ui/accounting/clients/${client}/operational-opening-balances/${periodId}`).flush(response(reviewer)); fixture.detectChanges();
+    http.expectOne(`/api/ui/accounting/clients/${client}/operational-opening-balances/${periodId}`).flush(response(reviewer));
+    http.expectOne(catalogUrl).flush(catalog('MANUAL')); await fixture.whenStable(); fixture.detectChanges();
     expect(c.opening()?.approvedByUserId).toBe(reviewer);
     expect(fixture.nativeElement.textContent).toContain('Independently approved');
   });
+  it('previews exact accepted predecessor identities and preserves the original uncertain creation request for explicit recovery', async () => {
+    const fixture = await setup(); const c = fixture.componentInstance;
+    c.setSuccessorMode(true); c.successorSourceId = sourceId; c.successorEvidence = 'EXACT-CLOSED-SOURCE';
+    const ready = c.previewSuccessor(null);
+    const previewRequest = http.expectOne(successorBase + '/preview');
+    expect(previewRequest.request.body).toMatchObject({ clientId: client, engagementId, periodId,
+      expectedPeriodRevision: exactRevision, priorPeriodId: priorId, expectedPriorPeriodRevision: '4',
+      nativeTrialBalanceDatasetId: sourceId, expectedSourceIdentityHash: 'a'.repeat(64), reviewed: false });
+    previewRequest.flush({ value: preview() }); await ready; fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('100.000000');
+    expect(fixture.nativeElement.textContent).toContain('PERIOD_LEDGER_NO_BOOK');
+    await c.createSuccessor(); http.expectNone(successorBase + '/create');
+    c.successorReviewed.set(true); const send = c.createSuccessor();
+    const first = http.expectOne(successorBase + '/create'); const original = first.request.body;
+    expect(original.reviewBasis).toBe('e'.repeat(64)); expect(original.expectedPeriodRevision).toBe(exactRevision);
+    first.error(new ProgressEvent('network')); await send;
+    expect(c.successorUncertain()).toBe(true); expect(c.manualReady()).toBe(false);
+    const refresh = c.loadSuccessorCatalog(); http.expectOne(catalogUrl).flush(catalog()); await refresh;
+    expect(c.successorPending()?.request.requestId).toBe(original.requestId);
+    http.expectNone(successorBase + '/create');
+    c.successorReviewed.set(true); await c.createSuccessor(); http.expectNone(successorBase + '/create');
+    // Readable catalogue with no eligible source on this page must not authorize replay.
+    const offPage = c.loadSuccessorCatalog();
+    http.expectOne(catalogUrl).flush({ ...catalog(), canPrepare: false, total: 0, sources: [] }); await offPage;
+    const denied = c.validateSuccessorRecovery();
+    const deniedPreview = http.expectOne(successorBase + '/preview');
+    expect(deniedPreview.request.body).toEqual({ ...original, reviewed: false });
+    deniedPreview.flush({ message: 'The engagement file is frozen.' }, { status: 409, statusText: 'Conflict' }); await denied;
+    expect(c.successorRecoveryReady()).toBe(false); expect(c.successorPending()?.request).toEqual(original);
+    c.successorReviewed.set(true); await c.createSuccessor(); http.expectNone(successorBase + '/create');
+    const changed = c.validateSuccessorRecovery();
+    http.expectOne(successorBase + '/preview').flush({ value: { ...preview(), reviewBasis: 'f'.repeat(64) } }); await changed;
+    expect(c.successorRecoveryReady()).toBe(false); expect(c.successorPending()?.request).toEqual(original);
+    const exact = c.validateSuccessorRecovery();
+    const originalPreview = http.expectOne(successorBase + '/preview');
+    expect(originalPreview.request.body).toEqual({ ...original, reviewed: false });
+    originalPreview.flush({ value: preview() }); await exact;
+    expect(c.successorRecoveryReady()).toBe(true); expect(c.successorReviewed()).toBe(false);
+    await c.createSuccessor(); http.expectNone(successorBase + '/create');
+    c.successorReviewed.set(true); const recover = c.createSuccessor();
+    const retry = http.expectOne(successorBase + '/create'); expect(retry.request.body).toEqual(original);
+    retry.flush({ value: successorView() });
+    await Promise.resolve(); await Promise.resolve();
+    http.expectOne(catalogUrl).flush(catalog('NATIVE_SUCCESSOR', original.requestId));
+    await Promise.resolve(); await Promise.resolve();
+    http.expectOne(successorBase + '/' + openingId).flush(successorView()); await recover; fixture.detectChanges();
+    expect(c.successorPending()).toBeNull(); expect(c.successorUncertain()).toBe(false);
+    expect(c.opening()?.approvedByUserId).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Awaiting independent review');
+    expect(fixture.nativeElement.textContent).not.toContain('Approve opening snapshot');
+  });
+
+  it('requires independent assent to both retained proof and manifest and refuses missing or mismatched proof', async () => {
+    expect(() => decodeSuccessorView({ ...successorView(), proofHash: null }, client, period)).toThrow();
+    expect(() => decodeSuccessorView({ ...successorView(), sourceIdentityHash: 'f'.repeat(64) }, client, period)).toThrow();
+    const fixture = await setup(reviewer); const c = fixture.componentInstance;
+    const load = c.loadSuccessorCatalog(); http.expectOne(catalogUrl).flush(catalog('NATIVE_SUCCESSOR', openingId, true));
+    await Promise.resolve(); await Promise.resolve(); http.expectOne(successorBase + '/' + openingId).flush(successorView()); await load; fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain('Approve opening snapshot');
+    expect(fixture.nativeElement.querySelector(`a[href="/app/accounting/clients/${client}/native-sources/${sourceId}"]`)).toBeTruthy();
+    await c.approveSuccessor(); http.expectNone(successorBase + '/' + openingId + '/approve');
+    c.successorApprovalReviewed.set(true); const approve = c.approveSuccessor();
+    const sent = http.expectOne(successorBase + '/' + openingId + '/approve');
+    expect(sent.request.body).toMatchObject({ openingId, clientId: client, engagementId, expectedPeriodRevision: exactRevision,
+      expectedOpeningManifestHash: 'b'.repeat(64), expectedSuccessorProofHash: 'c'.repeat(64), reviewed: true });
+    sent.flush({ value: true }); await Promise.resolve(); await Promise.resolve();
+    http.expectOne(catalogUrl).flush(catalog('NATIVE_SUCCESSOR', openingId, false)); await Promise.resolve(); await Promise.resolve();
+    http.expectOne(successorBase + '/' + openingId).flush(successorView(reviewer)); await approve; fixture.detectChanges();
+    expect(c.opening()?.approvedByUserId).toBe(reviewer); expect(c.successorPending()).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Independently approved');
+  });
+
+  it('keeps unsupported candidates blocked and clears a late preview when the actor changes', async () => {
+    const fixture = await setup(); const c = fixture.componentInstance;
+    c.setSuccessorMode(true); c.successorSourceId = sourceId; c.successorEvidence = 'EXACT-CLOSED-SOURCE';
+    const reload = c.loadSuccessorCatalog();
+    http.expectOne(catalogUrl).flush({ ...catalog(), sources: [{ ...catalog().sources[0], eligible: false,
+      blocker: 'Nonzero individual P&L closing account; no supported successor.' }] }); await reload; fixture.detectChanges();
+    await c.previewSuccessor(null); http.expectNone(successorBase + '/preview');
+    expect(fixture.nativeElement.textContent).toContain('Nonzero individual P&L closing account');
+    const refresh = c.loadSuccessorCatalog(); http.expectOne(catalogUrl).flush(catalog()); await refresh;
+    const previewRead = c.previewSuccessor(null); const pending = http.expectOne(successorBase + '/preview');
+    const session = TestBed.inject(SessionService); session.current.set(null); session.invalidation.update(n => n + 1);
+    fixture.detectChanges(); pending.flush({ value: preview() }); await previewRead; fixture.detectChanges();
+    expect(c.successorPreview()).toBeNull(); expect(c.successorCatalog()).toBeNull(); expect(c.opening()).toBeNull();
+    expect(c.successorBusy()).toBe(false); expect(fixture.nativeElement.textContent).not.toContain('100.000000');
+  });
+
+  it('loads the route client through the existing authorized native context without selecting or activating a target', async () => {
+    TestBed.inject(SessionService).current.set({ userId: maker, firmId: client, generation: '1', staff: true });
+    const fixture = TestBed.createComponent(NativeSuccessorOpeningPage); fixture.detectChanges(); TestBed.tick();
+    http.expectOne(`/api/ui/accounting/clients/${client}`).flush({ clientId: client, name: 'Native client',
+      profile: { sourceMode: 'NATIVE_BOOKKEEPING', currency: 'QAR' }, periods: [{ ...period, basis: 'IFRS', status: 'DRAFT' }], hasMorePeriods: false });
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Native client');
+    expect((fixture.nativeElement.querySelector('#opening-period') as HTMLSelectElement).value).toBe('');
+    http.expectNone(r => r.method === 'POST');
+    http.expectNone(catalogUrl);
+  });
+
 });

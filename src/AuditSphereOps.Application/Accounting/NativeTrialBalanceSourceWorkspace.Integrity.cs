@@ -77,6 +77,26 @@ public static partial class NativeTrialBalanceSourceWorkspace
   internal static async Task<CommandResult> CheckCurrentAsync(IAuditSphereDbContext db, TrialBalanceDataset source,
     CancellationToken ct = default, bool requireCoverage = true)
   {
+    // Read suitability must not acquire a client/descendant write lock: period close and
+    // existing publication callers may already hold their period. Source-creation commands
+    // fence ancestry before taking their descendant write lock; this guard traverses only
+    // immutable evidence and predecessor period SHARE checks.
+    var direct = await CheckCurrentCoreAsync(db, source, ct, requireCoverage);
+    if (!direct.Succeeded || source.SourceKind != SourceKind) return direct;
+    if (db is not IClientAccountingDbContext accounting)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Native successor verification requires accounting capability.");
+    var opening = await accounting.ClientOperationalOpeningBalances.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == source.FirmId && x.ClientId == source.ClientId && x.PeriodId == source.PeriodId, ct);
+    if (opening is null) return CommandResult.Ok();
+    var proof = await accounting.ClientOperationalOpeningSuccessorProofs.AsNoTracking().SingleOrDefaultAsync(x => x.OpeningId == opening.Id, ct);
+    if (proof is not null && proof.EngagementId != source.EngagementId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "The successor opening belongs to another source engagement.");
+    return await CheckOpeningSuccessorChainAsync(accounting, opening, ct, expectedEngagementId: source.EngagementId);
+  }
+
+  private static async Task<CommandResult> CheckCurrentCoreAsync(IAuditSphereDbContext db, TrialBalanceDataset source,
+    CancellationToken ct, bool requireCoverage)
+  {
     if (source.SourceKind != SourceKind) return CommandResult.Ok();
     if (db is not IClientAccountingDbContext accounting)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Native source verification requires the client accounting capability.");
@@ -92,7 +112,7 @@ public static partial class NativeTrialBalanceSourceWorkspace
     if (period is null || period.StartDate != m.PeriodStart || period.EndDate != m.PeriodEnd ||
         period.Basis != m.Basis || period.Currency != m.Currency || !PeriodRevisionMatches(period, m.PeriodRevision))
       return CommandResult.Fail(ErrorCodes.StaleRevision, "The native source period was amended or reopened; its captured source must not be rebound.");
-    var pins = await ReadPinsAsync(accounting, source.FirmId, source.ClientId, m.PeriodId, ct);
+    var pins = await ReadPinsAsync(accounting, source.FirmId, source.ClientId, m.PeriodId, ct, checkSuccessor: false);
     return pins.Succeeded && pins.Value == m.Pins ? CommandResult.Ok() :
       CommandResult.Fail(pins.Succeeded ? ErrorCodes.StaleRevision : pins.ErrorCode!,
         pins.Succeeded ? "Native postings, opening, chart, profile or mandate changed. Capture and independently accept a successor source." : pins.Message!);
@@ -106,6 +126,11 @@ public static partial class NativeTrialBalanceSourceWorkspace
     if (!current.Succeeded) return current;
     if (source.ValidationStatus != "Accepted" || !source.Balanced || source.ControlTotal != 0m)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The native source must pass technical validation before reporting use.");
+    return await CheckSelectedCoreAsync(db, source, ct);
+  }
+
+  private static async Task<CommandResult> CheckSelectedCoreAsync(IAuditSphereDbContext db, TrialBalanceDataset source, CancellationToken ct)
+  {
     var selected = await (from decision in db.SourceAcceptanceDecisions.AsNoTracking()
       join dataset in db.TrialBalanceDatasets.AsNoTracking() on decision.TrialBalanceDatasetId equals dataset.Id
       where decision.FirmId == source.FirmId && decision.ClientId == source.ClientId && decision.EngagementId == source.EngagementId &&
