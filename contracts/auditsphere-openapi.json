@@ -35716,6 +35716,158 @@
         ]
       }
     },
+    "/api/ui/engagements/{id}/fieldwork/schedule-intake/schedules/{scheduleId}/review/source-rows": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "captureHash",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditScheduleReviewSourceRowsPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/engagements/{id}/fieldwork/schedule-intake/schedules/{scheduleId}/review/actions": {
       "post": {
         "tags": [
@@ -100548,6 +100700,258 @@
           }
         }
       },
+      "AuditScheduleReviewSourceRow": {
+        "required": [
+          "stableRowId",
+          "sourceLineNumber",
+          "cells"
+        ],
+        "type": "object",
+        "properties": {
+          "stableRowId": {
+            "type": "string"
+          },
+          "sourceLineNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "cells": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AuditScheduleReviewSourceRowsPage": {
+        "required": [
+          "captureHash",
+          "offset",
+          "limit",
+          "totalRows",
+          "hasMore",
+          "headers",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "captureHash": {
+            "type": "string"
+          },
+          "offset": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "limit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalRows": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditScheduleReviewSourceRow"
+            }
+          }
+        }
+      },
+      "AuditScheduleReviewSourceSummary": {
+        "required": [
+          "scheduleType",
+          "pbcAcceptanceReceiptId",
+          "acceptedSourceDecisionId",
+          "trialBalanceDatasetId",
+          "datasetRevision",
+          "periodId",
+          "periodCode",
+          "periodStart",
+          "periodEnd",
+          "periodRevision",
+          "bookId",
+          "bookRevision",
+          "basis",
+          "legalEntityKey",
+          "currency",
+          "sourceDate",
+          "fileName",
+          "profileVersion",
+          "rawFileSha256",
+          "byteCount",
+          "rowCount",
+          "controlBasis",
+          "selectedControlAccountCodes",
+          "signedTotal",
+          "closingControl",
+          "residual",
+          "hasCompleteListingCoverage",
+          "allAccountsReconciled",
+          "accounts"
+        ],
+        "type": "object",
+        "properties": {
+          "scheduleType": {
+            "type": "string"
+          },
+          "pbcAcceptanceReceiptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "acceptedSourceDecisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "trialBalanceDatasetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "datasetRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodCode": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "bookId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "bookRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "basis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "legalEntityKey": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "sourceDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "profileVersion": {
+            "type": "string"
+          },
+          "rawFileSha256": {
+            "type": "string"
+          },
+          "byteCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "rowCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "controlBasis": {
+            "type": "string"
+          },
+          "selectedControlAccountCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "signedTotal": {
+            "type": "string"
+          },
+          "closingControl": {
+            "type": "string"
+          },
+          "residual": {
+            "type": "string"
+          },
+          "hasCompleteListingCoverage": {
+            "type": "boolean"
+          },
+          "allAccountsReconciled": {
+            "type": "boolean"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditScheduleSourceAccountView"
+            }
+          }
+        }
+      },
       "AuditScheduleSourceAccountView": {
         "required": [
           "accountCode",
@@ -100845,7 +101249,8 @@
           "canApprove",
           "sourceFailureCode",
           "status",
-          "existingReviewId"
+          "existingReviewId",
+          "source"
         ],
         "type": "object",
         "properties": {
@@ -100893,6 +101298,9 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "source": {
+            "$ref": "#/components/schemas/AuditScheduleReviewSourceSummary"
           }
         }
       },
