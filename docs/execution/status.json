@@ -1093,8 +1093,10 @@
         "status": "PASS_LOCAL_FOCUSED; CURRENT_FULL_CI_PENDING",
         "checks": "RED1 foreign references accepted -> GREEN2 schema/normalposting PASS; EFno drift; APIRelease0warnings/errors",
         "history": "status-archive-2026-10.json#keys.expenseJournalPostingScope20261024",
-        "migration": "20261024014728_FirmExpenseJournalPostingFirmScope; isolated testDB applied only, no deployed history/data preflight"
-      }
+        "migration": "20261024014728_FirmExpenseJournalPostingFirmScope; isolated testDB applied only, no deployed history/data preflight",
+        "implementationCommit": "91aa0b2b19ca5f6814b789c30a9896d2e05e6fe2"
+      },
+      "administrationAtomicTrace": "25source-backed4.2 child criteria; no functional promotion. Details: status-archive-2026-10.json#keys.administrationAtomicTrace20261024."
     },
     "archivedOn20261024": {
       "entries": [

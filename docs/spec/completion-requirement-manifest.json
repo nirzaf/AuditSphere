@@ -627,7 +627,7 @@
           "disposition": "VERIFY_ONLY",
           "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
           "acceptance": "VERIFICATION_PENDING",
-          "remaining": "This compound field clause is not fully decomposed: source traces legal name, period/timeline, and fee into generation, but a separate manual-input workflow and independently validated Submission Deadlines field are not established. The existing test was not run."
+          "remaining": "Compound clause needs field-by-field persisted/rendered and user-input verification for legal name, period, fee and deadlines. Existing proposal timeline can carry deadlines; the prose alone does not require a new separately typed deadline field or duplicate input workflow. Parent commercial cohort passed; broader UI/content acceptance remains separate."
         },
         {
           "id": "ACCREQ-4.1.4-PARTNER-VISUAL-SIGNATURE",
@@ -748,7 +748,7 @@
           "disposition": "VERIFY_ONLY",
           "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
           "acceptance": "VERIFICATION_PENDING",
-          "remaining": "A payment reference is source-traced, but the cheque and bank-transfer examples are compound and distinct typed reference capture/validation is not established. Test execution remains pending."
+          "remaining": "The existing reference field records payment evidence. Cheque number and bank-transfer reference are illustrative values, not authority for a new payment-type enum or separate typed capture workflow. Parent fee cohort passed; exact input/receipt and provider acceptance remain separate."
         },
         {
           "id": "ACCREQ-4.1.5-RECEIPT-VOUCHER-GENERATION",
@@ -993,6 +993,88 @@
       "evidence": [],
       "workUnits": [
         "WU-027"
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.2.1-NEW-CLIENT-QUESTIONNAIRE",
+          "sourceLine": 579,
+          "sourceTextSha256": "7801918ff20c51cbe752f9bf2226d2c490b51a5955e0d7d08922a61094679489",
+          "expectedOutcome": "Require the new-client path to ask the source-listed UBO, AML background, KYC documentation, management-integrity, financial-viability, and independence/conflict questions.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/AcceptanceChecklistService.cs",
+            "symbol": "AcceptanceChecklistService.LoadAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs",
+            "method": "NewClient_MustAnswerEveryOnboardingQuestionWithEvidence_AndAnAdverseAnswerIsNeverAcceptedByFillingFields",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The grouped questionnaire is one source criterion, not six newly typed fields. Exact mapping and evidence semantics for each named topic remain UNVERIFIED from this trace; the cited selector was not run and does not establish every clause."
+        },
+        {
+          "id": "ACCREQ-4.2.1-CONTINUANCE-DELTA-CHECKLIST",
+          "sourceLine": 581,
+          "sourceTextSha256": "705c319a2606638ee0ff84de0c9f3a9d621678e078d71d4fc7391682b37859fb",
+          "expectedOutcome": "Require the recurring-client delta review for prior-year fee settlement, management/shareholding changes, substantial credit facilities or loans, litigation/legal notices, and reported fraud or regulatory investigations; apply ADR-0017's evidence-bearing RV-031 and RV-032 questions and adverse-answer rules.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/AcceptanceChecklistService.cs",
+            "symbol": "AcceptanceChecklistService.StartContinuanceAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs",
+            "method": "RecurringClient_AnswersOnlyTheDeltaBank_EscalatesKeyChanges_AndKeepsPriorEvidence",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source's five grouped topics remain one delta-bank criterion. ADR-0017 adds evidence-bearing RV-031 (legal notice, claim or demand; adverse on YES) and RV-032 (prior-year professional fees settled; adverse on NO). The cited test body traces those added question properties, but exact one-to-one mapping of every original grouped phrase and decision behavior remains UNVERIFIED; no execution is claimed.",
+          "originalSourceOutcome": "Delta review checklist: Settlement of prior-year professional fees, key management or shareholding changes, substantial new credit facilities or loans, ongoing litigation or legal notices, reported fraud or regulatory investigations.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0017-ste-v22-delegated-requirement-decisions-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.2.1-PARTNER-DECISION",
+          "sourceLine": 582,
+          "sourceTextSha256": "a085df80a7dac944b2c31605bb16349239c86609acf312d40e0bf305f4ceaabb",
+          "expectedOutcome": "Require the Partner to execute the current risk acceptance/continuance gate, independently from the client commercial response.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/AcceptanceDecisionService.cs",
+            "symbol": "AcceptanceDecisionService.RecordAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs",
+            "method": "AcceptanceRequiresCurrentEvaluationAndPartnerScope",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Trace current Partner decision, applicable checklist/evidence and generation at the authoritative command and exact-scope transition. ADR-0017 response channels belong to the client commercial ProposalResponse, not an added Partner risk-decision field. Functional verification remains separate; no missing risk-channel implementation is inferred.",
+          "originalSourceOutcome": "Mandatory Partner Sign-Off: Block project transition to operational planning until the Partner executes the digital acceptance gate.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0017-ste-v22-delegated-requirement-decisions-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.2.1-OPERATIONAL-PLANNING-GATE",
+          "sourceLine": 582,
+          "sourceTextSha256": "a085df80a7dac944b2c31605bb16349239c86609acf312d40e0bf305f4ceaabb",
+          "expectedOutcome": "Block transition to operational planning until the engagement has the required Partner acceptance decision.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+            "symbol": "EngagementLifecycleService.ActivateAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs",
+            "method": "Activation_RequiresACurrentUnconditionalPartnerAcceptanceForTheSameRoute",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The cited activation selector also exercises separate activation gates and does not isolate the \u00a74.2.1 Partner-gate condition. The exact transition behavior remains pending verification; no execution or acceptance is claimed."
+        }
       ]
     },
     {
@@ -1031,6 +1113,69 @@
       "evidence": [],
       "workUnits": [
         "WU-028"
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.2.2-VISUAL-CAPACITY-CALENDAR",
+          "sourceLine": 586,
+          "sourceTextSha256": "ef3062209b07fbc97d1eaa67ebc3076bc350c6232a8279354224fa6254b4fd8f",
+          "expectedOutcome": "Track team availability, target utilization, and leave schedules in a visual capacity calendar. Under ADR-0017, working days are Sunday through Thursday, allocation weeks are Sunday through Saturday, and public holidays are recorded as unavailability without an inferred holiday table.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/ResourcePlanningService.cs",
+            "symbol": "ResourcePlanningService.GetGridAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "ResourceGrid_ShowsCapacityUnavailabilityAndOverAllocation_AndBudgetsReconcileByPhaseAndRiskArea",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source groups availability, target utilization, and leave in one calendar behavior. The cited selector traces grid data and unavailability but does not establish current visual rendering or target-utilization presentation; those details remain UNVERIFIED and the selector was not run.",
+          "originalSourceOutcome": "Visual Capacity Calendar: Track team availability, target utilization, and leave schedules.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0017-ste-v22-delegated-requirement-decisions-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.2.2-ENGAGEMENT-ROLE-ASSIGNMENTS",
+          "sourceLine": 587,
+          "sourceTextSha256": "ff684b76a4cc425196f0c18b34e132d035f3d3a830dc55c9e45fe723b14348ac",
+          "expectedOutcome": "Allow explicit per-engagement assignment of Engagement Partner as Approver, Audit Manager/Senior as Reviewer, and Associates as Preparers.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/StaffingService.cs",
+            "symbol": "StaffingService.AssignAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "Staffing_MapsFourLevelsToEngagementRoles_AndRiskBandsRouteOwnersAndPartnerReview",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "This is the source's grouped role assignment, not a new permission rule. The cited selector traces role mapping and routing; presentation and complete assignment-workflow acceptance remain UNVERIFIED, and the selector was not run."
+        },
+        {
+          "id": "ACCREQ-4.2.2-STATUTORY-MILESTONE-RELATIVE-DATES",
+          "sourceLine": 588,
+          "sourceTextSha256": "68d28cf40f2cd9e37af911d7ece3fbddd2b64ba84e07e2976951aa718e20cac0",
+          "expectedOutcome": "Configure operational milestones relative to statutory cutoffs. The December/January/February/March dates in the source are illustrative examples, not fixed required dates, under ADR-0017.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/StatutoryMilestoneService.cs",
+            "symbol": "StatutoryMilestoneService.SaveMilestonesAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/StatutoryMilestonePlanningTests.cs",
+            "method": "Service_SaveMilestones_SavesExplicitStatutoryCutoffAndCalculatesArchiveDeadline",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The service/test trace does not accept every statutory-relative default or jurisdictional cutoff. Exact defaults and saved-plan behavior remain pending; the example dates are not acceptance thresholds and no test was run.",
+          "originalSourceOutcome": "Statutory Milestones: Configure operational milestones relative to statutory cutoffs (e.g., December 31 year-end \u2192 fieldwork commences January Week 1 \u2192 draft report by February 15 \u2192 final signed report by March 15).",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0017-ste-v22-delegated-requirement-decisions-approved.md"
+        }
       ]
     },
     {
@@ -1063,6 +1208,88 @@
       "evidence": [],
       "workUnits": [
         "WU-021"
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.2.3-PROVISIONING-TRIGGER",
+          "sourceLine": 592,
+          "sourceTextSha256": "03dc4d3d12e41129a339ac3a01e0e2ce2081b6361cdf2be89a9bde21af4f1a7c",
+          "expectedOutcome": "Automatically provision the standard engagement taxonomy upon Partner risk acceptance.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Documents/EngagementWorkspaceProvisioning.cs",
+            "symbol": "EngagementWorkspaceDiscovery.EnqueuePendingAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkspaceProvisioningTests.cs",
+            "method": "NothingIsProvisioned_UntilThePartnerActivatesTheEngagement",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Current operation discovery queues from engagement activation records. Equivalence and timing against the source's 'upon Partner risk acceptance' trigger remain UNVERIFIED. This local trace does not prove provider effects; live Microsoft acceptance is a separate BLOCKED_EXTERNAL gate."
+        },
+        {
+          "id": "ACCREQ-4.2.3-FIVE-FOLDER-TAXONOMY",
+          "sourceLine": 592,
+          "sourceTextSha256": "03dc4d3d12e41129a339ac3a01e0e2ce2081b6361cdf2be89a9bde21af4f1a7c",
+          "expectedOutcome": "Provision the source-listed standard engagement taxonomy:01_Administration & Planning,02_Trial Balance & Schedules,03_Fieldwork & Testing,04_Drafts & Deliverables and05_Final Signed Archive.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Documents/EngagementWorkspaceProvisioning.cs",
+            "symbol": "EngagementWorkspaceProvisioningHandler.ExecuteEffectAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkspaceProvisioningTests.cs",
+            "method": "ExactSteTree_IsCreatedOnce_ScopedPerClient_AndRepeatRunsNeverDuplicate",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Compare source-listed taxonomy with the selected approved folder-template version and retained repositories. This clause alone does not prohibit additional approved folders or authorize renaming existing evidence. Simulation/test trace is not live Microsoft provisioning/readback acceptance."
+        },
+        {
+          "id": "ACCREQ-4.2.3-DEDICATED-CLIENT-SITE-STAFF-ACCESS",
+          "sourceLine": 592,
+          "sourceTextSha256": "03dc4d3d12e41129a339ac3a01e0e2ce2081b6361cdf2be89a9bde21af4f1a7c",
+          "expectedOutcome": "Under ADR-0006, use one dedicated SharePoint site per new client and give every assigned staff member, including engagement-only staff, Full Control over that site; local RoleGrant scopes remain unchanged.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Documents/ClientSharePointSites.cs",
+            "symbol": "ClientSharePointSiteHandler.ExecuteEffectAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientSharePointSitesTests.cs",
+            "method": "EveryClientGetsAnIsolatedSite_StaffReceiveFullControlWithoutWideningLocalRoles_RepeatIsIdempotent",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "This is ADR-0006's site/access overlay, separate from the source folder-tree trace and from local application authorization. The cited test is not live tenant evidence; Microsoft consent, real site creation, staff-grant readback, and external acceptance remain BLOCKED_EXTERNAL.",
+          "originalSourceOutcome": "Upon Partner risk acceptance, the system automatically provisions the standard 5-folder engagement taxonomy:",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0006-client-sharepoint-site-staff-full-control-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.2.3-CLIENT-SITE-ROLLOUT-BOUNDARY",
+          "sourceLine": 592,
+          "sourceTextSha256": "03dc4d3d12e41129a339ac3a01e0e2ce2081b6361cdf2be89a9bde21af4f1a7c",
+          "expectedOutcome": "Under ADR-0006, clients before the explicit fixed UTC ClientSites:ClientsCreatedAfter boundary retain existing repositories; eligible newer clients use dedicated sites without shared-site fallback, and the saved boundary is not silently changed.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Documents/ClientSharePointSites.cs",
+            "symbol": "ClientSharePointSiteDiscovery.EnqueuePendingAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientSharePointSitesTests.cs",
+            "method": "ExplicitRollout_PreservesOlderClientsAndRefusesChangingTheBoundary",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The fixed UTC rollout contract is traced separately from the five-folder source criterion. The cited test was not run; no live tenant configuration, client eligibility set, or production rollout result is asserted.",
+          "originalSourceOutcome": "Upon Partner risk acceptance, the system automatically provisions the standard 5-folder engagement taxonomy:",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0006-client-sharepoint-site-staff-full-control-approved.md"
+        }
       ]
     },
     {
@@ -1098,6 +1325,280 @@
       "evidence": [],
       "workUnits": [
         "WU-012"
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.2.4-TRIAL-BALANCE-BENCHMARK-LINK",
+          "sourceLine": 604,
+          "sourceTextSha256": "f80da24c719767276f72a4794f47c412fe70703d58802356e473f1c83ee6d6dc",
+          "expectedOutcome": "Link materiality calculation directly to ingested Trial Balance balances.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/MaterialityEngineService.cs",
+            "symbol": "MaterialityEngineService.CalculateAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The cited test body traces mapped benchmark options and stale-source behavior; it was not run and does not itself establish source readiness, professional benchmark selection, or complete current acceptance."
+        },
+        {
+          "id": "ACCREQ-4.2.4-PBT-WITHOUT-NORMALIZATION",
+          "sourceLine": 605,
+          "sourceTextSha256": "695c296a1cc6ef8d6dc560210f6c9c3ee45be7a41d25031ccd313b2ff3ae1141",
+          "expectedOutcome": "Use mapped Profit Before Tax balances excluding tax at 5.0%\u201310.0%; apply no normalization adjustments under ADR-0011 and ADR-0017.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/MaterialityCalculator.cs",
+            "symbol": "MaterialityCalculator.DeriveBenchmark"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "SUPERSEDED_ADR_0011",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The normalized wording is preserved as original source; the operative benchmark is mapped PBT excluding tax with no normalization. The cited test body traces the mapped PBT/tax exclusion but does not accept all account classifications or professional application; it was not run.",
+          "originalSourceOutcome": "Normalized Profit Before Tax (PBT): 5.0% \u2013 10.0%",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0011-materiality-pbt-without-normalization-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.2.4-TOTAL-REVENUE-BENCHMARK",
+          "sourceLine": 606,
+          "sourceTextSha256": "9bf5fba92c535a261864ed0a40c07f12d38f4ae02e795afa5afaa66612b4bea5",
+          "expectedOutcome": "Offer Total Revenue as a benchmark with a 0.5%\u20132.0% rate range.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/MaterialityCalculator.cs",
+            "symbol": "MaterialityCalculator.DeriveBenchmark"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The cited test body checks the mapped revenue amount and a revenue calculation, but not both rate endpoints or user selection; those details remain UNVERIFIED by this selector, which was not run."
+        },
+        {
+          "id": "ACCREQ-4.2.4-TOTAL-ASSETS-BENCHMARK",
+          "sourceLine": 607,
+          "sourceTextSha256": "7d33e1c7bd1f590d95f05817ce528abaa1c85970215ad5fad69e963d15aeff6c",
+          "expectedOutcome": "Offer Total Assets as a benchmark with a 0.5%\u20131.0% rate range.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/MaterialityCalculator.cs",
+            "symbol": "MaterialityCalculator.DeriveBenchmark"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The cited test body checks the mapped asset amount, but not both rate endpoints or user selection; those details remain UNVERIFIED by this selector, which was not run."
+        },
+        {
+          "id": "ACCREQ-4.2.4-EQUITY-NET-ASSETS-BENCHMARK",
+          "sourceLine": 608,
+          "sourceTextSha256": "d43363191d4fb4cd741eb83eb3c733a6752317c345d0dc99cbca60b5af1bda1a",
+          "expectedOutcome": "Offer Equity / Net Assets as a benchmark with a 1.0%\u20132.0% rate range.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/MaterialityCalculator.cs",
+            "symbol": "MaterialityCalculator.DeriveBenchmark"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The cited test body checks the mapped net-assets amount, but not both rate endpoints or user selection; those details remain UNVERIFIED by this selector, which was not run."
+        },
+        {
+          "id": "ACCREQ-4.2.4-PLANNING-MATERIALITY-CALCULATION",
+          "sourceLine": 610,
+          "sourceTextSha256": "da2b41e33a3836b17ef27c2694dc571b23748c65cb489dd433a5ce2a76056a10",
+          "expectedOutcome": "Calculate Planning Materiality as benchmark base multiplied by the selected percentage.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/MaterialityCalculator.cs",
+            "symbol": "MaterialityCalculator.Calculate"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The cited test body checks one calculation's PM result; full benchmark/rate combinations and current professional approval remain outside this trace. The selector was not run."
+        },
+        {
+          "id": "ACCREQ-4.2.4-TOLERABLE-ERROR-RANGE",
+          "sourceLine": 611,
+          "sourceTextSha256": "a02db311aa028778e0840bfca475bf6a622fba85446167530ade61c2842455c0",
+          "expectedOutcome": "Calculate Tolerable Error / Performance Materiality within 50%\u201375% of Planning Materiality.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/MaterialityCalculator.cs",
+            "symbol": "MaterialityCalculator.Calculate"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The cited test body exercises a 75% calculation, not both range boundaries across benchmarks. Exact boundary acceptance remains UNVERIFIED; the selector was not run."
+        },
+        {
+          "id": "ACCREQ-4.2.4-SAD-THRESHOLD-RANGE",
+          "sourceLine": 612,
+          "sourceTextSha256": "05adf429ac6bcdaca34f5c0c940151282430b80dbe603ff5be2c4234377c8382",
+          "expectedOutcome": "Calculate the Summary of Audit Differences threshold, the trivial-error cutoff, within 3%\u20135% of Planning Materiality.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/MaterialityCalculator.cs",
+            "symbol": "MaterialityCalculator.Calculate"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "Materiality_IsCalculatedFromTheMappedTrialBalance_AndGoesStaleWhenTheSourceIsReplaced",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The cited test body exercises a 5% calculation, not both range boundaries. Exact boundary acceptance remains UNVERIFIED; the selector was not run."
+        },
+        {
+          "id": "ACCREQ-4.2.4-PRACTICAL-ROUNDING-LIMIT",
+          "sourceLine": 613,
+          "sourceTextSha256": "66693f5e275adebfc211784169ad12a1c83d0cab3a0eba9d88cfc62a016d7f78",
+          "expectedOutcome": "Allow managers to apply practical rounding to calculated materiality values within a strict maximum deviation of \u00b15.0% before Partner approval.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/MaterialityEngineService.cs",
+            "symbol": "MaterialityEngineService.ApplyPracticalRoundingAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.PracticalRounding.cs",
+            "method": "PracticalRounding_SupersedesDraftsAndPartnerApprovesOnlyTheCurrentRoundedHead",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Rounding, its \u00b15.0% bound, and subsequent Partner approval are traced to existing source/test anchors but are not accepted by this manifest entry. The selector was not run; professional approval remains a human gate."
+        },
+        {
+          "id": "ACCREQ-4.2.4-COLOR-CODED-RISK-STRATIFICATION",
+          "sourceLine": 614,
+          "sourceTextSha256": "997f495e8d023a83c7ae28712631cedc709ce125245b86a697279c9718cb28ec",
+          "expectedOutcome": "Present Green, Amber, and Red risk bands as a visual color-coded stratification in the audit planning view.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/audit/plan.ts",
+            "symbol": "AuditPlan"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.E2E.Tests/PlanningAndResourcesJourneyTests.cs",
+            "method": "PartnerStaffsCalculatesMaterialityReviewsRedRiskAndSeesTheGrid",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The current Angular owner and a Red-risk journey selector are trace anchors only. Rendering of all three colors, their labels/contrast, and the browser workflow remain UNVERIFIED; no browser or test execution is claimed."
+        },
+        {
+          "id": "ACCREQ-4.2.4-GREEN-LOW-RISK",
+          "sourceLine": 615,
+          "sourceTextSha256": "c24837f3fa89eada357ccfd0e1dfc546c3b346c4a733e0b143e34819bbe0f24a",
+          "expectedOutcome": "Classify a balance below TE as Green (Low Risk), with standard automated audit programs and junior-staff assignment as stated in the source.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/RiskBandService.cs",
+            "symbol": "RiskBandService.GetRoutingAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "Staffing_MapsFourLevelsToEngagementRoles_AndRiskBandsRouteOwnersAndPartnerReview",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source groups the threshold, standard-program and junior-assignment clauses. The cited selector traces band/owner routing, not standard program selection or visual color rendering; those parts remain UNVERIFIED. No test was run."
+        },
+        {
+          "id": "ACCREQ-4.2.4-AMBER-MODERATE-RISK",
+          "sourceLine": 616,
+          "sourceTextSha256": "d0b33e341740a3b1bc6303472bc5a77e4e9b0ab34c3b9bf5d2583051c009392e",
+          "expectedOutcome": "Classify a balance between TE and PM as Amber (Moderate Risk); require Senior Auditor or above execution and Audit Manager review. Under ADR-0017, sampling or full-population testing is the senior's documented judgment and no sample is universally required.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/MaterialityCalculator.cs",
+            "symbol": "FsliRiskBandRules.MinimumExecutorRank"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "SUPERSEDED_ADR_0017",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source's sampling phrase is retained as original wording; ADR-0017 makes testing approach a documented senior judgment. The cited selector traces staffing ranks but not that judgment or visual Amber display; these remain UNVERIFIED and no test was run.",
+          "originalSourceOutcome": "Amber (Moderate Risk): Balance between TE and PM; requires senior substantive testing and sampling.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0017-ste-v22-delegated-requirement-decisions-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.2.4-RED-CRITICAL-HIGH-RISK",
+          "sourceLine": 617,
+          "sourceTextSha256": "1ab268df6e7d53110134c66c6bf5dde30f9656c9d7430f648392154abd864505",
+          "expectedOutcome": "Classify a balance exceeding PM, a recorded critical-estimate flag, or high inherent risk as Red (Critical / High Risk); ADR-0017 defines high inherent risk as likelihood 3 with magnitude at least 2.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/MaterialityCalculator.cs",
+            "symbol": "FsliRiskBandRules.Band"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.FsliRouting.cs",
+            "method": "RecordedCriticalEstimateFlagBandsTheRiskRedWithoutRelyingOnWording",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "This compound Red trigger includes the numeric threshold, critical-estimate flag, and high-inherent-risk definition. The cited selector specifically traces the critical-estimate flag; threshold and high-inherent-risk branches remain UNVERIFIED by that selector. No test was run.",
+          "originalSourceOutcome": "Red (Critical / High Risk): Balance exceeds PM, involves critical accounting estimates, or carries high inherent risk; requires mandatory Manager-level execution and Partner review.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0017-ste-v22-delegated-requirement-decisions-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.2.4-RED-STAFFING-AND-PARTNER-REVIEW",
+          "sourceLine": 617,
+          "sourceTextSha256": "1ab268df6e7d53110134c66c6bf5dde30f9656c9d7430f648392154abd864505",
+          "expectedOutcome": "Require Manager-level execution and Partner review for Red risk.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/RiskBandService.cs",
+            "symbol": "RiskBandService.GetRoutingAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "Staffing_MapsFourLevelsToEngagementRoles_AndRiskBandsRouteOwnersAndPartnerReview",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source groups execution rank and Partner review. The cited selector traces owner routing and Partner clearance but was not run; current visual color display and complete role/review acceptance remain pending."
+        }
       ]
     },
     {
@@ -2572,5 +3073,11 @@
       "Cited event-lineage anchors are incomplete, not proof that event producers are absent."
     ],
     "execution": "Every existing ACCREQ-6.8 plan now has bounded local focused observations across these slices; full criterion/CI/rendered/professional/live acceptance is not implied. Current followup retains1+13+7+1PASS in four focused invocations."
+  },
+  "administrationTraceObservation": {
+    "sourceSha": "91aa0b2b19ca5f6814b789c30a9896d2e05e6fe2",
+    "scope": "25 additional local alias children under existing4.2.1-4.2.4 parents; source/test tracing only, not complete atomic requirement denominator.",
+    "parentReview": "Commercial response channels were not transferred into Partner risk decisions; the source five-folder taxonomy does not alone prohibit additional approved folders. ADR0011/0017 no normalization and documented senior sampling judgment preserved.",
+    "execution": "No tests run by tracing sidecar. Existing parent focused evidence for selected materiality/activation/commercial methods is recorded separately in execution ledger; a selector match does not accept every compound child clause."
   }
 }

@@ -24463,7 +24463,15 @@
       "implementation": "Nullable (FirmId,JournalId) and (FirmId,PostingId) Restrict references use existing principal keys; supporting indexes. No account/actor/authorization/posting/pair/status semantics changed.",
       "proof": "RED1: foreign journal/post accepted, samefirm controls and priorFKdenials correct. GREEN2: named schema and normal expense-posting methodsPASS/0FAIL/0SKIP; final EF drift NONE, APIRelease0warnings/errors.",
       "evidence": ".local/autonomous/evidence/expense-ledger-scope-20261024/review.json",
-      "boundaries": "Owned isolated loopback testDB only; no dev/production apply or data repair. Existing invalid data will fail FK validation; that migration-on-invalid-history path was not separately replayed. Deployed preflight/rollout remains unverified."
+      "boundaries": "Owned isolated loopback testDB only; no dev/production apply or data repair. Existing invalid data will fail FK validation; that migration-on-invalid-history path was not separately replayed. Deployed preflight/rollout remains unverified.",
+      "implementationCommit": "91aa0b2b19ca5f6814b789c30a9896d2e05e6fe2"
+    },
+    "administrationAtomicTrace20261024": {
+      "source": "91aa0b2b19ca5f6814b789c30a9896d2e05e6fe2",
+      "status": "SOURCE_TRACED_NOT_ACCEPTED",
+      "children": 25,
+      "scope": "Existing4.2.1-4.2.4 rows, exact source-line SHA/owner/test anchors validated. Parent reviewed ADR overlays, commercial/Partner channel distinction and source taxonomy not maximum folder count.",
+      "limits": "Grouped clauses still need deeper mapping; functional/boundary/rendered/provider evidence not inferred. No sidecar test/build executed."
     }
   },
   "archivedTargetedVerification": {

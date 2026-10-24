@@ -415,6 +415,32 @@
       "dependentSpecificationTasks": [
         "ASCP-13"
       ]
+    },
+    {
+      "decisionId": "POLICY-INDEPENDENT-CHECKPOINT-CUSTODY",
+      "title": "Approved independent release-checkpoint custody target and recovery contract",
+      "ownerRole": "Deployment owner and designated custody/security/recovery owners",
+      "scope": "ASCP Task28 authoritative checkpoint custody, separate from secondary SharePoint archive copy",
+      "effectiveFrom": null,
+      "evidenceReference": null,
+      "status": "PENDING",
+      "dependentWorkUnits": [],
+      "dependentSpecificationTasks": [
+        "ASCP-28"
+      ],
+      "observedAtSource": "05b054fdcbbfb44ee2901209d7995c7f78a57bb1",
+      "requiredDecision": [
+        "Exact authorized target and stable provider/custodian identity",
+        "Trust, retention/protection and read/restore access contract",
+        "Digest-addressed create-if-absent, conflicting-existing-byte refusal and unknown-write reconciliation",
+        "Approved bounded readback/verification and recovery evidence requirements"
+      ],
+      "sourceAnchors": [
+        "src/AuditSphereOps.Infrastructure/Providers/GraphReleaseCheckpointStore.cs",
+        "src/AuditSphereOps.Api/ApiHost.Providers.cs",
+        "src/AuditSphereOps.Worker/Program.cs"
+      ],
+      "consequence": "ADR-0009 keeps the release/archive store authoritative and SharePoint a secondary copy; it does not select an independent live checkpoint target. Existing hosts compose LocalAppendOnlyCheckpointStore; the unregistered Graph boundary deliberately refuses every operation. Keep local/synthetic operation; no new live provider, storage selection or permission inferred. Implement approved target only after its actual custody contract is available; technical verification and real recovery acceptance remain separate."
     }
   ],
   "serviceProfiles": [
