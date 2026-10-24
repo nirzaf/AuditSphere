@@ -39,8 +39,13 @@ public sealed partial class AuditSphereDbContext
         AND octet_length(proof_json) BETWEEN 2 AND 16777216
         AND proof_hash = encode(sha256(convert_to(proof_json, 'UTF8')), 'hex')
         AND jsonb_typeof(proof_json::jsonb) = 'object'
+        AND jsonb_typeof(proof_json::jsonb->'Version')='string'
+        AND COALESCE(proof_json::jsonb->>'Version' IN ('native-opening-successor.v1', 'native-opening-successor.v2'), false)
+        AND CASE WHEN proof_json::jsonb->>'Version'='native-opening-successor.v1'
+          THEN NOT (proof_json::jsonb->'Facts' ? 'CarriedPopulation')
+          ELSE jsonb_typeof(proof_json::jsonb->'Facts'->'CarriedPopulation')='object' END
         AND proof_json::jsonb @> jsonb_build_object(
-          'Version', 'native-opening-successor.v1', 'OpeningId', opening_id,
+          'OpeningId', opening_id,
           'FirmId', firm_id, 'ClientId', client_id, 'EngagementId', engagement_id,
           'PriorPeriodId', prior_period_id, 'PriorPeriodRevision', prior_period_revision,
           'SourceDatasetId', source_dataset_id, 'SourceIdentityHash', source_identity_hash)

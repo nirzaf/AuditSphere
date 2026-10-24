@@ -69,7 +69,7 @@ public static partial class NativeTrialBalanceSourceWorkspace
       var source = await ReadSuccessorSourceCoreAsync(db, opening.FirmId, opening.ClientId, row.EngagementId, row.SourceDatasetId, ct);
       if (!source.Succeeded) return CommandResult.Fail(source.ErrorCode!, source.Message!);
       var facts = await ClientOperationalOpeningBalanceWorkspace.ResolveSuccessorFactsAsync(db, opening.FirmId,
-        opening.ClientId, opening.PeriodId, source.Value!, ct);
+        opening.ClientId, opening.PeriodId, source.Value!, ct, row.CreatedAt);
       if (!facts.Succeeded) return CommandResult.Fail(facts.ErrorCode!, facts.Message!);
       if (source.Value!.Dataset.Sha256Hex != row.SourceIdentityHash ||
           JsonSerializer.Serialize(facts.Value) != JsonSerializer.Serialize(p.Facts))

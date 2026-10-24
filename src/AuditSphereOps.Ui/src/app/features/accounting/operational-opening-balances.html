@@ -103,6 +103,31 @@
         @if (successorPreview(); as preview) {
           <p>As of {{ preview.asOfDate }} · {{ preview.currency }} · {{ preview.basis }} · {{ preview.bookScope }}</p>
           <p>Source identity <code>{{ preview.sourceIdentityHash }}</code><br />Prospective opening manifest <code>{{ preview.prospectiveOpeningManifestHash }}</code><br />Source population <code>{{ preview.populationHash }}</code></p>
+          @if (preview.carriedPopulation; as carried) {
+            <section aria-label="Original-item carry preview">
+              <h4>Original items retained from predecessor · {{ carried.count }}</h4>
+              <p>Carried population {{ carried.version }} · SHA-256 <code>{{ carried.populationHash }}</code></p>
+              <p>Original amount and baseline applied/open values preserve the captured source state. This table does not recalculate current allocations; the source check is shown separately and does not represent a current open balance or an economic effective date.</p>
+              <div class="table-scroll" role="region" aria-label="Original-item carry preview table" tabindex="0"><table><caption>Original-item carry preview</caption><thead><tr>
+                <th scope="col">Original identity</th><th scope="col">Role and counterparty</th><th scope="col">Reference</th>
+                <th scope="col">Account</th><th scope="col">Currency</th><th scope="col">Original amount</th>
+                <th scope="col">Baseline applied</th><th scope="col">Baseline open</th><th scope="col">Source as-of</th>
+                <th scope="col">Document date</th><th scope="col">Accounting date</th><th scope="col">Due date</th>
+                <th scope="col">Source facts SHA-256</th><th scope="col">Currentness</th>
+              </tr></thead><tbody>@for (item of carried.items.slice(successorCarryPage() * 100, successorCarryPage() * 100 + 100); track item.originalOpenItemId) {
+                <tr><th scope="row">{{ item.originalKind }}<br /><code>{{ item.originalOpenItemId }}</code><br />Document <code>{{ item.originalDocumentId }}</code></th>
+                  <td>{{ item.role }} · {{ item.counterpartyName }}<br /><code>{{ item.counterpartyId }}</code></td>
+                  <td><code>{{ item.reference }}</code><br />{{ item.referenceKind }}</td>
+                  <td>{{ item.accountCode }}<br /><code>{{ item.accountId }}</code></td><td>{{ item.currency }}</td>
+                  <td>{{ item.originalAmount }}</td><td>{{ item.baselineAppliedAmount }}</td><td>{{ item.baselineOpenAmount }}</td>
+                  <td>{{ item.sourceAsOfDate ?? '—' }}</td><td>{{ item.documentDate ?? '—' }}</td>
+                  <td>{{ item.accountingDate ?? '—' }}</td><td>{{ item.dueDate ?? '—' }}</td>
+                  <td><code>{{ item.sourceFactsHash }}</code></td><td>Checked in this preview</td>
+                </tr>
+              }</tbody></table></div>
+              <mat-paginator aria-label="Successor preview original-item pages" [length]="carried.count" [pageSize]="100" [pageSizeOptions]="[100]" [pageIndex]="successorCarryPage()" (page)="successorCarryPage.set($event.pageIndex)" />
+            </section>
+          }
           <p>{{ preview.lines.length }} exact account rows available across the pages below. Review the retained population before giving assent.</p>
           <div class="table-scroll"><table><caption>Exact successor opening preview</caption><thead><tr><th scope="col">Account</th><th scope="col">Debit</th><th scope="col">Credit</th></tr></thead>
             <tbody>@for (line of preview.lines.slice(successorLinePage() * 100, successorLinePage() * 100 + 100); track line.accountId) {
@@ -113,7 +138,7 @@
             <tbody>@for (control of preview.controls; track control.role) { <tr><th scope="row">{{ control.role }}</th><td>{{ control.accountId }} / {{ control.configurationId }} / {{ control.decisionId }}</td><td>{{ control.closingDebit }} / {{ control.closingCredit }}</td></tr> }</tbody>
           </table></div>
           @for (blocker of preview.blockers; track $index) { <p role="status">{{ blocker }}</p> }
-          <label><input type="checkbox" [disabled]="successorBusy()" [ngModel]="successorReviewed()" (ngModelChange)="successorReviewed.set($event)" /> I reviewed the exact source, target and predecessor revisions, all opening rows, control identities and prospective manifest.</label>
+          <label><input type="checkbox" [disabled]="successorBusy()" [ngModel]="successorReviewed()" (ngModelChange)="successorReviewed.set($event)" /> I reviewed the exact source, target and predecessor revisions, original items, all opening rows, control identities and prospective manifest.</label>
           <button matButton type="button" [disabled]="successorBusy() || !preview.ready || !successorReviewed() || successorUncertain()" (click)="createSuccessor()">Create successor opening for independent review</button>
         }
         @if (successorView(); as view) {
@@ -121,9 +146,34 @@
           <p>Original predecessor <code>{{ view.priorPeriodId }}</code> · source dataset <code>{{ view.sourceDatasetId }}</code></p>
           <a [routerLink]="['/app/accounting/clients', clientId(), 'native-sources', view.sourceDatasetId]">Inspect retained predecessor trial balance</a>
           <p>Exact source identity <code>{{ view.sourceIdentityHash }}</code><br />Retained successor proof <code>{{ view.proofHash }}</code><br />Opening manifest <code>{{ view.opening.manifestSha256 }}</code><br />Population <code>{{ view.populationHash }}</code></p>
+          @if (view.carriedPopulation; as carried) {
+            <section aria-label="Retained original-item carry">
+              <h4>Retained original items · {{ carried.count }}</h4>
+              <p>Carried population {{ carried.version }} · SHA-256 <code>{{ carried.populationHash }}</code></p>
+              <p>Original amount and baseline applied/open values preserve the captured source state. This table does not recalculate current allocations; the source/proof currentness is shown separately and does not represent a current open balance or an economic effective date.</p>
+              <div class="table-scroll" role="region" aria-label="Retained original-item carry table" tabindex="0"><table><caption>Retained original-item carry</caption><thead><tr>
+                <th scope="col">Original identity</th><th scope="col">Role and counterparty</th><th scope="col">Reference</th>
+                <th scope="col">Account</th><th scope="col">Currency</th><th scope="col">Original amount</th>
+                <th scope="col">Baseline applied</th><th scope="col">Baseline open</th><th scope="col">Source as-of</th>
+                <th scope="col">Document date</th><th scope="col">Accounting date</th><th scope="col">Due date</th>
+                <th scope="col">Source facts SHA-256</th><th scope="col">Currentness</th>
+              </tr></thead><tbody>@for (item of carried.items.slice(successorCarryPage() * 100, successorCarryPage() * 100 + 100); track item.originalOpenItemId) {
+                <tr><th scope="row">{{ item.originalKind }}<br /><code>{{ item.originalOpenItemId }}</code><br />Document <code>{{ item.originalDocumentId }}</code></th>
+                  <td>{{ item.role }} · {{ item.counterpartyName }}<br /><code>{{ item.counterpartyId }}</code></td>
+                  <td><code>{{ item.reference }}</code><br />{{ item.referenceKind }}</td>
+                  <td>{{ item.accountCode }}<br /><code>{{ item.accountId }}</code></td><td>{{ item.currency }}</td>
+                  <td>{{ item.originalAmount }}</td><td>{{ item.baselineAppliedAmount }}</td><td>{{ item.baselineOpenAmount }}</td>
+                  <td>{{ item.sourceAsOfDate ?? '—' }}</td><td>{{ item.documentDate ?? '—' }}</td>
+                  <td>{{ item.accountingDate ?? '—' }}</td><td>{{ item.dueDate ?? '—' }}</td>
+                  <td><code>{{ item.sourceFactsHash }}</code></td><td>{{ view.isCurrent ? 'Current' : 'Stale' }}</td>
+                </tr>
+              }</tbody></table></div>
+              <mat-paginator aria-label="Retained original-item pages" [length]="carried.count" [pageSize]="100" [pageSizeOptions]="[100]" [pageIndex]="successorCarryPage()" (page)="successorCarryPage.set($event.pageIndex)" />
+            </section>
+          }
           @for (control of view.controls; track control.role) { <p>{{ control.role }} control <code>{{ control.accountId }}</code> · configuration <code>{{ control.configurationId }}</code> · decision <code>{{ control.decisionId }}</code> · closing {{ control.closingDebit }} / {{ control.closingCredit }}</p> }
           @if (successorCatalog()?.canApprove && view.isCurrent && !view.opening.approvedByUserId) {
-            <label><input type="checkbox" [disabled]="successorBusy()" [ngModel]="successorApprovalReviewed()" (ngModelChange)="successorApprovalReviewed.set($event)" /> I independently reviewed this exact successor proof and opening manifest, original source and account population.</label>
+            <label><input type="checkbox" [disabled]="successorBusy()" [ngModel]="successorApprovalReviewed()" (ngModelChange)="successorApprovalReviewed.set($event)" /> I independently reviewed this exact successor proof and opening manifest, original source, carried original items and account population.</label>
             <button matButton type="button" [disabled]="successorBusy() || !successorApprovalReviewed()" (click)="approveSuccessor()">Approve exact successor proof and opening</button>
           }
         }

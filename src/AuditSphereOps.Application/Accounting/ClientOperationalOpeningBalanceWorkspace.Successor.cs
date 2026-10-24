@@ -65,7 +65,7 @@ public static partial class ClientOperationalOpeningBalanceWorkspace
     var preview = new NativeSuccessorOpeningPreview(basis, request.ExpectedSourceIdentityHash, hash,
       target.Id, target.Revision.ToString(CultureInfo.InvariantCulture), f.PriorPeriodId,
       f.PriorRevision.ToString(CultureInfo.InvariantCulture), target.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-      f.Currency, f.Basis, NativeTrialBalanceSourceWorkspace.BookScope, f.Lines, f.Controls, f.PopulationHash, true, []);
+      f.Currency, f.Basis, NativeTrialBalanceSourceWorkspace.BookScope, f.Lines, f.Controls, f.PopulationHash, true, [], CarryView(f.CarriedPopulation));
     auth = await SuccessorAuthorityAsync(db, actor, request.ClientId, request.EngagementId, false, ct, write: true);
     if (!auth.Succeeded) return SuccessorFail<(SuccessorFacts, Manifest, NativeSuccessorOpeningPreview)>(auth.Message!, auth.ErrorCode);
     return CommandResult<(SuccessorFacts, Manifest, NativeSuccessorOpeningPreview)>.Ok((f, manifest, preview));
@@ -131,7 +131,7 @@ public static partial class ClientOperationalOpeningBalanceWorkspace
       ManifestJson = JsonSerializer.Serialize(b.Manifest), ManifestSha256 = b.Preview.ProspectiveOpeningManifestHash,
       CreatedByUserId = actor.UserId, CreatedAt = now
     };
-    var proof = new SuccessorProof("native-opening-successor.v1", opening.Id, opening.ManifestSha256, actor.FirmId,
+    var proof = new SuccessorProof(b.Facts.CarriedPopulation is null ? "native-opening-successor.v1" : "native-opening-successor.v2", opening.Id, opening.ManifestSha256, actor.FirmId,
       request.ClientId, request.EngagementId, request.PriorPeriodId, request.ExpectedPriorPeriodRevision,
       request.NativeTrialBalanceDatasetId, request.ExpectedSourceIdentityHash, b.Facts);
     var json = JsonSerializer.Serialize(proof);

@@ -93,6 +93,57 @@ const successorLine = obj({ accountId: guid, accountCode: text, accountName: tex
 const successorControl = obj({ role: oneOf('AR', 'AP'), configurationId: guid, decisionId: guid, accountId: guid,
   closingDebit: (v: unknown) => { if (!validAmount(v)) throw new Error('Invalid exact control debit'); return v; },
   closingCredit: (v: unknown) => { if (!validAmount(v)) throw new Error('Invalid exact control credit'); return v; } });
+const carriedKind = oneOf('OPENING_AR_INVOICE', 'OPENING_AP_INVOICE', 'SALES_INVOICE', 'PURCHASE_INVOICE');
+function carriedDate(value: unknown, path: string): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string' || !datePattern.test(value) || Number(value.slice(0, 4)) < 1) throw new Error(`${path}: invalid source date`);
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) throw new Error(`${path}: invalid source date`);
+  return value;
+}
+const carriedItem = obj({ originalKind: carriedKind, originalOpenItemId: guid, originalDocumentId: guid,
+  role: oneOf('AR', 'AP'), counterpartyId: guid, counterpartyName: text, reference: text, referenceKind: text,
+  accountId: guid, accountCode: text, currency: text,
+  originalAmount: (v: unknown) => { if (!validAmount(v) || units(v) <= 0n) throw new Error('Invalid original item amount'); return v; },
+  baselineAppliedAmount: (v: unknown) => { if (!validAmount(v)) throw new Error('Invalid baseline applied amount'); return v; },
+  baselineOpenAmount: (v: unknown) => { if (!validAmount(v)) throw new Error('Invalid baseline open amount'); return v; },
+  sourceAsOfDate: carriedDate, documentDate: carriedDate, accountingDate: carriedDate, dueDate: carriedDate, sourceFactsHash: sha256 });
+const carriedPopulationView = obj({ version: oneOf('native-successor-carried-population.v1'), count: nat,
+  populationHash: sha256, items: arr(carriedItem, 5000) });
+type CarriedItem = ReturnType<typeof carriedItem>;
+type CarriedPopulation = ReturnType<typeof carriedPopulationView>;
+
+function validateCarriedPopulation(population: CarriedPopulation, populationHash: string, currency: string,
+  controls: ReturnType<typeof successorControl>[]): CarriedPopulation {
+  if (population.count < 1 || population.count > 5000 || population.count !== population.items.length ||
+      population.populationHash !== populationHash || !currency.trim() || controls.length !== 2 ||
+      new Set(controls.map(x => x.role)).size !== 2 || !controls.some(x => x.role === 'AR') || !controls.some(x => x.role === 'AP'))
+    throw new Error('Carried population count, hash, currency or controls do not match the successor facts');
+  const ids = new Set<string>(), totals = new Map<string, bigint>();
+  for (const item of population.items) {
+    const isOpening = item.originalKind === 'OPENING_AR_INVOICE' || item.originalKind === 'OPENING_AP_INVOICE';
+    const role = item.originalKind === 'OPENING_AR_INVOICE' || item.originalKind === 'SALES_INVOICE' ? 'AR' : 'AP';
+    const key = `${item.role}|${item.accountId}`;
+    if (item.role !== role || !item.counterpartyName.trim() || !item.reference.trim() || !item.referenceKind.trim() ||
+        !item.accountCode.trim() || item.currency !== currency || ids.has(item.originalOpenItemId) ||
+        (isOpening ? item.sourceAsOfDate === null || item.documentDate !== null || item.accountingDate !== null :
+          item.sourceAsOfDate !== null || item.documentDate === null || item.accountingDate === null) ||
+        units(item.baselineAppliedAmount) !== 0n || units(item.baselineOpenAmount) !== units(item.originalAmount))
+      throw new Error('Carried original item identity, dates, currency or exact baseline amounts are inconsistent');
+    ids.add(item.originalOpenItemId);
+    const control = controls.find(x => x.role === item.role && x.accountId === item.accountId);
+    if (!control) throw new Error('Carried original item is outside its approved control scope');
+    totals.set(key, (totals.get(key) ?? 0n) + units(item.baselineOpenAmount));
+  }
+  for (const control of controls) {
+    const signed = control.role === 'AR' ? units(control.closingDebit) - units(control.closingCredit) :
+      units(control.closingCredit) - units(control.closingDebit);
+    if (signed < 0n || (totals.get(`${control.role}|${control.accountId}`) ?? 0n) !== signed)
+      throw new Error('Carried original items do not reconcile to the exact control amounts');
+  }
+  return population;
+}
+
 export const decodeSuccessorCatalog = obj({ clientId: guid, periodId: guid, periodRevision: exactRevision,
   priorPeriodId: nullable(guid), priorPeriodRevision: nullable(exactRevision), priorPeriodCode: nullable(text), priorPeriodStatus: nullable(text),
   origin: oneOf('NONE', 'MANUAL', 'NATIVE_SUCCESSOR'), existingOpeningId: nullable(guid),
@@ -100,37 +151,158 @@ export const decodeSuccessorCatalog = obj({ clientId: guid, periodId: guid, peri
   canPrepare: bool, canApprove: bool, page: nat, pageSize: nat, total: nat,
   sources: arr(obj({ datasetId: guid, engagementId: guid, legalEntityKey: text, sourceIdentityHash: sha256,
     validationStatus: text, eligible: bool, blocker: nullable(text) }), 5), blocker: nullable(text) });
-export const decodeSuccessorPreview = obj({ reviewBasis: sha256, sourceIdentityHash: sha256, prospectiveOpeningManifestHash: sha256,
+const successorPreview = obj({ reviewBasis: sha256, sourceIdentityHash: sha256, prospectiveOpeningManifestHash: sha256,
   periodId: guid, periodRevision: exactRevision, priorPeriodId: guid, priorPeriodRevision: exactRevision, asOfDate: text,
   currency: text, basis: text, bookScope: oneOf('PERIOD_LEDGER_NO_BOOK'), lines: arr(successorLine, 5000),
-  controls: arr(successorControl, 2), populationHash: sha256, ready: bool, blockers: arr(text, 100) });
+  controls: arr(successorControl, 2), populationHash: sha256, ready: bool, blockers: arr(text, 100),
+  carriedPopulation: nullable(carriedPopulationView) });
+export function decodeSuccessorPreview(value: unknown, path = 'preview') {
+  const preview = successorPreview(value, path);
+  return { ...preview, carriedPopulation: preview.carriedPopulation === null ? null :
+    validateCarriedPopulation(preview.carriedPopulation, preview.populationHash, preview.currency, preview.controls) };
+}
 type SuccessorCatalog = ReturnType<typeof decodeSuccessorCatalog>;
 type SuccessorPreview = ReturnType<typeof decodeSuccessorPreview>;
 interface SuccessorView { opening: Opening; sourceIdentityHash: string; proofHash: string; proofJson: string;
   isCurrent: boolean; currentnessBlocker: string | null; sourceDatasetId: string; priorPeriodId: string;
-  engagementId: string; populationHash: string; controls: ReturnType<typeof successorControl>[] }
+  engagementId: string; populationHash: string; controls: ReturnType<typeof successorControl>[]; carriedPopulation: CarriedPopulation | null }
+
+function rawNullableGuid(item: Record<string, unknown>, key: string, path: string): string | null {
+  if (!Object.prototype.hasOwnProperty.call(item, key)) throw new Error(`${path}.${key}: missing original lineage field`);
+  return item[key] === null ? null : guid(item[key], `${path}.${key}`);
+}
+
+function decodeRawControlState(population: Record<string, unknown>, firmId: string, clientId: string,
+  controls: ReturnType<typeof successorControl>[]): Map<string, string> {
+  const path = 'proof.Facts.CarriedPopulation.ControlStateJson', json = population['ControlStateJson'];
+  sha256(population['ControlStateHash'], 'proof.Facts.CarriedPopulation.ControlStateHash');
+  if (typeof json !== 'string' || new TextEncoder().encode(json).length > 512 * 1024)
+    throw new Error(`${path}: invalid or oversized control witness`);
+  const entries = JSON.parse(json);
+  if (!Array.isArray(entries) || entries.length !== 2 || controls.length !== 2 ||
+      new Set(controls.map(x => x.role)).size !== 2 || !controls.some(x => x.role === 'AR') || !controls.some(x => x.role === 'AP'))
+    throw new Error(`${path}: expected exactly one AR and one AP control witness`);
+  const seen = new Set<string>(), accountCodes = new Map<string, string>();
+  for (const [index, raw] of entries.entries()) {
+    const entryPath = `${path}[${index}]`, entry = object(raw);
+    const control = successorControl({ role: entry['Role'], configurationId: entry['ConfigurationId'], decisionId: entry['DecisionId'],
+      accountId: entry['AccountId'], closingDebit: entry['ClosingDebit'], closingCredit: entry['ClosingCredit'] }, entryPath);
+    const proofControl = controls.find(x => x.role === control.role);
+    if (!proofControl || seen.has(control.role) || proofControl.configurationId !== control.configurationId ||
+        proofControl.decisionId !== control.decisionId || proofControl.accountId !== control.accountId ||
+        proofControl.closingDebit !== control.closingDebit || proofControl.closingCredit !== control.closingCredit)
+      throw new Error(`${entryPath}: control witness does not match the retained proof controls`);
+    seen.add(control.role);
+    sha256(entry['AccountHash'], `${entryPath}.AccountHash`);
+    sha256(entry['ConfigurationHash'], `${entryPath}.ConfigurationHash`);
+    sha256(entry['DecisionHash'], `${entryPath}.DecisionHash`);
+    const nestedObject = (key: string): Record<string, unknown> => {
+      const value = entry[key];
+      if (typeof value !== 'string') throw new Error(`${entryPath}.${key}: expected serialized JSON object`);
+      return object(JSON.parse(value));
+    };
+    const account = nestedObject('AccountJson'), configuration = nestedObject('ConfigurationJson'), decision = nestedObject('DecisionJson');
+    const accountChart = guid(account['ChartVersionId'], `${entryPath}.AccountJson.ChartVersionId`);
+    const configurationChart = guid(configuration['ChartVersionId'], `${entryPath}.ConfigurationJson.ChartVersionId`);
+    if (account['Id'] !== control.accountId || account['FirmId'] !== firmId || account['ClientId'] !== clientId ||
+        typeof account['AccountCode'] !== 'string' || !account['AccountCode'].trim() ||
+        configuration['Id'] !== control.configurationId || configuration['FirmId'] !== firmId ||
+        configuration['ClientId'] !== clientId || configuration['AccountId'] !== control.accountId ||
+        configuration['Role'] !== control.role || configurationChart !== accountChart ||
+        decision['Id'] !== control.decisionId || decision['FirmId'] !== firmId || decision['ClientId'] !== clientId ||
+        decision['ConfigurationId'] !== control.configurationId || decision['Decision'] !== 'APPROVE')
+      throw new Error(`${entryPath}: account, configuration or decision witness has mismatched identity or scope`);
+    accountCodes.set(`${control.role}|${control.accountId}`, account['AccountCode']);
+  }
+  if (seen.size !== 2) throw new Error(`${path}: incomplete role witness`);
+  return accountCodes;
+}
+
+function decodeRawCarriedPopulation(raw: unknown, facts: Record<string, unknown>, firmId: string, clientId: string,
+  currency: string, controls: ReturnType<typeof successorControl>[]): CarriedPopulation {
+  const path = 'proof.Facts.CarriedPopulation', value = object(raw), version = oneOf('native-successor-carried-population.v1')(value['Version'], `${path}.Version`);
+  const count = nat(value['Count'], `${path}.Count`), populationHash = sha256(value['PopulationHash'], `${path}.PopulationHash`);
+  const controlAccountCodes = decodeRawControlState(value, firmId, clientId, controls);
+  if (!Array.isArray(value['Items']) || value['Items'].length > 5000) throw new Error(`${path}.Items: invalid original item list`);
+  const items: CarriedItem[] = value['Items'].map((rawItem, index) => {
+    const itemPath = `${path}.Items[${index}]`, item = object(rawItem);
+    const decoded = carriedItem({ originalKind: item['OriginalKind'], originalOpenItemId: item['OriginalOpenItemId'],
+      originalDocumentId: item['OriginalDocumentId'], role: item['Role'], counterpartyId: item['CounterpartyId'],
+      counterpartyName: item['CounterpartyName'], reference: item['Reference'], referenceKind: item['ReferenceKind'],
+      accountId: item['AccountId'], accountCode: item['AccountCode'], currency: item['Currency'],
+      originalAmount: item['OriginalAmount'], baselineAppliedAmount: item['BaselineAppliedAmount'],
+      baselineOpenAmount: item['BaselineOpenAmount'], sourceAsOfDate: item['SourceAsOfDate'], documentDate: item['DocumentDate'],
+      accountingDate: item['AccountingDate'], dueDate: item['DueDate'], sourceFactsHash: item['SourceFactsHash'] }, itemPath);
+    const originalOpeningId = rawNullableGuid(item, 'OriginalOpeningId', itemPath);
+    const submissionId = rawNullableGuid(item, 'SubmissionId', itemPath);
+    const draftId = rawNullableGuid(item, 'DraftId', itemPath);
+    const journalId = rawNullableGuid(item, 'JournalId', itemPath);
+    const sourceFactsJson = item['SourceFactsJson'];
+    if (typeof sourceFactsJson !== 'string' || new TextEncoder().encode(sourceFactsJson).length > 64 * 1024)
+      throw new Error(`${itemPath}.SourceFactsJson: invalid original source facts`);
+    const sourceFacts = object(JSON.parse(sourceFactsJson));
+    const openingKind = decoded.originalKind === 'OPENING_AR_INVOICE' || decoded.originalKind === 'OPENING_AP_INVOICE';
+    if (sourceFacts['Version'] !== (openingKind ? 'native-successor-opening-item-source.v1' : 'native-successor-invoice-item-source.v1') ||
+        sourceFacts['FirmId'] !== firmId || sourceFacts['ClientId'] !== clientId ||
+        sourceFacts['OriginalKind'] !== decoded.originalKind || sourceFacts['OriginalOpenItemId'] !== decoded.originalOpenItemId ||
+        sourceFacts['OriginalDocumentId'] !== decoded.originalDocumentId || sourceFacts['OriginalOpeningId'] !== originalOpeningId ||
+        sourceFacts['SubmissionId'] !== submissionId || sourceFacts['DraftId'] !== draftId || sourceFacts['JournalId'] !== journalId ||
+        sourceFacts['Role'] !== decoded.role || sourceFacts['CounterpartyId'] !== decoded.counterpartyId ||
+        sourceFacts['CounterpartyName'] !== decoded.counterpartyName || sourceFacts['Reference'] !== decoded.reference ||
+        sourceFacts['ReferenceKind'] !== decoded.referenceKind || sourceFacts['AccountId'] !== decoded.accountId ||
+        sourceFacts['AccountCode'] !== decoded.accountCode || sourceFacts['Currency'] !== decoded.currency ||
+        sourceFacts['OriginalAmount'] !== decoded.originalAmount || sourceFacts['SourceAsOfDate'] !== decoded.sourceAsOfDate ||
+        sourceFacts['AccountingDate'] !== decoded.accountingDate || sourceFacts['DueDate'] !== decoded.dueDate ||
+        (openingKind ? originalOpeningId !== decoded.originalDocumentId || submissionId !== null || draftId !== null || journalId !== null :
+          originalOpeningId !== null || submissionId === null || draftId === null || journalId === null))
+      throw new Error(`${itemPath}: original source facts do not match the carried item or selected client`);
+    return decoded;
+  });
+  if (items.some(item => controlAccountCodes.get(`${item.role}|${item.accountId}`) !== item.accountCode))
+    throw new Error(`${path}: carried item account code differs from its authenticated control account`);
+  const population = carriedPopulationView({ version, count, populationHash, items }, path);
+  const validated = validateCarriedPopulation(population, String(facts['PopulationHash'] ?? ''), currency, controls);
+  const priorEnd = carriedDate(facts['PriorEnd'], 'proof.Facts.PriorEnd');
+  if (priorEnd === null || validated.items.some(x =>
+      (x.sourceAsOfDate !== null && x.sourceAsOfDate > priorEnd) ||
+      (x.accountingDate !== null && x.accountingDate > priorEnd)))
+    throw new Error(`${path}: original item dates exceed retained predecessor scope`);
+  return validated;
+}
+
 export function decodeSuccessorView(raw: unknown, clientId: string, period: Period): SuccessorView {
   const v = object(raw), opening = decodeOpeningBalance(v['opening'], clientId, period);
   if (!opening || typeof v['sourceIdentityHash'] !== 'string' || !hashPattern.test(v['sourceIdentityHash']) ||
       opening.evidenceSha256 !== v['sourceIdentityHash'] || typeof v['proofHash'] !== 'string' || !hashPattern.test(v['proofHash']) ||
-      typeof v['proofJson'] !== 'string' || v['proofJson'].length > 10_000_000 || typeof v['isCurrent'] !== 'boolean' ||
+      typeof v['proofJson'] !== 'string' || v['proofJson'].length > 32_000_000 || typeof v['isCurrent'] !== 'boolean' ||
       !(v['currentnessBlocker'] === null || typeof v['currentnessBlocker'] === 'string')) throw new Error('Invalid retained successor');
   const proof = object(JSON.parse(v['proofJson'])), facts = object(proof['Facts']);
-  if (proof['Version'] !== 'native-opening-successor.v1' || proof['ClientId'] !== clientId || proof['OpeningId'] !== opening.id ||
+  if (!['native-opening-successor.v1', 'native-opening-successor.v2'].includes(String(proof['Version'])) ||
+      proof['Version'] === 'native-opening-successor.v1' && v['proofJson'].length > 10_000_000 ||
+      proof['ClientId'] !== clientId || proof['OpeningId'] !== opening.id ||
       proof['OpeningManifestHash'] !== opening.manifestSha256 || proof['SourceIdentityHash'] !== v['sourceIdentityHash'] ||
       facts['TargetPeriodId'] !== opening.periodId || typeof proof['EngagementId'] !== 'string' || !guidPattern.test(proof['EngagementId']) ||
       typeof proof['PriorPeriodId'] !== 'string' || !guidPattern.test(proof['PriorPeriodId']) ||
       typeof proof['SourceDatasetId'] !== 'string' || !guidPattern.test(proof['SourceDatasetId']) ||
       typeof facts['PopulationHash'] !== 'string' || !hashPattern.test(facts['PopulationHash']) || !Array.isArray(facts['Controls']) || facts['Controls'].length > 2)
     throw new Error('Retained successor proof scope mismatch');
+  const version = proof['Version'];
+  if (version === 'native-opening-successor.v1' && facts['CarriedPopulation'] !== undefined && facts['CarriedPopulation'] !== null)
+    throw new Error('A v1 successor proof cannot contain carried original items');
   const controls = facts['Controls'].map(raw => {
     const c = object(raw);
     return successorControl({ role: c['Role'], configurationId: c['ConfigurationId'], decisionId: c['DecisionId'], accountId: c['AccountId'],
       closingDebit: c['ClosingDebit'], closingCredit: c['ClosingCredit'] }, 'proof.controls');
   });
+  const carriedPopulation = version === 'native-opening-successor.v2' ?
+    decodeRawCarriedPopulation(facts['CarriedPopulation'], facts, guid(proof['FirmId'], 'proof.FirmId'), clientId,
+      String(facts['Currency'] ?? ''), controls) : null;
+  if (version === 'native-opening-successor.v2' &&
+      (facts['TargetPeriodId'] !== opening.periodId || facts['PriorPeriodId'] !== proof['PriorPeriodId'] || facts['Currency'] !== opening.currency))
+    throw new Error('Retained v2 carried population does not match the exact period and currency scope');
   return { opening, sourceIdentityHash: v['sourceIdentityHash'], proofHash: v['proofHash'], proofJson: v['proofJson'],
     isCurrent: v['isCurrent'], currentnessBlocker: v['currentnessBlocker'] as string | null, sourceDatasetId: proof['SourceDatasetId'],
-    priorPeriodId: proof['PriorPeriodId'], engagementId: proof['EngagementId'], populationHash: facts['PopulationHash'], controls };
+    priorPeriodId: proof['PriorPeriodId'], engagementId: proof['EngagementId'], populationHash: facts['PopulationHash'], controls, carriedPopulation };
 }
 function decodeSuccessorPending(raw: unknown): SuccessorPending | null {
   try {
@@ -195,6 +367,7 @@ export class ClientOperationalOpeningBalances {
   readonly successorMessage = signal('');
   readonly successorPage = signal(0);
   readonly successorLinePage = signal(0);
+  readonly successorCarryPage = signal(0);
   successorSourceId = '';
   successorEvidence = '';
   private successorIntent: SuccessorRequest | null = null;
@@ -303,7 +476,7 @@ export class ClientOperationalOpeningBalances {
     this.successorMode.set(false); this.successorCatalog.set(null); this.successorView.set(null); this.successorPreview.set(null); this.successorRecoveryReady.set(false);
     this.successorLoading.set(false); this.successorBusy.set(false); this.successorUncertain.set(false);
     this.successorPending.set(null); this.successorReviewed.set(false); this.successorApprovalReviewed.set(false);
-    this.successorMessage.set(''); this.successorPage.set(0); this.successorLinePage.set(0);
+    this.successorMessage.set(''); this.successorPage.set(0); this.successorLinePage.set(0); this.successorCarryPage.set(0);
     this.successorSourceId = ''; this.successorEvidence = ''; this.successorIntent = null;
   }
   manualReady(): boolean { return !!this.successorCatalog() && !this.successorLoading() && !this.successorBusy() && !this.successorUncertain() && !this.successorMode(); }
@@ -313,13 +486,13 @@ export class ClientOperationalOpeningBalances {
   }
   successorEdited(): void {
     if (this.successorPending()) return;
-    this.successorPreview.set(null); this.successorIntent = null; this.successorReviewed.set(false); this.successorLinePage.set(0);
+    this.successorPreview.set(null); this.successorIntent = null; this.successorReviewed.set(false); this.successorLinePage.set(0); this.successorCarryPage.set(0);
   }
   selectedSuccessor() { return this.successorCatalog()?.sources.find(x => x.datasetId === this.successorSourceId); }
   async loadSuccessorCatalog(page = this.successorPage()): Promise<void> {
     const period = this.selected(); if (!period || this.successorBusy()) return;
     const current = this.successorOwner(), read = ++this.successorRead, client = this.clientId();
-    this.successorLoading.set(true); this.successorCatalog.set(null); this.successorPreview.set(null); this.successorRecoveryReady.set(false);
+    this.successorLoading.set(true); this.successorCatalog.set(null); this.successorPreview.set(null); this.successorRecoveryReady.set(false); this.successorCarryPage.set(0);
     this.successorView.set(null); this.successorReviewed.set(false); this.successorApprovalReviewed.set(false);
     try {
       const catalog = await this.api.get(`${this.successorBase()}/catalog/${period.id}?page=${page}&pageSize=5`, decodeSuccessorCatalog);
@@ -351,7 +524,7 @@ export class ClientOperationalOpeningBalances {
         if (!current() || read !== this.successorRead) return;
         if (view.opening.id !== catalog.retainedSuccessor.openingId || view.engagementId !== catalog.retainedSuccessor.engagementId)
           throw new Error('Retained successor proof did not match the scoped catalogue.');
-        this.successorView.set(view); this.opening.set(view.opening); this.successorMode.set(true);
+        this.successorView.set(view); this.opening.set(view.opening); this.successorMode.set(true); this.successorCarryPage.set(0);
         const pending = this.successorPending();
         const creationMatches = pending?.action === 'CREATE' && catalog.retainedSuccessor.requestId === pending.request.requestId &&
           view.opening.createdByUserId === this.userId() && view.sourceIdentityHash === pending.request.expectedSourceIdentityHash &&
@@ -397,7 +570,7 @@ export class ClientOperationalOpeningBalances {
           preview.sourceIdentityHash !== request.expectedSourceIdentityHash || preview.asOfDate !== this.selected()?.start ||
           preview.currency !== this.selected()?.currency || preview.lines.length < 2 || preview.controls.length !== 2)
         throw new Error('Preview did not match the exact successor intent.');
-      this.successorIntent = request; this.successorPreview.set(preview); this.successorLinePage.set(0);
+      this.successorIntent = request; this.successorPreview.set(preview); this.successorLinePage.set(0); this.successorCarryPage.set(0);
       focus();
     } catch { this.successorMessage.set('The successor preview could not be validated. No create action is available.'); }
   }
@@ -428,7 +601,7 @@ export class ClientOperationalOpeningBalances {
           preview.sourceIdentityHash !== request.expectedSourceIdentityHash || preview.asOfDate !== this.selected()?.start ||
           preview.currency !== this.selected()?.currency || preview.lines.length < 2 || preview.controls.length !== 2)
         throw new Error('The original preview changed. Retain the request and reconcile its outcome; no changed intent can be replayed.');
-      this.successorPreview.set(preview); this.successorLinePage.set(0); this.successorRecoveryReady.set(true);
+      this.successorPreview.set(preview); this.successorLinePage.set(0); this.successorCarryPage.set(0); this.successorRecoveryReady.set(true);
       this.successorMessage.set('Original intent is still exact and ready. Review the population and give fresh assent before explicit recovery.');
     } catch (error) { this.successorMessage.set(error instanceof Error ? error.message : 'Original preview is unavailable.'); }
   }

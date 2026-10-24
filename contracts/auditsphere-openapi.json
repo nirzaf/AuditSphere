@@ -127776,6 +127776,140 @@
           }
         }
       },
+      "NativeSuccessorCarriedItemView": {
+        "required": [
+          "originalKind",
+          "originalOpenItemId",
+          "originalDocumentId",
+          "role",
+          "counterpartyId",
+          "counterpartyName",
+          "reference",
+          "referenceKind",
+          "accountId",
+          "accountCode",
+          "currency",
+          "originalAmount",
+          "baselineAppliedAmount",
+          "baselineOpenAmount",
+          "sourceAsOfDate",
+          "documentDate",
+          "accountingDate",
+          "dueDate",
+          "sourceFactsHash"
+        ],
+        "type": "object",
+        "properties": {
+          "originalKind": {
+            "type": "string"
+          },
+          "originalOpenItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "originalDocumentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string"
+          },
+          "counterpartyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "counterpartyName": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "referenceKind": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "originalAmount": {
+            "type": "string"
+          },
+          "baselineAppliedAmount": {
+            "type": "string"
+          },
+          "baselineOpenAmount": {
+            "type": "string"
+          },
+          "sourceAsOfDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "documentDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "accountingDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "dueDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "sourceFactsHash": {
+            "type": "string"
+          }
+        }
+      },
+      "NativeSuccessorCarriedPopulationView": {
+        "required": [
+          "version",
+          "count",
+          "populationHash",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "populationHash": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NativeSuccessorCarriedItemView"
+            }
+          }
+        }
+      },
       "NativeSuccessorControlProof": {
         "required": [
           "role",
@@ -128023,6 +128157,16 @@
             "items": {
               "type": "string"
             }
+          },
+          "carriedPopulation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NativeSuccessorCarriedPopulationView"
+              }
+            ]
           }
         }
       },

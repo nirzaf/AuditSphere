@@ -195,9 +195,11 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     await OwnedBrowserFixtureHandoff.WaitAsync(makerOrigin,
       $"/ui/app/accounting/clients/{f.ClientId:D}/native-sources/{nativeDatasetId:D}", "native-source-current");
   }
-  [Fact]
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
   [Trait("CaseId", "ANGULAR-NATIVE-SUCCESSOR-OPENING-01")]
-  public async Task NativeSuccessorOpeningUsesExactReviewedClosedSourceAndRecoversOriginalUiRequest()
+  public async Task NativeSuccessorOpeningUsesExactReviewedClosedSourceAndRecoversOriginalUiRequest(bool withOriginalItem)
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-NATIVE-SUCCESSOR-OPENING-01");
     var f = host.Fixture;
@@ -249,9 +251,19 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
           "APPROVE", "Synthetic independent control review");
         Assert.True(decision.Succeeded, decision.Message);
       }
+      Guid? originalPartyId = null;
+      if (withOriginalItem)
+      {
+        var party = await ClientBookkeepingCounterpartyWorkspace.CreateAsync(db, maker, f.ClientId,
+          new("Synthetic original customer", "Synthetic original customer", "CUSTOMER", "QA address", "QA", "", "", "", "", "TEST", "CARRY-UI-001"));
+        Assert.True(party.Succeeded, party.Message); originalPartyId = party.Value;
+      }
       var opening = await ClientOperationalOpeningBalanceWorkspace.CreateAsync(db, maker,
         new(f.ClientId, periodId, 1, new(2026, 1, 1), "QAR", "Synthetic recorded opening cash and capital",
-          Hashing.Sha256Hex("Synthetic opening evidence fixture bytes"), [new("1000", 125m, 0m), new("3000", 0m, 125m)]));
+          Hashing.Sha256Hex("Synthetic opening evidence fixture bytes"), withOriginalItem
+            ? [new("1000", 100m, 0m), new("1100", 25m, 0m), new("3000", 0m, 125m)]
+            : [new("1000", 125m, 0m), new("3000", 0m, 125m)],
+          originalPartyId is { } partyId ? [new("AR", partyId, "ORIGINAL-CARRY-UI-001", new(2026, 2, 10), "1100", 25m)] : null));
       Assert.True(opening.Succeeded, opening.Message); openingId = opening.Value;
       var openingReview = await ClientOperationalOpeningBalanceWorkspace.GetAsync(db, reviewer, f.ClientId, periodId);
       Assert.True(openingReview.Succeeded, openingReview.Message);
@@ -378,12 +390,28 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     Assert.Equal(2, previewPayload.GetProperty("controls").GetArrayLength());
     var table = page.GetByRole(AriaRole.Table, new() { Name = "Exact successor opening preview", Exact = true });
     await Assertions.Expect(table.GetByRole(AriaRole.Rowheader, new() { Name = "1000 · Synthetic cash", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(table.GetByText("135", new() { Exact = true })).ToHaveCountAsync(2);
+    await Assertions.Expect(table.GetByText("135", new() { Exact = true })).ToHaveCountAsync(withOriginalItem ? 1 : 2);
+    if (withOriginalItem)
+    {
+      var population = previewPayload.GetProperty("carriedPopulation");
+      Assert.Equal(1, population.GetProperty("count").GetInt32());
+      var item = Assert.Single(population.GetProperty("items").EnumerateArray());
+      Assert.Equal(openingId, item.GetProperty("originalDocumentId").GetGuid());
+      Assert.Equal("25.000000", item.GetProperty("originalAmount").GetString());
+      await Assertions.Expect(page.GetByRole(AriaRole.Table, new() { Name = "Original-item carry preview", Exact = true })
+        .GetByText("ORIGINAL-CARRY-UI-001", new() { Exact = true })).ToBeVisibleAsync();
+      var sourceDetails = page.GetByRole(AriaRole.Region, new() { Name = "Original-item carry preview table", Exact = true });
+      Assert.True(await sourceDetails.EvaluateAsync<bool>("element => element.scrollWidth > element.clientWidth"));
+      await sourceDetails.FocusAsync();
+      await Assertions.Expect(sourceDetails).ToBeFocusedAsync();
+      await sourceDetails.PressAsync("ArrowRight");
+      await page.WaitForFunctionAsync("() => document.querySelector('[aria-label=\"Original-item carry preview table\"]').scrollLeft > 0");
+    }
     await Assertions.Expect(page.Locator("code").Filter(new() { HasText = tb.SourceIdentityHash }).First).ToBeVisibleAsync();
     var create = page.GetByRole(AriaRole.Button, new() { Name = "Create successor opening for independent review", Exact = true });
     await Assertions.Expect(create).ToBeDisabledAsync();
-    await OwnedBrowserFixtureHandoff.WaitAsync(makerOrigin, path, "native-successor-preview");
-    await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the exact source, target and predecessor revisions, all opening rows, control identities and prospective manifest.", Exact = true }).CheckAsync();
+    await OwnedBrowserFixtureHandoff.WaitAsync(makerOrigin, path, withOriginalItem ? "native-successor-carry-preview" : "native-successor-preview");
+    await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the exact source, target and predecessor revisions, original items, all opening rows, control identities and prospective manifest.", Exact = true }).CheckAsync();
     string? originalRequest = null;
     var committedResponse = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
     var createPattern = "**/operational-opening-successors/create";
@@ -432,7 +460,7 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     await OpenAsync(reviewPage, reviewerOrigin);
     var approve = reviewPage.GetByRole(AriaRole.Button, new() { Name = "Approve exact successor proof and opening", Exact = true });
     await Assertions.Expect(approve).ToBeDisabledAsync();
-    await reviewPage.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact successor proof and opening manifest, original source and account population.", Exact = true }).CheckAsync();
+    await reviewPage.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact successor proof and opening manifest, original source, carried original items and account population.", Exact = true }).CheckAsync();
     var approvedResponse = await reviewPage.RunAndWaitForResponseAsync(() => approve.ClickAsync(),
       response => response.Request.Method == "POST" && response.Url.EndsWith($"/operational-opening-successors/{successorId:D}/approve", StringComparison.Ordinal));
     Assert.True(approvedResponse.Status is 200 or 204);
@@ -443,6 +471,9 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     await reviewPage.ReloadAsync();
     await reviewPage.GetByLabel("Opening period", new() { Exact = true }).SelectOptionAsync(targetId.ToString());
     await Assertions.Expect(reviewPage.Locator("code").Filter(new() { HasText = proofHash }).First).ToBeVisibleAsync();
+    if (withOriginalItem)
+      await Assertions.Expect(reviewPage.GetByRole(AriaRole.Table, new() { Name = "Retained original-item carry", Exact = true })
+        .GetByText("ORIGINAL-CARRY-UI-001", new() { Exact = true })).ToBeVisibleAsync();
     await using (var db = host.CreateDbContext())
     {
       var saved = await db.ClientOperationalOpeningBalances.AsNoTracking().SingleAsync(x => x.Id == successorId);
@@ -453,5 +484,7 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
       Assert.Equal(AccountingWorkflowStates.Active, (await db.ClientReportingPeriods.SingleAsync(x => x.Id == targetId)).Status);
     }
     Assert.Empty(errors);
+    if (withOriginalItem)
+      await OwnedBrowserFixtureHandoff.WaitAsync(reviewerOrigin, path, "native-successor-carry-retained");
   }
 }

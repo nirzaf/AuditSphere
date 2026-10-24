@@ -887,8 +887,15 @@
         "history": "status-archive-2026-10.json#keys.bankReconciliationInspection20261024"
       },
       "nativeSuccessorOpening": {
-        "status": "Scoped focused/browser checks passed; Task11 remains partial; exact-source CI pending.",
-        "history": "status-archive-2026-10.json#keys.nativeSuccessorOpening20261024"
+        "status": "Partial Task11; original-item carry focused backend/Angular/browser, rollback protection and EF/OpenAPI checks pass. Exact-source full CI and broader continuity remain open.",
+        "history": "status-archive-2026-10.json#keys.nativeSuccessorOpening20261024",
+        "originalItemCarry20261024": {
+          "scope": "Complete unallocated original opening/sales/purchase invoice populations; v1 bytes retained, v2 original identities without reposting; later supported allocations preserve capture baseline.",
+          "checks": "Domain consumption3PASS; final migration/core1PASS; Angular9PASS/lint/build; existing E2E2PASS plus nonempty repeat1PASS; Release emitter build, EF drift and regenerated canonical OpenAPI drift PASS.",
+          "migration": "20261024130836_ClientOpeningSuccessorCarry; emptyDownUp restores publishedv1, retainedv2Down refused55000. No deployment.",
+          "browser": "Earlier built-in preview/source/keyboard inspected; final retained handoff expired without built-in capture. No humanAT/nativezoom claim.",
+          "remaining": "Historical partial allocations, unsupported cutoffs/nonzeroPL, publicACTIVE activation, broader whole31/currentCI and qualified/live acceptance."
+        }
       },
       "bankLinkedSources": "Focused RED1/GREEN1: linked Bank schedules must match current generation. PartialTask18; typed source binding pending. Archive: status-archive-2026-10.json#keys.bankLinkedScheduleGeneration20261024."
     },
@@ -1501,8 +1508,9 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "74d180b752155e064f54127ee08debd84896e4cb",
-    "evidence": "Exact successor catalogue capture correction source MATCH; named E2E passed. Includes typed Bank source and AGREED variance guard. Full current run is in progress; preceding results are separate.",
-    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40091020395 RUNNING; not FULL_CI_PASS."
+    "sourceCommit": "1782dabd2d0718fe656a315f750b3e1dab5fd78f",
+    "evidence": "Exact-source 1782 release: Angular/Domain/build/contracts pass; API414PASS2FAIL, E2E336PASS2FAIL. Static route/base-helper checks repaired cd528c48, focusedAPI2PASS. Revocation click handling and Operations diagnostics published95cff915, focusedE2E2PASS; prior Operations cause unproven, current full acceptance not established. Native carry focused evidence is separate from this preceding full run.",
+    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40093743543 FAIL; not FULL_CI_PASS.",
+    "latestPublishedCorrection": "95cff915275a33cc231c60a099fcad8e506b5ea5"
   }
 }

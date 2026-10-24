@@ -399,10 +399,39 @@ public static class ClientPurchaseInvoiceWorkflow
     var preview = await BuildPreviewAsync(db, actor, clientId, draft, request, ct);
     if (!preview.Succeeded || preview.Value!.Digest != request.PreviewDigest) return CommandResult<ClientPurchaseInvoiceReceipt>.Fail(ErrorCodes.StaleRevision, "Preview the exact purchase evidence and current duplicate warnings before submission.");
     var m = preview.Value.Manifest;
-    var journal = new ClientOperationalJournal { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId, PeriodId = draft.PeriodId,
-      JournalNumber = "CLIENT-PURCHASE-" + draft.InvoiceId.ToString("N"), Description = "Client supplier invoice " + draft.VoucherReference,
-      PostingDate = draft.AccountingDate, Currency = draft.Currency, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow };
-    db.ClientOperationalJournals.Add(journal); await db.SaveChangesAsync(ct);
+    var previous = await db.ClientPurchaseInvoiceSubmissions.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.ClientId == clientId && x.InvoiceId == draft.InvoiceId).OrderByDescending(x => x.DraftRevision)
+      .ThenByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    ClientOperationalJournal journal;
+    if (previous is null)
+    {
+      journal = new() { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId, PeriodId = draft.PeriodId,
+        JournalNumber = "CLIENT-PURCHASE-" + draft.InvoiceId.ToString("N"), Description = "Client supplier invoice " + draft.VoucherReference,
+        PostingDate = draft.AccountingDate, Currency = draft.Currency, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow };
+      db.ClientOperationalJournals.Add(journal); await db.SaveChangesAsync(ct);
+    }
+    else
+    {
+      if (draft.Revision <= previous.DraftRevision || !await db.ClientPurchaseInvoiceDecisions.AsNoTracking().AnyAsync(x =>
+          x.FirmId == actor.FirmId && x.ClientId == clientId && x.SubmissionId == previous.Id && x.Decision == "RETURN", ct))
+        return CommandResult<ClientPurchaseInvoiceReceipt>.Fail(ErrorCodes.ProtectedState, "Return and revise the exact supplier invoice before resubmission.");
+      journal = (await db.ClientOperationalJournals.FromSqlInterpolated(
+        $"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={previous.JournalId} FOR UPDATE")
+        .SingleOrDefaultAsync(ct))!;
+      if (journal is null || journal.Status != "RETURNED" || journal.CreatedByUserId != actor.UserId ||
+          journal.Revision != previous.JournalSubmittedRevision + 1)
+        return CommandResult<ClientPurchaseInvoiceReceipt>.Fail(ErrorCodes.StaleRevision, "The exact linked purchase journal is no longer returned to this maker.");
+      if (!await db.ClientOperationalJournalSnapshots.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+          x.ClientId == clientId && x.JournalId == journal.Id && x.JournalRevision == previous.JournalSubmittedRevision && x.CaptureKind == "SUBMISSION", ct))
+        return CommandResult<ClientPurchaseInvoiceReceipt>.Fail(ErrorCodes.ProtectedState, "The original returned purchase content must remain preserved before rework.");
+      // Reuse the existing journal owner, as sales-invoice rework does. Old submitted
+      // bytes and independent return decisions stay append-only; no second movement is created.
+      journal.Status = "DRAFT"; journal.Revision++; await db.SaveChangesAsync(ct);
+      journal.PeriodId = draft.PeriodId; journal.PostingDate = draft.AccountingDate;
+      journal.Currency = draft.Currency; journal.Description = "Client supplier invoice " + draft.VoucherReference;
+      await db.ClientOperationalJournalLines.Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId &&
+        x.JournalId == journal.Id).ExecuteDeleteAsync(ct);
+    }
     foreach (var line in m.Lines) db.ClientOperationalJournalLines.Add(new() { Id = Guid.CreateVersion7(), FirmId = actor.FirmId,
       ClientId = clientId, JournalId = journal.Id, LineNumber = line.LineNumber, ClientAccountId = line.AccountId,
       AccountCode = line.AccountCode, AccountName = line.AccountName, Description = line.Description,
@@ -416,6 +445,9 @@ public static class ClientPurchaseInvoiceWorkflow
       ManifestJson = json, ManifestHash = Hash(json), PreviewDigest = request.PreviewDigest, SourceBasis = m.EvidenceReference,
       SourceReceiptId = m.SourceReceiptId, SourceReceiptHash = m.SourceReceiptHash, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow };
     db.ClientPurchaseInvoiceSubmissions.Add(submission); await db.SaveChangesAsync(ct);
+    if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded ||
+        !await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db, actor.FirmId, clientId, ct: ct))
+      return CommandResult<ClientPurchaseInvoiceReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     await tx.CommitAsync(ct); return CommandResult<ClientPurchaseInvoiceReceipt>.Ok(Receipt(submission));
   }
 

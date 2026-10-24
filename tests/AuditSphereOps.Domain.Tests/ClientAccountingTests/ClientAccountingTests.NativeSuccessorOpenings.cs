@@ -40,6 +40,7 @@ public sealed partial class ClientAccountingTests
       Assert.Equal("native-opening-successor.v1", proof.RootElement.GetProperty("Version").GetString());
       Assert.Equal(f.SourceDatasetId, proof.RootElement.GetProperty("SourceDatasetId").GetGuid());
       Assert.Equal(1L, proof.RootElement.GetProperty("Facts").GetProperty("TargetRevision").GetInt64());
+      Assert.False(proof.RootElement.GetProperty("Facts").TryGetProperty("CarriedPopulation", out _));
     }
     var replay = await ClientOperationalOpeningBalanceWorkspace.CreateSuccessorAsync(db, maker, reviewed);
     Assert.True(replay.Succeeded, replay.Message);

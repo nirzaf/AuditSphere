@@ -67,7 +67,9 @@ public static class ClientOpenItemAllocationWorkflow
       var current = await ClientOperationalOpeningBalanceWorkspace.CheckSuccessorConsumptionAsync(db, actor, latestOpening, ct);
       if (!current.Succeeded) return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(current.ErrorCode!, current.Message!);
     }
-    var items = await OpenItems(db, actor, clientId, ct, asOfDate, periodId);
+    var resolvedItems = await OpenItems(db, actor, clientId, ct, asOfDate, periodId);
+    if (!resolvedItems.Succeeded) return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(resolvedItems.ErrorCode!, resolvedItems.Message!);
+    var items = resolvedItems.Value!;
     var applied = await EffectiveLines(db, actor.FirmId, clientId, ct);
     var sourceApplied = await EffectiveSourceLines(db, actor.FirmId, clientId, ct);
     var rows = items.Select(item =>
@@ -166,7 +168,9 @@ public static class ClientOpenItemAllocationWorkflow
       }
     }
 
-    var items = await OpenItems(db, actor, clientId, ct, asOfDate, periodId);
+    var resolvedItems = await OpenItems(db, actor, clientId, ct, asOfDate, periodId);
+    if (!resolvedItems.Succeeded) return CommandResult<ClientOpenItemControlReconciliationView>.Fail(resolvedItems.ErrorCode!, resolvedItems.Message!);
+    var items = resolvedItems.Value!;
     var applied = await EffectiveLines(db, actor.FirmId, clientId, ct);
     var sourceApplied = await EffectiveSourceLines(db, actor.FirmId, clientId, ct);
     var openByAccount = new Dictionary<(string Role, Guid AccountId), (decimal Balance, int Count)>();
@@ -236,7 +240,7 @@ public static class ClientOpenItemAllocationWorkflow
       return CommandResult<ClientOpenItemControlReconciliationView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     await snapshot.CommitAsync(ct);
     var detailStatus = opening is null ? "NO_APPROVED_OPENING" :
-      openingManifestHasItems(opening.ManifestJson) ? "REVIEWED_OPENING_DETAIL_INCLUDED" : "AGGREGATE_OPENING_DETAIL_NOT_INCLUDED";
+      (openingManifestHasItems(opening.ManifestJson) || items.Any(x => !x.Credit && x.ControlRole is not null)) ? "REVIEWED_OPENING_DETAIL_INCLUDED" : "AGGREGATE_OPENING_DETAIL_NOT_INCLUDED";
     var view = new ClientOpenItemControlReconciliationView(clientId, periodId, period.PeriodCode, period.Currency,
       asOfDate.ToString("yyyy-MM-dd"), "POSTED_NATIVE_CLIENT_JOURNALS_TO_AS_OF_DATE",
       "CURRENT_APPROVED_ALLOCATIONS_NO_SEPARATE_EFFECTIVE_DATE", detailStatus, unlinked, accounts,
@@ -468,7 +472,9 @@ public static class ClientOpenItemAllocationWorkflow
       var current = await ClientOperationalOpeningBalanceWorkspace.CheckSuccessorConsumptionAsync(db, actor, latestOpening, ct);
       if (!current.Succeeded) return CommandResult<ClientOpenItemAllocationPreview>.Fail(current.ErrorCode!, current.Message!);
     }
-    var all = await OpenItems(db, actor, clientId, ct);
+    var resolvedItems = await OpenItems(db, actor, clientId, ct);
+    if (!resolvedItems.Succeeded) return CommandResult<ClientOpenItemAllocationPreview>.Fail(resolvedItems.ErrorCode!, resolvedItems.Message!);
+    var all = resolvedItems.Value!;
     var source = all.SingleOrDefault(x => x.Kind == request.SourceKind && x.Id == request.SourceItemId && x.Credit);
     if (source is null) return CommandResult<ClientOpenItemAllocationPreview>.Fail(ErrorCodes.ProtectedState, "The credit or imported settlement source is unavailable or not eligible.");
     var targets = new List<OpenItem>();
@@ -525,7 +531,7 @@ public static class ClientOpenItemAllocationWorkflow
       targetAvailable.Select(Exact).ToArray()));
   }
 
-  private static async Task<List<OpenItem>> OpenItems(IClientAccountingDbContext db, ActorContext actor, Guid clientId,
+  private static async Task<CommandResult<List<OpenItem>>> OpenItems(IClientAccountingDbContext db, ActorContext actor, Guid clientId,
     CancellationToken ct, DateOnly? asOfDate = null, Guid? periodId = null)
   {
     var firmId = actor.FirmId;
@@ -562,8 +568,26 @@ public static class ClientOpenItemAllocationWorkflow
     var opening = openingRows.FirstOrDefault();
     if (opening is not null && ClientOperationalOpeningBalanceWorkspace.ValidManifest(opening))
     {
-      // The cutover replaces pre-cutover subledger history; only its approved detail and later native activity may age forward.
+      // Original carried identities supplement the approved opening; they are never reposted
+      // or replaced by newly invented successor invoices.
+      var current = await ClientOperationalOpeningBalanceWorkspace.CheckSuccessorConsumptionAsync(db, actor, opening, ct);
+      if (!current.Succeeded) return CommandResult<List<OpenItem>>.Fail(current.ErrorCode!, current.Message!);
+      var successor = await db.ClientOperationalOpeningSuccessorProofs.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == firmId && x.ClientId == clientId && x.OpeningId == opening.Id, ct);
+      ClientOperationalOpeningBalanceWorkspace.SuccessorCarriedPopulation? carried = null;
+      if (successor is not null)
+      {
+        var parsed = ClientOperationalOpeningBalanceWorkspace.ParseSuccessorProof(opening, successor);
+        if (!parsed.Succeeded) return CommandResult<List<OpenItem>>.Fail(parsed.ErrorCode!, parsed.Message!);
+        carried = parsed.Value!.Facts.CarriedPopulation;
+      }
       result = result.Where(x => x.PostingDate >= opening.AsOfDate).ToList();
+      if (carried is not null)
+        foreach (var item in carried.Items)
+          result.Add(new(item.OriginalKind, item.OriginalOpenItemId, item.OriginalDocumentId,
+            item.CounterpartyId, item.CounterpartyName, item.Currency,
+            decimal.Parse(item.OriginalAmount, System.Globalization.CultureInfo.InvariantCulture), item.DueDate,
+            false, item.JournalId, item.AccountingDate ?? item.SourceAsOfDate, false, item.Role, item.AccountId));
       using var manifest = JsonDocument.Parse(opening.ManifestJson);
       if (manifest.RootElement.TryGetProperty("OpenItems", out var rows) && rows.ValueKind == JsonValueKind.Array && rows.GetArrayLength() > 0)
       {
@@ -578,7 +602,9 @@ public static class ClientOpenItemAllocationWorkflow
         }
       }
     }
-    return result;
+    if (result.Select(x => (x.Kind, x.Id)).Distinct().Count() != result.Count)
+      return CommandResult<List<OpenItem>>.Fail(ErrorCodes.ProtectedState, "Duplicate original open-item identities are not eligible for allocation.");
+    return CommandResult<List<OpenItem>>.Ok(result);
   }
 
   private static async Task AddImportedSettlementSources(IClientAccountingDbContext db, ActorContext actor, Guid clientId,

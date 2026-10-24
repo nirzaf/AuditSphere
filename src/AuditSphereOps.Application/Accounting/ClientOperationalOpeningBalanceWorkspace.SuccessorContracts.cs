@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using AuditSphereOps.Domain.Accounting;
 
 namespace AuditSphereOps.Application.Accounting;
@@ -12,7 +13,8 @@ public sealed record NativeSuccessorOpeningPreview(string ReviewBasis, string So
   string ProspectiveOpeningManifestHash, Guid PeriodId, string PeriodRevision, Guid PriorPeriodId,
   string PriorPeriodRevision, string AsOfDate, string Currency, string Basis, string BookScope,
   IReadOnlyList<NativeSuccessorOpeningLine> Lines, IReadOnlyList<NativeSuccessorControlProof> Controls,
-  string PopulationHash, bool Ready, IReadOnlyList<string> Blockers);
+  string PopulationHash, bool Ready, IReadOnlyList<string> Blockers,
+  [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeSuccessorCarriedPopulationView? CarriedPopulation = null);
 public sealed record NativeSuccessorOpeningApprovalRequest(Guid RequestId, Guid ClientId, Guid EngagementId,
   Guid OpeningId, long ExpectedPeriodRevision, string ExpectedOpeningManifestHash, string ExpectedSuccessorProofHash, bool Reviewed);
 public sealed record NativeSuccessorOpeningView(ClientOperationalOpeningBalanceView Opening, string SourceIdentityHash,
@@ -24,7 +26,8 @@ public static partial class ClientOperationalOpeningBalanceWorkspace
     DateOnly PriorStart, DateOnly PriorEnd, Guid ClosedBy, DateTimeOffset ClosedAt, string CloseReason,
     string Basis, string Currency, Guid ChartId, string SourceManifestHash, string SourceRowsHash,
     Guid AcceptanceId, string AcceptanceHash, string ProfileHash, string MandateHash, string PopulationHash,
-    IReadOnlyList<NativeSuccessorOpeningLine> Lines, IReadOnlyList<NativeSuccessorControlProof> Controls);
+    IReadOnlyList<NativeSuccessorOpeningLine> Lines, IReadOnlyList<NativeSuccessorControlProof> Controls,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SuccessorCarriedPopulation? CarriedPopulation = null);
   internal sealed record SuccessorProof(string Version, Guid OpeningId, string OpeningManifestHash,
     Guid FirmId, Guid ClientId, Guid EngagementId, Guid PriorPeriodId, long PriorPeriodRevision,
     Guid SourceDatasetId, string SourceIdentityHash, SuccessorFacts Facts);

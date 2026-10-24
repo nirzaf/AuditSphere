@@ -309,7 +309,7 @@ public sealed partial class ClientAccountingTests
     new(Guid.CreateVersion7(), f.Scope.ClientA, f.Scope.EngagementA, f.PeriodId, 1, new DateOnly(2026, 12, 31),
       "NATIVE-TEST-ENTITY", true, "Synthetic native ledger source evidence");
 
-  private static async Task<NativeBehaviourFixture> CreateNativeBehaviourFixtureAsync(PgTestSchema pg, bool withOpening = true, bool successorAccounts = false, bool openingControlBalance = false)
+  private static async Task<NativeBehaviourFixture> CreateNativeBehaviourFixtureAsync(PgTestSchema pg, bool withOpening = true, bool successorAccounts = false, bool openingControlBalance = false, bool cashAccount = false)
   {
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
@@ -360,6 +360,9 @@ public sealed partial class ClientAccountingTests
          new("expense", "5000", "Expense", "EXPENSE", "DEBIT", true)]);
         Assert.True(controls.Succeeded, controls.Message);
       }
+      if (cashAccount)
+        Assert.True((await ClientAccountingService.AddAccountsAsync(db, preparer, chartId,
+          [new("cash", "1010", "Cash", "ASSET", "DEBIT", true)])).Succeeded);
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
     {

@@ -25,13 +25,16 @@ public static partial class ClientOperationalOpeningBalanceWorkspace
           row.FirmId != opening.FirmId || row.ClientId != opening.ClientId || opening.EvidenceSha256 != row.SourceIdentityHash)
         return SuccessorFail<SuccessorProof>("The retained successor header failed integrity.", ErrorCodes.ProtectedState);
       var p = JsonSerializer.Deserialize<SuccessorProof>(row.ProofJson);
-      if (p is null || p.Facts is null || p.Version != "native-opening-successor.v1" || p.OpeningId != opening.Id ||
+      if (p is null || p.Facts is null || p.Version is not ("native-opening-successor.v1" or "native-opening-successor.v2") || p.OpeningId != opening.Id ||
           p.OpeningManifestHash != opening.ManifestSha256 || p.FirmId != row.FirmId || p.ClientId != row.ClientId ||
           p.EngagementId != row.EngagementId || p.PriorPeriodId != row.PriorPeriodId || p.PriorPeriodRevision != row.PriorPeriodRevision ||
           p.SourceDatasetId != row.SourceDatasetId || p.SourceIdentityHash != row.SourceIdentityHash ||
           p.Facts.TargetPeriodId != opening.PeriodId || p.Facts.TargetRevision != opening.PeriodRevision ||
           p.Facts.PriorPeriodId != row.PriorPeriodId || p.Facts.PriorRevision != row.PriorPeriodRevision)
         return SuccessorFail<SuccessorProof>("The retained successor proof does not bind its exact opening.", ErrorCodes.ProtectedState);
+      if (p.Version == "native-opening-successor.v1" ? p.Facts.CarriedPopulation is not null :
+          p.Facts.CarriedPopulation is null || !ValidSuccessorCarry(p.Facts.CarriedPopulation, p.Facts))
+        return SuccessorFail<SuccessorProof>("The successor proof version does not bind its exact original-item population.", ErrorCodes.ProtectedState);
       // Retained facts authenticate the output even on history reads. Financial suitability
       // supplies freshly resolved source facts as well; no self-hashed arbitrary output is accepted.
       var expectedFacts = sourceFacts ?? p.Facts;
@@ -47,15 +50,15 @@ public static partial class ClientOperationalOpeningBalanceWorkspace
   }
 
   internal static async Task<CommandResult<SuccessorFacts>> ResolveSuccessorFactsAsync(IClientAccountingDbContext db,
-    Guid firmId, Guid clientId, Guid targetId, NativeTrialBalanceSourceWorkspace.SuccessorSource source, CancellationToken ct)
+    Guid firmId, Guid clientId, Guid targetId, NativeTrialBalanceSourceWorkspace.SuccessorSource source, CancellationToken ct, DateTimeOffset? originalProofCreatedAt = null)
   {
-    try { return await ResolveSuccessorFactsCoreAsync(db, firmId, clientId, targetId, source, ct); }
+    try { return await ResolveSuccessorFactsCoreAsync(db, firmId, clientId, targetId, source, ct, originalProofCreatedAt); }
     catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException or OverflowException or ArgumentException or KeyNotFoundException)
     { return SuccessorFail<SuccessorFacts>("Malformed or ambiguous successor source membership.", ErrorCodes.ProtectedState); }
   }
 
   private static async Task<CommandResult<SuccessorFacts>> ResolveSuccessorFactsCoreAsync(IClientAccountingDbContext db,
-    Guid firmId, Guid clientId, Guid targetId, NativeTrialBalanceSourceWorkspace.SuccessorSource source, CancellationToken ct)
+    Guid firmId, Guid clientId, Guid targetId, NativeTrialBalanceSourceWorkspace.SuccessorSource source, CancellationToken ct, DateTimeOffset? originalProofCreatedAt)
   {
     var prior = source.Period;
     var target = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId &&
@@ -126,8 +129,9 @@ public static partial class ClientOperationalOpeningBalanceWorkspace
       if (account.AccountType != (x.Role.Role == "AR" ? "ASSET" : "LIABILITY"))
         return SuccessorFail<SuccessorFacts>("The approved control account type changed.");
       var row = rows.SingleOrDefault(y => y.AccountId == account.Id);
-      if (row is not null && (Amount(row.ClosingDebit) != 0m || Amount(row.ClosingCredit) != 0m))
-        return SuccessorFail<SuccessorFacts>("Every approved AR/AP control balance must be zero; absent invoice rows are not proof of zero.");
+      if (row is not null && (x.Role.Role == "AR" ? Amount(row.ClosingDebit) - Amount(row.ClosingCredit) :
+          Amount(row.ClosingCredit) - Amount(row.ClosingDebit)) < 0m)
+        return SuccessorFail<SuccessorFacts>("A negative control balance requires an explicitly supported original credit population.");
       // Missing emitted zero row is supported only with exact pinned account membership and no original control activity.
       if (row is null)
       {
@@ -140,16 +144,31 @@ public static partial class ClientOperationalOpeningBalanceWorkspace
         if (original.RootElement.GetProperty("Lines").EnumerateArray().Any(y => y.GetProperty("AccountCode").GetString() == account.AccountCode))
           return SuccessorFail<SuccessorFacts>("Control opening without an exact closing row is unsupported.");
       }
-      controls.Add(new(x.Role.Role, x.Role.Id, x.Decision.Id, account.Id, "0", "0"));
+      controls.Add(new(x.Role.Role, x.Role.Id, x.Decision.Id, account.Id,
+        row is null || Amount(row.ClosingDebit) == 0m ? "0" : row.ClosingDebit,
+        row is null || Amount(row.ClosingCredit) == 0m ? "0" : row.ClosingCredit));
     }
-    var empty = await ProveEmptySuccessorSubledgerAsync(db, firmId, clientId, source, ct);
-    if (!empty.Succeeded) return SuccessorFail<SuccessorFacts>(empty.Message!, empty.ErrorCode);
-    var populationHash = SuccessorHash(new { Version = "empty-native-subledger.v1", prior.Id, prior.EndDate,
-      Empty = true, Controls = roles.Select(x => new { x.Role, x.Decision }).ToArray() });
+    var carried = await ResolveSuccessorCarriedItemsAsync(db, firmId, clientId, source, controls, ct);
+    if (!carried.Succeeded) return SuccessorFail<SuccessorFacts>(carried.Message!, carried.ErrorCode);
+    string populationHash;
+    if (carried.Value is { } population)
+    {
+      var allocations = await ValidateSuccessorCarryAllocationsAsync(db, firmId, clientId, population,
+        prior.EndDate, target.StartDate, originalProofCreatedAt, ct);
+      if (!allocations.Succeeded) return SuccessorFail<SuccessorFacts>(allocations.Message!, allocations.ErrorCode);
+      populationHash = population.PopulationHash;
+    }
+    else
+    {
+      var empty = await ProveEmptySuccessorSubledgerAsync(db, firmId, clientId, source, ct);
+      if (!empty.Succeeded) return SuccessorFail<SuccessorFacts>(empty.Message!, empty.ErrorCode);
+      populationHash = SuccessorHash(new { Version = "empty-native-subledger.v1", prior.Id, prior.EndDate,
+        Empty = true, Controls = roles.Select(x => new { x.Role, x.Decision }).ToArray() });
+    }
     return CommandResult<SuccessorFacts>.Ok(new(target.Id, revision, prior.Id, prior.Revision, prior.StartDate, prior.EndDate,
       prior.ClosedByUserId!.Value, prior.ClosedAt!.Value, prior.CloseReason!, prior.Basis, prior.Currency, chart.Id,
       source.Evidence.ManifestHash, source.Evidence.GeneratedRowsHash, source.AcceptanceId, source.AcceptanceHash,
-      SuccessorHash(profile), SuccessorHash(mandate), populationHash, lines, controls));
+      SuccessorHash(profile), SuccessorHash(mandate), populationHash, lines, controls, carried.Value));
   }
 
   private static async Task<CommandResult> ProveEmptySuccessorSubledgerAsync(IClientAccountingDbContext db,

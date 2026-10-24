@@ -3,7 +3,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { ClientOperationalOpeningBalances, NativeSuccessorOpeningPage, decodeOpeningBalance, decodeSuccessorView } from './operational-opening-balances';
+import { ClientOperationalOpeningBalances, NativeSuccessorOpeningPage, decodeOpeningBalance, decodeSuccessorPreview, decodeSuccessorView } from './operational-opening-balances';
 import { SessionService } from '../../core/session';
 
 const client = '11111111-1111-4111-8111-111111111111';
@@ -45,6 +45,60 @@ const successorView = (approvedByUserId: string | null = null) => ({ opening: { 
     OpeningManifestHash: 'b'.repeat(64), SourceIdentityHash: 'a'.repeat(64), SourceDatasetId: sourceId, PriorPeriodId: priorId, EngagementId: engagementId,
     Facts: { TargetPeriodId: periodId, PopulationHash: 'd'.repeat(64), Controls: preview().controls.map(c => ({ Role: c.role,
       ConfigurationId: c.configurationId, DecisionId: c.decisionId, AccountId: c.accountId, ClosingDebit: c.closingDebit, ClosingCredit: c.closingCredit })) } }) });
+const originalOpenItemId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const originalDocumentId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const counterpartyId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const submissionId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const draftId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const journalId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+const carriedItem = () => ({ originalKind: 'SALES_INVOICE', originalOpenItemId, originalDocumentId, role: 'AR', counterpartyId,
+  counterpartyName: 'Original customer', reference: 'INV-EXACT-2025', referenceKind: 'DRAFT_REFERENCE', accountId: priorId,
+  accountCode: '1100', currency: 'QAR', originalAmount: '100.000000', baselineAppliedAmount: '0.000000', baselineOpenAmount: '100.000000',
+  sourceAsOfDate: null, documentDate: '2025-01-10', accountingDate: '2025-12-31', dueDate: null, sourceFactsHash: 'f'.repeat(64) });
+const carrySourceFacts = () => ({ Version: 'native-successor-invoice-item-source.v1', FirmId: maker, ClientId: client,
+  OriginalKind: 'SALES_INVOICE', OriginalOpenItemId: originalOpenItemId, OriginalDocumentId: originalDocumentId,
+  SubmissionId: submissionId, DraftId: draftId, OriginalOpeningId: null, SourceAsOfDate: null,
+  AccountingDate: '2025-12-31', JournalId: journalId, Currency: 'QAR', CounterpartyId: counterpartyId,
+  CounterpartyName: 'Original customer', Reference: 'INV-EXACT-2025', ReferenceKind: 'DRAFT_REFERENCE', DueDate: null,
+  OriginalAmount: '100.000000', Role: 'AR', AccountId: priorId, AccountCode: '1100' });
+const successorControlStateJson = (accountClientId = client) => JSON.stringify([
+  { Role: 'AP', ConfigurationId: reviewer, DecisionId: periodId, AccountId: sourceId, ClosingDebit: '0.000000', ClosingCredit: '0.000000',
+    AccountHash: 'a'.repeat(64), ConfigurationHash: 'b'.repeat(64), DecisionHash: 'c'.repeat(64),
+    AccountJson: JSON.stringify({ Id: sourceId, FirmId: maker, ClientId: client, ChartVersionId: chart, AccountCode: '2100' }),
+    ConfigurationJson: JSON.stringify({ Id: reviewer, FirmId: maker, ClientId: client, ChartVersionId: chart, AccountId: sourceId, Role: 'AP' }),
+    DecisionJson: JSON.stringify({ Id: periodId, FirmId: maker, ClientId: client, ConfigurationId: reviewer, Decision: 'APPROVE' }) },
+  { Role: 'AR', ConfigurationId: maker, DecisionId: client, AccountId: priorId, ClosingDebit: '100.000000', ClosingCredit: '0.000000',
+    AccountHash: 'd'.repeat(64), ConfigurationHash: 'e'.repeat(64), DecisionHash: 'f'.repeat(64),
+    AccountJson: JSON.stringify({ Id: priorId, FirmId: maker, ClientId: accountClientId, ChartVersionId: chart, AccountCode: '1100' }),
+    ConfigurationJson: JSON.stringify({ Id: maker, FirmId: maker, ClientId: client, ChartVersionId: chart, AccountId: priorId, Role: 'AR' }),
+    DecisionJson: JSON.stringify({ Id: client, FirmId: maker, ClientId: client, ConfigurationId: maker, Decision: 'APPROVE' }) },
+]);
+const carriedPreview = (items = [carriedItem()], closingDebit = '100.000000') => {
+  const result = preview();
+  result.controls[0] = { ...result.controls[0], closingDebit };
+  return { ...result, carriedPopulation: { version: 'native-successor-carried-population.v1', count: items.length,
+    populationHash: result.populationHash, items } };
+};
+const successorViewV2 = (sourceFacts = carrySourceFacts(), count = 1, controlStateJson = successorControlStateJson()) => {
+  const carry = carriedPreview();
+  const publicItem = carriedItem();
+  const rawItem = { OriginalKind: publicItem.originalKind, OriginalOpenItemId: publicItem.originalOpenItemId,
+    OriginalDocumentId: publicItem.originalDocumentId, OriginalOpeningId: null, SubmissionId: submissionId, DraftId: draftId,
+    JournalId: journalId, Role: publicItem.role, CounterpartyId: publicItem.counterpartyId, CounterpartyName: publicItem.counterpartyName,
+    Reference: publicItem.reference, ReferenceKind: publicItem.referenceKind, AccountId: publicItem.accountId, AccountCode: publicItem.accountCode,
+    Currency: publicItem.currency, OriginalAmount: publicItem.originalAmount, BaselineAppliedAmount: publicItem.baselineAppliedAmount,
+    BaselineOpenAmount: publicItem.baselineOpenAmount, SourceAsOfDate: null, DocumentDate: publicItem.documentDate,
+    AccountingDate: publicItem.accountingDate, DueDate: null, SourceFactsJson: JSON.stringify(sourceFacts), SourceFactsHash: publicItem.sourceFactsHash };
+  return { opening: { ...response(), periodRevision: exactRevision }, sourceIdentityHash: 'a'.repeat(64), proofHash: 'c'.repeat(64),
+    isCurrent: true, currentnessBlocker: null, proofJson: JSON.stringify({ Version: 'native-opening-successor.v2', FirmId: maker, ClientId: client,
+      OpeningId: openingId, OpeningManifestHash: 'b'.repeat(64), SourceIdentityHash: 'a'.repeat(64), SourceDatasetId: sourceId,
+      PriorPeriodId: priorId, EngagementId: engagementId, Facts: { TargetPeriodId: periodId, PriorPeriodId: priorId,
+        PriorEnd: '2025-12-31', Currency: 'QAR', PopulationHash: carry.populationHash,
+        Controls: carry.controls.map(c => ({ Role: c.role, ConfigurationId: c.configurationId, DecisionId: c.decisionId,
+          AccountId: c.accountId, ClosingDebit: c.closingDebit, ClosingCredit: c.closingCredit })),
+        CarriedPopulation: { Version: 'native-successor-carried-population.v1', Count: count,
+          PopulationHash: carry.populationHash, ControlStateHash: '1'.repeat(64), ControlStateJson: controlStateJson, Items: [rawItem] } } }) };
+};
 
 describe('Reviewed client opening balances', () => {
   let http: HttpTestingController;
@@ -109,6 +163,69 @@ describe('Reviewed client opening balances', () => {
     expect(c.opening()?.approvedByUserId).toBe(reviewer);
     expect(fixture.nativeElement.textContent).toContain('Independently approved');
   });
+
+  it('preserves v1 proof bytes and strictly decodes complete v2 carried originals', () => {
+    const legacy = successorView();
+    const decodedLegacy = decodeSuccessorView(legacy, client, period);
+    expect(decodedLegacy.proofJson).toBe(legacy.proofJson);
+    expect(decodedLegacy.carriedPopulation).toBeNull();
+    expect(decodeSuccessorPreview(preview()).carriedPopulation).toBeNull();
+    const forgedV1 = JSON.parse(legacy.proofJson) as Record<string, unknown>;
+    (forgedV1['Facts'] as Record<string, unknown>)['CarriedPopulation'] = { Version: 'native-successor-carried-population.v1' };
+    expect(() => decodeSuccessorView({ ...legacy, proofJson: JSON.stringify(forgedV1) }, client, period)).toThrow();
+
+    const validPreview = carriedPreview();
+    const decodedPreview = decodeSuccessorPreview(validPreview);
+    expect(decodedPreview.carriedPopulation?.items[0]).toMatchObject({ reference: 'INV-EXACT-2025', dueDate: null,
+      originalAmount: '100.000000', baselineAppliedAmount: '0.000000', baselineOpenAmount: '100.000000' });
+    expect(() => decodeSuccessorPreview({ ...validPreview, carriedPopulation: {
+      ...validPreview.carriedPopulation, items: [{ ...validPreview.carriedPopulation.items[0], originalAmount: '99.000000' }] } })).toThrow();
+    expect(() => decodeSuccessorPreview({ ...validPreview, carriedPopulation: {
+      ...validPreview.carriedPopulation, count: 2 } })).toThrow();
+
+    const retained = successorViewV2();
+    expect(decodeSuccessorView(retained, client, period).carriedPopulation?.items[0].originalOpenItemId).toBe(originalOpenItemId);
+    expect(() => decodeSuccessorView(successorViewV2({ ...carrySourceFacts(), ClientId: reviewer }), client, period)).toThrow();
+    expect(() => decodeSuccessorView(successorViewV2(carrySourceFacts(), 1, successorControlStateJson(reviewer)), client, period)).toThrow();
+    expect(() => decodeSuccessorView(successorViewV2(carrySourceFacts(), 2), client, period)).toThrow();
+  });
+
+  it('shows paged carried originals in preview and retained successor history', async () => {
+    const fixture = await setup(); const c = fixture.componentInstance;
+    c.setSuccessorMode(true); c.successorSourceId = sourceId; c.successorEvidence = 'EXACT-CLOSED-SOURCE';
+    const previewItems = Array.from({ length: 101 }, (_, index) => {
+      const suffix = index.toString().padStart(12, '0');
+      return { ...carriedItem(), originalOpenItemId: `a0000000-0000-4000-8000-${suffix}`,
+        originalDocumentId: `b0000000-0000-4000-8000-${suffix}`, reference: `INV-PAGE-${suffix}`,
+        originalAmount: '1.000000', baselineOpenAmount: '1.000000' };
+    });
+    const preparing = c.previewSuccessor(null);
+    http.expectOne(successorBase + '/preview').flush({ value: carriedPreview(previewItems, '101.000000') }); await preparing; fixture.detectChanges();
+    const tables = fixture.nativeElement.querySelectorAll('table') as NodeListOf<HTMLTableElement>;
+    const firstPage = Array.from(tables).find(table =>
+      table.querySelector('caption')?.textContent?.trim() === 'Original-item carry preview');
+    expect(firstPage?.querySelectorAll('tbody tr').length).toBe(100);
+    expect(firstPage?.textContent).toContain('INV-PAGE-000000000099');
+    expect(firstPage?.textContent).not.toContain('INV-PAGE-000000000100');
+    expect(fixture.nativeElement.textContent).toContain('Checked in this preview');
+    expect(fixture.nativeElement.querySelector('mat-paginator[aria-label="Successor preview original-item pages"]')).toBeTruthy();
+    c.successorCarryPage.set(1); fixture.detectChanges();
+    const secondPage = Array.from(tables).find(table =>
+      table.querySelector('caption')?.textContent?.trim() === 'Original-item carry preview');
+    expect(secondPage?.querySelectorAll('tbody tr').length).toBe(1);
+    expect(secondPage?.textContent).toContain('INV-PAGE-000000000100');
+    expect(secondPage?.textContent).not.toContain('INV-PAGE-000000000099');
+
+    const loading = c.loadSuccessorCatalog();
+    http.expectOne(catalogUrl).flush(catalog('NATIVE_SUCCESSOR', openingId));
+    await Promise.resolve(); await Promise.resolve();
+    http.expectOne(successorBase + '/' + openingId).flush(successorViewV2()); await loading; fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Retained original items');
+    expect(fixture.nativeElement.textContent).toContain('INV-EXACT-2025');
+    expect(fixture.nativeElement.textContent).toContain('Current');
+    expect(fixture.nativeElement.querySelector('mat-paginator[aria-label="Retained original-item pages"]')).toBeTruthy();
+  });
+
   it('previews exact accepted predecessor identities and preserves the original uncertain creation request for explicit recovery', async () => {
     const fixture = await setup(); const c = fixture.componentInstance;
     c.setSuccessorMode(true); c.successorSourceId = sourceId; c.successorEvidence = 'EXACT-CLOSED-SOURCE';
