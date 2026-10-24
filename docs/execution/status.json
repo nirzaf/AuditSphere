@@ -922,6 +922,12 @@
         "profile": "audit-client-listing-csv.v1, strictUTF8 CSV, explicit mapping; rawSHA separate from canonical parsed-rowSHA; literal rawcells/leadingzero/sign/zero/date-null preserved; optional labelled technical rowidentity.",
         "checks": "Two focused methods/35parameterized cases PASS57ms; numeric19,6 perrow and complete signedtotal, exactmax, NUL/grammar/currency/date/byte/row/header/cell bounds, no rounding/truncation. Static review found no blocker.",
         "limits": "No PBC reader/provider, accepted-TB control resolver, immutable capture/review receipt, API/UI/builtin or wholeT058/31 acceptance implied."
+      },
+      "scheduleSourceContentReader": {
+        "status": "Focused staged-byte boundary16PASS; no DI/API/source-intake flow or provider acceptance.",
+        "scope": "Read only server-resolved PBC staged download plan under explicit root. Exact expected content SHA/count, regular contained files, per-read byte cap, symlink/outside/missing/tampered/truncated denial; cancellation propagated.",
+        "checks": "Two focused methods/16cases PASS25ms with actual synthetic tempfiles and links. No database/full local suite.",
+        "limits": "Caller still owns current authorization/PBC acceptance/source selection and rechecks. No provider rawreader, file writes, staging retention policy, live effect or concurrent-race guarantee. No capture/review workflow implemented."
       }
     },
     "archivedOn20261024": {

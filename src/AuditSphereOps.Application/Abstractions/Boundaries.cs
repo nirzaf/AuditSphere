@@ -39,3 +39,11 @@ public interface IReleaseCheckpointStore
   Task<CheckpointContent?> ReadVerifiedAsync(string reference, string expectedDigest, CancellationToken ct = default);
 }
 
+/// <summary>Reads only verified staged PBC bytes from a server-resolved download plan.</summary>
+public interface IAuditScheduleSourceContentReader
+{
+  Task<AuditSphereOps.Domain.Shared.CommandResult<byte[]>> ReadVerifiedAsync(
+    AuditSphereOps.Application.Documents.PbcDownload download, string expectedSha256,
+    long expectedByteCount, CancellationToken ct);
+}
+
