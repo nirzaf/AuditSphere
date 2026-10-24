@@ -909,7 +909,8 @@
       "status": "FOCUSED_PASS; whole Task18 partial; exact-source CI pending",
       "checks": "Domain2/API2/Angular19/E2E1, final lint/build/EF PASS; builtin exact retained source readback observed.",
       "history": "status-archive-2026-10.json#archivedTargetedVerification.confirmationBankSource20261024",
-      "limits": "Legacy/manual unverified; other areas/difference links, concurrency variants and qualified/live acceptance remain."
+      "limits": "Legacy/manual unverified; other areas/difference links, concurrency variants and qualified/live acceptance remain.",
+      "sourceCommit": "1c89bdc9abd866e93caaec94e523cac959afcb3b"
     }
   },
   "externalGates": [
@@ -1483,8 +1484,8 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "30dc24db64d74905f7f192ef4494645d8b00cc73",
-    "evidence": "Exact bank-schedule guard source MATCH; Angular passed, remaining full jobs running. Prior successor run is separate; no FULL_CI_PASS.",
-    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40085778730 RUNNING; not FULL_CI_PASS."
+    "sourceCommit": "1c89bdc9abd866e93caaec94e523cac959afcb3b",
+    "evidence": "Exact typed Bank source MATCH; scoped Domain/API/Angular/E2E/builtin/EF/OpenAPI checks passed. Full run is in progress; no FULL_CI_PASS.",
+    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40089800048 RUNNING; not FULL_CI_PASS."
   }
 }
