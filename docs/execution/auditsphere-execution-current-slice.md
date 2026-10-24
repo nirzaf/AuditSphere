@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Current work-queue grant expiry
+
+The queue now rechecks grant expiry with a fresh cutoff after its read snapshot, while retaining the original UTC calendar date for task views. The regression crosses a real stored expiry boundary while a sibling engagement grant remains valid: the original query released protected rows/counts; the corrected query refuses the readback. Existing calendar/count checks pass. Broader template, recurrence and reminder acceptance remains separate.
+
 ## Accounting and confirmation source handoffs
 
 The requirement manifest now records exact recipe owners and existing checks for import-first reporting, native bookkeeping continuity and retained period evidence. Retained Domain cases and unchanged-source Angular file passes support their specific guards, not whole workflows. Native successor openings and a sealed native reporting-source handoff remain implementation targets. The confirmation source trace distinguishes all supported areas: caller-entered amounts are not independently derived booked balances, and an approved bank reconciliation is a candidate source rather than an implemented adapter. Missing real-client approvals block their acceptance leaves, not independent technical work.

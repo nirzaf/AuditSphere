@@ -10067,6 +10067,30 @@
       "reviewLimits": "Named retained a9 Domain cases and exact-source764d Angular file passes support only their stated invariants. No local reruns, browser/API/persistence extrapolation, whole-recipe/full-current-CI/professional acceptance. Missing complete-target owners/checks remain unverified.",
       "engineeringBoundary": "Unavailable real-client mandate/cutover evidence blocks dependent live acceptance, not independent technical source-contract work. Native successor opening and sealed reporting source remain implementation targets; limited search or analogous producer tests do not prove them delivered.",
       "sourceRegister": "specificationTaskReconciliation.ASCP-10.sharedAccountingHandoffRegister"
+    },
+    "ASCP-09": {
+      "scope": "Recipe3 current scoped queue rows/counts at readback; not complete recurrence/template/reminder acceptance.",
+      "specificationSha256": "48443a258b9c4e12bb8bf4c1fd081734addb4d14a6514599d5b998b87812db9a",
+      "criterion": {
+        "recipeNumber": 3,
+        "sourceLine": 681,
+        "sourceText": "3. Prove all required queue filters and Kanban/calendar handoffs preserve current server counts, pagination, selected scope and role visibility. A missing/denied subset must not become a misleading zero-total success.",
+        "sourceTextSha256": "6d36031061a52117d01313987a2ad762880898864ed8eb05fd4f8ba4c3c0c4ae"
+      },
+      "disposition": "IMPLEMENT_DELTA_LOCALLY_VERIFIED",
+      "sourceOwners": [
+        "src/AuditSphereOps.Application/Practice/WorkflowTaskQueueQuery.cs"
+      ],
+      "regression": {
+        "path": "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowTaskTests.cs",
+        "method": "QueueSummaryRefusesGrantExpiryAtSnapshotCommitEvenWhenAnotherEngagementGrantRemains",
+        "expectedOutcome": "Once A expires after the queue snapshot and B remains authorized, refuse all queued A rows and summary counts; actor epoch and grants RevokedAt unchanged."
+      },
+      "evidence": "docs/execution/status-archive-2026-10.json#keys.queueCurrentExpiry20261024",
+      "calendarSemantics": "UTC date captured once for task views; grant expiry independently rechecked at readback.",
+      "remaining": "Current exact-source full CI, complete template/recurrence/reminder/UI journeys and dependent professional/provider acceptance; POLICY-RENEWAL remains unresolved.",
+      "acceptance": "PARTIAL_LOCAL_VERIFICATION",
+      "taskComplete": false
     }
   }
 }

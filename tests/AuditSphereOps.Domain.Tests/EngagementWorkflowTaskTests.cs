@@ -1,4 +1,7 @@
+using System.Data.Common;
+using System.Text.RegularExpressions;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
@@ -8,6 +11,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
@@ -1130,6 +1134,124 @@ public sealed class EngagementWorkflowTaskTests
       Assert.Equal(2, firmWide.Value!.Tasks.Count);
       Assert.Equal("2", SummaryCount(firmWide.Value.Summary!, "DUE_TODAY"));
       Assert.Equal("2", SummaryCount(firmWide.Value.Summary!, "OVERDUE"));
+    }
+  }
+
+  [Fact]
+  public async Task QueueSummaryRefusesGrantExpiryAtSnapshotCommitEvenWhenAnotherEngagementGrantRemains()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientA = Guid.NewGuid();
+    var clientB = Guid.NewGuid();
+    var engagementA = Guid.NewGuid();
+    var engagementB = Guid.NewGuid();
+    var manager = User(firmId, "Manager");
+    var staff = User(firmId, "Staff");
+    var staffActor = Actor(staff, "Staff");
+    var grantA = Grant(firmId, staff, "Staff", clientA, engagementA);
+    grantA.ExpiresAt = DateTimeOffset.UtcNow.AddDays(1);
+    var grantB = Grant(firmId, staff, "Staff", clientB, engagementB);
+    await SeedQueueScopeAsync(pg, firmId, [(clientA, engagementA), (clientB, engagementB)],
+      [manager, staff], () => [Grant(firmId, manager, "Manager"), grantA, grantB]);
+
+    Guid taskA;
+    string before;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      taskA = await CreateQueueTaskAsync(db, Actor(manager, "Manager"), engagementA,
+        "Protected engagement A task", 1, DateOnly.FromDateTime(DateTime.UtcNow));
+      var assigned = await EngagementWorkflowTaskService.AssignAsync(db, Actor(manager, "Manager"), taskA, staff.Id, 1);
+      Assert.True(assigned.Succeeded, assigned.Message);
+      var positive = await WorkflowTaskQueueQuery.GetAsync(db, staffActor,
+        new WorkflowTaskQueueRequest("TEAM", IncludeSummary: true));
+      Assert.True(positive.Succeeded, positive.Message);
+      Assert.Equal(taskA, Assert.Single(positive.Value!.Tasks).TaskId);
+      Assert.Equal("1", SummaryCount(positive.Value.Summary!, "MY_TASKS"));
+      Assert.Equal("1", SummaryCount(positive.Value.Summary!, "DUE_TODAY"));
+      before = await QueueStateFingerprintAsync(db, firmId);
+    }
+
+    var cutoffs = new QueueGrantCutoffObserver();
+    DateTimeOffset storedExpiry = default;
+    var barrier = new ExpireGrantOnQueueSnapshotCommit(async ct =>
+    {
+      var capturedCutoff = Assert.Single(cutoffs.Values);
+      var callbackUtcNow = DateTimeOffset.UtcNow;
+      Assert.True(callbackUtcNow > capturedCutoff);
+      // Separate context, after the owned read committed. No revocation or session-epoch workaround.
+      await using var update = new AuditSphereDbContext(pg.Options);
+      Assert.Equal(1, await update.RoleGrants.Where(x => x.Id == grantA.Id)
+        .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.ExpiresAt, callbackUtcNow), ct));
+      storedExpiry = (await update.RoleGrants.AsNoTracking().SingleAsync(x => x.Id == grantA.Id, ct)).ExpiresAt!.Value;
+      // Assert the persisted PostgreSQL timestamp, including its precision, crosses the original cutoff.
+      Assert.True(storedExpiry > capturedCutoff);
+      Assert.True(storedExpiry <= DateTimeOffset.UtcNow);
+    });
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(cutoffs, barrier).Options;
+    await using var queryDb = new AuditSphereDbContext(options);
+    var result = await WorkflowTaskQueueQuery.GetAsync(queryDb, staffActor,
+      new WorkflowTaskQueueRequest("TEAM", IncludeSummary: true));
+
+    Assert.Equal(1, barrier.CommitCount);
+    Assert.Equal(2, cutoffs.Values.Count);
+    await using (var control = new AuditSphereDbContext(pg.Options))
+    {
+      var actual = await control.RoleGrants.AsNoTracking().Where(x => x.UserId == staff.Id).ToListAsync();
+      Assert.Equal(2, actual.Count);
+      Assert.All(actual, x => Assert.Null(x.RevokedAt));
+      Assert.Equal(storedExpiry, Assert.Single(actual, x => x.Id == grantA.Id).ExpiresAt);
+      Assert.Null(Assert.Single(actual, x => x.Id == grantB.Id).ExpiresAt);
+      Assert.Equal(staff.SessionEpoch, (await control.Users.AsNoTracking().SingleAsync(x => x.Id == staff.Id)).SessionEpoch);
+      Assert.True((await AuthorizationDecision.AuthorizeAsync(control, staffActor,
+        new AuthorizationRequest(firmId, RequiredRoles: ["Staff"], InternalOnly: true))).Succeeded);
+      Assert.False((await AuthorizationDecision.AuthorizeAsync(control, staffActor,
+        new AuthorizationRequest(firmId, ClientId: clientA, EngagementId: engagementA,
+          RequiredRoles: ["Staff"], InternalOnly: true))).Succeeded);
+      Assert.True((await AuthorizationDecision.AuthorizeAsync(control, staffActor,
+        new AuthorizationRequest(firmId, ClientId: clientB, EngagementId: engagementB,
+          RequiredRoles: ["Staff"], InternalOnly: true))).Succeeded);
+      Assert.Equal(before, await QueueStateFingerprintAsync(control, firmId));
+    }
+
+    Assert.False(result.Succeeded,
+      $"Expired A released: rows={result.Value?.Tasks.Count}, dueToday={result.Value?.Summary?.Counts.Single(x => x.View == "DUE_TODAY").Count}; " +
+      $"initialCutoff={cutoffs.Values[0]:O}, expiry={storedExpiry:O}, finalCutoff={cutoffs.Values[1]:O}");
+    Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
+    Assert.Null(result.Value); // Neither rows nor summary counts may leave the query after scope loss.
+    Assert.True(cutoffs.Values[1] >= storedExpiry);
+  }
+
+  private sealed class ExpireGrantOnQueueSnapshotCommit(Func<CancellationToken, Task> expire) : DbTransactionInterceptor
+  {
+    public int CommitCount { get; private set; }
+
+    public override async Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,
+      CancellationToken cancellationToken = default)
+    {
+      Assert.Equal(0, CommitCount++);
+      await expire(cancellationToken);
+    }
+  }
+
+  private sealed class QueueGrantCutoffObserver : DbCommandInterceptor
+  {
+    public List<DateTimeOffset> Values { get; } = [];
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+      CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+    {
+      // Observe the effective-grant predicate, without relying on EF's generated parameter name.
+      var match = Regex.Match(command.CommandText, @"\bexpires_at""? > (?<parameter>@[A-Za-z0-9_]+)");
+      if (match.Success)
+      {
+        var parameterName = match.Groups["parameter"].Value.TrimStart('@');
+        var parameter = Assert.Single(command.Parameters.Cast<DbParameter>(),
+          x => x.ParameterName.TrimStart('@') == parameterName);
+        Values.Add(Assert.IsType<DateTimeOffset>(parameter.Value));
+      }
+      return ValueTask.FromResult(result);
     }
   }
 

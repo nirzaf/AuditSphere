@@ -24656,6 +24656,43 @@
         "No API/E2E/browser run, model/schema/DTO/provider changes, or additional policy.",
         "Unrelated status races and additional lifecycle paths were not broadened into this slice."
       ]
+    },
+    "queueCurrentExpiry20261024": {
+      "status": "PASS_LOCAL_FOCUSED_CURRENT_CI_REQUIRED",
+      "proof": {
+        "runtimeReproduced": true,
+        "redDiagnostic": "Expired A released: rows=1, dueToday=1; initialCutoff=2026-10-24T04:31:22.0022850+00:00, expiry=2026-10-24T04:31:22.0483530+00:00, finalCutoff=2026-10-24T04:31:22.0022850+00:00",
+        "initialPositive": "Same actor with A and B scoped Staff grants sees the sole A task and MY_TASKS/DUE_TODAY counts of 1 with IncludeSummary=true.",
+        "boundary": "One-shot TransactionCommittedAsync on the queue-owned repeatable-read; independent original-options context changes only A.ExpiresAt to callbackUtcNow. Persisted expiry strictly after captured initial grant cutoff, already expired before final read. No sleep.",
+        "controlsPassedBeforeRedProductAssertion": [
+          "Both role grants remain non-revoked; exactly two actor grants.",
+          "A expired at recorded persisted timestamp; B has no expiry.",
+          "SessionEpoch unchanged.",
+          "Fresh unscoped Staff authorization succeeds through B; exact A denied; exact B allowed.",
+          "Task/binding/engagement/activity/professional-state fingerprint unchanged."
+        ],
+        "redResult": "Unsafe success released A row=1 and dueToday=1. Both grant queries used identical old cutoff.",
+        "greenResult": "Same unchanged regression source passes: ScopeDenied, Value=null (no rows or summary), final grant cutoff >= persisted A expiry.",
+        "testSourceIdenticalAcrossActualRedAndGreen": true
+      },
+      "sourceDigests": {
+        "src/AuditSphereOps.Application/Practice/WorkflowTaskQueueQuery.cs": "72c8debef41c9aa92e94062bdbf364a5f662aafec4aac1ab3678d0dd594a19e3",
+        "tests/AuditSphereOps.Domain.Tests/EngagementWorkflowTaskTests.cs": "6dea21c5650f8e8707d3879bc410a24aa4b8367520033909b8ab7a4b2864ccaa",
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Confirmations.cs": "eb23c1f250c0b49fdd60cb680e903c7783929296ce4c2e4c288327ddde5ecd9d",
+        "tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs": "2362fac17805ecc51e82eda4fd41a25134dba2f86e070190fe0533079bed2282"
+      },
+      "evidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/queue-current-expiry-20261024/review-result.json",
+      "checks": "One attributable runtimeRED -> regressionGREEN1; existing UTC calendar/count cohort2PASS; initial SQL-observer harness failure retained separately, not productRED.",
+      "limits": [
+        "Full Domain/API/Angular/E2E and exact-commit CI not run.",
+        "No professional, provider, release or whole Task09 acceptance claimed."
+      ],
+      "preservedContactReadSummary": {
+        "status": "PASS_LOCAL_FOCUSED; FULL_CI_PENDING",
+        "checks": "RED routing3/hierarchy2, count1 attributable privacy failures -> final7PASS/0FAIL/0SKIP. No full local suite.",
+        "history": "status-archive-2026-10.json#keys.clientContactReadScope20261024",
+        "scope": "App contact/routing/recipient/hierarchy and off-page relationship-count revocation guards; no API schema or DB migration."
+      }
     }
   },
   "archivedTargetedVerification": {

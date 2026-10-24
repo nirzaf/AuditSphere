@@ -1097,12 +1097,7 @@
         "pending": "Domain/API/E2E",
         "limits": "Precedingf93 excludes direct-confirmation fix overlay. Final combined source needs its own CI; no current full pass."
       },
-      "clientContactReadScope": {
-        "status": "PASS_LOCAL_FOCUSED; FULL_CI_PENDING",
-        "checks": "RED routing3/hierarchy2, count1 attributable privacy failures -> final7PASS/0FAIL/0SKIP. No full local suite.",
-        "history": "status-archive-2026-10.json#keys.clientContactReadScope20261024",
-        "scope": "App contact/routing/recipient/hierarchy and off-page relationship-count revocation guards; no API schema or DB migration."
-      },
+      "clientContactReadScope": "Focused read-scope checks retained: status-archive-2026-10.json#keys.clientContactReadScope20261024.",
       "clientRoutingOwnerScope": {
         "status": "PASS_LOCAL_FOCUSED; FULL_CI_PENDING",
         "checks": "RED1 privacy exposure -> boundary1PASS + existing routing/authority4PASS; Release/EFdriftPASS. No full local suite.",
@@ -1119,7 +1114,8 @@
         "scope": "Current-authority and post-close alternative boundary; broader concurrency/source balances remain open."
       },
       "financialPackageBalance": "PASS_FOCUSED3; manual/read/automatic financial-package predicate aligned. Current CI pending. Archive: status-archive-2026-10.json#keys.financialPackageBalanceEligibility20261024.",
-      "accountingHandoff": "Tasks10/11/15 source/test trace, not accepted. Native successor/sealed source remain. Archive: status-archive-2026-10.json#keys.accountingHandoffReview20261024."
+      "accountingHandoff": "Tasks10/11/15 source/test trace, not accepted. Native successor/sealed source remain. Archive: status-archive-2026-10.json#keys.accountingHandoffReview20261024.",
+      "queueCurrentExpiry": "RED1/GREEN1+calendar2PASS; fullCI pending. Archive: status-archive-2026-10.json#keys.queueCurrentExpiry20261024."
     },
     "archivedOn20261024": {
       "entries": [

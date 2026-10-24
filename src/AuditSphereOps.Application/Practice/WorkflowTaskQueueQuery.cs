@@ -70,7 +70,7 @@ public static class WorkflowTaskQueueQuery
     if (!auth.Succeeded)
       return CommandResult<WorkflowTaskQueue>.Fail(auth.ErrorCode!, auth.Message!);
 
-    // One UTC instant per call: the existing UTC calendar-date meaning of OVERDUE is preserved, never browser time.
+    // One UTC calendar cutoff per call: the existing calendar-date meaning of OVERDUE is preserved, never browser time.
     var now = DateTimeOffset.UtcNow;
     var today = DateOnly.FromDateTime(now.UtcDateTime);
     var upcomingEnd = today.DayNumber > DateOnly.MaxValue.DayNumber - 7 ? DateOnly.MaxValue : today.AddDays(7);
@@ -299,7 +299,11 @@ public static class WorkflowTaskQueueQuery
         await ownedRead.CommitAsync(ct);
         await ownedRead.DisposeAsync();
       }
-      var current = await effectiveGrants.ToListAsync(ct);
+      var scopeCheckedAt = DateTimeOffset.UtcNow;
+      var current = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+          x.UserId == actor.UserId && x.RevokedAt == null &&
+          (x.ExpiresAt == null || x.ExpiresAt > scopeCheckedAt) && ReadRoles.Contains(x.Role))
+        .Select(x => new { x.Role, x.ClientId, x.EngagementId }).ToListAsync(ct);
       var captured = grants.OrderBy(x => x.Role, StringComparer.Ordinal)
         .ThenBy(x => x.ClientId).ThenBy(x => x.EngagementId);
       if (!current.OrderBy(x => x.Role, StringComparer.Ordinal).ThenBy(x => x.ClientId)
