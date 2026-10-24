@@ -111,7 +111,7 @@
           }
         </section>
       }
-      @if (w.canManageFieldwork || w.canViewReviewNotes) {
+      @if (w.canManageFieldwork || w.canViewReviewNotes || w.canReviewSelections) {
       <section class="panel" aria-labelledby="fieldwork-tools-heading">
         <h2 id="fieldwork-tools-heading">{{ w.canManageFieldwork ? 'Fieldwork tools' : 'Procedure review' }}</h2>
         @if (procedure.procedureReceiptCheckpointProblem()) {
@@ -119,6 +119,203 @@
         }
         @if (w.canManageFieldwork) { <a [routerLink]="['/app/engagements',id(),'confirmations']">Confirmation dashboard</a> }
         <mat-tab-group [selectedIndex]="toolTab()" (selectedIndexChange)="toolTab.set($event)">
+          @if (w.canManageFieldwork || w.canReviewSelections) {
+          <mat-tab label="Source-backed schedules">
+            <p>Capture an exact accepted client listing against selected accepted trial-balance closing controls. Independent reviewers approve or return the retained source capture. This workpaper does not approve the source data or replace professional judgment.</p>
+            @if (w.canManageFieldwork) {
+              <section aria-labelledby="schedule-source-capture-heading">
+                <h3 id="schedule-source-capture-heading">Capture an accepted listing</h3>
+                <audit-state [loading]="sourceIntake.intakeOptions.loading()" [error]="sourceIntake.intakeOptions.error()" label="accepted listing and trial-balance sources" />
+                @if (sourceIntake.intakeOptions.data(); as options) {
+                  <div class="inline-form">
+                    <label>Accepted PBC listing
+                      <select name="schedule-pbc-source" [ngModel]="sourceIntake.capture.pbcReceiptId" (ngModelChange)="sourceIntake.choosePbc($event)" [disabled]="!sourceIntake.canUseCapture() || sourceIntake.intakeOptions.loading()">
+                        <option value="">Select an accepted CSV listing</option>
+                        @for (source of options.pbcSources; track source.receiptId) {
+                          <option [value]="source.receiptId">{{ source.fileName }} · {{ source.periodStart }} to {{ source.periodEnd }} · {{ source.entityScope }}</option>
+                        }
+                      </select>
+                    </label>
+                    <button matButton type="button" (click)="sourceIntake.intakeOptions.reload()" [disabled]="sourceIntake.intakeOptions.loading()">Refresh accepted sources</button>
+                    <nav aria-label="Accepted listing source pages">
+                      <button matButton type="button" (click)="sourceIntake.nextIntakePage('pbc', false)" [disabled]="sourceIntake.intakeOffset().pbc === 0 || sourceIntake.intakeOptions.loading()">Previous listings</button>
+                      <span>Listing page starting at {{ sourceIntake.intakeOffset().pbc + 1 }} · {{ options.pbcSources.length }} shown</span>
+                      <button matButton type="button" (click)="sourceIntake.nextIntakePage('pbc', true)" [disabled]="!options.hasMorePbcSources || sourceIntake.intakeOptions.loading()">Next listings</button>
+                    </nav>
+                    <label>Accepted trial balance
+                      <select name="schedule-tb-source" [ngModel]="sourceIntake.capture.tbDecisionId" (ngModelChange)="sourceIntake.chooseTrialBalance($event)" [disabled]="!sourceIntake.canUseCapture() || sourceIntake.intakeOptions.loading()">
+                        <option value="">Select an accepted native TB closing</option>
+                        @for (source of options.trialBalances; track source.decisionId) {
+                          <option [value]="source.decisionId">{{ source.legalEntityKey }} · {{ source.periodStart }} to {{ source.periodEnd }} · {{ source.currency }} · {{ source.basis ?? 'Basis not recorded' }}</option>
+                        }
+                      </select>
+                    </label>
+                    <nav aria-label="Accepted trial-balance source pages">
+                      <button matButton type="button" (click)="sourceIntake.nextIntakePage('trialBalance', false)" [disabled]="sourceIntake.intakeOffset().trialBalance === 0 || sourceIntake.intakeOptions.loading()">Previous trial balances</button>
+                      <span>Trial-balance page starting at {{ sourceIntake.intakeOffset().trialBalance + 1 }} · {{ options.trialBalances.length }} shown</span>
+                      <button matButton type="button" (click)="sourceIntake.nextIntakePage('trialBalance', true)" [disabled]="!options.hasMoreTrialBalances || sourceIntake.intakeOptions.loading()">Next trial balances</button>
+                    </nav>
+                  </div>
+                }
+                @if (sourceIntake.selectedPbc(); as pbc) {
+                  <p>Selected accepted listing: {{ pbc.fileName }} · {{ pbc.byteCount }} bytes · {{ pbc.periodStart }} to {{ pbc.periodEnd }} · {{ pbc.entityScope }}</p>
+                }
+                @if (sourceIntake.selectedTrialBalance(); as tb) {
+                  <p>Selected accepted TB: {{ tb.legalEntityKey }} · {{ tb.periodStart }} to {{ tb.periodEnd }} · {{ tb.currency }} · dataset revision {{ tb.datasetRevision }} · generation {{ tb.inputGeneration }}</p>
+                }
+                <audit-state [loading]="sourceIntake.sourceHeaders.loading()" [error]="sourceIntake.sourceHeaders.error()" label="verified accepted listing headers" />
+                @if (sourceIntake.sourceHeaders.data(); as headers) {
+                  <fieldset>
+                    <legend>Explicit CSV column mapping · {{ headers.profileVersion }}</legend>
+                    <p>Column names come from the exact verified accepted file. No mapping is inferred.</p>
+                    <div class="inline-form">
+                      <label>Account code *
+                        <select name="schedule-column-account" [ngModel]="sourceIntake.capture.columns.accountCode" (ngModelChange)="sourceIntake.setColumn('accountCode', $event)" [disabled]="!sourceIntake.canUseCapture()"><option value="">Select column</option>@for (header of headers.headers; track header) { <option [value]="header">{{ header }}</option> }</select>
+                      </label>
+                      <label>Description *
+                        <select name="schedule-column-description" [ngModel]="sourceIntake.capture.columns.description" (ngModelChange)="sourceIntake.setColumn('description', $event)" [disabled]="!sourceIntake.canUseCapture()"><option value="">Select column</option>@for (header of headers.headers; track header) { <option [value]="header">{{ header }}</option> }</select>
+                      </label>
+                      <label>Signed amount *
+                        <select name="schedule-column-amount" [ngModel]="sourceIntake.capture.columns.signedAmount" (ngModelChange)="sourceIntake.setColumn('signedAmount', $event)" [disabled]="!sourceIntake.canUseCapture()"><option value="">Select column</option>@for (header of headers.headers; track header) { <option [value]="header">{{ header }}</option> }</select>
+                      </label>
+                      <label>Currency *
+                        <select name="schedule-column-currency" [ngModel]="sourceIntake.capture.columns.currency" (ngModelChange)="sourceIntake.setColumn('currency', $event)" [disabled]="!sourceIntake.canUseCapture()"><option value="">Select column</option>@for (header of headers.headers; track header) { <option [value]="header">{{ header }}</option> }</select>
+                      </label>
+                      <label>Stable row ID
+                        <select name="schedule-column-stable-id" [ngModel]="sourceIntake.capture.columns.stableRowId" (ngModelChange)="sourceIntake.setColumn('stableRowId', $event)" [disabled]="!sourceIntake.canUseCapture()"><option value="">Not supplied</option>@for (header of headers.headers; track header) { <option [value]="header">{{ header }}</option> }</select>
+                      </label>
+                      <label>Transaction date
+                        <select name="schedule-column-transaction-date" [ngModel]="sourceIntake.capture.columns.transactionDate" (ngModelChange)="sourceIntake.setColumn('transactionDate', $event)" [disabled]="!sourceIntake.canUseCapture()"><option value="">Not supplied</option>@for (header of headers.headers; track header) { <option [value]="header">{{ header }}</option> }</select>
+                      </label>
+                      <label>Posting date
+                        <select name="schedule-column-posting-date" [ngModel]="sourceIntake.capture.columns.postingDate" (ngModelChange)="sourceIntake.setColumn('postingDate', $event)" [disabled]="!sourceIntake.canUseCapture()"><option value="">Not supplied</option>@for (header of headers.headers; track header) { <option [value]="header">{{ header }}</option> }</select>
+                      </label>
+                      <label>Delivery date
+                        <select name="schedule-column-delivery-date" [ngModel]="sourceIntake.capture.columns.deliveryDate" (ngModelChange)="sourceIntake.setColumn('deliveryDate', $event)" [disabled]="!sourceIntake.canUseCapture()"><option value="">Not supplied</option>@for (header of headers.headers; track header) { <option [value]="header">{{ header }}</option> }</select>
+                      </label>
+                      <label>Service date
+                        <select name="schedule-column-service-date" [ngModel]="sourceIntake.capture.columns.serviceDate" (ngModelChange)="sourceIntake.setColumn('serviceDate', $event)" [disabled]="!sourceIntake.canUseCapture()"><option value="">Not supplied</option>@for (header of headers.headers; track header) { <option [value]="header">{{ header }}</option> }</select>
+                      </label>
+                    </div>
+                  </fieldset>
+                }
+                <label>Source date
+                  <input type="date" name="schedule-source-date" [ngModel]="sourceIntake.capture.sourceDate" (ngModelChange)="sourceIntake.setSourceDate($event)" [disabled]="!sourceIntake.canUseCapture()" />
+                </label>
+                <audit-state [loading]="sourceIntake.controlAccounts.loading()" [error]="sourceIntake.controlAccounts.error()" label="accepted TB closing control accounts" />
+                @if (sourceIntake.controlAccounts.data(); as controls) {
+                  <p>Select the exact TB accounts that control this listing. Selected accounts persist while paging: {{ sourceIntake.selectedAccounts().length }} selected.</p>
+                  @if (controls.items.length) {
+                    <div class="table-scroll"><table aria-label="Accepted trial-balance control accounts">
+                      <thead><tr><th scope="col">Select</th><th scope="col">Account</th><th scope="col">Closing balance</th><th scope="col">Currency</th></tr></thead>
+                      <tbody>@for (account of controls.items; track account.accountCode) {
+                        <tr><td><input type="checkbox" [checked]="sourceIntake.accountSelected(account.accountCode)" [disabled]="!sourceIntake.canUseCapture()" (change)="sourceIntake.setControlAccount(account.accountCode, $any($event.target).checked)" [attr.aria-label]="'Select control account ' + account.accountCode" /></td>
+                          <th scope="row">{{ account.accountCode }} · {{ account.accountName }}</th><td><code>{{ account.balance }}</code></td><td>{{ account.currency }}</td></tr>
+                      }</tbody>
+                    </table></div>
+                  } @else { <p>No accounts are available in this exact source page.</p> }
+                  <nav aria-label="Trial-balance control account pages">
+                    <button matButton type="button" (click)="sourceIntake.nextControlPage(false)" [disabled]="controls.offset === 0 || sourceIntake.controlAccounts.loading()">Previous accounts</button>
+                    <span>Account page {{ controls.offset / controls.limit + 1 }}</span>
+                    <button matButton type="button" (click)="sourceIntake.nextControlPage(true)" [disabled]="!controls.hasMore || sourceIntake.controlAccounts.loading()">Next accounts</button>
+                  </nav>
+                }
+                <button matButton="filled" type="button" (click)="sourceIntake.previewCapture()" [disabled]="!sourceIntake.canUseCapture()">Preview exact listing and selected closing controls</button>
+                @if (sourceIntake.capturePreview(); as preview) {
+                  <section aria-labelledby="schedule-capture-preview-heading">
+                    <h4 id="schedule-capture-preview-heading">Exact capture preview</h4>
+                    <p>File {{ preview.fileName }} · source date {{ preview.sourceDate }} · {{ preview.rowCount }} rows · {{ preview.currency }} · entity {{ preview.legalEntityKey }}</p>
+                    <dl><dt>Verified source SHA-256</dt><dd><code>{{ preview.rawFileSha256 }}</code></dd>
+                      <dt>Immutable manifest SHA-256</dt><dd><code>{{ preview.manifestHash }}</code></dd>
+                      <dt>Input generation / period revision</dt><dd>{{ preview.inputGeneration }} / {{ preview.periodRevision }}</dd>
+                      <dt>Listing total / selected TB closing / residual</dt><dd><code>{{ preview.signedTotal }}</code> / <code>{{ preview.closingControl }}</code> / <code>{{ preview.residual }}</code></dd>
+                      <dt>Complete account coverage / all reconciled</dt><dd>{{ preview.hasCompleteListingCoverage ? 'Yes' : 'No' }} / {{ preview.allAccountsReconciled ? 'Yes' : 'No' }}</dd>
+                    </dl>
+                    <div class="table-scroll"><table aria-label="Per-account listing and trial-balance reconciliation">
+                      <thead><tr><th scope="col">Account</th><th scope="col">Listing</th><th scope="col">Trial balance</th><th scope="col">Difference</th><th scope="col">Listing rows</th><th scope="col">TB rows</th></tr></thead>
+                      <tbody>@for (account of preview.accounts; track account.accountCode) {
+                        <tr><th scope="row">{{ account.accountCode }}</th><td><code>{{ account.listingAmount }}</code></td><td><code>{{ account.trialBalanceAmount }}</code></td><td><code>{{ account.difference }}</code></td><td>{{ account.listingRowCount }}</td><td>{{ account.trialBalanceRowCount }}</td></tr>
+                      }</tbody>
+                    </table></div>
+                    <label><input type="checkbox" [checked]="sourceIntake.reviewedCapture()" [disabled]="!sourceIntake.capturePreviewMatches() || sourceIntake.busy()" (change)="sourceIntake.setCaptureAssent($any($event.target).checked)" /> I reviewed these exact source identities, mappings, totals, account differences and retained evidence.</label>
+                    <button matButton="filled" type="button" (click)="sourceIntake.recordCapture()" [disabled]="!sourceIntake.canRecordCapture()">Retain this exact source capture</button>
+                  </section>
+                }
+              </section>
+            }
+            @if (w.canReviewSelections) {
+              <section aria-labelledby="schedule-source-review-heading">
+                <h3 id="schedule-source-review-heading">Independent source review</h3>
+                <audit-state [loading]="sourceIntake.reviewCandidates.loading()" [error]="sourceIntake.reviewCandidates.error()" label="captured schedules awaiting independent review" />
+                @if (sourceIntake.reviewCandidates.data(); as candidates) {
+                  <label>Captured schedule awaiting review
+                    <select name="schedule-review-candidate" [ngModel]="sourceIntake.candidate()?.scheduleId ?? ''" (ngModelChange)="sourceIntake.chooseCandidate($event)" [disabled]="!sourceIntake.canUseReview() || sourceIntake.reviewCandidates.loading()">
+                      <option value="">Select an unreviewed captured schedule</option>
+                      @for (candidate of candidates.items; track candidate.scheduleId) {
+                        <option [value]="candidate.scheduleId">{{ candidate.fileName }} · {{ candidate.sourceDate }} · {{ candidate.scheduleStatus }} · {{ candidate.capturedAt.slice(0, 10) }}</option>
+                      }
+                    </select>
+                  </label>
+                  <nav aria-label="Captured schedule review pages">
+                    <button matButton type="button" (click)="sourceIntake.candidatePage(false)" [disabled]="candidates.offset === 0 || sourceIntake.reviewCandidates.loading()">Previous schedules</button>
+                    <span>Review page {{ candidates.offset / candidates.limit + 1 }}</span>
+                    <button matButton type="button" (click)="sourceIntake.candidatePage(true)" [disabled]="!candidates.hasMore || sourceIntake.reviewCandidates.loading()">Next schedules</button>
+                  </nav>
+                }
+                @if (sourceIntake.candidate(); as candidate) {
+                  <p>Schedule <code>{{ candidate.scheduleId }}</code> · {{ candidate.fileName }} · source date {{ candidate.sourceDate }} · captured {{ candidate.capturedAt }}</p>
+                  <div class="inline-form">
+                    <label>Decision
+                      <select name="schedule-review-action" [ngModel]="sourceIntake.review.action" (ngModelChange)="sourceIntake.review.action = $event; sourceIntake.reviewChanged()" [disabled]="!sourceIntake.canUseReview()">
+                        <option value="APPROVE">Approve source capture</option><option value="RETURN">Return for rework</option>
+                      </select>
+                    </label>
+                    <label>Independent review reason *
+                      <textarea name="schedule-review-reason" [(ngModel)]="sourceIntake.review.reason" (ngModelChange)="sourceIntake.reviewChanged()" maxlength="2000" [disabled]="!sourceIntake.canUseReview()"></textarea>
+                    </label>
+                    <label>Evidence reference
+                      <input name="schedule-review-evidence" [(ngModel)]="sourceIntake.review.evidenceReference" (ngModelChange)="sourceIntake.reviewChanged()" maxlength="2000" [disabled]="!sourceIntake.canUseReview()" />
+                    </label>
+                  </div>
+                  <button matButton type="button" (click)="sourceIntake.previewReview()" [disabled]="!sourceIntake.canUseReview()">Preview independent review decision</button>
+                  @if (sourceIntake.reviewPreview(); as preview) {
+                    <section aria-labelledby="schedule-review-preview-heading">
+                      <h4 id="schedule-review-preview-heading">Exact independent-review preview</h4>
+                      <p>Schedule <code>{{ preview.scheduleId }}</code> · capture <code>{{ preview.captureHash }}</code> · current generation {{ preview.inputGeneration }}</p>
+                      <p>Source current: {{ preview.sourceCurrent ? 'Yes' : 'No' }} · Approval allowed: {{ preview.canApprove ? 'Yes' : 'No' }} · State: {{ preview.status }}</p>
+                      @if (preview.sourceFailureCode) { <p role="alert">Source check: {{ preview.sourceFailureCode }}</p> }
+                      <p>Decision: {{ preview.canonicalInput.action }} · {{ preview.canonicalInput.reason }}</p>
+                      @if (preview.canonicalInput.evidenceReference) { <p>Evidence reference: {{ preview.canonicalInput.evidenceReference }}</p> }
+                      <label><input type="checkbox" [checked]="sourceIntake.reviewedDecision()" [disabled]="!sourceIntake.reviewPreviewMatches() || sourceIntake.busy()" (change)="sourceIntake.setReviewAssent($any($event.target).checked)" /> I independently reviewed this exact source state and decision.</label>
+                      <button matButton="filled" type="button" (click)="sourceIntake.recordReview()" [disabled]="!sourceIntake.canRecordReview()">{{ preview.canonicalInput.action === 'APPROVE' ? 'Record independent approval' : 'Record return for rework' }}</button>
+                    </section>
+                  }
+                }
+              </section>
+            }
+            @if (sourceIntake.storageProblem()) { <p role="alert">Tab storage is unavailable or inconsistent. No new source command will be sent until the exact pending request identity can be retained and reconciled.</p> }
+            @for (pending of sourceIntake.pending(); track pending.kind) {
+              <section aria-label="Pending source request recovery">
+                <h4>Unresolved {{ pending.kind === 'CAPTURE' ? 'capture' : 'review' }} request</h4>
+                <p>Request <code>{{ pending.reference.requestId }}</code> · hash <code>{{ pending.reference.requestHash }}</code>. An absent receipt does not prove an earlier request cannot still commit.</p>
+                <button matButton type="button" (click)="sourceIntake.recover(pending)" [disabled]="sourceIntake.recoveryBusy()">Check the exact actor-owned receipt</button>
+                @if (pending.absent && pending.intent) {
+                  <button matButton type="button" (click)="sourceIntake.resumePending(pending.kind)" [disabled]="sourceIntake.busy() || sourceIntake.recoveryBusy()">Refresh the exact retained preview for renewed assent</button>
+                }
+              </section>
+            }
+            @if (sourceIntake.message()) { <p [attr.role]="sourceIntake.failed() ? 'alert' : 'status'">{{ sourceIntake.message() }}</p> }
+            @if (sourceIntake.receipt(); as receiptView) {
+              <section aria-label="Verified source command receipt">
+                <h4>Verified original receipt</h4>
+                <p>{{ receiptView.receipt.action }} · {{ receiptView.receipt.status }} · schedule <code>{{ receiptView.receipt.scheduleId }}</code>
+                  @if (receiptView.receipt.reviewId) { · review <code>{{ receiptView.receipt.reviewId }}</code> }
+                </p>
+                <p>Request <code>{{ receiptView.receipt.requestId }}</code> · manifest <code>{{ receiptView.receipt.manifestHash }}</code> · receipt hash <code>{{ receiptView.receiptHash }}</code></p>
+              </section>
+            }
+          </mat-tab>
+          }
           @if (w.canManageFieldwork || w.canReviewSelections) {
           <mat-tab label="Sampling">
             @if (w.canManageFieldwork) {

@@ -10,6 +10,7 @@ import { TabDrafts, pendingRequestReference, type DraftRead, type PendingRequest
 import { afterEach, describe, expect, it } from 'vitest';
 import { AuditFieldwork } from './fieldwork';
 import { FieldworkProcedureState } from './fieldwork-procedure-state';
+import { FieldworkSourceIntakeState } from './fieldwork-source-intake-state';
 import { decodeBankReconciliationDetail, decodeBankReconciliationPage, decodeFieldwork, decodeProcedureCommandLookup, decodeProcedureCommandPreview, decodeProcedureCommandReceipt, decodeProcedureCommandState, decodeProcedureReview, decodeProgramOptions, decodeSampleSet, decodeTailorProcedureCommand, focusRisks, type TailorProcedureCommand } from './fieldwork-contracts';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
@@ -276,6 +277,48 @@ describe('Audit Fieldwork Contracts', () => {
     expect(decoded.options[0].eligible).toBe(true);
     expect(decoded.options[0].procedureCount).toBe(165);
     expect(() => decodeProgramOptions({ engagementId: id1, options: [] }, 'programOptions')).toThrow();
+  });
+});
+
+describe('Accepted listing source command recovery', () => {
+  it('restores the exact request identity and checks its receipt before sending any new command', async () => {
+    const pendingIntent = {
+      kind: 'CAPTURE' as const, requestId: id1, requestHash: hash64,
+      fields: { pbcAcceptanceReceiptId: id2, acceptedSourceDecisionId: id3, sourceDate: '2026-12-31',
+        columns: { accountCode: 'Account', description: 'Description', signedAmount: 'Amount', currency: 'Currency',
+          stableRowId: null, transactionDate: null, postingDate: null, deliveryDate: null, serviceDate: null },
+        selectedControlAccountCodes: ['0010'] },
+      expectedManifestHash: hash64, expectedInputGeneration: '1', expectedPeriodRevision: '2',
+    };
+    const session = { current: signal({ userId: id1, firmId: id1, generation: '1', staff: true }), invalidation: signal(0) };
+    const drafts = {
+      readPendingSubmission: vi.fn((scope: { entity: string }) => scope.entity === `audit-schedule-source-capture/${id3}/intent`
+        ? { state: 'ready' as const, draft: { value: pendingIntent, submissionPending: true } }
+        : { state: 'absent' as const }),
+      readPendingRequest: vi.fn(() => ({ state: 'absent' as const })),
+      save: vi.fn(() => true), clear: vi.fn(() => true),
+    };
+    const api = { resource: vi.fn(() => ({ data: signal(null), loading: signal(false), error: signal(''), reload: vi.fn() })),
+      get: vi.fn(async () => ({ found: false, receipt: null })), command: vi.fn() };
+    const state = new FieldworkSourceIntakeState({
+      id: () => id3, api: api as unknown as Api, session: session as unknown as SessionService,
+      drafts: drafts as unknown as TabDrafts, canManage: () => true, canReview: () => true,
+      acquireCommand: () => () => {}, captureOwner: () => () => true, reload: () => {},
+    });
+
+    state.workspaceChanged();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(api.get).toHaveBeenCalledWith(`/api/ui/engagements/${id3}/fieldwork/schedule-intake/capture/receipts/${id1}?requestHash=${hash64}`, expect.any(Function));
+    expect(state.pending()).toHaveLength(1);
+    expect(state.pending()[0]).toMatchObject({ kind: 'CAPTURE', absent: true, intent: pendingIntent,
+      reference: { requestId: id1, requestHash: hash64 } });
+    expect(state.hasUnresolvedCommand()).toBe(true);
+    expect(state.hasUnresolvedCommand('schedule-source-recovery')).toBe(false);
+    expect(state.canRecordCapture()).toBe(false);
+    expect(api.command).not.toHaveBeenCalled();
+    expect(drafts.save).toHaveBeenCalledWith(expect.objectContaining({ entity: `audit-schedule-source-capture/${id3}/reference` }),
+      { requestId: id1, requestHash: hash64 }, pendingRequestReference, true);
   });
 });
 
@@ -629,7 +672,7 @@ describe('Audit fieldwork decimal inputs (T005)', () => {
       command: vi.fn(), get: vi.fn() };
     TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api },
       { provide: SessionService, useValue: { current: signal({ userId: id1, firmId: id1, generation: '1', staff: true }), invalidation: signal(0) } },
-      { provide: TabDrafts, useValue: { readPendingRequest: () => ({ state: 'absent' }) } }, { provide: Router, useValue: { events: new Subject() } },
+      { provide: TabDrafts, useValue: { readPendingRequest: () => ({ state: 'absent' }), readPendingSubmission: () => ({ state: 'absent' }) } }, { provide: Router, useValue: { events: new Subject() } },
       { provide: ActivatedRoute, useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: id1 })) } }] });
     const page = TestBed.runInInjectionContext(() => new AuditFieldwork()); TestBed.tick(); return { page, api };
   }
@@ -716,7 +759,7 @@ describe('Procedure risk link reviewed preparation', () => {
     const api = { resource: vi.fn(() => ({ data: workspace, loading: signal(false), error: signal(''), reload: vi.fn() })), command: vi.fn(), get: vi.fn() };
     TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api },
       { provide: SessionService, useValue: { current: signal({ userId: id1, firmId: id1, generation: '1', staff: true }), invalidation: signal(0) } },
-      { provide: TabDrafts, useValue: { readPendingRequest: () => ({ state: 'absent' }) } }, { provide: Router, useValue: { events: new Subject() } },
+      { provide: TabDrafts, useValue: { readPendingRequest: () => ({ state: 'absent' }), readPendingSubmission: () => ({ state: 'absent' }) } }, { provide: Router, useValue: { events: new Subject() } },
       { provide: ActivatedRoute, useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: id1 })) } }] });
     const page = TestBed.runInInjectionContext(() => new AuditFieldwork()); TestBed.tick(); return { page, workspace, api };
   }
@@ -833,6 +876,9 @@ describe('Fieldwork bank reconciliation inspection', () => {
       aggregateCurrentAndReviewed: false, schedules: [], samplingMethods: [], samplingRuns: [], evidenceCandidates: [], physicalItems: [],
       canManageFieldwork: false, canReviewSelections: true, canViewReviewNotes: false, canAddOrResolveReviewNotes: false,
       canRespondToReviewNotes: false });
+    TestBed.tick(); fixture.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork/schedule-intake/review-candidates?offset=0&limit=25`)
+      .flush({ offset: 0, limit: 25, hasMore: false, items: [] });
     TestBed.tick(); fixture.detectChanges();
     http.expectOne(`/api/ui/engagements/${id1}/manager-review`).flush({ engagementId: id1, completionReady: false,
       partnerHandoffReady: false, applicableProcedures: 0, proceduresNeedingReview: 0, itemTestsNeedingReview: 0,

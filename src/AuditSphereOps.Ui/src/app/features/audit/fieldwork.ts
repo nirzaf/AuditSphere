@@ -14,6 +14,7 @@ import { TabDrafts } from '../../core/tab-drafts';
 import { FieldworkProcedureState } from './fieldwork-procedure-state';
 import { ProcedureSubmittedEvidence } from './procedure-submitted-evidence';
 import { FieldworkSamplingState } from './fieldwork-sampling-state';
+import { FieldworkSourceIntakeState } from './fieldwork-source-intake-state';
 import type { FieldworkCommandAcquire, FieldworkCommandRecovery } from './fieldwork-command-context';
 
 @Component({
@@ -76,6 +77,7 @@ export class AuditFieldwork {
   readonly toolTab = signal(0);
   readonly procedure: FieldworkProcedureState;
   readonly sampling: FieldworkSamplingState;
+  readonly sourceIntake: FieldworkSourceIntakeState;
   private activeEngagementId: string | null = null;
   private readonly riskLinkSelections = new Map<string, string>();
   private readonly riskLinkBases = new Map<string, string | null>();
@@ -98,6 +100,12 @@ export class AuditFieldwork {
     };
     this.procedure = new FieldworkProcedureState(context);
     this.sampling = new FieldworkSamplingState({ ...context });
+    this.sourceIntake = new FieldworkSourceIntakeState({
+      id: this.id, api: this.api, session: this.riskLinkSession, drafts: this.tabDrafts,
+      canManage: () => !!this.ws.data()?.canManageFieldwork && !this.ws.loading() && !this.ws.error(),
+      canReview: () => !!this.ws.data()?.canReviewSelections && !this.ws.loading() && !this.ws.error(),
+      acquireCommand: this.acquireFieldworkCommand, captureOwner: () => this.captureOwner(), reload: () => this.ws.reload(),
+    });
     this.destroyRef.onDestroy(() => { this.destroyed = true; ++this.ownerGeneration; ++this.commandGeneration; });
     effect(() => {
       this.id(); this.riskLinkSession.current(); this.riskLinkSession.invalidation();
@@ -105,7 +113,7 @@ export class AuditFieldwork {
     });
     effect(() => {
       this.ws.data();
-      untracked(() => this.procedure.workspaceChanged());
+      untracked(() => { this.procedure.workspaceChanged(); this.sourceIntake.workspaceChanged(); });
     });
     effect(() => {
       this.id(); this.riskLinkSession.current(); this.riskLinkSession.invalidation();
@@ -150,6 +158,7 @@ export class AuditFieldwork {
         }
         this.aggregateConclusion = w?.aggregate?.conclusion ?? '';
         this.sampling.workspaceUnavailable();
+        this.sourceIntake.workspaceUnavailable();
       });
     });
   }
@@ -161,7 +170,7 @@ export class AuditFieldwork {
     const wasBusy = this.cmd.busy();
     if (wasBusy) this.pendingPriorScopeCommands.add(this.commandGeneration);
     ++this.ownerGeneration; ++this.commandGeneration;
-    this.procedure.ownerChanged(); this.sampling.ownerChanged();
+    this.procedure.ownerChanged(); this.sampling.ownerChanged(); this.sourceIntake.ownerChanged();
     this.bankInspectionOpen.set(false); this.bankSelection.set(null); this.bankOffset.set(0); this.bankItemOffset.set(0);
     this.bankFocusRequest = null; ++this.bankFocusVersion;
     this.cmd.busy.set(false); this.cmd.message.set(''); this.cmd.failed.set(false); this.cmd.code.set('');
@@ -253,10 +262,11 @@ export class AuditFieldwork {
 
   private commandBlocked(recovery?: FieldworkCommandRecovery): boolean {
     return this.cmd.uncertain() || this.riskLink.busy() || this.riskLink.uncertain() ||
-      this.procedure.hasUnresolvedCommand(recovery) || this.sampling.samplingBusy() || this.sampling.sampleActionBusy();
+      this.procedure.hasUnresolvedCommand(recovery) || this.sourceIntake.hasUnresolvedCommand(recovery) ||
+      this.sampling.samplingBusy() || this.sampling.sampleActionBusy();
   }
   private otherFieldworkCommandBlocked(): boolean {
-    return this.cmd.busy() || this.cmd.uncertain() || this.procedure.hasUnresolvedCommand() ||
+    return this.cmd.busy() || this.cmd.uncertain() || this.procedure.hasUnresolvedCommand() || this.sourceIntake.hasUnresolvedCommand() ||
       this.sampling.samplingBusy() || this.sampling.sampleActionBusy();
   }
   fieldworkCommandBlocked(recovery?: FieldworkCommandRecovery): boolean {

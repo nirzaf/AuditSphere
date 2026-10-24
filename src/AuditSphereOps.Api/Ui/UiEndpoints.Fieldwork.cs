@@ -45,6 +45,7 @@ public static partial class UiEndpoints
 
   private static void MapFieldworkEndpoints(RouteGroupBuilder group)
   {
+    MapScheduleSourceIntakeEndpoints(group);
     MapBankReconciliationInspectionEndpoints(group);
     UiEndpointContractMetadata.WithUiResponse<ManagerReviewSummary>(group.MapGet("/engagements/{id:guid}/manager-review", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => ManagerReviewSummaryQuery.GetAsync(db, actor, id, ct))));

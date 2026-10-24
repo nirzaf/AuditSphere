@@ -36,7 +36,7 @@ internal sealed record AuditScheduleIntakeSourceFacts(
 /// No transaction, writes, approval, provider byte fetch or respondent inference. Publication callers
 /// own the established scope/source locks and must resolve again under their write transaction.
 /// </summary>
-internal static class AuditScheduleIntakeSources
+internal static partial class AuditScheduleIntakeSources
 {
   internal const string Version = "audit-schedule-source-capture.v1";
   internal const string ScheduleType = "RECEIVABLES_LEAD";

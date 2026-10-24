@@ -41,3 +41,30 @@ public sealed record AuditScheduleSourceReviewPreview(Guid RequestId, Guid Sched
   string CaptureHash, string InputGeneration, string ReviewBasis, string RequestHash,
   AuditScheduleSourceReviewFields CanonicalInput, bool SourceCurrent, bool CanApprove,
   string? SourceFailureCode, string Status, Guid? ExistingReviewId);
+
+public sealed record AuditSchedulePbcOption(Guid ReceiptId, string FileName, long ByteCount,
+  string EntityScope, DateOnly PeriodStart, DateOnly PeriodEnd);
+
+public sealed record AuditScheduleTrialBalanceOption(Guid DecisionId, Guid PeriodId, Guid? BookId,
+  string? Basis, DateOnly PeriodStart, DateOnly PeriodEnd, string LegalEntityKey, string Currency,
+  string DatasetRevision, string InputGeneration);
+
+public sealed record AuditScheduleSourceOptions(IReadOnlyList<AuditSchedulePbcOption> PbcSources,
+  int NextPbcOffset, bool HasMorePbcSources,
+  IReadOnlyList<AuditScheduleTrialBalanceOption> TrialBalances, int NextTrialBalanceOffset,
+  bool HasMoreTrialBalances);
+
+public sealed record AuditScheduleSourceHeaders(Guid ReceiptId, string ProfileVersion,
+  IReadOnlyList<string> Headers);
+
+public sealed record AuditScheduleControlAccountOption(string AccountCode, string AccountName,
+  string Balance, string Currency);
+
+public sealed record AuditScheduleControlAccountPage(int Offset, int Limit, bool HasMore,
+  IReadOnlyList<AuditScheduleControlAccountOption> Items);
+
+public sealed record AuditScheduleReviewCandidate(Guid ScheduleId, DateOnly SourceDate,
+  string FileName, string ScheduleStatus, DateTimeOffset CapturedAt);
+
+public sealed record AuditScheduleReviewCandidatePage(int Offset, int Limit, bool HasMore,
+  IReadOnlyList<AuditScheduleReviewCandidate> Items);

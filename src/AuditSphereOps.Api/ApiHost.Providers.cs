@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Microsoft365;
@@ -21,6 +22,14 @@ public static partial class ApiHost
     // The simulated sink is harmless here: simulated execution requires the Test worker
     // composition, and this host only records queue entries.
     builder.Services.AddSingleton<IAuditSphereDbContextFactory, OperationContextFactory>();
+    var configuredPbcStagingRoot = builder.Configuration["Storage:PbcStagingRoot"];
+    var pbcStagingRoot = !string.IsNullOrWhiteSpace(configuredPbcStagingRoot)
+      ? configuredPbcStagingRoot
+      : builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Test")
+        ? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "pbc-staging")
+        : string.Empty;
+    // Production without its configured root remains safely unavailable: the reader fails closed.
+    builder.Services.AddSingleton<IAuditScheduleSourceContentReader>(new PbcStagedScheduleContentReader(pbcStagingRoot));
     var workflowReminders = new WorkflowReminderOptions(
       builder.Configuration.GetValue<bool>("WorkflowExperience:Enabled") &&
         builder.Configuration.GetValue<bool>("WorkflowReminders:Enabled"),

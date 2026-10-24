@@ -35,6 +35,30 @@ public static class AuditScheduleCsvProfile
   // Existing persisted schedule rows and controls use numeric(19,6).
   public const decimal MaxMoneyMagnitude = 9_999_999_999_999.999999m;
 
+  /// <summary>
+  /// Discovers the bounded, normalized CSV header choices from exact verified source bytes.
+  /// It validates the same lexical profile and row widths as parsing, but does not infer a map.
+  /// </summary>
+  public static IReadOnlyList<string> DiscoverHeaders(string fileName, byte[] bytes)
+  {
+    if (string.IsNullOrEmpty(fileName) || !fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) ||
+        bytes is null || bytes.Length is < 1 or > MaxBytes)
+      throw new FormatException("Choose a nonempty CSV file of at most 10,000,000 bytes.");
+    string text;
+    try { text = new UTF8Encoding(false, true).GetString(bytes); }
+    catch (DecoderFallbackException error) { throw new FormatException("The CSV must be valid UTF-8.", error); }
+    if (text.StartsWith('\uFEFF')) text = text[1..];
+    if (text.Contains('\0')) throw new FormatException("The CSV cannot contain NUL characters.");
+    var records = ReadRecords(text);
+    if (records.Count < 2) throw new FormatException("A header and at least one data record are required.");
+    var headers = records[0].Select(x => x.Trim()).ToArray();
+    if (headers.Any(string.IsNullOrEmpty) || headers.Distinct(StringComparer.Ordinal).Count() != headers.Length)
+      throw new FormatException("Headers must be nonempty and unique after trimming.");
+    if (records.Skip(1).Any(row => row.Count != headers.Length))
+      throw new FormatException("Every CSV row must contain the same number of cells as the header.");
+    return Array.AsReadOnly(headers);
+  }
+
   public static AuditScheduleCsvParseResult Parse(
     string fileName, byte[] bytes, string currency, AuditScheduleCsvColumns columns)
   {

@@ -14,6 +14,27 @@ public sealed class AuditScheduleCsvProfileTests
   private static byte[] Bytes(string text) => Encoding.UTF8.GetBytes(text);
 
   [Fact]
+  public void HeaderDiscoveryReturnsTrimmedUniqueNamesWithoutChangingOriginalParserEvidence()
+  {
+    var bytes = Encoding.UTF8.GetPreamble().Concat(Bytes(Header + "\r\n" + Row)).ToArray();
+    var discovered = AuditScheduleCsvProfile.DiscoverHeaders("listing.csv", bytes);
+    Assert.Equal(new[] { "Id", "Code", "Description", "Amount", "Currency", "Transaction", "Posting", "Delivery", "Service", "Extra" }, discovered);
+    var parsed = AuditScheduleCsvProfile.Parse("listing.csv", bytes, "QAR", Columns);
+    Assert.Equal(" Code ", parsed.Headers[1]);
+  }
+
+  [Theory]
+  [InlineData("listing.txt", "Id, Code\nrow,0010")]
+  [InlineData("listing.csv", "Id, Code\nrow")]
+  [InlineData("listing.csv", "Id,Id\nrow,0010")]
+  [InlineData("listing.csv", "Id,Code\n")]
+  [InlineData("listing.csv", "Id,Code\nrow,0010\n\n")]
+  public void HeaderDiscoveryRejectsUnsupportedOrAmbiguousDocuments(string name, string text)
+  {
+    Assert.Throws<FormatException>(() => AuditScheduleCsvProfile.DiscoverHeaders(name, Bytes(text)));
+  }
+
+  [Fact]
   public void ExactSignedRowsPreserveOriginalCellsPhysicalLinesAndDistinctDeterministicIdentities()
   {
     var text = Header + "\r\n" +

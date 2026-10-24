@@ -1,4 +1,4 @@
-import { arr, bool, date, dec, DecodeError, guid, instant, int, nat, nullable, obj, oneOf, text } from '../../core/decode';
+import { arr, bool, date, dec, DecodeError, guid, instant, int, nat, nullable, obj, oneOf, sha256, text } from '../../core/decode';
 
 export type TailorProcedureCommand = {
   title: string;
@@ -99,6 +99,75 @@ export type SampleSet = ReturnType<typeof decodeSampleSet>;
 export type SampleItem = SampleSet['items'][number];
 export type SampleTestDraft = { workPerformed: string; evidenceReferences: string; result: string; exceptionAmount: string;
   contradictoryEvidence: string; followUp: string; reviewerComment: string };
+
+const sourceLong = (value: unknown, path: string): string => {
+  if (typeof value !== 'string' || !/^(0|[1-9][0-9]{0,18})$/.test(value) || BigInt(value) > 9223372036854775807n)
+    throw new DecodeError(`${path}: expected canonical non-negative 64-bit integer string`);
+  return value;
+};
+const sourcePositiveLong = (value: unknown, path: string): string => {
+  const parsed = sourceLong(value, path);
+  if (parsed === '0') throw new DecodeError(`${path}: expected positive integer`);
+  return parsed;
+};
+const sourceFields = obj({ pbcAcceptanceReceiptId: guid, acceptedSourceDecisionId: guid, sourceDate: date,
+  columns: obj({ accountCode: text, description: text, signedAmount: text, currency: text,
+    stableRowId: nullable(text), transactionDate: nullable(text), postingDate: nullable(text),
+    deliveryDate: nullable(text), serviceDate: nullable(text) }),
+  selectedControlAccountCodes: arr(text, 20000) });
+export const decodeScheduleSourceOptions = obj({
+  pbcSources: arr(obj({ receiptId: guid, fileName: text, byteCount: nat, entityScope: text, periodStart: date, periodEnd: date }), 100),
+  nextPbcOffset: nat, hasMorePbcSources: bool,
+  trialBalances: arr(obj({ decisionId: guid, periodId: guid, bookId: nullable(guid), basis: nullable(text),
+    periodStart: date, periodEnd: date, legalEntityKey: text, currency: text,
+    datasetRevision: sourcePositiveLong, inputGeneration: sourcePositiveLong }), 100),
+  nextTrialBalanceOffset: nat, hasMoreTrialBalances: bool,
+});
+export const decodeScheduleSourceHeaders = obj({ receiptId: guid, profileVersion: text, headers: arr(text, 256) });
+const scheduleControlAccountPage = obj({ offset: nat, limit: int, hasMore: bool,
+  items: arr(obj({ accountCode: text, accountName: text, balance: dec, currency: text }), 100) });
+export function decodeScheduleControlAccountPage(raw: unknown, path: string) {
+  const page = scheduleControlAccountPage(raw, path);
+  if (page.limit < 1 || page.limit > 100 || page.items.length > page.limit ||
+      page.items.some(x => !x.accountCode.trim() || x.accountCode !== x.accountCode.trim()) ||
+      new Set(page.items.map(x => x.accountCode)).size !== page.items.length)
+    throw new DecodeError(`${path}: invalid bounded account page`);
+  return page;
+}
+export const decodeScheduleCapturePreview = obj({ requestId: guid, requestHash: sha256, manifestHash: sha256,
+  inputGeneration: sourcePositiveLong, periodRevision: sourcePositiveLong, canonicalInput: sourceFields,
+  fileName: text, rawFileSha256: sha256, rowCount: sourcePositiveLong, currency: text, legalEntityKey: text,
+  sourceDate: date, signedTotal: dec, closingControl: dec, residual: dec, hasCompleteListingCoverage: bool,
+  allAccountsReconciled: bool, accounts: arr(obj({ accountCode: text, listingAmount: dec, trialBalanceAmount: dec,
+    difference: dec, listingRowCount: sourceLong, trialBalanceRowCount: sourceLong }), 20000) });
+const scheduleReviewCandidatePage = obj({ offset: nat, limit: int, hasMore: bool,
+  items: arr(obj({ scheduleId: guid, sourceDate: date, fileName: text, scheduleStatus: text, capturedAt: instant }), 100) });
+export function decodeScheduleReviewCandidates(raw: unknown, path: string) {
+  const page = scheduleReviewCandidatePage(raw, path);
+  if (page.limit < 1 || page.limit > 100 || page.items.length > page.limit ||
+      new Set(page.items.map(x => x.scheduleId)).size !== page.items.length)
+    throw new DecodeError(`${path}: invalid bounded review-candidate page`);
+  return page;
+}
+export const decodeScheduleSourceReviewPreview = obj({ requestId: guid, scheduleId: guid, captureHash: sha256,
+  inputGeneration: sourcePositiveLong, reviewBasis: sha256, requestHash: sha256,
+  canonicalInput: obj({ action: oneOf('APPROVE', 'RETURN'), reason: text, evidenceReference: text }),
+  sourceCurrent: bool, canApprove: bool, sourceFailureCode: nullable(text), status: text,
+  existingReviewId: nullable(guid) });
+const sourceReceipt = obj({ version: text, action: oneOf('CAPTURE', 'APPROVE', 'RETURN'), scheduleId: guid,
+  reviewId: nullable(guid), firmId: guid, clientId: guid, engagementId: guid, actorUserId: guid,
+  actorEpoch: sourcePositiveLong, requestId: guid, requestHash: sha256, manifestHash: sha256,
+  inputGeneration: sourcePositiveLong, rowCount: sourcePositiveLong, signedTotal: dec, closingControl: dec,
+  residual: dec, status: text, createdAt: instant });
+export const decodeScheduleSourceReceiptView = obj({ receipt: sourceReceipt, receiptHash: sha256 });
+export const decodeScheduleSourceReceiptLookup = obj({ found: bool, receipt: nullable(decodeScheduleSourceReceiptView) });
+export type ScheduleSourceOptions = ReturnType<typeof decodeScheduleSourceOptions>;
+export type ScheduleSourceHeaders = ReturnType<typeof decodeScheduleSourceHeaders>;
+export type ScheduleControlAccountPage = ReturnType<typeof decodeScheduleControlAccountPage>;
+export type ScheduleCapturePreview = ReturnType<typeof decodeScheduleCapturePreview>;
+export type ScheduleReviewCandidate = ReturnType<typeof decodeScheduleReviewCandidates>['items'][number];
+export type ScheduleSourceReviewPreview = ReturnType<typeof decodeScheduleSourceReviewPreview>;
+export type ScheduleSourceReceiptLookup = ReturnType<typeof decodeScheduleSourceReceiptLookup>;
 
 /** Risks recorded against one statement line (STE-NXT-013). The line is the only key the link sends. */
 export function focusRisks<T extends { destinationCode: string | null }>(risks: readonly T[], line: string | null): T[] {
