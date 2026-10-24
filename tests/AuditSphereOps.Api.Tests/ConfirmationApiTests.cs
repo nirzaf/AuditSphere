@@ -40,6 +40,8 @@ public sealed class ConfirmationApiTests
     Assert.Equal(HttpStatusCode.OK,(await Action(reviewer,rc,path,id,"REVIEW_ALTERNATIVE",new{evidenceId=alt})).StatusCode);
     // A late response appends a revision; the earlier reviewed nonresponse cannot approve it.
     var previousTag=detail.GetProperty("reviewToken").GetString();
+    Assert.Equal(HttpStatusCode.BadRequest,(await Action(staff,sc,path,id,"RESPONSE",new{origin="BANK",channel="DIRECT",reference="unexplained-agreement",confirmedAmount="123456789.123457",authenticityAssessment="Validated direct response",decision="AGREED"})).StatusCode);
+    Assert.Single((await Get(staff,path+"/"+id)).GetProperty("responses").EnumerateArray());
     Assert.Equal(HttpStatusCode.OK,(await Action(staff,sc,path,id,"RESPONSE",new{origin="BANK",channel="DIRECT",reference="late-response",confirmedAmount="123456789.123457",authenticityAssessment="Validated direct response",decision="DIFFERENCE"})).StatusCode);
     Assert.Equal(HttpStatusCode.Conflict,(await Post(reviewer,path+"/"+id+"/actions",rc,new{action="CLOSE",reviewed=true,reviewToken=previousTag,conclusion="Old evidence"})).StatusCode);
     Assert.Equal(HttpStatusCode.BadRequest,(await Action(reviewer,rc,path,id,"REVIEW_RESPONSE",new{evidenceId=response})).StatusCode);

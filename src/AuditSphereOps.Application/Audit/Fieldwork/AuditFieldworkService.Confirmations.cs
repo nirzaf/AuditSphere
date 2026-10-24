@@ -151,6 +151,11 @@ public static partial class AuditFieldworkService
       if (tx is not null) await tx.CommitAsync(ct); // persist the recorded refused attempt before refusing
       return CommandResult<ConfirmationValue>.Fail(writable.ErrorCode!, writable.Message!);
     }
+    // Authenticity text is not approval of a reconciling difference. No approved
+    // exception is represented by this request; retain a variance through DIFFERENCE.
+    if (decision == AuditConfirmationDecisions.Agreed &&
+        request.ConfirmedAmount is { } agreedAmount && agreedAmount != live.BookedAmount)
+      return Invalid<ConfirmationValue>("An AGREED amount must equal the booked balance. Record a variance as DIFFERENCE for independent review.");
     var revision = (await db.AuditConfirmationResponses.AsNoTracking().Where(x => x.ConfirmationCaseId == live.Id).MaxAsync(x => (long?)x.Revision, ct) ?? 0) + 1;
     var response = new AuditConfirmationResponse
     {

@@ -13,13 +13,13 @@ approval_ref: ""
 blocked_reason: "The Legal confirmation taxonomy slice is implemented in this change, but full T059 acceptance is still blocked by incomplete hard dependency T058 and other listed gaps: ledger-derived balance reconciliation, difference explanation, SAD/ReviewPoint links, structured response origin, reviewer identity, response hash, aging, and procedure-to-test linkage."
 branch: ""
 issue_pr: ""
-updated_at: "2026-10-10T17:46:04+00:00"
+updated_at: "2026-10-24T11:33:53.657154+00:00"
 ---
 # T059 — Manage audit confirmations and alternative procedures
 
 [Master index](../../auditsphere-r2r-index-task-breakdown.md) · [Status rules](../../auditsphere-r2r-index-task-breakdown.md#status-rules) · [Traceability ledger](../../tracking/auditsphere-audit-tracker-workflow-traceability.md)
 
-**Current assessment (2026-10-10): BLOCKED.** The Legal confirmation taxonomy slice is implemented, but the full task remains blocked by incomplete hard dependency T058 and the residual criteria below. Do not mark the whole task complete based on the taxonomy slice.
+**Historical assessment (2026-10-10): BLOCKED.** The Legal confirmation taxonomy slice is implemented, but the full task remains blocked by incomplete hard dependency T058 and the residual criteria below. Do not mark the whole task complete based on the taxonomy slice.
 
 ### Verified local slice: Legal confirmation taxonomy
 
@@ -27,6 +27,14 @@ updated_at: "2026-10-10T17:46:04+00:00"
 - Single-case and batch application/API paths validate the same controlled taxonomy. Angular renders the server-provided category choices instead of accepting arbitrary free text.
 - Evidence: `src/AuditSphereOps.Domain/Audit/Fieldwork.cs`, `src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Confirmations.cs`, `src/AuditSphereOps.Api/Ui/UiEndpoints.Confirmations.cs`, `src/AuditSphereOps.Ui/src/app/features/audit/confirmations.ts`, `tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs`, and `tests/AuditSphereOps.E2E.Tests/AngularConfirmationJourneyTests.cs`.
 - Current-tree verification passed on 2026-10-10: Domain `AuditConfirmationCommandIsolationTests.ConfirmationTaxonomy_KeepsLegalSeparateAndRejectsUnknownCategories` and E2E `AngularConfirmationJourneyTests.NativeSignalForms_ObservedDispatch_IndependentAlternativeReview_AndSessionRevocation`; suite totals and source commit are recorded in `docs/execution/status.json`.
+
+### Scoped engineering follow-up (2026-10-24)
+
+The whole card remains **BLOCKED/PARTIAL** on T058 and its remaining criteria; these slices do not promote dependency or professional acceptance.
+
+- `1c89bdc9` adds explicit approved Bank-source selection for single/batch preparation, deriving the signed ledger amount and retaining immutable source identity/digest. Current/stale provenance is displayed; legacy/manual cases remain unverified. Focused Domain/API/Angular/owned E2E and built-in readback passed. Other confirmation source areas and the required-link disposition remain open.
+- A supplied `AGREED` amount differing from the booked amount is refused before a response revision is appended. The existing API lifecycle reproduced the invalid acceptance, then passed with the guard, retaining explicit `DIFFERENCE`, independent review and closure. Authenticity text is not an approved reconciling explanation. A workflow for approved explanations and SAD/ReviewPoint links remains open.
+- Exact code/CI evidence and limits are recorded in `docs/execution/status.json` and its linked archive. No full Task18/T059, current full CI, native zoom, human AT or live-provider acceptance is asserted.
 
 ### Remaining full-task blockers
 

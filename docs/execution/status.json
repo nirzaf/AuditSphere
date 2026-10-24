@@ -911,6 +911,11 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.confirmationBankSource20261024",
       "limits": "Legacy/manual unverified; other areas/difference links, concurrency variants and qualified/live acceptance remain.",
       "sourceCommit": "1c89bdc9abd866e93caaec94e523cac959afcb3b"
+    },
+    "confirmationAgreementVariance20261024": {
+      "status": "RED1/GREEN1 focused; Task18/T059 still partial",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.confirmationAgreementVariance20261024",
+      "checks": "Existing API lifecycle; mismatched AGREED refused, no new revision; explicit exact DIFFERENCE/review/closure retained."
     }
   },
   "externalGates": [

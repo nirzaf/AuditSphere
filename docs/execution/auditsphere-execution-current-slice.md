@@ -411,4 +411,4 @@ Bank creation and review now reject approved linked schedules whose generation d
 
 ### 2026-10-24 — Task18 typed Bank source subset
 
-Explicit source pins retain approved signed ledger amount/SHA and current/stale provenance; legacy/manual proof stays unverified. Domain2/API2/Angular19/E2E1 and final lint/build/EF passed; builtin readback captured before fixture expiry. Other sources/difference links, concurrency variants, full CI and qualified/live gates remain. Details: `status-archive-2026-10.json#archivedTargetedVerification.confirmationBankSource20261024`.
+Explicit source pins retain approved signed ledger amount/SHA and current/stale provenance; legacy/manual proof stays unverified. Domain2/API2/Angular19/E2E1 and final lint/build/EF passed; builtin readback captured before fixture expiry. Unexplained AGREED variances now refuse before append (API RED1/GREEN1). Other source/link, concurrency, CI and qualified/live gates remain. Details: `status-archive-2026-10.json#archivedTargetedVerification.confirmationBankSource20261024`.

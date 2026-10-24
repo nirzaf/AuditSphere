@@ -25316,6 +25316,13 @@
         "status": "RUNNING",
         "notFullPass": true
       }
+    },
+    "confirmationAgreementVariance20261024": {
+      "status": "FOCUSED_RED1_GREEN1; publication and new exact-source full CI pending",
+      "authority": "Original31Task18recipe3 + current T059 explicit refusal of unexplained AGREED variance; no approved-exception identity exists in this request.",
+      "change": "Inside existing case lock/freeze boundary, a supplied AGREED amount must equal booked amount. Authenticity prose cannot approve the variance; explicit DIFFERENCE path retained. No record/backfill/closure/schema/HTTP DTO change. Absent/nonmonetary amount behavior unchanged.",
+      "verification": "Existing ConfirmationApiTests.ReviewedLifecycle_RequiresObservedDispatch_IndependentCurrentEvidence_AndReviewedAlternative: real old API returned200 instead of required400 for0.000001 variance (RED1). Guard returns400; no response appended; original nonresponse/alternative/lateDIFFERENCE exact0.000001/independent review/closure assertions PASS (GREEN1).",
+      "scopeLimits": "No new approved-explanation workflow, SAD/ReviewPoint links, other source adapters, full Task18/T059 or qualified/live acceptance. Backend-only change; prior source-picker/browser evidence is not rerun or promoted to current full acceptance."
     }
   },
   "lastUpdatedOn": "2026-10-24"
