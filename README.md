@@ -26,6 +26,8 @@ The [current STE v2.2 functional requirements](docs/requirements/auditsphere-acc
 
 A supplemental comprehensive gap guide is used as a cross-check against the approved requirements and existing 31-task plan; actionable findings stay in the existing execution ledger rather than a duplicate backlog, and professional/live-provider gates remain separate.
 
+**T058 verification update:** Focused fieldwork/successor regressions pass after correcting the Sampling-tab keyboard-focus guard and test setup. Exact run IDs, counts and current-source CI state are recorded in the execution status; current-source full verification remains pending.
+
 The [product brief](docs/requirements/auditsphere-requirements-specification-product-brief-current.md) and [practice-management crosswalk](docs/execution/auditsphere-execution-tracker-practice-management-v22-crosswalk-current.md) define scope more precisely. The [API/Angular parity tracker](docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md) distinguishes implemented code from browser/CI acceptance. The [v3 screen-to-code matrix](docs/design/auditsphere-ux-matrix-v3-screen-to-code-proposed.md) is **PROPOSED**, not proof of 19-screen production parity.
 
 ### Audit engagement lifecycle
