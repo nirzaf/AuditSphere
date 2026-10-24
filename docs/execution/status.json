@@ -928,6 +928,12 @@
         "scope": "Read only server-resolved PBC staged download plan under explicit root. Exact expected content SHA/count, regular contained files, per-read byte cap, symlink/outside/missing/tampered/truncated denial; cancellation propagated.",
         "checks": "Two focused methods/16cases PASS25ms with actual synthetic tempfiles and links. No database/full local suite.",
         "limits": "Caller still owns current authorization/PBC acceptance/source selection and rechecks. No provider rawreader, file writes, staging retention policy, live effect or concurrent-race guarantee. No capture/review workflow implemented."
+      },
+      "scheduleAccountControls": {
+        "status": "Pure calculator focused7PASS; source-intake workflow remains incomplete.",
+        "scope": "Explicit distinct ordinal account scope independent of listing; exact signed per-account TB tie-outs, observed row counts and numeric19,6 refusal. Selected missing TB or out-of-scope listing refuses; selected omitted listing remains zero with nonzero difference.",
+        "checks": "Existing project named AuditScheduleControlReconciliationTests: Passed7 Failed0 Skipped0, 15ms. Offsetting errors have netzero yet both remain nonzero; leadingzeros, signed six-place values, missing/duplicate/outside/precision/aggregatebounds covered.",
+        "limits": "No source acceptance, professional completeness, persistence, API/UI or fullCI claim. No full local suite."
       }
     },
     "archivedOn20261024": {

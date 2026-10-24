@@ -391,7 +391,7 @@ Earlier parity implementation observations are retained in the [historical hando
 
 ## Recent focused evidence
 
-Risk-owner revocation RED1/GREEN1: invalid latest owners cannot fall back to history. Direct schedule review also reproduced approval after official role revocation (RED1); exact-row transaction guards pass the new case and fieldwork flow (GREEN2). History remains retained. CI, broader races and real source-intake UI remain open. Parser/staged-reader checks pass; intake is unconnected. Earlier evidence: historical handoff and [status.json](status.json).
+Risk-owner revocation RED1/GREEN1: invalid latest owners cannot fall back to history. Direct schedule review also reproduced approval after official role revocation (RED1); exact-row transaction guards pass the new case and fieldwork flow (GREEN2). History is retained. Parser/verified-byte/per-account checks pass; offsetting account errors stay visible. Intake UI, broader races and current CI remain open. Details: [status.json](status.json).
 
 ## Native generated reporting sources
 
