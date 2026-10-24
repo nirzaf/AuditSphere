@@ -7620,6 +7620,21 @@
       "remaining": "Other direct mutations and commit-window interleavings; source/ledger/schedule-derived booked amount, human difference explanation and existing difference/review-point links; full current CI and required professional/provider acceptance. Source-contract sidecar pending; no invented source balance or policy.",
       "acceptance": "PARTIAL_LOCAL_VERIFICATION",
       "taskComplete": false
+    },
+    "ASCP-06": {
+      "scope": "Financial-package release prerequisite for manual balance draft and projected eligibility; shared automatic predicate only.",
+      "disposition": "IMPLEMENT_DELTA_LOCALLY_VERIFIED",
+      "acceptance": "PARTIAL_LOCAL_VERIFICATION",
+      "taskComplete": false,
+      "authority": "docs/architecture/adr/auditsphere-architecture-adr-0007-fee-invoice-automation-drafts-only-approved.md",
+      "sourceOwners": [
+        "src/AuditSphereOps.Application/Practice/FeeAgreementService.cs",
+        "src/AuditSphereOps.Application/Practice/AutomaticFeeInvoices.cs",
+        "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs"
+      ],
+      "regression": "AuditSphereOps.Domain.Tests.CommercialWorkflowTests.AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+      "evidence": "docs/execution/status-archive-2026-10.json#keys.financialPackageBalanceEligibility20261024",
+      "remaining": "Exact-source full CI, automatic balance journey, broader commercial/provider/browser acceptance and preserved professional decisions."
     }
   }
 }

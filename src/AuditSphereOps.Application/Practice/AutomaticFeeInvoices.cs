@@ -50,8 +50,8 @@ public sealed class AutomaticFeeInvoiceHandler(AutomaticFeeInvoicePolicy policy)
       throw new OperationBlockedException("fee-invoice-scope-mismatch", authorization: true);
     if (intent.Kind == FeeMilestoneKinds.Advance && !await HasCurrentLetterAsync(db, agreement, ct))
       throw new OperationBlockedException("fee-invoice-letter-approval-stale");
-    if (intent.Kind == FeeMilestoneKinds.Balance && !await db.Releases.AnyAsync(x => x.FirmId == op.FirmId && x.ClientId == op.ClientId && x.EngagementId == op.EngagementId &&
-        db.ReleaseCandidates.Any(c => c.FirmId == op.FirmId && c.Id == x.ReleaseCandidateId && c.TargetKind == ReleaseTargetKinds.FinancialPackage), ct))
+    if (intent.Kind == FeeMilestoneKinds.Balance && !await FeeAgreementService.HasFinancialPackageReleaseAsync(
+        db, op.FirmId, agreement.PracticeClientId, op.EngagementId, ct))
       throw new OperationBlockedException("fee-invoice-final-package-not-released");
   }
 
@@ -101,8 +101,8 @@ public sealed class AutomaticFeeInvoiceDiscovery(IAuditSphereDbContextFactory fa
       if (milestone.Kind == FeeMilestoneKinds.Advance && !await AutomaticFeeInvoiceHandler.HasCurrentLetterAsync(read, agreement, ct)) continue;
       if (milestone.Kind == FeeMilestoneKinds.Balance && (agreement.EngagementId is null ||
           !await FeeAgreementService.AdvanceCurrentlyPaidAsync(read, options.FirmId, agreement.Id, ct) ||
-          !await read.Releases.AnyAsync(x => x.FirmId == options.FirmId && x.ClientId == agreement.PracticeClientId && x.EngagementId == agreement.EngagementId &&
-            read.ReleaseCandidates.Any(c => c.FirmId == options.FirmId && c.Id == x.ReleaseCandidateId && c.TargetKind == ReleaseTargetKinds.FinancialPackage), ct))) continue;
+          !await FeeAgreementService.HasFinancialPackageReleaseAsync(
+            read, options.FirmId, agreement.PracticeClientId, agreement.EngagementId, ct))) continue;
       var intent = new FeeInvoiceIntent(milestone.Id, agreement.Id, milestone.Kind, finance.Id, finance.SessionEpoch, admin.Id, admin.SessionEpoch);
       await using var db = await factory.CreateAsync(ct);
       await using var tx = await db.Database.BeginTransactionAsync(ct);

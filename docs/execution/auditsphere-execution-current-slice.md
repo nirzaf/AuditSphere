@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Balance draft release eligibility
+
+Manual balance drafts and their screen eligibility now require an issued financial-package release in the exact firm, client and engagement, matching the automatic path and approved draft-only policy. A workpaper release is insufficient. Existing fee-cycle variants retain denial/no-mutation, genuine package release, payment and replay assertions. Full current-source CI and broader commercial/browser acceptance remain open; see `status.json` for scoped evidence.
+
 ## Direct confirmation publication authority (2026-10-24)
 
 A direct confirmation draft could publish after official role revocation committed between its initial authorization and write transaction. The existing reviewed-workspace scope locks now live in the core capability and are reused without changing their order. Direct creation acquires them in its transaction, reauthorizes and checks procedure applicability before publication. The regression reproduces the original unauthorized row and passes after repair; existing taxonomy, sibling isolation and fieldwork lifecycle checks also pass. No schema, API or professional-policy change. Other confirmation mutations and source-balance/difference requirements remain open; exact evidence is in `status.json`.
@@ -380,14 +384,6 @@ Purpose-specific recipient resolution excludes contacts whose validity interval 
 ## Practice-management and workflow bounds (2026-10-18)
 
 Resource allocation eligibility, time-source billing reservation guards against reserved revision edits, and workflow dependency graph bounds (500-task / 4,000-edge limit) were verified with focused PostgreSQL regressions on commits `5996f36d` and `5e9a1eb5`. Exact test evidence is preserved in `status.json` (`targetedVerification.practiceResourceEligibility20261018`, `practiceResourcePhaseRisk20261018`, `workflowDependencyGraphLimit20261018`).
-
-## SharePoint client sites and managed staff reconciliation (2026-10-23)
-
-WU-021 automates modern nongroup SharePoint client site provisioning and managed staff Full Control lifecycle:
-- `Configure-SharePointClientSites.ps1`: Derives deterministic client site URLs (`/sites/auditsphere-client-{clientId:N}`), enforces `AuditSphere:{firmId}:{clientId:D}` on modern `STS#3` sites, enforces rollout cutoff guards (pre-cutoff clients require explicit migration approval), validates active status via SPSiteManager, and guarantees isolated DOCUMENTS worker write grant on site.
-- `Reconcile-ClientSiteStaff.ps1`: Manages the dedicated `"AuditSphere Assigned Staff"` group, binds Full Control (role type 5), removes obsolete group members, and adds authorized staff members with directory UPN/AadObjectId verification. Client users are strictly excluded from staff Full Control.
-- Offline and synthetic verification: 36/36 tests pass in `scripts/m365/tests/ClientSites.Tests.ps1`, including dry-run envelope verification (`verify-result.py --expect PLANNED`), pre-cutoff refusal, idempotent re-apply (0 mutations), and detached CMS approval checks.
-- Live tenant execution and operator credentials remain external gates (`GATE-M365-LIVE-TARGET`).
 
 ## PBC exact-version reviewer acceptance
 

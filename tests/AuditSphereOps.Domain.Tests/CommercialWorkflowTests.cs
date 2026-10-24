@@ -1454,7 +1454,7 @@ public sealed class CommercialWorkflowTests
     Assert.Equal([10000m, 10000m], view.Milestones.Select(x => x.Milestone.Amount));
     Assert.Equal(view.Agreement.AgreedFee, view.Milestones.Sum(x => x.Milestone.Amount));
 
-    // The balance cannot be invoiced before the advance is paid, nor without a delivered final report.
+    // The balance cannot be invoiced before the advance is paid, nor without a financial-package release.
     Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.IssueBalanceInvoiceAsync(db, w.FinanceManager, agreementId)).ErrorCode);
 
     // Invoicing needs a finance identity; the invoice then follows the normal review and posting path.
@@ -1856,12 +1856,14 @@ public sealed class CommercialWorkflowTests
     var deliveredReceipt = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Kind == CommercialNotificationKinds.Receipt);
     Assert.Equal(("PROVIDER_ACCEPTED", true), (deliveredReceipt.DeliveryState, deliveredReceipt.DeliveredAt is not null));
 
-    // Balance: needs the linked engagement and an issued release (final report delivered and signed off).
+    // Balance: needs the linked engagement and an issued financial-package release.
     Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.IssueBalanceInvoiceAsync(db, w.FinanceManager, agreementId)).ErrorCode);
     var engagementId = Guid.NewGuid();
     var reviewer = User(w.FirmId, "reviewer"); var releasePartner = User(w.FirmId, "releasepartner");
     var workpaperId = Guid.NewGuid();
-    db.Engagements.Add(new Engagement { Id = engagementId, FirmId = w.FirmId, PracticeClientId = clientId, Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow });
+    db.Engagements.Add(new Engagement { Id = engagementId, FirmId = w.FirmId, PracticeClientId = clientId,
+      ServiceRoute = "FinancialStatementAudit", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+      Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow });
     db.Users.AddRange(reviewer, releasePartner);
     db.RoleGrants.AddRange(
       new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = reviewer.Id, Role = "Reviewer", ClientId = clientId, EngagementId = engagementId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = reviewer.Id },
@@ -1880,6 +1882,44 @@ public sealed class CommercialWorkflowTests
     Assert.True((await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, checkpoints, Actor(releasePartner, "Partner"),
       new RecordReleaseCheckpointRequest(candidate.Value, 1, "release-final", digest, manifest))).Succeeded);
     Assert.True((await ReleaseService.IssueAsync(db, Actor(releasePartner, "Partner"), new IssueReleaseRequest(candidate.Value, 1, digest, "release-final"))).Succeeded);
+
+    var invoiceIdsBeforeWorkpaperAttempt = await db.Invoices.AsNoTracking()
+      .Where(x => x.FirmId == w.FirmId).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+    var milestonesBeforeWorkpaperAttempt = await db.FeeMilestones.AsNoTracking()
+      .Where(x => x.FirmId == w.FirmId && x.AgreementId == agreementId).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.Kind, x.Amount, x.State, x.InvoiceId, x.ReceiptId, x.PaidAt }).ToArrayAsync();
+    var workpaperOnlyBalance = await FeeAgreementService.IssueBalanceInvoiceAsync(db, w.FinanceManager, agreementId);
+    Assert.False(workpaperOnlyBalance.Succeeded,
+      "A WORKPAPER-only release must not create a balance invoice before a financial-package release exists.");
+    Assert.Equal(ErrorCodes.GateBlocked, workpaperOnlyBalance.ErrorCode);
+    Assert.Equal(invoiceIdsBeforeWorkpaperAttempt, await db.Invoices.AsNoTracking()
+      .Where(x => x.FirmId == w.FirmId).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
+    Assert.Equal(milestonesBeforeWorkpaperAttempt, await db.FeeMilestones.AsNoTracking()
+      .Where(x => x.FirmId == w.FirmId && x.AgreementId == agreementId).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.Kind, x.Amount, x.State, x.InvoiceId, x.ReceiptId, x.PaidAt }).ToArrayAsync());
+    var workpaperOnlyView = await FeeAgreementService.GetForProposalAsync(db, w.Prep, proposalId);
+    Assert.True(workpaperOnlyView.Succeeded, workpaperOnlyView.Message);
+    Assert.NotNull(workpaperOnlyView.Value);
+    Assert.False(workpaperOnlyView.Value.ReleaseRecorded,
+      "A WORKPAPER-only release must not project financial-package release eligibility for a balance invoice.");
+
+    var (packageId, packageReleaseId) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options,
+      new CompletionBundleScope(w.FirmId, clientId, engagementId, new Dictionary<string, AppUser>
+      {
+        ["associate"] = await db.Users.AsNoTracking().SingleAsync(x => x.Id == w.Prep.UserId),
+        ["senior"] = reviewer,
+        ["partner"] = releasePartner
+      }));
+    var packageRelease = await db.Releases.AsNoTracking().SingleAsync(x => x.FirmId == w.FirmId &&
+      x.Id == packageReleaseId && x.ClientId == clientId && x.EngagementId == engagementId);
+    Assert.Equal(packageId, packageRelease.PackageId);
+    Assert.Equal(ReleaseTargetKinds.FinancialPackage, await db.ReleaseCandidates.AsNoTracking()
+      .Where(x => x.FirmId == w.FirmId && x.Id == packageRelease.ReleaseCandidateId)
+      .Select(x => x.TargetKind).SingleAsync());
+    var financialPackageView = await FeeAgreementService.GetForProposalAsync(db, w.Prep, proposalId);
+    Assert.True(financialPackageView.Succeeded, financialPackageView.Message);
+    Assert.NotNull(financialPackageView.Value);
+    Assert.True(financialPackageView.Value.ReleaseRecorded);
 
     var balance = await FeeAgreementService.IssueBalanceInvoiceAsync(db, w.FinanceManager, agreementId);
     Assert.True(balance.Succeeded, balance.Message);

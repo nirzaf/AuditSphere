@@ -138,12 +138,19 @@ public static partial class FeeAgreementService
     await IssueInvoiceAsync(db, actor, agreementId, FeeMilestoneKinds.Advance, ct);
 
   /// <summary>
-  /// The balance is invoiced only after advance payment and only once the linked engagement has an issued release
-  /// (delivery and sign-off of the final report). Repeating the request never creates a second invoice.
+  /// The balance is drafted only after advance payment and an issued financial-package release on the linked
+  /// engagement. Repeating the request never creates a second invoice.
   /// </summary>
   public static async Task<CommandResult<Guid>> IssueBalanceInvoiceAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid agreementId, CancellationToken ct = default) =>
     await IssueInvoiceAsync(db, actor, agreementId, FeeMilestoneKinds.Balance, ct);
+
+  internal static async Task<bool> HasFinancialPackageReleaseAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid clientId, Guid? engagementId, CancellationToken ct) =>
+    engagementId.HasValue && await db.Releases.AsNoTracking().AnyAsync(x =>
+      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId.Value &&
+      db.ReleaseCandidates.Any(c => c.FirmId == firmId && c.Id == x.ReleaseCandidateId &&
+        c.TargetKind == ReleaseTargetKinds.FinancialPackage), ct);
 
   private static async Task<CommandResult<Guid>> IssueInvoiceAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid agreementId, string kind, CancellationToken ct)
@@ -179,9 +186,8 @@ public static partial class FeeAgreementService
       var advance = await db.FeeMilestones.AsNoTracking().SingleAsync(x => x.FirmId == actor.FirmId && x.AgreementId == agreementId && x.Kind == FeeMilestoneKinds.Advance, ct);
       if (!await IsMilestoneCurrentlyPaidAsync(db, advance, ct))
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The advance must be fully paid before the balance is invoiced.");
-      if (agreement.EngagementId is null || !await db.Releases.AsNoTracking().AnyAsync(x =>
-            x.FirmId == actor.FirmId && x.EngagementId == agreement.EngagementId && x.ClientId == agreement.PracticeClientId, ct))
-        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The balance is invoiced after the final report is delivered and signed off (an issued release on the linked engagement).");
+      if (!await HasFinancialPackageReleaseAsync(db, actor.FirmId, agreement.PracticeClientId, agreement.EngagementId, ct))
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The balance invoice draft requires an issued financial-package release on the linked engagement.");
     }
 
     // A crash between the invoice draft and the milestone update leaves an invoice with a source allocation: relink it.
@@ -483,7 +489,7 @@ public static partial class FeeAgreementService
         milestone.State = FeeMilestoneStates.Invoiced;
       views.Add(new(milestone, invoice?.InvoiceNumber, invoice?.Status, milestone.Amount - outstanding, outstanding));
     }
-    var released = agreement.EngagementId.HasValue && await db.Releases.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == agreement.EngagementId, ct);
+    var released = await HasFinancialPackageReleaseAsync(db, actor.FirmId, agreement.PracticeClientId, agreement.EngagementId, ct);
     return CommandResult<FeeAgreementView?>.Ok(new(agreement, views.OrderBy(x => x.Milestone.Kind == FeeMilestoneKinds.Advance ? 0 : 1).ToList(), released));
   }
 

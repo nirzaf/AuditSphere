@@ -24600,6 +24600,20 @@
       "test": "AuditConfirmationCommandIsolationTests.DirectConfirmationCreationRefusesAuthorityRevokedBeforeItsTransaction",
       "privateEvidence": ".local/autonomous/evidence/confirmation-direct-authority-20261024/review.json",
       "limits": "Isolated real PostgreSQL directcreation boundary; no HTTP/browser/provider/performance/new-schema acceptance. Not every mutation or during-save interleaving exercised; frozen-after-wait refusal branch not independently injected. Sourcebalance/difference requirements remain open, no Task18completionclaim."
+    },
+    "financialPackageBalanceEligibility20261024": {
+      "base": "f93eefbbbdffb7bf90f370e1ea7d65ac8eac145d",
+      "status": "VERIFIED_BOUNDED_MANUAL_GUARD_AND_RELEASE_PROJECTION",
+      "requirement": "ADR-0007 balance draft after net-paid advance and financial-package release, not any workpaper release.",
+      "checks": "Manual guard RED3/GREEN3; projection RED3/GREEN3; existing three fee-cycle variants retained.",
+      "evidence": ".local/autonomous/evidence/manual-balance-financial-package-release-20261024/review.json",
+      "sourceDigests": {
+        "src/AuditSphereOps.Application/Practice/FeeAgreementService.cs": "414e0c1130e091fbf0868168964d02b4a9e1413acdfd73dbc47e1086feebb799",
+        "src/AuditSphereOps.Application/Practice/AutomaticFeeInvoices.cs": "f714c35f0a00c1cc6e5abaf04d588f9bd5a9d19bfe57d96527bb9824fef8bb06",
+        "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs": "6e169c7d80025cc62e423e76dc0670e87ab14250bca9c5b4c4c429918eb30871"
+      },
+      "limits": "Focused3-case PostgreSQL fee-cycle proof and Release compilation only. Canonical automatic predicate equivalence was source-reviewed; no separate automatic-balance journey, full suites, browser/live provider, whole-ASCP06 or current immutable-source CI acceptance is claimed. No schema, public DTO, routes, dependency, UI, docs, staging, commits or push changes.",
+      "preservedWorkflowTracePointer": "27 workflow/invariant children plus lifecycle scenario aliases; source-only. PriorWU/parity/R2R finding-level reconciliation remains partial. Archive: status-archive-2026-10.json#keys.workflowInvariantTrace20261024."
     }
   },
   "archivedTargetedVerification": {

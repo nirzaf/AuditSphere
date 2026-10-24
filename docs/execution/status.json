@@ -1111,7 +1111,6 @@
         "migration": "ClientContactRoutingOwnerScope; invalid historical owners block deployment migration pending authorized review.",
         "implementationCommit": "a9a93692e73671470131aa807b12f526034445e1"
       },
-      "workflowInvariantTrace": "27 workflow/invariant children plus lifecycle scenario aliases; source-only. PriorWU/parity/R2R finding-level reconciliation remains partial. Archive: status-archive-2026-10.json#keys.workflowInvariantTrace20261024.",
       "inheritedParityCrosswalk": "All51 independentPARITY rows source-hashed;13subjectmapped/8partial/30unmapped, no functional promotion. Details: status-archive-2026-10.json#keys.inheritedParityCrosswalk20261024.",
       "portalInternalRiskBoundary": "PASS_FOCUSED_API2; real internal evidence excluded from client reads and internal routes403, including strayPartner grant. Counterfactual detects guard loss. Archive: status-archive-2026-10.json#keys.portalInternalRiskBoundary20261024.",
       "reportingContextReview": "ASCP04 unified activation UNVERIFIED/BLOCKED_DEPENDENCY; existing producers reused. Six recipe clauses traced in manifest.specificationTaskReconciliation.ASCP-04; no Task04 completion claim.",
@@ -1119,7 +1118,8 @@
         "status": "PASS_FOCUSED4; CURRENT_CI_REQUIRED",
         "history": "status-archive-2026-10.json#keys.confirmationDirectAuthority20261024",
         "scope": "Direct creation only; other mutation/source-reconciliation requirements remain open."
-      }
+      },
+      "financialPackageBalance": "PASS_FOCUSED3; manual/read/automatic financial-package predicate aligned. Current CI pending. Archive: status-archive-2026-10.json#keys.financialPackageBalanceEligibility20261024."
     },
     "archivedOn20261024": {
       "entries": [
