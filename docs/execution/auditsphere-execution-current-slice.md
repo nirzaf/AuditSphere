@@ -343,7 +343,7 @@ ASPM-CRM-02 remains PARTIAL: the product has no established client archival life
 
 ## QAR 20,000 commercial fee acceptance fixture (2026-10-18)
 
-Retained source-bound evidence and limits are in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#qar-20000-commercial-fee-acceptance-fixture-2026-10-18).
+The dated focused evidence is retained verbatim in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md); its acceptance limits remain unchanged.
 
 ## Retained lead action history (2026-10-18)
 
@@ -383,9 +383,7 @@ Earlier resource-allocation evidence is retained in the [historical handoff](aud
 
 ## Correspondence contact validity and proposal send-boundary recheck (2026-10-18)
 
-Purpose-specific recipient resolution excludes contacts whose validity interval does not overlap the requested UTC date, including explicitly selected overrides. Dispatch receipt creation checks the contact again at the recorded dispatch instant and refuses inactive, future-dated, or expired contacts. A new worker guard at source commit `395d2ef06e53e7c21aece54f8d85f78c482a9514` rechecks proposal recipients immediately before provider send: prospects must retain the same primary email and remain unconverted; client proposals must still resolve to the exact captured contact, routing row and email. Changed or incomplete authority blocks the durable operation before the provider call; the notification remains `QUEUED` for review rather than being silently redirected.
-
-`CommercialPricingPolicyTests.PendingProposalMail_BlocksWhenProspectRecipientChangesBeforeProviderSend` and `PendingProposalMail_BlocksWhenClientCommercialRouteIsRevokedBeforeProviderSend` pass against PostgreSQL on that commit. Exact metadata is in `status.json` under `targetedVerification.practiceProposalSendRecipientAuthority20261018`. This covers proposal notifications only. Fee receipts/vouchers and holding letters still lack this recheck, the dispatch does not retain the initiating actor for current-role reauthorization, and the check is not serialized against a routing mutation that races after the pre-send query. DEC-09, live provider acceptance and integrated browser acceptance remain open, so ASPM-CRM-03 stays partial.
+The dated focused evidence is retained verbatim in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md); its acceptance limits remain unchanged.
 
 ## Practice-management and workflow bounds (2026-10-18)
 
@@ -402,3 +400,7 @@ Earlier parity implementation observations are retained in the [historical hando
 ## Recent focused evidence
 
 Reminder bounds, template prerequisites, quotation timelines, practice-time phases and firm-report/finding recovery are preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md) and their keyed records in [status.json](status.json). Full current-source release and applicable human acceptance remain open.
+
+## Native generated trial-balance source handoff
+
+The additive native source path freezes whole-period/no-book scope, approved opening and posted movements, exact membership and generated artifact hashes. Existing technical validation and independent acceptance gate mapping; currentness rejects changed postings even when closing rows are unchanged. Focused backend checks pass, including SQL immutability, atomicity, byte hashes, safe empty rollback and refusal to erase retained history. See the keyed native handoff evidence in [status.json](status.json). API/Angular focused checks and the extended existing opening browser journey pass. An owned built-in tab confirmed retained source identities, Pending validation and keyboard refresh before fixture expiry; the tab was closed. This does not establish human AT/native zoom. Exact-source full CI, successor openings, native GL completeness and professional/live acceptance remain open.

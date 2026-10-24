@@ -97,6 +97,8 @@ public static class AdjustmentJournalService
       new AuthorizationRequest(dataset.FirmId, dataset.ClientId, dataset.EngagementId, PreparerRoles), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, dataset, ct);
+    if (!nativeSource.Succeeded) return CommandResult<Guid>.Fail(nativeSource.ErrorCode!, nativeSource.Message!);
 
     var journal = new AdjustmentJournal
     {

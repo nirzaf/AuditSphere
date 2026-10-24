@@ -866,6 +866,10 @@ public static partial class FinancialStatementService
   private static async Task<CommandResult<AdjustedCalculation>> CalculateAdjustedBalancesAsync(
     IAuditSphereDbContext db, AdjustmentPlan plan, CancellationToken ct)
   {
+    var baseSource = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == plan.BaseDatasetId && x.FirmId == plan.FirmId, ct);
+    if (baseSource is null) return CommandResult<AdjustedCalculation>.Fail(ErrorCodes.GateBlocked, "The package source is unavailable.");
+    var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, baseSource, ct);
+    if (!nativeSource.Succeeded) return CommandResult<AdjustedCalculation>.Fail(nativeSource.ErrorCode!, nativeSource.Message!);
     var rows = await db.TrialBalanceRows.AsNoTracking()
       .Where(x => x.DatasetId == plan.BaseDatasetId).ToListAsync(ct);
     if (rows.Count == 0)

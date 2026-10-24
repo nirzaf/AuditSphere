@@ -1,0 +1,81 @@
+<audit-page-header title="Native trial balance source" eyebrow="Client accounting"
+  description="Capture the actual native period ledger as retained generated evidence. Sealing does not validate or accept it for reporting." />
+<p><a matButton routerLink="/app/accounting">Client accounting workspace</a></p>
+@if (!clientId()) { <p role="alert">A valid client scope is required.</p> }
+<audit-state [loading]="context.loading() || source.loading()" [error]="context.error() || source.error()" label="native source" />
+@if (message()) { <p role="status" aria-live="polite">{{ message() }}</p> }
+@if (context.data(); as c) {
+  @if (!displaySource()) {
+    <section class="panel" aria-labelledby="native-scope-heading">
+      <h2 id="native-scope-heading">{{ c.name }} · select the exact source</h2>
+      <p>Whole native period ledger, no reporting book. Opening balances and period movements remain separate. Imported and adjusted sources are not included.</p>
+      <form (submit)="$event.preventDefault(); makePreview()">
+        <fieldset [disabled]="busy() || uncertain() || blockedPending()">
+          <legend>Native source intent</legend>
+          <label for="native-period">Reporting period</label>
+          <select id="native-period" [value]="model().periodId" (change)="choosePeriod($event)">
+            <option value="">Choose an actual client period</option>
+            @for (p of c.periods; track p.id) { <option [value]="p.id" [disabled]="p.status !== 'ACTIVE' && p.status !== 'DRAFT'">{{ p.code }} · {{ p.start }} – {{ p.end }} · {{ p.currency }} · revision {{ p.revision }} · {{ p.status }}</option> }
+          </select>
+          <label>Engagement ID <input [formField]="fields.engagementId" /></label>
+          <p>The engagement is checked against this client through its current accounting intake context before preview.</p>
+          <label>As-of date <input type="date" [formField]="fields.asOfDate" /></label>
+          <label>Legal entity key <input [formField]="fields.legalEntityKey" /></label>
+          <label>Source evidence reference <input [formField]="fields.evidenceReference" /></label>
+          <label><input type="checkbox" [formField]="fields.allowActivityOnly" /> Allow activity-only capture if no approved native opening exists. It remains blocked from full report acceptance.</label>
+        </fieldset>
+        @if (c.hasMorePeriods) { <p>Only the latest 100 client periods are displayed. No undisplayed period is selected automatically.</p> }
+        @if (selectedPeriod(); as p) { <p>Exact period revision: {{ pending()?.expectedPeriodRevision ?? p.revision }} · {{ p.basis }} · {{ p.currency }} · {{ p.start }} – {{ p.end }}</p> }
+        <label><input type="checkbox" [checked]="wholePeriod()" [disabled]="busy() || blockedPending()" (change)="wholePeriod.set($any($event.target).checked)" /> I explicitly selected the whole native period ledger with no reporting book.</label>
+        @if (!uncertain()) { <button matButton="filled" type="submit" [disabled]="!ready() || !!pending()">Preview exact native source</button> }
+      </form>
+    </section>
+  }
+}
+@if (preview(); as p) {
+  <section class="panel" aria-labelledby="native-preview-heading">
+    <h2 id="native-preview-heading">Review native source preview</h2>
+    <dl><dt>Book scope</dt><dd>{{ p.bookScope }}</dd><dt>Posting sequence</dt><dd>{{ p.postingSequence }}</dd>
+      <dt>Source identity</dt><dd><code>{{ p.sourceIdentityHash }}</code></dd><dt>Manifest hash</dt><dd><code>{{ p.manifestHash }}</code></dd>
+      <dt>Generated rows hash</dt><dd><code>{{ p.generatedRowsHash }}</code></dd><dt>Review basis</dt><dd><code>{{ p.reviewBasis }}</code></dd></dl>
+    @if (p.activityOnly) { <p role="alert">Activity-only evidence: no approved opening coverage. Full report acceptance is blocked.</p> }
+    @if (model().asOfDate !== selectedPeriod()?.end) { <p role="alert">Interim cutoff: this capture is not a complete period-end reporting source.</p> }
+    <div class="table-scroll" role="region" tabindex="0" aria-label="Native source exact trial balance">
+      <table><caption>Native generated rows · {{ p.rowCount }} total; page {{ rowPage() + 1 }} · {{ visibleRows().length }} displayed</caption>
+        <thead><tr><th scope="col">Account</th><th scope="col">Opening debit</th><th scope="col">Opening credit</th><th scope="col">Period debit</th><th scope="col">Period credit</th><th scope="col">Closing debit</th><th scope="col">Closing credit</th></tr></thead>
+        <tbody>@for (r of visibleRows(); track r.accountId) { <tr><th scope="row">{{ r.accountCode }} · {{ r.accountName }}</th><td>{{ r.openingDebit }}</td><td>{{ r.openingCredit }}</td><td>{{ r.periodDebit }}</td><td>{{ r.periodCredit }}</td><td>{{ r.closingDebit }}</td><td>{{ r.closingCredit }}</td></tr> }</tbody>
+        <tfoot><tr><th scope="row">All-row exact totals</th><td>{{ p.trialBalance.openingDebit }}</td><td>{{ p.trialBalance.openingCredit }}</td><td>{{ p.trialBalance.periodDebit }}</td><td>{{ p.trialBalance.periodCredit }}</td><td>{{ p.trialBalance.closingDebit }}</td><td>{{ p.trialBalance.closingCredit }}</td></tr></tfoot>
+      </table>
+    </div>
+    <mat-paginator aria-label="Native source preview population pages" [length]="p.rowCount" [pageIndex]="rowPage()"
+      [pageSize]="100" [pageSizeOptions]="[100]" [showFirstLastButtons]="true" (page)="rowPage.set($event.pageIndex)" />
+    <p>Every preview row is available through these pages. The controls and hashes cover the complete population, not only the visible page.</p>
+  </section>
+}
+@if ((preview() || pending()) && !displaySource()) {
+  @if (uncertain()) { <p role="alert">The original seal outcome is unknown. The retained request may already have completed. An explicit retry uses that same request identity and intent; it may complete the original seal. No new request is started.</p> }
+  <p>Request identity: <code>{{ pending()?.requestId ?? 'Assigned to this preview' }}</code></p>
+  @if (pending(); as r) { <p>Original period revision {{ r.expectedPeriodRevision }} · as of {{ r.asOfDate }} · entity {{ r.legalEntityKey }} · evidence {{ r.evidenceReference }}</p>
+    <p>Original reviewed basis: <code>{{ r.reviewBasis }}</code>. This is retained submitted intent, not new approval. The server must confirm its exact outcome.</p> }
+  <label><input type="checkbox" [checked]="reviewed()" [disabled]="busy()" (change)="reviewed.set($any($event.target).checked)" /> I reviewed this exact period revision, as-of date, entity, evidence, coverage and preview basis. Seal generated evidence only.</label>
+  <button matButton="filled" [disabled]="!canSeal() || !reviewed()" (click)="seal()">{{ uncertain() ? 'Retry exact reviewed seal request' : 'Seal native generated source' }}</button>
+}
+@if (displaySource(); as s) {
+  <section class="panel" aria-labelledby="native-retained-heading">
+    <h2 id="native-retained-heading">Retained native generated source</h2>
+    <dl><dt>Dataset</dt><dd>{{ s.datasetId }}</dd><dt>Client / engagement / period</dt><dd>{{ s.clientId }} / {{ s.engagementId }} / {{ s.periodId }}</dd>
+      <dt>As-of date / legal entity</dt><dd>{{ s.asOfDate }} / {{ s.legalEntityKey }}</dd><dt>Book scope</dt><dd>{{ s.bookScope }}</dd>
+      <dt>Source identity</dt><dd><code>{{ s.sourceIdentityHash }}</code></dd><dt>Manifest / generated rows hash</dt><dd><code>{{ s.manifestHash }}</code> / <code>{{ s.generatedRowsHash }}</code></dd>
+      <dt>Technical validation</dt><dd>{{ s.validationStatus }}</dd><dt>Captured by / at</dt><dd>{{ s.capturedByUserId }} / {{ s.createdAt }}</dd></dl>
+    <p>This artifact was generated from native postings and opening evidence. It is not an uploaded file. Sealing supplies neither technical validation nor independent acceptance. Native GL completeness and period continuity require their separate evidence; this capture does not establish them.</p>
+    @if (!s.isCurrent) { <p role="alert">Historical source: {{ s.currentnessBlocker }}</p> }
+    @if (s.activityOnly) { <p role="alert">Activity-only evidence: full report acceptance is blocked.</p> }
+    <p><a matButton [routerLink]="['/app/accounting/clients', s.clientId, 'native-sources', s.datasetId]">Open retained source link</a>
+      <a matButton [routerLink]="['/app/engagements', s.engagementId, 'tb-intake']">Technical validation and intake</a>
+      @if (!s.activityOnly && s.isCurrent) { <a matButton [routerLink]="['/app/accounting/sources', s.datasetId, 'acceptance']">Separate independent source acceptance</a> }
+    </p>
+    <button matButton [disabled]="busy()" (click)="download('rows')">Download generated rows</button>
+    <button matButton [disabled]="busy()" (click)="download('manifest')">Download retained manifest</button>
+  </section>
+}
+<button matButton [disabled]="busy()" (click)="refresh()">Refresh current source context</button>

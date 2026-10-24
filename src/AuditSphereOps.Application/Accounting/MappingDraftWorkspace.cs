@@ -70,8 +70,10 @@ public static class MappingDraftWorkspace
     var frozen = await db.EngagementFileFreezes.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == m.EngagementId && x.State == "FROZEN", ct);
     var latest = await db.MappingVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == m.EngagementId).MaxAsync(x => (long?)x.Version, ct);
     var work = await AuthorizeAsync(db, actor, m, true, ct);
-    var blocker = !work.Succeeded ? work.Message :
-      d.SourceKind != "Raw" || d.ImportState != TrialBalanceImportStates.Sealed || d.ValidationStatus != "Accepted" || !d.Balanced || d.ControlTotal != 0m ? "A sealed, balanced, validated raw source is required." :
+    var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, d, ct);
+    var blocker = !nativeSource.Succeeded ? nativeSource.Message :
+      !work.Succeeded ? work.Message :
+      !NativeTrialBalanceSourceWorkspace.IsBaseSource(d) || d.ImportState != TrialBalanceImportStates.Sealed || d.ValidationStatus != "Accepted" || !d.Balanced || d.ControlTotal != 0m ? "A sealed, balanced, validated raw source is required." :
       period is null || period.Status is not (AccountingWorkflowStates.Active or AccountingWorkflowStates.Draft) ? "A current open reporting period is required." :
       m.PeriodStart != period.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) || m.PeriodEnd != period.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ? "Rebase this mapping to its exact reporting period before editing." :
       d.BookId is not null && (book is null || book.Status is not (AccountingWorkflowStates.Active or AccountingWorkflowStates.Draft)) ? "The reporting book is closed or unavailable." :

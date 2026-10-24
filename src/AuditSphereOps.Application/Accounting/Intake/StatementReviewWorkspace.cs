@@ -149,8 +149,10 @@ public static class StatementReviewWorkspace
     var m = await MappedTrialBalanceSource.CurrentMappingQuery(db, actor.FirmId, engagementId).FirstOrDefaultAsync(ct);
     if (m is null || m.ClientId != e.PracticeClientId) return Fail<Snapshot>(ErrorCodes.GateBlocked, "Statements require an approved mapping for this engagement.");
     var d = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == m.DatasetId && x.ClientId == m.ClientId && x.EngagementId == engagementId, ct);
-    if (d is null || d.SourceKind != "Raw" || d.ImportState != TrialBalanceImportStates.Sealed || !d.Balanced || d.ControlTotal != 0m || d.ValidationStatus != "Accepted")
+    if (d is null || !NativeTrialBalanceSourceWorkspace.IsBaseSource(d) || d.ImportState != TrialBalanceImportStates.Sealed || !d.Balanced || d.ControlTotal != 0m || d.ValidationStatus != "Accepted")
       return Fail<Snapshot>(ErrorCodes.GateBlocked, "The exact mapped raw trial balance must be sealed, balanced and validated.");
+    var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, d, ct);
+    if (!nativeSource.Succeeded) return Fail<Snapshot>(nativeSource.ErrorCode!, nativeSource.Message!);
     var safety = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == m.ClientId, ct);
     var firm = await db.FirmSafetyStates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == actor.FirmId, ct);
     if (safety is null || firm is null || m.Generation != safety.InputGeneration)

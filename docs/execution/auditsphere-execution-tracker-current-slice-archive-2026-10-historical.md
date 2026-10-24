@@ -7997,3 +7997,15 @@ Resource allocations now preserve separate planned-hour lines for each engagemen
 Focused checks on source commit `5996f36d49bf89feba9c99a7fab7c567c5f41c95`: PostgreSQL Domain regression 1/1 (two lines, aggregate capacity, exact-line removal and retry); resource Angular spec 15/15; resource E2E cohort 4/4; API and E2E Release builds with 0 warnings/errors; EF model drift and OpenAPI checks pass. Angular production build passes with the existing `commercial/settings.scss` warning (7.53 kB vs 4.00 kB). Fast CI run `39108092465` was in progress when this handoff was written; release-wide suites remain CI/CD work.
 
 Built-in browser inspection reached the existing local server on port 5029, where the Resources navigation selected but the workspace stayed blank because the stale shell referenced missing lazy chunk `chunk-Eamlq2bo.js`. I left that running process untouched, so the current source UI was not manually browser-verified. Broader date-boundary, role, responsive/accessibility acceptance and full current-SHA CI remain open. The focused allocation evidence is in `status.json` at `targetedVerification.practiceResourcePhaseRisk20261018`; the earlier eligibility-only record is preserved in the status archive.
+
+
+## QAR 20,000 commercial fee acceptance fixture (2026-10-18)
+
+Retained source-bound evidence and limits are in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#qar-20000-commercial-fee-acceptance-fixture-2026-10-18).
+
+
+## Correspondence contact validity and proposal send-boundary recheck (2026-10-18)
+
+Purpose-specific recipient resolution excludes contacts whose validity interval does not overlap the requested UTC date, including explicitly selected overrides. Dispatch receipt creation checks the contact again at the recorded dispatch instant and refuses inactive, future-dated, or expired contacts. A new worker guard at source commit `395d2ef06e53e7c21aece54f8d85f78c482a9514` rechecks proposal recipients immediately before provider send: prospects must retain the same primary email and remain unconverted; client proposals must still resolve to the exact captured contact, routing row and email. Changed or incomplete authority blocks the durable operation before the provider call; the notification remains `QUEUED` for review rather than being silently redirected.
+
+`CommercialPricingPolicyTests.PendingProposalMail_BlocksWhenProspectRecipientChangesBeforeProviderSend` and `PendingProposalMail_BlocksWhenClientCommercialRouteIsRevokedBeforeProviderSend` pass against PostgreSQL on that commit. Exact metadata is in `status.json` under `targetedVerification.practiceProposalSendRecipientAuthority20261018`. This covers proposal notifications only. Fee receipts/vouchers and holding letters still lack this recheck, the dispatch does not retain the initiating actor for current-role reauthorization, and the check is not serialized against a routing mutation that races after the pre-send query. DEC-09, live provider acceptance and integrated browser acceptance remain open, so ASPM-CRM-03 stays partial.

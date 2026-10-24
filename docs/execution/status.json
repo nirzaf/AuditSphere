@@ -942,11 +942,8 @@
       },
       "mailRoleEvidenceGuard": {
         "status": "PARTIAL",
-        "base": "08a19bf2fee87d7de5284a535ff60435888cfb37",
-        "evidence": ".local/autonomous/evidence/wu022-mail-runtime-final",
-        "checks": "Mail41PASS + final3authorityPASS; Workercompiled. CMS/source/model/token pins, latestfirmtenant/consent, suspended/blocked and postIO guards; no token/Graph ondeny. ComposeexamplePASS; committedsourceWU02432PASS. Rawproof/sourcehashes retained.",
-        "remaining": "Signedreceipt enrollment/import, APIpersistedreadiness, migration and live sender/control acceptance.",
-        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.mailRoleEvidenceGuard"
+        "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.mailRoleEvidenceGuard20261024Snapshot",
+        "remaining": "Signedreceipt enrollment/import, APIpersistedreadiness, migration and live sender/control acceptance."
       },
       "dependencySecurityPatch": {
         "status": "PASS_LOCAL_SLICE",
@@ -1051,11 +1048,8 @@
       },
       "mailEvidenceRecovery": {
         "status": "PARTIAL_FOCUSED_PASS",
-        "base": "2406ec94 + tenant.ts/spec overlay, hashes in evidence",
-        "evidence": ".local/autonomous/evidence/ci-continuation-20261023/mail-recovery",
-        "checks": "Final Angular9PASS; build/lintPASS; independent Python length-prefixed SHA256 vector MATCH unchanged backend. Parent corrected a test vector so disabled/stale/unavailable states are the sole rejection reason; current matching control then recovers without POST.",
-        "behavior": "Same-session exact-envelope GET recovery, acknowledged ID check, enabled/VERIFIED/nonstale gate, failed reads hide old protected state with visible generic notice; unknown does not re-POST. Public files/digest remain memory-only.",
-        "limits": "No browser/API integration or live provider workflow for this UI change. Reload loses in-memory pending identity; broader recovery and operator issuer/readiness remain open. Existing unrelated commercial/settings.scss style-budget warning remains. Exact combined full CI pending."
+        "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.mailEvidenceRecovery20261024Snapshot",
+        "remaining": "No browser/API integration or live provider workflow for this UI change. Reload loses in-memory pending identity; broader recovery and operator issuer/readiness remain open. Existing unrelated commercial/settings.scss style-budget warning remains. Exact combined full CI pending."
       },
       "mailEvidencePrecision": {
         "commit": "01fb150da89713c91010b5e1e6fc4b4c1c0392a4",
@@ -1116,7 +1110,15 @@
       "financialPackageBalance": "PASS_FOCUSED3; manual/read/automatic financial-package predicate aligned. Current CI pending. Archive: status-archive-2026-10.json#keys.financialPackageBalanceEligibility20261024.",
       "accountingHandoff": "Tasks10/11/15 source/test trace, not accepted. Native successor/sealed source remain. Archive: status-archive-2026-10.json#keys.accountingHandoffReview20261024.",
       "queueCurrentExpiry": "RED1/GREEN1+calendar2PASS; fullCI pending. Archive: status-archive-2026-10.json#keys.queueCurrentExpiry20261024.",
-      "ciE2eFollowup": "Focused7+1PASS and builtin lifecycle subset; currentCI required. Archive: status-archive-2026-10.json#keys.a9E2eCausalFollowup20261024."
+      "ciE2eFollowup": "Focused7+1PASS and builtin lifecycle subset; currentCI required. Archive: status-archive-2026-10.json#keys.a9E2eCausalFollowup20261024.",
+      "nativeTbHandoff": {
+        "status": "PARTIAL_TASK11; bounded TB path focused/browser checks pass; exact-current full CI pending",
+        "migration": "20261024052643_NativeTrialBalanceSourceHandoff",
+        "evidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/native-source-handoff-final",
+        "checks": "Domain7/API1/Angular6 PASS; scoped lint/production UI build, OpenAPI and EF drift PASS. Existing opening browser journey1PASS plus builtin repeat1PASS; actual keyboard refresh/retained source captured before expiry. Immutable SQL/atomicity/hash/rollback and raw-package release retained.",
+        "boundary": "Generated Native TB is not uploaded Raw evidence. Exact source membership and hashes retained; activity-only/interim cannot assert complete coverage. No native GL completeness bridge, successor opening, professional cutover, live or full-product acceptance.",
+        "remaining": "Exact-current full CI; native GL bridge and successor openings; professional/live acceptance. Builtin read/refresh is not human AT/native zoom."
+      }
     },
     "archivedOn20261024": {
       "entries": [

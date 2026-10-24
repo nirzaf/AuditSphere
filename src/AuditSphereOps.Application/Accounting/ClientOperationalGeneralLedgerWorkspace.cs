@@ -58,7 +58,8 @@ public static class ClientOperationalGeneralLedgerWorkspace
     if (rangeStart < period.StartDate || rangeEnd > period.EndDate || rangeStart > rangeEnd)
       return CommandResult<ClientOperationalGeneralLedgerView>.Fail(ErrorCodes.Accounting.MappingInvalid, "Choose dates within the selected reporting period.");
 
-    await using var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+    await using var snapshot = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct) : null;
     var latestPostingSequence = await db.ClientOperationalJournals.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.PeriodId == periodId && x.Status == "POSTED")
       .Select(x => x.PostingSequence).MaxAsync(ct) ?? 0L;
@@ -202,7 +203,7 @@ public static class ClientOperationalGeneralLedgerWorkspace
         on new { link.FirmId, link.ClientId, Id = link.ReversalJournalId } equals new { reversal.FirmId, reversal.ClientId, Id = reversal.Id }
       where link.FirmId == actor.FirmId && link.ClientId == clientId && (journalIds.Contains(link.OriginalJournalId) || journalIds.Contains(link.ReversalJournalId))
       select new { link.OriginalJournalId, link.ReversalJournalId, reversal.Status }).ToListAsync(ct);
-    await snapshot.CommitAsync(ct);
+    if (snapshot is not null) await snapshot.CommitAsync(ct);
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, clientId, RequiredRoles: ReaderRoles, InternalOnly: true), ct)).Succeeded)
       return CommandResult<ClientOperationalGeneralLedgerView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");

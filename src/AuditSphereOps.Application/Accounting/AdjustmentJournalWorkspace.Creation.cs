@@ -39,7 +39,7 @@ public static partial class AdjustmentJournalWorkspace
     ActorContext actor, Guid id, CancellationToken ct)
   {
     var d = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == actor.FirmId &&
-      x.SourceKind == "Raw" && x.ImportState == TrialBalanceImportStates.Sealed, ct);
+      (x.SourceKind == "Raw" || x.SourceKind == NativeTrialBalanceSourceWorkspace.SourceKind) && x.ImportState == TrialBalanceImportStates.Sealed, ct);
     if (d is null) return Fail<JournalCreationContext>(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, d.ClientId, d.EngagementId,
       ReadRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
@@ -51,7 +51,9 @@ public static partial class AdjustmentJournalWorkspace
     var frozen = await db.EngagementFileFreezes.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == d.EngagementId && x.State == "FROZEN", ct);
     var write = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, d.ClientId, d.EngagementId,
       PrepareRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
-    var blocker = !write.Succeeded ? "Current scoped preparer authority is required." :
+    var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, d, ct);
+    var blocker = !nativeSource.Succeeded ? nativeSource.Message :
+      !write.Succeeded ? "Current scoped preparer authority is required." :
       firm is null || safety is null ? "Safety state is unavailable." :
       d.ValidationStatus != "Accepted" || !d.Balanced || d.ControlTotal != 0m || !SourceAcceptanceWorkspace.ValidHash(MappedTrialBalanceSource.Digest(d)) ? "The exact source must be sealed, balanced and validated." :
       period is null || period.Currency != d.Currency || !string.Equals(period.Basis, d.Basis, StringComparison.OrdinalIgnoreCase) ? "Bind the exact source reporting period, basis and currency." :

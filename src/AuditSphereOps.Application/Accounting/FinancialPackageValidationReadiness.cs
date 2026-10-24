@@ -37,8 +37,17 @@ public static class FinancialPackageValidationReadiness
   }
 
   public static async Task<Result> GetAsync(IClientAccountingDbContext db, Guid firmId, Guid packageId,
-    CancellationToken ct = default) => Evaluate(firmId, packageId,
-      await db.FinancialPackageValidations.AsNoTracking()
-        .Where(x => x.FirmId == firmId && x.FinancialPackageId == packageId && RequiredCodes.Contains(x.Code))
-        .ToListAsync(ct));
+    CancellationToken ct = default)
+  {
+    var result = Evaluate(firmId, packageId, await db.FinancialPackageValidations.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.FinancialPackageId == packageId && RequiredCodes.Contains(x.Code)).ToListAsync(ct));
+    var source = await (from package in db.FinancialPackages.AsNoTracking()
+      join mapping in db.MappingVersions.AsNoTracking() on package.MappingVersionId equals mapping.Id
+      join dataset in db.TrialBalanceDatasets.AsNoTracking() on mapping.DatasetId equals dataset.Id
+      where package.FirmId == firmId && package.Id == packageId && mapping.FirmId == firmId && dataset.FirmId == firmId
+      select dataset).SingleOrDefaultAsync(ct);
+    if (source is not null && !(await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, source, ct)).Succeeded)
+      return result with { Failed = result.Failed.Concat(["NATIVE_SOURCE_CURRENT"]).ToArray() };
+    return result;
+  }
 }

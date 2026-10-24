@@ -52,7 +52,7 @@ public sealed class TrialBalanceDataset
   public Guid? BookId { get; set; }
   public string? Basis { get; set; }
   public Guid? ImportBatchId { get; set; }
-  public string SourceKind { get; set; } = "Raw";     // Raw|Adjusted
+  public string SourceKind { get; set; } = "Raw";     // Raw|Adjusted|Native
   public long Revision { get; set; } = 1;
   /// <summary>One canonical legal-entity label per accepted dataset.</summary>
   public string LegalEntityKey { get; set; } = string.Empty;

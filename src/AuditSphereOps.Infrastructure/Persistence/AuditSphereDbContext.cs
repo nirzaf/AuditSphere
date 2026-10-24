@@ -250,6 +250,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<PbcReminderReceipt> PbcReminderReceipts => Set<PbcReminderReceipt>();
 
   public DbSet<TrialBalanceDataset> TrialBalanceDatasets => Set<TrialBalanceDataset>();
+  public DbSet<NativeTrialBalanceSource> NativeTrialBalanceSources => Set<NativeTrialBalanceSource>();
 
   public DbSet<SourceAcceptanceDecision> SourceAcceptanceDecisions => Set<SourceAcceptanceDecision>();
 
@@ -642,6 +643,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureFieldwork(b);
     ConfigureScopedEvidence(b);
     ConfigureAccounting(b);
+    ConfigureNativeTrialBalanceSources(b);
     ConfigureClientAccounting(b);
     ConfigureClientOperationalLedger(b);
     ConfigureClientCounterparties(b);

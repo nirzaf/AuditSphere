@@ -200,6 +200,13 @@ function isProfileSaveAcknowledgement(value: unknown, profile: Profile | null): 
           } @else if (uncertain()) { <p role="alert">The outcome is unconfirmed. Refresh the client and review persisted setup before another change.</p> }
         </form>
         @if (w.profile?.sourceMode === 'NATIVE_BOOKKEEPING') {
+          <section aria-labelledby="native-source-links">
+            <h3 id="native-source-links">Native generated trial balance source</h3>
+            <p>Capture whole-period native evidence with no reporting book. Technical validation and independent source acceptance remain separate.</p>
+            <ul>@for (p of w.periods; track p.id) { @if (p.status === 'ACTIVE' || p.status === 'DRAFT') {
+              <li><a [routerLink]="['/app/accounting/clients', w.clientId, 'native-sources', 'new']" [queryParams]="{ periodId: p.id }">Capture {{ p.code }} native source · revision {{ p.revision }}</a></li>
+            } }</ul>
+          </section>
           <audit-client-operational-opening-balances [clientId]="w.clientId" [currency]="w.profile.currency" [periods]="w.periods" />
           <audit-client-counterparties [clientId]="w.clientId" />
           <audit-account-roles [clientId]="w.clientId" />

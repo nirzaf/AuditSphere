@@ -37,17 +37,21 @@ public sealed class TrialBalanceValidationHandler : IOperationHandler
       SELECT * FROM trial_balance_datasets WHERE id = {op.TargetId} AND firm_id = {op.FirmId}
         AND client_id = {op.ClientId} AND engagement_id = {op.EngagementId} FOR UPDATE
       """).ToListAsync(ct);
-    if (rows.Count != 1 || rows[0].Revision != op.ExpectedRevision || rows[0].SourceKind != "Raw" ||
+    if (rows.Count != 1 || rows[0].Revision != op.ExpectedRevision || !NativeTrialBalanceSourceWorkspace.IsBaseSource(rows[0]) ||
         rows[0].ImportState != TrialBalanceImportStates.Sealed || rows[0].ValidationStatus != "Pending" ||
         !await db.Engagements.AnyAsync(e => e.Id == op.EngagementId &&
           e.FirmId == op.FirmId && e.PracticeClientId == op.ClientId, ct))
       throw new OperationBlockedException("validation-scope-or-revision-conflict", authorization: true);
+    var current = await NativeTrialBalanceSourceWorkspace.CheckCurrentAsync(db, rows[0], ct, requireCoverage: false);
+    if (!current.Succeeded) throw new OperationBlockedException("native-source-stale-or-invalid");
   }
 
   public async Task<OperationResult> PublishAsync(IAuditSphereDbContext db, DurableOperation op,
     OperationResult? verifiedRemoteResult, CancellationToken ct)
   {
     var dataset = await db.TrialBalanceDatasets.SingleAsync(d => d.Id == op.TargetId, ct);
+    var current = await NativeTrialBalanceSourceWorkspace.CheckCurrentAsync(db, dataset, ct, requireCoverage: false);
+    if (!current.Succeeded) throw new OperationBlockedException("native-source-stale-or-invalid");
     var rows = await db.TrialBalanceRows.AsNoTracking().Where(r => r.DatasetId == dataset.Id).ToListAsync(ct);
     var total = rows.Sum(r => r.Amount);
     var valid = rows.Count > 0 && total == 0 && !string.IsNullOrWhiteSpace(dataset.Currency) &&
@@ -105,7 +109,7 @@ public sealed class TrialBalanceDiscovery(IAuditSphereDbContextFactory factory, 
   {
     await using var read = await factory.CreateAsync(ct);
     var pending = await read.TrialBalanceDatasets.AsNoTracking()
-      .Where(d => d.FirmId == options.FirmId && d.SourceKind == "Raw" && d.ValidationStatus == "Pending" &&
+      .Where(d => d.FirmId == options.FirmId && (d.SourceKind == "Raw" || d.SourceKind == NativeTrialBalanceSourceWorkspace.SourceKind) && d.ValidationStatus == "Pending" &&
         d.ImportState == TrialBalanceImportStates.Sealed &&
         !read.DurableOperations.Any(o => o.FirmId == d.FirmId && o.TargetId == d.Id &&
           o.ExpectedRevision == d.Revision && o.OperationKind == TrialBalanceValidationHandler.Kind))

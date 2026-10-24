@@ -56,6 +56,8 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     }
 
     var angular = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH") is { Length: > 0 } buildPath)
+      angular["AngularUi__BuildPath"] = buildPath;
     var makerOrigin = await host.StartApiForIdentityAsync(f.Admin, angular);
     var reviewerOrigin = await host.StartApiForIdentityAsync(f.Reviewer, angular);
     using var playwright = await Playwright.CreateAsync();
@@ -143,6 +145,49 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
       Assert.Equal("REVIEWED_OPENING_DETAIL_INCLUDED", reconciliation.Value.OpeningDetailStatus);
       Assert.Equal("125.000000", reconciliation.Value.Accounts.Single(x => x.AccountCode == "1100").OpenItemBalance);
     }
+    // Continue the same independently approved opening into generated source evidence.
+    // This is not a shortcut to technical validation, source acceptance or period close.
+    await makerPage.GotoAsync(makerOrigin + $"/ui/app/accounting/clients/{f.ClientId:D}/native-sources/new?periodId={periodId:D}");
+    await Assertions.Expect(makerPage.GetByRole(AriaRole.Heading, new() { Name = "Native trial balance source", Exact = true })).ToBeVisibleAsync();
+    await makerPage.GetByLabel("Engagement ID", new() { Exact = true }).FillAsync(f.EngagementId.ToString("D"));
+    await makerPage.GetByLabel("As-of date", new() { Exact = true }).FillAsync("2026-12-31");
+    await makerPage.GetByLabel("Legal entity key", new() { Exact = true }).FillAsync("SYNTHETIC-OPENING-ENTITY");
+    await makerPage.GetByLabel("Source evidence reference", new() { Exact = true }).FillAsync("Synthetic independently reviewed opening, native source capture");
+    await makerPage.GetByRole(AriaRole.Checkbox, new() { Name = "I explicitly selected the whole native period ledger with no reporting book.", Exact = true }).CheckAsync();
+    var previewSource = await makerPage.RunAndWaitForResponseAsync(
+      () => makerPage.GetByRole(AriaRole.Button, new() { Name = "Preview exact native source", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.EndsWith("/native-tb-sources/preview", StringComparison.Ordinal));
+    Assert.Equal(200, previewSource.Status);
+    var generated = makerPage.GetByRole(AriaRole.Region, new() { Name = "Native source exact trial balance", Exact = true });
+    await Assertions.Expect(generated.GetByRole(AriaRole.Rowheader, new() { Name = "1100 · Opening receivables", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(generated.Locator("tfoot td").Nth(0)).ToHaveTextAsync("250");
+    await Assertions.Expect(generated.Locator("tfoot td").Nth(1)).ToHaveTextAsync("250");
+    var seal = makerPage.GetByRole(AriaRole.Button, new() { Name = "Seal native generated source", Exact = true });
+    await Assertions.Expect(seal).ToBeDisabledAsync();
+    await makerPage.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this exact period revision, as-of date, entity, evidence, coverage and preview basis. Seal generated evidence only.", Exact = true }).CheckAsync();
+    var sealedResponse = await makerPage.RunAndWaitForResponseAsync(() => seal.ClickAsync(),
+      response => response.Request.Method == "POST" && response.Url.EndsWith("/native-tb-sources/seal", StringComparison.Ordinal));
+    Assert.Equal(200, sealedResponse.Status);
+    Guid nativeDatasetId;
+    string generatedJson;
+    await using (var db = host.CreateDbContext())
+    {
+      var source = await db.NativeTrialBalanceSources.SingleAsync(x => x.ClientId == f.ClientId && x.EngagementId == f.EngagementId);
+      nativeDatasetId = source.DatasetId;
+      generatedJson = source.GeneratedRowsJson;
+      var dataset = await db.TrialBalanceDatasets.SingleAsync(x => x.Id == source.DatasetId);
+      Assert.Equal("Native", dataset.SourceKind);
+      Assert.Equal("Pending", dataset.ValidationStatus);
+      Assert.Equal("", dataset.RawFileSha256Hex);
+      Assert.False(await db.SourceAcceptanceDecisions.AnyAsync(x => x.TrialBalanceDatasetId == source.DatasetId));
+    }
+    await Assertions.Expect(makerPage.GetByRole(AriaRole.Link, new() { Name = "Open retained source link", Exact = true })).ToBeVisibleAsync();
+    var download = await makerPage.RunAndWaitForDownloadAsync(() =>
+      makerPage.GetByRole(AriaRole.Button, new() { Name = "Download generated rows", Exact = true }).ClickAsync());
+    Assert.Equal($"auditsphere-native-tb-{nativeDatasetId:D}.json", download.SuggestedFilename);
+    Assert.Equal(generatedJson, await File.ReadAllTextAsync((await download.PathAsync())!));
     Assert.Empty(errors);
+    await OwnedBrowserFixtureHandoff.WaitAsync(makerOrigin,
+      $"/ui/app/accounting/clients/{f.ClientId:D}/native-sources/{nativeDatasetId:D}", "native-source-current");
   }
 }

@@ -183,6 +183,8 @@ public static class TrialBalanceDatasetQuery
       current.ClientId != source.ClientId || current.EngagementId != source.EngagementId || current.FirmId != source.FirmId ||
       current.ValidationStatus != source.ValidationStatus || current.Balanced != source.Balanced)
       return CommandResult.Fail(ErrorCodes.StaleRevision, "The source changed during the read. Refresh it.");
+    if (source.SourceKind == NativeTrialBalanceSourceWorkspace.SourceKind)
+      return await NativeTrialBalanceSourceWorkspace.CheckIntegrityAsync(db, source, ct);
     return CommandResult.Ok();
   }
 

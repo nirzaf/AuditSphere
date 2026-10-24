@@ -81,8 +81,10 @@ public static partial class AdjustmentJournalWorkspace
     var hasReversal = await db.AdjustmentJournals.AnyAsync(x => x.FirmId == actor.FirmId && x.ReversalOfJournalId == id && x.Status != "Void", ct);
     var prepared = (await Auth(db, actor, j, PrepareRoles, ct)).Succeeded;
     var reviewed = (await Auth(db, actor, j, ReviewRoles, ct)).Succeeded && j.CreatedByUserId != actor.UserId;
-    var blocker = firm is null || safety is null ? "Safety state is unavailable." :
-      d.SourceKind != "Raw" || d.ImportState != TrialBalanceImportStates.Sealed || d.ValidationStatus != "Accepted" || !d.Balanced || d.ControlTotal != 0m || !SourceAcceptanceWorkspace.ValidHash(MappedTrialBalanceSource.Digest(d))
+    var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, d, ct);
+    var blocker = !nativeSource.Succeeded ? nativeSource.Message :
+      firm is null || safety is null ? "Safety state is unavailable." :
+      !NativeTrialBalanceSourceWorkspace.IsBaseSource(d) || d.ImportState != TrialBalanceImportStates.Sealed || d.ValidationStatus != "Accepted" || !d.Balanced || d.ControlTotal != 0m || !SourceAcceptanceWorkspace.ValidHash(MappedTrialBalanceSource.Digest(d))
         ? "The exact raw source must be sealed, balanced and validated." :
       period is null || j.PeriodId != d.PeriodId || j.Currency != d.Currency || j.Basis != d.Basis ||
         period.Currency != d.Currency || !string.Equals(period.Basis, d.Basis, StringComparison.OrdinalIgnoreCase)

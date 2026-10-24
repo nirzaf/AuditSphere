@@ -1,3 +1,6 @@
+using System.Net.Http.Json;
+using System.Text.Json;
+using AuditSphereOps.Api.Ui;
 using System.Net;
 using System.Data.Common;
 using AuditSphereOps.Domain.Accounting;
@@ -346,6 +349,84 @@ public sealed class AccountingPeriodRecordApiTests
     : IDbContextFactory<AuditSphereDbContext>
   {
     public AuditSphereDbContext CreateDbContext() => new(options);
+  }
+
+  [Fact]
+  public async Task NativeSourceHttpBoundaryRequiresScopeAndCanonicalExactRevisionAndDate()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-NATIVE-TB-BOUNDARY");
+    var f = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    var periodId = Guid.NewGuid();
+    var foreignPeriodId = Guid.NewGuid();
+    const long exactRevision = 9_007_199_254_740_993L;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "AccountingPreparer", f.ClientId, f.EngagementId));
+      setup.ClientReportingPeriods.AddRange(Period(periodId, f.FirmId, f.ClientId, f.Staff.Id, revision: exactRevision),
+        Period(foreignPeriodId, foreign.FirmId, foreign.ClientId, foreign.Staff.Id));
+      await setup.SaveChangesAsync();
+    }
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
+      ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:Subject"] = f.Staff.Subject,
+      ["DevelopmentIdentity:TenantId"] = f.Staff.TenantId,
+      ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false"
+    });
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    var root = $"/api/ui/accounting/clients/{f.ClientId:D}/native-tb-sources";
+    var input = new UiEndpoints.NativeTrialBalanceSourceHttpInput(Guid.NewGuid(), f.ClientId, f.EngagementId,
+      periodId, "9007199254740993", "2026-12-31", "SYNTHETIC-ENTITY", true, "SYNTHETIC-NATIVE-EVIDENCE");
+    async Task<HttpResponseMessage> Post(string path, object body, string? csrf)
+    {
+      using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(body) };
+      if (csrf is not null) request.Headers.Add("X-XSRF-TOKEN", csrf);
+      return await client.SendAsync(request);
+    }
+    using (var unsigned = await Post(root + "/preview", input, null)) Assert.Equal(HttpStatusCode.Unauthorized, unsigned.StatusCode);
+    await client.GetAsync("/auth/sign-in");
+    using var session = await client.GetAsync("/api/ui/session");
+    Assert.Equal(HttpStatusCode.OK, session.StatusCode);
+    var token = Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie")
+      .Single(x => x.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..]);
+    using (var noCsrf = await Post(root + "/preview", input, "invalid")) Assert.Equal(HttpStatusCode.Forbidden, noCsrf.StatusCode);
+    foreach (var action in new[] { "/preview", "/seal" })
+    {
+      using var mismatch = await Post(root + action, input with { ClientId = foreign.ClientId }, token);
+      Assert.Equal(HttpStatusCode.BadRequest, mismatch.StatusCode);
+      Assert.Equal("request.invalid", (await mismatch.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+      foreach (var revision in new[] { "09007199254740993", "+1", "1e3", "1.0", " 1", "9223372036854775808" })
+      {
+        using var invalid = await Post(root + action, input with { ExpectedPeriodRevision = revision }, token);
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        Assert.Equal("request.invalid", (await invalid.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+      }
+      foreach (var date in new[] { "2026-2-01", "2026-02-30", "2026-12-31T00:00:00Z" })
+      {
+        using var invalid = await Post(root + action, input with { AsOfDate = date }, token);
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        Assert.Equal("request.invalid", (await invalid.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+      }
+      var numeric = JsonSerializer.SerializeToNode(input, new JsonSerializerOptions(JsonSerializerDefaults.Web))!.AsObject();
+      numeric["expectedPeriodRevision"] = exactRevision;
+      using var unsafeNumber = await Post(root + action, numeric, token);
+      Assert.Equal(HttpStatusCode.BadRequest, unsafeNumber.StatusCode);
+      // Canonical strings reach the real Application gate: no acceptance decision is invented for a parser test.
+      using var acceptedByParser = await Post(root + action, input, token);
+      Assert.Equal(HttpStatusCode.BadRequest, acceptedByParser.StatusCode);
+      var blocked = await acceptedByParser.Content.ReadFromJsonAsync<JsonElement>();
+      Assert.Equal("gate.blocked", blocked.GetProperty("code").GetString());
+      Assert.Equal("Current accepted BOOKKEEPING authority is required.", blocked.GetProperty("message").GetString());
+      using var scopeDenied = await Post($"/api/ui/accounting/clients/{foreign.ClientId:D}/native-tb-sources" + action,
+        input with { ClientId = foreign.ClientId, EngagementId = foreign.EngagementId, PeriodId = foreignPeriodId }, token);
+      Assert.Equal(HttpStatusCode.Forbidden, scopeDenied.StatusCode);
+      Assert.DoesNotContain("sourceIdentityHash", await scopeDenied.Content.ReadAsStringAsync());
+    }
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(exactRevision, await verify.ClientReportingPeriods.Where(x => x.Id == periodId).Select(x => x.Revision).SingleAsync());
+    Assert.Empty(await verify.TrialBalanceDatasets.Where(x => x.FirmId == f.FirmId).ToListAsync());
+    Assert.Empty(await verify.NativeTrialBalanceSources.Where(x => x.FirmId == f.FirmId).ToListAsync());
   }
 
   private static ClientReportingPeriod Period(Guid id, Guid firm, Guid client, Guid actor, Guid? priorPeriodId = null,

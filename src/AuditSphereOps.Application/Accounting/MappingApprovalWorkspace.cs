@@ -80,11 +80,13 @@ public static class MappingApprovalWorkspace
     var chartInvalid = missingChartBinding || mapping.ClientChartVersionId is not null && (chart is null || chart.Status != AccountingWorkflowStates.Approved ||
       !DateOnly.TryParseExact(mapping.PeriodStart, "yyyy-MM-dd", out var start) || !DateOnly.TryParseExact(mapping.PeriodEnd, "yyyy-MM-dd", out var end) ||
       chart.EffectiveFrom > start || chart.EffectiveTo is { } chartEnd && chartEnd < end);
-    var blocker = mapping.Generation != safety.InputGeneration ? "Source inputs changed after this mapping was prepared. Create and review a new mapping version." :
+    var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, dataset, ct);
+    var blocker = !nativeSource.Succeeded ? nativeSource.Message :
+      mapping.Generation != safety.InputGeneration ? "Source inputs changed after this mapping was prepared. Create and review a new mapping version." :
       mapping.Status != AccountingPackageStates.MappingDraft ? "This version already has its retained approval or is not a draft." :
       mapping.CreatedByUserId == actor.UserId ? "The mapping preparer cannot approve the same version." :
       !reviewer.Succeeded ? "A current scoped AccountingReviewer, Manager, Partner or Administrator is required." :
-      dataset.SourceKind != "Raw" || dataset.ImportState != TrialBalanceImportStates.Sealed || dataset.ValidationStatus != "Accepted" ||
+      !NativeTrialBalanceSourceWorkspace.IsBaseSource(dataset) || dataset.ImportState != TrialBalanceImportStates.Sealed || dataset.ValidationStatus != "Accepted" ||
         !dataset.Balanced || dataset.ControlTotal != 0m ? "The exact raw source dataset must be sealed, balanced and validated." :
       dataset.PeriodId is not null && (period is null || period.Status is not (AccountingWorkflowStates.Active or AccountingWorkflowStates.Draft)) ? "The reporting period is unavailable or closed." :
       dataset.BookId is not null && (book is null || book.Status is not (AccountingWorkflowStates.Active or AccountingWorkflowStates.Draft)) ? "The reporting book is unavailable or closed." :

@@ -40,7 +40,7 @@ public static partial class SourceAcceptanceWorkspace
   private static async Task<CommandResult<SourceAcceptanceReview>> ReadAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid id, CancellationToken ct)
   {
-    var source = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == id && x.SourceKind == "Raw" && x.ImportState == TrialBalanceImportStates.Sealed, ct);
+    var source = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == id && (x.SourceKind == "Raw" || x.SourceKind == NativeTrialBalanceSourceWorkspace.SourceKind) && x.ImportState == TrialBalanceImportStates.Sealed, ct);
     if (source is null) return CommandResult<SourceAcceptanceReview>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, source.ClientId, source.EngagementId, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<SourceAcceptanceReview>.Fail(auth.ErrorCode!, auth.Message!);
@@ -55,8 +55,9 @@ public static partial class SourceAcceptanceWorkspace
       source.ClientId, source.EngagementId, source.PeriodId, source.BookId, source.Basis, source.Currency, source.LegalEntityKey, ct);
     if (!selected.Succeeded) return CommandResult<SourceAcceptanceReview>.Fail(selected.ErrorCode!, selected.Message!);
     var write = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, source.ClientId, source.EngagementId, ReviewerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
-    var hash = source.NormalizedDatasetDigest.Length == 64 ? source.NormalizedDatasetDigest : source.Sha256Hex;
-    var blocker = receipt is not null ? "This source already has a retained acceptance decision. It will not be accepted again." :
+    var hash = MappedTrialBalanceSource.Digest(source);
+    var native = await NativeTrialBalanceSourceWorkspace.CheckCurrentAsync(db, source, ct);
+    var blocker = !native.Succeeded ? native.Message : receipt is not null ? "This source already has a retained acceptance decision. It will not be accepted again." :
       !write.Succeeded ? "Current scoped reviewer authority and an unblocked engagement are required." :
       source.ImportedByUserId == Guid.Empty || source.ImportedByUserId == actor.UserId ? "A reviewer other than the source importer must accept this revision." :
       source.ValidationStatus != "Accepted" || !source.Balanced ? "Worker validation must accept a balanced, sealed source before independent source acceptance." :

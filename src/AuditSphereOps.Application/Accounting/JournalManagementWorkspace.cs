@@ -61,10 +61,12 @@ public static class JournalManagementWorkspace
     var frozen = await db.EngagementFileFreezes.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == j.EngagementId && x.State == "FROZEN", ct);
     var firstSignIn = client ? await ClientPortalService.GetFirstSignInStatusAsync(db, actor, ct) : null;
     var write = await Auth(db, actor, j, client, true, ct);
-    var blocker = !write.Succeeded ? "Current scoped management-evidence authority is required." :
+    var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, source, ct);
+    var blocker = !nativeSource.Succeeded ? nativeSource.Message :
+      !write.Succeeded ? "Current scoped management-evidence authority is required." :
       client && firstSignIn?.Completed != true ? "Complete the required first sign-in before recording a decision." :
       firm is null || safety is null ? "Safety state is unavailable." :
-      source.SourceKind != "Raw" || source.ImportState != TrialBalanceImportStates.Sealed || source.ValidationStatus != "Accepted" || !source.Balanced || source.ControlTotal != 0m || !SourceAcceptanceWorkspace.ValidHash(MappedTrialBalanceSource.Digest(source)) ? "The exact source must be sealed, balanced and validated." :
+      !NativeTrialBalanceSourceWorkspace.IsBaseSource(source) || source.ImportState != TrialBalanceImportStates.Sealed || source.ValidationStatus != "Accepted" || !source.Balanced || source.ControlTotal != 0m || !SourceAcceptanceWorkspace.ValidHash(MappedTrialBalanceSource.Digest(source)) ? "The exact source must be sealed, balanced and validated." :
       period is null || source.PeriodId != j.PeriodId || source.Currency != j.Currency || source.Basis != j.Basis || period.Currency != j.Currency || !string.Equals(period.Basis,j.Basis,StringComparison.OrdinalIgnoreCase) ? "The source reporting context is unbound or inconsistent." :
       period.Status is not ("ACTIVE" or "DRAFT") || j.BookId is not null && (book is null || book.Currency != j.Currency || !string.Equals(book.Basis,j.Basis,StringComparison.OrdinalIgnoreCase) || book.Status is not ("ACTIVE" or "DRAFT")) ? "The reporting period or book is closed or unavailable." :
       frozen ? "The engagement file is frozen. An approved amendment is required." :

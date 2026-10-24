@@ -11506,6 +11506,552 @@
         ]
       }
     },
+    "/api/ui/accounting/clients/{clientId}/native-tb-sources/preview": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NativeTrialBalanceSourceHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiValueResponseOfNativeTrialBalanceSourcePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/native-tb-sources/seal": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NativeTrialBalanceSourceHttpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiValueResponseOfNativeTrialBalanceSourceView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/native-tb-sources/{datasetId}": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "datasetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeTrialBalanceSourceView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/accounting/clients/{clientId}/native-tb-sources/{datasetId}/artifact": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "datasetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeTrialBalanceSourceArtifact"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/accounting/clients/{clientId}/operational-opening-balances/{periodId}": {
       "get": {
         "tags": [
@@ -124341,6 +124887,263 @@
           }
         }
       },
+      "NativeTrialBalanceSourceArtifact": {
+        "required": [
+          "datasetId",
+          "fileName",
+          "contentType",
+          "generatedRowsJson",
+          "generatedRowsHash",
+          "manifestJson",
+          "manifestHash",
+          "sourceIdentityHash",
+          "isCurrent",
+          "currentnessBlocker"
+        ],
+        "type": "object",
+        "properties": {
+          "datasetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "generatedRowsJson": {
+            "type": "string"
+          },
+          "generatedRowsHash": {
+            "type": "string"
+          },
+          "manifestJson": {
+            "type": "string"
+          },
+          "manifestHash": {
+            "type": "string"
+          },
+          "sourceIdentityHash": {
+            "type": "string"
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "currentnessBlocker": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "NativeTrialBalanceSourceHttpInput": {
+        "required": [
+          "requestId",
+          "clientId",
+          "engagementId",
+          "periodId",
+          "expectedPeriodRevision",
+          "asOfDate",
+          "legalEntityKey",
+          "periodLedgerReviewed",
+          "evidenceReference"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "engagementId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedPeriodRevision": {
+            "type": "string"
+          },
+          "asOfDate": {
+            "type": "string"
+          },
+          "legalEntityKey": {
+            "type": "string"
+          },
+          "periodLedgerReviewed": {
+            "type": "boolean"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "reviewBasis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewed": {
+            "type": "boolean",
+            "default": false
+          },
+          "allowActivityOnly": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "NativeTrialBalanceSourcePreview": {
+        "required": [
+          "reviewBasis",
+          "sourceIdentityHash",
+          "manifestHash",
+          "generatedRowsHash",
+          "rowCount",
+          "bookScope",
+          "activityOnly",
+          "currency",
+          "postingSequence",
+          "trialBalance"
+        ],
+        "type": "object",
+        "properties": {
+          "reviewBasis": {
+            "type": "string"
+          },
+          "sourceIdentityHash": {
+            "type": "string"
+          },
+          "manifestHash": {
+            "type": "string"
+          },
+          "generatedRowsHash": {
+            "type": "string"
+          },
+          "rowCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "bookScope": {
+            "type": "string"
+          },
+          "activityOnly": {
+            "type": "boolean"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "postingSequence": {
+            "type": "string"
+          },
+          "trialBalance": {
+            "$ref": "#/components/schemas/ClientOperationalTrialBalanceView"
+          }
+        }
+      },
+      "NativeTrialBalanceSourceView": {
+        "required": [
+          "datasetId",
+          "clientId",
+          "engagementId",
+          "periodId",
+          "asOfDate",
+          "legalEntityKey",
+          "bookScope",
+          "sourceKind",
+          "activityOnly",
+          "rowCount",
+          "sourceIdentityHash",
+          "manifestHash",
+          "generatedRowsHash",
+          "validationStatus",
+          "isCurrent",
+          "currentnessBlocker",
+          "capturedByUserId",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "datasetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "engagementId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "asOfDate": {
+            "type": "string"
+          },
+          "legalEntityKey": {
+            "type": "string"
+          },
+          "bookScope": {
+            "type": "string"
+          },
+          "sourceKind": {
+            "type": "string"
+          },
+          "activityOnly": {
+            "type": "boolean"
+          },
+          "rowCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "sourceIdentityHash": {
+            "type": "string"
+          },
+          "manifestHash": {
+            "type": "string"
+          },
+          "generatedRowsHash": {
+            "type": "string"
+          },
+          "validationStatus": {
+            "type": "string"
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "currentnessBlocker": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "capturedByUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "NoteLineInput": {
         "required": [
           "noteCode",
@@ -139485,6 +140288,15 @@
               "string"
             ],
             "format": "int64"
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "currentnessBlocker": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -146337,6 +147149,42 @@
               },
               {
                 "$ref": "#/components/schemas/MilestonePlanView"
+              }
+            ]
+          }
+        }
+      },
+      "UiValueResponseOfNativeTrialBalanceSourcePreview": {
+        "required": [
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NativeTrialBalanceSourcePreview"
+              }
+            ]
+          }
+        }
+      },
+      "UiValueResponseOfNativeTrialBalanceSourceView": {
+        "required": [
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NativeTrialBalanceSourceView"
               }
             ]
           }

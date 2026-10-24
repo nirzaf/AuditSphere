@@ -129,6 +129,9 @@ public static class AdjustmentPlanService
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
+    var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, dataset, ct);
+    if (!nativeSource.Succeeded) return CommandResult<Guid>.Fail(nativeSource.ErrorCode!, nativeSource.Message!);
+
     foreach (var line in lines)
     {
       var posted = await db.AdjustmentJournals.AsNoTracking().AnyAsync(j =>
@@ -209,6 +212,9 @@ public static class AdjustmentPlanService
       .SingleOrDefaultAsync(d => d.Id == plan.BaseDatasetId, ct);
     if (dataset is null || dataset.ValidationStatus != "Accepted")
       return CommandResult<FinalizedPlan>.Fail(ErrorCodes.GateBlocked, "The base dataset is not validated.");
+
+    var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, dataset, ct);
+    if (!nativeSource.Succeeded) return CommandResult<FinalizedPlan>.Fail(nativeSource.ErrorCode!, nativeSource.Message!);
 
     var lines = await db.AdjustmentPlanLines.AsNoTracking()
       .Where(l => l.PlanId == plan.Id).ToListAsync(ct);

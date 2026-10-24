@@ -20,7 +20,11 @@ public sealed record AcceptSourceRevisionRequest(
 
 public sealed record SelectedSourceDto(
   Guid DecisionId, string SourceKind, Guid? TrialBalanceDatasetId, Guid? ImportBatchId,
-  string SourceIdentityHash, Guid AcceptedByUserId, DateTimeOffset AcceptedAt, long InputGeneration);
+  string SourceIdentityHash, Guid AcceptedByUserId, DateTimeOffset AcceptedAt, long InputGeneration)
+{
+  public bool IsCurrent { get; init; } = true;
+  public string? CurrentnessBlocker { get; init; }
+}
 
 public static class AccountingSourceAcceptanceService
 {
@@ -69,12 +73,14 @@ public static class AccountingSourceAcceptanceService
       {
         var dataset = await db.TrialBalanceDatasets.FromSqlInterpolated($"SELECT * FROM trial_balance_datasets WHERE firm_id = {actor.FirmId} AND id = {datasetId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(x =>
           x.Id == datasetId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
-          x.EngagementId == request.EngagementId && x.SourceKind == "Raw" &&
+          x.EngagementId == request.EngagementId && (x.SourceKind == "Raw" || x.SourceKind == NativeTrialBalanceSourceWorkspace.SourceKind) &&
           x.ImportState == TrialBalanceImportStates.Sealed && x.ValidationStatus == "Accepted" && x.Balanced, ct);
         if (dataset is null)
           return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
             "Only an accepted, sealed trial-balance revision can be accepted as the reporting source.");
-        sourceHash = dataset.NormalizedDatasetDigest.Length == 64 ? dataset.NormalizedDatasetDigest : dataset.Sha256Hex;
+        var native = await NativeTrialBalanceSourceWorkspace.CheckCurrentAsync(db, dataset, ct);
+        if (!native.Succeeded) return CommandResult<Guid>.Fail(native.ErrorCode!, native.Message!);
+        sourceHash = MappedTrialBalanceSource.Digest(dataset);
         importer = dataset.ImportedByUserId; periodId = dataset.PeriodId;
         if (await db.SourceAcceptanceDecisions.AsNoTracking().AnyAsync(x =>
               x.FirmId == actor.FirmId && x.TrialBalanceDatasetId == datasetId && x.Decision == "ACCEPTED", ct))
@@ -137,6 +143,13 @@ public static class AccountingSourceAcceptanceService
         return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The source, selected pointer or authority changed. Refresh and review again.");
     }
 
+    if (request.TrialBalanceDatasetId is { } nativeDatasetId)
+    {
+      var currentDataset = await db.TrialBalanceDatasets.AsNoTracking().SingleAsync(x => x.Id == nativeDatasetId && x.FirmId == actor.FirmId, ct);
+      var native = await NativeTrialBalanceSourceWorkspace.CheckCurrentAsync(db, currentDataset, ct);
+      if (!native.Succeeded) return CommandResult<Guid>.Fail(native.ErrorCode!, native.Message!);
+    }
+
     var decision = new SourceAcceptanceDecision
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId,
@@ -186,9 +199,7 @@ public static class AccountingSourceAcceptanceService
       new AuthorizationRequest(actor.FirmId, clientId, engagementId, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<SelectedSourceDto?>.Fail(auth.ErrorCode!, auth.Message!);
     if (generation is null) return CommandResult<SelectedSourceDto?>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    return CommandResult<SelectedSourceDto?>.Ok(new SelectedSourceDto(
-      decision.Id, decision.SourceKind, decision.TrialBalanceDatasetId, decision.ImportBatchId,
-      decision.SourceIdentityHash, decision.AcceptedByUserId, decision.CreatedAt, generation.Value));
+    return CommandResult<SelectedSourceDto?>.Ok(await ProjectSelectedAsync(db, decision, generation.Value, ct));
   }
 
   /// <summary>
@@ -217,8 +228,7 @@ public static class AccountingSourceAcceptanceService
       .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct);
     if (generation is null)
       return CommandResult<SelectedSourceDto?>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    return CommandResult<SelectedSourceDto?>.Ok(new SelectedSourceDto(decision.Id, decision.SourceKind, decision.TrialBalanceDatasetId,
-      decision.ImportBatchId, decision.SourceIdentityHash, decision.AcceptedByUserId, decision.CreatedAt, generation.Value));
+    return CommandResult<SelectedSourceDto?>.Ok(await ProjectSelectedAsync(db, decision, generation.Value, ct));
   }
 
   /// <summary>
@@ -257,8 +267,19 @@ public static class AccountingSourceAcceptanceService
       new AuthorizationRequest(actor.FirmId, clientId, engagementId, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<SelectedSourceDto?>.Fail(auth.ErrorCode!, auth.Message!);
     if (generation is null) return CommandResult<SelectedSourceDto?>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    return CommandResult<SelectedSourceDto?>.Ok(new SelectedSourceDto(
-      decision.Id, decision.SourceKind, decision.TrialBalanceDatasetId, decision.ImportBatchId,
-      decision.SourceIdentityHash, decision.AcceptedByUserId, decision.CreatedAt, generation.Value));
+    return CommandResult<SelectedSourceDto?>.Ok(await ProjectSelectedAsync(db, decision, generation.Value, ct));
   }
+  private static async Task<SelectedSourceDto> ProjectSelectedAsync(IClientAccountingDbContext db,
+    SourceAcceptanceDecision decision, long generation, CancellationToken ct)
+  {
+    var selected = new SelectedSourceDto(decision.Id, decision.SourceKind, decision.TrialBalanceDatasetId,
+      decision.ImportBatchId, decision.SourceIdentityHash, decision.AcceptedByUserId, decision.CreatedAt, generation);
+    if (decision.TrialBalanceDatasetId is not { } id) return selected;
+    var source = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == decision.FirmId, ct);
+    if (source is null || source.SourceKind != NativeTrialBalanceSourceWorkspace.SourceKind) return selected;
+    var current = await NativeTrialBalanceSourceWorkspace.CheckCurrentAsync(db, source, ct);
+    return selected with { IsCurrent = current.Succeeded && source.Sha256Hex == decision.SourceIdentityHash,
+      CurrentnessBlocker = !current.Succeeded ? current.Message : source.Sha256Hex != decision.SourceIdentityHash ? "The accepted native source identity differs." : null };
+  }
+
 }

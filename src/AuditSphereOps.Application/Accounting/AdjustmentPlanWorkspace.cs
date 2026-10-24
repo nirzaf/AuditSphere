@@ -84,7 +84,9 @@ public static partial class AdjustmentPlanWorkspace
     var safety = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(c => c.Id == plan.ClientId && c.FirmId == actor.FirmId, ct);
     var frozen = await db.EngagementFileFreezes.AnyAsync(f => f.EngagementId == plan.EngagementId && f.FirmId == actor.FirmId && f.State == "FROZEN", ct);
     var blockers = new List<string>();
-    if (source.SourceKind != "Raw" || source.ImportState != TrialBalanceImportStates.Sealed || source.ValidationStatus != "Accepted" || !source.Balanced || source.ControlTotal != 0m || !SourceAcceptanceWorkspace.ValidHash(MappedTrialBalanceSource.Digest(source)))
+    var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, source, ct);
+    if (!nativeSource.Succeeded) blockers.Add(nativeSource.Message!);
+    if (!NativeTrialBalanceSourceWorkspace.IsBaseSource(source) || source.ImportState != TrialBalanceImportStates.Sealed || source.ValidationStatus != "Accepted" || !source.Balanced || source.ControlTotal != 0m || !SourceAcceptanceWorkspace.ValidHash(MappedTrialBalanceSource.Digest(source)))
       blockers.Add("The exact raw source must be sealed, balanced and validated.");
     if (period is null || period.Currency != source.Currency || !string.Equals(period.Basis, source.Basis, StringComparison.OrdinalIgnoreCase))
       blockers.Add("The exact source period, basis and currency are unbound or inconsistent.");

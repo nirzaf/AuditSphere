@@ -24750,6 +24750,22 @@
         "limits": "Precedingf93 excludes direct-confirmation fix overlay. Final combined source needs its own CI; no current full pass."
       },
       "previousDiscoverySource": "d210d301dd98590ab0ce6606b0336f3d448726b6"
+    },
+    "targetedVerification.autonomousCompletion20261022.mailEvidenceRecovery20261024Snapshot": {
+      "status": "PARTIAL_FOCUSED_PASS",
+      "base": "2406ec94 + tenant.ts/spec overlay, hashes in evidence",
+      "evidence": ".local/autonomous/evidence/ci-continuation-20261023/mail-recovery",
+      "checks": "Final Angular9PASS; build/lintPASS; independent Python length-prefixed SHA256 vector MATCH unchanged backend. Parent corrected a test vector so disabled/stale/unavailable states are the sole rejection reason; current matching control then recovers without POST.",
+      "behavior": "Same-session exact-envelope GET recovery, acknowledged ID check, enabled/VERIFIED/nonstale gate, failed reads hide old protected state with visible generic notice; unknown does not re-POST. Public files/digest remain memory-only.",
+      "limits": "No browser/API integration or live provider workflow for this UI change. Reload loses in-memory pending identity; broader recovery and operator issuer/readiness remain open. Existing unrelated commercial/settings.scss style-budget warning remains. Exact combined full CI pending."
+    },
+    "targetedVerification.autonomousCompletion20261022.mailRoleEvidenceGuard20261024Snapshot": {
+      "status": "PARTIAL",
+      "base": "08a19bf2fee87d7de5284a535ff60435888cfb37",
+      "evidence": ".local/autonomous/evidence/wu022-mail-runtime-final",
+      "checks": "Mail41PASS + final3authorityPASS; Workercompiled. CMS/source/model/token pins, latestfirmtenant/consent, suspended/blocked and postIO guards; no token/Graph ondeny. ComposeexamplePASS; committedsourceWU02432PASS. Rawproof/sourcehashes retained.",
+      "remaining": "Signedreceipt enrollment/import, APIpersistedreadiness, migration and live sender/control acceptance.",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.mailRoleEvidenceGuard"
     }
   },
   "archivedTargetedVerification": {
@@ -24934,5 +24950,5 @@
       "archiveRef": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAcceptanceBatch"
     }
   },
-  "lastUpdatedOn": "2026-10-23"
+  "lastUpdatedOn": "2026-10-24"
 }

@@ -96,6 +96,9 @@ public static partial class FinancialStatementService
       }
     }
 
+    var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, dataset, ct);
+    if (!nativeSource.Succeeded) return CommandResult<Guid>.Fail(nativeSource.ErrorCode!, nativeSource.Message!);
+
     var version = (await db.MappingVersions
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == dataset.EngagementId)
       .Select(x => (long?)x.Version).MaxAsync(ct) ?? 0) + 1;
@@ -204,6 +207,8 @@ public static partial class FinancialStatementService
     if (dataset is null || dataset.ClientId != mapping.ClientId || dataset.EngagementId != mapping.EngagementId ||
         dataset.ValidationStatus != "Accepted" || !dataset.Balanced || dataset.ControlTotal != 0m)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The mapping dataset is no longer eligible.");
+    var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, dataset, ct);
+    if (!nativeSource.Succeeded) return CommandResult.Fail(nativeSource.ErrorCode!, nativeSource.Message!);
     if (mapping.ClientChartVersionId is { } chartVersionId && db is IClientAccountingDbContext typedCharts)
     {
       var chart = await typedCharts.ClientChartVersions.AsNoTracking().SingleOrDefaultAsync(x =>
