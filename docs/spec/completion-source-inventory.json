@@ -77,7 +77,19 @@
       "observed": "EF source retains19,6 amount precision; firm/client alternate and foreign keys; actor/command uniqueness; Restrict deletes; positive amount and source/hash checks. CreatedAt is retained history, not an economic effective date.",
       "migrationDecision": "NO_NEW_MIGRATION_PROPOSED; no accepted schema mismatch evidenced by this read. Task12 economic-date policy remains required before a semantic change.",
       "deployedSchema": "BLOCKED_EXTERNAL: approved target identity/catalog/history not supplied; no database connection or update performed",
-      "remaining": "Final effective SQL/trigger replacement trace, isolated schema guard and target catalog comparison remain verification work."
+      "remaining": "Approved target catalog/history and required upgrade/custody acceptance remain external; no migration generated.",
+      "effectiveChain": [
+        {
+          "migration": "20261007144624_ClientOpenItemAllocations",
+          "effect": "Creates initial allocation tables/function/deferred completion and immutability triggers; line targets sales/purchase invoices."
+        },
+        {
+          "migration": "20261008110000_ClientOpeningItemAllocations",
+          "effect": "Replaces final check function and recreates guards; adds approved opening AR/AP items and refuses Down when those allocations exist."
+        }
+      ],
+      "laterReplacementSearch": "No later authored migration replacement found by read-only sidecar; snapshot/configuration opening targets and19,6 scoped constraints align. SQL trigger state is not represented by EF snapshot.",
+      "isolatedVerification": "Existing CurrentSettlementSchemaRetainsItsGuardAndPermanentFreezeBlocksDowngrade extended to inspect final opening-item function plus three enabled deferred and three immutable UPDATE/DELETE triggers; PASS in targeted4case cohort. Not a deployed catalog observation."
     }
   }
 }

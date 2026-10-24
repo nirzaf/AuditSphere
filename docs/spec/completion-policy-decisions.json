@@ -401,6 +401,20 @@
         "WU-040"
       ],
       "consequence": "Engineering can reach ENGINEERING_COMPLETE_WITH_EXTERNAL_GATES; PRODUCT_COMPLETE needs this."
+    },
+    {
+      "decisionId": "POLICY-CLIENT-INVOICE-ISSUANCE",
+      "title": "Selected native client invoice issuance profile, numbering series, content and cancellation/reissue rules",
+      "ownerRole": "Qualified accounting owner / client-authorized legal or tax reviewer",
+      "scope": "ASCP Task13 official client invoice issuance, conditional on approved service profile; not firm fee invoices",
+      "effectiveFrom": null,
+      "evidenceReference": "docs/architecture/auditsphere-architecture-code-map.md (Client sales invoice preparation and posting)",
+      "status": "PENDING",
+      "dependentWorkUnits": [],
+      "consequence": "Existing independently reviewed client invoice posting remains supported; CLIENT-SALES journal numbers are not official invoices. No numbering policy, tax treatment, issued bytes or delivery is invented. Resolve required profile and policy before claiming issue/delivery completion.",
+      "dependentSpecificationTasks": [
+        "ASCP-13"
+      ]
     }
   ],
   "serviceProfiles": [

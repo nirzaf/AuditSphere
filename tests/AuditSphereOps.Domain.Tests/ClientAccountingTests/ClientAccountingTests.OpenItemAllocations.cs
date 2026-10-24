@@ -26,6 +26,30 @@ public sealed partial class ClientAccountingTests
     Assert.Contains("client_manual_settlement_origins", guard, StringComparison.Ordinal);
     Assert.Contains("client_purchase_invoice_submissions", guard, StringComparison.Ordinal);
 
+    // The opening-item migration replaces the original allocation function and reinstalls its guards.
+    // Inspect the effective installed objects, not only the EF snapshot or the generic posting guard.
+    var allocationGuard = await db.Database.SqlQuery<string>($"SELECT pg_get_functiondef('check_client_open_item_allocation(uuid)'::regprocedure) AS \"Value\"").SingleAsync();
+    Assert.Contains("OPENING_AR_INVOICE", allocationGuard, StringComparison.Ordinal);
+    Assert.Contains("OPENING_AP_INVOICE", allocationGuard, StringComparison.Ordinal);
+    var deferredGuards = await db.Database.SqlQuery<int>($"""
+      SELECT count(*)::int AS "Value" FROM pg_trigger
+      WHERE tgrelid IN ('client_open_item_allocation_submissions'::regclass,
+        'client_open_item_allocation_lines'::regclass, 'client_open_item_allocation_decisions'::regclass)
+        AND tgname IN ('client_open_item_allocation_submission_complete',
+          'client_open_item_allocation_line_complete', 'client_open_item_allocation_decision_complete')
+        AND tgdeferrable AND tginitdeferred AND tgenabled='O'
+      """).SingleAsync();
+    Assert.Equal(3, deferredGuards);
+    var immutableGuards = await db.Database.SqlQuery<int>($"""
+      SELECT count(*)::int AS "Value" FROM pg_trigger
+      WHERE tgrelid IN ('client_open_item_allocation_submissions'::regclass,
+        'client_open_item_allocation_lines'::regclass, 'client_open_item_allocation_decisions'::regclass)
+        AND tgname IN ('immutable_client_open_item_allocation_submission',
+          'immutable_client_open_item_allocation_line', 'immutable_client_open_item_allocation_decision')
+        AND (tgtype & 24)=24 AND tgenabled='O'
+      """).SingleAsync();
+    Assert.Equal(3, immutableGuards);
+
     var freezeIndex = Array.FindIndex(migrations, x => x.EndsWith("_PermanentFileFreeze", StringComparison.Ordinal));
     Assert.True(freezeIndex > 0);
     var refusal = await Assert.ThrowsAsync<PostgresException>(() =>
