@@ -1077,7 +1077,7 @@
       "status": "PARTIAL; tasks01-03 have bounded engineering deltas; remaining task dispositions/evidence retained. Functional, exact-source full CI, professional/live acceptance remain open.",
       "source": "d210d301dd98590ab0ce6606b0336f3d448726b6",
       "history": "status-archive-2026-10.json#keys.ascpSpecDiscovery20261024",
-      "custodyTargetGate": "POLICY-INDEPENDENT-CHECKPOINT-CUSTODY added as PENDING in completion-policy-decisions.json (ASCP-28). ADR-0009 authority/secondary-copy choice does not specify an independent live checkpoint target, trust/retention or recovery contract. No provider or permissions chosen.",
+      "custodyTargetGate": "PENDING POLICY-INDEPENDENT-CHECKPOINT-CUSTODY (ASCP28); ADR0009 secondary-copy choice supplies no independent trust/retention/recovery contract. See completion-policy-decisions.json.",
       "expenseLedgerReferences": {
         "source": "05b054fdcbbfb44ee2901209d7995c7f78a57bb1 plus scoped-FK model/migration/test overlay",
         "status": "PASS_LOCAL_FOCUSED; CURRENT_FULL_CI_PENDING",
@@ -1086,16 +1086,15 @@
         "migration": "20261024014728_FirmExpenseJournalPostingFirmScope; isolated testDB applied only, no deployed history/data preflight",
         "implementationCommit": "91aa0b2b19ca5f6814b789c30a9896d2e05e6fe2"
       },
-      "administrationAtomicTrace": "25source-backed4.2 child criteria; no functional promotion. Details: status-archive-2026-10.json#keys.administrationAtomicTrace20261024.",
       "latestExactCi": {
         "candidate": "a9a93692e73671470131aa807b12f526034445e1",
         "runId": 40055833218,
         "sourceMatch": "MATCH",
         "status": "RUNNING",
         "fullPass": false,
-        "passed": "Angular",
-        "pending": "Domain/API/E2E/build-contracts-publication",
-        "limits": "Exact a9 source includes both scope migrations and57readguards; no full current pass or deployed acceptance claimed."
+        "passed": "Angular/Domain/build-contracts-publication",
+        "pending": "API/E2E",
+        "limits": "Exacta9 source excludes new test-only portal overlay; no full current pass or deployed acceptance claimed."
       },
       "clientContactReadScope": {
         "status": "PASS_LOCAL_FOCUSED; FULL_CI_PENDING",
@@ -1114,7 +1113,9 @@
       },
       "workflowInvariantTrace": "27 workflow/invariant children plus lifecycle scenario aliases; source-only. PriorWU/parity/R2R finding-level reconciliation remains partial. Archive: status-archive-2026-10.json#keys.workflowInvariantTrace20261024.",
       "criticalGateFollowup": "Historical focused evidence preserved: status-archive-2026-10.json#keys.ascpCriticalAcceptancePointer20261024; no current-CI promotion.",
-      "inheritedParityCrosswalk": "All51 independentPARITY rows source-hashed;13subjectmapped/8partial/30unmapped, no functional promotion. Details: status-archive-2026-10.json#keys.inheritedParityCrosswalk20261024."
+      "inheritedParityCrosswalk": "All51 independentPARITY rows source-hashed;13subjectmapped/8partial/30unmapped, no functional promotion. Details: status-archive-2026-10.json#keys.inheritedParityCrosswalk20261024.",
+      "portalInternalRiskBoundary": "PASS_FOCUSED_API2; real internal evidence excluded from client reads and internal routes403, including strayPartner grant. Counterfactual detects guard loss. Archive: status-archive-2026-10.json#keys.portalInternalRiskBoundary20261024.",
+      "reportingContextReview": "ASCP04 unified activation UNVERIFIED/BLOCKED_DEPENDENCY; existing producers reused. Six recipe clauses traced in manifest.specificationTaskReconciliation.ASCP-04; no Task04 completion claim."
     },
     "archivedOn20261024": {
       "entries": [

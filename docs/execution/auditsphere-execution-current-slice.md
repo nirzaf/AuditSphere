@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Portal internal-risk boundary and context prerequisites (2026-10-24)
+
+The existing portal API test now retains actual internal checklist evidence and proves permitted client reads omit it, while internal risk routes refuse client identities even with a stray internal grant. The authorized staff control still receives the evidence. Removing only the shared internal-only guard makes the regression fail; exact source restoration and the affected API cohort pass. Production behavior is unchanged; broader rendered/download/export acceptance remains open. Reporting-context review separately identifies existing reusable producers without asserting the requested unified activation exists: that contract remains unverified behind its explicit reviewed prerequisites. Exact evidence is in `status.json` and the requirement manifest.
+
 ## Contact routing stored-owner boundary (2026-10-24)
 
 Routing reads now require the joined contact to match the route's firm and client. A restrictive composite foreign key prevents persisted cross-client or cross-firm contact associations. A focused real-database regression reproduced sibling-contact exposure on the earlier schema, then passed with defensive reads; valid same-client routing and existing current-authority checks remain supported. The additive migration refuses invalid historical associations without repairing or deleting evidence. Release compilation and EF model drift checks passed; deployment data preflight and exact-source full CI remain open. See `status.json` for source and verification records.
@@ -319,9 +323,7 @@ ASPM-CRM-02 remains PARTIAL: the product has no established client archival life
 
 ## QAR 20,000 commercial fee acceptance fixture (2026-10-18)
 
-The existing PostgreSQL commercial-cycle regression now uses the commissioned QAR 20,000 audit-fee example: the approved agreement creates QAR 10,000 advance and balance obligations; a QAR 4,000 allocation leaves QAR 6,000 outstanding and `AdvanceCurrentlyPaidAsync` false; a separate QAR 6,000 allocation clears the advance gate. It continues through finance review/posting, exact-offer acceptance, idempotent payment references, partial balance settlement, reversal/recovery, and retained receipts/vouchers. This is a focused service/database acceptance check, not browser acceptance of activation or full product completion.
-
-Focused verification: `dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach'` passed 1/1 on source commit `954a623f799b0871afc85937d43267726d74ee7c`. The QAR 20,000 / 4,000 / 6,000 fixture therefore corrects the amount assertion that failed in old full run `39117606930` on `9f15c482`. Fast CI run `39119098499` failed on the missing `effectiveStatus` OpenAPI schema; `9fad72d0` regenerated it, and fast runs `39119821556` and `39120222007` passed on `9fad72d0` and `1f4e5430`. The older full release Domain job recorded 1,368 passed and two failed; I cancelled the stale run before its API and Playwright E2E jobs completed. Detailed evidence is archived at [`status-archive-2026-10.json`](status-archive-2026-10.json#keys.targetedVerification.aspmCom03QarAcceptance20261018).
+Retained source-bound evidence and limits are in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#qar-20000-commercial-fee-acceptance-fixture-2026-10-18).
 
 ## Retained lead action history (2026-10-18)
 

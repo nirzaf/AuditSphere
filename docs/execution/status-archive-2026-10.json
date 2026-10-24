@@ -24503,7 +24503,9 @@
     "ascpEarlierOwnerTests20261024": {
       "ownerTests": "Existing owner tests PASS locally on a09ca4cb (Release): CommercialWorkflowTests 44/44 (tasks 05/06); MaterialityPracticalRoundingTests, EngagementWorkflowPlanTests, AnnualEngagementPreparationTests, PbcWorkflowTaskTests 25/25 (tasks 07-09). No defect found; tasks stay VERIFY_ONLY pending CI journeys. Tasks 10-23 owner cohort PASS 235/235 on c01fc877 (ClientAccounting, FinancialStatement, FinancialPackageGate, Consolidation, AuditConfirmationCommandIsolation, AuditDeliverables, PracticeTime, FirmOperations, SourceManifest). Fast CI c01fc877 success. No defect found; acceptance still needs CI journeys and professional gates.",
       "focused": "FirmPortalLogoSettingsApiTests 4 PASS (new 8-route scope-denial 403 regression); full suites and OpenAPI drift deferred to CI",
-      "pr50Continuation": "Task02 final allocation guards locally verified; Task25 unsigned operator preparer locally verified; Task13 issuance policy gate explicit. Whole specification remains partial; exact-current CI/signing/live/human acceptance pending. Details in archive.pr50EngineeringContinuation."
+      "pr50Continuation": "Task02 final allocation guards locally verified; Task25 unsigned operator preparer locally verified; Task13 issuance policy gate explicit. Whole specification remains partial; exact-current CI/signing/live/human acceptance pending. Details in archive.pr50EngineeringContinuation.",
+      "administrationAtomicTrace": "25source-backed4.2 child criteria; no functional promotion. Details: status-archive-2026-10.json#keys.administrationAtomicTrace20261024.",
+      "custodyTargetGate": "POLICY-INDEPENDENT-CHECKPOINT-CUSTODY added as PENDING in completion-policy-decisions.json (ASCP-28). ADR-0009 authority/secondary-copy choice does not specify an independent live checkpoint target, trust/retention or recovery contract. No provider or permissions chosen."
     },
     "clientRoutingOwnerScope20261024": {
       "status": "PASS_LOCAL_FOCUSED; CURRENT_FULL_CI_REQUIRED",
@@ -24541,6 +24543,47 @@
       "status": "SOURCE_ALIAS_ONLY; FINDING_LEVEL_RECONCILIATION_PENDING",
       "checks": "All51originaltracker row hashes, requirement/disposition text and referenced existing ACCREQ parentIDs verified. Subject associations13MAPPED/8PARTIAL/30UNMAPPED; all51ASCPaliases remain unassigned without explicit mapping. Distinct financial domains/namespaces retained. No code/test/API/browser revalidation performed or new defect proven by read-only3document sidecar.",
       "limits": "Historical tracker VERIFIED/FASTCI clauses are retained, not elevated to current acceptance. Current code candidatea9 exactfull40055833218 is tracked separately. Finding-level WU/parity/R2R/ASCP reconciliation still partial."
+    },
+    "portalInternalRiskBoundary20261024": {
+      "source": "583b4a2d3a21c2d944dd2188d46c933f8cfea18b + UiPortalContractTests-only overlay; production source a9a93692 unchanged",
+      "status": "PASS_LOCAL_FOCUSED; CURRENT_CI_REQUIRED",
+      "criterion": "ACCREQ6.7 client internal AML/KYC structured-read exclusion; ASCP07/27 subset",
+      "test": "UiPortalContractTests.PortalContracts_RequireCurrentParticipantAndCsrf_AndNeverReturnCapabilityInReads",
+      "proof": "Actual retained KYC-question and AML-specialist evidence markers visible in typed questions/clearances to client-wide authorized staff; five permitted portal responses200 omit it. Same-client acceptance/assessment/route endpoints403/scope.denied before/after malformed stored Partner CLIENT grant on Client identity. Original PBC/session/XSRF/upload-capability/delegation denials retained.",
+      "counterfactual": "Only centralized InternalOnly identity guard removed in temporary local experiment: same test fails expected403/actual200. Guard bytes restored exactly in finally and final correct-source API build/cohort2PASS/0FAIL/0SKIP. This is test-value proof, not a defect in the original guard.",
+      "fixtureCorrections": "Initial two runs correctly refused engagement-only staff control and lacked question-bank projection. Added explicit synthetic client-wide Staff grant and existing QuestionnaireSeed bank; positive evidence marker assertion retained, no production guard weakened.",
+      "relatedCase": "PortalReplyReceiptReplaysAfterCloseAndRechecksCurrentParticipantAuthority passes with final2cohort.",
+      "privateEvidence": ".local/autonomous/evidence/portal-internal-risk-boundary-20261024/review.json",
+      "limits": "Isolated authenticated API/PostgreSQL only. Legacy PBC fixture uses its existing onboarding contract; this does not prove paid-advance onboarding, full client browser/persona/download/export, humanAT or live-provider acceptance. No full local suite or live role/permission change.",
+      "finalEvidence": "PortalInternalRiskBothRecordsFinalGreen.trx2PASS/0FAIL/0SKIP; same final test source counterfactual1FAIL403expected/200actual, source exact-restored; no new Fact or production-code change."
+    },
+    "reportingContextTask04Review20261024": {
+      "source": "583b4a2d3a21c2d944dd2188d46c933f8cfea18b",
+      "status": "UNVERIFIED; BLOCKED_DEPENDENCY",
+      "scope": "All6externalTask04recipeclauses traced with23sourceanchors and15existingselectors; source hashes checked, selectors NOT_RUN by sidecar.",
+      "finding": "Exact existing profile/schema/period/book/chart/mapping/TB/package producers and guards are real reuse candidates. They do not establish one complete context manifest/activation/current-successor/consumer contract. Only duplicate producer implementation is skipped; requested activation remains open.",
+      "dependencies": "T003 qualified methodology/independent-review fixtures and explicit reviewed T007/T013 identity/dimension handoffs remain absent. Their NOT_STARTED card state alone is not evidence of missing current producer code. Independent existing guarded workflows continue.",
+      "manifest": "docs/spec/completion-requirement-manifest.json#specificationTaskReconciliation/ASCP-04",
+      "privateEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/reporting-context-task04-review.json",
+      "domainCiAnalogs": {
+        "runId": 40055833218,
+        "source": "a9a93692e73671470131aa807b12f526034445e1",
+        "sourceMatch": "MATCH",
+        "result": "9namedexistingmethods/9casesPASS from DomainTRX; no local rerun",
+        "names": [
+          "ReportingScopeResolver_RequiresExactFirmClientEngagementPeriodAndBook",
+          "GlImport_HoldsCurrentAuthorityThroughSaveAgainstRoleRevocation",
+          "ProfileRevisionReference_ResolvesImmutableHistoryAndLeavesLegacyGapUnbackfilled",
+          "ReviseProfile_SucceedsAndGuardsRevisionConcurrency",
+          "DimensionSchemaDraft_PublishesAndResolvesExactImmutableSuccessorRevisions",
+          "DimensionSchemaRevision_CanonicalDigestIsOrderIndependentAndSnapshotIsImmutable",
+          "DimensionSchemaSelections_RejectUnknownOutOfPeriodDuplicateAndForeignScopes",
+          "MappingApplicability_BindsApprovedClientChartVersion",
+          "MappingPlanAndPackage_AreScopedDeterministicAndReviewGated"
+        ],
+        "privateEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/task04-ci-domain-review.json",
+        "limits": "Analogous producers/scope/currentness/history only; not unified context activation, T007/T013 reviewed handoff, T003 professional decision or full current release."
+      }
     }
   },
   "archivedTargetedVerification": {

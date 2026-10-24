@@ -139,6 +139,7 @@ These are recorded, scoped checks—not current-source full CI or whole-product 
 | ☑ Completed | Consolidation correction lineage/handoff and client unknown-outcome controls | Source-bound handoff checked; broader stale/receipt-recovery browser acceptance remains. |
 | ☑ Completed | Entra registration/certificates, signed Legacy mail receipt enrollment/recovery/readback and runtime gate — focused offline/API/Angular | Issuer tooling, browser acceptance, broader readiness, RBAC, live consent/custody and migration acceptance; role-only evidence rejected. |
 | ☑ Completed | M365 deployment boundaries, selected-site grants, DOCUMENTS probe and readiness inventory — offline | Runtime evidence; DOCUMENTS requires namespace reads and unrelated-site HTTP 403. |
+| ☑ Completed | Internal-risk API read denial for client identities, including stray internal grants | Focused API/database proof; broader rendered, download/export and client-persona acceptance remain. |
 | ☑ Completed | Client reply receipt/navigation recovery | Lost-acknowledgement recovery and owner reauthorization checked; broader portal acceptance remains. Raw reply text is not stored for recovery. |
 | ☑ Completed | Client-site intents/API/CLI, worker guards and managed-only membership reconciliation | Live acceptance; queued is not success and unmanaged/residual access remains visible. |
 | ☑ Completed | Debug hot reload, Vite security patch, CI, bounded scan capture and evidence guards | Prior checkpoints require revalidation. |

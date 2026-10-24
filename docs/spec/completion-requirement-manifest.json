@@ -4469,18 +4469,18 @@
           "sourceTextSha256": "5d8c37816cce0eae8e3c0f1e2dd763fe5f8f756fab0c57978972bcb58c0e8592",
           "expectedOutcome": "Do not expose AML/KYC evidence to Client users.",
           "owner": {
-            "path": null,
-            "symbol": null
+            "path": "src/AuditSphereOps.Application/Security/AuthorizationDecision.cs",
+            "symbol": "AuthorizationDecision.AuthorizeAsync"
           },
           "existingTest": {
-            "path": null,
-            "method": null,
-            "execution": "NOT_RUN; NO_FOCUSED_ANCHOR_ESTABLISHED"
+            "path": "tests/AuditSphereOps.Api.Tests/UiPortalContractTests.cs",
+            "method": "PortalContracts_RequireCurrentParticipantAndCsrf_AndNeverReturnCapabilityInReads",
+            "execution": "PASS_FOCUSED_API_SUBSET; exact source and counterfactual in execution ledger"
           },
-          "disposition": "UNVERIFIED",
+          "disposition": "VERIFY_ONLY",
           "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
-          "acceptance": "VERIFICATION_PENDING",
-          "remaining": "No single client-visibility owner or focused test selector was established in this bounded trace. Literal-marker search was limited to src/AuditSphereOps.Ui/src/app/features/clients and src/AuditSphereOps.Ui/src/app/features/engagements/pbc.ts and found no AML/KYC marker; that limited search is not proof of absence or security acceptance. Keep this requirement unresolved; do not add a new gate from missing anchors."
+          "acceptance": "PARTIAL_LOCAL_VERIFICATION",
+          "remaining": "Existing internal-only guard verified for same-client acceptance/assessment/route reads, including a client identity with malformed stored Partner grant. Five permitted portal read surfaces omit actual retained KYC-question and separate AML-specialist evidence; authorized internal staff sees it. One shared-guard counterfactual fails403expected/200actual; restored-source focused cohort2PASS. This is a real API/isolated PostgreSQL subset, not full client persona/rendered/download/export or provider acceptance. Runtime base a9a93692 plus test overlay on583b4a2d; source-bound evidence in status.json."
         }
       ],
       "traceObservation": {
@@ -7009,5 +7009,596 @@
       }
     },
     "remaining": "Source/test/HTTP/rendered revalidation and exact-current CI/browser acceptance not supplied by catalogue references. No ready technical defect proven by this bounded documentation pass."
+  },
+  "specificationTaskReconciliation": {
+    "ASCP-04": {
+      "specification": {
+        "fileName": "AuditSphere_Atomic_Implementation_Spec.md",
+        "sha256": "48443a258b9c4e12bb8bf4c1fd081734addb4d14a6514599d5b998b87812db9a",
+        "identity": "External four-phase31-task completion specification; not the older51-task parity document with the same filename."
+      },
+      "observedSourceSha": "583b4a2d3a21c2d944dd2188d46c933f8cfea18b",
+      "producerDisposition": "SKIP_DUPLICATE_IMPLEMENTATION",
+      "requestedContextActivation": "UNVERIFIED",
+      "scheduling": "BLOCKED_DEPENDENCY",
+      "reason": "Existing scoped identity/profile/dimension/mapping/source/package producers must be reused. Analogous hashes and pins do not establish the requested complete manifest/activation/current-successor/consumer contract. ExplicitT007/T013 reviewed handoffs and applicableT003 qualified policies remain prerequisites; this does not block independent existing workflows.",
+      "sourceAnchors": {
+        "scope": {
+          "path": "src/AuditSphereOps.Application/Accounting/ReportingScopeResolver.cs",
+          "symbol": "ReportingScopeResolver.ResolveAsync",
+          "line": 24,
+          "fileSha256": "ea94d7da7f1c2848a2f216c6256831f80647e9c8b415de44e512c148b946b9da",
+          "role": "Exact firm/client/engagement/period/book ownership resolution; intentionally not actor authorization."
+        },
+        "authority": {
+          "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Authorization.cs",
+          "symbol": "ClientAccountingService.AuthorizeClientAsync",
+          "line": 14,
+          "fileSha256": "f90134408b14e4dccbc159454e152a0c917570e2960990951ca4f91025bcd639",
+          "role": "Delegates current command/query authorization to existing AuthorizationDecision; no duplicate identity mechanism."
+        },
+        "profile": {
+          "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Profiles.cs",
+          "symbol": "ClientAccountingService.ResolveProfileRevisionAsync",
+          "line": 140,
+          "fileSha256": "b9bbde5d800a1295f76dbdaaebfbf523752a8e9f871fe22be8461aed498b1ddf",
+          "role": "Exact immutable profile revision; missing legacy snapshots fail closed without backfill."
+        },
+        "profile-successor": {
+          "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Profiles.cs",
+          "symbol": "ClientAccountingService.ReviseProfileAsync",
+          "line": 62,
+          "fileSha256": "b9bbde5d800a1295f76dbdaaebfbf523752a8e9f871fe22be8461aed498b1ddf",
+          "role": "Fenced profile head update plus retained immutable revision record; reviewed cutover guard retained."
+        },
+        "dimensions": {
+          "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Dimensions.cs",
+          "symbol": "ClientAccountingService.ResolvePublishedDimensionSchemaRevisionAsync",
+          "line": 260,
+          "fileSha256": "c88ab18f9617952c3b717c65f7879148efa4c5e5e5c54915f2d04ffe29655c9f",
+          "role": "Exact published schema identity/revision/digest resolver; no latest substitution."
+        },
+        "dimension-publish": {
+          "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Dimensions.cs",
+          "symbol": "ClientAccountingService.PublishDimensionSchemaAsync",
+          "line": 158,
+          "fileSha256": "c88ab18f9617952c3b717c65f7879148efa4c5e5e5c54915f2d04ffe29655c9f",
+          "role": "Client-lock publication with exact saved draft/digest/base, independent technical publisher and impact acknowledgement."
+        },
+        "dimension-hash": {
+          "path": "src/AuditSphereOps.Domain/Accounting/ClientAccountingDimensionSchema.cs",
+          "symbol": "ClientAccountingDimensionSchemaRevision.ComputeCanonicalDigest",
+          "line": 420,
+          "fileSha256": "001d6ad73e39a0b5fba0bc14934d005b543ae05399fc68303388de9c965fda40",
+          "role": "Bounded deterministic canonical schema digest, not a whole reporting-context manifest."
+        },
+        "dimension-storage": {
+          "path": "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.ClientAccountingDimensionSchema.cs",
+          "symbol": "AuditSphereDbContext.ConfigureClientAccountingDimensionSchema",
+          "line": 10,
+          "fileSha256": "3824c52470312bb39e2e203f5240de5f67482cc2569a0df76c848bbcd051932e",
+          "role": "Existing scoped keys/FKs, unique revision and successor-reference constraints for the dimension producer only."
+        },
+        "period": {
+          "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Periods.cs",
+          "symbol": "ClientAccountingService.CreatePeriodAsync",
+          "line": 12,
+          "fileSha256": "e26f58ca55b42eb109baf4812d2a369a2924e8732a9476a54f43e37a6ce4fed5",
+          "role": "Existing server-owned scoped period creation."
+        },
+        "book": {
+          "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Books.cs",
+          "symbol": "ClientAccountingService.CreateBookAsync",
+          "line": 11,
+          "fileSha256": "08fb7378b23a4571aa4c4b1fabcb02052beea2e1ebaeade3d204119ed6106727",
+          "role": "Existing server-owned reporting book; null BookId is not an approved no-book decision."
+        },
+        "chart": {
+          "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Charts.cs",
+          "symbol": "ClientAccountingService.GetChartRevisionAccountsAsync",
+          "line": 237,
+          "fileSha256": "2ac24eb530b5d1adfb9cb3543abb2c998d293a878ab3b87592af7e18043e286d",
+          "role": "Existing exact chart-version account read; do not replace with display-name/latest lookup."
+        },
+        "capability": {
+          "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Capabilities.cs",
+          "symbol": "ClientAccountingService.CreateCapabilityProfileAsync",
+          "line": 11,
+          "fileSha256": "766b379a9ae12ffa1fbb1c008a99208c13045d3c1e292736a023f8e11e678063",
+          "role": "Existing service-permissibility and scoped capability setup; string framework/method fields do not prove qualified policy approval."
+        },
+        "capability-acceptance": {
+          "path": "src/AuditSphereOps.Application/Accounting/ClientAccounting/ClientAccountingService.Capabilities.cs",
+          "symbol": "ClientAccountingService.RecordCapabilityAcceptanceAsync",
+          "line": 71,
+          "fileSha256": "766b379a9ae12ffa1fbb1c008a99208c13045d3c1e292736a023f8e11e678063",
+          "role": "Existing separate acceptance-stage records; source is not evidence that any qualified real acceptance occurred."
+        },
+        "mapping-create": {
+          "path": "src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Mapping.cs",
+          "symbol": "FinancialStatementService.CreateMappingVersionCoreAsync",
+          "line": 23,
+          "fileSha256": "def8c3e64a5898a2a595f84bea991e8b1939026292fcee028b3c5ceee8ca948e",
+          "role": "Server-resolves requested approved chart ID in dataset client/effective period; refuses an omitted chart when approved client charts exist."
+        },
+        "mapping-preview": {
+          "path": "src/AuditSphereOps.Application/Accounting/MappingApprovalWorkspace.cs",
+          "symbol": "MappingApprovalWorkspace.GetAsync",
+          "line": 28,
+          "fileSha256": "940233e17b43bc21aa18f599a0d0bd8cc94186edf51dcc4a9776d5cc26f2744e",
+          "role": "Existing guarded review projection hashes current exact source, applicability and authority facts."
+        },
+        "mapping-approval": {
+          "path": "src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Mapping.cs",
+          "symbol": "FinancialStatementService.ApproveMappingAsync",
+          "line": 150,
+          "fileSha256": "def8c3e64a5898a2a595f84bea991e8b1939026292fcee028b3c5ceee8ca948e",
+          "role": "Analogous pinned publication: firm safety -> client safety -> mapping row lock; exact reviewed hash/version and independent reviewer. Not T014 context activation."
+        },
+        "tb-preview": {
+          "path": "src/AuditSphereOps.Application/Accounting/Intake/TrialBalanceUploadWorkspace.cs",
+          "symbol": "TrialBalanceUploadWorkspace.PreviewAsync",
+          "line": 24,
+          "fileSha256": "a042d464ca80f880e50c385ed82021f25041ff4772054008839b684d090755e5",
+          "role": "Existing reviewed source preview against server periods and scoped exact source facts."
+        },
+        "tb-publication": {
+          "path": "src/AuditSphereOps.Application/Accounting/Intake/TrialBalanceUploadWorkspace.cs",
+          "symbol": "TrialBalanceUploadWorkspace.ImportAsync",
+          "line": 62,
+          "fileSha256": "a042d464ca80f880e50c385ed82021f25041ff4772054008839b684d090755e5",
+          "role": "Requires reviewed exact file SHA/review revision, passes period fingerprint to importer and recovers only exact scoped sources; per-period transactions, not whole-batch atomicity."
+        },
+        "tb-context": {
+          "path": "src/AuditSphereOps.Application/Accounting/TrialBalanceImportService.cs",
+          "symbol": "TrialBalanceImportService.ResolveSourceContextAsync",
+          "line": 367,
+          "fileSha256": "309910ab0bd17734b908823d18080b1c88ca1ab5aa10fc8960d27c580b9d1a9d",
+          "role": "Existing exact ownership/basis/currency/period-fingerprint checks; importer rereads under period lock."
+        },
+        "package": {
+          "path": "src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Package.cs",
+          "symbol": "FinancialStatementService.BuildFinancialPackageAsync",
+          "line": 13,
+          "fileSha256": "1461a0786057d53e808e5a9739cdf3a67db91651183b51a9d79f02b4a385c652",
+          "role": "Existing consumer resolves approved mapping/finalized plan and optional bound period/book/basis; persists original source IDs and hash. This is not a unified all-pin context activation."
+        },
+        "package-hash": {
+          "path": "src/AuditSphereOps.Application/Accounting/FinancialStatementCalculator.cs",
+          "symbol": "FinancialStatementCalculator.ComputePackageHash",
+          "line": 53,
+          "fileSha256": "097f76cafc22d9141e2bf577099c082a13d4ec8925d652776f76c156cf018689",
+          "role": "Deterministic consumed mapping/plan/period/book/basis hash; v1 for legacy unbound context and v2 for bound context."
+        },
+        "ui": {
+          "path": "src/AuditSphereOps.Ui/src/app/features/accounting/workspace.ts",
+          "symbol": "AccountingWorkspace",
+          "line": 313,
+          "fileSha256": "674d1386126195177cd5428bf33b99c0541a54b142a409c13574243e41350bfd",
+          "role": "Existing canonical accounting setup screen showing period/book/basis/currency/revisions and bounded reviewed changes."
+        },
+        "api": {
+          "path": "src/AuditSphereOps.Api/Ui/UiEndpoints.Accounting.cs",
+          "symbol": "UiEndpoints.MapAccountingEndpoints",
+          "line": 37,
+          "fileSha256": "377b003365977166d074ba070d44fcf421df25b606a42124c088d77254f8269e",
+          "role": "Existing thin accounting routes for profiles/periods/books; parent owns API edits/build/test outputs."
+        }
+      },
+      "existingTestSelectors": {
+        "scope": {
+          "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.GeneralLedger.cs",
+          "method": "ReportingScopeResolver_RequiresExactFirmClientEngagementPeriodAndBook",
+          "line": 381,
+          "fileSha256": "be644247b42a7af25b3d41c1e1136aacdb1dc849da59907e92fa5dba40778328",
+          "execution": "PASS_IN_EXACT_A9_DOMAIN_CI; not whole-context activation acceptance",
+          "sourceCoverage": "Exact accepted scope and foreign-firm/sibling engagement/period/book denials; resolver is not actor authorization.",
+          "ciRunId": 40055833218,
+          "ciSourceSha": "a9a93692e73671470131aa807b12f526034445e1"
+        },
+        "authority": {
+          "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.GeneralLedger.cs",
+          "method": "GlImport_HoldsCurrentAuthorityThroughSaveAgainstRoleRevocation",
+          "line": 25,
+          "fileSha256": "be644247b42a7af25b3d41c1e1136aacdb1dc849da59907e92fa5dba40778328",
+          "execution": "PASS_IN_EXACT_A9_DOMAIN_CI; not whole-context activation acceptance",
+          "sourceCoverage": "Existing GL command current-authority/save race protection, not T007 task-wide acceptance.",
+          "ciRunId": 40055833218,
+          "ciSourceSha": "a9a93692e73671470131aa807b12f526034445e1"
+        },
+        "profile": {
+          "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.Profiles.cs",
+          "method": "ProfileRevisionReference_ResolvesImmutableHistoryAndLeavesLegacyGapUnbackfilled",
+          "line": 17,
+          "fileSha256": "1b39d9645ec8fdbaa97518cb16cd2fcaf17b28b17680586cc431fd659a0ad823",
+          "execution": "PASS_IN_EXACT_A9_DOMAIN_CI; not whole-context activation acceptance",
+          "sourceCoverage": "Exact historical profile pin and missing legacy snapshot remain distinguishable.",
+          "ciRunId": 40055833218,
+          "ciSourceSha": "a9a93692e73671470131aa807b12f526034445e1"
+        },
+        "profile-baseline": {
+          "path": "tests/AuditSphereOps.Domain.Tests/ProfilesChartsAndConsolidationTests.cs",
+          "method": "ReviseProfile_SucceedsAndGuardsRevisionConcurrency",
+          "line": 25,
+          "fileSha256": "d572f21557fa2504042664b4965cd48f3facfe4de9eaf869e871b98964545cdc",
+          "execution": "PASS_IN_EXACT_A9_DOMAIN_CI; not whole-context activation acceptance",
+          "sourceCoverage": "Requested existing baseline fixture supports profile concurrency only, not all T014 pins.",
+          "ciRunId": 40055833218,
+          "ciSourceSha": "a9a93692e73671470131aa807b12f526034445e1"
+        },
+        "dimensions": {
+          "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.DimensionSchema.cs",
+          "method": "DimensionSchemaDraft_PublishesAndResolvesExactImmutableSuccessorRevisions",
+          "line": 15,
+          "fileSha256": "45a99951fedb5d56f29ca6be661599df0f46360a47b62fba33ecc754d3d5ec4d",
+          "execution": "PASS_IN_EXACT_A9_DOMAIN_CI; not whole-context activation acceptance",
+          "sourceCoverage": "Independent publication, immutable persisted digest, wrong client/digest rejection and exact old/successor resolution.",
+          "ciRunId": 40055833218,
+          "ciSourceSha": "a9a93692e73671470131aa807b12f526034445e1"
+        },
+        "dimension-hash": {
+          "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.DimensionSchema.cs",
+          "method": "DimensionSchemaRevision_CanonicalDigestIsOrderIndependentAndSnapshotIsImmutable",
+          "line": 126,
+          "fileSha256": "45a99951fedb5d56f29ca6be661599df0f46360a47b62fba33ecc754d3d5ec4d",
+          "execution": "PASS_IN_EXACT_A9_DOMAIN_CI; not whole-context activation acceptance",
+          "sourceCoverage": "Producer digest determinism and immutable snapshot.",
+          "ciRunId": 40055833218,
+          "ciSourceSha": "a9a93692e73671470131aa807b12f526034445e1"
+        },
+        "dimension-values": {
+          "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.DimensionSchema.cs",
+          "method": "DimensionSchemaSelections_RejectUnknownOutOfPeriodDuplicateAndForeignScopes",
+          "line": 189,
+          "fileSha256": "45a99951fedb5d56f29ca6be661599df0f46360a47b62fba33ecc754d3d5ec4d",
+          "execution": "PASS_IN_EXACT_A9_DOMAIN_CI; not whole-context activation acceptance",
+          "sourceCoverage": "Exact schema selection constraints; no evidence of all import consumers integrated.",
+          "ciRunId": 40055833218,
+          "ciSourceSha": "a9a93692e73671470131aa807b12f526034445e1"
+        },
+        "chart": {
+          "path": "tests/AuditSphereOps.Domain.Tests/FinancialStatementTests.cs",
+          "method": "MappingApplicability_BindsApprovedClientChartVersion",
+          "line": 471,
+          "fileSha256": "2656ca2293a75d5e81688d96cbfbcaedc9454960cc1065e1d3e0f0509a728672",
+          "execution": "PASS_IN_EXACT_A9_DOMAIN_CI; not whole-context activation acceptance",
+          "sourceCoverage": "Mapping applicability binds an existing approved exact client chart.",
+          "ciRunId": 40055833218,
+          "ciSourceSha": "a9a93692e73671470131aa807b12f526034445e1"
+        },
+        "mapping-publication": {
+          "path": "tests/AuditSphereOps.Api.Tests/MappingApprovalApiTests.cs",
+          "method": "FreshIndependentReviewSerializesConcurrentApprovalAndPreservesAllocations",
+          "line": 19,
+          "fileSha256": "e32986a5f7ed96dc15415e010bd9a50972ad99b0cba8d832449ce017dbaaed5e",
+          "execution": "NOT_RUN_BY_TRACING_SIDECAR",
+          "sourceCoverage": "Current analogous exact reviewed publication/concurrency; unrun, parent owns API verification."
+        },
+        "mapping-stale": {
+          "path": "tests/AuditSphereOps.Api.Tests/MappingApprovalApiTests.cs",
+          "method": "ChangedSourceGenerationTaxonomyChartAndClosedBookRefuseTheReviewedSnapshot",
+          "line": 50,
+          "fileSha256": "e32986a5f7ed96dc15415e010bd9a50972ad99b0cba8d832449ce017dbaaed5e",
+          "execution": "NOT_RUN_BY_TRACING_SIDECAR",
+          "sourceCoverage": "Existing changed-input denial analog; not whole context successor acceptance."
+        },
+        "tb-stale": {
+          "path": "tests/AuditSphereOps.Api.Tests/TrialBalanceUploadApiTests.cs",
+          "method": "WrongFile_ChangedPeriod_Currency_ClosedPeriod_AndUnknownPeriodFailClosed",
+          "line": 34,
+          "fileSha256": "3c0366264fcc7a91de34242efdafb5994fa35b49b87f560ab75bbcb2fe7bc067",
+          "execution": "NOT_RUN_BY_TRACING_SIDECAR",
+          "sourceCoverage": "Existing review/file/period/currency guards in source; not run by this sidecar."
+        },
+        "tb-replay": {
+          "path": "tests/AuditSphereOps.Api.Tests/TrialBalanceUploadApiTests.cs",
+          "method": "ConcurrentDuplicateAndPartialRecovery_ReuseOnlyExactScopedSources",
+          "line": 47,
+          "fileSha256": "3c0366264fcc7a91de34242efdafb5994fa35b49b87f560ab75bbcb2fe7bc067",
+          "execution": "NOT_RUN_BY_TRACING_SIDECAR",
+          "sourceCoverage": "Existing scoped source receipt/replay analog; does not prove a reporting-context request receipt exists."
+        },
+        "package": {
+          "path": "tests/AuditSphereOps.Domain.Tests/FinancialStatementTests.cs",
+          "method": "MappingPlanAndPackage_AreScopedDeterministicAndReviewGated",
+          "line": 115,
+          "fileSha256": "2656ca2293a75d5e81688d96cbfbcaedc9454960cc1065e1d3e0f0509a728672",
+          "execution": "PASS_IN_EXACT_A9_DOMAIN_CI; not whole-context activation acceptance",
+          "sourceCoverage": "Existing package period/book/basis pins, repeat hash and review boundaries; not all ADR-0015 pins.",
+          "ciRunId": 40055833218,
+          "ciSourceSha": "a9a93692e73671470131aa807b12f526034445e1"
+        },
+        "ui": {
+          "path": "src/AuditSphereOps.Ui/src/app/features/accounting/workspace.spec.ts",
+          "method": "binds package selection to the exact reviewed period and currency",
+          "line": 31,
+          "fileSha256": "0e7adb2581f145131afdbbb9cd41c69156b7be8047a89143a03d45dde0055386",
+          "execution": "NOT_RUN_BY_TRACING_SIDECAR",
+          "sourceCoverage": "Current UI period/currency handoff, not a full context activation selector."
+        },
+        "ui-empty": {
+          "path": "src/AuditSphereOps.Ui/src/app/features/accounting/workspace.spec.ts",
+          "method": "accepts bounded scoped clients and missing setup without fabricated defaults",
+          "line": 38,
+          "fileSha256": "0e7adb2581f145131afdbbb9cd41c69156b7be8047a89143a03d45dde0055386",
+          "execution": "NOT_RUN_BY_TRACING_SIDECAR",
+          "sourceCoverage": "Existing explicit missing-setup decoding."
+        }
+      },
+      "prerequisites": [
+        {
+          "id": "T003",
+          "card": "docs/task_breakdown/tasks/00_Baseline/auditsphere-r2r-task-t003-accounting-policies-resource-bounds-golden-fixtures.md",
+          "recordedStatus": "BLOCKED",
+          "requiredEvidence": "Named qualified methodology owner plus independent reviewer for supported framework editions/effective periods, FX sources/methodology, consolidation profiles and all eight GOLD-R2R expected outcomes; policy records and reviewed exact handoff. ADR-0014 arithmetic and ADR-0015 identity do not supply this evidence.",
+          "blocks": "Approval/acceptance of those consumed accounting policy choices; never infer them from synthetic fixtures or capability strings.",
+          "doesNotBlock": "Read-only trace, reuse of existing guarded identity resolvers and preservation of existing approved workflows."
+        },
+        {
+          "id": "T007",
+          "card": "docs/task_breakdown/tasks/02_Shared_Foundation/auditsphere-r2r-task-t007-reporting-scope-actor-shared-identities.md",
+          "recordedStatus": "NOT_STARTED",
+          "cardHardDependencies": [
+            "T006"
+          ],
+          "requiredEvidence": "Completed reviewed shared scoped-identity/current-actor contract handoff, including sibling/foreign scope, revoked/disabled actor/session and group-authority denials. Card reviewer/reviewed_commit/evidence_ref are blank.",
+          "currentSourceEvidence": [
+            "scope",
+            "authority"
+          ],
+          "existingTests": [
+            "scope",
+            "authority"
+          ],
+          "blocks": "New T014 context activation claim under explicit ADR-0015/T014 prerequisites. NOT_STARTED does not prove source functionality absent."
+        },
+        {
+          "id": "T013",
+          "card": "docs/task_breakdown/tasks/03_M20_Setup/auditsphere-r2r-task-t013-multidimensional-accounting-schema-revisions.md",
+          "recordedStatus": "NOT_STARTED",
+          "cardHardDependencies": [
+            "T012"
+          ],
+          "requiredEvidence": "Completed reviewed dimension-schema contract and producer-to-import handoff: unique scoped codes, effective values, retained used revisions, required technical publication/impact acknowledgement. Card reviewer/reviewed_commit/evidence_ref are blank.",
+          "currentSourceEvidence": [
+            "dimensions",
+            "dimension-publish",
+            "dimension-storage"
+          ],
+          "existingTests": [
+            "dimensions",
+            "dimension-values",
+            "dimension-hash"
+          ],
+          "blocks": "New T014 context activation claim until reviewed handoff. Actual immutable schema code/resolver/tests already exist; do not implement a second dimension subsystem."
+        },
+        {
+          "id": "T014",
+          "card": "docs/task_breakdown/tasks/03_M20_Setup/auditsphere-r2r-task-t014-reporting-contexts-module-20-setup.md",
+          "recordedStatus": "NOT_STARTED",
+          "boardAssessment": "PARTIAL",
+          "hardDependencies": [
+            "T007",
+            "T013"
+          ],
+          "requiredEvidence": "Reviewed prerequisites, all-consumed-pin compatible/current/scope validation, exact bind/get/currentness/impact flow, successor preservation and setup-to-import acceptance. Close criteria remain deferred to their owning close tasks.",
+          "interpretation": "Card execution status and board source assessment are different fields; neither supplies observed current acceptance."
+        }
+      ],
+      "recipeRequirements": [
+        {
+          "recipeNumber": 1,
+          "sourceLine": 444,
+          "sourceText": "1. Locate the current dimension-schema revision and shared scoped-identity contracts. If hard prerequisites are not complete, document their exact missing acceptance and keep context activation blocked; independent existing workflows continue under their current guards.",
+          "sourceTextSha256": "437cff85ab9b1e36dcd6528fa83bb1dd5c9400c4dfae790872c4fd1d70fd3786",
+          "currentSourceAnchors": [
+            "scope",
+            "authority",
+            "profile",
+            "dimensions",
+            "dimension-publish"
+          ],
+          "applicableExistingTests": [
+            "scope",
+            "authority",
+            "profile",
+            "dimensions"
+          ],
+          "finding": "Existing exact-scope and immutable producer contracts are real. T007/T013 cards still lack completed reviewed handoffs; their status explicitly does not assert absence of code. ADR-0015 therefore does not authorize claiming new context activation.",
+          "unresolvedContextSpecificOwner": null,
+          "unresolvedAcceptance": "Task-wide T007 current-actor/shared-contract acceptance and T013 reviewed dimension producer-to-import handoff are not established by these selected source anchors or unrun fixtures. T006/T012 predecessor completion is not supplied by the cards.",
+          "blockedBy": [
+            "T007",
+            "T013"
+          ],
+          "engineeringDisposition": "BLOCKED_DEPENDENCY",
+          "implementation": "NARROWER_SOURCES_TRACED_FULL_CONTEXT_UNVERIFIED",
+          "acceptance": "VERIFICATION_PENDING",
+          "producerReuseDisposition": "SKIP_DUPLICATE_IMPLEMENTATION",
+          "fullContextActivationImplementation": "UNVERIFIED"
+        },
+        {
+          "recipeNumber": 2,
+          "sourceLine": 445,
+          "sourceText": "2. Resolve profile, period, book decision, chart, mapping, dimensions, basis, currencies and policy versions from authorized server records. Do not pin a display name, arbitrary client-supplied revision or 'latest' at replay time.",
+          "sourceTextSha256": "7165e04ed6b90d1b5cfeace4757e3301d175656f1165d8aecbd61a5b4ddbe836",
+          "currentSourceAnchors": [
+            "profile",
+            "scope",
+            "period",
+            "book",
+            "chart",
+            "dimensions",
+            "capability",
+            "capability-acceptance",
+            "mapping-create",
+            "package"
+          ],
+          "applicableExistingTests": [
+            "scope",
+            "profile",
+            "dimensions",
+            "chart",
+            "package"
+          ],
+          "finding": "Reuse exact profile revision and published schema resolvers, canonical period/book records, approved chart/mapping and existing capability records. Mapping creation already requires an explicit approved chart when any approved client chart exists; do not claim implicit chart selection is still universally present. The scope resolver explicitly says a null book is not an approved no-book decision.",
+          "unresolvedContextSpecificOwner": null,
+          "unresolvedAcceptance": "No complete authorized all-consumed-pin activation owner was established in this bounded trace. Qualified framework/edition/effective-period, FX and consolidation policy revisions cannot be inferred from capability string fields or acceptance-stage APIs. Omit only genuinely unconsumed pins.",
+          "blockedBy": [
+            "T003",
+            "T007",
+            "T013"
+          ],
+          "engineeringDisposition": "BLOCKED_DEPENDENCY",
+          "implementation": "NARROWER_SOURCES_TRACED_FULL_CONTEXT_UNVERIFIED",
+          "acceptance": "VERIFICATION_PENDING",
+          "producerReuseDisposition": "SKIP_DUPLICATE_IMPLEMENTATION",
+          "fullContextActivationImplementation": "UNVERIFIED"
+        },
+        {
+          "recipeNumber": 3,
+          "sourceLine": 446,
+          "sourceText": "3. Define a canonical bounded manifest and hash. Scope it to firm/client and engagement when consumed; persist only the minimum identity/revision facts needed. Add scoped uniqueness/FKs and append-only/current-successor constraints using an additive migration.",
+          "sourceTextSha256": "9a218b9b5c8983dca201bcb139a9154aa6cc1ed0a8218d2d9957b6ef30ba22cf",
+          "currentSourceAnchors": [
+            "dimension-hash",
+            "dimension-storage",
+            "profile",
+            "package-hash"
+          ],
+          "applicableExistingTests": [
+            "dimension-hash",
+            "dimensions",
+            "profile",
+            "package"
+          ],
+          "finding": "Canonical hashing, scoped lineage constraints and immutable producer snapshots already exist for narrower records. Package v1/v2 hash compatibility is explicit. These are reuse evidence, not proof of a complete persisted context manifest with all required keys/current-successor constraints.",
+          "unresolvedContextSpecificOwner": null,
+          "unresolvedAcceptance": "Whole-context manifest format, authoritative consumed-pin set, exact persistence owner and additive migration acceptance are unresolved until reviewed T007/T013 contracts and applicable policy references are available. No new migration or copied aggregate is proposed here.",
+          "blockedBy": [
+            "T003",
+            "T007",
+            "T013"
+          ],
+          "engineeringDisposition": "BLOCKED_DEPENDENCY",
+          "implementation": "NARROWER_SOURCES_TRACED_FULL_CONTEXT_UNVERIFIED",
+          "acceptance": "VERIFICATION_PENDING",
+          "producerReuseDisposition": "SKIP_DUPLICATE_IMPLEMENTATION",
+          "fullContextActivationImplementation": "UNVERIFIED"
+        },
+        {
+          "recipeNumber": 4,
+          "sourceLine": 447,
+          "sourceText": "4. Publish activation under the established context lock order with current approval checks and idempotent original intent. A changed consumed input creates a successor and invalidates currentness, while historical imports, workpapers and packages retain their original pin.",
+          "sourceTextSha256": "79081bc06f4e9481e3aa2216791591f0b3793f06962d6e50ee111456260aedd7",
+          "currentSourceAnchors": [
+            "dimension-publish",
+            "mapping-preview",
+            "mapping-approval",
+            "tb-preview",
+            "tb-publication",
+            "tb-context",
+            "profile-successor",
+            "package"
+          ],
+          "applicableExistingTests": [
+            "dimensions",
+            "mapping-publication",
+            "mapping-stale",
+            "tb-stale",
+            "tb-replay",
+            "profile",
+            "package"
+          ],
+          "finding": "Actual analogous publication paths were traced, not inferred from filenames: independent exact schema publication; firm/client/mapping-lock reviewed mapping approval; exact reviewed TB file/period publication and scoped retry recovery. Profile/schema successors retain history and packages retain original source pins. None substitutes for the requested complete context activation transaction.",
+          "unresolvedContextSpecificOwner": null,
+          "unresolvedAcceptance": "Context-specific lock owner, idempotent original-intent receipt, all-required-input successor/currentness invalidation and dependent historical pin preservation remain unverified as one end-to-end contract. Existing analog tests must not be relabeled context acceptance.",
+          "blockedBy": [
+            "T003",
+            "T007",
+            "T013"
+          ],
+          "engineeringDisposition": "BLOCKED_DEPENDENCY",
+          "implementation": "NARROWER_SOURCES_TRACED_FULL_CONTEXT_UNVERIFIED",
+          "acceptance": "VERIFICATION_PENDING",
+          "producerReuseDisposition": "SKIP_DUPLICATE_IMPLEMENTATION",
+          "fullContextActivationImplementation": "UNVERIFIED"
+        },
+        {
+          "recipeNumber": 5,
+          "sourceLine": 448,
+          "sourceText": "5. Expose exact basis and stale blockers in the existing UI with an authorized activation preview/review flow. A context is not professional approval; never make absent policy implicitly approved.",
+          "sourceTextSha256": "fce5683a25f6d4f5cf59fac61f05d61046b75ec7a83e9cf599a23e38a059aecb",
+          "currentSourceAnchors": [
+            "ui",
+            "api",
+            "tb-preview",
+            "mapping-preview",
+            "capability-acceptance"
+          ],
+          "applicableExistingTests": [
+            "ui",
+            "ui-empty",
+            "tb-stale",
+            "mapping-stale"
+          ],
+          "finding": "Use the current accounting workspace/API and existing reviewed source/mapping flows. The UI already carries explicit period/basis/currency and missing-setup states. These anchors do not establish a unified context activation preview/review surface.",
+          "unresolvedContextSpecificOwner": null,
+          "unresolvedAcceptance": "Exact full context selector, consumed-policy basis display, context-specific stale blockers and authorized activation review are unresolved; professional acceptance is a separate evidence leaf. No new route, identity subsystem or optimistic approval is justified by this review.",
+          "blockedBy": [
+            "T003",
+            "T007",
+            "T013"
+          ],
+          "engineeringDisposition": "BLOCKED_DEPENDENCY",
+          "implementation": "NARROWER_SOURCES_TRACED_FULL_CONTEXT_UNVERIFIED",
+          "acceptance": "VERIFICATION_PENDING",
+          "producerReuseDisposition": "SKIP_DUPLICATE_IMPLEMENTATION",
+          "fullContextActivationImplementation": "UNVERIFIED"
+        },
+        {
+          "recipeNumber": 6,
+          "sourceLine": 449,
+          "sourceText": "6. Integrate one actual consumer at a time and preserve compatibility for historical records explicitly marked legacy/unbound. Do not backfill a fictional framework or revision.",
+          "sourceTextSha256": "a47cb3cdd6d266a03797e5d7eb6aa9411f03d3c8a485f02567533461f991a81e",
+          "currentSourceAnchors": [
+            "profile",
+            "dimensions",
+            "tb-context",
+            "package",
+            "package-hash"
+          ],
+          "applicableExistingTests": [
+            "profile",
+            "dimensions",
+            "package",
+            "ui"
+          ],
+          "finding": "Integrate one actual consumer only after its authoritative prerequisites. Existing TB import binds period/book/basis and package construction preserves those source IDs; package hashing explicitly preserves legacy v1 and bound v2. The profile resolver explicitly refuses to invent unavailable historical snapshots.",
+          "unresolvedContextSpecificOwner": null,
+          "unresolvedAcceptance": "A whole-context consumer handoff and explicitly classified legacy/unbound context identity remain unverified. Legacy hash compatibility is not itself a new legacy reporting-context classification. Do not backfill a fictional framework, policy approval or revision.",
+          "blockedBy": [
+            "T003",
+            "T007",
+            "T013"
+          ],
+          "engineeringDisposition": "BLOCKED_DEPENDENCY",
+          "implementation": "NARROWER_SOURCES_TRACED_FULL_CONTEXT_UNVERIFIED",
+          "acceptance": "VERIFICATION_PENDING",
+          "producerReuseDisposition": "SKIP_DUPLICATE_IMPLEMENTATION",
+          "fullContextActivationImplementation": "UNVERIFIED"
+        }
+      ],
+      "localVerification": "NOT_RUN_FOR_THIS_RECONCILIATION",
+      "acceptance": "NOT_ACCEPTED",
+      "taskComplete": false,
+      "limits": "Bounded read-only source trace. No duplicate context subsystem, migration, activation, policy or professional approval introduced. Exact source hashes checked; existing selectors were not run here.",
+      "ciEvidence": {
+        "runId": 40055833218,
+        "resolvedSha": "a9a93692e73671470131aa807b12f526034445e1",
+        "sourceMatch": "MATCH",
+        "scope": "Named existing Domain producer/guard analogs PASS from retained TRX; no local rerun, no whole-context/full-release/professional acceptance."
+      }
+    }
   }
 }

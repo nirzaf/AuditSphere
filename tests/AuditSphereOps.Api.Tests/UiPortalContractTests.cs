@@ -4,6 +4,8 @@ using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Domain.Documents;
@@ -43,11 +45,29 @@ public sealed class UiPortalContractTests
   [Fact]
   public async Task PortalContracts_RequireCurrentParticipantAndCsrf_AndNeverReturnCapabilityInReads()
   {
+    const string internalRiskEvidence = "SYNTHETIC-INTERNAL-KYC-AML-EVIDENCE-NOT-FOR-CLIENT";
+    const string internalAmlEvidence = "SYNTHETIC-INTERNAL-AML-SPECIALIST-EVIDENCE-NOT-FOR-CLIENT";
     await using var pg = await OwnedPostgresDatabase.CreateAsync("ANGULAR-PORTAL-API");
     var seed = await PbcSeed.SeedAsync(pg);
     Guid requestId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      // The internal control must have client-wide authority, not only the seeded engagement grant.
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Staff, "Staff", clientId: seed.ClientId));
+      await QuestionnaireSeed.SeedTemplatesAndDefinitionsAsync(db);
+      db.EvaluationResponses.Add(new EvaluationResponse
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId,
+        Bank = "CE", QuestionId = "CE-001", Answer = "Yes", EvidenceReference = internalRiskEvidence,
+        Generation = 1, Revision = 1, AnsweredByUserId = seed.Staff.Id, AnsweredAt = DateTimeOffset.UtcNow
+      });
+      db.SpecialistClearances.Add(new SpecialistClearance
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId,
+        Area = "AML", SpecialistName = "Synthetic internal AML reviewer", Status = "PENDING",
+        EvidenceReference = internalAmlEvidence, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
       var staff = PbcSeed.Actor(seed.Staff, "Staff");
       var created = await PbcService.CreateRequestAsync(db, staff, new(seed.EngagementId, "Bank statements", "TEST", "2026-01-01", "2026-12-31", "Bank evidence", "PDF", "Totals",
         seed.Client.Id, seed.Staff.Id, seed.Reviewer.Id, "2027-01-31", "Confidential", "Complete readable statements"));
@@ -80,10 +100,50 @@ public sealed class UiPortalContractTests
     Assert.Equal(HttpStatusCode.Forbidden, (await PostAsync(client, $"/api/ui/portal/requests/{requestId}/delegations", new { userId = seed.Admin.Id }, csrf)).StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/ui/portal/accounting/packages/{Guid.NewGuid()}")).StatusCode);
     Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/ui/portal/documents")).StatusCode);
+
+    // A real internal record exists for this same client, while permitted portal reads remain usable.
+    foreach (var url in new[] { "/api/ui/portal", "/api/ui/portal/documents", "/api/ui/portal/activity",
+      "/api/ui/portal/finance", $"/api/ui/portal/requests/{requestId}" })
+    {
+      using var portalResponse = await client.GetAsync(url);
+      Assert.Equal(HttpStatusCode.OK, portalResponse.StatusCode);
+      Assert.DoesNotContain(internalRiskEvidence, await portalResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+      Assert.DoesNotContain(internalAmlEvidence, await portalResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    async Task AssertInternalRiskDeniedAsync()
+    {
+      foreach (var url in new[] { $"/api/ui/clients/{seed.ClientId}/acceptance",
+        $"/api/ui/clients/{seed.ClientId}/assessment", $"/api/ui/assessments/{seed.ClientId}" })
+      {
+        using var response = await client.GetAsync(url);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(internalRiskEvidence, body, StringComparison.Ordinal);
+        Assert.DoesNotContain(internalAmlEvidence, body, StringComparison.Ordinal);
+        Assert.Equal("scope.denied", JsonSerializer.Deserialize<JsonElement>(body).GetProperty("code").GetString());
+      }
+    }
+    await AssertInternalRiskDeniedAsync();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      // A malformed legacy role assignment cannot turn a client identity into an internal risk reviewer.
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Client, "Partner", clientId: seed.ClientId));
+      await db.SaveChangesAsync();
+    }
+    await AssertInternalRiskDeniedAsync();
+
     using var staffFactory = Factory(pg.ConnectionString, seed.Staff.Subject, seed.Staff.TenantId);
     using var staffClient = staffFactory.CreateClient(new() { AllowAutoRedirect = false });
     await SignInAsync(staffClient);
     Assert.Equal(HttpStatusCode.Forbidden, (await staffClient.GetAsync("/api/ui/portal")).StatusCode);
+    using var internalResponse = await staffClient.GetAsync($"/api/ui/clients/{seed.ClientId}/acceptance");
+    Assert.Equal(HttpStatusCode.OK, internalResponse.StatusCode);
+    var internalWorkspace = await internalResponse.Content.ReadFromJsonAsync<JsonElement>();
+    Assert.Contains(internalWorkspace.GetProperty("questions").EnumerateArray(), question =>
+      question.GetProperty("evidence").GetString() == internalRiskEvidence);
+    Assert.Contains(internalWorkspace.GetProperty("clearances").EnumerateArray(), clearance =>
+      clearance.GetProperty("evidence").GetString() == internalAmlEvidence);
     await using (var db = new AuditSphereDbContext(pg.Options))
       await db.Users.Where(x => x.Id == seed.Client.Id).ExecuteUpdateAsync(x => x.SetProperty(u => u.Disabled, true).SetProperty(u => u.SessionEpoch, u => u.SessionEpoch + 1));
       Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync($"/api/ui/portal/requests/{requestId}")).StatusCode);
