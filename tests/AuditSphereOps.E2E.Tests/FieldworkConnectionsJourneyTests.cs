@@ -160,6 +160,7 @@ public sealed class FieldworkConnectionsJourneyTests
     await page.GotoAsync($"{origin}/app/engagements/{f.EngagementId:D}/audit-fieldwork");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Fieldwork tools" }).WaitForAsync(new() { Timeout = 20000 });
     await SettleAsync();
+    await page.GetByRole(AriaRole.Tab, new() { Name = "Sampling", Exact = true }).ClickAsync();
     await page.Locator("select[name='sp']").SelectOptionAsync(new SelectOptionValue { Label = "REV-01 · Test revenue cut-off" });
     await page.Locator("select[name='ss']").SelectOptionAsync(new SelectOptionValue { Label = "SALES_LISTING · 20 rows (QAR)" });
     await page.GetByLabel("Interval").FillAsync("5000");

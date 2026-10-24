@@ -75,6 +75,7 @@ export class AuditFieldwork {
     () => this.otherFieldworkCommandBlocked(), () => this.ws.reload(), ['LINK_PROCEDURE_RISK']);
   readonly section = signal<number | null>(null);
   readonly toolTab = signal(0);
+  private readonly samplingToolTabIndex = 1;
   readonly procedure: FieldworkProcedureState;
   readonly sampling: FieldworkSamplingState;
   readonly sourceIntake: FieldworkSourceIntakeState;
@@ -228,7 +229,7 @@ export class AuditFieldwork {
     const preview = this.sampling.samplingPreview();
     if (!document || !ownsFocus || !preview) return;
     afterNextRender(() => {
-      if (!current() || interaction !== this.focusInteraction || this.toolTab() !== 0 ||
+      if (!current() || interaction !== this.focusInteraction || this.toolTab() !== this.samplingToolTabIndex ||
           this.sampling.samplingPreview() !== preview || !this.sampling.previewMatchesInputs() ||
           (document.activeElement !== origin && document.activeElement !== document.body)) return;
       this.samplingPreviewHeading()?.nativeElement.focus();

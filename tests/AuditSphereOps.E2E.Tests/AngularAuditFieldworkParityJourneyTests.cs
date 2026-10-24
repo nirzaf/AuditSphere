@@ -396,6 +396,7 @@ public sealed class AngularAuditFieldworkParityJourneyTests
         await verify.AuditProcedures.Where(x => x.Id == procedureId).Select(x => x.ApplicabilityStatus).SingleAsync());
     }
     await page.GotoAsync(origin + fieldworkPath);
+    await page.GetByRole(AriaRole.Tab, new() { Name = "Sampling", Exact = true }).ClickAsync();
     await page.GetByRole(AriaRole.Combobox, new() { Name = "Procedure", Exact = true }).SelectOptionAsync(procedureId.ToString("D"));
     await page.GetByRole(AriaRole.Combobox, new() { Name = "Approved schedule", Exact = true }).SelectOptionAsync(scheduleId.ToString("D"));
     await page.GetByLabel("Interval", new() { Exact = true }).FillAsync("125");

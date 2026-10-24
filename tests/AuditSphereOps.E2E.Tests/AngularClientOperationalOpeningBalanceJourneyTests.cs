@@ -377,10 +377,11 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     await page.GetByLabel("Successor evidence reference", new() { Exact = true }).FillAsync("Synthetic exact accepted source successor");
     var previewButton = page.GetByRole(AriaRole.Button, new() { Name = "Preview exact successor opening", Exact = true });
     await previewButton.FocusAsync();
-    var previewResponse = await page.RunAndWaitForResponseAsync(() => page.Keyboard.PressAsync("Enter"),
-      response => response.Request.Method == "POST" && response.Url.EndsWith("/operational-opening-successors/preview", StringComparison.Ordinal));
+    var previewResponse = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "POST" && request.Url.EndsWith("/operational-opening-successors/preview", StringComparison.Ordinal),
+      () => page.Keyboard.PressAsync("Enter"));
     Assert.Equal(200, previewResponse.Status);
-    using var previewJson = JsonDocument.Parse(await previewResponse.TextAsync());
+    using var previewJson = JsonDocument.Parse(previewResponse.Body);
     var previewPayload = previewJson.RootElement.GetProperty("value");
     var manifestHash = previewPayload.GetProperty("prospectiveOpeningManifestHash").GetString()!;
     var reviewBasis = previewPayload.GetProperty("reviewBasis").GetString()!;
