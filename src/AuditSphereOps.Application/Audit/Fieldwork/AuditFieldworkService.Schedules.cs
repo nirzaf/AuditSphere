@@ -31,6 +31,10 @@ public static partial class AuditFieldworkService
     if (!auth.Succeeded)
       return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await LockConfirmationScopeAsync(db, actor, request.EngagementId, ct);
+    auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
 
     var sourceHash = request.SourceHash.ToLowerInvariant();
     var resolvedGlControlTotal = request.GlControlTotal;
@@ -63,6 +67,9 @@ public static partial class AuditFieldworkService
       x.SourceReceiptReference == request.SourceReceiptReference.Trim() && x.SourceHash == sourceHash, ct);
     if (existing is not null)
     {
+      auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
+      if (!auth.Succeeded)
+        return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
       await tx.CommitAsync(ct);
       return CommandResult<ScheduleValue>.Ok(ToScheduleValue(existing));
     }
@@ -91,7 +98,13 @@ public static partial class AuditFieldworkService
       Currency = row.Currency.ToUpperInvariant(), TransactionDate = row.TransactionDate, PostingDate = row.PostingDate,
       DeliveryDate = row.DeliveryDate, ServiceDate = row.ServiceDate, OriginalValuesJson = row.OriginalValuesJson.Trim(), CreatedAt = now
     }));
+    auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
     await db.SaveChangesAsync(ct);
+    auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
     await tx.CommitAsync(ct);
     return CommandResult<ScheduleValue>.Ok(ToScheduleValue(schedule));
   }

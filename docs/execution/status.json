@@ -934,6 +934,13 @@
         "scope": "Explicit distinct ordinal account scope independent of listing; exact signed per-account TB tie-outs, observed row counts and numeric19,6 refusal. Selected missing TB or out-of-scope listing refuses; selected omitted listing remains zero with nonzero difference.",
         "checks": "Existing project named AuditScheduleControlReconciliationTests: Passed7 Failed0 Skipped0, 15ms. Offsetting errors have netzero yet both remain nonzero; leadingzeros, signed six-place values, missing/duplicate/outside/precision/aggregatebounds covered.",
         "limits": "No source acceptance, professional completeness, persistence, API/UI or fullCI claim. No full local suite."
+      },
+      "scheduleCreationAuthority": {
+        "status": "RED1_GREEN3; direct creation guard, whole03/17/31 partial.",
+        "observed": "Official RoleAdministrationService revocation committed at transaction start, yet baseline CreateScheduleAsync persisted a new schedule.",
+        "repair": "Existing firm/client/engagement lock order and fresh professional/session/grant authorization inside transaction, before save and through commit; dedupe readback also reauthorizes.",
+        "checks": "Named new creation + existing review-revocation + original FieldworkEvidence_IsScopedAndReviewable: Passed3 Failed0 Skipped0, 59s. Positive creation/dedupe and unchanged original row count retained. No full local suite.",
+        "limits": "No ambient transaction, all-interleaving, typed capture/API/UI or current fullCI acceptance."
       }
     },
     "archivedOn20261024": {

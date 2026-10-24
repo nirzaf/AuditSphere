@@ -33,6 +33,46 @@ public sealed class AuditFieldworkWorkflowTests
   }
 
   [Fact]
+  public async Task ScheduleCreationRefusesAuthorityRevokedBeforeItsTransaction()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var preparer = PbcSeed.Actor(fixture.Staff, "Staff");
+    CreateScheduleRequest Request(string reference) => new(fixture.EngagementId, "RECEIVABLES_LEAD",
+      "TEST ENTITY", reference, new DateTimeOffset(2026, 12, 31, 0, 0, 0, TimeSpan.Zero),
+      new(2026, 1, 1), new(2026, 12, 31), "QAR", "debits positive; credits negative", new string('b', 64),
+      125m, [new("original-001", 2, "0010", "Synthetic source", 125m, "QAR", null, null, null, null, "{}")]);
+    Guid grantId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var created = await AuditFieldworkService.CreateScheduleAsync(setup, preparer, Request("allowed"));
+      Assert.True(created.Succeeded, created.Message);
+      var replay = await AuditFieldworkService.CreateScheduleAsync(setup, preparer, Request("allowed"));
+      Assert.True(replay.Succeeded, replay.Message);
+      Assert.Equal(created.Value!.ScheduleId, replay.Value!.ScheduleId);
+      grantId = await setup.RoleGrants.Where(x => x.UserId == fixture.Staff.Id && x.Role == "Staff")
+        .Select(x => x.Id).SingleAsync();
+    }
+    var interceptor = new RevokeBeforeScheduleReview(async token =>
+    {
+      await using var revoke = new AuditSphereDbContext(pg.Options);
+      var result = await RoleAdministrationService.RevokeRoleGrantAsync(revoke,
+        PbcSeed.Actor(fixture.Admin, "Administrator"), new(grantId, Reason: "Synthetic source creation boundary"), token);
+      Assert.True(result.Succeeded, result.Message);
+    });
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(interceptor).Options;
+    await using var db = new AuditSphereDbContext(options);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var denied = await AuditFieldworkService.CreateScheduleAsync(db, preparer, Request("revoked"), timeout.Token);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.True(interceptor.Invoked);
+    Assert.NotNull((await verify.RoleGrants.AsNoTracking().SingleAsync(x => x.Id == grantId)).RevokedAt);
+    Assert.True(!denied.Succeeded && await verify.AuditSchedules.CountAsync() == 1,
+      $"Official revocation committed before creation transaction continued: success={denied.Succeeded}");
+    Assert.Equal(1, await verify.AuditScheduleRows.CountAsync());
+  }
+
+  [Fact]
   public async Task ScheduleReviewRefusesAuthorityRevokedBeforeItsTransaction()
   {
     await using var pg = await PgTestSchema.CreateAsync();
