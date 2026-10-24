@@ -395,11 +395,6 @@ public sealed class AuditFieldworkWorkflowTests
     var proofTruncate = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync(
       "TRUNCATE audit_confirmation_booked_sources"));
     Assert.Equal("55000", proofTruncate.SqlState);
-    var migrationIds = db.Database.GetMigrations().ToArray();
-    var precedingProofMigration = migrationIds.TakeWhile(x => !x.EndsWith("_ConfirmationBookedSources", StringComparison.Ordinal)).Last();
-    var downRefused = await Assert.ThrowsAsync<InvalidOperationException>(() => db.GetService<IMigrator>().MigrateAsync(precedingProofMigration));
-    Assert.Equal("55000", Assert.IsType<PostgresException>(downRefused.InnerException).SqlState);
-
     var missingProposedJournal = await AuditFieldworkService.CreateBankReconciliationAsync(db, scope.Actor,
       new CreateBankReconciliationRequest(scope.EngagementId, procedure.Id, ledgerSchedule.Value.ScheduleId,
         statementSchedule.Value.ScheduleId, new DateOnly(2026, 9, 19),
@@ -618,6 +613,14 @@ public sealed class AuditFieldworkWorkflowTests
     Assert.False(revokedRead.Succeeded);
     Assert.Null(revokedRead.Value);
     Assert.Equal(bankBefore.ReviewedAt, (await db.AuditBankReconciliations.AsNoTracking().SingleAsync(x => x.Id == bankId)).ReviewedAt);
+
+    // Run the down-migration refusal probe only after all workflow assertions. The migrator may
+    // successfully roll back newer migrations before reaching the protected evidence migration;
+    // subsequent assertions must not use that intentionally downgraded schema.
+    var migrationIds = db.Database.GetMigrations().ToArray();
+    var precedingProofMigration = migrationIds.TakeWhile(x => !x.EndsWith("_ConfirmationBookedSources", StringComparison.Ordinal)).Last();
+    var downRefused = await Assert.ThrowsAsync<InvalidOperationException>(() => db.GetService<IMigrator>().MigrateAsync(precedingProofMigration));
+    Assert.Equal("55000", Assert.IsType<PostgresException>(downRefused.InnerException).SqlState);
   }
   private sealed class RevokeAfterBankSnapshot(Func<CancellationToken, Task> revoke) : DbTransactionInterceptor
   {
