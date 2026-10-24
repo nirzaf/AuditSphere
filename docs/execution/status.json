@@ -1120,7 +1120,8 @@
         "evidence": ".local/autonomous/evidence/native-gl-handoff-20261024",
         "checks": "Domain/API, native/external SQL regressions and scoped Angular/lint/build passed. Browser focus RED/GREEN and built-in check passed; exact runs/hashes in evidence.",
         "boundary": "Native TB, original journals/lines and actual opening retained; unknown metadata stays unknown. Independent GL acceptance exercised; completeness only inspected.",
-        "remaining": "Public DRAFT-to-ACTIVE path, successor opening, full CI and professional/live acceptance. No live migration. Retained history blocks destructive Down; earlier non-null flag binaries need compatibility review."
+        "remaining": "Public DRAFT-to-ACTIVE path, successor opening, full CI and professional/live acceptance. No live migration. Retained history blocks destructive Down; earlier non-null flag binaries need compatibility review.",
+        "implementationCommit": "c0614a5c5a3c6eb0456e88738504197ef59287b1"
       }
     },
     "archivedOn20261024": {
@@ -1708,8 +1709,8 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "8227133a5dc00e85cca75d64cff7a9057f0ce12c",
-    "evidence": "Full SOURCE_MATCH; Angular and build/contracts/publication PASS; Domain/API/E2E running at 2026-10-24T06:36:47Z. Later docs-only commits do not change this code candidate.",
-    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40069801114 RUNNING; not FULL_CI_PASS."
+    "sourceCommit": "c0614a5c5a3c6eb0456e88738504197ef59287b1",
+    "evidence": "Exact source MATCH at 2026-10-24T07:49:26+00:00; Angular running, remaining full jobs not started. Docs-only follow-ups do not change this code candidate.",
+    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40075610976 RUNNING; not FULL_CI_PASS."
   }
 }

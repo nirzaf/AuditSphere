@@ -24791,6 +24791,11 @@
         "evidence": ".local/autonomous/evidence/native-source-seal-concurrency-20261024/review.json",
         "scope": "Own-transaction posting/seal fence; replay/formats/pinned presentation retained. Other caller-isolation variants unverified."
       }
+    },
+    "currentSourceCiBeforeNativeGl20261024": {
+      "sourceCommit": "8227133a5dc00e85cca75d64cff7a9057f0ce12c",
+      "evidence": "Full SOURCE_MATCH; Angular and build/contracts/publication PASS; Domain/API/E2E running at 2026-10-24T06:36:47Z. Later docs-only commits do not change this code candidate.",
+      "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40069801114 RUNNING; not FULL_CI_PASS."
     }
   },
   "archivedTargetedVerification": {
