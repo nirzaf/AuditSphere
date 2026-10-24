@@ -19,7 +19,7 @@ public sealed class AuditSamplingServiceTests
     await using var pg = await PgTestSchema.CreateAsync();
     var fixture = await PlanningSeed.CreateAsync(pg, role: "Partner");
     var scope = fixture.Primary;
-    Guid selectionId, inPeriodItemId, nextPeriodItemId;
+    Guid selectionId, procedureId, inPeriodItemId, nextPeriodItemId;
     ActorContext reviewer;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -46,6 +46,7 @@ public sealed class AuditSamplingServiceTests
         new AdoptAuditProgramRequest(scope.EngagementId, program.Value!.ProgramVersionId))).Succeeded);
       var procedure = await db.AuditProcedures.SingleAsync(x =>
         x.EngagementId == scope.EngagementId && x.SourceProcedureId == "AWP-03-06");
+      procedureId = procedure.Id;
       Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, scope.Actor, procedure.Id, null)).Succeeded);
 
       // An approved receivable listing is the source population for the selection.
@@ -98,6 +99,8 @@ public sealed class AuditSamplingServiceTests
         ["delivery-note-inv-002"]));
       Assert.True(nextPeriod.Succeeded, nextPeriod.Message);
       Assert.True(nextPeriod.Value!.IsCutOffException);
+      var cutOffRecord = await db.AuditCutOffTestRecords.SingleAsync(x => x.SelectionItemId == nextPeriodItemId);
+      Assert.Equal(procedureId, cutOffRecord.ProcedureId);
 
       // Re-recording by the same auditor revises the row rather than duplicating it.
       var revised = await AuditSamplingService.RecordCutOffTestAsync(db, scope.Actor, new CutOffTestRequest(

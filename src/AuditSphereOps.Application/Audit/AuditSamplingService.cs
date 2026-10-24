@@ -68,6 +68,11 @@ public static class AuditSamplingService
       new AuthorizationRequest(item.FirmId, item.ClientId, item.EngagementId, PlanningRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<CutOffTestValue>.Fail(auth.ErrorCode!, auth.Message!);
+    var selection = await db.AuditSelections.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == item.SelectionId && x.FirmId == item.FirmId && x.ClientId == item.ClientId &&
+      x.EngagementId == item.EngagementId, ct);
+    if (selection is null || selection.ProcedureId == Guid.Empty)
+      return CommandResult<CutOffTestValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     var indicator = request.TransactionDate <= request.PeriodEndDate
       ? AuditCutOffDirections.BeforePeriodEnd : AuditCutOffDirections.AfterPeriodEnd;
@@ -89,7 +94,7 @@ public static class AuditSamplingService
       {
         Id = Guid.CreateVersion7(), FirmId = item.FirmId, ClientId = item.ClientId,
         EngagementId = item.EngagementId, SelectionId = item.SelectionId, SelectionItemId = item.Id,
-        ProcedureId = Guid.Empty, RecordedByUserId = actor.UserId, RecordedAt = DateTimeOffset.UtcNow
+        ProcedureId = selection.ProcedureId, RecordedByUserId = actor.UserId, RecordedAt = DateTimeOffset.UtcNow
       };
       db.AuditCutOffTestRecords.Add(existing);
     }
@@ -98,6 +103,7 @@ public static class AuditSamplingService
       existing.Revision++;
       existing.RecordedAt = DateTimeOffset.UtcNow;
     }
+    existing.ProcedureId = selection.ProcedureId;
     existing.PeriodEndDate = request.PeriodEndDate;
     existing.TransactionDate = request.TransactionDate;
     existing.DocumentDate = request.DocumentDate;
