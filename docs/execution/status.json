@@ -916,6 +916,12 @@
         "repair": "Existing firm/client/engagement locks, exact scoped schedule FORUPDATE fresh facts, inside currentauthority/self-review/residual checks and precommit reauthorization. Existing directcaller tracking handled without trusting old facts.",
         "verification": "New single named DB regression plus existing FieldworkEvidence_IsScopedAndReviewable PASS2; no schema/API/UI changes or full local suite.",
         "limits": "No universal race/currentness/archive-fence/caller-owned transaction claim. No production review endpoint was found: real source-intake/bind/review composition remains required; test-seeded sources are not product acceptance."
+      },
+      "scheduleCsvProfile": {
+        "status": "Focused pure parser35PASS; actual source-intake/capture/independent-review API/UI NOT_IMPLEMENTED.",
+        "profile": "audit-client-listing-csv.v1, strictUTF8 CSV, explicit mapping; rawSHA separate from canonical parsed-rowSHA; literal rawcells/leadingzero/sign/zero/date-null preserved; optional labelled technical rowidentity.",
+        "checks": "Two focused methods/35parameterized cases PASS57ms; numeric19,6 perrow and complete signedtotal, exactmax, NUL/grammar/currency/date/byte/row/header/cell bounds, no rounding/truncation. Static review found no blocker.",
+        "limits": "No PBC reader/provider, accepted-TB control resolver, immutable capture/review receipt, API/UI/builtin or wholeT058/31 acceptance implied."
       }
     },
     "archivedOn20261024": {

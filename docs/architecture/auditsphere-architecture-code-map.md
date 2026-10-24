@@ -225,7 +225,7 @@ replay/approval/readback); the group-report export/archive leg is a declared M37
 
 - Domain: `Domain/Audit/`
 
-- Application: `Application/Audit/AuditPlanningService.cs`, `Application/Audit/Fieldwork/AuditFieldworkService.{Schedules,BankReconciliations,Selections,ItemTests,Confirmations,AreaAssessments,Differences,Completion,Authorization}.cs`; direct schedule review rechecks authority under existing scope and exact-row transaction locks before publication. Source intake/bind/review API/UI composition remains separate work.
+- Application: `Application/Audit/AuditPlanningService.cs`, `Application/Audit/Fieldwork/AuditFieldworkService.{Schedules,BankReconciliations,Selections,ItemTests,Confirmations,AreaAssessments,Differences,Completion,Authorization}.cs`; direct schedule review rechecks authority under existing scope and exact-row transaction locks before publication. Source intake/bind/review API/UI composition remains separate work. `AuditScheduleCsvProfile.cs` is a pure strict single-currency CSV profile with explicit column mapping, raw-file/normalized-row hashes, nullable ISO dates, literal raw cells and numeric(19,6) row/control limits; it is not wired as an intake workflow.
 
 - Persistence: `AuditSphereDbContext.Audit.cs`, `.Fieldwork.cs`
 
