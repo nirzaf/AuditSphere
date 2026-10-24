@@ -193,6 +193,13 @@ public sealed class ScheduleSourceIntakeApiTests
         await SignIn(reviewerClient);
         var root = $"/api/ui/engagements/{f.EngagementId}/fieldwork/schedule-intake/schedules/" +
           $"{captured.Value!.Receipt.ScheduleId}/review/source-rows";
+        using var preparerFactory = Factory(pg.ConnectionString, f.Staff);
+        using var preparerClient = preparerFactory.CreateClient(new() { AllowAutoRedirect = false });
+        await SignIn(preparerClient);
+        using var forbidden = await preparerClient.GetAsync(root +
+          $"?captureHash={captured.Value.Receipt.ManifestHash}&offset=0&limit=1", ct);
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+
         using var response = await reviewerClient.GetAsync(root +
           $"?captureHash={captured.Value.Receipt.ManifestHash}&offset=0&limit=1", ct);
         var page = await ReadValueAsync(response);
