@@ -24808,7 +24808,7 @@
     },
     "bankReconciliationInspection20261024": {
       "status": "BOUNDED_FOCUSED_PASS; exact published-source CI still required; Tasks17/19/27 partial",
-      "source": "c0614a5c plus bank inspection overlay; local .NET binaries also contain uncommitted successor model overlay, not its acceptance",
+      "source": "Published5f94a1f8f9fe4fcf26f891c8e50b63e413de1139. Local .NET verification also compiled uncommitted successor overlay; current full CI checks committed bank source.",
       "verification": {
         "domain": "Existing FieldworkEvidence_IsScopedAndReviewable1PASS (including final read-authority revocation)",
         "api": "Existing ExactScope_GuessedIds_BoundedWindows_AndRevokedSessions_FailClosed1PASS",
