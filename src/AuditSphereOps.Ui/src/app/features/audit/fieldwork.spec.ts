@@ -863,7 +863,20 @@ describe('Fieldwork bank reconciliation inspection', () => {
     expect(() => decodeBankReconciliationDetail({ ...detail, ledgerSchedule: { ...source, id: id3 } }, '')).toThrow();
   });
 
-  function open() {
+  it('decodes and binds accepted listing and TB catalogs from the engagement source-intake route', () => {
+    const { fixture, http } = open(true);
+    const sources = fixture.componentInstance.sourceIntake.intakeOptions.data();
+    expect(sources?.pbcSources).toEqual([{ receiptId: id2, fileName: 'accepted-listing.csv', byteCount: 128,
+      entityScope: 'SYNTHETIC-ENTITY', periodStart: '2026-01-01', periodEnd: '2026-12-31' }]);
+    expect(sources?.trialBalances).toEqual([{ decisionId: id3, periodId: id2, bookId: null, basis: 'ACCRUAL',
+      periodStart: '2026-01-01', periodEnd: '2026-12-31', legalEntityKey: 'SYNTHETIC-ENTITY',
+      currency: 'QAR', datasetRevision: '4', inputGeneration: '2' }]);
+    expect(fixture.nativeElement.textContent).toContain('accepted-listing.csv');
+    expect(fixture.nativeElement.textContent).toContain('SYNTHETIC-ENTITY');
+    http.verify();
+  });
+
+  function open(canManageFieldwork = false) {
     const session = { current: signal<{ userId: string; firmId: string; generation: string; staff: boolean } | null>(
       { userId: id1, firmId: id1, generation: '1', staff: true }), invalidation: signal(0), refresh: vi.fn() };
     TestBed.configureTestingModule({ providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
@@ -874,9 +887,26 @@ describe('Fieldwork bank reconciliation inspection', () => {
     http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ engagementId: id1, catalogProcedureCount: 0,
       catalogVersion: '2026.1', program: null, procedures: [], risks: [], differences: [], aggregate: null,
       aggregateCurrentAndReviewed: false, schedules: [], samplingMethods: [], samplingRuns: [], evidenceCandidates: [], physicalItems: [],
-      canManageFieldwork: false, canReviewSelections: true, canViewReviewNotes: false, canAddOrResolveReviewNotes: false,
+      canManageFieldwork, canReviewSelections: true, canViewReviewNotes: false, canAddOrResolveReviewNotes: false,
       canRespondToReviewNotes: false });
     TestBed.tick(); fixture.detectChanges();
+    if (canManageFieldwork) {
+      http.expectOne(`/api/ui/engagements/${id1}/fieldwork/program-options`)
+        .flush({ engagementId: id1, currentAdoptionId: null, currentProgramVersionId: null,
+          currentVersion: null, currentSourceHash: null, currentContentDigest: null, baselineProcedureCount: 0,
+          adHocProcedureCount: 0, currentAdoptionComplete: false, currentAdoptionBlocker: null,
+          options: [{ programVersionId: id2, programCode: 'CORE-AUDIT', version: '2026.1', sourceHash: hash64,
+            contentDigest: hash64, procedureCount: 165, eligible: true, blocker: null }] });
+      http.expectOne(`/api/ui/engagements/${id1}/fieldwork/schedule-intake/options?pbcOffset=0&trialBalanceOffset=0&limit=25`)
+        .flush({ pbcSources: [{ receiptId: id2, fileName: 'accepted-listing.csv', byteCount: 128,
+          entityScope: 'SYNTHETIC-ENTITY', periodStart: '2026-01-01', periodEnd: '2026-12-31' }],
+          nextPbcOffset: 1, hasMorePbcSources: false,
+          trialBalances: [{ decisionId: id3, periodId: id2, bookId: null, basis: 'ACCRUAL',
+            periodStart: '2026-01-01', periodEnd: '2026-12-31', legalEntityKey: 'SYNTHETIC-ENTITY',
+            currency: 'QAR', datasetRevision: '4', inputGeneration: '2' }],
+          nextTrialBalanceOffset: 1, hasMoreTrialBalances: false });
+      TestBed.tick(); fixture.detectChanges();
+    }
     http.expectOne(`/api/ui/engagements/${id1}/fieldwork/schedule-intake/review-candidates?offset=0&limit=25`)
       .flush({ offset: 0, limit: 25, hasMore: false, items: [] });
     TestBed.tick(); fixture.detectChanges();
