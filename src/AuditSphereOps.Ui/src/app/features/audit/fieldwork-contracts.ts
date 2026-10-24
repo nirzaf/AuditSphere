@@ -154,11 +154,50 @@ export function decodeScheduleReviewCandidates(raw: unknown, path: string) {
     throw new DecodeError(`${path}: invalid bounded review-candidate page`);
   return page;
 }
-export const decodeScheduleSourceReviewPreview = obj({ requestId: guid, scheduleId: guid, captureHash: sha256,
+const scheduleSourceReviewPreview = obj({ requestId: guid, scheduleId: guid, captureHash: sha256,
   inputGeneration: sourcePositiveLong, reviewBasis: sha256, requestHash: sha256,
   canonicalInput: obj({ action: oneOf('APPROVE', 'RETURN'), reason: text, evidenceReference: text }),
   sourceCurrent: bool, canApprove: bool, sourceFailureCode: nullable(text), status: text,
-  existingReviewId: nullable(guid) });
+  existingReviewId: nullable(guid), source: obj({ scheduleType: text, pbcAcceptanceReceiptId: guid,
+    acceptedSourceDecisionId: guid, trialBalanceDatasetId: guid, datasetRevision: sourcePositiveLong,
+    periodId: guid, periodCode: text, periodStart: date, periodEnd: date, periodRevision: sourcePositiveLong,
+    bookId: nullable(guid), bookRevision: nullable(sourcePositiveLong), basis: nullable(text),
+    legalEntityKey: text, currency: text, sourceDate: date, fileName: text, profileVersion: text,
+    rawFileSha256: sha256, byteCount: nat, rowCount: nat, controlBasis: text,
+    selectedControlAccountCodes: arr(text, 20000), signedTotal: dec, closingControl: dec, residual: dec,
+    hasCompleteListingCoverage: bool, allAccountsReconciled: bool,
+    accounts: arr(obj({ accountCode: text, listingAmount: dec, trialBalanceAmount: dec, difference: dec,
+      listingRowCount: sourceLong, trialBalanceRowCount: sourceLong }), 20000) }) });
+export function decodeScheduleSourceReviewPreview(raw: unknown, path: string) {
+  const preview = scheduleSourceReviewPreview(raw, path), source = preview.source;
+  if (source.rowCount < 1 || source.byteCount < 1 || source.periodStart > source.periodEnd ||
+      source.sourceDate !== source.periodEnd || source.profileVersion !== 'audit-client-listing-csv.v1' ||
+      source.selectedControlAccountCodes.length < 1 ||
+      new Set(source.selectedControlAccountCodes).size !== source.selectedControlAccountCodes.length ||
+      source.selectedControlAccountCodes.some(code => !code.trim() || code !== code.trim()) ||
+      source.accounts.length !== source.selectedControlAccountCodes.length ||
+      source.accounts.some((account, index) => account.accountCode !== source.selectedControlAccountCodes[index]) ||
+      source.allAccountsReconciled && !source.hasCompleteListingCoverage ||
+      preview.canApprove && (!preview.sourceCurrent || !source.hasCompleteListingCoverage || !source.allAccountsReconciled))
+    throw new DecodeError(`${path}: inconsistent captured source review evidence`);
+  return preview;
+}
+const scheduleReviewSourceRows = obj({ captureHash: sha256, offset: nat, limit: int, totalRows: nat,
+  hasMore: bool, headers: arr(text, 256),
+  items: arr(obj({ stableRowId: text, sourceLineNumber: int, cells: arr(text, 256) }), 100) });
+export function decodeScheduleReviewSourceRows(raw: unknown, path: string) {
+  const page = scheduleReviewSourceRows(raw, path);
+  if (page.limit < 1 || page.limit > 100 || page.items.length > page.limit ||
+      page.offset > page.totalRows || page.items.length !== Math.min(page.limit, page.totalRows - page.offset) ||
+      page.headers.length < 1 || page.headers.some(header => !header.trim()) ||
+      new Set(page.headers).size !== page.headers.length ||
+      page.hasMore !== (page.offset + page.items.length < page.totalRows) ||
+      page.items.some(row => row.sourceLineNumber < 2 ||
+        !row.stableRowId || row.cells.length !== page.headers.length) ||
+      new Set(page.items.map(row => row.stableRowId)).size !== page.items.length)
+    throw new DecodeError(`${path}: invalid retained schedule source page`);
+  return page;
+}
 const sourceReceipt = obj({ version: text, action: oneOf('CAPTURE', 'APPROVE', 'RETURN'), scheduleId: guid,
   reviewId: nullable(guid), firmId: guid, clientId: guid, engagementId: guid, actorUserId: guid,
   actorEpoch: sourcePositiveLong, requestId: guid, requestHash: sha256, manifestHash: sha256,
@@ -172,6 +211,7 @@ export type ScheduleControlAccountPage = ReturnType<typeof decodeScheduleControl
 export type ScheduleCapturePreview = ReturnType<typeof decodeScheduleCapturePreview>;
 export type ScheduleReviewCandidate = ReturnType<typeof decodeScheduleReviewCandidates>['items'][number];
 export type ScheduleSourceReviewPreview = ReturnType<typeof decodeScheduleSourceReviewPreview>;
+export type ScheduleReviewSourceRowsPage = ReturnType<typeof decodeScheduleReviewSourceRows>;
 export type ScheduleSourceReceiptLookup = ReturnType<typeof decodeScheduleSourceReceiptLookup>;
 
 /** Risks recorded against one statement line (STE-NXT-013). The line is the only key the link sends. */

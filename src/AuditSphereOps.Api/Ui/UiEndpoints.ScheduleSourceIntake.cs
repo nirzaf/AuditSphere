@@ -87,6 +87,12 @@ public static partial class UiEndpoints
           actor, http.RequestServices.GetRequiredService<IAuditScheduleSourceContentReader>(), id,
           scheduleId, input.RequestId, input.Fields, ct))), includeConflict: true);
 
+    UiEndpointContractMetadata.WithUiResponse<AuditScheduleReviewSourceRowsPage>(group.MapGet(
+      "/engagements/{id:guid}/fieldwork/schedule-intake/schedules/{scheduleId:guid}/review/source-rows",
+      (Guid id, Guid scheduleId, string? captureHash, int? offset, int? limit, HttpContext http) =>
+        ReadAsync(http, (db, actor, ct) => AuditScheduleSourceWorkspace.GetReviewSourceRowsAsync(db,
+          actor, id, scheduleId, captureHash ?? "", offset ?? 0, limit ?? 50, ct))));
+
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<AuditScheduleSourceReceiptView>>(group.MapPost(
       "/engagements/{id:guid}/fieldwork/schedule-intake/schedules/{scheduleId:guid}/review/actions",
       (Guid id, Guid scheduleId, ScheduleSourceReviewActionInput input, HttpContext http) =>

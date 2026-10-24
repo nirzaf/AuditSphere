@@ -6,10 +6,10 @@ import { pendingRequestReference, TabDrafts, type PendingRequestReference } from
 import type { FieldworkCommandAcquire, FieldworkCommandRecovery } from './fieldwork-command-context';
 import {
   decodeScheduleCapturePreview, decodeScheduleControlAccountPage, decodeScheduleReviewCandidates,
-  decodeScheduleSourceHeaders, decodeScheduleSourceOptions, decodeScheduleSourceReceiptLookup,
+  decodeScheduleReviewSourceRows, decodeScheduleSourceHeaders, decodeScheduleSourceOptions, decodeScheduleSourceReceiptLookup,
   decodeScheduleSourceReceiptView, decodeScheduleSourceReviewPreview, type ScheduleCapturePreview,
   type ScheduleControlAccountPage, type ScheduleReviewCandidate, type ScheduleSourceHeaders,
-  type ScheduleSourceOptions, type ScheduleSourceReceiptLookup,
+  type ScheduleReviewSourceRowsPage, type ScheduleSourceOptions, type ScheduleSourceReceiptLookup,
   type ScheduleSourceReviewPreview,
 } from './fieldwork-contracts';
 
@@ -86,6 +86,7 @@ export class FieldworkSourceIntakeState {
   readonly intakeOffset = signal({ pbc: 0, trialBalance: 0 });
   readonly controlOffset = signal(0);
   readonly candidateOffset = signal(0);
+  readonly reviewRowsOffset = signal(0);
   readonly selectedPbc = signal<ScheduleSourceOptions['pbcSources'][number] | null>(null);
   readonly selectedTrialBalance = signal<ScheduleSourceOptions['trialBalances'][number] | null>(null);
   readonly sourceDate = signal('');
@@ -120,6 +121,7 @@ export class FieldworkSourceIntakeState {
   readonly sourceHeaders: Resource<ScheduleSourceHeaders>;
   readonly controlAccounts: Resource<ScheduleControlAccountPage>;
   readonly reviewCandidates: Resource<ReturnType<typeof decodeScheduleReviewCandidates>>;
+  readonly reviewSourceRows: Resource<ScheduleReviewSourceRowsPage>;
 
   constructor(private readonly context: {
     id: () => string | null; api: Api; session: SessionService; drafts: TabDrafts;
@@ -166,6 +168,17 @@ export class FieldworkSourceIntakeState {
         throw new DecodeError(`${path}: review candidates do not match the requested page`);
       return page;
     }, 'Captured source schedules are unavailable in your current review scope.');
+    this.reviewSourceRows = context.api.resource(() => {
+      const id = context.id(), preview = this.reviewPreview();
+      return id && context.canReview() && preview
+        ? `${this.base(id)}/schedules/${preview.scheduleId}/review/source-rows?captureHash=${encodeURIComponent(preview.captureHash)}&offset=${this.reviewRowsOffset()}&limit=50` : null;
+    }, (raw, path) => {
+      const page = decodeScheduleReviewSourceRows(raw, path), preview = this.reviewPreview();
+      if (!preview || page.captureHash !== preview.captureHash || page.offset !== this.reviewRowsOffset() ||
+          page.limit !== 50 || page.totalRows !== preview.source.rowCount)
+        throw new DecodeError(`${path}: retained rows do not match the exact reviewed capture`);
+      return page;
+    }, 'Retained source rows are unavailable for this reviewer and capture.');
     context.session.current();
     context.session.invalidation();
   }
@@ -192,7 +205,8 @@ export class FieldworkSourceIntakeState {
     this.reviewedCapture.set(reviewed && this.capturePreviewMatches() && this.allowed('CAPTURE') && !this.busy());
   }
   setReviewAssent(reviewed: boolean): void {
-    this.reviewedDecision.set(reviewed && this.reviewPreviewMatches() && this.allowed('REVIEW') && !this.busy());
+    this.reviewedDecision.set(reviewed && this.reviewPreviewMatches() && this.reviewEvidenceReady() &&
+      this.allowed('REVIEW') && !this.busy());
   }
 
   workspaceChanged(): void {
@@ -200,7 +214,7 @@ export class FieldworkSourceIntakeState {
   }
   ownerChanged(): void {
     ++this.operation; ++this.recoveryOperation; this.busy.set(false); this.recoveryBusy.set(false);
-    this.capturePreview.set(null); this.reviewPreview.set(null); this.receipt.set(null);
+    this.capturePreview.set(null); this.reviewPreview.set(null); this.reviewRowsOffset.set(0); this.receipt.set(null);
     this.reviewedCapture.set(false); this.reviewedDecision.set(false); this.captureFingerprint = ''; this.reviewFingerprint = '';
     this.selectedPbc.set(null); this.selectedTrialBalance.set(null); this.selectedAccounts.set([]);
     this.capture.pbcReceiptId = ''; this.capture.tbDecisionId = ''; this.capture.sourceDate = ''; this.sourceDate.set(''); this.capture.columns = blankColumns();
@@ -298,15 +312,23 @@ export class FieldworkSourceIntakeState {
     if (offset === page.offset || next && !page.hasMore) return;
     this.candidateOffset.set(offset);
   }
+  reviewRowsPage(next: boolean): void {
+    const page = this.reviewSourceRows.data();
+    if (!page || this.reviewSourceRows.loading()) return;
+    const offset = next ? page.offset + page.limit : Math.max(0, page.offset - page.limit);
+    if (offset === page.offset || next && !page.hasMore) return;
+    this.reviewedDecision.set(false);
+    this.reviewRowsOffset.set(offset);
+  }
   chooseCandidate(scheduleId: string): void {
     const candidate = this.reviewCandidates.data()?.items.find(x => x.scheduleId === scheduleId) ?? null;
     if (!candidate || !this.canUseReview()) return;
     this.candidate.set(candidate); this.review.action = 'APPROVE'; this.review.reason = ''; this.review.evidenceReference = '';
-    this.reviewPreview.set(null); this.reviewedDecision.set(false); this.reviewRequestId = crypto.randomUUID(); this.reviewFingerprint = ''; this.clearMessage();
+    this.reviewPreview.set(null); this.reviewRowsOffset.set(0); this.reviewedDecision.set(false); this.reviewRequestId = crypto.randomUUID(); this.reviewFingerprint = ''; this.clearMessage();
   }
   reviewChanged(): void {
     if (this.unresolved()) return;
-    this.reviewPreview.set(null); this.reviewedDecision.set(false); this.reviewFingerprint = '';
+    this.reviewPreview.set(null); this.reviewRowsOffset.set(0); this.reviewedDecision.set(false); this.reviewFingerprint = '';
     this.reviewRequestId = crypto.randomUUID(); this.clearMessage();
   }
   private currentCaptureFields(): CaptureFields | null {
@@ -415,7 +437,7 @@ export class FieldworkSourceIntakeState {
     const release = this.context.acquireCommand();
     if (!release) return;
     const owner = this.owner(), operation = ++this.operation;
-    this.busy.set(true); this.failed.set(false); this.message.set(''); this.reviewPreview.set(null); this.reviewedDecision.set(false);
+    this.busy.set(true); this.failed.set(false); this.message.set(''); this.reviewPreview.set(null); this.reviewRowsOffset.set(0); this.reviewedDecision.set(false);
     try {
       const result = await this.context.api.command(this.base() + `/schedules/${candidate.scheduleId}/review/preview`, { requestId, fields });
       if (!owner() || operation !== this.operation) return;
@@ -446,12 +468,18 @@ export class FieldworkSourceIntakeState {
       preview.requestId === this.reviewRequestId &&
       this.reviewFingerprint === JSON.stringify({ requestId: preview.requestId, scheduleId: candidate.scheduleId, fields });
   }
+  reviewEvidenceReady(): boolean {
+    const preview = this.reviewPreview(), page = this.reviewSourceRows.data();
+    return !!preview && !!page && !this.reviewSourceRows.loading() && !this.reviewSourceRows.error() &&
+      page.captureHash === preview.captureHash && page.offset === this.reviewRowsOffset() &&
+      page.limit === 50 && page.totalRows === preview.source.rowCount;
+  }
   canRecordReview(): boolean {
     const preview = this.reviewPreview(), pending = this.pending().find(x => x.kind === 'REVIEW');
     const exactRecovery = !!pending?.absent && pending.intent?.kind === 'REVIEW' &&
       pending.reference.requestId === preview?.requestId && pending.reference.requestHash === preview?.requestHash &&
       pending.intent.scheduleId === preview?.scheduleId;
-    return !!preview && (this.candidate() !== null || exactRecovery) && this.reviewPreviewMatches() &&
+    return !!preview && (this.candidate() !== null || exactRecovery) && this.reviewPreviewMatches() && this.reviewEvidenceReady() &&
       this.reviewedDecision() && this.allowed('REVIEW') && !this.busy() &&
       (!this.unresolved() || exactRecovery) && (preview.canonicalInput.action !== 'APPROVE' || preview.canApprove);
   }
@@ -608,7 +636,7 @@ export class FieldworkSourceIntakeState {
       if (this.busy()) return;
       const release = this.context.acquireCommand('schedule-source-recovery');
       if (!release) return;
-      const owner = this.owner(), operation = ++this.operation; this.busy.set(true); this.reviewPreview.set(null); this.reviewedDecision.set(false);
+      const owner = this.owner(), operation = ++this.operation; this.busy.set(true); this.reviewPreview.set(null); this.reviewRowsOffset.set(0); this.reviewedDecision.set(false);
       try {
         const result = await this.context.api.command(this.base() + `/schedules/${intent.scheduleId}/review/preview`,
           { requestId: intent.requestId, fields: intent.fields });

@@ -13,7 +13,8 @@ public static partial class AuditScheduleSourceWorkspace
     Guid ActorUserId, long ActorEpoch, Guid RequestId, Guid ScheduleId, string ExpectedCaptureHash,
     long ExpectedInputGeneration, string ExpectedReviewBasis, AuditScheduleSourceReviewFields Fields);
   private sealed record ReviewFacts(AuditScheduleSourceCapture Capture, AuditSchedule Schedule,
-    long Generation, string Basis, bool SourceCurrent, bool CanApprove, string? SourceFailureCode, Guid? ReviewId);
+    long Generation, string Basis, bool SourceCurrent, bool CanApprove, string? SourceFailureCode,
+    Guid? ReviewId, AuditScheduleReviewSourceSummary SourceSummary);
 
   public static async Task<CommandResult<AuditScheduleSourceReviewPreview>> PreviewReviewAsync(
     IClientAccountingDbContext db, ActorContext actor, IAuditScheduleSourceContentReader reader,
@@ -43,7 +44,8 @@ public static partial class AuditScheduleSourceWorkspace
     await tx.CommitAsync(ct);
     return CommandResult<AuditScheduleSourceReviewPreview>.Ok(new(requestId, scheduleId,
       facts.Capture.ManifestHash, Exact(facts.Generation), facts.Basis, Hashing.Sha256Hex(json), canonical,
-      facts.SourceCurrent, facts.CanApprove, facts.SourceFailureCode, facts.Schedule.Status, facts.ReviewId));
+      facts.SourceCurrent, facts.CanApprove, facts.SourceFailureCode, facts.Schedule.Status,
+      facts.ReviewId, facts.SourceSummary));
   }
 
   public static async Task<CommandResult<AuditScheduleSourceReceiptView>> ReviewAsync(
@@ -170,6 +172,9 @@ public static partial class AuditScheduleSourceWorkspace
     catch (JsonException) { return Invalid<ReviewFacts>(); }
     if (intent is null || !ValidFields(intent.Fields) || Hashing.Sha256Hex(capture.RequestJson) != capture.RequestHash)
       return CommandResult<ReviewFacts>.Fail(ErrorCodes.ProtectedState, "The retained source request is inconsistent.");
+    var sourceSummary = ReadRetainedSourceSummary(capture);
+    if (!sourceSummary.Succeeded)
+      return Failure<AuditScheduleReviewSourceSummary, ReviewFacts>(sourceSummary);
     var schedule = await db.AuditSchedules.AsNoTracking().SingleAsync(x =>
       x.FirmId == actor.FirmId && x.ClientId == clientId && x.EngagementId == engagementId && x.Id == scheduleId, ct);
     var generation = await db.ClientSafetyStates.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Id == clientId)
@@ -204,7 +209,8 @@ public static partial class AuditScheduleSourceWorkspace
       SourceManifestHash = source?.Succeeded == true ? source.Value!.ManifestSha256 : null,
       SourceFailureCode = failure
     }));
-    return CommandResult<ReviewFacts>.Ok(new(capture, schedule, generation.Value, basis, current, canApprove, failure, reviewId));
+    return CommandResult<ReviewFacts>.Ok(new(capture, schedule, generation.Value, basis, current,
+      canApprove, failure, reviewId, sourceSummary.Value!));
   }
 
   private static string ReviewJson(ActorContext actor, Guid clientId, Guid engagementId, Guid requestId,

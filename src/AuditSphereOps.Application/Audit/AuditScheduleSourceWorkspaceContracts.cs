@@ -40,7 +40,28 @@ public sealed record AuditScheduleSourceReviewRequest(Guid RequestId, Guid Sched
 public sealed record AuditScheduleSourceReviewPreview(Guid RequestId, Guid ScheduleId,
   string CaptureHash, string InputGeneration, string ReviewBasis, string RequestHash,
   AuditScheduleSourceReviewFields CanonicalInput, bool SourceCurrent, bool CanApprove,
-  string? SourceFailureCode, string Status, Guid? ExistingReviewId);
+  string? SourceFailureCode, string Status, Guid? ExistingReviewId,
+  AuditScheduleReviewSourceSummary Source);
+
+/// <summary>Immutable accepted listing and trial-balance facts visible to an independent reviewer.</summary>
+public sealed record AuditScheduleReviewSourceSummary(string ScheduleType,
+  Guid PbcAcceptanceReceiptId, Guid AcceptedSourceDecisionId, Guid TrialBalanceDatasetId,
+  long DatasetRevision, Guid PeriodId, string PeriodCode, DateOnly PeriodStart, DateOnly PeriodEnd,
+  long PeriodRevision, Guid? BookId, long? BookRevision, string? Basis, string LegalEntityKey,
+  string Currency, DateOnly SourceDate, string FileName, string ProfileVersion,
+  string RawFileSha256, long ByteCount, int RowCount, string ControlBasis,
+  IReadOnlyList<string> SelectedControlAccountCodes, string SignedTotal, string ClosingControl,
+  string Residual, bool HasCompleteListingCoverage, bool AllAccountsReconciled,
+  IReadOnlyList<AuditScheduleSourceAccountView> Accounts);
+
+/// <summary>One retained original listing row, with cell values aligned to the original headers.</summary>
+public sealed record AuditScheduleReviewSourceRow(string StableRowId, int SourceLineNumber,
+  IReadOnlyList<string> Cells);
+
+/// <summary>A bounded page from the exact immutable source capture named by its manifest hash.</summary>
+public sealed record AuditScheduleReviewSourceRowsPage(string CaptureHash, int Offset, int Limit,
+  int TotalRows, bool HasMore, IReadOnlyList<string> Headers,
+  IReadOnlyList<AuditScheduleReviewSourceRow> Items);
 
 public sealed record AuditSchedulePbcOption(Guid ReceiptId, string FileName, long ByteCount,
   string EntityScope, DateOnly PeriodStart, DateOnly PeriodEnd);

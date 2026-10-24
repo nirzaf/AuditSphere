@@ -390,6 +390,10 @@ public sealed class AuditScheduleIntakeSourcesTests
           f.EngagementId, scheduleToReview, Guid.NewGuid(), reviewFields, ct);
         Assert.False(denied.Succeeded);
         Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+        var rows = await AuditScheduleSourceWorkspace.GetReviewSourceRowsAsync(self, staff,
+          f.EngagementId, scheduleToReview, originalCapture.Receipt.ManifestHash, ct: ct);
+        Assert.False(rows.Succeeded);
+        Assert.Equal(ErrorCodes.ScopeDenied, rows.ErrorCode);
       }
       await using (var currentReview = new AuditSphereDbContext(pg.Options))
       {
@@ -398,6 +402,33 @@ public sealed class AuditScheduleIntakeSourcesTests
         Assert.True(preview.Succeeded, preview.Message);
         Assert.True(preview.Value!.SourceCurrent);
         Assert.Equal(balanced, preview.Value.CanApprove);
+        Assert.Equal("receivables.csv", preview.Value.Source.FileName);
+        Assert.Equal(staged.DeclaredSha256Hex, preview.Value.Source.RawFileSha256);
+        Assert.Equal(2, preview.Value.Source.RowCount);
+        Assert.Equal("FY2026", preview.Value.Source.PeriodCode);
+        Assert.Equal("TB_CLOSING_SIGNED_NET", preview.Value.Source.ControlBasis);
+        Assert.Equal(new[] { "0010", "0020" }, preview.Value.Source.SelectedControlAccountCodes);
+        Assert.Equal(balanced, preview.Value.Source.AllAccountsReconciled);
+        Assert.Equal(balanced ? new[] { "0.000000", "0.000000" } : new[] { "25.000000", "-25.000000" },
+          preview.Value.Source.Accounts.Select(x => x.Difference));
+
+        var firstPage = await AuditScheduleSourceWorkspace.GetReviewSourceRowsAsync(currentReview, reviewer,
+          f.EngagementId, scheduleToReview, preview.Value.CaptureHash, offset: 0, limit: 1, ct: ct);
+        Assert.True(firstPage.Succeeded, firstPage.Message);
+        Assert.Equal(preview.Value.CaptureHash, firstPage.Value!.CaptureHash);
+        Assert.Equal(new[] { "AccountCode", "Description", "SignedAmount", "Currency", "StableRowId", "TransactionDate" },
+          firstPage.Value.Headers);
+        Assert.Equal(2, firstPage.Value.Items[0].SourceLineNumber);
+        Assert.Equal(new[] { "0010", "Trade A", "125", "QAR", "row-a", "2025-12-15" }, firstPage.Value.Items[0].Cells);
+        Assert.True(firstPage.Value.HasMore);
+        var nextPage = await AuditScheduleSourceWorkspace.GetReviewSourceRowsAsync(currentReview, reviewer,
+          f.EngagementId, scheduleToReview, preview.Value.CaptureHash, offset: 1, limit: 1, ct: ct);
+        Assert.True(nextPage.Succeeded, nextPage.Message);
+        Assert.Equal(new[] { "0020", "Trade B", "75", "QAR", "row-b", "2026-11-30" }, nextPage.Value!.Items[0].Cells);
+        Assert.False(nextPage.Value.HasMore);
+        var staleRows = await AuditScheduleSourceWorkspace.GetReviewSourceRowsAsync(currentReview, reviewer,
+          f.EngagementId, scheduleToReview, new string('0', 64), offset: 0, limit: 1, ct: ct);
+        Assert.Equal(ErrorCodes.GenerationStale, staleRows.ErrorCode);
       }
       await using (var ioPreview = new AuditSphereDbContext(pg.Options))
       {

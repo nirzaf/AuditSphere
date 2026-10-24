@@ -284,9 +284,51 @@
                       <p>Schedule <code>{{ preview.scheduleId }}</code> · capture <code>{{ preview.captureHash }}</code> · current generation {{ preview.inputGeneration }}</p>
                       <p>Source current: {{ preview.sourceCurrent ? 'Yes' : 'No' }} · Approval allowed: {{ preview.canApprove ? 'Yes' : 'No' }} · State: {{ preview.status }}</p>
                       @if (preview.sourceFailureCode) { <p role="alert">Source check: {{ preview.sourceFailureCode }}</p> }
+                      <section aria-labelledby="schedule-review-captured-source-heading">
+                        <h5 id="schedule-review-captured-source-heading">Captured source and recalculation evidence</h5>
+                        <p>{{ preview.source.scheduleType }} · {{ preview.source.fileName }} · {{ preview.source.byteCount }} bytes · {{ preview.source.rowCount }} retained rows</p>
+                        <p>Original SHA-256 <code>{{ preview.source.rawFileSha256 }}</code> · parser {{ preview.source.profileVersion }} · source date {{ preview.source.sourceDate }}</p>
+                        <p>Accepted listing receipt <code>{{ preview.source.pbcAcceptanceReceiptId }}</code> · accepted TB decision <code>{{ preview.source.acceptedSourceDecisionId }}</code></p>
+                        <p>TB dataset <code>{{ preview.source.trialBalanceDatasetId }}</code> revision {{ preview.source.datasetRevision }} · period {{ preview.source.periodCode }} ({{ preview.source.periodStart }} to {{ preview.source.periodEnd }}) revision {{ preview.source.periodRevision }}</p>
+                        <p>Book {{ preview.source.bookId ?? 'not recorded' }} · revision {{ preview.source.bookRevision ?? 'not recorded' }} · basis {{ preview.source.basis ?? 'not recorded' }} · entity {{ preview.source.legalEntityKey }} · currency {{ preview.source.currency }}</p>
+                        <p>Control basis {{ preview.source.controlBasis }} · selected accounts {{ preview.source.selectedControlAccountCodes.join(', ') }}</p>
+                        <p>Listing total {{ preview.source.signedTotal }} · TB closing control {{ preview.source.closingControl }} · residual {{ preview.source.residual }} · complete listing {{ preview.source.hasCompleteListingCoverage ? 'Yes' : 'No' }} · all account differences zero {{ preview.source.allAccountsReconciled ? 'Yes' : 'No' }}</p>
+                        <div class="table-scroll" role="region" aria-label="Captured source account tie-outs" tabindex="0">
+                          <table>
+                            <caption>Per-account listing to accepted trial-balance closing tie-out</caption>
+                            <thead><tr><th scope="col">Account</th><th scope="col">Listing</th><th scope="col">TB closing</th><th scope="col">Difference</th><th scope="col">Listing rows</th><th scope="col">TB rows</th></tr></thead>
+                            <tbody>@for (account of preview.source.accounts; track account.accountCode) {
+                              <tr><th scope="row">{{ account.accountCode }}</th><td>{{ account.listingAmount }}</td><td>{{ account.trialBalanceAmount }}</td><td>{{ account.difference }}</td><td>{{ account.listingRowCount }}</td><td>{{ account.trialBalanceRowCount }}</td></tr>
+                            }</tbody>
+                          </table>
+                        </div>
+                      </section>
+                      <section aria-labelledby="schedule-review-original-rows-heading">
+                        <h5 id="schedule-review-original-rows-heading">Retained original listing rows</h5>
+                        <p>Values below are the original accepted file cells, aligned to its recorded headers. They are bound to capture <code>{{ preview.captureHash }}</code>.</p>
+                        <audit-state [loading]="sourceIntake.reviewSourceRows.loading()" [error]="sourceIntake.reviewSourceRows.error()" label="retained listing rows" />
+                        @if (sourceIntake.reviewEvidenceReady()) {
+                          @if (sourceIntake.reviewSourceRows.data(); as rows) {
+                            <div class="table-scroll" role="region" aria-label="Retained original listing rows" tabindex="0">
+                              <table>
+                                <caption>Original source line values · {{ rows.totalRows }} rows · page {{ rows.offset / rows.limit + 1 }}</caption>
+                                <thead><tr><th scope="col">Line</th><th scope="col">Stable row ID</th>@for (header of rows.headers; track $index) { <th scope="col">{{ header }}</th> }</tr></thead>
+                                <tbody>@for (row of rows.items; track row.stableRowId) {
+                                  <tr><th scope="row">{{ row.sourceLineNumber }}</th><td>{{ row.stableRowId }}</td>@for (cell of row.cells; track $index) { <td>{{ cell }}</td> }</tr>
+                                }</tbody>
+                              </table>
+                            </div>
+                            <nav aria-label="Retained source row pages">
+                              <button matButton type="button" (click)="sourceIntake.reviewRowsPage(false)" [disabled]="rows.offset === 0 || sourceIntake.reviewSourceRows.loading()">Previous rows</button>
+                              <span>Rows {{ rows.totalRows === 0 ? 0 : rows.offset + 1 }}–{{ rows.offset + rows.items.length }} of {{ rows.totalRows }}</span>
+                              <button matButton type="button" (click)="sourceIntake.reviewRowsPage(true)" [disabled]="!rows.hasMore || sourceIntake.reviewSourceRows.loading()">Next rows</button>
+                            </nav>
+                          }
+                        }
+                      </section>
                       <p>Decision: {{ preview.canonicalInput.action }} · {{ preview.canonicalInput.reason }}</p>
                       @if (preview.canonicalInput.evidenceReference) { <p>Evidence reference: {{ preview.canonicalInput.evidenceReference }}</p> }
-                      <label><input type="checkbox" [checked]="sourceIntake.reviewedDecision()" [disabled]="!sourceIntake.reviewPreviewMatches() || sourceIntake.busy()" (change)="sourceIntake.setReviewAssent($any($event.target).checked)" /> I independently reviewed this exact source state and decision.</label>
+                      <label><input type="checkbox" [checked]="sourceIntake.reviewedDecision()" [disabled]="!sourceIntake.reviewPreviewMatches() || !sourceIntake.reviewEvidenceReady() || sourceIntake.busy()" (change)="sourceIntake.setReviewAssent($any($event.target).checked)" /> I independently reviewed this exact source state and decision.</label>
                       <button matButton="filled" type="button" (click)="sourceIntake.recordReview()" [disabled]="!sourceIntake.canRecordReview()">{{ preview.canonicalInput.action === 'APPROVE' ? 'Record independent approval' : 'Record return for rework' }}</button>
                     </section>
                   }
