@@ -16,7 +16,9 @@ newer exact-source CI and slice evidence live under `targetedVerification`.
 
 ## T058 cut-off procedure lineage (2026-10-24)
 
-Procedure link fixed; focused test passes; T058 remains partial (see `status.json`).
+Cut-off and subsequent-match evidence now retains the selected procedure and approved selection lineage. Corrections append a new `ExpectedRevision`-guarded revision under the existing firm/client/engagement and item lock order; current projections use the latest revision, while stale, unreviewed, superseded-source and frozen-file writes fail closed. Focused `AuditSamplingServiceTests` pass on `62463e0b`. This does not complete T058: the approved cut-off window, API/Angular matching and finding workflows, MUS methodology and rendered/professional acceptance remain open.
+
+The preceding full run `40128614450` on `8feed9c0` exposed a test-harness sequencing failure: its protected down-migration probe rolled back later schema before the same test finished. The assertion remains unchanged and now runs after the workflow's final database checks. The affected Domain test passes 1/1 on `6ebc0662`; exact-source full verification `40131071167` is running. See `status.json` for run/source boundaries.
 
 ## Accepted listing source capture and review
 
@@ -88,15 +90,15 @@ The prior source-bounded verification and remaining gates are retained in the [s
 
 ## Signed Legacy mail evidence enrollment (2026-10-23)
 
-Firm-wide administrators enroll exact public CMS evidence. Replay-safe receipts match current deployment, consent and expiry. Same-session lost acknowledgements recover through exact-envelope GET readback; mismatched, stale or disabled receipts stay blocked. Failed reads hide protected status with a generic notice. `FILE` remains default; the worker explicitly opts into `ENROLLED`. Role-only rows cannot qualify, retained bytes block downgrade, and files are never browser-persisted. Focused evidence is in `status.json`; issuer tooling, broader readiness/browser/full CI, live provider and rollout acceptance remain open. No live effect or deployment occurred.
+Archived detail: [handoff history](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#signed-legacy-mail-evidence-enrollment-2026-10-23). Current acceptance limits remain in `status.json`.
 
 ## Retained parity UI corrections (2026-10-23)
 
-Workpaper replies and recovery remain bound to engagement and identity; context changes clear milestone drafts. Saved statements show refusals, numeric notes and saved checks. CI evidence and open acceptance are under `apiAngularParity` in `status.json`. Fast CI includes database-free OpenAPI semantics; manual runs survive newer pushes. No local test cases ran.
+Archived detail: [handoff history](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#retained-parity-ui-corrections-2026-10-23). Current API/Angular acceptance remains under `apiAngularParity` in `status.json`.
 
 ## Scoped accounting and staffing persistence (2026-10-23)
 
-Profile/dimension history retains scoped revisions without legacy backfill. TB/GL resolve exact scope. GL imports retain current authority through save; chunk replay locks firm/client/actor before its batch to avoid the source-acceptance lock cycle. API/Angular submit bounded reasons; an owned setup journey checks retained reasons and cutover denial. Staffing/resource/cost-rate and expense actor/account keys bind owners; nullable draft reviewers remain supported. Context activation, wider key inventory and broader acceptance remain open. See `status.json`.
+Archived detail: [handoff history](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#scoped-accounting-and-staffing-persistence-2026-10-23). Context activation, wider key inventory and broader acceptance remain open; see `status.json`.
 
 ## Scope-denial HTTP responses (2026-10-23)
 
