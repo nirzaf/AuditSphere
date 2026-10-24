@@ -137,6 +137,13 @@ public sealed class AuditSamplingServiceTests
       Assert.Equal(ErrorCodes.StaleRevision, staleCutOff.ErrorCode);
       Assert.Equal(2, await db.AuditCutOffTestRecords.CountAsync(x => x.SelectionItemId == nextPeriodItemId));
 
+      // A higher-scale amount must not be silently rounded into a false full settlement.
+      var overPrecisionMatch = await AuditSamplingService.MatchSubsequentTransactionAsync(db, scope.Actor,
+        new SubsequentMatchRequest(inPeriodItemId, 900.0000004m, "BANK-2027-01-15-CREDIT-001",
+          new DateOnly(2027, 1, 15), "bank-statement-jan-2027", null));
+      Assert.False(overPrecisionMatch.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, overPrecisionMatch.ErrorCode);
+
       // Subsequent settlement: full match settles the item.
       var settled = await AuditSamplingService.MatchSubsequentTransactionAsync(db, scope.Actor, new SubsequentMatchRequest(
         inPeriodItemId, 900m, "BANK-2027-01-15-CREDIT-001", new DateOnly(2027, 1, 15), "bank-statement-jan-2027", null));

@@ -156,6 +156,9 @@ public static class AuditSamplingService
         request.ExpectedRevision < 0 || request.ExpectedRevision == long.MaxValue)
       return CommandResult<SubsequentMatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A subsequent match needs the item, a non-negative matched amount, the source reference and evidence.");
+    if (request.MatchedAmount != decimal.Round(request.MatchedAmount, 6, MidpointRounding.ToEven))
+      return CommandResult<SubsequentMatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "The matched amount must be representable to six decimal places without rounding.");
     var item = await db.AuditSelectionItems.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == request.SelectionItemId && x.FirmId == actor.FirmId, ct);
     if (item is null)
@@ -200,7 +203,7 @@ public static class AuditSamplingService
     }
 
     var absolute = item.SignedAmount < 0m ? -item.SignedAmount : item.SignedAmount;
-    var matched = decimal.Round(request.MatchedAmount, 6, MidpointRounding.ToEven);
+    var matched = request.MatchedAmount;
     if (matched > absolute)
       return CommandResult<SubsequentMatchValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "The matched amount cannot exceed the sampled item amount.");
