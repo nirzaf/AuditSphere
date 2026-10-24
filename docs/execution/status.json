@@ -1085,7 +1085,7 @@
         "checks": "Initial5 focused methods; followup22cases plus final2changed-method repeat PASS; deployment32offlineassertions PASS. No full local suite.",
         "scope": "Critical workflow guards,20additional commercial criterion traces and Acceptance-profile review. No product behavior change or live/professional acceptance.",
         "history": "status-archive-2026-10.json#keys.ascpCriticalAcceptanceFollowup20261024",
-        "ci": "New test-source exact CI required; preceding3f61 full40049525621 still running."
+        "ci": "Superseded3f61/9ef full runs terminal CANCELLED; not passes. Prior871 exact fullPASS is archived separately. Current migration candidate tracked below."
       },
       "custodyTargetGate": "POLICY-INDEPENDENT-CHECKPOINT-CUSTODY added as PENDING in completion-policy-decisions.json (ASCP-28). ADR-0009 authority/secondary-copy choice does not specify an independent live checkpoint target, trust/retention or recovery contract. No provider or permissions chosen.",
       "expenseLedgerReferences": {
@@ -1096,7 +1096,16 @@
         "migration": "20261024014728_FirmExpenseJournalPostingFirmScope; isolated testDB applied only, no deployed history/data preflight",
         "implementationCommit": "91aa0b2b19ca5f6814b789c30a9896d2e05e6fe2"
       },
-      "administrationAtomicTrace": "25source-backed4.2 child criteria; no functional promotion. Details: status-archive-2026-10.json#keys.administrationAtomicTrace20261024."
+      "administrationAtomicTrace": "25source-backed4.2 child criteria; no functional promotion. Details: status-archive-2026-10.json#keys.administrationAtomicTrace20261024.",
+      "latestExactCi": {
+        "candidate": "af3bcaecaa7acb3c149262cfffcc9951442f3853",
+        "implementationCommit": "91aa0b2b",
+        "runId": 40051971167,
+        "sourceMatch": "MATCH",
+        "status": "RUNNING",
+        "fullPass": false,
+        "limits": "Superseded05b40050827848 cancellation requested after replacement sourceMATCH; no failed job observed. This ledger-only followup does not create another code candidate."
+      }
     },
     "archivedOn20261024": {
       "entries": [
