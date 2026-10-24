@@ -8,4 +8,5 @@
   <Project Path="tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj" />
   <Project Path="tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj" />
   <Project Path="tools/AuditSphereOps.OpenApiEmitter/AuditSphereOps.OpenApiEmitter.csproj" />
+  <Project Path="tools/AuditSphereOps.MailEvidenceIssuer/AuditSphereOps.MailEvidenceIssuer.csproj" />
 </Solution>
