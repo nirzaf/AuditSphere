@@ -39,10 +39,13 @@ public sealed partial class CompletionContractTraceTests(Xunit.Abstractions.ITes
           url = TrailingQueryInterpolation().Replace(url, "");     // `${query}` glued to the last segment
           url = Interpolation().Replace(url, "*");
           var isPrefix = url.EndsWith('/');
+          // Arrow-function base helpers may put their returned literal on the next line.
+          var declaration = index > 0 && lines[index - 1].TrimEnd().EndsWith("=>", StringComparison.Ordinal)
+            ? lines[index - 1] + lines[index] : lines[index];
           var segments = url.Trim('/').Split('/');
           // A literal matches a template of equal length, or is the base of a longer one that callers extend.
           if (!templates.Any(template => template.Length >= segments.Length && segments.Zip(template).All(pair => SegmentMatches(pair.First, pair.Second))
-              && (isPrefix || template.Length == segments.Length || IsBaseUrl(lines[index]))))
+              && (isPrefix || template.Length == segments.Length || IsBaseUrl(declaration))))
             unmatched.Add($"{Path.GetRelativePath(root, file)}:{index + 1} {url}");
         }
     }
@@ -110,5 +113,5 @@ public sealed partial class CompletionContractTraceTests(Xunit.Abstractions.ITes
   [GeneratedRegex(@"\{[^}]+\}")] private static partial Regex PathParameter();
   [GeneratedRegex(@"\$\{[^}]*\}")] private static partial Regex Interpolation();
   [GeneratedRegex(@"(?<=[^/])\$\{[^}]*\}$")] private static partial Regex TrailingQueryInterpolation();
-  [GeneratedRegex(@"\b(const|let)\s+\w*[bB]ase\w*\s*=|\bbase\w*\s*\([^)]*\)\s*(:\s*string\s*)?\{?\s*(return\s+)?[`'""]/api/|private\s+base\w*\(")] private static partial Regex BaseHelper();
+  [GeneratedRegex(@"\b(const|let)\s+\w*[bB]ase\w*\s*=|\bbase\w*\s*\([^)]*\)\s*(:\s*string\s*)?\{?\s*(return\s+)?[`'""]/api/|private\s+\w*[bB]ase\w*\(")] private static partial Regex BaseHelper();
 }
