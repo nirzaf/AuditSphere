@@ -108,8 +108,8 @@ public static class RiskBandService
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, current.ClientId, current.EngagementId, AssignRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    var staffing = await db.EngagementStaffAssignments.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
-      x.EngagementId == current.EngagementId && x.UserId == ownerUserId && x.RevokedAt == null, ct);
+    var staffing = (await CurrentStaffingAsync(db, actor.FirmId, current.EngagementId, ct))
+      .SingleOrDefault(x => x.ClientId == current.ClientId && x.UserId == ownerUserId);
     if (staffing is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The owner must be staffed on this engagement.");
     var minimum = RiskBandRules.MinimumOwnerRank(current.Band);
     if (StaffingLevels.Rank(staffing.StaffingLevel) < minimum)
@@ -145,19 +145,19 @@ public static class RiskBandService
     var risks = await db.AuditRisks.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId).OrderBy(x => x.CreatedAt).ToListAsync(ct);
     var assessments = await db.RiskBandAssessments.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId).ToListAsync(ct);
     var clearances = await db.RiskPartnerClearances.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId).ToListAsync(ct);
-    var owners = await db.RiskOwnerAssignments.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId).ToListAsync(ct);
-    var userIds = clearances.Select(x => x.PartnerUserId).Concat(owners.Select(x => x.OwnerUserId)).Distinct().ToArray();
-    var names = await db.Users.AsNoTracking().Where(x => userIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
+    var owners = await CurrentOwnersAsync(db, firmId, engagementId, assessments, ct);
+    var userIds = clearances.Select(x => x.PartnerUserId).Concat(owners.Values.Select(x => x.Assignment.OwnerUserId)).Distinct().ToArray();
+    var names = await db.Users.AsNoTracking().Where(x => x.FirmId == firmId && userIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
     var rows = risks.Select(risk =>
     {
       var current = assessments.Where(x => x.RiskId == risk.Id).OrderByDescending(x => x.AssessedAt).ThenByDescending(x => x.Id).FirstOrDefault();
       var clearance = current is null ? null : clearances.SingleOrDefault(x => x.RiskBandAssessmentId == current.Id);
-      var owner = current is null ? null : owners.Where(x => x.RiskBandAssessmentId == current.Id).OrderByDescending(x => x.AssignedAt).FirstOrDefault();
+      var owner = current is null ? null : owners.GetValueOrDefault(current.Id);
       return new RiskRoutingRow(risk.Id, risk.AccountArea, risk.Assertion, risk.SignificanceDecision, current?.Id, current?.AssessedByUserId, current?.Band,
         current?.LikelihoodScore, current?.MagnitudeScore, current?.FraudRisk ?? false,
         current is null ? "Band not assessed." : RiskBandRules.Route(current.Band), current?.Band == RiskBands.Red, clearance is not null,
-        clearance is null ? null : names.GetValueOrDefault(clearance.PartnerUserId), owner is null ? null : names.GetValueOrDefault(owner.OwnerUserId),
-        owner is null ? null : StaffingLevels.Label(owner.OwnerStaffingLevel), current?.CriticalEstimate ?? false);
+        clearance is null ? null : names.GetValueOrDefault(clearance.PartnerUserId), owner is null ? null : names.GetValueOrDefault(owner.Assignment.OwnerUserId),
+        owner is null ? null : StaffingLevels.Label(owner.StaffingLevel), current?.CriticalEstimate ?? false);
     }).ToList();
     return CommandResult<IReadOnlyList<RiskRoutingRow>>.Ok(rows);
   }
@@ -169,11 +169,49 @@ public static class RiskBandService
     var current = assessments.GroupBy(x => x.RiskId).Select(g => g.OrderByDescending(x => x.AssessedAt).ThenByDescending(x => x.Id).First()).ToList();
     var cleared = await db.RiskPartnerClearances.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId)
       .Select(x => x.RiskBandAssessmentId).ToListAsync(ct);
-    var owned = await db.RiskOwnerAssignments.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId)
-      .Select(x => x.RiskBandAssessmentId).ToListAsync(ct);
+    var owned = await CurrentOwnersAsync(db, firmId, engagementId, current, ct);
     return current.Where(x => x.Band == RiskBands.Red && !cleared.Contains(x.Id)).Select(x => $"risk:{x.RiskId}:red-partner-review")
-      .Concat(current.Where(x => x.Band != RiskBands.Green && !owned.Contains(x.Id)).Select(x => $"risk:{x.RiskId}:{x.Band.ToLowerInvariant()}-owner"))
+      .Concat(current.Where(x => x.Band != RiskBands.Green && !owned.ContainsKey(x.Id)).Select(x => $"risk:{x.RiskId}:{x.Band.ToLowerInvariant()}-owner"))
       .ToList();
+  }
+
+  private sealed record CurrentRiskOwner(RiskOwnerAssignment Assignment, string StaffingLevel);
+
+  // An immutable assignment is history; only its latest owner with current exact staffing is effective.
+  private static async Task<Dictionary<Guid, CurrentRiskOwner>> CurrentOwnersAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, IReadOnlyList<RiskBandAssessment> assessments, CancellationToken ct)
+  {
+    var assignments = await db.RiskOwnerAssignments.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.EngagementId == engagementId).ToListAsync(ct);
+    var latest = assignments.GroupBy(x => x.RiskBandAssessmentId).ToDictionary(x => x.Key,
+      x => x.OrderByDescending(y => y.AssignedAt).ThenByDescending(y => y.Id).First());
+    var staffing = await CurrentStaffingAsync(db, firmId, engagementId, ct);
+    var result = new Dictionary<Guid, CurrentRiskOwner>();
+    foreach (var assessment in assessments)
+    {
+      if (!latest.TryGetValue(assessment.Id, out var assignment) || assignment.RiskId != assessment.RiskId ||
+          assignment.ClientId != assessment.ClientId) continue;
+      var current = staffing.SingleOrDefault(x => x.ClientId == assessment.ClientId && x.UserId == assignment.OwnerUserId);
+      if (current is not null && StaffingLevels.Rank(current.StaffingLevel) >= RiskBandRules.MinimumOwnerRank(assessment.Band))
+        result.Add(assessment.Id, new(assignment, current.StaffingLevel));
+    }
+    return result;
+  }
+
+  private static async Task<IReadOnlyList<EngagementStaffAssignment>> CurrentStaffingAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
+  {
+    var now = DateTimeOffset.UtcNow;
+    var rows = await (from staffing in db.EngagementStaffAssignments.AsNoTracking()
+      join user in db.Users.AsNoTracking() on new { staffing.FirmId, Id = staffing.UserId } equals new { user.FirmId, user.Id }
+      join grant in db.RoleGrants.AsNoTracking() on new { staffing.FirmId, staffing.UserId, Id = staffing.RoleGrantId }
+        equals new { grant.FirmId, grant.UserId, grant.Id }
+      where staffing.FirmId == firmId && staffing.EngagementId == engagementId && staffing.RevokedAt == null &&
+        !user.Disabled && user.UserKind == "Staff" && grant.ClientId == staffing.ClientId &&
+        grant.EngagementId == engagementId && grant.RevokedAt == null && (grant.ExpiresAt == null || grant.ExpiresAt > now)
+      select new { Staffing = staffing, grant.Role }).ToListAsync(ct);
+    return rows.Where(x => StaffingLevels.All.Contains(x.Staffing.StaffingLevel) &&
+      x.Role == StaffingLevels.AuthorizationRole(x.Staffing.StaffingLevel)).Select(x => x.Staffing).ToList();
   }
 
   private static async Task<RiskBandAssessment?> CurrentAssessmentAsync(IAuditSphereDbContext db, Guid firmId, Guid riskId, CancellationToken ct) =>

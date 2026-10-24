@@ -391,7 +391,7 @@ Earlier parity implementation observations are retained in the [historical hando
 
 ## Recent focused evidence
 
-Reminder bounds, template prerequisites, quotation timelines, practice-time phases and firm-report/finding recovery are preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md) and their keyed records in [status.json](status.json). Full current-source release and applicable human acceptance remain open.
+Risk-owner staffing revocation reproduced stale routing/readiness (RED1). Latest-owner eligibility now checks current exact staffing, rank, enabled user and linked grant. The existing fixture passes, including lower-rank denial, restoration and no fallback to an older owner; assignment history and Partner clearance remain intact. Broader races/current CI remain open. Prior evidence stays in the historical handoff and [status.json](status.json).
 
 ## Native generated reporting sources
 

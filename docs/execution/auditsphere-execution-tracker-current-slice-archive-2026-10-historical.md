@@ -8038,3 +8038,9 @@ The existing opening owner now supports an exact closed, independently accepted 
 Focused regressions reproduced missing write holds and self-hashed wrong opening amounts before their corrections. Application and deferred SQL now refuse those cases; retained/empty migration rollback, legacy manual history, successive openings, descendant package staleness and a controlled ancestor-reopen/seal race were exercised. Angular, API compilation, EF/OpenAPI drift and named successor/manual browser journeys passed. Lost committed creation was explicitly repreviewed and replayed with the original request bytes before independent approval and persistence checks. This does not prove every transport-loss ordering.
 
 Built-in checks exercised actual target/source selection and keyboard preview, exact retained identities/amounts, unchecked assent and disabled creation. A cramped link/label layout was corrected and recaptured on the rebuilt bundle before fixture expiry; owned tabs were closed and fixtures released. Built-in inspection did not create or approve an opening. Human AT/native zoom, public ACTIVE activation, nonzero P&L treatment, nonempty-item continuity, qualified/live acceptance and exact-source full CI remain separate. See `nativeSuccessorOpening` in [status.json](status.json).
+
+## Recent focused evidence pointer — archived before risk-owner correction 2026-10-24
+
+## Recent focused evidence
+
+Reminder bounds, template prerequisites, quotation timelines, practice-time phases and firm-report/finding recovery are preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md) and their keyed records in [status.json](status.json). Full current-source release and applicable human acceptance remain open.

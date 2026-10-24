@@ -420,9 +420,49 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var epoch = (await db.Users.AsNoTracking().SingleAsync(x => x.Id == w.Users["senior"].Id)).SessionEpoch;
+      var retainedOwner = await db.RiskOwnerAssignments.AsNoTracking().SingleAsync(x => x.RiskId == amber);
       Assert.True((await StaffingService.RevokeAsync(db, manager, seniorAssignment)).Succeeded);
+      var completion = await AuditFieldworkService.EvaluateCompletionAsync(db, partner, w.EngagementId);
+      Assert.True(completion.Succeeded, completion.Message);
+      var afterRevoke = await RiskBandService.GetRoutingAsync(db, manager, w.EngagementId);
+      Assert.True(afterRevoke.Succeeded, afterRevoke.Message);
+      var amberRouting = Assert.Single(afterRevoke.Value!, x => x.RiskId == amber);
+      Assert.True(completion.Value!.Blockers.Contains($"risk:{amber}:amber-owner") &&
+        amberRouting.OwnerName is null && amberRouting.OwnerLevel is null,
+        $"Revoked owner must not satisfy current routing/completion. Owner={amberRouting.OwnerName}/{amberRouting.OwnerLevel}; blockers={string.Join(',', completion.Value.Blockers)}");
+      var history = await db.RiskOwnerAssignments.AsNoTracking().SingleAsync(x => x.Id == retainedOwner.Id);
+      Assert.Equal((retainedOwner.OwnerUserId, retainedOwner.OwnerStaffingLevel, retainedOwner.AssignedByUserId, retainedOwner.AssignedAt),
+        (history.OwnerUserId, history.OwnerStaffingLevel, history.AssignedByUserId, history.AssignedAt));
       Assert.False(await db.RoleGrants.AnyAsync(x => x.UserId == w.Users["senior"].Id && x.EngagementId == w.EngagementId && x.RevokedAt == null));
       Assert.True((await db.Users.AsNoTracking().SingleAsync(x => x.Id == w.Users["senior"].Id)).SessionEpoch > epoch);
+      var lowerAssignment = await StaffingService.AssignAsync(db, manager,
+        new(w.EngagementId, w.Users["senior"].Id, StaffingLevels.StaffAssociate));
+      Assert.True(lowerAssignment.Succeeded, lowerAssignment.Message);
+      Assert.Null(Assert.Single((await RiskBandService.GetRoutingAsync(db, manager, w.EngagementId)).Value!, x => x.RiskId == amber).OwnerName);
+      Assert.Contains($"risk:{amber}:amber-owner", (await AuditFieldworkService.EvaluateCompletionAsync(db, partner, w.EngagementId)).Value!.Blockers);
+      Assert.Equal(ErrorCodes.GateBlocked, (await RiskBandService.AssignOwnerAsync(db, manager, amber, w.Users["senior"].Id)).ErrorCode);
+      Assert.True((await StaffingService.RevokeAsync(db, manager, lowerAssignment.Value)).Succeeded);
+      Assert.True((await StaffingService.AssignAsync(db, manager,
+        new(w.EngagementId, w.Users["senior"].Id, StaffingLevels.SeniorAuditor))).Succeeded);
+      Assert.True((await RiskBandService.AssignOwnerAsync(db, manager, amber, w.Users["senior"].Id)).Succeeded);
+      var restored = Assert.Single((await RiskBandService.GetRoutingAsync(db, manager, w.EngagementId)).Value!, x => x.RiskId == amber);
+      Assert.Equal((w.Users["senior"].DisplayName, StaffingLevels.Label(StaffingLevels.SeniorAuditor)), (restored.OwnerName, restored.OwnerLevel));
+      Assert.DoesNotContain($"risk:{amber}:amber-owner", (await AuditFieldworkService.EvaluateCompletionAsync(db, partner, w.EngagementId)).Value!.Blockers);
+      Assert.Equal(2, await db.RiskOwnerAssignments.CountAsync(x => x.RiskId == amber));
+      // A now-invalid latest assignment must not resurrect an older, still-qualified owner.
+      Assert.True((await RiskBandService.AssignOwnerAsync(db, partner, amber, w.Users["manager"].Id)).Succeeded);
+      var managerStaffing = await db.EngagementStaffAssignments.AsNoTracking().SingleAsync(x =>
+        x.EngagementId == w.EngagementId && x.UserId == w.Users["manager"].Id && x.RevokedAt == null);
+      Assert.True((await StaffingService.RevokeAsync(db, partner, managerStaffing.Id)).Succeeded);
+      var latestRevoked = Assert.Single((await RiskBandService.GetRoutingAsync(db, partner, w.EngagementId)).Value!, x => x.RiskId == amber);
+      Assert.Null(latestRevoked.OwnerName);
+      Assert.Null(latestRevoked.OwnerLevel);
+      var finalCompletion = (await AuditFieldworkService.EvaluateCompletionAsync(db, partner, w.EngagementId)).Value!;
+      Assert.Contains($"risk:{amber}:amber-owner", finalCompletion.Blockers);
+      Assert.Contains($"risk:{red}:red-owner", finalCompletion.Blockers);
+      Assert.DoesNotContain($"risk:{red}:red-partner-review", finalCompletion.Blockers);
+      Assert.Equal(3, await db.RiskOwnerAssignments.CountAsync(x => x.RiskId == amber));
+      Assert.Single(await db.RiskPartnerClearances.Where(x => x.RiskId == red).ToListAsync());
     }
   }
 

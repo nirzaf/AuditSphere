@@ -902,6 +902,13 @@
         "status": "Focused existingAngular spec17PASS; no productdefect observed; Task15 partial.",
         "scope": "503 categorypage removes oldrecord/table/pagination; refresh displays onlyexactnewrecord/revision via adjacentRevisionfact; GETonly.",
         "notRun": "No standalonebuild/fullsuite/builtin/AT; no packageclose/readiness acceptance."
+      },
+      "riskOwnerCurrentness": {
+        "status": "RED1_GREEN1; bounded OriginalTask08 correction, whole08/31 incomplete.",
+        "source": "RiskBandService.cs currentowner eligibility shared by assignment/routing/completion; no API/schema change.",
+        "red": "SupportedSeniorstaffingRevoke retained ownername/level and omitted Amberownerblocker for unaffected reader.",
+        "green": "Existing Staffing_MapsFourLevelsToEngagementRoles_AndRiskBandsRouteOwnersAndPartnerReview PASS1; lower-rank refusal, explicit qualified restoration, latestrevoked no olderfallback, originalownerhistory and humanPartnerclearance retained.",
+        "limits": "No universal concurrent-revocation, expiry/disabled interleaving, UI/humanAT or fullcurrentCI claim. No history/approval mutation."
       }
     },
     "archivedOn20261024": {
