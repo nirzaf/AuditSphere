@@ -14,7 +14,11 @@ public sealed record AuditScheduleCsvColumns(
 public sealed record AuditScheduleCsvParseResult(
   string ProfileVersion, string Currency, IReadOnlyList<string> Headers, AuditScheduleCsvColumns Columns,
   string RawFileSha256, string NormalizedRowsSha256, bool HasTechnicalStableRowIds,
-  IReadOnlyList<ScheduleRowInput> Rows);
+  IReadOnlyList<ScheduleRowInput> Rows)
+{
+  /// <summary>The exact canonical UTF-8 hash input; not a reserialization of the original cells.</summary>
+  public string NormalizedRowsJson { get; init; } = string.Empty;
+}
 
 /// <summary>
 /// Pure parsing of exact server-supplied client-listing bytes. This proves neither source acceptance
@@ -27,6 +31,7 @@ public static class AuditScheduleCsvProfile
   public const int MaxRows = 20_000;
   public const int MaxColumns = 256;
   public const int MaxOriginalValuesChars = 20_000;
+  public const int MaxOriginalEvidenceBytes = 8 * 1024 * 1024;
   // Existing persisted schedule rows and controls use numeric(19,6).
   public const decimal MaxMoneyMagnitude = 9_999_999_999_999.999999m;
 
@@ -63,6 +68,7 @@ public static class AuditScheduleCsvProfile
 
     var rows = new List<ScheduleRowInput>(records.Count - 1);
     var stableIds = new HashSet<string>(StringComparer.Ordinal);
+    var originalEvidenceBytes = 0;
     for (var i = 1; i < records.Count; i++)
     {
       var cells = records[i];
@@ -98,6 +104,10 @@ public static class AuditScheduleCsvProfile
         .ToDictionary(x => x.name, x => cells[x.position], StringComparer.Ordinal));
       if (original.Length > MaxOriginalValuesChars)
         throw new FormatException($"CSV line {physicalLine}: original cell JSON exceeds 20,000 characters.");
+      var originalBytes = Encoding.UTF8.GetByteCount(original);
+      if (originalBytes > MaxOriginalEvidenceBytes - originalEvidenceBytes)
+        throw new FormatException("The aggregate original cell evidence exceeds 8 MiB.");
+      originalEvidenceBytes += originalBytes;
       rows.Add(new(stableId, physicalLine, Required(columns.AccountCode, 100),
         Required(columns.Description, 1000), amount, rowCurrency, Date(columns.TransactionDate),
         Date(columns.PostingDate), Date(columns.DeliveryDate), Date(columns.ServiceDate), original));
@@ -120,7 +130,10 @@ public static class AuditScheduleCsvProfile
       })
     });
     return new(Version, currency, Array.AsReadOnly(rawHeaders.ToArray()), columns, rawHash,
-      Digest(Encoding.UTF8.GetBytes(canonical)), columns.StableRowId is null, rows.AsReadOnly());
+      Digest(Encoding.UTF8.GetBytes(canonical)), columns.StableRowId is null, rows.AsReadOnly())
+    {
+      NormalizedRowsJson = canonical
+    };
   }
 
   private static string? Iso(DateOnly? date) => date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);

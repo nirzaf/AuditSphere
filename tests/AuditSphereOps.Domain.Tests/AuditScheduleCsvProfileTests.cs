@@ -25,6 +25,24 @@ public sealed class AuditScheduleCsvProfileTests
     Assert.Equal("audit-client-listing-csv.v1", parsed.ProfileVersion);
     Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(bytes)), parsed.RawFileSha256);
     Assert.NotEqual(parsed.RawFileSha256, parsed.NormalizedRowsSha256);
+    Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(parsed.NormalizedRowsJson))),
+      parsed.NormalizedRowsSha256);
+    using (var canonical = JsonDocument.Parse(parsed.NormalizedRowsJson))
+    {
+      Assert.Equal("audit-client-listing-csv.v1", canonical.RootElement.GetProperty("ProfileVersion").GetString());
+      Assert.Equal("QAR", canonical.RootElement.GetProperty("Currency").GetString());
+      var canonicalRows = canonical.RootElement.GetProperty("Rows");
+      Assert.Equal(3, canonicalRows.GetArrayLength());
+      Assert.Equal("row-a", canonicalRows[0].GetProperty("StableRowId").GetString());
+      Assert.Equal(2, canonicalRows[0].GetProperty("SourceLineNumber").GetInt32());
+      Assert.Equal("0010", canonicalRows[0].GetProperty("AccountCode").GetString());
+      Assert.Equal("Debit, \"quoted\"", canonicalRows[0].GetProperty("Description").GetString());
+      Assert.Equal("-12.345678", canonicalRows[0].GetProperty("SignedAmount").GetString());
+      Assert.Equal("0.000000", canonicalRows[1].GetProperty("SignedAmount").GetString());
+      Assert.Equal("12.345678", canonicalRows[2].GetProperty("SignedAmount").GetString());
+      Assert.Equal("2026-01-01", canonicalRows[0].GetProperty("TransactionDate").GetString());
+      Assert.Equal(JsonValueKind.Null, canonicalRows[0].GetProperty("DeliveryDate").ValueKind);
+    }
     Assert.False(parsed.HasTechnicalStableRowIds);
     Assert.Equal(new[] { -12.345678m, 0m, 12.345678m }, parsed.Rows.Select(x => x.SignedAmount));
     Assert.Equal(new[] { "0010", "0000", "0020" }, parsed.Rows.Select(x => x.AccountCode));
@@ -97,6 +115,7 @@ public sealed class AuditScheduleCsvProfileTests
   [InlineData("columns-limit")]
   [InlineData("rows-limit")]
   [InlineData("raw-json-limit")]
+  [InlineData("aggregate-original-evidence")]
   [InlineData("bytes-limit")]
   [InlineData("utf8")]
   [InlineData("extension")]
@@ -139,6 +158,16 @@ public sealed class AuditScheduleCsvProfileTests
       case "columns-limit": csv = string.Join(',', Enumerable.Range(0, 257).Select(x => $"H{x}")) + "\n" + Row; break;
       case "rows-limit": csv = Header + "\n" + string.Join('\n', Enumerable.Range(0, 20_001).Select(x => Row.Replace("row-a", $"row-{x}"))); break;
       case "raw-json-limit": csv = csv.Replace(" untouched ", new string('x', 20_000)); break;
+      case "aggregate-original-evidence":
+        var longHeader = Header.Replace("Extra", new string('h', 15_000));
+        var single = AuditScheduleCsvProfile.Parse("listing.csv", Bytes(longHeader + "\n" + Row), "QAR", Columns);
+        var original = Assert.Single(single.Rows).OriginalValuesJson;
+        Assert.InRange(original.Length, 1, 20_000);
+        Assert.True(Encoding.UTF8.GetByteCount(original) * 600L > 8 * 1024 * 1024);
+        csv = longHeader + "\n" + string.Join('\n', Enumerable.Range(0, 600)
+          .Select(x => Row.Replace("row-a", $"row-{x}")));
+        Assert.True(Encoding.UTF8.GetByteCount(csv) < 100_000);
+        break;
       case "extension": name = "listing.xlsx"; break;
     }
     var bytes = kind switch
@@ -148,6 +177,8 @@ public sealed class AuditScheduleCsvProfileTests
       "empty" => [],
       _ => Bytes(csv)
     };
-    Assert.Throws<FormatException>(() => AuditScheduleCsvProfile.Parse(name, bytes, currency, map));
+    var error = Assert.Throws<FormatException>(() => AuditScheduleCsvProfile.Parse(name, bytes, currency, map));
+    if (kind == "aggregate-original-evidence")
+      Assert.Contains("aggregate original cell evidence", error.Message);
   }
 }
