@@ -16,6 +16,7 @@ import { decodeBankReconciliationDetail, decodeBankReconciliationPage, decodeFie
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
 const id3 = '33333333-3333-4333-8333-333333333333';
+const id4 = '44444444-4444-4444-8444-444444444444';
 const hash64 = 'd'.repeat(64);
 
 describe('Audit Fieldwork Contracts', () => {
@@ -181,13 +182,17 @@ describe('Audit Fieldwork Contracts', () => {
         testResult: 'EXCEPTION', testRevision: 1, exceptionAmount: '100.00', auditItemTestId: id1,
         testWorkPerformed: 'Agreed to the invoice and dispatch record.', evidenceReferences: ['invoice-9', 'dispatch-9'],
         contradictoryEvidence: 'Dispatch occurred after year end.', followUp: 'Assess the cut-off adjustment.', testReviewed: false,
-        testReviewDecision: 'CHANGES_REQUIRED', testReviewComment: 'Obtain the signed delivery note.', canReviewTest: true }],
+        testReviewDecision: 'CHANGES_REQUIRED', testReviewComment: 'Obtain the signed delivery note.', canReviewTest: true,
+        cutOffTestId: id2, cutOffIndicator: 'BEFORE_PERIOD_END', cutOffException: true, cutOffRevision: 2,
+        subsequentMatchId: null, subsequentState: null, matchedAmount: null, subsequentRevision: 0 }],
     }, 'sampleSet');
 
     expect(decoded.items[0].stableRowId).toBe('ROW-009');
     expect(decoded.items[0].evidenceReferences).toEqual(['invoice-9', 'dispatch-9']);
     expect(decoded.items[0].followUp).toContain('cut-off');
     expect(decoded.items[0].canReviewTest).toBe(true);
+    expect(decoded.items[0].cutOffRevision).toBe(2);
+    expect(decoded.items[0].subsequentRevision).toBe(0);
   });
 
   it('decodes a valid procedure review payload', () => {
@@ -683,7 +688,19 @@ describe('Audit fieldwork decimal inputs (T005)', () => {
       items: [{ selectionItemId: id3, stableRowId: 'ROW-001', signedAmount: '100.00', currency: 'QAR', inclusionReason: 'MUS interval',
         testResult: 'PENDING', testRevision: 0, exceptionAmount: null, auditItemTestId: null, testWorkPerformed: null,
         evidenceReferences: [], contradictoryEvidence: null, followUp: null, testReviewed: false,
-        testReviewDecision: null, testReviewComment: null, canReviewTest: false }] }, 'sampleSet');
+        testReviewDecision: null, testReviewComment: null, canReviewTest: false,
+        cutOffTestId: null, cutOffIndicator: null, cutOffException: null, cutOffRevision: 0,
+        subsequentMatchId: null, subsequentState: null, matchedAmount: null, subsequentRevision: 0 }] }, 'sampleSet');
+  }
+  function testedSampleData() {
+    const set = sampleData();
+    set.items.push({ selectionItemId: id4, stableRowId: 'ROW-002', signedAmount: '80.00', currency: 'QAR', inclusionReason: 'MUS interval',
+      testResult: 'PASS', testRevision: 1, exceptionAmount: null, auditItemTestId: id2, testWorkPerformed: 'Agreed to the invoice.',
+      evidenceReferences: ['invoice-2'], contradictoryEvidence: null, followUp: null, testReviewed: false,
+      testReviewDecision: null, testReviewComment: null, canReviewTest: false,
+      cutOffTestId: null, cutOffIndicator: null, cutOffException: null, cutOffRevision: 2,
+      subsequentMatchId: null, subsequentState: null, matchedAmount: null, subsequentRevision: 0 });
+    return set;
   }
 
   it('transmits six-place exception amounts, refuses invalid nonblank amounts, and keeps blank optional amounts null', async () => {
@@ -710,6 +727,53 @@ describe('Audit fieldwork decimal inputs (T005)', () => {
     await page.sampling.recordItemTest(item);
     expect(api.command).toHaveBeenCalledTimes(2);
     expect(api.command.mock.calls[1][1]).toMatchObject({ exceptionAmount: null });
+  });
+
+  it('fences cut-off and subsequent-match commands on independent refreshed revisions and refuses untested items', async () => {
+    const { page, api } = open();
+    const set = testedSampleData(), tested = set.items[1], pending = set.items[0];
+    const refreshedSet = { ...set, items: set.items.map(item => item.selectionItemId === tested.selectionItemId
+      ? { ...item, subsequentMatchId: id3, subsequentState: 'PARTIALLY_MATCHED', matchedAmount: '40.00', subsequentRevision: 1 }
+      : item) };
+    api.command.mockResolvedValueOnce({ ok: true, value: null })
+      .mockResolvedValueOnce({ ok: false, unknown: false, message: 'The subsequent match changed.' })
+      .mockResolvedValueOnce({ ok: true, value: null });
+    api.get.mockResolvedValueOnce(set).mockResolvedValueOnce(refreshedSet).mockResolvedValue(refreshedSet);
+
+    page.sampling.sampleSet.set(set);
+    await page.sampling.recordCutOffTest(pending);
+    await page.sampling.recordSubsequentMatch(pending);
+    expect(api.command).toHaveBeenCalledTimes(0);
+
+    Object.assign(page.sampling.evidenceDraft(tested), {
+      periodEndDate: '2026-12-31', transactionDate: '2026-12-30', workPerformed: 'Agreed the dispatch note to the period.',
+      evidenceReferences: 'dispatch-2' });
+    await page.sampling.recordCutOffTest(tested);
+    expect(api.command).toHaveBeenCalledTimes(1);
+    expect(api.command.mock.calls[0][0]).toBe(`/api/ui/selection-items/${id4}/cut-off-test`);
+    expect(api.command.mock.calls[0][1]).toMatchObject({ periodEndDate: '2026-12-31', transactionDate: '2026-12-30', expectedRevision: 2 });
+
+    Object.assign(page.sampling.evidenceDraft(tested), { transactionDate: '31/12/2026' });
+    await page.sampling.recordCutOffTest(tested);
+    expect(api.command).toHaveBeenCalledTimes(1);
+
+    Object.assign(page.sampling.evidenceDraft(tested), {
+      transactionDate: '2026-12-30', matchedAmount: '80.00', sourceReference: 'bank:2027-01-04-011',
+      evidenceReference: 'statement-2' });
+    await page.sampling.recordSubsequentMatch(tested);
+    expect(api.command).toHaveBeenCalledTimes(2);
+    expect(api.command.mock.calls[1][0]).toBe(`/api/ui/selection-items/${id4}/subsequent-match`);
+    expect(api.command.mock.calls[1][1]).toMatchObject({ matchedAmount: '80.00', subsequentSourceReference: 'bank:2027-01-04-011', expectedRevision: 0 });
+
+    const currentItem = page.sampling.sampleSet()!.items[1];
+    expect(page.sampling.evidenceDraft(currentItem)).toMatchObject({ cutOffExpectedRevision: 2, subsequentExpectedRevision: 1 });
+    await page.sampling.recordSubsequentMatch(currentItem);
+    expect(api.command).toHaveBeenCalledTimes(3);
+    expect(api.command.mock.calls[2][1]).toMatchObject({ matchedAmount: '80.00', expectedRevision: 1 });
+
+    Object.assign(page.sampling.evidenceDraft(currentItem), { matchedAmount: '-1' });
+    await page.sampling.recordSubsequentMatch(currentItem);
+    expect(api.command).toHaveBeenCalledTimes(3);
   });
 
   it('preserves six-place sampling intervals and thresholds without changing sampling behavior', async () => {

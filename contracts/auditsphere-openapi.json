@@ -39252,6 +39252,290 @@
         ]
       }
     },
+    "/api/ui/selection-items/{id}/cut-off-test": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CutOffTestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiValueResponseOfCutOffTestValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/selection-items/{id}/subsequent-match": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubsequentMatchInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiValueResponseOfSubsequentMatchValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/procedures/{id}/evidence": {
       "post": {
         "tags": [
@@ -114973,6 +115257,92 @@
           }
         }
       },
+      "CutOffTestInput": {
+        "required": [
+          "periodEndDate",
+          "transactionDate",
+          "documentDate",
+          "shipReceiveDate",
+          "workPerformed",
+          "evidenceReferences",
+          "expectedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "periodEndDate": {
+            "type": "string"
+          },
+          "transactionDate": {
+            "type": "string"
+          },
+          "documentDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "shipReceiveDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "workPerformed": {
+            "type": "string"
+          },
+          "evidenceReferences": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "expectedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "CutOffTestValue": {
+        "required": [
+          "cutOffTestId",
+          "selectionItemId",
+          "periodEndIndicator",
+          "isCutOffException",
+          "revision"
+        ],
+        "type": "object",
+        "properties": {
+          "cutOffTestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "selectionItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodEndIndicator": {
+            "type": "string"
+          },
+          "isCutOffException": {
+            "type": "boolean"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "DeliverableView": {
         "required": [
           "id",
@@ -145109,9 +145479,11 @@
           "cutOffTestId",
           "cutOffIndicator",
           "cutOffException",
+          "cutOffRevision",
           "subsequentMatchId",
           "subsequentState",
           "matchedAmount",
+          "subsequentRevision",
           "auditItemTestId",
           "testWorkPerformed",
           "evidenceReferences",
@@ -145180,6 +145552,14 @@
               "boolean"
             ]
           },
+          "cutOffRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
           "subsequentMatchId": {
             "type": [
               "null",
@@ -145200,6 +145580,14 @@
               "string"
             ],
             "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "subsequentRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           },
           "auditItemTestId": {
             "type": [
@@ -148888,6 +149276,96 @@
           }
         }
       },
+      "SubsequentMatchInput": {
+        "required": [
+          "matchedAmount",
+          "subsequentSourceReference",
+          "subsequentDate",
+          "evidenceReference",
+          "unmatchedReason",
+          "expectedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "matchedAmount": {
+            "type": "string"
+          },
+          "subsequentSourceReference": {
+            "type": "string"
+          },
+          "subsequentDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "unmatchedReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "expectedRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "SubsequentMatchValue": {
+        "required": [
+          "matchId",
+          "selectionItemId",
+          "state",
+          "itemSignedAmount",
+          "matchedAmount",
+          "unmatchedAmount",
+          "revision"
+        ],
+        "type": "object",
+        "properties": {
+          "matchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "selectionItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "itemSignedAmount": {
+            "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
+            "type": "string",
+            "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "matchedAmount": {
+            "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
+            "type": "string",
+            "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "unmatchedAmount": {
+            "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
+            "type": "string",
+            "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "TailorProcedureInput": {
         "required": [
           "title",
@@ -152283,6 +152761,24 @@
           }
         }
       },
+      "UiValueResponseOfCutOffTestValue": {
+        "required": [
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CutOffTestValue"
+              }
+            ]
+          }
+        }
+      },
       "UiValueResponseOfDirectoryCandidatePage": {
         "required": [
           "value"
@@ -153621,6 +154117,24 @@
               },
               {
                 "$ref": "#/components/schemas/StaffingChangeReceipt"
+              }
+            ]
+          }
+        }
+      },
+      "UiValueResponseOfSubsequentMatchValue": {
+        "required": [
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SubsequentMatchValue"
               }
             ]
           }

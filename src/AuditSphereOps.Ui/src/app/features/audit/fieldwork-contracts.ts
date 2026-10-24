@@ -94,11 +94,16 @@ export const decodeSampleSet = obj({ selectionId: guid, procedureId: guid, metho
   items: arr(obj({ selectionItemId: guid, stableRowId: text, signedAmount: dec, currency: text, inclusionReason: text,
     testResult: text, testRevision: nat, exceptionAmount: nullable(dec), auditItemTestId: nullable(guid), testWorkPerformed: nullable(text),
     evidenceReferences: arr(text, 100), contradictoryEvidence: nullable(text), followUp: nullable(text), testReviewed: bool,
-    testReviewDecision: nullable(text), testReviewComment: nullable(text), canReviewTest: bool }), 500) });
+    testReviewDecision: nullable(text), testReviewComment: nullable(text), canReviewTest: bool,
+    cutOffTestId: nullable(guid), cutOffIndicator: nullable(text), cutOffException: nullable(bool), cutOffRevision: nat,
+    subsequentMatchId: nullable(guid), subsequentState: nullable(text), matchedAmount: nullable(dec), subsequentRevision: nat }), 500) });
 export type SampleSet = ReturnType<typeof decodeSampleSet>;
 export type SampleItem = SampleSet['items'][number];
 export type SampleTestDraft = { workPerformed: string; evidenceReferences: string; result: string; exceptionAmount: string;
   contradictoryEvidence: string; followUp: string; reviewerComment: string };
+export type SampleEvidenceDraft = { periodEndDate: string; transactionDate: string; documentDate: string; shipReceiveDate: string;
+  workPerformed: string; evidenceReferences: string; cutOffExpectedRevision: number; matchedAmount: string; sourceReference: string;
+  subsequentExpectedRevision: number; subsequentDate: string; evidenceReference: string; unmatchedReason: string };
 
 const sourceLong = (value: unknown, path: string): string => {
   if (typeof value !== 'string' || !/^(0|[1-9][0-9]{0,18})$/.test(value) || BigInt(value) > 9223372036854775807n)

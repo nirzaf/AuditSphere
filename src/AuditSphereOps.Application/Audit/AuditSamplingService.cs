@@ -30,8 +30,8 @@ public sealed record SubsequentMatchValue(
 public sealed record SampleSetItemView(
   Guid SelectionItemId, string StableRowId, decimal SignedAmount, string Currency, string InclusionReason,
   string TestResult, long TestRevision, decimal? ExceptionAmount,
-  Guid? CutOffTestId, string? CutOffIndicator, bool? CutOffException,
-  Guid? SubsequentMatchId, string? SubsequentState, decimal? MatchedAmount,
+  Guid? CutOffTestId, string? CutOffIndicator, bool? CutOffException, long CutOffRevision,
+  Guid? SubsequentMatchId, string? SubsequentState, decimal? MatchedAmount, long SubsequentRevision,
   Guid? AuditItemTestId, string? TestWorkPerformed, IReadOnlyList<string> EvidenceReferences,
   string? ContradictoryEvidence, string? FollowUp, bool TestReviewed, string? TestReviewDecision,
   string? TestReviewComment, bool CanReviewTest);
@@ -318,8 +318,8 @@ public static class AuditSamplingService
       return new SampleSetItemView(
         item.Id, item.StableRowId, item.SignedAmount, item.Currency, item.InclusionReason,
         test?.Result ?? AuditItemTestResults.Pending, test?.Revision ?? 0, test?.ExceptionAmount,
-        cutOff?.Id, cutOff?.PeriodEndIndicator, cutOff?.IsCutOffException,
-        match?.Id, match?.State, match?.MatchedAmount, test?.Id, test?.WorkPerformed, evidenceReferences,
+        cutOff?.Id, cutOff?.PeriodEndIndicator, cutOff?.IsCutOffException, cutOff?.Revision ?? 0,
+        match?.Id, match?.State, match?.MatchedAmount, match?.Revision ?? 0, test?.Id, test?.WorkPerformed, evidenceReferences,
         test?.ContradictoryEvidence, test?.FollowUp, review?.Decision == AuditItemTestReviewDecisions.Reviewed,
         review?.Decision, review?.Comment, test is not null && canReviewTests && test.TestedByUserId != actor.UserId && review is null);
     }).ToList();

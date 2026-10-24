@@ -34,6 +34,10 @@ public static partial class UiEndpoints
   public sealed record SamplingItemTestInput(string WorkPerformed, string[]? EvidenceReferences, string Result, string? ExceptionAmount,
     string? ContradictoryEvidence, string? FollowUp);
   public sealed record SamplingItemTestReviewInput(string Decision, string? Comment);
+  public sealed record CutOffTestInput(string PeriodEndDate, string TransactionDate, string? DocumentDate,
+    string? ShipReceiveDate, string WorkPerformed, string[]? EvidenceReferences, long ExpectedRevision);
+  public sealed record SubsequentMatchInput(string MatchedAmount, string SubsequentSourceReference,
+    string? SubsequentDate, string EvidenceReference, string? UnmatchedReason, long ExpectedRevision);
   public sealed record EvidenceLinkInput(Guid UploadIntentId, string? Note);
   public sealed record PhysicalItemInput(string FileIndex, string BoxReference, string Description, string Location);
   public sealed record PhysicalLinkInput(Guid ProcedureId);
@@ -142,6 +146,38 @@ public static partial class UiEndpoints
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/item-tests/{id:guid}/review", (Guid id, SamplingItemTestReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditFieldworkService.ReviewItemTestAsync(db, actor,
         new ReviewItemTestRequest(id, i.Decision ?? "", i.Comment), ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<CutOffTestValue>>(group.MapPost("/selection-items/{id:guid}/cut-off-test", (Guid id, CutOffTestInput i, HttpContext http) =>
+    {
+      if (!TryDate(i.PeriodEndDate, out var periodEnd)) return Task.FromResult(Invalid("Enter the period-end date in YYYY-MM-DD format."));
+      if (!TryDate(i.TransactionDate, out var transactionDate)) return Task.FromResult(Invalid("Enter the transaction date in YYYY-MM-DD format."));
+      DateOnly? documentDate = null, shipReceiveDate = null;
+      if (!string.IsNullOrWhiteSpace(i.DocumentDate))
+      {
+        if (!TryDate(i.DocumentDate, out var document)) return Task.FromResult(Invalid("Enter the document date in YYYY-MM-DD format, or leave it blank."));
+        documentDate = document;
+      }
+      if (!string.IsNullOrWhiteSpace(i.ShipReceiveDate))
+      {
+        if (!TryDate(i.ShipReceiveDate, out var shipReceive)) return Task.FromResult(Invalid("Enter the shipping/receiving date in YYYY-MM-DD format, or leave it blank."));
+        shipReceiveDate = shipReceive;
+      }
+      return CommandAsync(http, (db, actor, ct) => AuditSamplingService.RecordCutOffTestAsync(db, actor,
+        new CutOffTestRequest(id, periodEnd, transactionDate, documentDate, shipReceiveDate, i.WorkPerformed ?? "",
+          i.EvidenceReferences ?? [], i.ExpectedRevision), ct));
+    }), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<SubsequentMatchValue>>(group.MapPost("/selection-items/{id:guid}/subsequent-match", (Guid id, SubsequentMatchInput i, HttpContext http) =>
+    {
+      if (!TryDecimal(i.MatchedAmount, out var matchedAmount)) return Task.FromResult(Invalid("Enter the matched amount as a decimal."));
+      DateOnly? subsequentDate = null;
+      if (!string.IsNullOrWhiteSpace(i.SubsequentDate))
+      {
+        if (!TryDate(i.SubsequentDate, out var subsequent)) return Task.FromResult(Invalid("Enter the subsequent settlement date in YYYY-MM-DD format, or leave it blank."));
+        subsequentDate = subsequent;
+      }
+      return CommandAsync(http, (db, actor, ct) => AuditSamplingService.MatchSubsequentTransactionAsync(db, actor,
+        new SubsequentMatchRequest(id, matchedAmount, i.SubsequentSourceReference ?? "", subsequentDate,
+          i.EvidenceReference ?? "", i.UnmatchedReason, i.ExpectedRevision), ct));
+    }), includeConflict: true);
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/procedures/{id:guid}/evidence", (Guid id, EvidenceLinkInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditFieldworkService.LinkClientEvidenceAsync(db, actor, id, i.UploadIntentId, i.Note, ct))), includeConflict: true);
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/engagements/{id:guid}/fieldwork/physical", (Guid id, PhysicalItemInput i, HttpContext http) =>

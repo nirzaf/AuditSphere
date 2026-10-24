@@ -394,6 +394,7 @@
                 }
                 @for (item of selected.items; track item.selectionItemId) {
                   @let draft = sampling.itemDraft(item);
+                  @let cut = sampling.evidenceDraft(item);
                   <article class="panel" [attr.data-sample-item]="item.stableRowId">
                     <h4>{{ item.stableRowId }} · {{ item.signedAmount | money }} {{ item.currency }}</h4>
                     <p><strong>Selection basis:</strong> {{ item.inclusionReason }}</p>
@@ -408,6 +409,16 @@
                         @if (item.testReviewDecision) { <p><strong>Reviewer decision:</strong> {{ item.testReviewDecision }}{{ item.testReviewComment ? ' — ' + item.testReviewComment : '' }}</p> }
                       </div>
                     } @else { <p role="status">No execution result recorded.</p> }
+                    @if (item.cutOffRevision > 0 || item.subsequentRevision > 0) {
+                      <div class="facts" aria-label="Recorded cut-off and subsequent-match evidence">
+                        @if (item.cutOffRevision > 0) {
+                          <p><strong>Cut-off test:</strong> {{ item.cutOffIndicator }} · revision {{ item.cutOffRevision }}{{ item.cutOffException ? ' · cut-off exception' : ' · no exception' }}</p>
+                        }
+                        @if (item.subsequentRevision > 0) {
+                          <p><strong>Subsequent match:</strong> {{ item.subsequentState }} · {{ item.matchedAmount | money }} {{ item.currency }} · revision {{ item.subsequentRevision }}</p>
+                        }
+                      </div>
+                    }
                     @if (selected.status === 'REVIEWED' && w.canManageFieldwork) {
                       <form class="inline-form" (submit)="$event.preventDefault(); sampling.recordItemTest(item)">
                         <label>Result <select [(ngModel)]="draft.result" [name]="'result-' + item.selectionItemId"><option value="PASS">Pass</option><option value="EXCEPTION">Exception</option><option value="LIMITATION">Limitation</option></select></label>
@@ -427,6 +438,25 @@
                         <button matButton (click)="sampling.reviewItemTest(item.auditItemTestId!, 'REVIEWED', item.selectionItemId)" [disabled]="fieldworkCommandBlocked() || sampling.sampleActionBusy()">Review item test</button>
                         <button matButton (click)="sampling.reviewItemTest(item.auditItemTestId!, 'CHANGES_REQUIRED', item.selectionItemId)" [disabled]="fieldworkCommandBlocked() || sampling.sampleActionBusy() || !draft.reviewerComment.trim()">Return item test</button>
                       </div>
+                    }
+                    @if (selected.status === 'REVIEWED' && w.canManageFieldwork && item.testRevision > 0) {
+                      <form class="inline-form" aria-label="Cut-off test evidence" (submit)="$event.preventDefault(); sampling.recordCutOffTest(item)">
+                        <label>Period-end date <input type="date" [(ngModel)]="cut.periodEndDate" [name]="'cutoff-period-' + item.selectionItemId" required /></label>
+                        <label>Transaction date <input type="date" [(ngModel)]="cut.transactionDate" [name]="'cutoff-transaction-' + item.selectionItemId" required /></label>
+                        <label>Document date (optional) <input type="date" [(ngModel)]="cut.documentDate" [name]="'cutoff-document-' + item.selectionItemId" /></label>
+                        <label>Shipping/receiving date (optional) <input type="date" [(ngModel)]="cut.shipReceiveDate" [name]="'cutoff-ship-' + item.selectionItemId" /></label>
+                        <label>Cut-off work performed <textarea [(ngModel)]="cut.workPerformed" [name]="'cutoff-work-' + item.selectionItemId" maxlength="20000" rows="2"></textarea></label>
+                        <label>Cut-off evidence references (one per line) <textarea [(ngModel)]="cut.evidenceReferences" [name]="'cutoff-evidence-' + item.selectionItemId" rows="2"></textarea></label>
+                        <button matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked() || sampling.sampleActionBusy()">{{ item.cutOffRevision > 0 ? 'Record a new cut-off revision' : 'Record cut-off test' }}</button>
+                      </form>
+                      <form class="inline-form" aria-label="Subsequent settlement match" (submit)="$event.preventDefault(); sampling.recordSubsequentMatch(item)">
+                        <label>Matched amount <input inputmode="decimal" [(ngModel)]="cut.matchedAmount" [name]="'match-amount-' + item.selectionItemId" /></label>
+                        <label>Subsequent source entry <input [(ngModel)]="cut.sourceReference" [name]="'match-source-' + item.selectionItemId" maxlength="200" /></label>
+                        <label>Subsequent date (optional) <input type="date" [(ngModel)]="cut.subsequentDate" [name]="'match-date-' + item.selectionItemId" /></label>
+                        <label>Settlement evidence reference <input [(ngModel)]="cut.evidenceReference" [name]="'match-evidence-' + item.selectionItemId" maxlength="2000" /></label>
+                        <label>Unmatched or partial explanation <textarea [(ngModel)]="cut.unmatchedReason" [name]="'match-reason-' + item.selectionItemId" rows="2"></textarea></label>
+                        <button matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked() || sampling.sampleActionBusy()">{{ item.subsequentRevision > 0 ? 'Record a new subsequent-match revision' : 'Record subsequent match' }}</button>
+                      </form>
                     }
                   </article>
                 }

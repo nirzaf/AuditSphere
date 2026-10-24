@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 import { Api, CommandState, type Resource } from '../../core/api';
 import { decimalInput, decode } from '../../core/decode';
-import { type Fieldwork, decodeSampleSet, samplingPreviewDecoder, type SampleItem, type SampleSet, type SampleTestDraft, type SamplingPreview } from './fieldwork-contracts';
+import { type Fieldwork, decodeSampleSet, samplingPreviewDecoder, type SampleEvidenceDraft, type SampleItem, type SampleSet, type SampleTestDraft, type SamplingPreview } from './fieldwork-contracts';
 import type { FieldworkCommandAcquire } from './fieldwork-command-context';
 
 export class FieldworkSamplingState {
@@ -13,6 +13,7 @@ export class FieldworkSamplingState {
   readonly sampleSetError = signal('');
   selectionReviewComment = '';
   private readonly sampleDrafts = new Map<string, SampleTestDraft>();
+  private readonly evidenceDrafts = new Map<string, SampleEvidenceDraft>();
   private previewInputFingerprint = '';
   private generation = 0;
   private previewOperation = 0;
@@ -46,7 +47,7 @@ export class FieldworkSamplingState {
     ++this.generation; ++this.previewOperation; ++this.sampleReadOperation; ++this.actionOperation;
     this.samplingBusy.set(false); this.sampleSetLoading.set(false); this.sampleActionBusy.set(false);
     this.samplingPreview.set(null); this.previewInputFingerprint = '';
-    this.sampleSet.set(null); this.sampleSetError.set(''); this.sampleDrafts.clear();
+    this.sampleSet.set(null); this.sampleSetError.set(''); this.sampleDrafts.clear(); this.evidenceDrafts.clear();
     this.s = { procedure: '', schedule: '', method: 'MUS', interval: '', key: '', size: null, seed: null, attributeFields: [], rationale: '' };
     this.selectionReviewComment = '';
   }
@@ -60,7 +61,7 @@ export class FieldworkSamplingState {
     if (!this.ws.error()) return;
     ++this.previewOperation; ++this.sampleReadOperation; ++this.actionOperation;
     this.samplingBusy.set(false); this.samplingPreview.set(null); this.previewInputFingerprint = '';
-    this.sampleSet.set(null); this.sampleSetError.set(''); this.sampleDrafts.clear();
+    this.sampleSet.set(null); this.sampleSetError.set(''); this.sampleDrafts.clear(); this.evidenceDrafts.clear();
   }
   private base(): string { return `/api/ui/engagements/${this.id()}/fieldwork`; }
   private invalid(message: string): void { this.cmd.failed.set(true); this.cmd.message.set(message); }
@@ -74,6 +75,18 @@ export class FieldworkSamplingState {
       draft = { workPerformed: item.testWorkPerformed ?? '', evidenceReferences: item.evidenceReferences.join('\n'), result: item.testResult === 'PENDING' ? 'PASS' : item.testResult,
         exceptionAmount: item.exceptionAmount ?? '', contradictoryEvidence: item.contradictoryEvidence ?? '', followUp: item.followUp ?? '', reviewerComment: '' };
       this.sampleDrafts.set(item.selectionItemId, draft);
+    }
+    return draft;
+  }
+  evidenceDraft(item: SampleItem): SampleEvidenceDraft {
+    let draft = this.evidenceDrafts.get(item.selectionItemId);
+    if (!draft) {
+      draft = { periodEndDate: '', transactionDate: '', documentDate: '', shipReceiveDate: '', workPerformed: '',
+        evidenceReferences: item.evidenceReferences.join('\n'), cutOffExpectedRevision: item.cutOffRevision,
+        matchedAmount: item.matchedAmount ?? '', sourceReference: '', subsequentExpectedRevision: item.subsequentRevision,
+        subsequentDate: '', evidenceReference: '',
+        unmatchedReason: '' };
+      this.evidenceDrafts.set(item.selectionItemId, draft);
     }
     return draft;
   }
@@ -201,7 +214,15 @@ export class FieldworkSamplingState {
       const set = await this.api.get(`/api/ui/selections/${selectionId}/sample-set?page=${page}&pageSize=100`, decodeSampleSet);
       if (!current() || set.selectionId !== selectionId || set.page !== page) return;
       this.sampleSet.set(set);
-      for (const item of set.items) this.itemDraft(item);
+      for (const item of set.items) {
+        this.itemDraft(item);
+        const evidenceDraft = this.evidenceDrafts.get(item.selectionItemId);
+        if (evidenceDraft) {
+          // Preserve entered form values while advancing each evidence stream independently.
+          evidenceDraft.cutOffExpectedRevision = item.cutOffRevision;
+          evidenceDraft.subsequentExpectedRevision = item.subsequentRevision;
+        }
+      }
     } catch (error) {
       if (current()) { this.sampleSet.set(null); this.sampleSetError.set((error as Error).message || 'The sample set is unavailable.'); }
     } finally { if (operation === this.sampleReadOperation) this.sampleSetLoading.set(false); }
@@ -269,6 +290,94 @@ export class FieldworkSamplingState {
       } else {
         this.cmd.failed.set(true);
         this.cmd.message.set(result.unknown ? `${result.message} Refresh the item history before recording another revision.` : result.message);
+      }
+      await this.loadSampleSet(set.selectionId, page);
+    } finally {
+      release();
+      if (operation === this.actionOperation) this.sampleActionBusy.set(false);
+    }
+  }
+  private static readonly isoDate = /^\d{4}-\d{2}-\d{2}$/;
+  private validDate(value: string): string | null {
+    const trimmed = value.trim();
+    return trimmed && FieldworkSamplingState.isoDate.test(trimmed) ? trimmed : null;
+  }
+  async recordCutOffTest(item: SampleItem): Promise<void> {
+    const draft = this.evidenceDraft(item);
+    if (item.testRevision === 0) return this.invalid('Record the item test result before the cut-off assessment.');
+    if (!FieldworkSamplingState.isoDate.test(draft.periodEndDate.trim()) || !FieldworkSamplingState.isoDate.test(draft.transactionDate.trim()))
+      return this.invalid('Enter both the period-end and transaction dates as YYYY-MM-DD.');
+    for (const optional of [draft.documentDate, draft.shipReceiveDate])
+      if (optional.trim() && !FieldworkSamplingState.isoDate.test(optional.trim()))
+        return this.invalid('Enter each optional cut-off date as YYYY-MM-DD, or leave it blank.');
+    if (!draft.workPerformed.trim()) return this.invalid('Describe the cut-off work performed for this selected item.');
+    const evidenceReferences = draft.evidenceReferences.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    if (evidenceReferences.length === 0) return this.invalid('Cut-off testing requires at least one evidence reference.');
+    const set = this.sampleSet();
+    if (!set || !set.items.some(current => current.selectionItemId === item.selectionItemId) || this.sampleActionBusy()) return;
+    const release = this.acquireCommand();
+    if (!release) return;
+    const owner = this.captureOwner(), generation = this.generation, operation = ++this.actionOperation;
+    const page = set.page;
+    const current = () => owner() && generation === this.generation && operation === this.actionOperation &&
+      this.sampleSet()?.selectionId === set.selectionId && this.sampleSet()?.page === page &&
+      this.sampleSet()?.items.some(value => value.selectionItemId === item.selectionItemId) === true;
+    this.sampleActionBusy.set(true); this.cmd.failed.set(false); this.cmd.message.set('');
+    try {
+      const result = await this.api.command(this.baseItem(item.selectionItemId) + '/cut-off-test', {
+        periodEndDate: draft.periodEndDate.trim(), transactionDate: draft.transactionDate.trim(),
+        documentDate: draft.documentDate.trim() || null, shipReceiveDate: draft.shipReceiveDate.trim() || null,
+        workPerformed: draft.workPerformed.trim(), evidenceReferences, expectedRevision: draft.cutOffExpectedRevision,
+      });
+      if (!current()) return;
+      if (result.ok) {
+        this.cmd.message.set(`Cut-off assessment recorded for ${item.stableRowId}. The revision is retained as append-only evidence.`);
+        this.evidenceDrafts.delete(item.selectionItemId);
+      } else {
+        this.cmd.failed.set(true);
+        this.cmd.message.set(result.unknown ? `${result.message} Refresh the item before recording another cut-off revision.` : result.message);
+      }
+      await this.loadSampleSet(set.selectionId, page);
+    } finally {
+      release();
+      if (operation === this.actionOperation) this.sampleActionBusy.set(false);
+    }
+  }
+  async recordSubsequentMatch(item: SampleItem): Promise<void> {
+    const draft = this.evidenceDraft(item);
+    if (item.testRevision === 0) return this.invalid('Record the item test result before the subsequent matching.');
+    const entered = draft.matchedAmount.trim();
+    const matchedAmount = entered ? decimalInput(entered, 6) : null;
+    if (!entered || matchedAmount === null || matchedAmount.startsWith('-'))
+      return this.invalid('Enter the matched amount as a non-negative decimal with no more than six decimal places.');
+    if (!draft.sourceReference.trim()) return this.invalid('Name the subsequent bank or ledger source entry that was matched.');
+    if (!draft.evidenceReference.trim()) return this.invalid('Cite the evidence for the subsequent settlement.');
+    const subsequentDate = this.validDate(draft.subsequentDate);
+    if (draft.subsequentDate.trim() && subsequentDate === null)
+      return this.invalid('Enter the subsequent settlement date as YYYY-MM-DD, or leave it blank.');
+    const set = this.sampleSet();
+    if (!set || !set.items.some(current => current.selectionItemId === item.selectionItemId) || this.sampleActionBusy()) return;
+    const release = this.acquireCommand();
+    if (!release) return;
+    const owner = this.captureOwner(), generation = this.generation, operation = ++this.actionOperation;
+    const page = set.page;
+    const current = () => owner() && generation === this.generation && operation === this.actionOperation &&
+      this.sampleSet()?.selectionId === set.selectionId && this.sampleSet()?.page === page &&
+      this.sampleSet()?.items.some(value => value.selectionItemId === item.selectionItemId) === true;
+    this.sampleActionBusy.set(true); this.cmd.failed.set(false); this.cmd.message.set('');
+    try {
+      const result = await this.api.command(this.baseItem(item.selectionItemId) + '/subsequent-match', {
+        matchedAmount, subsequentSourceReference: draft.sourceReference.trim(), subsequentDate,
+        evidenceReference: draft.evidenceReference.trim(),
+        unmatchedReason: draft.unmatchedReason.trim() || null, expectedRevision: draft.subsequentExpectedRevision,
+      });
+      if (!current()) return;
+      if (result.ok) {
+        this.cmd.message.set(`Subsequent match recorded for ${item.stableRowId}. The derived state and revision are retained.`);
+        this.evidenceDrafts.delete(item.selectionItemId);
+      } else {
+        this.cmd.failed.set(true);
+        this.cmd.message.set(result.unknown ? `${result.message} Refresh the item before recording another subsequent-match revision.` : result.message);
       }
       await this.loadSampleSet(set.selectionId, page);
     } finally {
