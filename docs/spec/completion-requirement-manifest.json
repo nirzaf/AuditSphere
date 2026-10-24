@@ -532,6 +532,122 @@
       "workUnits": [
         "WU-027",
         "WU-010"
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.1.4-TEMPLATE-ROUTE",
+          "sourceLine": 552,
+          "sourceTextSha256": "89a9c409a5614cc558a6e602d3e3c95b7ae110b9b73027c1f519da4e63bce523",
+          "expectedOutcome": "Automatically select the governed standardized engagement-letter template from the engagement service route.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "CommercialDocumentService.GenerateDocumentAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Current source resolves templates from the service route and fails closed for unknown routes; exact-source verification remains pending."
+        },
+        {
+          "id": "ACCREQ-4.1.4-ISA210",
+          "sourceLine": 553,
+          "sourceTextSha256": "162256b9dfd7671cc1cec2442b01f52fd31b9d5c74ef9cfc7c86395603329d32",
+          "expectedOutcome": "Select the External Statutory Audit Template (ISA 210) for the statutory financial-statement audit route.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/EngagementLetterTemplates.cs",
+            "symbol": "EngagementLetterTemplates.Resolve"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementLetterTemplatesTests.cs",
+            "method": "EachSupportedServiceRouteSelectsItsOwnGovernedTemplate",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The route-to-template mapping is source-traced; the test was not run in this slice."
+        },
+        {
+          "id": "ACCREQ-4.1.4-INTERNAL-AUDIT",
+          "sourceLine": 554,
+          "sourceTextSha256": "deffe3df8d8e0f70540e95fb6e9b93dd8413733ec5ff128d7ca0855d70d03f73",
+          "expectedOutcome": "Select a governed Internal Audit template for the internal-audit route.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/EngagementLetterTemplates.cs",
+            "symbol": "EngagementLetterTemplates.Resolve"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementLetterTemplatesTests.cs",
+            "method": "InternalAuditAndAupNeverShareTemplateWording",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Current source has distinct governed Internal Audit and AUP templates and associated existing tests. The original grouped prose is not authority to merge these templates or force ISRS4400 wording onto internal audit. Actual firm-approved wording and professional acceptance remain separate."
+        },
+        {
+          "id": "ACCREQ-4.1.4-AUP-ISRS4400",
+          "sourceLine": 554,
+          "sourceTextSha256": "deffe3df8d8e0f70540e95fb6e9b93dd8413733ec5ff128d7ca0855d70d03f73",
+          "expectedOutcome": "Select the Agreed-Upon Procedures Template (ISRS 4400) for the agreed-upon-procedures route.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/EngagementLetterTemplates.cs",
+            "symbol": "EngagementLetterTemplates.Resolve"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementLetterTemplatesTests.cs",
+            "method": "EachSupportedServiceRouteSelectsItsOwnGovernedTemplate",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Current source has distinct governed Internal Audit and AUP templates and associated existing tests. The original grouped prose is not authority to merge these templates or force ISRS4400 wording onto internal audit. Actual firm-approved wording and professional acceptance remain separate."
+        },
+        {
+          "id": "ACCREQ-4.1.4-MINIMAL-FIELDS",
+          "sourceLine": 555,
+          "sourceTextSha256": "62b8a9abc41534ae2c00d25e1f3b873849a44425d4b9632c702651fdcb7d104e",
+          "expectedOutcome": "Pre-populate from the entity profile and require minimal manual field input for Client Legal Name, Period Covered, Agreed Fee, and Submission Deadlines.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "CommercialDocumentService.GenerateDocumentAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "This compound field clause is not fully decomposed: source traces legal name, period/timeline, and fee into generation, but a separate manual-input workflow and independently validated Submission Deadlines field are not established. The existing test was not run."
+        },
+        {
+          "id": "ACCREQ-4.1.4-PARTNER-VISUAL-SIGNATURE",
+          "sourceLine": 556,
+          "sourceTextSha256": "0245c240b917a2f09227f0db483ad38fe5df45c07c13bd0194a873d59ff9eb57",
+          "expectedOutcome": "Apply the authorized Partner's registered digital stamp and signature imagery to the generated engagement letter.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "CommercialDocumentService.GenerateDocumentAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "This traces authorization and rendered PNG stamp/signature imagery only. It does not establish certificate-backed signing or legal acceptance; ADR-0016 certificate signing concerns final-report PDFs. Test execution and any separate professional/legal acceptance remain pending."
+        }
       ]
     },
     {
@@ -573,6 +689,276 @@
       "workUnits": [
         "WU-009",
         "WU-034"
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.1.5-ADVANCE-50-PERCENT",
+          "sourceLine": 560,
+          "sourceTextSha256": "931c5d6974c6412fdbc4597278e32138e674a81d2386e537d9fa6bd1e8b29b0d",
+          "expectedOutcome": "Set the engagement's advance milestone to exactly 50% of the agreed fee.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/FeeAgreementService.cs",
+            "symbol": "FeeAgreementService.EnsureReviewedAgreementWithinTransactionAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Source sets a 50% advance and matching balance milestone; the cited focused test remains unrun in this slice."
+        },
+        {
+          "id": "ACCREQ-4.1.5-ADVANCE-INVOICE-TIMING",
+          "sourceLine": 560,
+          "sourceTextSha256": "931c5d6974c6412fdbc4597278e32138e674a81d2386e537d9fa6bd1e8b29b0d",
+          "expectedOutcome": "Under approved ADR-0007, letter issuance creates the reviewed fee agreement and both milestones atomically. Optional automation, off by default, creates an advance invoice DRAFT after the letter; finance review/posting remain separate.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/FeeAgreementService.cs",
+            "symbol": "FeeAgreementService.IssueAdvanceInvoiceAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "SUPERSEDED_ADR_0007",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Original concurrent-issuance wording is retained for provenance; ADR-0007 governs operative draft-only timing, not an unmet concurrent posting/sending obligation. Source/test trace must be verified against that overlay; live delivery and finance acceptance remain separate.",
+          "originalSourceOutcome": "Generate the50percent Advance Invoice concurrently with the Engagement Letter.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0007-fee-invoice-automation-drafts-only-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.1.5-PAYMENT-REFERENCE",
+          "sourceLine": 561,
+          "sourceTextSha256": "c2e2ff3656b015304fb5d883cc4af76c629e0ddf77b725e4cbc5e6e724702d8a",
+          "expectedOutcome": "Record payment settlement with transaction reference data, including the source-listed cheque number or bank-transfer reference code.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/FeeAgreementService.cs",
+            "symbol": "FeeAgreementService.RecordAdvancePaymentAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "A payment reference is source-traced, but the cheque and bank-transfer examples are compound and distinct typed reference capture/validation is not established. Test execution remains pending."
+        },
+        {
+          "id": "ACCREQ-4.1.5-RECEIPT-VOUCHER-GENERATION",
+          "sourceLine": 562,
+          "sourceTextSha256": "e9b1e4646799319e9d4937ee98eb3da5e35eaf30df6803355007f91b16542d44",
+          "expectedOutcome": "Compile an official payment receipt voucher for each recorded client payment.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/FeeAgreementService.PaymentVouchers.cs",
+            "symbol": "FeeAgreementService.EnsurePaymentVoucherAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Voucher generation is source-traced per payment; no fresh test or release evidence is claimed."
+        },
+        {
+          "id": "ACCREQ-4.1.5-RECEIPT-VOUCHER-DISPATCH",
+          "sourceLine": 562,
+          "sourceTextSha256": "e9b1e4646799319e9d4937ee98eb3da5e35eaf30df6803355007f91b16542d44",
+          "expectedOutcome": "Dispatch the compiled official payment receipt voucher to the client after payment recording.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialMailDeliveryHandler.cs",
+            "symbol": "CommercialMailDeliveryHandler.ExecuteEffectAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Application queues voucher email for worker delivery; queueing or synthetic worker handling does not prove current delivery or provider acceptance, and the requirement's 'instantly' timing is unverified."
+        },
+        {
+          "id": "ACCREQ-4.1.5-CLIENT-WORKSPACE",
+          "sourceLine": 564,
+          "sourceTextSha256": "621ebe9a811e4f0ccc46dce5efdaa8d5d9e2f394bd0c5b04aeec3d92f5c37f9a",
+          "expectedOutcome": "Create an isolated client workspace following acceptance.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/AcceptanceDecisionService.cs",
+            "symbol": "AcceptanceDecisionService.RecordAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AcceptanceDecisionTests.cs",
+            "method": "AcceptedDecision_IsImmutableAndCreatesOneWaitingWorkspace",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Acceptance creates one client-scoped local workspace intent in WAITING_FOR_INTEGRATION. Remote repository provisioning is a separate administrator-authorized integration action and is not established by this criterion's trace."
+        },
+        {
+          "id": "ACCREQ-4.1.5-TEMPORARY-CREDENTIALS",
+          "sourceLine": 565,
+          "sourceTextSha256": "1cc5b12fb3d490f5e7d8db2e32561ab883ce98022f41297d849bb59dd5336946",
+          "expectedOutcome": "Email temporary access credentials to the designated Client Audit Liaison.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Documents/ClientPortalService.cs",
+            "symbol": "ClientPortalService.GetFirstSignInStatusAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs",
+            "method": "Uploads_AreWithheld_UntilTheFirstSignInRequirementForEachIdentityPathIsMet",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "SUPERSEDED_ADR_0003",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The original clause is retained as superseded: ADR-0003 bars AuditSphere-issued or emailed passwords. Current source traces Microsoft identity first-sign-in status; tenant-side completion and acceptance remain unverified."
+        },
+        {
+          "id": "ACCREQ-4.1.5-MANDATORY-PASSWORD-RESET",
+          "sourceLine": 566,
+          "sourceTextSha256": "ee2cfe413fa5db88048d7466f07c31c0ff324727917752cc19ec526c86aff25a",
+          "expectedOutcome": "Enforce mandatory password reset on first login before document submission features are unlocked.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Documents/ClientPortalService.cs",
+            "symbol": "ClientPortalService.GetFirstSignInStatusAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs",
+            "method": "Uploads_AreWithheld_UntilTheFirstSignInRequirementForEachIdentityPathIsMet",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "SUPERSEDED_ADR_0003",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The original password-reset wording is retained as superseded under ADR-0003 and must not revive local password handling. Current application gate checks Microsoft identity first-sign-in observation before upload access; actual tenant enforcement and acceptance are unverified."
+        },
+        {
+          "id": "ACCREQ-4.1.5-PORTAL-STATUS-BADGES",
+          "sourceLine": 568,
+          "sourceTextSha256": "abccbcf5a9d48db1f15a593c053f835256016b3765cfbbd8f4039887490e541d",
+          "expectedOutcome": "Surface Pending Upload, Under Review, and Approved status badges for client-request states.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/portal/contracts.ts",
+            "symbol": "clientRequestStatusLabel"
+          },
+          "existingTest": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/portal/contracts.spec.ts",
+            "method": "maps request states to user-friendly status labels according to AS-COMP-09",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "This child traces the three non-rejection status-label groups only; the cited Angular spec was not run in this slice."
+        },
+        {
+          "id": "ACCREQ-4.1.5-PORTAL-REJECTION-STATUS",
+          "sourceLine": 568,
+          "sourceTextSha256": "abccbcf5a9d48db1f15a593c053f835256016b3765cfbbd8f4039887490e541d",
+          "expectedOutcome": "Surface the Rejected / Re-upload Required status for a clarification-required request.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/portal/contracts.ts",
+            "symbol": "clientRequestStatusLabel"
+          },
+          "existingTest": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/portal/contracts.spec.ts",
+            "method": "maps request states to user-friendly status labels according to AS-COMP-09",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The rejection label is distinct from the non-rejection badges; user-facing interaction and test execution remain pending."
+        },
+        {
+          "id": "ACCREQ-4.1.5-PORTAL-REWORK-RESUBMISSION",
+          "sourceLine": 568,
+          "sourceTextSha256": "abccbcf5a9d48db1f15a593c053f835256016b3765cfbbd8f4039887490e541d",
+          "expectedOutcome": "Allow the client to respond to a rejection and resubmit the requested item for review.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Documents/PbcService.Reply.cs",
+            "symbol": "PbcService.ReplyAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.E2E.Tests/AngularClientPortalJourneyTests.cs",
+            "method": "ClientReplyAndUploadAvailabilityFollowReviewClarificationAndResubmission",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source and existing E2E test trace clarification reply and resubmission. Rejection, replacement upload, and upload-window behavior are compound subclauses and are not fully decomposed here; no browser or E2E run is claimed."
+        },
+        {
+          "id": "ACCREQ-4.1.5-REJECTION-REASON-REQUIRED",
+          "sourceLine": 569,
+          "sourceTextSha256": "f9d481d7494193ede18e1c9976bf2c744b02584305e322d4d70399390299be8e",
+          "expectedOutcome": "Require the auditor to enter a rejection reason before rejecting a requested item.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Documents/PbcService.cs",
+            "symbol": "PbcService.ChangeStateAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.E2E.Tests/AngularClientPortalJourneyTests.cs",
+            "method": "ClientReplyAndUploadAvailabilityFollowReviewClarificationAndResubmission",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Source validates a rejection reason. The cited E2E covers a reasoned rejection, but a focused denial case for a missing reason is not traced; no execution is claimed."
+        },
+        {
+          "id": "ACCREQ-4.1.5-REJECTION-REASON-SURFACE",
+          "sourceLine": 569,
+          "sourceTextSha256": "f9d481d7494193ede18e1c9976bf2c744b02584305e322d4d70399390299be8e",
+          "expectedOutcome": "Surface the rejection reason immediately in the client's requested-item view.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Documents/ClientPortalWorkspaceQuery.cs",
+            "symbol": "ClientPortalWorkspaceQuery.RequestAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.E2E.Tests/AngularClientPortalJourneyTests.cs",
+            "method": "ClientReplyAndUploadAvailabilityFollowReviewClarificationAndResubmission",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The query projects the rejection reason and the existing E2E traces it in the client journey; 'immediately' and current browser behavior remain unverified."
+        },
+        {
+          "id": "ACCREQ-4.1.5-FINAL-REPORT-TEMPORAL-LOCK",
+          "sourceLine": 570,
+          "sourceTextSha256": "fa8e839e1a17fa2713c51b36be9fdafaaf0e6662e2550c2de8fb300d6254c807",
+          "expectedOutcome": "Automatically freeze client document uploads when the final audit report is released.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Documents/ClientPortalService.cs",
+            "symbol": "ClientPortalService.RequireUploadWindowAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs",
+            "method": "RequireUploadWindow_AllowsUploadsDuringInternalFinancialPackageRelease_AndFreezesOnFinalBundle",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source checks frozen engagement state or final deliverable-bundle existence before upload; exact release event timing and focused test execution remain pending."
+        }
       ]
     },
     {
@@ -1445,14 +1831,19 @@
           {
             "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
             "method": "OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation"
+          },
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "AngularCommercialDocumentsShowBlockersAndRetainImmutableIdentities"
           }
         ],
         "invariant": "Engagement Letter issuance requires both current client acceptance of the exact offer and current unconditional Partner acceptance.",
         "expectedOutcome": "No-key and one-key attempts create no letter; issuance succeeds only when both approval keys are current.",
-        "execution": "NOT_RUN_THIS_SLICE",
-        "missingVerification": "Exercise issuance with a current Partner decision and no client acceptance.",
+        "execution": "PASS_LOCAL_FOCUSED",
+        "missingVerification": "Current-source CI and rendered commercial acceptance remain separate.",
         "status": "UNVERIFIED",
-        "reason": "The existing issuance test covers no keys, client-only, and both keys, but not the Partner-only state."
+        "observed": "Partner-only extended method1PASS plus existing neither/client-only/both-key commercial theory2PASS; no letter created for missing client response.",
+        "localEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/critical-gates-followup.json"
       }
     },
     {
@@ -1533,8 +1924,10 @@
         ],
         "invariant": "Current dual-key approval permits the letter but does not satisfy the 50% advance payment gate.",
         "expectedOutcome": "The agreement splits the fee 50/50; activation remains blocked until the entire advance milestone is currently paid.",
-        "execution": "NOT_RUN_THIS_SLICE",
-        "missingVerification": "Execute both cited focused tests in the approved test environment."
+        "execution": "PASS_LOCAL_FOCUSED",
+        "missingVerification": "Broader CI/browser and real mailbox/payment evidence remain separate.",
+        "observed": "Existing commercial generation theory2PASS and fee/advance settlement theory3PASS, including unpaid advance denial then exact paid activation.",
+        "localEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/critical-gates-followup.json"
       }
     },
     {
@@ -1600,8 +1993,10 @@
         ],
         "invariant": "Client acceptance stays bound to the dispatched quotation identity and Partner risk acceptance stays bound to the current client-input generation.",
         "expectedOutcome": "A changed offer or risk basis makes the affected evidence stale and prevents downstream letter/agreement use.",
-        "execution": "NOT_RUN_THIS_SLICE",
-        "missingVerification": "Execute the cited offer-revision and risk-generation regression methods."
+        "execution": "PASS_LOCAL_FOCUSED",
+        "missingVerification": "Concurrent and rendered acceptance remain bounded to their own tests/CI evidence; no blanket approval validity claim.",
+        "observed": "Existing dispatch/current-quotation method1PASS and document/risk-generation theory2PASS.",
+        "localEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/critical-gates-followup.json"
       }
     },
     {
@@ -1643,20 +2038,29 @@
           {
             "path": "src/AuditSphereOps.Application/Practice/EngagementWorkflowTaskService.cs",
             "symbol": "EngagementWorkflowTaskService.CompleteAsync"
+          },
+          {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeTimeService.cs",
+            "symbol": "PracticeTimeService.CompleteTaskCoreAsync"
           }
         ],
         "testAnchors": [
           {
             "path": "tests/AuditSphereOps.Domain.Tests/PbcWorkflowTaskTests.cs",
             "method": "EnabledWorkflowCreatesOneScopedFollowUpPerSentPbc_AndCompletionWaitsForAcceptance"
+          },
+          {
+            "path": "tests/AuditSphereOps.Domain.Tests/WorkflowEvidenceRuleTests.cs",
+            "method": "EvidencePolicyIsScopedRevisionedAppendOnlyAndReplayableWithoutApprovingSources"
           }
         ],
         "invariant": "Workflow task completion cannot clear or replace a rejected/conditional approval or an active engagement hold.",
         "expectedOutcome": "Completing an operational task cannot mutate or replace the underlying rejected/conditional acceptance decision or active hold; protected professional actions remain gated. Administrative task completion itself is not universally prohibited.",
-        "execution": "NOT_RUN_THIS_SLICE",
-        "missingVerification": "Search and execute the nearest existing task/gate isolation case before adding coverage; the cited PBC test alone does not prove rejection/conditional-decision and active-hold immutability.",
+        "execution": "PASS_LOCAL_FOCUSED",
+        "missingVerification": "Broader task entry points and professional workflows remain separate CI/browser acceptance. Administrative task completion is not universally prohibited.",
         "status": "UNVERIFIED",
-        "reason": "The cited test covers the linked PBC acceptance gate only, not approval decisions or engagement holds."
+        "observed": "Existing evidence-policy method extended: ordinary coordination completion retains both conditional and declined decisions, an unreleased hold and professional-work block; protected-work authorization still refuses.",
+        "localEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/critical-gates-followup.json"
       }
     },
     {
@@ -1800,8 +2204,10 @@
         ],
         "invariant": "Open review notes and noncurrent approved materiality remain blockers to subsequent professional decisions.",
         "expectedOutcome": "Partner clearance is denied until notes are resolved and reviewed again; stale materiality blocks current completion and approval.",
-        "execution": "NOT_RUN_THIS_SLICE",
-        "missingVerification": "Execute the cited note-clearance and stale-materiality tests."
+        "execution": "PASS_LOCAL_FOCUSED",
+        "missingVerification": "Exact-source CI and broader rendered professional-decision workflows remain separate.",
+        "observed": "Existing note-clearance and stale-materiality methods passed.",
+        "localEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/critical-gates-followup.json"
       }
     },
     {
@@ -1859,8 +2265,10 @@
         ],
         "invariant": "A currently critical confirmation without a returned, independently evaluated response blocks report issuance.",
         "expectedOutcome": "Report generation returns no report deliverable and produces a holding letter while the critical response remains outstanding.",
-        "execution": "NOT_RUN_THIS_SLICE",
-        "missingVerification": "Execute the cited critical-confirmation report-release test."
+        "execution": "PASS_LOCAL_FOCUSED",
+        "missingVerification": "Exact-source CI and live confirmation-provider/professional acceptance remain separate.",
+        "observed": "Existing critical confirmation method passed both current and legacy snapshot cases.",
+        "localEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/critical-gates-followup.json"
       }
     },
     {
@@ -1911,8 +2319,10 @@
         ],
         "invariant": "A frozen archival state follows the committed effective local lock; provider immutability is reported separately.",
         "expectedOutcome": "After the due freeze commits, professional writes are refused and ExternalReadOnly remains BLOCKED_EXTERNAL absent observed provider protection.",
-        "execution": "NOT_RUN_THIS_SLICE",
-        "missingVerification": "Execute the cited worker-driven freeze and archive-boundary test."
+        "execution": "PASS_LOCAL_FOCUSED",
+        "missingVerification": "External immutability/custody cannot be inferred; live-provider acceptance remains blocked.",
+        "observed": "Existing worker-driven freeze method passed committed local lock/write refusal, authorized amendments and traced activity.",
+        "localEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/critical-gates-followup.json"
       }
     },
     {
@@ -1977,8 +2387,10 @@
         ],
         "invariant": "A recurring annual engagement starts with a fresh blocked shell and does not inherit prior-period professional decisions or sign-offs.",
         "expectedOutcome": "Exactly one new period is created with no inherited decision; fresh review and approval are required.",
-        "execution": "NOT_RUN_THIS_SLICE",
-        "missingVerification": "Execute the cited annual-creation regression methods."
+        "execution": "PASS_LOCAL_FOCUSED",
+        "missingVerification": "Existing browser journey is CI-only and has not been exercised in this local slice.",
+        "observed": "Existing concurrent annual-creation method passed source retention, one blocked period and no inherited decision.",
+        "localEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/critical-gates-followup.json"
       }
     },
     {
@@ -2159,6 +2571,6 @@
       "Task completion cannot synthesize protected approvals; arbitrary coordination tasks are not universally forbidden while a hold exists.",
       "Cited event-lineage anchors are incomplete, not proof that event producers are absent."
     ],
-    "execution": "Five unique existing focused methods passed (three plus corrected two-method followup); twelve plans remain source-bounded and overall requirement statuses are not promoted."
+    "execution": "Every existing ACCREQ-6.8 plan now has bounded local focused observations across these slices; full criterion/CI/rendered/professional/live acceptance is not implied. Current followup retains1+13+7+1PASS in four focused invocations."
   }
 }

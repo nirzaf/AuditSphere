@@ -1,5 +1,8 @@
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Acceptance;
+using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Practice;
@@ -100,7 +103,39 @@ public sealed class WorkflowEvidenceRuleTests
         change with { Required = false, Reason = "Move this coordination requirement to the planning review task.", ExpectedRevision = 2, IdempotencyKey = Guid.NewGuid() });
       Assert.True(withdrawn.Succeeded, withdrawn.Message);
       Assert.Equal(2, await db.WorkflowTaskEvidenceRules.CountAsync());
+      // Coordination completion cannot overwrite adverse professional decisions or release a hold (6.8.5).
+      var hold = new EngagementHold
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, EngagementId = f.EngagementId,
+        HoldKind = "Acceptance", Reason = "Synthetic unresolved professional review", CreatedAt = DateTimeOffset.UtcNow
+      };
+      db.EngagementHolds.Add(hold);
+      foreach (var decision in new[] { "AcceptedWithConditions", "Declined" })
+        db.AcceptanceDecisions.Add(new AcceptanceDecision
+        {
+          Id = Guid.CreateVersion7(), FirmId = f.FirmId, PracticeClientId = f.ClientId,
+          EngagementId = f.EngagementId, ServiceRoute = "Audit", Decision = decision,
+          Conditions = decision == "AcceptedWithConditions" ? "Synthetic outstanding risk evidence" : null,
+          Rationale = "Synthetic adverse professional decision", DecidedByUserId = f.Admin.Id,
+          DecidedAt = DateTimeOffset.UtcNow, EvaluationTemplateVersion = "TEST-1",
+          EvaluationSnapshotDigest = new string('a', 64)
+        });
+      var engagement = await db.Engagements.SingleAsync(x => x.Id == f.EngagementId);
+      engagement.ProfessionalWorkBlocked = true;
+      await db.SaveChangesAsync();
+      var decisionsBefore = await db.AcceptanceDecisions.AsNoTracking().OrderBy(x => x.Id)
+        .Select(x => new { x.Id, x.Decision, x.Conditions, x.Generation, x.DecidedByUserId }).ToListAsync();
       Assert.True((await EngagementWorkflowTaskService.CompleteAsync(db, admin, taskId, 3)).Succeeded);
+      Assert.Equal(decisionsBefore, await db.AcceptanceDecisions.AsNoTracking().OrderBy(x => x.Id)
+        .Select(x => new { x.Id, x.Decision, x.Conditions, x.Generation, x.DecidedByUserId }).ToListAsync());
+      var retainedHold = await db.EngagementHolds.AsNoTracking().SingleAsync(x => x.Id == hold.Id);
+      Assert.False(retainedHold.Released);
+      Assert.Null(retainedHold.ReleasedAt);
+      Assert.Equal(hold.Reason, retainedHold.Reason);
+      Assert.True(await db.Engagements.AsNoTracking().Where(x => x.Id == f.EngagementId)
+        .Select(x => x.ProfessionalWorkBlocked).SingleAsync());
+      Assert.Equal(ErrorCodes.GateBlocked, (await AuthorizationDecision.AuthorizeAsync(db, admin,
+        new(f.FirmId, f.ClientId, f.EngagementId, RequireProfessionalWork: true))).ErrorCode);
       Assert.Empty(await db.MaterialityApprovals.ToListAsync());
       Assert.Equal(ErrorCodes.ProtectedState, (await PracticeTimeService.ChangeWorkflowEvidenceAsync(db, admin, f.EngagementId, taskId,
         change with { ExpectedRevision = 4, IdempotencyKey = Guid.NewGuid() })).ErrorCode);

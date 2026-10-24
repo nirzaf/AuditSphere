@@ -738,6 +738,39 @@ public sealed class CommercialWorkflowTests
     Assert.False((await CommercialDocumentWorkspaceQuery.GetAsync(db, foreign.Prep, proposalId)).Succeeded);
     Assert.False((await CommercialDocumentService.GenerateEngagementLetterAsync(db, w.Partner, proposalId,
       expectedQuotationId: quote.Value, expectedProfileVersion: 1)).Succeeded);
+    // A synthetic existing-client fixture can have current Partner risk clearance before an offer response.
+    // Neither that clearance nor its valid quotation artifacts supplies the missing client key (6.8.2).
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
+    var client = new PracticeClient
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, LegalName = "Synthetic existing client",
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.PracticeClients.Add(client);
+    db.ClientSafetyStates.Add(new ClientSafetyState { Id = client.Id, FirmId = w.FirmId });
+    var proposal = await db.Proposals.SingleAsync(x => x.Id == proposalId);
+    proposal.PracticeClientId = client.Id;
+    db.AcceptanceDecisions.Add(new AcceptanceDecision
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, PracticeClientId = client.Id,
+      ServiceRoute = "FinancialStatementAudit", Decision = "Accepted", Generation = 1,
+      DecidedByUserId = w.Partner.UserId, DecidedAt = DateTimeOffset.UtcNow,
+      Rationale = "Synthetic independently seeded risk evidence", EvaluationTemplateVersion = "TEST-1",
+      EvaluationSnapshotDigest = new string('a', 64)
+    });
+    await db.SaveChangesAsync();
+    Assert.True((await AuditDeliverableService.RegisterSignatureAsync(db, w.Partner, CompletionTestFixtures.Png(100, 60))).Succeeded);
+    Assert.True((await AuditDeliverableService.RegisterFirmSealAsync(db, w.Partner, CompletionTestFixtures.Png(100, 100))).Succeeded);
+    var partnerOnly = await CommercialDocumentService.GenerateEngagementLetterAsync(db, w.Partner, proposalId,
+      expectedQuotationId: quote.Value, expectedProfileVersion: 1);
+    Assert.False(partnerOnly.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, partnerOnly.ErrorCode);
+    Assert.Contains("Record client acceptance", partnerOnly.Message);
+    Assert.Empty(await db.ProposalResponseRecords.Where(x => x.ProposalId == proposalId).ToListAsync());
+    Assert.Empty(await db.CommercialDocuments.Where(x => x.ProposalId == proposalId &&
+      x.Kind == CommercialDocumentKinds.EngagementLetter).ToListAsync());
+    Assert.Equal(2, await db.CommercialDocuments.CountAsync(x => x.ProposalId == proposalId));
     Assert.True((await CommercialDocumentService.SaveProfileAsync(db, w.Partner, profileRequest with { LegalName = "Synthetic Revised Firm" })).Succeeded);
     var stale = await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId,
       expectedQuotationId: quote.Value, expectedProfileVersion: 1);

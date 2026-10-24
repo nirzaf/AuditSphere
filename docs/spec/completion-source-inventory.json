@@ -123,6 +123,22 @@
         }
       ],
       "disposition": "SOURCE_REVIEW_ONLY;39 UI placeholder lines and4 config/style lines are discovery categories, not proof of correctness. No fake-success defect established in reviewed critical paths; does not replace criterion-level runtime acceptance."
+    },
+    "deploymentProfileFollowup": {
+      "sourceSha": "3f61e729bec8313b0a6aeec065cfc47d4140b85c",
+      "scope": "Task26 static Acceptance profile and offline bindings; no deployed target observation",
+      "owners": [
+        "infra/hostinger-acceptance/compose.yaml",
+        "scripts/m365/Test-DeploymentBindings.ps1",
+        "scripts/m365/Export-DeploymentSettings.ps1",
+        "src/AuditSphereOps.Application/Operations/WorkerCapabilityProfile.cs",
+        "src/AuditSphereOps.Api/ApiHost.Authentication.cs",
+        "src/AuditSphereOps.Api/ApiHost.Providers.cs"
+      ],
+      "observed": "Acceptance environment explicit, core external effects off, live credential mounts separated, Production live groups require individual approval and forbid simulation. Existing scripts intentionally refuse Apply and report INCOMPLETE_EVIDENCE for unobserved runtime.",
+      "verification": "Existing CompletionWorkerCompositionTests7cases PASS in critical gate cohort; DeploymentBindings.Tests.ps1 -Offline32assertions PASS. Offline assertions are not live deployment PASS.",
+      "unresolved": "Acceptance Compose shares the database login across migration/API/worker and does not explicitly configure database TLS. Separate Production target, trust/certificates and runtime role grants must be selected/observed before production acceptance; no claim existing profile supplies that protection. No source delta chosen without target scope.",
+      "evidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/deployment-bindings-offline.log"
     }
   }
 }

@@ -1080,14 +1080,12 @@
       "focused": "FirmPortalLogoSettingsApiTests 4 PASS (new 8-route scope-denial 403 regression); full suites and OpenAPI drift deferred to CI",
       "history": "status-archive-2026-10.json#keys.ascpSpecDiscovery20261024",
       "ownerTests": "Existing owner tests PASS locally on a09ca4cb (Release): CommercialWorkflowTests 44/44 (tasks 05/06); MaterialityPracticalRoundingTests, EngagementWorkflowPlanTests, AnnualEngagementPreparationTests, PbcWorkflowTaskTests 25/25 (tasks 07-09). No defect found; tasks stay VERIFY_ONLY pending CI journeys. Tasks 10-23 owner cohort PASS 235/235 on c01fc877 (ClientAccounting, FinancialStatement, FinancialPackageGate, Consolidation, AuditConfirmationCommandIsolation, AuditDeliverables, PracticeTime, FirmOperations, SourceManifest). Fast CI c01fc877 success. No defect found; acceptance still needs CI journeys and professional gates.",
-      "criticalWorkflowContinuation": {
-        "source": "e0a124bf4b7e7ce789b80f30efb1ed930350a076 plus ManagerReview test overlay",
-        "status": "PASS_LOCAL_FOCUSED; specification remains PARTIAL",
-        "verification": "5 unique existing methods PASS (3 plus corrected 2-method followup); no full local suites",
-        "scope": "Twelve existing ACCREQ-6.8 plans; exhaustive phase map, task/queue scope, independent reviewer and comment denial, evidence-policy replay/non-synthesis. Only rework test extended; product already rejects blank comments.",
-        "evidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/critical-workflow-review.json",
-        "ci": "Prior exact9ef run40047968599: Angular/build/contracts PASS, Domain/API/E2E pending; not current test-overlay acceptance.",
-        "limits": "Broader event lineage, rendered states, human AT/native zoom, professional and live-provider/release gates remain open."
+      "criticalGateFollowup": {
+        "status": "PASS_LOCAL_FOCUSED; specification PARTIAL",
+        "checks": "Initial5 focused methods; followup22cases plus final2changed-method repeat PASS; deployment32offlineassertions PASS. No full local suite.",
+        "scope": "Critical workflow guards,20additional commercial criterion traces and Acceptance-profile review. No product behavior change or live/professional acceptance.",
+        "history": "status-archive-2026-10.json#keys.ascpCriticalAcceptanceFollowup20261024",
+        "ci": "New test-source exact CI required; preceding3f61 full40049525621 still running."
       }
     },
     "archivedOn20261024": {
