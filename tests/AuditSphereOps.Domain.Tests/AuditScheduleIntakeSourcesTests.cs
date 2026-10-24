@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Globalization;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Documents;
@@ -11,7 +12,11 @@ using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Infrastructure.Providers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -19,7 +24,22 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class AuditScheduleIntakeSourcesTests
 {
   [Fact]
-  public async Task AcceptedPbcBytesAndExactAcceptedTbRetainOffsettingAccountDifferencesWithoutPublishingSchedule()
+  public async Task EmptySourceCaptureSchemaCanRollBackAndForward()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var migrations = db.Database.GetMigrations().ToArray();
+    var captureMigration = migrations.Single(x => x.EndsWith("_AuditScheduleSourceIntake", StringComparison.Ordinal));
+    await db.GetService<IMigrator>().MigrateAsync(migrations.TakeWhile(x => x != captureMigration).Last());
+    Assert.DoesNotContain(captureMigration, await db.Database.GetAppliedMigrationsAsync());
+    await db.GetService<IMigrator>().MigrateAsync(captureMigration);
+    Assert.Empty(await db.AuditScheduleSourceCaptures.AsNoTracking().ToListAsync());
+    Assert.Empty(await db.AuditScheduleSourceReviews.AsNoTracking().ToListAsync());
+    Assert.False(db.Database.HasPendingModelChanges());
+  }
+
+  [Fact]
+  public async Task AcceptedPbcListingAndSelectedTbCapturePreserveAccountVarianceReceiptsAndOriginalRows()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
@@ -232,6 +252,107 @@ public sealed class AuditScheduleIntakeSourcesTests
         Assert.False(sourceRequest.TryGetProperty("Revision", out _));
       }
 
+      Assert.Empty(await resolve.AuditSchedules.AsNoTracking().ToListAsync(ct));
+      Assert.Empty(await resolve.AuditScheduleRows.AsNoTracking().ToListAsync(ct));
+      var captureId = Guid.NewGuid();
+      var captureFields = new AuditScheduleSourceFields(receiptId, decisionId, sourceDate, columns, ["0020", "0010"]);
+      AuditScheduleCaptureRequest captureRequest;
+      AuditScheduleSourceReceiptView originalCapture;
+      await using (var command = new AuditSphereDbContext(pg.Options))
+      {
+        var preview = await AuditScheduleSourceWorkspace.PreviewCaptureAsync(command, staff, reader,
+          f.EngagementId, captureId, captureFields, ct);
+        Assert.True(preview.Succeeded, preview.Message);
+        Assert.Equal(new[] { "25.000000", "-25.000000" }, preview.Value!.Accounts.Select(x => x.Difference));
+        Assert.False(preview.Value.AllAccountsReconciled);
+        captureRequest = new(captureId, preview.Value.CanonicalInput, preview.Value.ManifestHash,
+          long.Parse(preview.Value.InputGeneration, CultureInfo.InvariantCulture),
+          long.Parse(preview.Value.PeriodRevision, CultureInfo.InvariantCulture), preview.Value.RequestHash, true);
+        var notYetRecorded = await AuditScheduleSourceWorkspace.GetCaptureReceiptAsync(command, staff,
+          f.EngagementId, captureId, captureRequest.ExpectedRequestHash, ct);
+        Assert.True(notYetRecorded.Succeeded, notYetRecorded.Message);
+        Assert.False(notYetRecorded.Value!.Found);
+        Assert.Null(notYetRecorded.Value.Receipt);
+        var noAssent = await AuditScheduleSourceWorkspace.CaptureAsync(command, staff, reader,
+          f.EngagementId, captureRequest with { Reviewed = false }, ct);
+        Assert.False(noAssent.Succeeded);
+        Assert.Empty(await command.AuditSchedules.AsNoTracking().ToListAsync(ct));
+        await using (var interrupted = new AuditSphereDbContext(
+          new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+            .AddInterceptors(new InterruptScheduleSave()).Options))
+        {
+          await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            AuditScheduleSourceWorkspace.CaptureAsync(interrupted, staff, reader,
+              f.EngagementId, captureRequest, ct));
+          Assert.DoesNotContain(interrupted.ChangeTracker.Entries(), x =>
+            x.Entity is AuditSchedule or AuditScheduleRow or AuditScheduleSourceCapture);
+          await interrupted.SaveChangesAsync(ct);
+          Assert.Empty(await interrupted.AuditSchedules.AsNoTracking().ToListAsync(ct));
+        }
+        await using var competing = new AuditSphereDbContext(pg.Options);
+        var captures = await Task.WhenAll(
+          AuditScheduleSourceWorkspace.CaptureAsync(command, staff, reader, f.EngagementId, captureRequest, ct),
+          AuditScheduleSourceWorkspace.CaptureAsync(competing, staff, reader, f.EngagementId, captureRequest, ct));
+        Assert.All(captures, captured => Assert.True(captured.Succeeded, captured.Message));
+        Assert.Equal(captures[0].Value, captures[1].Value);
+        originalCapture = captures[0].Value!;
+        Assert.Equal("UNRECONCILED", originalCapture.Receipt.Status); // Net-zero is not per-account reconciliation.
+        Assert.Equal("200.000000", originalCapture.Receipt.SignedTotal);
+        Assert.Equal("200.000000", originalCapture.Receipt.ClosingControl);
+        Assert.Equal("0.000000", originalCapture.Receipt.Residual);
+        Assert.Equal(f.Staff.Id, originalCapture.Receipt.ActorUserId);
+        Assert.Equal(preview.Value.ManifestHash, originalCapture.Receipt.ManifestHash);
+      }
+      await using (var repeatCapture = new AuditSphereDbContext(pg.Options))
+      {
+        var replay = await AuditScheduleSourceWorkspace.CaptureAsync(repeatCapture, staff, reader,
+          f.EngagementId, captureRequest, ct);
+        Assert.True(replay.Succeeded, replay.Message);
+        Assert.Equal(originalCapture, replay.Value);
+        Assert.Equal(1, await repeatCapture.AuditScheduleSourceCaptures.CountAsync(ct));
+        Assert.Equal(1, await repeatCapture.AuditSchedules.CountAsync(ct));
+        var core = await repeatCapture.AuditSchedules.AsNoTracking().SingleAsync(ct);
+        Assert.Equal(decisionId, core.AcceptedSourceDecisionId);
+        Assert.Equal("UNRECONCILED", core.Status);
+        var legacyReview = await AuditFieldworkService.ReviewScheduleAsync(repeatCapture, reviewer,
+          new(core.Id, "Legacy review cannot replace retained source review", false), ct);
+        Assert.Equal(ErrorCodes.ProtectedState, legacyReview.ErrorCode);
+        Assert.Equal(new[] { 125m, 75m }, await repeatCapture.AuditScheduleRows.AsNoTracking()
+          .OrderBy(x => x.SourceLineNumber).Select(x => x.SignedAmount).ToArrayAsync(ct));
+        // A fresh valid preview is not permission to reuse an earlier request identity for another column map.
+        var remapped = captureFields with { Columns = columns with { Description = "StableRowId", StableRowId = "Description" } };
+        var changed = await AuditScheduleSourceWorkspace.PreviewCaptureAsync(repeatCapture, staff, reader,
+          f.EngagementId, captureId, remapped, ct);
+        Assert.True(changed.Succeeded, changed.Message);
+        var conflict = await AuditScheduleSourceWorkspace.CaptureAsync(repeatCapture, staff, reader, f.EngagementId,
+          new(captureId, changed.Value!.CanonicalInput, changed.Value.ManifestHash,
+            long.Parse(changed.Value.InputGeneration, CultureInfo.InvariantCulture),
+            long.Parse(changed.Value.PeriodRevision, CultureInfo.InvariantCulture), changed.Value.RequestHash, true), ct);
+        Assert.Equal(ErrorCodes.IdempotencyConflict, conflict.ErrorCode);
+        Assert.Equal(1, await repeatCapture.AuditScheduleSourceCaptures.CountAsync(ct));
+        var scheduleId = originalCapture.Receipt.ScheduleId;
+        var immutable = await Assert.ThrowsAsync<PostgresException>(() => repeatCapture.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE audit_schedule_source_captures SET manifest_hash = repeat('0',64) WHERE schedule_id = {scheduleId}", ct));
+        Assert.Equal("55000", immutable.SqlState);
+        var immutableRows = await Assert.ThrowsAsync<PostgresException>(() => repeatCapture.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE audit_schedule_rows SET signed_amount = signed_amount + 1 WHERE schedule_id = {scheduleId}", ct));
+        Assert.Equal("55000", immutableRows.SqlState);
+        var forgedApproval = await Assert.ThrowsAsync<PostgresException>(() => repeatCapture.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE audit_schedules SET status = 'APPROVED', completeness_decision = 'unrecorded' WHERE id = {scheduleId}", ct));
+        Assert.Equal("23514", forgedApproval.SqlState);
+        Assert.Equal("UNRECONCILED", (await repeatCapture.AuditSchedules.AsNoTracking().SingleAsync(ct)).Status);
+        Assert.Empty(await repeatCapture.AuditScheduleSourceReviews.AsNoTracking().ToListAsync(ct));
+        var captureMigration = repeatCapture.Database.GetMigrations()
+          .Single(x => x.EndsWith("_AuditScheduleSourceIntake", StringComparison.Ordinal));
+        var prior = repeatCapture.Database.GetMigrations().TakeWhile(x => x != captureMigration).Last();
+        var retainedDown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+          repeatCapture.GetService<IMigrator>().MigrateAsync(prior, ct));
+        var databaseRefusal = Assert.IsType<PostgresException>(retainedDown.InnerException);
+        Assert.Equal("55000", databaseRefusal.SqlState);
+        Assert.Contains(captureMigration, await repeatCapture.Database.GetAppliedMigrationsAsync(ct));
+        Assert.Equal(1, await repeatCapture.AuditScheduleSourceCaptures.CountAsync(ct));
+      }
+
       // Last: change the actual staged file, retaining all real accepted receipts and provider bytes.
       var chunk = await resolve.PbcUploadChunks.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == staged.UploadIntentId, ct);
       var altered = (byte[])csv.Clone();
@@ -241,12 +362,37 @@ public sealed class AuditScheduleIntakeSourcesTests
         receiptId, decisionId, sourceDate, columns, ["0010", "0020"], ct);
       Assert.False(tampered.Succeeded);
       Assert.Equal("pbc.staging-unverifiable", tampered.ErrorCode);
-      // Capture/review persistence is a later integration slice; verify the actual schedule boundary here.
-      Assert.Empty(await resolve.AuditSchedules.AsNoTracking().ToListAsync(ct));
-      Assert.Empty(await resolve.AuditScheduleRows.AsNoTracking().ToListAsync(ct));
+      await using (var recover = new AuditSphereDbContext(pg.Options))
+      {
+        var lookup = await AuditScheduleSourceWorkspace.GetCaptureReceiptAsync(recover, staff,
+          f.EngagementId, captureId, captureRequest.ExpectedRequestHash, ct);
+        Assert.True(lookup.Succeeded, lookup.Message);
+        Assert.True(lookup.Value!.Found);
+        Assert.Equal(originalCapture, lookup.Value.Receipt);
+        var wrongIntent = await AuditScheduleSourceWorkspace.GetCaptureReceiptAsync(recover, staff,
+          f.EngagementId, captureId, new string('0', 64), ct);
+        Assert.Equal(ErrorCodes.IdempotencyConflict, wrongIntent.ErrorCode);
+        var receiptFirst = await AuditScheduleSourceWorkspace.CaptureAsync(recover, staff, reader,
+          f.EngagementId, captureRequest, ct);
+        Assert.True(receiptFirst.Succeeded, receiptFirst.Message);
+        Assert.Equal(originalCapture, receiptFirst.Value);
+        Assert.Equal(1, await recover.AuditScheduleSourceCaptures.CountAsync(ct));
+      }
+      Assert.Equal(1, await resolve.AuditSchedules.CountAsync(ct));
+      Assert.Equal(2, await resolve.AuditScheduleRows.CountAsync(ct));
       Assert.DoesNotContain(resolve.ChangeTracker.Entries(), x =>
         x.Entity is AuditSchedule or AuditScheduleRow);
     }
     finally { Directory.Delete(staged.StagingRoot, true); }
+  }
+  private sealed class InterruptScheduleSave : SaveChangesInterceptor
+  {
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+      DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+      if (eventData.Context!.ChangeTracker.Entries<AuditSchedule>().Any(x => x.State == EntityState.Added))
+        throw new OperationCanceledException("Synthetic interruption after schedule rows were staged.");
+      return ValueTask.FromResult(result);
+    }
   }
 }

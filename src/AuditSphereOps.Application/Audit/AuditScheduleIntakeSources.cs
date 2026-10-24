@@ -19,7 +19,7 @@ internal sealed record AuditScheduleIntakeSourceFacts(
   Guid FirmId, Guid ClientId, Guid EngagementId, Guid PbcAcceptanceReceiptId,
   Guid PbcRequestId, long PbcRequestRevision, string CurrentPbcRequestState, Guid PbcUploadIntentId, long UploadIntentRevision,
   Guid AcceptedTbDecisionId, Guid TrialBalanceDatasetId, long DatasetRevision,
-  Guid PeriodId, long PeriodRevision, Guid? BookId, long? BookRevision, string? Basis,
+  Guid PeriodId, long PeriodRevision, DateOnly PeriodStart, DateOnly PeriodEnd, Guid? BookId, long? BookRevision, string? Basis,
   string LegalEntityKey, string Currency, long InputGeneration, DateOnly SourceDate,
   string ScheduleType, string ProfileVersion, string FileName, string RawFileSha256, long ByteCount,
   string PbcSourceDigest, string AcceptedTbHash, AuditScheduleCsvParseResult Parsed,
@@ -123,6 +123,8 @@ internal static class AuditScheduleIntakeSources
       TrialBalance = JsonSerializer.Deserialize<JsonElement>(tb.Json),
       ProfileVersion = parsed.ProfileVersion, Columns = columns, parsed.Headers,
       parsed.RawFileSha256, pbc.ByteCount, RowCount = parsed.Rows.Count, parsed.NormalizedRowsSha256,
+      parsed.NormalizedRowsJson,
+      OriginalRows = parsed.Rows.Select(x => new { x.StableRowId, x.SourceLineNumber, x.OriginalValuesJson }),
       SelectedControlAccountCodes = codes, ControlBasis = "TB_CLOSING_SIGNED_NET",
       SignedTotal = Exact(signedTotal), ClosingControl = Exact(closingControl), Residual = Exact(residual),
       AccountTieOuts = ties.Select(x => new
@@ -148,7 +150,7 @@ internal static class AuditScheduleIntakeSources
     if (!authority.Succeeded) return Denied<AuditScheduleIntakeSourceFacts>(authority);
     return CommandResult<AuditScheduleIntakeSourceFacts>.Ok(new(actor.FirmId, clientId, engagementId,
       pbcAcceptanceReceiptId, pbc.RequestId, pbc.RequestRevision, pbc.RequestState, pbc.UploadIntentId, pbc.UploadRevision,
-      acceptedTbDecisionId, tb.DatasetId, tb.DatasetRevision, tb.PeriodId, tb.PeriodRevision, tb.BookId,
+      acceptedTbDecisionId, tb.DatasetId, tb.DatasetRevision, tb.PeriodId, tb.PeriodRevision, tb.PeriodStart, tb.PeriodEnd, tb.BookId,
       tb.BookRevision, tb.Basis, tb.LegalEntityKey, tb.Currency, tb.Generation, sourceDate, ScheduleType,
       parsed.ProfileVersion, pbc.FileName, pbc.Hash, pbc.ByteCount, pbc.SourceDigest, tb.Hash, parsed,
       Array.AsReadOnly(codes), ties, signedTotal, closingControl, residual, manifest, Hashing.Sha256Hex(manifest)));

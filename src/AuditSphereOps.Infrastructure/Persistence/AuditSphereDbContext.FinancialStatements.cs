@@ -18,6 +18,8 @@ public sealed partial class AuditSphereDbContext
       .HasName("AK_trial_balance_datasets_scope_id");
 
     var acceptance = b.Entity<SourceAcceptanceDecision>();
+    acceptance.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_source_acceptance_decisions_scope_id");
     acceptance.Property(x => x.SourceKind).HasMaxLength(10);
     acceptance.Property(x => x.SourceIdentityHash).HasMaxLength(64);
     acceptance.Property(x => x.Decision).HasMaxLength(20);

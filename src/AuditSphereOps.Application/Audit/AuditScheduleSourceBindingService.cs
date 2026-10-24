@@ -86,6 +86,10 @@ public static class AuditScheduleSourceBindingService
     if (db is not DbContext context)
       return CommandResult<AuditScheduleSourceBindingValue>.Fail(ErrorCodes.ProtectedState,
         "The tracked schedule cannot be safely refreshed in this context.");
+    if (await db.AuditScheduleSourceCaptures.AsNoTracking().AnyAsync(x =>
+      x.ScheduleId == current.Id && x.FirmId == actor.FirmId, ct))
+      return CommandResult<AuditScheduleSourceBindingValue>.Fail(ErrorCodes.ProtectedState,
+        "A captured source version is immutable; prepare a new version to change its source.");
     // Local omits Deleted entries. Inspect all target states before attaching fresh facts so
     // binding neither flushes nor silently replaces the caller's pending deletion.
     var entry = context.ChangeTracker.Entries<AuditSchedule>().SingleOrDefault(x => x.Entity.Id == current.Id);
@@ -200,7 +204,8 @@ public static class AuditScheduleSourceBindingService
 
     var schedules = await db.AuditSchedules
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
-        staleIds.Contains(x.Id) && x.Status != AuditScheduleStatuses.Superseded)
+        staleIds.Contains(x.Id) && x.Status != AuditScheduleStatuses.Superseded &&
+        !db.AuditScheduleSourceCaptures.Any(capture => capture.ScheduleId == x.Id && capture.FirmId == x.FirmId))
       .ToListAsync(ct);
     foreach (var schedule in schedules)
     {

@@ -100,6 +100,8 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<AuditProcedureCommandReceipt> AuditProcedureCommandReceipts { get; }
   DbSet<AuditWorkprogramManagerApproval> AuditWorkprogramManagerApprovals { get; }
   DbSet<AuditSchedule> AuditSchedules { get; }
+  DbSet<AuditScheduleSourceCapture> AuditScheduleSourceCaptures { get; }
+  DbSet<AuditScheduleSourceReview> AuditScheduleSourceReviews { get; }
   DbSet<AuditBankReconciliation> AuditBankReconciliations { get; }
   DbSet<AuditBankReconciliationItem> AuditBankReconciliationItems { get; }
   DbSet<AuditScheduleRow> AuditScheduleRows { get; }

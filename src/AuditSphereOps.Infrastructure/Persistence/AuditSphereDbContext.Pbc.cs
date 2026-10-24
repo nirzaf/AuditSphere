@@ -57,6 +57,8 @@ public sealed partial class AuditSphereDbContext
     var acceptance = b.Entity<PbcAcceptanceReceipt>();
     acceptance.HasAlternateKey(x => new { x.FirmId, x.Id })
       .HasName("AK_pbc_acceptance_receipts_firm_id_id");
+    acceptance.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_pbc_acceptance_receipts_scope_id");
     acceptance.Property(x => x.FileName).HasMaxLength(255);
     acceptance.Property(x => x.ContentSha256Hex).HasMaxLength(64);
     acceptance.Property(x => x.ProviderIdentity).HasMaxLength(1000);

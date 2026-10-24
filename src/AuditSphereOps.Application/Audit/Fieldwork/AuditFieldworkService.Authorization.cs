@@ -16,6 +16,22 @@ public static partial class AuditFieldworkService
 
   private sealed record ScopedAuthorization(bool Succeeded, Guid ClientId, string? ErrorCode = null, string? Message = null);
 
+  internal static async Task<CommandResult<Guid>> AuthorizeSchedulePreparationAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
+  {
+    var result = await AuthorizeEngagementAsync(db, actor, engagementId, PlanningRoles, ct);
+    return result.Succeeded ? CommandResult<Guid>.Ok(result.ClientId) :
+      CommandResult<Guid>.Fail(result.ErrorCode!, result.Message!);
+  }
+
+  internal static async Task<CommandResult<Guid>> AuthorizeScheduleReviewAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
+  {
+    var result = await AuthorizeEngagementAsync(db, actor, engagementId, ReviewRoles, ct);
+    return result.Succeeded ? CommandResult<Guid>.Ok(result.ClientId) :
+      CommandResult<Guid>.Fail(result.ErrorCode!, result.Message!);
+  }
+
   // Shared by reviewed confirmation callers and direct service publication: firm, client, engagement.
   internal static async Task LockConfirmationScopeAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)

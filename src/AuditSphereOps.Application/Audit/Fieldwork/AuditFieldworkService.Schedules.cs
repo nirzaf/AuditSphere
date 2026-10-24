@@ -152,6 +152,10 @@ public static partial class AuditFieldworkService
     auth = await AuthorizeEntityAsync(db, actor, current, ReviewRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
+    if (ownTransaction && await db.AuditScheduleSourceCaptures.AsNoTracking().AnyAsync(x =>
+      x.ScheduleId == current.Id && x.FirmId == actor.FirmId, ct))
+      return CommandResult<ScheduleValue>.Fail(ErrorCodes.ProtectedState,
+        "A captured source version requires its dedicated independent review workflow.");
     if (request.Approve && current.CreatedByUserId == actor.UserId)
       return CommandResult<ScheduleValue>.Fail(ErrorCodes.ScopeDenied, "The preparer cannot approve the same schedule.");
     if (request.Approve && current.Residual != 0)

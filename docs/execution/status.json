@@ -1009,6 +1009,16 @@
       "status": "RED2/GREEN3 focused; source/CI publication pending",
       "history": "status-archive-2026-10.json#archivedTargetedVerification.differenceDirectAuthority20261024",
       "limits": "Record/evaluate revocation ordering only; broader source/correction/transaction acceptance remains."
+    },
+    "scheduleSourceCapture20261024": {
+      "status": "PARTIALLY_VERIFIED_BACKEND_SLICE_FULL_CI_PENDING",
+      "publishedParserCommit": "18293350788d44ce242d08582d17f6e3880b1f84",
+      "parser": "36 PASS / 0 FAIL / 0 SKIP; exact canonical normalized payload retained; aggregate original evidence bounded to 8 MiB without truncation",
+      "captureWip": "2 PASS / 0 FAIL / 0 SKIP; concurrent same-request original receipt, per-account mismatch remains UNRECONCILED, immutable rows and capture, legacy review refusal, empty migration Down/Up, retained-data Down refusal SQL55000 through EF wrapper",
+      "evidence": ".local/autonomous/evidence/schedule-intake-20261024",
+      "remaining": "Independent review commands, API/Angular and built-in acceptance; exact-source full CI pending. Original31 remains active; no deployment/live or professional acceptance.",
+      "finalFocused": "38 PASS / 0 FAIL / 0 SKIP; source-capture database pair plus existing parser cohort. Includes failed staged-save cleanup with subsequent SaveChanges proving no leak, original receipt lookup after source tampering, wrong-intent conflict, concurrent same-request capture, per-account controls, immutable capture/rows, legacy review refusal, empty Down/Up and retained Down refusal.",
+      "review": "Independent static review identified tracked early-failure cleanup and repeated SQL population scans; corrected and reverified. SQL uses scoped lookup objects/grouped aggregates; runtime scaling not benchmarked."
     }
   },
   "externalGates": [

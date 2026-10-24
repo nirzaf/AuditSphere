@@ -11649,6 +11649,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_source_acceptance_decisions_scope_id");
+
                     b.HasIndex("FirmId", "ImportBatchId")
                         .IsUnique()
                         .HasDatabaseName("ux_source_acceptance_gl_batch")
@@ -15925,6 +15928,261 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("audit_schedule_rows", null, t =>
                         {
                             t.HasCheckConstraint("ck_audit_schedule_row_values", "source_line_number > 0 AND length(trim(stable_row_id)) > 0 AND length(trim(account_code)) > 0 AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(original_values_json)) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditScheduleSourceCapture", b =>
+                {
+                    b.Property<Guid>("ScheduleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("schedule_id");
+
+                    b.Property<Guid>("AcceptedSourceDecisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("accepted_source_decision_id");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<string>("Basis")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("basis");
+
+                    b.Property<Guid?>("BookId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("book_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<long>("InputGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("input_generation");
+
+                    b.Property<string>("LegalEntityKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("legal_entity_key");
+
+                    b.Property<string>("ManifestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("manifest_hash");
+
+                    b.Property<string>("ManifestJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("manifest_json");
+
+                    b.Property<Guid>("PbcAcceptanceReceiptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_acceptance_receipt_id");
+
+                    b.Property<Guid>("PeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("period_id");
+
+                    b.Property<long>("PeriodRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("period_revision");
+
+                    b.Property<string>("ProfileVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("profile_version");
+
+                    b.Property<string>("ReceiptHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("receipt_hash");
+
+                    b.Property<string>("ReceiptJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("receipt_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("RequestJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("request_json");
+
+                    b.Property<DateOnly>("SourceDate")
+                        .HasColumnType("date")
+                        .HasColumnName("source_date");
+
+                    b.Property<Guid>("TrialBalanceDatasetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("trial_balance_dataset_id");
+
+                    b.HasKey("ScheduleId");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "ScheduleId")
+                        .HasName("AK_audit_schedule_source_captures_scope_id");
+
+                    b.HasIndex("FirmId", "ClientId", "BookId");
+
+                    b.HasIndex("FirmId", "ClientId", "PeriodId");
+
+                    b.HasIndex("FirmId", "ActorUserId", "ActorEpoch", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_schedule_source_capture_actor_request");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "AcceptedSourceDecisionId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcAcceptanceReceiptId")
+                        .HasDatabaseName("IX_audit_schedule_source_captures_firm_id_client_id_engagemen~1");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "TrialBalanceDatasetId")
+                        .HasDatabaseName("IX_audit_schedule_source_captures_firm_id_client_id_engagemen~2");
+
+                    b.ToTable("audit_schedule_source_captures", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_schedule_source_capture_values", "actor_epoch >= 1 AND period_revision >= 1 AND input_generation >= 1\nAND request_id <> '00000000-0000-0000-0000-000000000000'::uuid\nAND length(trim(legal_entity_key)) BETWEEN 1 AND 200\nAND (basis IS NULL OR length(trim(basis)) BETWEEN 1 AND 50)\nAND currency ~ '^[A-Z]{3}$'\nAND profile_version = 'audit-client-listing-csv.v1'\nAND request_hash ~ '^[0-9a-f]{64}$' AND receipt_hash ~ '^[0-9a-f]{64}$'\nAND manifest_hash ~ '^[0-9a-f]{64}$'\nAND octet_length(request_json) BETWEEN 2 AND 65536\nAND octet_length(receipt_json) BETWEEN 2 AND 65536\nAND octet_length(manifest_json) BETWEEN 2 AND 16777216\nAND request_hash = encode(sha256(convert_to(request_json, 'UTF8')), 'hex')\nAND receipt_hash = encode(sha256(convert_to(receipt_json, 'UTF8')), 'hex')\nAND manifest_hash = encode(sha256(convert_to(manifest_json, 'UTF8')), 'hex')\nAND jsonb_typeof(request_json::jsonb) = 'object'\nAND jsonb_typeof(receipt_json::jsonb) = 'object'\nAND jsonb_typeof(manifest_json::jsonb) = 'object'\nAND COALESCE(manifest_json::jsonb->>'Version' = 'audit-schedule-source-capture.v1', false)");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditScheduleSourceReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<string>("CaptureHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("capture_hash");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<string>("EvidenceReference")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("evidence_reference");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<long>("InputGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("input_generation");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("ReceiptHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("receipt_hash");
+
+                    b.Property<string>("ReceiptJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("receipt_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("RequestJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("request_json");
+
+                    b.Property<Guid>("ScheduleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("schedule_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ActorUserId", "ActorEpoch", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_schedule_source_review_actor_request");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ScheduleId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_schedule_source_review_capture");
+
+                    b.ToTable("audit_schedule_source_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_schedule_source_review_values", "actor_epoch >= 1 AND input_generation >= 1\nAND request_id <> '00000000-0000-0000-0000-000000000000'::uuid\nAND action IN ('APPROVE','RETURN') AND length(trim(reason)) BETWEEN 1 AND 2000\nAND length(evidence_reference) <= 2000\nAND capture_hash ~ '^[0-9a-f]{64}$'\nAND request_hash ~ '^[0-9a-f]{64}$' AND receipt_hash ~ '^[0-9a-f]{64}$'\nAND octet_length(request_json) BETWEEN 2 AND 65536\nAND octet_length(receipt_json) BETWEEN 2 AND 65536\nAND request_hash = encode(sha256(convert_to(request_json, 'UTF8')), 'hex')\nAND receipt_hash = encode(sha256(convert_to(receipt_json, 'UTF8')), 'hex')\nAND jsonb_typeof(request_json::jsonb) = 'object'\nAND jsonb_typeof(receipt_json::jsonb) = 'object'");
                         });
                 });
 
@@ -20788,6 +21046,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasAlternateKey("FirmId", "Id")
                         .HasName("AK_pbc_acceptance_receipts_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_pbc_acceptance_receipts_scope_id");
 
                     b.HasIndex("FirmId", "PbcRequestId")
                         .IsUnique()
@@ -35532,6 +35793,74 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "ScheduleId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditScheduleSourceCapture", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingBook", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "BookId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "PeriodId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.SourceAcceptanceDecision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "AcceptedSourceDecisionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcAcceptanceReceipt", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcAcceptanceReceiptId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditSchedule", null)
+                        .WithOne()
+                        .HasForeignKey("AuditSphereOps.Domain.Audit.AuditScheduleSourceCapture", "FirmId", "ClientId", "EngagementId", "ScheduleId")
+                        .HasPrincipalKey("AuditSphereOps.Domain.Audit.AuditSchedule", "FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.TrialBalanceDataset", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "TrialBalanceDatasetId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditScheduleSourceReview", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditScheduleSourceCapture", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ScheduleId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "ScheduleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

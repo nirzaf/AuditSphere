@@ -502,6 +502,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AuditProcedureCommandReceipt> AuditProcedureCommandReceipts => Set<AuditProcedureCommandReceipt>();
 
   public DbSet<AuditSchedule> AuditSchedules => Set<AuditSchedule>();
+  public DbSet<AuditScheduleSourceCapture> AuditScheduleSourceCaptures => Set<AuditScheduleSourceCapture>();
+  public DbSet<AuditScheduleSourceReview> AuditScheduleSourceReviews => Set<AuditScheduleSourceReview>();
 
   public DbSet<AuditBankReconciliation> AuditBankReconciliations => Set<AuditBankReconciliation>();
 
@@ -644,6 +646,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureFirmOperations(b);
     ConfigureAudit(b);
     ConfigureFieldwork(b);
+    ConfigureScheduleSourceIntake(b);
     ConfigureConfirmationBookedSources(b);
     ConfigureScopedEvidence(b);
     ConfigureAccounting(b);

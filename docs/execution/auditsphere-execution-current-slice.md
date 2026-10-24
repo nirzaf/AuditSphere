@@ -14,6 +14,14 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Accepted listing source capture
+
+The intake backend retains complete original and normalized listing rows, explicit per-account accepted-TB controls, the exact capture intent, and the original actor-owned receipt in one transaction. Offsetting account differences cannot qualify merely because their net residual is zero. Concurrent retries retain one outcome, and original receipt lookup does not depend on mutable source bytes. Missing receipts remain uncertain outcomes rather than permission to create replacement requests.
+
+Capture evidence and captured financial rows are immutable. Legacy binding/review paths cannot replace typed evidence; a dedicated independent review remains required. Retained evidence blocks destructive downgrade; empty rollback works. Original-cell expansion is bounded.
+
+See `status.json` for verification/publication. Independent review, API/Angular and rendered acceptance remain pending; whole-specification and professional/live acceptance are not established.
+
 ## Current confirmation, difference and native-successor work
 
 Explicit Bank-source selection retains the exact independently approved ledger balance, source identity/digest and current/stale provenance. Manual/legacy cases remain unverified; source and confirmation dates stay distinct. Existing case and closure evidence bytes are preserved. A supplied `AGREED` amount cannot differ from the booked amount; authenticity prose is not an approved reconciling explanation.
@@ -395,9 +403,7 @@ Official revocation cannot authorize stale risk owners or direct schedule creati
 
 ## Native generated reporting sources
 
-Native TB capture, validation/independent acceptance, retained downloads and commit-fenced package sealing have bounded focused evidence; the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#native-tb-handoff-before-native-gl--archived-2026-10-24) preserves details. Native GL adds exact accepted TB/original journal-line/opening lineage, independent source selection and completeness/cash-flow/package currentness. Metadata absent from native journals remains unknown; external import identities remain compatible. Focused backend/API, SQL refusal, Angular, lint/build and EF/OpenAPI checks pass. An owned browser journey exercised maker denial, independent reviewer acceptance, exact download and completeness plan; it made no completeness approval. Built-in refresh exposed focus loss; the real-browser regression failed before the correction and passed afterward. Built-in recheck confirmed the refresh button regained keyboard focus before fixture expiry; owned tabs were closed. Human AT/native zoom remain unverified. See `nativeGlHandoff` in [status.json](status.json).
-
-Public period creation remains DRAFT while source acceptance requires ACTIVE. No gate was relaxed: the bounded browser fixture assumes an existing synthetic ACTIVE context. Context activation, broader successor continuity, current full CI and qualified/live acceptance remain separate. Retained native GL refuses destructive rollback; earlier binaries requiring non-null source flags need compatibility review before release.
+Native TB/GL handoffs retain focused source, authorization, download and package-currentness evidence. Unknown metadata remains unknown; external imports remain supported. Public period creation is still DRAFT and source acceptance still requires ACTIVE. Full details and acceptance limits are retained in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#native-generated-reporting-sources--archived-during-source-capture-continuation). Current exact-source CI, public activation, native zoom/human AT and qualified/live acceptance remain separate.
 
 ## Native successor opening continuity
 

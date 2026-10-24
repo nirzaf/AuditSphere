@@ -521,6 +521,8 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Audit.AuditProcedureReview> AuditProcedureReviews => db.AuditProcedureReviews;
     public DbSet<AuditSphereOps.Domain.Audit.AuditWorkprogramManagerApproval> AuditWorkprogramManagerApprovals => db.AuditWorkprogramManagerApprovals;
     public DbSet<AuditSphereOps.Domain.Audit.AuditSchedule> AuditSchedules => db.AuditSchedules;
+    public DbSet<AuditSphereOps.Domain.Audit.AuditScheduleSourceCapture> AuditScheduleSourceCaptures => db.AuditScheduleSourceCaptures;
+    public DbSet<AuditSphereOps.Domain.Audit.AuditScheduleSourceReview> AuditScheduleSourceReviews => db.AuditScheduleSourceReviews;
     public DbSet<AuditSphereOps.Domain.Audit.AuditBankReconciliation> AuditBankReconciliations => db.AuditBankReconciliations;
     public DbSet<AuditSphereOps.Domain.Audit.AuditBankReconciliationItem> AuditBankReconciliationItems => db.AuditBankReconciliationItems;
     public DbSet<AuditSphereOps.Domain.Audit.AuditConfirmationBookedSource> AuditConfirmationBookedSources => db.AuditConfirmationBookedSources;
