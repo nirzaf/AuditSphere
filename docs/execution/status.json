@@ -1015,8 +1015,8 @@
       "limits": "Pre-implementation baseline full run 40141797352 remains in progress and is not acceptance for commit 71969138. The exact-source full run 40143495963 is tracked in scheduleSourceIndependentReviewDetails20261025. No full local suites; T058 and professional/browser acceptance remain partial."
     },
     "scheduleSourceIndependentReviewDetails20261025": {
-      "status": "FOCUSED_PASS_EXACT_SOURCE_CI_RUNNING_BROWSER_NOT_RUN",
-      "codeCommit": "7196913876100f86d19a286ac7f0aa505e6681de",
+      "status": "FOCUSED_PASS_API_ANGULAR_EXACT_SOURCE_CI_RUNNING_BROWSER_NOT_RUN",
+      "codeCommit": "8e5b5b170fc24367fae3bd7f24f05afa607034c5",
       "change": "Independent review preview now carries the exact accepted PBC/TB/period/book context and account tie-outs. A bounded read returns original listing cells for the exact capture hash; reviewer scope is rechecked, preparer self-review is denied, and assent/recording stay blocked until the first exact page loads. Cached rows are hidden while a different page is loading.",
       "checks": {
         "domain": {
@@ -1026,6 +1026,10 @@
         "angular": {
           "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/audit/fieldwork.spec.ts'",
           "result": "37 passed, 0 failed; reviewer preview displays capture-bound source evidence, assent is rejected before rows load, and loaded original cells render."
+        },
+        "api": {
+          "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~ScheduleSourceIntakeApiTests.IndependentReviewerCanReadExactCapturedSourceRowsOverHttp'",
+          "result": "1 passed, 0 failed; a PostgreSQL-backed workflow accepted a synthetic PBC upload through the simulated durable transfer, independently accepted a balanced TB, captured the exact source, verified a preparer receives HTTP 403, and verified the authenticated independent reviewer response returns the capture hash, bounded page metadata, original headers, source line number and original cell values."
         },
         "angularBuild": {
           "command": "npm --prefix src/AuditSphereOps.Ui run build",
@@ -1048,33 +1052,44 @@
           "result": "PASS."
         }
       },
-      "integrationCoverage": "Domain service and Angular state/template are focused-tested; OpenAPI confirms route publication. No successful HTTP-level or Playwright source-intake reviewer journey currently covers this new rows endpoint.",
+      "integrationCoverage": "Domain service and Angular state/template are focused-tested. The positive PostgreSQL-backed HTTP route is now verified for a current accepted capture and the exact original source row. No Playwright or built-in-browser reviewer journey has been run.",
       "browserVerification": {
         "status": "NOT_RUN",
         "reason": "Built-in browser inventory had no local AuditSphere reviewer workspace or authenticated synthetic reviewer fixture; only the Entra tab was available."
       },
       "ci": {
         "fast": {
-          "runId": 40143450617,
-          "sourceCommit": "7196913876100f86d19a286ac7f0aa505e6681de",
-          "status": "RUNNING",
+          "runId": 40144507388,
+          "sourceCommit": "8e5b5b170fc24367fae3bd7f24f05afa607034c5",
+          "status": "PENDING_AT_RECORD_TIME",
           "completedJobs": [],
           "pendingJobs": [
             "Docs · Health",
-            "Build · Angular"
+            "Build · Angular",
+            "Build · .NET Release"
           ]
         },
         "full": {
+          "runId": 40144518182,
+          "sourceCommit": "8e5b5b170fc24367fae3bd7f24f05afa607034c5",
+          "sourceMatch": "UNRESOLVED_AT_RECORD_TIME",
+          "status": "QUEUED_AT_RECORD_TIME",
+          "completedJobs": [],
+          "pendingJobs": [
+            "Resolve · Requested ref"
+          ]
+        },
+        "precedingFeeFull": {
+          "runId": 40144184527,
+          "sourceCommit": "fee8053287073f5aa109678897b40e5e7ef60665",
+          "sourceMatch": "MATCH",
+          "status": "RUNNING_AT_2026-10-24T23:50Z; preceding test source, not current acceptance"
+        },
+        "precedingReviewDetailsFull": {
           "runId": 40143495963,
           "sourceCommit": "7196913876100f86d19a286ac7f0aa505e6681de",
           "sourceMatch": "MATCH",
-          "status": "RUNNING",
-          "completedJobs": [
-            "Resolve · Requested ref: SUCCESS"
-          ],
-          "pendingJobs": [
-            "Build · Angular and full specs"
-          ]
+          "status": "RUNNING_AT_2026-10-24T23:43Z; preceding source, not current acceptance"
         },
         "preChangeFull": {
           "runId": 40141797352,
@@ -1094,7 +1109,7 @@
           "note": "This run predates commit 71969138 and is not acceptance for the reviewer-evidence change."
         }
       },
-      "remaining": "Focused source/UI checks pass. A successful HTTP/browser reviewer workflow, current exact-source full CI, and separate professional acceptance remain unverified; do not infer live or professional approval."
+      "remaining": "Focused source, Angular and positive HTTP reviewer checks pass. Playwright or built-in browser workflow, current exact-source full CI, and separate professional acceptance remain unverified; do not infer live or professional approval."
     }
   },
   "externalGates": [
