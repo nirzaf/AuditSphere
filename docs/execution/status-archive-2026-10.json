@@ -24773,6 +24773,11 @@
       "evidence": ".local/autonomous/evidence/ci-continuation-20261023",
       "portableSink": "Actual /dev/stdout fails on macOS pipes; documented - yields JSON. Focused2PASS. Redacted historical3 matches technically triaged false positives; no suppression/history rewrite. Dirty helper overlay, not clean final security acceptance.",
       "remaining": "Current-source scans/feeds, targets, performance/custody/recovery and production acceptance."
+    },
+    "currentSourceCiBeforeNativeSource20261024": {
+      "sourceCommit": "4ada464d00c30b217b5c03c8a5c12f68e1dd8733",
+      "evidence": "fast CI (ci.yml) success observed 22 Oct 2026 for 4ada464d; later commits pending at time of record",
+      "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/39818204512 FULL_CI_PASS for resolved source 48816d27761d71fa71581c514789844afba02d9b only (not current head)"
     }
   },
   "archivedTargetedVerification": {
