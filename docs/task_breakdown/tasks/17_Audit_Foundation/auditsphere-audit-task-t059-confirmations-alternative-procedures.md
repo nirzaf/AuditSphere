@@ -87,7 +87,7 @@ Consumes sample selections (T058); feeds Cash & Bank (T061), Receivables (T062),
 
 ## 5. Angular UI (`.Ui`)
 
-Continue the Angular confirmation workspace under `/ui/app/audit/confirmations`, using bounded decoders, server-computed capability flags, explicit draft recovery, revision fencing and session-revocation clearing. Add response aging and reconciliation detail only with corresponding authorized API projections.
+Continue the Angular confirmation workspace under `/app/engagements/:id/confirmations` (with `/ui` compatibility prefix when configured), using bounded decoders, server-computed capability flags, explicit draft recovery, revision fencing and session-revocation clearing. Add response aging and reconciliation detail only with corresponding authorized API projections.
 
 ## 6. Edge Cases, Security & Verification
 
