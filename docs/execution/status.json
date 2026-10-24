@@ -1011,24 +1011,26 @@
       "limits": "Record/evaluate revocation ordering only; broader source/correction/transaction acceptance remains."
     },
     "scheduleSourceCapture20261024": {
-      "status": "PARTIALLY_VERIFIED_BACKEND_SLICE_FULL_CI_PENDING",
+      "status": "FOCUSED_PASS_API_UI_CI_PENDING",
       "publishedParserCommit": "18293350788d44ce242d08582d17f6e3880b1f84",
       "parser": "36 PASS / 0 FAIL / 0 SKIP; exact canonical normalized payload retained; aggregate original evidence bounded to 8 MiB without truncation",
       "captureWip": "2 PASS / 0 FAIL / 0 SKIP; concurrent same-request original receipt, per-account mismatch remains UNRECONCILED, immutable rows and capture, legacy review refusal, empty migration Down/Up, retained-data Down refusal SQL55000 through EF wrapper",
       "evidence": ".local/autonomous/evidence/schedule-intake-20261024",
-      "remaining": "Independent review commands, API/Angular and built-in acceptance; exact-source full CI pending. Original31 remains active; no deployment/live or professional acceptance.",
+      "remaining": "Built-in rendered acceptance and exact-source full CI. Original31 remains active; no deployment/live or professional acceptance.",
       "finalFocused": "38 PASS / 0 FAIL / 0 SKIP; source-capture database pair plus existing parser cohort. Includes failed staged-save cleanup with subsequent SaveChanges proving no leak, original receipt lookup after source tampering, wrong-intent conflict, concurrent same-request capture, per-account controls, immutable capture/rows, legacy review refusal, empty Down/Up and retained Down refusal.",
       "review": "Independent static review identified tracked early-failure cleanup and repeated SQL population scans; corrected and reverified. SQL uses scoped lookup objects/grouped aggregates; runtime scaling not benchmarked."
     },
     "scheduleSourceIndependentReview20261024": {
-      "status": "PARTIALLY_VERIFIED_SOURCE_GUARDS_API_UI_PENDING",
+      "status": "FOCUSED_PASS_API_UI_CI_PENDING",
       "baseline": "c55f1e0d185eb9e6c2b5ec6cc9be17565b425f66",
       "scope": "Exact preview-bound independent review/receipt recovery; typed-source eligibility for sampling, selection creation/review, item-test record/review and readiness. Legacy/historical reads preserved.",
       "checks": {
-        "sourceCurrentness": "Focused class 3/3: current source permits selection/item-test review; staged-byte tamper blocks selection review, item-test record/review and readiness while retaining history."
+        "sourceCurrentness": "Focused 3/3: current source allows selection/item-test review; staged-byte tamper blocks selection review, item-test record/review and readiness; history retained.",
+        "api": "API build clean; d555b8b adds 10 routes; fresh OpenAPI drift PASS.",
+        "angular": "fieldwork.spec.ts 34/34; production build and targeted lint PASS (existing SCSS budget warning)."
       },
       "integrity": "Original manifest hash, source IDs/digests/context/generation and per-account gates unchanged.",
-      "limits": "Source-intake API/UI and rendered workflow remain pending. Test covers current source and actual staged-byte tamper; accepted-TB replacement, lifecycle parity, lock-revocation and caller-owned transaction variants remain unverified. No human/professional/provider approval. Full CI only through pipeline.",
+      "limits": "No browser/route-level API journey (no local session). TB replacement, lifecycle, lock revocation and caller-transaction variants unverified; professional/provider approval and exact full CI pending.",
       "evidence": ".local/autonomous/evidence/schedule-intake-20261024/selection-item-readiness-source-guards-reviewed.trx",
       "implementationCommit": "0b87a7548ed56602c3bba3b30bc05e79cb573d66",
       "history": "status-archive-2026-10.json#archivedTargetedVerification.scheduleSourceIndependentReviewHistory20261024"

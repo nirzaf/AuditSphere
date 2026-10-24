@@ -18,7 +18,7 @@ newer exact-source CI and slice evidence live under `targetedVerification`.
 
 The backend atomically retains complete listing rows, exact selected-TB controls, independent approval/return and original actor-owned receipts. Offsetting account differences cannot qualify through a zero net residual. Return can record an unavailable-source refusal; recovery reads the original outcome before mutable source state. New sampling/selection and picker eligibility recheck typed source facts and bytes, while preserving historical evidence. Descriptor values are compared independently of the immutable manifest byte hash.
 
-Focused checks, correction evidence and exact-source CI are in `status.json`. API/UI, item-test/final-readiness source integration and rendered acceptance remain pending. This slice supplies no professional/live acceptance or whole-specification completion.
+Source-currentness guards now cover selection review, item-test record/review and readiness. API/Angular capture and independent review are integrated; focused checks pass. Rendered workflow, exact-source CI and qualified acceptance remain open. See `status.json`.
 
 ## Current confirmation, difference and native-successor work
 

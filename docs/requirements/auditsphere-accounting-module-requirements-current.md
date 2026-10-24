@@ -12,6 +12,18 @@
 
 The [complete proposed specification](auditsphere-requirements-specification-complete-practice-management-proposed.md) governs the proposed design across this package. The [preserved v2.2 source](auditsphere-requirements-source-ste-audit-management-specification-v22.md) supplies historical requirements and approved source overlays. Companion documents use the same control identifiers and do not add product modules.
 
+## Approved deviations
+
+The entries below preserve approved decision overlays from the supplied v2.2 source. They remain source-reported decisions; this revision does not approve new ADRs or professional policy. Preserve executed contract terms and historical engagement evidence.
+
+- **ADR-0002 (Angular canonical UI):** Angular 22 is the canonical user interface. The original wording **“Blazor Interactive Server”** is retained as superseded provenance; the Blazor rollback host was retired by owner decision and merged as `e7ebe27c`. Retirement does not establish migration parity or rollback acceptance.
+- **ADR-0003 (Microsoft sign-in for the client portal):** no temporary passwords are emailed or stored; the first-sign-in requirement of the Microsoft identity path applies. The source phrase **“emails temporary credentials”** is superseded by this decision. For newly converted clients, portal access also requires both keys, activation and the paid advance. Live tenant acceptance remains separate.
+- **ADR-0004 (lifecycle as a derived projection):** the §5 stages are computed from gate records and never stored or set directly.
+- **ADR-0005 and ADR-0016 (visual appearance and certificate signing):** the PNG signature and seal remain the visible appearance. A firm-held X.509 certificate can sign the final report; when certificate signing is required, missing or invalid certificate material fails closed with no image-only fallback. eSignature providers and Purview remain out of scope. The firm's real-certificate and legal acceptance, and whether production must require certificate signing, remain separate gates.
+- **ADR-0006 (one SharePoint site per client; Full Control for assigned staff):** the site and staff-access decision does not establish archive immutability or provider read-only protection. The archive-copy rule is controlled by ADR-0009 below.
+- **ADR-0007 (approved 50/50 fee milestones and draft-only automation):** the gated engagement letter creates the reviewed fee agreement and its advance and balance milestones. Optional automation is off by default and creates invoice drafts only: the advance draft is eligible after the letter; the balance draft is eligible only after the advance is paid and the linked financial package is released. A draft is not approved, posted, sent or collected. A draft-report date alone is not the balance-invoice trigger. Preserve the terms and evidence of already accepted or executed contracts.
+- **ADR-0009 (archive authority, from spike SPK-01):** the append-only release and archive store is authoritative for issued evidence. A separate read-only SharePoint archive library is a secondary copy. Its state is `OBSERVED` only after both exact file hashes and expected grants are read back; until then it remains `BLOCKED_EXTERNAL`. A local freeze does not protect the SharePoint copy, and the UI or regulator export must not claim provider immutability.
+
 ## Filename and scope
 
 The supplied material uses this filename for the broader STE requirements. This revision therefore retains all five modules. Client bookkeeping, audit execution, financial reporting, consolidation and the firm's internal books retain their existing owners; “accounting module” in the filename does not introduce a sixth module or narrow the product to bookkeeping.
