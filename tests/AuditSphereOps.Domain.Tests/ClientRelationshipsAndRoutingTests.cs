@@ -692,6 +692,160 @@ public sealed class ClientRelationshipsAndRoutingTests
     Assert.Single(await db.CorrespondenceDispatchRecords.AsNoTracking().ToListAsync());
   }
 
+  [Fact]
+  public async Task ClientContactRouting_ReadsRequireContactOwnerToMatchRouteOwner()
+  {
+    await using var pg = await PgTestSchema.CreateAsync("20261024014728_FirmExpenseJournalPostingFirmScope");
+    var seed = await PbcSeed.SeedAsync(pg);
+    var partner = PbcSeed.Actor(seed.Admin, "Partner");
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"));
+    var siblingClientId = Guid.NewGuid();
+    var validContactId = Guid.NewGuid();
+    var siblingContactId = Guid.NewGuid();
+    db.PracticeClients.Add(new PracticeClient
+    {
+      Id = siblingClientId, FirmId = seed.FirmId, LegalName = "Sibling Client", Status = "Active",
+      CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.ClientContacts.AddRange(
+      new ClientContact
+      {
+        Id = validContactId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId,
+        FullName = "Client A Contact", Email = "client-a@example.test", Role = "Manager", IsActive = true
+      },
+      new ClientContact
+      {
+        Id = siblingContactId, FirmId = seed.FirmId, PracticeClientId = siblingClientId,
+        FullName = "Sibling Client Contact", Email = "sibling@example.test", Role = "Manager", IsActive = true
+      });
+    await db.SaveChangesAsync();
+
+    var validRouting = await PracticeCrmService.AssignContactRoutingAsync(db, partner,
+      new AssignContactRoutingRequest(seed.ClientId, validContactId, CorrespondencePurposes.Commercial,
+        IsPrimaryForPurpose: false));
+    Assert.True(validRouting.Succeeded, validRouting.Message);
+
+    var siblingRoutingId = Guid.NewGuid();
+    db.ClientContactRoutings.Add(new ClientContactRouting
+    {
+      Id = siblingRoutingId,
+      FirmId = seed.FirmId,
+      PracticeClientId = seed.ClientId,
+      ClientContactId = siblingContactId,
+      Purpose = CorrespondencePurposes.Commercial,
+      IsPrimaryForPurpose = true,
+      CreatedByUserId = partner.UserId,
+      CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
+    var persistedSiblingRoute = await (
+      from routing in db.ClientContactRoutings.AsNoTracking()
+      join contact in db.ClientContacts.AsNoTracking() on routing.ClientContactId equals contact.Id
+      where routing.Id == siblingRoutingId
+      select new { routing.PracticeClientId, ContactClientId = contact.PracticeClientId, contact.Id }
+    ).SingleAsync();
+    Assert.Equal(seed.ClientId, persistedSiblingRoute.PracticeClientId);
+    Assert.Equal(siblingClientId, persistedSiblingRoute.ContactClientId);
+
+    var routings = await PracticeCrmService.GetClientContactRoutingsAsync(db, partner, seed.ClientId);
+    Assert.True(routings.Succeeded, routings.Message);
+    var routingRows = routings.Value!;
+    var siblingListed = routingRows.Any(x => x.ClientContactId == siblingContactId);
+    var validListed = routingRows.Any(x => x.ClientContactId == validContactId);
+    var resolution = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db, partner, seed.ClientId,
+      CorrespondencePurposes.Commercial, DateOnly.FromDateTime(DateTime.UtcNow));
+    Assert.Equal(RecipientResolutionStatus.Resolved, resolution.Status);
+    Assert.Equal(validContactId, resolution.ClientContactId);
+    var siblingResolved = resolution.Status == RecipientResolutionStatus.Resolved &&
+      resolution.ClientContactId == siblingContactId;
+
+    Assert.True(validListed && !siblingListed && !siblingResolved,
+      $"Persisted an existing same-firm sibling-client contact against Client A's route. " +
+      $"List exposed sibling={siblingListed}; resolver status={resolution.Status}; " +
+      $"resolver returned sibling={siblingResolved}; valid same-client route listed={validListed}.");
+
+    var invalidLegacyRouteMigration = await Assert.ThrowsAsync<PostgresException>(() => db.Database.MigrateAsync());
+    Assert.Equal("23503", invalidLegacyRouteMigration.SqlState);
+    Assert.Equal("fk_client_contact_routing_contact_scope", invalidLegacyRouteMigration.ConstraintName);
+
+    await using var currentPg = await PgTestSchema.CreateAsync();
+    var currentSeed = await PbcSeed.SeedAsync(currentPg);
+    var foreignSeed = await PbcSeed.SeedAsync(currentPg);
+    var currentPartner = PbcSeed.Actor(currentSeed.Admin, "Partner");
+    var currentSiblingClientId = Guid.NewGuid();
+    var currentContactId = Guid.NewGuid();
+    var currentSiblingContactId = Guid.NewGuid();
+    var foreignContactId = Guid.NewGuid();
+    await using (var currentDb = new AuditSphereDbContext(currentPg.Options))
+    {
+      currentDb.RoleGrants.Add(PbcSeed.Grant(currentSeed.FirmId, currentSeed.Admin, "Partner"));
+      currentDb.PracticeClients.Add(new PracticeClient
+      {
+        Id = currentSiblingClientId, FirmId = currentSeed.FirmId, LegalName = "Current Sibling Client",
+        Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      currentDb.ClientContacts.AddRange(
+        new ClientContact
+        {
+          Id = currentContactId, FirmId = currentSeed.FirmId, PracticeClientId = currentSeed.ClientId,
+          FullName = "Current Client A Contact", Email = "current-a@example.test", Role = "Manager", IsActive = true
+        },
+        new ClientContact
+        {
+          Id = currentSiblingContactId, FirmId = currentSeed.FirmId, PracticeClientId = currentSiblingClientId,
+          FullName = "Current Sibling Contact", Email = "current-sibling@example.test", Role = "Manager", IsActive = true
+        });
+      await currentDb.SaveChangesAsync();
+      var assigned = await PracticeCrmService.AssignContactRoutingAsync(currentDb, currentPartner,
+        new AssignContactRoutingRequest(currentSeed.ClientId, currentContactId, CorrespondencePurposes.Commercial));
+      Assert.True(assigned.Succeeded, assigned.Message);
+    }
+
+    await using (var foreignDb = new AuditSphereDbContext(currentPg.Options))
+    {
+      foreignDb.ClientContacts.Add(new ClientContact
+      {
+        Id = foreignContactId, FirmId = foreignSeed.FirmId, PracticeClientId = foreignSeed.ClientId,
+        FullName = "Foreign Firm Contact", Email = "foreign-firm@example.test", Role = "Manager", IsActive = true
+      });
+      await foreignDb.SaveChangesAsync();
+    }
+
+    async Task<PostgresException> ExpectOwnerConstraintAsync(Guid contactId)
+    {
+      await using var attemptDb = new AuditSphereDbContext(currentPg.Options);
+      attemptDb.ClientContactRoutings.Add(new ClientContactRouting
+      {
+        Id = Guid.NewGuid(), FirmId = currentSeed.FirmId, PracticeClientId = currentSeed.ClientId,
+        ClientContactId = contactId, Purpose = CorrespondencePurposes.Completion,
+        IsPrimaryForPurpose = true, CreatedByUserId = currentPartner.UserId, CreatedAt = DateTimeOffset.UtcNow
+      });
+      var failure = await Assert.ThrowsAsync<DbUpdateException>(() => attemptDb.SaveChangesAsync());
+      return Assert.IsType<PostgresException>(failure.InnerException);
+    }
+
+    var siblingRejected = await ExpectOwnerConstraintAsync(currentSiblingContactId);
+    Assert.Equal("23503", siblingRejected.SqlState);
+    Assert.Equal("fk_client_contact_routing_contact_scope", siblingRejected.ConstraintName);
+    var foreignFirmRejected = await ExpectOwnerConstraintAsync(foreignContactId);
+    Assert.Equal("23503", foreignFirmRejected.SqlState);
+    Assert.Equal("fk_client_contact_routing_contact_scope", foreignFirmRejected.ConstraintName);
+
+    await using var currentReaderDb = new AuditSphereDbContext(currentPg.Options);
+    var currentRoutings = await PracticeCrmService.GetClientContactRoutingsAsync(
+      currentReaderDb, currentPartner, currentSeed.ClientId);
+    Assert.True(currentRoutings.Succeeded, currentRoutings.Message);
+    Assert.Equal(currentContactId, Assert.Single(currentRoutings.Value!).ClientContactId);
+    var currentResolution = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(currentReaderDb,
+      currentPartner, currentSeed.ClientId, CorrespondencePurposes.Commercial,
+      DateOnly.FromDateTime(DateTime.UtcNow));
+    Assert.Equal(RecipientResolutionStatus.Resolved, currentResolution.Status);
+    Assert.Equal(currentContactId, currentResolution.ClientContactId);
+  }
+
   [Theory]
   [InlineData("LIST")]
   [InlineData("ROUTED")]

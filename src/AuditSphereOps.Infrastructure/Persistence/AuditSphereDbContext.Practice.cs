@@ -309,6 +309,11 @@ public sealed partial class AuditSphereDbContext
     b.Entity<ClientContact>().HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<ClientContactRouting>().HasOne<ClientContact>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.PracticeClientId, x.ClientContactId })
+      .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict)
+      .HasConstraintName("fk_client_contact_routing_contact_scope");
     b.Entity<WorkTask>().HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);

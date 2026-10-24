@@ -1111,7 +1111,13 @@
         "scope": "App contact/routing/recipient/hierarchy and off-page relationship-count revocation guards; no API schema or DB migration."
       },
       "moduleAtomicTrace": "132 source-line criteria across18moduleparents; SOURCE_TRACED_NOT_ACCEPTED, no functional promotion. Details: status-archive-2026-10.json#keys.moduleAtomicTrace20261024.",
-      "earlierOwnerVerification": "Historical owner-test/PR50 records preserved: status-archive-2026-10.json#keys.ascpEarlierOwnerTests20261024; not current-source acceptance."
+      "earlierOwnerVerification": "Historical owner-test/PR50 records preserved: status-archive-2026-10.json#keys.ascpEarlierOwnerTests20261024; not current-source acceptance.",
+      "clientRoutingOwnerScope": {
+        "status": "PASS_LOCAL_FOCUSED; NEW_CURRENT_CI_REQUIRED",
+        "checks": "RED1 privacy exposure -> boundary1PASS + existing routing/authority4PASS; Release/EFdriftPASS. No full local suite.",
+        "history": "status-archive-2026-10.json#keys.clientRoutingOwnerScope20261024",
+        "migration": "ClientContactRoutingOwnerScope; invalid historical owners block deployment migration pending authorized review."
+      }
     },
     "archivedOn20261024": {
       "entries": [

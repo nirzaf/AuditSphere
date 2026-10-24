@@ -23633,6 +23633,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FirmId", "PracticeClientId", "ClientContactId");
+
                     b.HasIndex("FirmId", "PracticeClientId", "Purpose")
                         .HasFilter("revoked_at IS NULL AND is_primary_for_purpose = true");
 
@@ -36666,6 +36668,17 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.ClientContactRouting", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Practice.ClientContact", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "PracticeClientId", "ClientContactId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_client_contact_routing_contact_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.ClientConversion", b =>

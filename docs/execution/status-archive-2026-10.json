@@ -24503,6 +24503,18 @@
       "ownerTests": "Existing owner tests PASS locally on a09ca4cb (Release): CommercialWorkflowTests 44/44 (tasks 05/06); MaterialityPracticalRoundingTests, EngagementWorkflowPlanTests, AnnualEngagementPreparationTests, PbcWorkflowTaskTests 25/25 (tasks 07-09). No defect found; tasks stay VERIFY_ONLY pending CI journeys. Tasks 10-23 owner cohort PASS 235/235 on c01fc877 (ClientAccounting, FinancialStatement, FinancialPackageGate, Consolidation, AuditConfirmationCommandIsolation, AuditDeliverables, PracticeTime, FirmOperations, SourceManifest). Fast CI c01fc877 success. No defect found; acceptance still needs CI journeys and professional gates.",
       "focused": "FirmPortalLogoSettingsApiTests 4 PASS (new 8-route scope-denial 403 regression); full suites and OpenAPI drift deferred to CI",
       "pr50Continuation": "Task02 final allocation guards locally verified; Task25 unsigned operator preparer locally verified; Task13 issuance policy gate explicit. Whole specification remains partial; exact-current CI/signing/live/human acceptance pending. Details in archive.pr50EngineeringContinuation."
+    },
+    "clientRoutingOwnerScope20261024": {
+      "status": "PASS_LOCAL_FOCUSED; CURRENT_FULL_CI_REQUIRED",
+      "source": "57e6e0accad72aa5677a0bb6743a9739dd3080e5 + owner-scope Application/model/migration/test overlay; docs-only86af990d does not change tested code",
+      "requirement": "ASCP02/03; ACCREQ4.1.1 exact client-contact ownership and AGENTS client isolation",
+      "counterfactual": "Original read permits real existing same-firm sibling contact association: list exposes sibling, resolver Resolved to sibling. One attributable assertion FAIL.",
+      "checks": "Final named boundary1PASS/0FAIL/0SKIP; existing purpose dispatch + read-revocation theory4PASS/0FAIL/0SKIP. API Release build0warnings/errors; EF pending-model NONE; diffPASS. No full local suites.",
+      "boundaryProof": "Earlier-schema sibling route hidden by list/resolver while valid same-client still resolves; migrating invalid legacy association fails23503 namedFK. Latest disposable schema rejects real sibling-client and foreign-firm contact references23503; valid route persists/resolves.",
+      "migration": "20261024024221_ClientContactRoutingOwnerScope, default validated Restrict FK and supporting index; existing contact composite principal key reused. No historical repair/backfill/delete, no development/deployed database migration.",
+      "test": "ClientRelationshipsAndRoutingTests.ClientContactRouting_ReadsRequireContactOwnerToMatchRouteOwner",
+      "privateEvidence": ".local/autonomous/evidence/client-routing-owner-scope-20261024/evidence.md",
+      "limits": "Application/real isolated PostgreSQL only; no new API shapes/routes, browser acceptance, deployed data preflight or live permission change. Exact-source full CI required."
     }
   },
   "archivedTargetedVerification": {

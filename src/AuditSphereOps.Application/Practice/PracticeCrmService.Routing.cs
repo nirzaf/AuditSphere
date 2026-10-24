@@ -103,7 +103,8 @@ public static partial class PracticeCrmService
 
     var query = from r in db.ClientContactRoutings.AsNoTracking()
                 join c in db.ClientContacts.AsNoTracking() on r.ClientContactId equals c.Id
-                where r.FirmId == actor.FirmId && r.PracticeClientId == clientId && r.RevokedAt == null
+                where r.FirmId == actor.FirmId && r.PracticeClientId == clientId && r.RevokedAt == null &&
+                  c.FirmId == actor.FirmId && c.PracticeClientId == clientId
                 orderby r.Purpose, r.IsPrimaryForPurpose descending, r.CreatedAt descending
                 select new ClientContactRoutingDto(
                   r.Id,
@@ -300,7 +301,8 @@ public static partial class PracticeCrmService
       where (r.EffectiveFrom == null || r.EffectiveFrom <= asOfDate) &&
             (r.EffectiveTo == null || r.EffectiveTo >= asOfDate)
       join c in db.ClientContacts.AsNoTracking() on r.ClientContactId equals c.Id
-      where c.IsActive && (c.ValidFrom == null || c.ValidFrom < asOfEnd) &&
+      where c.FirmId == actor.FirmId && c.PracticeClientId == clientId && c.IsActive &&
+        (c.ValidFrom == null || c.ValidFrom < asOfEnd) &&
         (c.ValidTo == null || c.ValidTo >= asOfStart)
       select new { Routing = r, Contact = c }
     ).ToListAsync(ct);
