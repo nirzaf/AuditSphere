@@ -191,6 +191,10 @@ public static partial class AuditFieldworkService
       if (tx is not null && auth.ErrorCode == ErrorCodes.ProtectedState) await tx.CommitAsync(ct);
       return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);
     }
+    existing = await db.AuditConfirmationCases.AsNoTracking()
+      .SingleAsync(x => x.Id == request.ConfirmationCaseId && x.FirmId == actor.FirmId, ct);
+    if (existing.Status is not (AuditConfirmationStatuses.NoResponse or AuditConfirmationStatuses.AlternativeRequired))
+      return CommandResult<ConfirmationValue>.Fail(ErrorCodes.GateBlocked, "Alternative work requires an outstanding or non-response confirmation.");
     var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, existing.EngagementId, "record alternative procedure", ct);
     if (!writable.Succeeded)
     {

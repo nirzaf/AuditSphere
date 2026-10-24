@@ -24639,6 +24639,23 @@
       "angularEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/accounting-angular-ci-764.json",
       "limits": "No current full CI, complete native successor opening/sealed source, browser/professional/provider acceptance.",
       "preservedModuleAtomicTracePointer": "132 source-line criteria across18moduleparents; SOURCE_TRACED_NOT_ACCEPTED, no functional promotion. Details: status-archive-2026-10.json#keys.moduleAtomicTrace20261024."
+    },
+    "confirmationAlternativeStatus20261024": {
+      "status": "PASS_FOCUSED_CURRENT_CI_REQUIRED",
+      "base": "54042d7ed146882ac4940d65660e9da307223a37",
+      "checks": "Official-close race RED1 -> final full affected class GREEN11/0FAIL/0SKIP; prior10cases byte-preserved. No full suite locally.",
+      "sourceDigests": {
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Confirmations.cs": "eb23c1f250c0b49fdd60cb680e903c7783929296ce4c2e4c288327ddde5ecd9d",
+        "tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs": "2362fac17805ecc51e82eda4fd41a25134dba2f86e070190fe0533079bed2282",
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Authorization.cs": "e1af98ff4d2fc7ec2bb78ecd015794ee6f601c3a2a2b0282bc10070240830091"
+      },
+      "evidence": ".local/autonomous/evidence/confirmation-alternative-current-status-20261024/review.json",
+      "change": "Read stored case status under existing scope/case lock before adding an alternative. Denial retains exact committed closure/response/alternative snapshot.",
+      "limits": [
+        "Focused Domain class only; full regressions and exact committed-source CI deferred to parent.",
+        "No API/E2E/browser run, model/schema/DTO/provider changes, or additional policy.",
+        "Unrelated status races and additional lifecycle paths were not broadened into this slice."
+      ]
     }
   },
   "archivedTargetedVerification": {

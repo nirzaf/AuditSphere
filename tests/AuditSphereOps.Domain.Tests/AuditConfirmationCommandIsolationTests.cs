@@ -186,6 +186,90 @@ public sealed class AuditConfirmationCommandIsolationTests
     Assert.Equal(before, after);
   }
 
+  [Fact]
+  public async Task AlternativeProcedureRefusesCaseClosedBeforeItsTransaction()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+    var ct = timeout.Token;
+    var scope = (await PlanningSeed.CreateAsync(pg, role: "Partner")).Primary;
+    var reviewer = new ActorContext(Guid.NewGuid(), scope.FirmId, 1, ["Partner"]);
+    Guid caseId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      AddScopedStaff(setup, scope.Actor.UserId, scope, reviewer.UserId, "Partner", "alternative-closure-reviewer");
+      await setup.SaveChangesAsync(ct);
+      var created = await AuditFieldworkService.CreateConfirmationAsync(setup, scope.Actor,
+        NewConfirmation(scope.EngagementId), ct);
+      Assert.True(created.Succeeded, created.Message);
+      caseId = created.Value!.ConfirmationCaseId;
+      Assert.True((await AuditFieldworkService.ApproveConfirmationAsync(setup, reviewer, caseId, ct)).Succeeded);
+      Assert.True((await AuditFieldworkService.RecordDispatchEvidenceAsync(setup, scope.Actor,
+        new(caseId, "Synthetic observed dispatch reference"), ct)).Succeeded);
+      Assert.True((await AuditFieldworkService.RecordConfirmationResponseAsync(setup, scope.Actor,
+        new(caseId, "DIRECT", "PORTAL", "Synthetic retained non-response", null,
+          "No response received by the reviewed follow-up date.", AuditConfirmationDecisions.NoResponse), ct)).Succeeded);
+      var responseId = await setup.AuditConfirmationResponses.Where(x => x.ConfirmationCaseId == caseId)
+        .Select(x => x.Id).SingleAsync(ct);
+      Assert.True((await AuditFieldworkService.ReviewConfirmationResponseAsync(setup, reviewer, new(responseId), ct)).Succeeded);
+      Assert.True((await AuditFieldworkService.RecordAlternativeProcedureAsync(setup, scope.Actor,
+        new(caseId, "Inspect subsequent clearing", ["Synthetic clearing evidence"], "The balance is supported."), ct)).Succeeded);
+      var alternativeId = await setup.AuditAlternativeProcedures.Where(x => x.ConfirmationCaseId == caseId)
+        .Select(x => x.Id).SingleAsync(ct);
+      Assert.True((await AuditFieldworkService.ReviewAlternativeProcedureAsync(setup, reviewer,
+        new(alternativeId, "Independently reviewed clearing evidence."), ct)).Succeeded);
+    }
+
+    async Task<string> Snapshot(AuditSphereDbContext db) => JsonSerializer.Serialize(new
+    {
+      Case = await db.AuditConfirmationCases.AsNoTracking().SingleAsync(x => x.Id == caseId, ct),
+      Responses = await db.AuditConfirmationResponses.AsNoTracking().Where(x => x.ConfirmationCaseId == caseId).OrderBy(x => x.Id).ToListAsync(ct),
+      Alternatives = await db.AuditAlternativeProcedures.AsNoTracking().Where(x => x.ConfirmationCaseId == caseId).OrderBy(x => x.Id).ToListAsync(ct),
+      Closures = await db.AuditConfirmationClosures.AsNoTracking().Where(x => x.ConfirmationCaseId == caseId).OrderBy(x => x.Id).ToListAsync(ct)
+    });
+
+    var request = new RecordAlternativeProcedureRequest(caseId, "Inspect additional subsequent clearing",
+      ["Synthetic additional clearing evidence"], "Additional clearing supports the recorded balance.");
+    string before;
+    await using (var positive = new AuditSphereDbContext(pg.Options))
+    {
+      before = await Snapshot(positive);
+      await using var callerTx = await positive.Database.BeginTransactionAsync(ct);
+      var allowed = await AuditFieldworkService.RecordAlternativeProcedureAsync(positive, scope.Actor, request, ct);
+      Assert.True(allowed.Succeeded, allowed.Message);
+      Assert.Equal(2, await positive.AuditAlternativeProcedures.CountAsync(x => x.ConfirmationCaseId == caseId, ct));
+      await callerTx.RollbackAsync(ct);
+    }
+    await using (var verifyRollback = new AuditSphereDbContext(pg.Options))
+      Assert.Equal(before, await Snapshot(verifyRollback));
+
+    string? closedSnapshot = null;
+    var interceptor = new RevokeOnConfirmationTransaction(async token =>
+    {
+      await using var closeDb = new AuditSphereDbContext(pg.Options);
+      var closed = await AuditFieldworkService.CloseConfirmationAsync(closeDb, reviewer,
+        new(caseId, "Independently reviewed alternative work is sufficient for closure."), token);
+      Assert.True(closed.Succeeded, closed.Message);
+      Assert.Equal(AuditConfirmationStatuses.Closed, closed.Value!.Status);
+      Assert.Single(await closeDb.AuditConfirmationClosures.AsNoTracking().Where(x => x.ConfirmationCaseId == caseId).ToListAsync(token));
+      closedSnapshot = await Snapshot(closeDb);
+    });
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(interceptor).Options;
+    await using var target = new AuditSphereDbContext(options);
+    var result = await AuditFieldworkService.RecordAlternativeProcedureAsync(target, scope.Actor, request, ct);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.True(interceptor.Invoked);
+    Assert.NotNull(closedSnapshot);
+    Assert.Equal(AuditConfirmationStatuses.Closed,
+      await verify.AuditConfirmationCases.Where(x => x.Id == caseId).Select(x => x.Status).SingleAsync(ct));
+    var after = await Snapshot(verify);
+    Assert.True(!result.Succeeded && after == closedSnapshot,
+      $"Official closure committed before the alternative transaction continued; succeeded={result.Succeeded}, postCloseMutation={after != closedSnapshot}.");
+    Assert.Equal(ErrorCodes.GateBlocked, result.ErrorCode);
+    Assert.Equal(closedSnapshot, after);
+    Assert.Single(await verify.AuditAlternativeProcedures.Where(x => x.ConfirmationCaseId == caseId).ToListAsync(ct));
+  }
+
   private sealed class RevokeOnConfirmationTransaction(Func<CancellationToken, Task> revoke) : DbTransactionInterceptor
   {
     private int invoked;

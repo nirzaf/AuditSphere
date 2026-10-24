@@ -7616,10 +7616,12 @@
         "method": "DirectConfirmationCreationRefusesAuthorityRevokedBeforeItsTransaction",
         "expectedOutcome": "After official role revocation commits at transaction-start boundary, direct creation refuses without publishing a case; earlier authorized case remains.",
         "mutationMethod": "DirectConfirmationMutationsRefuseAuthorityRevokedBeforeTheirTransaction",
-        "mutationOutcome": "Authorized rollback positives precede official role revocation; approval/dispatch/response/review/alternative/review-alternative/close deny without persisted changes. Six original gaps reproduced; Close already denied."
+        "mutationOutcome": "Authorized rollback positives precede official role revocation; approval/dispatch/response/review/alternative/review-alternative/close deny without persisted changes. Six original gaps reproduced; Close already denied.",
+        "postCloseMethod": "AlternativeProcedureRefusesCaseClosedBeforeItsTransaction",
+        "postCloseOutcome": "Official independently reviewed Close commits at transaction-start callback; alternative insertion refuses and retains the exact closed snapshot. Authorized insertion/rollback positive retained."
       },
       "evidence": "docs/execution/status.json#targetedVerification.ascpSpecDiscovery20261024.confirmationDirectAuthority",
-      "remaining": "Remaining commit-window/status interleavings; typed source-derived booked amount and retained lineage for all areas; human difference explanations and existing difference/review-point links; current full CI and required professional/provider acceptance. Source trace is not source adapter implementation.",
+      "remaining": "Broader status/commit-window interleavings; typed source-derived booked amounts and retained lineage for all areas; human difference explanation and existing difference/review-point links; current full CI and required professional/provider acceptance. No source adapter completion claimed.",
       "acceptance": "PARTIAL_LOCAL_VERIFICATION",
       "taskComplete": false,
       "sourceReconciliation": {
