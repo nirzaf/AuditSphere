@@ -24766,6 +24766,13 @@
       "checks": "Mail41PASS + final3authorityPASS; Workercompiled. CMS/source/model/token pins, latestfirmtenant/consent, suspended/blocked and postIO guards; no token/Graph ondeny. ComposeexamplePASS; committedsourceWU02432PASS. Rawproof/sourcehashes retained.",
       "remaining": "Signedreceipt enrollment/import, APIpersistedreadiness, migration and live sender/control acceptance.",
       "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.mailRoleEvidenceGuard"
+    },
+    "targetedVerification.autonomousCompletion20261022.operationalEvidenceGuard20261024Snapshot": {
+      "status": "PARTIAL",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.operationalEvidenceGuardBeforePortableSink20261023",
+      "evidence": ".local/autonomous/evidence/ci-continuation-20261023",
+      "portableSink": "Actual /dev/stdout fails on macOS pipes; documented - yields JSON. Focused2PASS. Redacted historical3 matches technically triaged false positives; no suppression/history rewrite. Dirty helper overlay, not clean final security acceptance.",
+      "remaining": "Current-source scans/feeds, targets, performance/custody/recovery and production acceptance."
     }
   },
   "archivedTargetedVerification": {

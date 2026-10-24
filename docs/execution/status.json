@@ -958,9 +958,7 @@
       },
       "operationalEvidenceGuard": {
         "status": "PARTIAL",
-        "history": "status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.operationalEvidenceGuardBeforePortableSink20261023",
-        "evidence": ".local/autonomous/evidence/ci-continuation-20261023",
-        "portableSink": "Actual /dev/stdout fails on macOS pipes; documented - yields JSON. Focused2PASS. Redacted historical3 matches technically triaged false positives; no suppression/history rewrite. Dirty helper overlay, not clean final security acceptance.",
+        "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.autonomousCompletion20261022.operationalEvidenceGuard20261024Snapshot",
         "remaining": "Current-source scans/feeds, targets, performance/custody/recovery and production acceptance."
       },
       "pbcReplyRecovery": {
@@ -1112,12 +1110,17 @@
       "queueCurrentExpiry": "RED1/GREEN1+calendar2PASS; fullCI pending. Archive: status-archive-2026-10.json#keys.queueCurrentExpiry20261024.",
       "ciE2eFollowup": "Focused7+1PASS and builtin lifecycle subset; currentCI required. Archive: status-archive-2026-10.json#keys.a9E2eCausalFollowup20261024.",
       "nativeTbHandoff": {
-        "status": "PARTIAL_TASK11; bounded TB path focused/browser checks pass; exact-current full CI pending",
+        "status": "PARTIAL_TASK11; bounded tests/browser PASS; exact-current full CI pending",
         "migration": "20261024052643_NativeTrialBalanceSourceHandoff",
         "evidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/native-source-handoff-final",
         "checks": "Domain7/API1/Angular6 PASS; scoped lint/production UI build, OpenAPI and EF drift PASS. Existing opening browser journey1PASS plus builtin repeat1PASS; actual keyboard refresh/retained source captured before expiry. Immutable SQL/atomicity/hash/rollback and raw-package release retained.",
-        "boundary": "Generated Native TB is not uploaded Raw evidence. Exact source membership and hashes retained; activity-only/interim cannot assert complete coverage. No native GL completeness bridge, successor opening, professional cutover, live or full-product acceptance.",
-        "remaining": "Exact-current full CI; native GL bridge and successor openings; professional/live acceptance. Builtin read/refresh is not human AT/native zoom."
+        "boundary": "Generated Native TB is not uploaded Raw evidence; exact source membership/hashes retained. Activity-only/interim cannot assert complete coverage. Native GL/successor opening/professional/live acceptance remain open.",
+        "remaining": "Exact-current full CI; native GL bridge and successor openings; professional/live acceptance. Builtin read/refresh is not human AT/native zoom.",
+        "sealRace": {
+          "status": "ACTUAL_RED1_GREEN3_PLUS_PINNED_PRESENTATION1",
+          "evidence": ".local/autonomous/evidence/native-source-seal-concurrency-20261024/review.json",
+          "scope": "Own-transaction posting/seal fence; replay/formats/pinned presentation retained. Other caller-isolation variants unverified."
+        }
       }
     },
     "archivedOn20261024": {

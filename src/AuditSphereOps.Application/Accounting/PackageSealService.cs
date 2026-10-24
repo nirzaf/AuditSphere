@@ -100,6 +100,31 @@ public static class PackageSealService
     if (!auth.Succeeded)
       return CommandResult<PackageSealValue>.Fail(auth.ErrorCode!, auth.Message!);
 
+    await using var tx = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct) : null;
+    // Source selection and native posting use the same scope fences. Keep them
+    // through readiness and publication; a read followed by a later INSERT is not atomic.
+    var firm = await db.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var client = await db.ClientSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={package.ClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var engagement = await db.Engagements.FromSqlInterpolated(
+      $"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND practice_client_id={package.ClientId} AND id={package.EngagementId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    if (firm is null || client is null || engagement is null)
+      return CommandResult<PackageSealValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var current = await db.FinancialPackages.FromSqlInterpolated(
+      $"SELECT * FROM financial_packages WHERE firm_id={actor.FirmId} AND client_id={package.ClientId} AND engagement_id={package.EngagementId} AND id={package.Id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    if (current is null)
+      return CommandResult<PackageSealValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (current.Revision != package.Revision || current.Generation != package.Generation ||
+        current.CalculationHash != package.CalculationHash)
+      return CommandResult<PackageSealValue>.Fail(ErrorCodes.StaleRevision, "The package changed. Refresh its exact artifact set before sealing.");
+    package = current;
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(package.FirmId, package.ClientId, package.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<PackageSealValue>.Fail(auth.ErrorCode!, auth.Message!);
+
     var loaded = await LoadCurrentArtifactsAsync(db, actor, package, ct);
     if (!loaded.Succeeded || loaded.Value is null)
       return CommandResult<PackageSealValue>.Fail(loaded.ErrorCode!, loaded.Message!);
@@ -140,7 +165,10 @@ public static class PackageSealService
       x.PackageRevision == package.Revision && x.PackageGeneration == package.Generation &&
       x.ArtifactManifestDigest == artifactDigest, ct);
     if (existing is not null)
+    {
+      if (tx is not null) await tx.CommitAsync(ct);
       return CommandResult<PackageSealValue>.Ok(ToValue(existing));
+    }
 
     var seal = new FinancialPackageSeal
     {
@@ -156,6 +184,7 @@ public static class PackageSealService
     };
     db.FinancialPackageSeals.Add(seal);
     await db.SaveChangesAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<PackageSealValue>.Ok(ToValue(seal));
   }
 
