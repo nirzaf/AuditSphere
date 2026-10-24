@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Module criterion reconciliation (2026-10-24)
+
+The current module requirements now have source-line criterion traces across commercial, administration, audit, reporting and practice management. Each trace distinguishes a located owner/test from an unverified behavior or missing acceptance anchor; no requirement was marked functionally complete from source inspection. Original parent records and earlier child criteria remain intact. Approved ADRs govern interpretation, including draft-only after-letter billing, Microsoft client sign-in and documented sampling judgment. Workflow/invariant details and the earlier work-unit/parity/record-to-report crosswalk still require reconciliation. Archive countdown semantics remain a pending qualified-owner decision under ADR-0018; no historical date or protection was changed. Exact source, counts and checks are recorded in `status.json`.
+
 ## Client contact and hierarchy read revocation (2026-10-24)
 
 Current authority is rechecked after protected contact/routing/recipient and hierarchy reads. Source-client revocation suppresses the result; newly inaccessible hierarchy counterparts are omitted, and relationship-choice totals include off-page scopes in the final check. Existing scoped and positive-purpose dispatch tests reproduce the original exposure and pass with these guards. HTTP shapes, writer transactions and business routing rules are unchanged. Exact source/evidence and pending full CI are in `status.json`; no live permission change or browser acceptance is claimed.

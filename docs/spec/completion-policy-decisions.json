@@ -441,6 +441,22 @@
         "src/AuditSphereOps.Worker/Program.cs"
       ],
       "consequence": "ADR-0009 keeps the release/archive store authoritative and SharePoint a secondary copy; it does not select an independent live checkpoint target. Existing hosts compose LocalAppendOnlyCheckpointStore; the unregistered Graph boundary deliberately refuses every operation. Keep local/synthetic operation; no new live provider, storage selection or permission inferred. Implement approved target only after its actual custody contract is available; technical verification and real recovery acceptance remain separate."
+    },
+    {
+      "decisionId": "POLICY-ARCHIVE-COUNTDOWN-ANCHOR",
+      "title": "Qualified countdown semantics under ADR0018 DEC08",
+      "ownerRole": "Firm methodology/compliance owner and deployment owner for implementation acceptance",
+      "scope": "ASCP Task22/31 signature-anchored regulatory countdown; preserve issued evidence",
+      "effectiveFrom": null,
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md",
+      "status": "PENDING",
+      "dependentWorkUnits": [],
+      "dependentSpecificationTasks": [
+        "ASCP-22",
+        "ASCP-31"
+      ],
+      "observedAtSource": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+      "consequence": "ADR0018 DEC08 explicitly leaves countdown semantics open. Current SignReportAsync schedules from signed deliverable CreatedAt, then records SignatureApplication.SignedAt separately. Existing freeze test uses deliverable CreatedAt; this is not proof for a different approved anchor. Resolve the authoritative event/date/time and any transition rule without rewriting historical signatures/schedules or silently selecting a clock; preserve existing protection until approved semantics and focused evidence are available."
     }
   ],
   "serviceProfiles": [

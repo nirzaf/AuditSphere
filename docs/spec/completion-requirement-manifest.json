@@ -288,7 +288,223 @@
       "evidence": [],
       "workUnits": [
         "WU-010"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.1.1-LEAD-SOURCE-CLASSIFICATION",
+          "sourceLine": 474,
+          "sourceTextSha256": "aea2c1aac5c2b6b1064d232dae695a9d502e0da5d362df5922cd551f1a908f3c",
+          "expectedOutcome": "Capture leads with the supported source channels Phone,WhatsApp,Email,WebForm and Referral; ADR0017 keeps WhatsApp a lead-source label only, not inbound/outbound provider integration.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeCrmService.cs",
+            "symbol": "PracticeCrmService.CreateLeadAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs",
+            "method": "LeadSourceMustBeASupportedChannelAndIsStoredCanonically",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The cited selector proves unsupported-source refusal and canonical WebForm capture. It does not establish automatic ingestion from each external channel; no inbound connector or WhatsApp dispatch is inferred.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0017-ste-v22-delegated-requirement-decisions-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.1.1-SCOPED-ORGANIZATION-HIERARCHY",
+          "sourceLine": 475,
+          "sourceTextSha256": "b5dcbc45a7951e008f7543e015de0c3b5048215459c16afb8df30c75cf051623",
+          "expectedOutcome": "Maintain holding,subsidiary and affiliate relationships without exposing counterpart client identities outside current commercial scope.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeCrmService.Relationships.cs",
+            "symbol": "PracticeCrmService.GetClientHierarchyAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs",
+            "method": "OrganizationRelationships_BuildsHierarchy_AndEnforcesCycleAndBoundaryInvariants",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Creation/cycle/boundary and current scope are distinct aspects; scoped reader revocation evidence is tracked separately. Complete hierarchy UI and effective-history acceptance are not inferred."
+        },
+        {
+          "id": "ACCREQ-4.1.1-MULTI-CONTACT-DIRECTORY",
+          "sourceLine": 476,
+          "sourceTextSha256": "4afade4d63695cd90a0efc9854ab63da7bf91c8adc976873899e0c90efd30ac5",
+          "expectedOutcome": "Maintain multiple client contacts with explicit purpose-based correspondence routing.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeCrmService.Routing.cs",
+            "symbol": "PracticeCrmService.GetClientContactRoutingsAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs",
+            "method": "ClientContactCommand_IsScopedAndSerializesPrimaryContact",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Directory creation/primary-contact serialization and routing reads are source-traced; this alone does not prove every notification consumer or rendered directory workflow."
+        },
+        {
+          "id": "ACCREQ-4.1.1-MANAGEMENT-PROPOSAL",
+          "sourceLine": 477,
+          "sourceTextSha256": "fbf6f97a991f165609022fc76bb05cf3816ce6990dc3e27ce5da3244e0dc8243",
+          "expectedOutcome": "Route commercial proposals to the designated Managing Director/General Manager contact.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeCrmService.Routing.cs",
+            "symbol": "PracticeCrmService.ResolveCorrespondenceRecipientAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs",
+            "method": "CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing test demonstrates purpose-specific contact resolution (COMMERCIAL/FINANCE/AUDIT_FIELDWORK), authorized override behavior, missing completion recipient and immutable dispatch evidence. The exact document/notification consumer and current provider receipt must be traced separately; no automatic contact assignment, authority from free-text role labels, delivery or actual send is claimed."
+        },
+        {
+          "id": "ACCREQ-4.1.1-MANAGEMENT-ENGAGEMENT-LETTER",
+          "sourceLine": 477,
+          "sourceTextSha256": "fbf6f97a991f165609022fc76bb05cf3816ce6990dc3e27ce5da3244e0dc8243",
+          "expectedOutcome": "Route engagement letters to the designated Managing Director/General Manager contact.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeCrmService.Routing.cs",
+            "symbol": "PracticeCrmService.ResolveCorrespondenceRecipientAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs",
+            "method": "CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing test demonstrates purpose-specific contact resolution (COMMERCIAL/FINANCE/AUDIT_FIELDWORK), authorized override behavior, missing completion recipient and immutable dispatch evidence. The exact document/notification consumer and current provider receipt must be traced separately; no automatic contact assignment, authority from free-text role labels, delivery or actual send is claimed."
+        },
+        {
+          "id": "ACCREQ-4.1.1-MANAGEMENT-FINAL-PACKAGE",
+          "sourceLine": 477,
+          "sourceTextSha256": "fbf6f97a991f165609022fc76bb05cf3816ce6990dc3e27ce5da3244e0dc8243",
+          "expectedOutcome": "Route final audit deliverable packages to the designated Managing Director/General Manager contact without implying portal authority from the directory role label.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeCrmService.Routing.cs",
+            "symbol": "PracticeCrmService.ResolveCorrespondenceRecipientAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs",
+            "method": "CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing test demonstrates purpose-specific contact resolution (COMMERCIAL/FINANCE/AUDIT_FIELDWORK), authorized override behavior, missing completion recipient and immutable dispatch evidence. The exact document/notification consumer and current provider receipt must be traced separately; no automatic contact assignment, authority from free-text role labels, delivery or actual send is claimed."
+        },
+        {
+          "id": "ACCREQ-4.1.1-FINANCE-INVOICE",
+          "sourceLine": 478,
+          "sourceTextSha256": "f89f66a0aa7c46998de34a5571a57382a46beccc5e30b2b1101b0b85b5eb47da",
+          "expectedOutcome": "Route firm commercial invoices to the designated CFO/Finance Director contact; these are firm billing, not client-native sales invoices.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeCrmService.Routing.cs",
+            "symbol": "PracticeCrmService.ResolveCorrespondenceRecipientAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs",
+            "method": "CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing test demonstrates purpose-specific contact resolution (COMMERCIAL/FINANCE/AUDIT_FIELDWORK), authorized override behavior, missing completion recipient and immutable dispatch evidence. The exact document/notification consumer and current provider receipt must be traced separately; no automatic contact assignment, authority from free-text role labels, delivery or actual send is claimed."
+        },
+        {
+          "id": "ACCREQ-4.1.1-FINANCE-PAYMENT-RECEIPT",
+          "sourceLine": 478,
+          "sourceTextSha256": "f89f66a0aa7c46998de34a5571a57382a46beccc5e30b2b1101b0b85b5eb47da",
+          "expectedOutcome": "Route firm fee-payment receipts to the designated CFO/Finance Director contact.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeCrmService.Routing.cs",
+            "symbol": "PracticeCrmService.ResolveCorrespondenceRecipientAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs",
+            "method": "CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing test demonstrates purpose-specific contact resolution (COMMERCIAL/FINANCE/AUDIT_FIELDWORK), authorized override behavior, missing completion recipient and immutable dispatch evidence. The exact document/notification consumer and current provider receipt must be traced separately; no automatic contact assignment, authority from free-text role labels, delivery or actual send is claimed."
+        },
+        {
+          "id": "ACCREQ-4.1.1-FINANCE-FEE-NOTE",
+          "sourceLine": 478,
+          "sourceTextSha256": "f89f66a0aa7c46998de34a5571a57382a46beccc5e30b2b1101b0b85b5eb47da",
+          "expectedOutcome": "Route commercial fee notes to the designated CFO/Finance Director contact.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeCrmService.Routing.cs",
+            "symbol": "PracticeCrmService.ResolveCorrespondenceRecipientAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs",
+            "method": "CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing test demonstrates purpose-specific contact resolution (COMMERCIAL/FINANCE/AUDIT_FIELDWORK), authorized override behavior, missing completion recipient and immutable dispatch evidence. The exact document/notification consumer and current provider receipt must be traced separately; no automatic contact assignment, authority from free-text role labels, delivery or actual send is claimed."
+        },
+        {
+          "id": "ACCREQ-4.1.1-AUDIT-LIAISON-PBC",
+          "sourceLine": 479,
+          "sourceTextSha256": "8b8e80e9a551e77021d0c501b2c21326eeb163fc962786813acdf735df4a2a70",
+          "expectedOutcome": "Route operational PBC request communications to the designated Chief Accountant/Audit Liaison.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeCrmService.Routing.cs",
+            "symbol": "PracticeCrmService.ResolveCorrespondenceRecipientAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs",
+            "method": "CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing test demonstrates purpose-specific contact resolution (COMMERCIAL/FINANCE/AUDIT_FIELDWORK), authorized override behavior, missing completion recipient and immutable dispatch evidence. The exact document/notification consumer and current provider receipt must be traced separately; no automatic contact assignment, authority from free-text role labels, delivery or actual send is claimed."
+        },
+        {
+          "id": "ACCREQ-4.1.1-AUDIT-LIAISON-CONFIRMATION-TRACKING",
+          "sourceLine": 479,
+          "sourceTextSha256": "8b8e80e9a551e77021d0c501b2c21326eeb163fc962786813acdf735df4a2a70",
+          "expectedOutcome": "Route client-facing confirmation-tracking communication to the designated audit liaison; do not substitute that contact for the external bank/customer confirmation respondent.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeCrmService.Routing.cs",
+            "symbol": "PracticeCrmService.ResolveCorrespondenceRecipientAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/ClientRelationshipsAndRoutingTests.cs",
+            "method": "CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing test demonstrates purpose-specific contact resolution (COMMERCIAL/FINANCE/AUDIT_FIELDWORK), authorized override behavior, missing completion recipient and immutable dispatch evidence. The exact document/notification consumer and current provider receipt must be traced separately; no automatic contact assignment, authority from free-text role labels, delivery or actual send is claimed."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+        "scope": "11 source-backed local alias criteria; parent retained. No functional or professional acceptance promotion."
+      }
     },
     {
       "id": "ACCREQ-4.1.2",
@@ -323,7 +539,262 @@
       "evidence": [],
       "workUnits": [
         "WU-010"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.1.2-BRIEF-LAYOUT",
+          "sourceLine": 483,
+          "sourceTextSha256": "9c8a1b9f6d314c0bdb2109058c68e642e090fa08b91609554cc2978beac02bf6",
+          "expectedOutcome": "Produce the source-specified brief RFQ/RFP summary layout of1-2pages.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentRenderer.cs",
+            "symbol": "CommercialDocumentRenderer.RenderDocx"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Stored DOCX/text/content identity is not a rendered page-count proof. Representative valid inputs, supported renderer/fonts and1-2page output require artifact inspection; no page count is claimed."
+        },
+        {
+          "id": "ACCREQ-4.1.2-BRIEF-SCOPE",
+          "sourceLine": 483,
+          "sourceTextSha256": "9c8a1b9f6d314c0bdb2109058c68e642e090fa08b91609554cc2978beac02bf6",
+          "expectedOutcome": "Include the engagement scope in the brief quotation.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "CommercialDocumentService.GenerateDocumentAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source renders retained proposal/approved-quotation content. Exact current field content, required/legacy behavior and visual output are distinct checks; no independent source or professional approval is supplied by this trace."
+        },
+        {
+          "id": "ACCREQ-4.1.2-BRIEF-PERIOD",
+          "sourceLine": 483,
+          "sourceTextSha256": "9c8a1b9f6d314c0bdb2109058c68e642e090fa08b91609554cc2978beac02bf6",
+          "expectedOutcome": "Include the statutory engagement period in the brief quotation.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "CommercialDocumentService.GenerateDocumentAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source renders retained proposal/approved-quotation content. Exact current field content, required/legacy behavior and visual output are distinct checks; no independent source or professional approval is supplied by this trace."
+        },
+        {
+          "id": "ACCREQ-4.1.2-BRIEF-FEE",
+          "sourceLine": 483,
+          "sourceTextSha256": "9c8a1b9f6d314c0bdb2109058c68e642e090fa08b91609554cc2978beac02bf6",
+          "expectedOutcome": "Include the reviewed professional fee and currency in the brief quotation.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "CommercialDocumentService.GenerateDocumentAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source renders retained proposal/approved-quotation content. Exact current field content, required/legacy behavior and visual output are distinct checks; no independent source or professional approval is supplied by this trace."
+        },
+        {
+          "id": "ACCREQ-4.1.2-BRIEF-TIMELINE",
+          "sourceLine": 483,
+          "sourceTextSha256": "9c8a1b9f6d314c0bdb2109058c68e642e090fa08b91609554cc2978beac02bf6",
+          "expectedOutcome": "Include the estimated execution timeline in the brief quotation.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "CommercialDocumentService.GenerateDocumentAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source renders retained proposal/approved-quotation content. Exact current field content, required/legacy behavior and visual output are distinct checks; no independent source or professional approval is supplied by this trace."
+        },
+        {
+          "id": "ACCREQ-4.1.2-BRIEF-FIFTY-FIFTY-TERMS",
+          "sourceLine": 483,
+          "sourceTextSha256": "9c8a1b9f6d314c0bdb2109058c68e642e090fa08b91609554cc2978beac02bf6",
+          "expectedOutcome": "Include the governed50percent advance/50percent balance terms; ADR0007draft-only timing, paid-advance activation and immutable accepted-contract evidence govern interpretation, not automatic billing on a draft-report date.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "CommercialDocumentService.GenerateDocumentAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "SUPERSEDED_ADR_0007",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Original upon-draft-report wording is overridden by ADR0007. Document wording and fee-agreement/billing eligibility are separate source owners; preserve executed contract terms and do not infer invoice posting/sending/collection.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0007-fee-invoice-automation-drafts-only-approved.md",
+          "originalSourceOutcome": "* **Brief Quotation (RFQ/RFP):** Output a 1\u20132 page standardized summary showing engagement scope, statutory period, professional fees, payment terms (50% advance / 50% upon draft report), and estimated execution timeline."
+        },
+        {
+          "id": "ACCREQ-4.1.2-TENDER-FIRM-CHAPTER",
+          "sourceLine": 485,
+          "sourceTextSha256": "2ce63f4efd4b526d625c7b59cc8e719078a7134d9f6d25102b6ed096d1ac0f98",
+          "expectedOutcome": "Include the reviewed firm profile,history and commercial-registration chapter.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.Tender.cs",
+            "symbol": "CommercialDocumentService.GenerateTenderAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "ComprehensiveTender_RequiresReviewedChapters_AndRetainsExactlyOneImmutableVersionPerPrice",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Current source compiles reviewed profile/team/timeline inputs into immutable chaptered content and binds their input hash; the cited test checks chapters and retained/replay identity. Actual firm evidence, assignment/source lineage, professional wording and rendered content acceptance remain separate; human-entered CV text is not automatically authenticated."
+        },
+        {
+          "id": "ACCREQ-4.1.2-TENDER-TEAM-CVS",
+          "sourceLine": 486,
+          "sourceTextSha256": "0822f2512660fe3660b1a86d6e0619123a1d4dcde6dc9ca08882a8ab676c5433",
+          "expectedOutcome": "Include the assigned Engagement Partner and audit-team CV content in the comprehensive proposal.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.Tender.cs",
+            "symbol": "CommercialDocumentService.GenerateTenderAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "ComprehensiveTender_RequiresReviewedChapters_AndRetainsExactlyOneImmutableVersionPerPrice",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Current source compiles reviewed profile/team/timeline inputs into immutable chaptered content and binds their input hash; the cited test checks chapters and retained/replay identity. Actual firm evidence, assignment/source lineage, professional wording and rendered content acceptance remain separate; human-entered CV text is not automatically authenticated."
+        },
+        {
+          "id": "ACCREQ-4.1.2-TENDER-INDUSTRY-CREDENTIALS",
+          "sourceLine": 487,
+          "sourceTextSha256": "44fec5c356bf7d843a841c24d351988f35d2bfefcdfe88db352728a5e3ccd7b3",
+          "expectedOutcome": "Include industry-specific credentials and portfolio evidence.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.Tender.cs",
+            "symbol": "CommercialDocumentService.GenerateTenderAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "ComprehensiveTender_RequiresReviewedChapters_AndRetainsExactlyOneImmutableVersionPerPrice",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Current source compiles reviewed profile/team/timeline inputs into immutable chaptered content and binds their input hash; the cited test checks chapters and retained/replay identity. Actual firm evidence, assignment/source lineage, professional wording and rendered content acceptance remain separate; human-entered CV text is not automatically authenticated."
+        },
+        {
+          "id": "ACCREQ-4.1.2-TENDER-METHODOLOGY",
+          "sourceLine": 488,
+          "sourceTextSha256": "8b1935b0155f887ad9e056d525be3c74bb412491355e3c08a727f07255f67e93",
+          "expectedOutcome": "Include the audit methodology overview under the approved ISA framework.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.Tender.cs",
+            "symbol": "CommercialDocumentService.GenerateTenderAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "ComprehensiveTender_RequiresReviewedChapters_AndRetainsExactlyOneImmutableVersionPerPrice",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Current source compiles reviewed profile/team/timeline inputs into immutable chaptered content and binds their input hash; the cited test checks chapters and retained/replay identity. Actual firm evidence, assignment/source lineage, professional wording and rendered content acceptance remain separate; human-entered CV text is not automatically authenticated."
+        },
+        {
+          "id": "ACCREQ-4.1.2-TENDER-FEE-SCHEDULE",
+          "sourceLine": 489,
+          "sourceTextSha256": "f4ca5deed69f5b84f7f7d83c2445f3c187b2a3a2c25397c6f8159948185ed723",
+          "expectedOutcome": "Include the reviewed fee schedule in the comprehensive proposal.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.Tender.cs",
+            "symbol": "CommercialDocumentService.GenerateTenderAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "ComprehensiveTender_RequiresReviewedChapters_AndRetainsExactlyOneImmutableVersionPerPrice",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Current source compiles reviewed profile/team/timeline inputs into immutable chaptered content and binds their input hash; the cited test checks chapters and retained/replay identity. Actual firm evidence, assignment/source lineage, professional wording and rendered content acceptance remain separate; human-entered CV text is not automatically authenticated."
+        },
+        {
+          "id": "ACCREQ-4.1.2-TENDER-DELIVERABLES",
+          "sourceLine": 489,
+          "sourceTextSha256": "f4ca5deed69f5b84f7f7d83c2445f3c187b2a3a2c25397c6f8159948185ed723",
+          "expectedOutcome": "Include the milestone deliverables in the comprehensive proposal.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.Tender.cs",
+            "symbol": "CommercialDocumentService.GenerateTenderAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "ComprehensiveTender_RequiresReviewedChapters_AndRetainsExactlyOneImmutableVersionPerPrice",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Current source compiles reviewed profile/team/timeline inputs into immutable chaptered content and binds their input hash; the cited test checks chapters and retained/replay identity. Actual firm evidence, assignment/source lineage, professional wording and rendered content acceptance remain separate; human-entered CV text is not automatically authenticated."
+        },
+        {
+          "id": "ACCREQ-4.1.2-TENDER-TIMELINE",
+          "sourceLine": 489,
+          "sourceTextSha256": "f4ca5deed69f5b84f7f7d83c2445f3c187b2a3a2c25397c6f8159948185ed723",
+          "expectedOutcome": "Include the reviewed execution timeline in the comprehensive proposal.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.Tender.cs",
+            "symbol": "CommercialDocumentService.GenerateTenderAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "ComprehensiveTender_RequiresReviewedChapters_AndRetainsExactlyOneImmutableVersionPerPrice",
+            "execution": "NOT_RUN_FOR_CRITERION_TRACE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Current source compiles reviewed profile/team/timeline inputs into immutable chaptered content and binds their input hash; the cited test checks chapters and retained/replay identity. Actual firm evidence, assignment/source lineage, professional wording and rendered content acceptance remain separate; human-entered CV text is not automatically authenticated."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+        "scope": "13 source-backed local alias criteria; parent retained. No functional or professional acceptance promotion."
+      }
     },
     {
       "id": "ACCREQ-4.1.3",
@@ -1636,7 +2107,165 @@
       "evidence": [],
       "workUnits": [
         "WU-030"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.3.1-CSV-INGEST",
+          "sourceLine": 625,
+          "sourceTextSha256": "034345150a24d4513e49bd139bbc1d4934ca96b46f8aeb68cc774ceba5d81041",
+          "expectedOutcome": "Ingest Trial Balance CSV files through the reviewed intake path.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Accounting/Intake/MultiPeriodTrialBalanceService.cs",
+            "symbol": "MultiPeriodTrialBalanceService.ReadTable"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Api.Tests/TrialBalanceUploadApiTests.cs",
+            "method": "EngagementScopedPreview_AllPeriodValidation_Csrf_AndExactReceipts",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source routes non-XLSX input through CSV parsing. This cited API selector exercises CSV; the separate XLSX parser selector LiteralWorkbook_UsesRawBytesAndSharedNormalizedIdentity is also present but was not run. No workbook/application acceptance is claimed."
+        },
+        {
+          "id": "ACCREQ-4.3.1-EXCEL-INGEST",
+          "sourceLine": 625,
+          "sourceTextSha256": "034345150a24d4513e49bd139bbc1d4934ca96b46f8aeb68cc774ceba5d81041",
+          "expectedOutcome": "Ingest Excel workbook Trial Balance files through the reviewed intake path.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Accounting/Intake/MultiPeriodTrialBalanceService.cs",
+            "symbol": "MultiPeriodTrialBalanceService.ReadTable"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/TrialBalanceXlsxImporterTests.cs",
+            "method": "LiteralWorkbook_UsesRawBytesAndSharedNormalizedIdentity",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source dispatches .xlsx files to the workbook importer. This selector covers parsing; the CSV API selector EngagementScopedPreview_AllPeriodValidation_Csrf_AndExactReceipts is separately present. Neither was run here."
+        },
+        {
+          "id": "ACCREQ-4.3.1-MAPPING-MEMORY",
+          "sourceLine": 626,
+          "sourceTextSha256": "205674e4eb722cbd9d54135822ecbef868a17b2921a30c6348f74a119126a0b1",
+          "expectedOutcome": "Automate proposals mapping trial-balance accounts to standardized FSLIs using historical mapping memory.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Accounting/Intake/MappingMemoryService.cs",
+            "symbol": "MappingMemoryService.ProposeAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs",
+            "method": "MultiPeriodIntake_MappingMemory_AndCurrencyReview",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Historical memory proposes from scoped prior approved mappings; it does not approve mappings. Maker/checker approval remains a separate human action. Test not run."
+        },
+        {
+          "id": "ACCREQ-4.3.1-SPLIT-SECTIONS",
+          "sourceLine": 628,
+          "sourceTextSha256": "b913244aa4eae86406a8cc0e11f612fc3580c39c4e9cae0621ac7c4e4db7e3f1",
+          "expectedOutcome": "Display Profit & Loss in the upper split-dashboard section and Balance Sheet in the lower section.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Accounting/Intake/StatementReviewWorkspace.cs",
+            "symbol": "StatementReviewWorkspace.GetSplitDashboardAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Api.Tests/StatementReviewApiTests.cs",
+            "method": "SplitDashboardReturnsSimultaneousProfitOrLossAndPositionSectionsWithComparativeAndRisk",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Source mapping and UI present both statement sections in the split view. The cited API selector is static evidence only in this task; it was not run."
+        },
+        {
+          "id": "ACCREQ-4.3.1-ROW-COMPARATIVES",
+          "sourceLine": 629,
+          "sourceTextSha256": "44f320b07968af5dd659f56046a92e0a772d9636cd6f9a92ea8fd844c5e99827",
+          "expectedOutcome": "Display current-year balance, prior-year comparative, and percentage variance for each statement row.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Accounting/Intake/StatementReviewWorkspace.cs",
+            "symbol": "StatementReviewWorkspace.MapLine"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Api.Tests/StatementReviewApiTests.cs",
+            "method": "SplitDashboardReturnsSimultaneousProfitOrLossAndPositionSectionsWithComparativeAndRisk",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "MapLine projects current, prior, variance, and percentage values with unavailable-value handling. No runtime/API acceptance is claimed."
+        },
+        {
+          "id": "ACCREQ-4.3.1-AR-LAUNCH",
+          "sourceLine": 631,
+          "sourceTextSha256": "a6fbb4a3ba9148b6e8011e2f4cfa3a3a392aa70bfbe9fe4b0f3f4029f03aebfd",
+          "expectedOutcome": "The per-line AR Test action opens the Analytical Review interface for that line.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/statements.ts",
+            "symbol": "StatementDrillDown"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.E2E.Tests/AngularStatementReviewJourneyTests.cs",
+            "method": "ApprovedStatementContributionsAndEvidenceReturnRetainContextWithoutStaleTotals",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The component template contains the AR Test route link. Bounded search of AngularStatementReviewJourneyTests.cs and FieldworkConnectionsJourneyTests.cs found no test clicking the AR Test action; the cited journey covers statement/procedure context only. Exact interactive launch verification remains pending."
+        },
+        {
+          "id": "ACCREQ-4.3.1-WORKPROGRAM-LAUNCH",
+          "sourceLine": 632,
+          "sourceTextSha256": "901ea05de911f2650a093f3a236cb37186cadafc8ae7eea9d1c70c9e3a58a243",
+          "expectedOutcome": "The per-line Audit Workprogram action opens substantive audit procedures for that line.",
+          "owner": {
+            "path": "src/AuditSphereOps.Ui/src/app/features/engagements/statements.ts",
+            "symbol": "StatementDrillDown"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.E2E.Tests/AngularStatementReviewJourneyTests.cs",
+            "method": "ApprovedStatementContributionsAndEvidenceReturnRetainContextWithoutStaleTotals",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The component template contains the Audit Workprogram route link. Bounded search of AngularStatementReviewJourneyTests.cs and FieldworkConnectionsJourneyTests.cs found no test clicking that action; the cited journey inspects a linked procedure through a different control. Exact interactive launch verification remains pending."
+        },
+        {
+          "id": "ACCREQ-4.3.1-ROW-CONCURRENCY",
+          "sourceLine": 633,
+          "sourceTextSha256": "b7eca031bccfce7fbc811105fa035c955d81f0188b9246d6127b9c3a8c4c4942",
+          "expectedOutcome": "Allow different auditors to work simultaneously on different line-item procedures without lockouts or overwrite conflicts.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/AuditProgramService.cs",
+            "symbol": "AuditProgramService.SubmitResultAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "FieldworkOnSeparateFslisRunsInParallelForDifferentStaffWithoutInterference",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The focused selector covers parallel submissions on separate FSLIs by different staff. It was not run; the row example is provenance, not a required literal pair of account names."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+        "scope": "8 source-backed local alias criteria; parent retained. No functional or professional acceptance promotion."
+      }
     },
     {
       "id": "ACCREQ-4.3.2",
@@ -1676,7 +2305,203 @@
       "evidence": [],
       "workUnits": [
         "WU-029"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.3.2-STANDARD-CHECKLIST",
+          "sourceLine": 637,
+          "sourceTextSha256": "05bbf4cf507e8141c1936d0accd0f7e98554ab9dc77a41b0ddab1a47f0a0c72e",
+          "expectedOutcome": "Provide pre-loaded standard procedural checklists per FSLI covering Ownership, Valuation, Completeness, Existence, and Cut-off.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/AuditProgramCatalog.cs",
+            "symbol": "AuditProgramCatalog.Items"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditProgramCatalogSourceTests.cs",
+            "method": "Catalog_MatchesIndependentWordSourceManifest",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Bounded inspection of AuditProgramCatalog.cs, AuditProgramLibraryQuery.cs, AuditProgramCatalogSourceTests.cs, and AuditProgramWorkflowTests.cs found the controlled procedure catalog and applicability conditions, but no explicit per-FSLI mapping to the five named assertion labels. The cited manifest test validates the source catalogue, not this crosswalk. Do not infer the labels from illustrative procedure wording."
+        },
+        {
+          "id": "ACCREQ-4.3.2-ADHOC-INSERT",
+          "sourceLine": 638,
+          "sourceTextSha256": "b783d9b77847ab6df3141a5155ca66bb945682a722a58c33ad0becfba9717467",
+          "expectedOutcome": "Allow field auditors to insert custom procedural rows into an active workprogram for engagement-specific risks.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Connections.cs",
+            "symbol": "AuditFieldworkService.InsertAdHocProcedureAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs",
+            "method": "Statements_DrillIntoProcedures_AndSamplingPhysicalAndAdHocStepsConnect",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The service exposes active-workprogram ad-hoc insertion and the cited connected-fieldwork selector covers ad-hoc steps. Not run."
+        },
+        {
+          "id": "ACCREQ-4.3.2-ADHOC-EDIT",
+          "sourceLine": 638,
+          "sourceTextSha256": "b783d9b77847ab6df3141a5155ca66bb945682a722a58c33ad0becfba9717467",
+          "expectedOutcome": "Allow inserted custom procedural rows to be edited in the active workprogram.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Connections.cs",
+            "symbol": "AuditFieldworkService.EditAdHocProcedureAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs",
+            "method": "Statements_DrillIntoProcedures_AndSamplingPhysicalAndAdHocStepsConnect",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The service exposes wording edits for ad-hoc procedures; the cited selector is the nearest connected fieldwork test and was not run."
+        },
+        {
+          "id": "ACCREQ-4.3.2-MUS",
+          "sourceLine": 639,
+          "sourceTextSha256": "eae397ab507c1ee9f531c6160d6d4c43d8df448a47e29333947f2b4550ccb946",
+          "expectedOutcome": "Provide a Monetary Unit Sampling calculator.",
+          "owner": {
+            "path": "src/AuditSphereOps.Domain/Audit/AuditSamplingEngine.cs",
+            "symbol": "AuditSamplingEngine.Select"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditSamplingEngineTests.cs",
+            "method": "MonetaryUnit_SelectsIntervalCrossings",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Calculator output does not establish statistical sufficiency. Under ADR-0017, sampling versus full-population testing is documented senior judgment; no sample is universally required. Not run."
+        },
+        {
+          "id": "ACCREQ-4.3.2-SYSTEMATIC-SAMPLING",
+          "sourceLine": 639,
+          "sourceTextSha256": "eae397ab507c1ee9f531c6160d6d4c43d8df448a47e29333947f2b4550ccb946",
+          "expectedOutcome": "Provide a Systematic Random Sampling calculator.",
+          "owner": {
+            "path": "src/AuditSphereOps.Domain/Audit/AuditSamplingEngine.cs",
+            "symbol": "AuditSamplingEngine.Select"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditSamplingEngineTests.cs",
+            "method": "Systematic_IsSeededEquallySpacedAndIncludesZeroAmountRows",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Calculator output does not establish statistical sufficiency. Under ADR-0017, sampling versus full-population testing is documented senior judgment; no sample is universally required. Not run."
+        },
+        {
+          "id": "ACCREQ-4.3.2-STRATIFIED-ATTRIBUTE-SAMPLING",
+          "sourceLine": 639,
+          "sourceTextSha256": "eae397ab507c1ee9f531c6160d6d4c43d8df448a47e29333947f2b4550ccb946",
+          "expectedOutcome": "Provide a Stratified Attribute Sampling calculator.",
+          "owner": {
+            "path": "src/AuditSphereOps.Domain/Audit/AuditSamplingEngine.cs",
+            "symbol": "AuditSamplingEngine.Select"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditSamplingEngineTests.cs",
+            "method": "AttributeStrata_PreservesFieldsAndFillsAvailableSlots",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Calculator output does not establish statistical sufficiency. Under ADR-0017, sampling versus full-population testing is documented senior judgment; no sample is universally required. Not run."
+        },
+        {
+          "id": "ACCREQ-4.3.2-DIGITAL-EVIDENCE",
+          "sourceLine": 641,
+          "sourceTextSha256": "f56cb05f38bab2eac727208adaf357f2e2aedbe63415542478f5430fa1c96397",
+          "expectedOutcome": "Allow workprogram procedures to link digital evidence supplied through electronic/PBC evidence paths.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Connections.cs",
+            "symbol": "AuditFieldworkService.LinkClientEvidenceAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs",
+            "method": "ClientEvidence_LinksOnlyTheExactCurrentReceivedVersionOfThisEngagement",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source links the exact received evidence version to a procedure. Spreadsheet/PDF names in the requirement are retained as provenance; this trace does not assert file-extension-specific handling or a provider integration. Not run."
+        },
+        {
+          "id": "ACCREQ-4.3.2-PHYSICAL-INDEX",
+          "sourceLine": 642,
+          "sourceTextSha256": "d42dac00cfcbc89ae6efb1de860f865926e4a74fd8c1751d3e6cbacfb70dda6c",
+          "expectedOutcome": "Provide a dedicated physical-evidence reference field for tracking a physical file index.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Connections.cs",
+            "symbol": "AuditFieldworkService.RegisterPhysicalItemAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditProgramWorkflowTests.cs",
+            "method": "ProcedureCommand_ExactPreviewAndReceiptRecoverOriginalOutcome",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Source registers and links physical evidence references; the example file index and location values are illustrative only. The cited command selector was not run."
+        },
+        {
+          "id": "ACCREQ-4.3.2-ANALYTICAL-TEMPLATE",
+          "sourceLine": 643,
+          "sourceTextSha256": "2d990e48895cef8fd8ab296fbf988a1cc83f9e90adb071d32b61d6f7cf6a7e4c",
+          "expectedOutcome": "Provide standard templates for comparative financial analysis.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/AuditProgramCatalog.cs",
+            "symbol": "AuditProgramCatalog.Items"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditProgramWorkflowTests.cs",
+            "method": "LibraryQuery_BrowsesVersionsSectionsAndProcedures",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The current catalogue includes the Analytical Review section (AWP-15); the cited selector browses the library but is not a fresh acceptance run."
+        },
+        {
+          "id": "ACCREQ-4.3.2-ISA570-CHECKLIST",
+          "sourceLine": 643,
+          "sourceTextSha256": "2d990e48895cef8fd8ab296fbf988a1cc83f9e90adb071d32b61d6f7cf6a7e4c",
+          "expectedOutcome": "Provide a mandatory ISA 570 Going Concern compliance checklist.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/AuditProgramCatalog.cs",
+            "symbol": "AuditProgramCatalog.Items"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditCompletionTests.cs",
+            "method": "CompletionRecords_DeriveConclusionsAndBlockUnresolved",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Bounded search of AuditProgramCatalog.cs, AuditProgramLibraryQuery.cs, AuditCompletionService.cs, and the catalog/completion tests found AWP-16 Going Concern procedures and a completion assessment, but no explicit ISA 570 checklist designation or compliance crosswalk. The cited completion selector does not establish that designation; confirm the intended authoritative mapping before acceptance."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+        "scope": "10 source-backed local alias criteria; parent retained. No functional or professional acceptance promotion."
+      }
     },
     {
       "id": "ACCREQ-4.3.3",
@@ -1713,7 +2538,165 @@
       "workUnits": [
         "WU-029",
         "WU-014"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.3.3-PREPARER-SUBMIT",
+          "sourceLine": 647,
+          "sourceTextSha256": "96e552a37db170b55bd1c30374f0bf296cbaf480a123fe3a92d41fc93177c1a8",
+          "expectedOutcome": "Allow the preparer to execute procedures, cross-reference digital/physical evidence, and submit work for review.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/AuditProgramService.cs",
+            "symbol": "AuditProgramService.SubmitResultAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditProgramWorkflowTests.cs",
+            "method": "ProcedureCommand_ExactPreviewAndReceiptRecoverOriginalOutcome",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The command requires work performed, evidence references, and a conclusion before submission. This selector is existing source evidence only and was not run."
+        },
+        {
+          "id": "ACCREQ-4.3.3-MANAGER-REVIEW",
+          "sourceLine": 649,
+          "sourceTextSha256": "535f03edbadf7b764908fa4c8ebc59e6259fb21175da0a4ca8bdf92c5610917a",
+          "expectedOutcome": "Allow the Manager to review completed tests.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/AuditProgramService.cs",
+            "symbol": "AuditProgramService.ReviewResultAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "CompletionAndSrmRequireCurrentIndependentlyReviewedProcedureEvidence",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing workflow and review tests are source-trace candidates; this task did not execute or accept the Manager review workflow."
+        },
+        {
+          "id": "ACCREQ-4.3.3-STEP-FLAGS-NOTES",
+          "sourceLine": 650,
+          "sourceTextSha256": "db6a65411bf44ed3a137a5dc70325ab2f84fe57c4ae9815507ce4785836c57fd",
+          "expectedOutcome": "Allow a reviewer to flag individual steps and record mandatory review notes.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/ReviewNotesService.cs",
+            "symbol": "ReviewNotesService.AddNoteAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The cited selector covers review-note blocking and reviewer authority. Exact UI use and behavior remain pending verification."
+        },
+        {
+          "id": "ACCREQ-4.3.3-RETURN-REWORK",
+          "sourceLine": 650,
+          "sourceTextSha256": "db6a65411bf44ed3a137a5dc70325ab2f84fe57c4ae9815507ce4785836c57fd",
+          "expectedOutcome": "Returning work with comments automatically sets it Under Rework and reassigns it to the Preparer.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/AuditProgramService.cs",
+            "symbol": "AuditProgramService.ReviewResultAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagerReview.cs",
+            "method": "ChangesRequiredReviewCreatesOneLinkedOperationalReworkTaskWithoutChangingReviewAuthority",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The nearest focused selector covers the manager return/rework workflow. Not run; status and assignment acceptance remains pending."
+        },
+        {
+          "id": "ACCREQ-4.3.3-AUTO-SRM",
+          "sourceLine": 652,
+          "sourceTextSha256": "7faaae33b693ce75ceb2e7f922aab18758a1a49ce182499d631301eea7714cab",
+          "expectedOutcome": "Automatically compile the Summary Review Memorandum after Manager approval of all workprograms.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+            "symbol": "AuditDeliverableService.CompileAfterFinalReviewAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "CompletionAndSrmRequireCurrentIndependentlyReviewedProcedureEvidence",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Source invokes compilation after final independently reviewed workprogram approval. Automatic compilation and all-workprogram gating have not been run or accepted here."
+        },
+        {
+          "id": "ACCREQ-4.3.3-SRM-CONTENTS",
+          "sourceLine": 653,
+          "sourceTextSha256": "1c801bf7bd9379d095427626566e924353f89b8636a5e0d708b107e970f2c96d",
+          "expectedOutcome": "Summarize audit variances, AJEs, unadjusted differences against SAD/PM, and significant accounting estimates in the SRM.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+            "symbol": "AuditDeliverableService.CompileSummaryAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "SrmPresentsCurrencyAwareDifferences_AndDocumentsDoNotAssertAutomaticImmateriality",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Treat amounts and estimates as recorded source facts; ADR-0010 requires any end-of-service provision to be entered by a person and does not authorize actuarial/statutory computation. The cited SRM test was not run."
+        },
+        {
+          "id": "ACCREQ-4.3.3-RED-RISK-CLEARANCE",
+          "sourceLine": 654,
+          "sourceTextSha256": "1958ad80508853d7b824aa23d4a2c03e275bc66927ac62a9deb03a814738add5",
+          "expectedOutcome": "Require targeted Partner review and clearance of high-risk Red areas.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Audit/RiskBandService.cs",
+            "symbol": "RiskBandService.PartnerClearAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "AuditProcedure_ExecutionAndReviewStaffingRanks_EnforcesRiskBandRules",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "ADR-0017 governs bands: a recorded critical-estimate flag is Red; high inherent risk is likelihood 3 with magnitude at least 2; Amber execution is Senior Auditor or above with Audit Manager review. Clearance is a human decision; no commercial response channel is part of risk routing. Not run."
+        },
+        {
+          "id": "ACCREQ-4.3.3-SRM-PARTNER-CLEARANCE",
+          "sourceLine": 654,
+          "sourceTextSha256": "1958ad80508853d7b824aa23d4a2c03e275bc66927ac62a9deb03a814738add5",
+          "expectedOutcome": "Require the staffed Engagement Partner to review and formally clear the SRM before reporting is unlocked.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+            "symbol": "AuditDeliverableService.PartnerClearAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "CurrentPartnerClearanceProjectsPartnerApprovalBeforeOpinionSelection",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "ADR-0017 requires a currently staffed Engagement Partner; this is a professional human-acceptance leaf and remains pending. ADR-0016 keeps the PNG/seal as visible appearance and permits firm-held X.509 signing only when configured/required (fail-closed when required); real-certificate and legal acceptance remain separate. ADR-0007 stays optional/off by default and draft-only, with no invoice approval/post/send/collect. ADR-0009 keeps the release/archive store authoritative and SharePoint a secondary read-only copy; no WORM or new write-once store is selected. These overlays add no fieldwork obligation."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+        "scope": "8 source-backed local alias criteria; parent retained. No functional or professional acceptance promotion."
+      }
     },
     {
       "id": "ACCREQ-4.3.4",
@@ -1745,7 +2728,70 @@
       "evidence": [],
       "workUnits": [
         "WU-029"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.3.4-CONFIRMATION-GRID",
+          "sourceLine": 658,
+          "sourceTextSha256": "cb6b190f5d2a688743ab11d31bf6e0cde3ce0ed2a39fb36f05b5bf364fa2a4a8",
+          "expectedOutcome": "Track Bank, Accounts Receivable, Accounts Payable, Inventory, and Legal confirmations in a central grid.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+            "symbol": "AuditDeliverableService.ConfirmationDashboardAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs",
+            "method": "ConfirmationTaxonomy_KeepsLegalSeparateAndRejectsUnknownCategories",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Source projects the dashboard rows and supported confirmation category labels. The cited selector verifies Legal taxonomy support, not all five dashboard categories; bounded search found no selector asserting all five category rows/labels together. No third-party provider delivery or acceptance is implied."
+        },
+        {
+          "id": "ACCREQ-4.3.4-CRITICAL-REPORT-BLOCK",
+          "sourceLine": 659,
+          "sourceTextSha256": "eefe986f9104b0db7750f2f78a770b15886b5b1c4e6e17a208a9a52c3bf0fac1",
+          "expectedOutcome": "Block final audit report release while any confirmation marked Critical remains unreturned.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+            "symbol": "AuditDeliverableService.GenerateReportAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source checks current critical cases before report generation; the cited negative-path selector was not run. Human evaluation of any returned confirmation and report release remains outside this tracing task."
+        },
+        {
+          "id": "ACCREQ-4.3.4-HOLDING-LETTER",
+          "sourceLine": 659,
+          "sourceTextSha256": "eefe986f9104b0db7750f2f78a770b15886b5b1c4e6e17a208a9a52c3bf0fac1",
+          "expectedOutcome": "Automatically generate a Pending Confirmation / Holding Letter to client management when the critical unreturned-confirmation gate applies.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+            "symbol": "AuditDeliverableService.GenerateReportAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Source generates the holding-letter artifact for the blocked case. This does not assert external delivery, provider acceptance, or any particular response channel; the cited selector was not run."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+        "scope": "3 source-backed local alias criteria; parent retained. No functional or professional acceptance promotion."
+      }
     },
     {
       "id": "ACCREQ-4.4.1",
@@ -1778,7 +2824,93 @@
       "evidence": [],
       "workUnits": [
         "WU-014"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.4.1-OPINION-CHOICE",
+          "sourceLine": 667,
+          "sourceTextSha256": "409a479b7ba01262474405ea2c6a80e0006cccc57aa3930d9a49746c3bc8f0dd",
+          "expectedOutcome": "Allow only the Engagement Partner to record a report opinion from the four source-listed choices: Clean/Unqualified, Qualified, Disclaimer, and Adverse.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+            "symbol": "AuditDeliverableService.DecideOpinionAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "PartnerOnlyActionsFailClosedWithoutAStaffedEngagementPartner",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source path checks staffed Engagement Partner authority and supported opinion types. The referenced selector was not run; the authorized Partner must make and accept the professional opinion for each engagement."
+        },
+        {
+          "id": "ACCREQ-4.4.1-MODIFIED-BASIS",
+          "sourceLine": 672,
+          "sourceTextSha256": "aa946ad55fe85ed9e83a836b6aa47e1e0fcd866569da454af2cffb7824a027b6",
+          "expectedOutcome": "For Qualified, Disclaimer, or Adverse, require one affected FSLI from the approved reporting taxonomy and Partner-entered mandatory basis text; inject that basis into the corresponding Basis for Modified Opinion report section. The system records the human decision and does not choose the opinion or invent its basis.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+            "symbol": "AuditDeliverableService.DecideOpinionAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Current source traces the required FSLI and basis input and renders opinion-specific basis sections. Professional adequacy and acceptance of the opinion and its wording remain with the Engagement Partner; selector was not run."
+        },
+        {
+          "id": "ACCREQ-4.4.1-VISIBLE-SIGNATURE-SEAL",
+          "sourceLine": 673,
+          "sourceTextSha256": "b53fd4421dec0edb364fd3ee6859f4f94b3d53a8cd6316ead5eda50172a8633e",
+          "expectedOutcome": "Apply the Engagement Partner signature image and approved firm seal as visible appearance on the final report. Under ADR-0016, image appearance is not certificate or legal-signature evidence.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+            "symbol": "AuditDeliverableService.SignIndependentReportAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "SrmClearanceOpinionReportsHoldingLetterClientLoopAndPngSigning",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "SUPERSEDED_ADR_0016",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Original appearance wording is retained. Partner/professional acceptance of the final report remains pending; this trace does not establish certificate or legal acceptance.",
+          "originalSourceOutcome": "* **Digital Credentials:** Embeds the Partner's digital signature and official firm seal onto the final certified document.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0016-certificate-signed-final-report-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.4.1-X509-LEGAL-GATE",
+          "sourceLine": 673,
+          "sourceTextSha256": "b53fd4421dec0edb364fd3ee6859f4f94b3d53a8cd6316ead5eda50172a8633e",
+          "expectedOutcome": "Keep X.509 certificate signing separate from visible PNG signature/seal appearance. It is optional by default; when ReportSigning:Required is enabled, an unusable or missing firm certificate fails closed with no image-only fallback. Production requirement and legal/certificate acceptance remain explicit human gates.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+            "symbol": "AuditDeliverableService.SignIndependentReportAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "PartnerSigning_AppliesTheFirmCertificate_AndFailsClosedWithoutAUsableOne",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "SUPERSEDED_ADR_0016",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing selector is a source-level regression reference only and was not run. No provider integration, production certificate requirement, legal acceptance, or certificate operation was performed.",
+          "originalSourceOutcome": "* **Digital Credentials:** Embeds the Partner's digital signature and official firm seal onto the final certified document.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0016-certificate-signed-final-report-approved.md"
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+        "scope": "4 source-backed local alias criteria; parent retained. No functional or professional acceptance promotion."
+      }
     },
     {
       "id": "ACCREQ-4.4.2",
@@ -1813,7 +2945,151 @@
       "evidence": [],
       "workUnits": [
         "WU-035"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.4.2-PARTNER-AUTHORIZED-BUNDLE",
+          "sourceLine": 677,
+          "sourceTextSha256": "a696af7e18165190591b4e52a679d284f5f851c1b7e6e6f60eb33169ba055cc3",
+          "expectedOutcome": "After Partner authorization, assemble one engagement-scoped bundle from the exact reviewed release and its current approved deliverables; refuse incomplete or stale prerequisites.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.Bundle.cs",
+            "symbol": "AuditDeliverableService.AssembleBundleAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs",
+            "method": "FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The assembly path requires the Partner, explicit review of the exact released statements, a current release and complete component identities. The selector was not run and does not establish a new professional release decision."
+        },
+        {
+          "id": "ACCREQ-4.4.2-REPORT-STATEMENTS-PDF",
+          "sourceLine": 678,
+          "sourceTextSha256": "7c34a7d37108af7743d6f1de46db97603423a42fa2c99d5a4a4075fb388e99bc",
+          "expectedOutcome": "Include the Independent Auditor's Report and the exact released audited financial statements as certified PDF artifacts. Visible images remain appearance; where certificate signing is required, apply ADR-0016's certificate gate.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.Bundle.cs",
+            "symbol": "AuditDeliverableService.AssembleBundleAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs",
+            "method": "FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Exact release composition and PDF inputs are traced. Qualified Partner report/certification acceptance and any production-required X.509/legal acceptance remain pending; no certificate or report was accepted by this trace.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0016-certificate-signed-final-report-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.4.2-MANAGEMENT-LETTER",
+          "sourceLine": 679,
+          "sourceTextSha256": "56cdf5ff36c5112861b5546fe3afbe3c5047597d5a3b90ea4c8ad0382e132fc1",
+          "expectedOutcome": "Generate a structured Management Letter with designated complete matters expressed as Deficiency, Impact, and Auditor Recommendation.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+            "symbol": "AuditDeliverableService.GenerateReportAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagementLetter.cs",
+            "method": "ManagementLetterRendersOnlyDesignatedCompleteMatters_AndStalesOnTheirChange",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The renderer and designation gate are source-traced. ADR-0018 DEC-02 leaves management-letter narrative as a qualified-practitioner decision; completeness, wording, and issuance acceptance remain pending."
+        },
+        {
+          "id": "ACCREQ-4.4.2-LOR-FIGURE-MAPPING",
+          "sourceLine": 680,
+          "sourceTextSha256": "dc29b959ca669e757d173b6e43b528f54d2f6a8aa91bf397a3afbc6552d6ed2e",
+          "expectedOutcome": "Provide the formatted Letter of Representation for printing on client letterhead, with figures populated only under a professionally approved figure definition. ADR-0018 DEC-02 leaves representation-letter figures undecided, so this trace makes no figure-mapping or accounting assertion.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.cs",
+            "symbol": "AuditDeliverableService.GenerateReportAsync"
+          },
+          "existingTest": {
+            "path": null,
+            "method": null,
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Bounded search of AuditDeliverableService.GenerateReportAsync and AuditDeliverablesTests partials found LOR generation and signed-scan flows, but no focused assertion for populated engagement-figure mapping. ADR-0018 DEC-02 requires the qualified owner to decide the figures before acceptance.",
+          "originalSourceOutcome": "3. **Deliverable 3: Letter of Representation (LOR):** Formatted representation template populated with engagement figures, ready to be exported for printing on client letterhead, signed by executive management, and re-uploaded.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.4.2-LOR-SIGN-REUPLOAD",
+          "sourceLine": 680,
+          "sourceTextSha256": "dc29b959ca669e757d173b6e43b528f54d2f6a8aa91bf397a3afbc6552d6ed2e",
+          "expectedOutcome": "Allow the executive-management-signed representation letter to be re-uploaded against its exact generated version and verified by the authorized Partner; preserve the signed artifact and its hash lineage.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.Representations.cs",
+            "symbol": "AuditDeliverableService.VerifySignedRepresentationAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs",
+            "method": "SignedRepresentation_IsVersionBound_Idempotent_Immutable_AndScoped",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The test selector covers version binding, scoped upload/verification, immutability, and idempotency but was not run. Executive management must actually sign the approved final LOR; no human signature or figure acceptance is fabricated."
+        },
+        {
+          "id": "ACCREQ-4.4.2-CORRESPONDENCE-TRAIL",
+          "sourceLine": 681,
+          "sourceTextSha256": "6e53c94f1974238c185946dbdfb32e00163ac5ac7f380ffe50c2e9099536d52b",
+          "expectedOutcome": "Include a deterministic correspondence-trail artifact summarizing the source-listed audit inquiries, confirmation results, and cleared queries in the bundle.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Completion/AuditDeliverableService.Bundle.cs",
+            "symbol": "AuditDeliverableService.AssembleBundleAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.BundleCorrespondence.cs",
+            "method": "FivePartBundle_CorrespondenceChangesCreateNewDigest_AndRowLimitFailsClosed",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The code reads bounded PBC communications, confirmation rows, and client-deliverable comments; the existing selector checks digest changes and row-limit refusal, not completeness against every formal inquiry/result/cleared query. Bounded source-to-test completeness verification remains pending."
+        },
+        {
+          "id": "ACCREQ-4.4.2-BALANCE-INVOICE-DRAFT",
+          "sourceLine": 682,
+          "sourceTextSha256": "95ca6403bac01029573cba549e02b1dfba0dde79f18bcfa4ee77910bee410175",
+          "expectedOutcome": "Under ADR-0007, optional automation is off by default and may create only a DRAFT balance invoice after the advance is paid and the final financial-package release exists. Finance review, approval, posting, sending, and collection remain separate; the system does not automatically approve or post.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/AutomaticFeeInvoices.cs",
+            "symbol": "AutomaticFeeInvoiceDiscovery.EnqueuePendingAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Source has the balance-discovery gates for paid advance and final package release. The cited selector exercises manual balance issuance, while the bounded test search found worker automation assertions for the advance draft only and no focused balance-auto-draft assertion; do not treat the manual test as automation verification.",
+          "originalSourceOutcome": "5. **Deliverable 5: Final Balance Fee Note:** Automated trigger generating the invoice for the remaining 50% professional fee balance.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0007-fee-invoice-automation-drafts-only-approved.md"
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+        "scope": "7 source-backed local alias criteria; parent retained. No functional or professional acceptance promotion."
+      }
     },
     {
       "id": "ACCREQ-4.4.3",
@@ -1848,7 +3124,116 @@
       "workUnits": [
         "WU-023",
         "WU-035"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.4.3-SIGNATURE-TIMER",
+          "sourceLine": 686,
+          "sourceTextSha256": "186d0820126ecd75374982d2477df518bce8fe0b067a3116217bf4f9c4cc0cea",
+          "expectedOutcome": "Set the regulatory completion deadline to 60 days from the Partner's actual signature timestamp, with a visible countdown derived from that event.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Records/FileFreezeService.cs",
+            "symbol": "FileFreezeService.ScheduleAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Concrete timestamp discrepancy for parent review: SignIndependentReportAsync schedules from signedDoc.CreatedAt, then records SignatureApplication.SignedAt separately later in the signing flow. The current test also defines its reference as deliverable CreatedAt, so it does not check the requirement's actual signature timestamp. ADR-0018 DEC-08 leaves countdown semantics open. Suggested focused existing check: update this selector's assertion to compare DueAt with SignatureApplication.SignedAt plus 60 days.",
+          "originalSourceOutcome": "* **60-Day Archival Timer:** Enforce an automated 60-day regulatory file completion countdown timer starting from the date of the Partner's signature.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.4.3-AUTOMATIC-INTERNAL-LOCK",
+          "sourceLine": 687,
+          "sourceTextSha256": "0275fdc14c5db115152c96e09cd3d5478c1d8887eca4772be4c8c4de6a447880",
+          "expectedOutcome": "At the deadline, freeze the authoritative engagement archive and refuse subsequent internal mutations; retain append-only lineage. Under ADR-0009, SharePoint is only a separate read-only secondary copy after exact-file hash and expected-grant readback; no write-once object-store or storage-provider choice is implied.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Records/FileFreezeService.cs",
+            "symbol": "FileFreezeDiscovery.EnqueuePendingAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Current code/test path is an internal freeze trace, not a live SharePoint permission test. Exact hash/grant readback and production tenant acceptance remain BLOCKED_EXTERNAL; no provider action was taken.",
+          "originalSourceOutcome": "* **Permanent Read-Only Lock:** Upon timer expiration (or manual Partner command), convert the entire engagement archive to Read-Only status. Deletions, modifications, and overwrites are permanently blocked.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0009-archive-authority-release-store-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.4.3-PARTNER-EARLY-LOCK",
+          "sourceLine": 687,
+          "sourceTextSha256": "0275fdc14c5db115152c96e09cd3d5478c1d8887eca4772be4c8c4de6a447880",
+          "expectedOutcome": "Permit an explicit Partner early-lock command only against the reviewed current archive-readiness digest and revision; once accepted, freeze the internal archive without reopening it.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Records/FileFreezeService.cs",
+            "symbol": "FileFreezeService.RequestEarlyComplianceLockAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.EarlyLock.cs",
+            "method": "PartnerEarlyLock_FailsClosedThenFreezesOnlyTheReviewedReadiness",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing source/test path binds early lock to current readiness and is not run here. SharePoint remains a separate exact-readback copy under ADR-0009, with live provider acceptance BLOCKED_EXTERNAL.",
+          "originalSourceOutcome": "* **Permanent Read-Only Lock:** Upon timer expiration (or manual Partner command), convert the entire engagement archive to Read-Only status. Deletions, modifications, and overwrites are permanently blocked.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0009-archive-authority-release-store-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.4.3-AUTHORITATIVE-ARCHIVE-COPY",
+          "sourceLine": 687,
+          "sourceTextSha256": "0275fdc14c5db115152c96e09cd3d5478c1d8887eca4772be4c8c4de6a447880",
+          "expectedOutcome": "Treat the append-only release/archive store as authoritative. A SharePoint copy is secondary and read-only only when exact file hashes and expected grants are observed; otherwise its state remains BLOCKED_EXTERNAL. ADR-0009 does not select a write-once object store or provider.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Records/ArchiveCopyService.cs",
+            "symbol": "ArchiveCopyService.ReadEvidenceAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.Assembly.cs",
+            "method": "ArchiveCopyDurableHandler_ReconcilesUnknownAndPublishesOnlyExactReadbackEvidence",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The selector uses local test doubles and is not run by this tracing sidecar; it is not live tenant/provider acceptance. Exact source identities, grant readback, and any external operations remain separately gated.",
+          "originalSourceOutcome": "* **Permanent Read-Only Lock:** Upon timer expiration (or manual Partner command), convert the entire engagement archive to Read-Only status. Deletions, modifications, and overwrites are permanently blocked.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0009-archive-authority-release-store-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.4.3-IMMUTABLE-AUDIT-TRAIL",
+          "sourceLine": 688,
+          "sourceTextSha256": "09f72c940c387d2c9fdcc41ea0fa091286cc14b31f6cc34da8b681eab1c8ceec",
+          "expectedOutcome": "Maintain timestamped, append-only evidence for system actions, reviews, and sign-offs within the declared AuditSphere coverage.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Records/EngagementActivityQuery.cs",
+            "symbol": "EngagementActivityQuery.GetAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
+            "method": "FileFreezesSixtyDaysAfterSigning_RefusesWrites_AmendsWithApproval_AndTracesActivity",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The selector covers selected edits, comments, sign-offs, freeze, and refused writes only. EngagementActivityQuery.ExternalCoverageNote states direct SharePoint edits are not observed. Bounded tracing does not establish an exhaustive all-actions audit trail; external and action-family coverage acceptance remains pending."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+        "scope": "5 source-backed local alias criteria; parent retained. No functional or professional acceptance promotion."
+      }
     },
     {
       "id": "ACCREQ-4.5.1",
@@ -1882,7 +3267,137 @@
       "evidence": [],
       "workUnits": [
         "WU-033"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.5.1-TIERED-RATES",
+          "sourceLine": 696,
+          "sourceTextSha256": "8d3db55b1790173b6b89c8ab48ecb32d8ad17e29d6589f2320f02b0b9c258e53",
+          "expectedOutcome": "Resolve the source-listed QAR/hour baseline as Partner 1,000; Manager 750; Supervisor/Senior 500; Associate/Junior 200. ADR-0018 aliases apply anywhere a role rate is looked up. Initialization creates drafts only; a separate authorized approver approves each rate card.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/SteChargeOutRateBaseline.cs",
+            "symbol": "SteChargeOutRateBaseline.InitializeDraftsAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/SteChargeOutRateBaselineTests.cs",
+            "method": "BaselineInitialisesDraftsApprovedBySeparateApprover_AndResolvesAliasesToExactRates",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The selector traces baseline amounts, aliases, and separate approval but was not run. Approval remains a separate authorized human action; rates are grouped as one tiered schedule, not one criterion per listed amount.",
+          "originalSourceOutcome": "* **Tiered Charge-Out Rates Engine:**\n  * Engagement Partner: **1,000 QAR / hour**\n  * Audit Manager: **750 QAR / hour**\n  * Audit Supervisor / Senior: **500 QAR / hour**\n  * Audit Associate / Junior: **200 QAR / hour**",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.5.1-UTILIZATION",
+          "sourceLine": 694,
+          "sourceTextSha256": "1d1b2661e4594e9641d6320731d09c25270efbed57ae08a957061254affe3d78",
+          "expectedOutcome": "Use the approved utilization basis in ADR-0018: approved billable minutes divided by capacity net of recorded unavailability; show all approved hours separately and do not invent utilization when capacity is zero or unavailable.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/FirmOperationsServices.cs",
+            "symbol": "PracticeAnalyticsQuery.GetAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/FirmOperationsTests.cs",
+            "method": "Analytics_MissingCostRateKeepsChargeOutValueAndZeroCapacityDoesNotInventUtilization",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The current source and selector are traced only; the selector was not run. No additional utilization denominator or performance-policy decision is introduced by this sidecar.",
+          "originalSourceOutcome": "### 4.5.1 Real-Time Profitability & Utilization Analytics",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.5.1-CONTRACT-CONTRIBUTION",
+          "sourceLine": 703,
+          "sourceTextSha256": "98b4085d72cdcf03399e7f5d1ffe00f9b2fc31b299a6b5b634522ce4c66b4b73",
+          "expectedOutcome": "Compute contracted-fee contribution using approved billable time's standard charge-out value under ADR-0018. Approved non-billable/no-charge time remains in actual hours and cost but has no charge-out value; missing billable rate or currency makes the contribution unavailable.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/FirmOperationsServices.cs",
+            "symbol": "PracticeAnalyticsQuery.GetAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/FirmOperationsTests.cs",
+            "method": "Analytics_ReconcileBilledCollectedStandardValueAndCost_FromApprovedRecords",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The code exposes contracted-fee-less-standard-value separately from collected/billed profit and uses billable classifications for standard value. Source tracing is not acceptance of a firm's commercial or accounting interpretation; selector was not run.",
+          "originalSourceOutcome": "$$\\text{Engagement Profitability} = \\text{Contracted Audit Fee} - \\sum (\\text{Staff Hours Logged} \\times \\text{Charge-Out Rate})$$",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.5.1-PHASE-VARIANCE",
+          "sourceLine": 705,
+          "sourceTextSha256": "2a2faf43df09d7d1f7a0a7737e7ed2404b455e3a5de54402cec0cb630668b98c",
+          "expectedOutcome": "Show budget-versus-actual hours variance by engagement phase using approved budget and actual time records.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeTimeService.cs",
+            "symbol": "PracticeTimeService.GetBudgetBreakdownAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/PlanningResourcesAndMaterialityTests.cs",
+            "method": "ResourceGrid_ShowsCapacityUnavailabilityAndOverAllocation_AndBudgetsReconcileByPhaseAndRiskArea",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The source and phase-budget selector are traced, not executed in this slice. Current test also groups by risk area; this criterion claims only the requirement's phase variance."
+        },
+        {
+          "id": "ACCREQ-4.5.1-REALIZATION",
+          "sourceLine": 705,
+          "sourceTextSha256": "2a2faf43df09d7d1f7a0a7737e7ed2404b455e3a5de54402cec0cb630668b98c",
+          "expectedOutcome": "Report realization using posted firm billing against standard value from approved billable time, with unavailable values remaining unavailable under ADR-0018 when rate or currency evidence is missing.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/FirmOperationsServices.cs",
+            "symbol": "PracticeAnalyticsQuery.GetAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/FirmOperationsTests.cs",
+            "method": "Analytics_ReconcileBilledCollectedStandardValueAndCost_FromApprovedRecords",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Realization code and a focused existing selector are present, but neither was executed here. This maps the authorized reporting basis only; it does not automate a fee change or commercial response decision.",
+          "originalSourceOutcome": "* **Variance Analysis:** Track budget vs. actual hours variance per engagement phase to evaluate realization rates and staff performance.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.5.1-STAFF-PERFORMANCE",
+          "sourceLine": 705,
+          "sourceTextSha256": "2a2faf43df09d7d1f7a0a7737e7ed2404b455e3a5de54402cec0cb630668b98c",
+          "expectedOutcome": "Provide the firm-approved staff-level performance measures to the specifically authorized audience once ADR0018 DEC05 is resolved; operational task workload counts are not by themselves a governed performance score.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/FirmOperationsServices.cs",
+            "symbol": "PracticeAnalyticsQuery.GetAsync"
+          },
+          "existingTest": {
+            "path": null,
+            "method": null,
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "ADR0018 DEC05 leaves measures and audience open. Existing per-assignee task Due/Completed/Open/Overdue counts are a workload projection, not evidence that this professional/firm-policy criterion is accepted. Do not suppress routine workload reporting or invent a performance policy from that overlap.",
+          "originalSourceOutcome": "* **Variance Analysis:** Track budget vs. actual hours variance per engagement phase to evaluate realization rates and staff performance.",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md"
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+        "scope": "6 source-backed local alias criteria; parent retained. No functional or professional acceptance promotion."
+      }
     },
     {
       "id": "ACCREQ-4.5.2",
@@ -1920,7 +3435,116 @@
       "evidence": [],
       "workUnits": [
         "WU-031"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.5.2-OPERATING-EXPENSES",
+          "sourceLine": 709,
+          "sourceTextSha256": "4b30b57f3ace9feb85868655cf9d356440272a519248cce0d05e212a2e6c77f0",
+          "expectedOutcome": "Record source-evidenced firm operating expenses through the firm's own ledger with separate preparation, review, and posting controls. The source-listed rent/salary/petty-cash examples do not authorize invented facility or benefit account taxonomy; ADR-0018 DEC-05 leaves facility and benefit categorization open.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/FirmOperationsServices.cs",
+            "symbol": "FirmExpenseService.RecordAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/FirmOperationsTests.cs",
+            "method": "FirmExpenses_PostThroughTheLedger_AndTheFirmTrialBalanceReconciles",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "UNVERIFIED",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing selector exercises successful rent and salary expense posting. Bounded search found PETTY_CASH only in invalid-case assertions, not a successful disbursal, and no approved facility/benefit taxonomy. Exact positive-path coverage and qualified classification decision remain pending.",
+          "originalSourceOutcome": "* **Dedicated Operational Accounting Ledger:** Record firm internal operations:\n  * Office Rent & Facility Costs\n  * Staff Salaries, End of Service & Benefits\n  * Partner Withdrawals\n  * Petty Cash Disbursals",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.5.2-END-OF-SERVICE-ACCRUAL",
+          "sourceLine": 711,
+          "sourceTextSha256": "07b760e33ea85da5acc79097924b3f49f323105227cdc4076606f0f90d780080",
+          "expectedOutcome": "Under ADR-0010, record the monthly end-of-service provision as a person-entered amount with its basis; do not calculate the liability automatically. Corrections reverse prior accruals. Posting requires the qualified accountant's recorded accounting treatment and the owner's separate confirmation.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/LedgerService.EndOfService.cs",
+            "symbol": "LedgerService.CreateEndOfServiceAccrualDraftAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EndOfServiceAccrualTests.cs",
+            "method": "Accruals_AreBlocked_UntilTheTreatmentIsRecordedAndConfirmedByADifferentPartner",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "SUPERSEDED_ADR_0010",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing selector represents the treatment/confirmation gate but was not run. Qualified accountant treatment and owner confirmation are required acceptance leaves and are not fabricated.",
+          "originalSourceOutcome": "* Staff Salaries, End of Service & Benefits",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0010-end-of-service-accrual-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.5.2-PARTNER-WITHDRAWALS",
+          "sourceLine": 712,
+          "sourceTextSha256": "5d960226bbccfa2dac3f0919b5bd2529e54fcc2b65a2544f8c8ce17c5875fd3b",
+          "expectedOutcome": "Record Partner withdrawals through balanced firm-ledger journal entries with the existing separate review/posting and immutable audit controls; do not infer an unstated distribution policy.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/LedgerService.cs",
+            "symbol": "LedgerService.CreateFirmJournalDraftAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/LedgerTests.cs",
+            "method": "PartnerDrawingJournal_EndToEndPostingAndReversal_PreservesBalanceAndImmutableAudit",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The existing end-to-end selector is a source-trace reference only and was not run. Actual journal preparation and authorization remain finance/Partner actions."
+        },
+        {
+          "id": "ACCREQ-4.5.2-TRIAL-BALANCE-PNL",
+          "sourceLine": 714,
+          "sourceTextSha256": "b100da900a8e156a027a1e3568733db35019b32a0387178747e84b82f89f159f",
+          "expectedOutcome": "Generate the internal firm's Trial Balance and Monthly Profit and Loss from firm-ledger postings. Under ADR-0018, Monthly means one row per accounting month with the same month one year earlier as comparator; no formatted financial-statement layout is implied.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/FirmOperationsServices.cs",
+            "symbol": "FirmExpenseService.TrialBalanceAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/FirmOperationsTests.cs",
+            "method": "FirmExpenses_PostThroughTheLedger_AndTheFirmTrialBalanceReconciles",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Source and existing selector trace the firm ledger, trial balance, and monthly summaries but were not run. The report is internal management information; financial statement presentation/accounting-policy acceptance is outside this criterion.",
+          "originalSourceOutcome": "* **Internal Financial Reporting:** Generate an internal firm Trial Balance, Monthly Profit & Loss Statement, and Client Accounts Receivable Aging Schedule (tracking 50% Advance and 50% Final Fee payments).",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md"
+        },
+        {
+          "id": "ACCREQ-4.5.2-RECEIVABLES-AGING",
+          "sourceLine": 714,
+          "sourceTextSha256": "b100da900a8e156a027a1e3568733db35019b32a0387178747e84b82f89f159f",
+          "expectedOutcome": "Generate firm Accounts Receivable Aging using ADR-0018 scope: all posted firm invoices are aged and typed advance/final/time/other as supported; client-bookkeeping invoices remain excluded. The 50% advance/final labels do not restrict the report to milestone invoices or decide broader partial-payment policy.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/FirmReceivablesAgingQuery.cs",
+            "symbol": "FirmReceivablesAgingQuery.GetAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/FirmReceivablesAgingQueryTests.cs",
+            "method": "ReportUsesApprovedTermsAndOnlyReceiptsCreditsAndAllocationsEffectiveByUtcAsOfDate",
+            "execution": "NOT_RUN_BY_TRACING_SIDECAR"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "The query and as-of allocation selector are traced but were not run. ADR-0018 DEC-06 leaves partial-payment policy and broader fee model open; this mapping does not decide them.",
+          "originalSourceOutcome": "* **Internal Financial Reporting:** Generate an internal firm Trial Balance, Monthly Profit & Loss Statement, and Client Accounts Receivable Aging Schedule (tracking 50% Advance and 50% Final Fee payments).",
+          "decisionOverlay": "docs/architecture/adr/auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md"
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+        "scope": "5 source-backed local alias criteria; parent retained. No functional or professional acceptance promotion."
+      }
     },
     {
       "id": "ACCREQ-5.1",
@@ -3079,5 +4703,12 @@
     "scope": "25 additional local alias children under existing4.2.1-4.2.4 parents; source/test tracing only, not complete atomic requirement denominator.",
     "parentReview": "Commercial response channels were not transferred into Partner risk decisions; the source five-folder taxonomy does not alone prohibit additional approved folders. ADR0011/0017 no normalization and documented senior sampling judgment preserved.",
     "execution": "No tests run by tracing sidecar. Existing parent focused evidence for selected materiality/activation/commercial methods is recorded separately in execution ledger; a selector match does not accept every compound child clause."
-  }
+  },
+  "moduleTraceObservation": {
+    "sourceSha": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+    "scope": "Added80 local alias children for remaining module4 parent sections. All18module4 parents now have criterion traces; not the complete product/atomic denominator or current acceptance.",
+    "execution": "Parent source-line hashes/known symbols/test selectors checked; unknown test anchors retained as null with UNVERIFIED disposition. Existing targeted behavior evidence is separate, and no new tests ran for these documentation contributions.",
+    "remaining": "Sections5-7 workflow/invariant detail and prior WU/parity/R2R crosswalk remain to reconcile. Rendered/provider/professional leaves and unresolved compound clauses retain exact limits."
+  },
+  "sourceTextHashConvention": "SHA-256 of the exact UTF-8 source line, preserving indentation and excluding its line terminator."
 }

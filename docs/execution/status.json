@@ -1075,11 +1075,8 @@
     },
     "ascpSpecDiscovery20261024": {
       "status": "PARTIAL; tasks 01 and 03 delta implemented, 02 NONE (model), rest VERIFY_ONLY or BLOCKED_DECISION/EXTERNAL",
-      "pr50Continuation": "Task02 final allocation guards locally verified; Task25 unsigned operator preparer locally verified; Task13 issuance policy gate explicit. Whole specification remains partial; exact-current CI/signing/live/human acceptance pending. Details in archive.pr50EngineeringContinuation.",
       "source": "d210d301dd98590ab0ce6606b0336f3d448726b6",
-      "focused": "FirmPortalLogoSettingsApiTests 4 PASS (new 8-route scope-denial 403 regression); full suites and OpenAPI drift deferred to CI",
       "history": "status-archive-2026-10.json#keys.ascpSpecDiscovery20261024",
-      "ownerTests": "Existing owner tests PASS locally on a09ca4cb (Release): CommercialWorkflowTests 44/44 (tasks 05/06); MaterialityPracticalRoundingTests, EngagementWorkflowPlanTests, AnnualEngagementPreparationTests, PbcWorkflowTaskTests 25/25 (tasks 07-09). No defect found; tasks stay VERIFY_ONLY pending CI journeys. Tasks 10-23 owner cohort PASS 235/235 on c01fc877 (ClientAccounting, FinancialStatement, FinancialPackageGate, Consolidation, AuditConfirmationCommandIsolation, AuditDeliverables, PracticeTime, FirmOperations, SourceManifest). Fast CI c01fc877 success. No defect found; acceptance still needs CI journeys and professional gates.",
       "criticalGateFollowup": {
         "status": "PASS_LOCAL_FOCUSED; specification PARTIAL",
         "checks": "Initial5 focused methods; followup22cases plus final2changed-method repeat PASS; deployment32offlineassertions PASS. No full local suite.",
@@ -1098,20 +1095,23 @@
       },
       "administrationAtomicTrace": "25source-backed4.2 child criteria; no functional promotion. Details: status-archive-2026-10.json#keys.administrationAtomicTrace20261024.",
       "latestExactCi": {
-        "candidate": "af3bcaecaa7acb3c149262cfffcc9951442f3853",
-        "implementationCommit": "91aa0b2b",
-        "runId": 40051971167,
+        "candidate": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
+        "runId": 40054224564,
         "sourceMatch": "MATCH",
         "status": "RUNNING",
         "fullPass": false,
-        "limits": "Preceding af3 candidate excludes current contact-read scope fix. New exact candidate will be dispatched after commit; no current FULL_CI_PASS claimed."
+        "passed": "Angular/Domain/build-contracts-publication",
+        "pending": "API/E2E",
+        "limits": "Does not include new uncommitted owner-FK overlay; no current full pass claimed."
       },
       "clientContactReadScope": {
-        "status": "PASS_LOCAL_FOCUSED; NEW_CURRENT_CI_REQUIRED",
+        "status": "PASS_LOCAL_FOCUSED; FULL_CI_PENDING",
         "checks": "RED routing3/hierarchy2, count1 attributable privacy failures -> final7PASS/0FAIL/0SKIP. No full local suite.",
         "history": "status-archive-2026-10.json#keys.clientContactReadScope20261024",
         "scope": "App contact/routing/recipient/hierarchy and off-page relationship-count revocation guards; no API schema or DB migration."
-      }
+      },
+      "moduleAtomicTrace": "132 source-line criteria across18moduleparents; SOURCE_TRACED_NOT_ACCEPTED, no functional promotion. Details: status-archive-2026-10.json#keys.moduleAtomicTrace20261024.",
+      "earlierOwnerVerification": "Historical owner-test/PR50 records preserved: status-archive-2026-10.json#keys.ascpEarlierOwnerTests20261024; not current-source acceptance."
     },
     "archivedOn20261024": {
       "entries": [
