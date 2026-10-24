@@ -25323,6 +25323,18 @@
       "change": "Inside existing case lock/freeze boundary, a supplied AGREED amount must equal booked amount. Authenticity prose cannot approve the variance; explicit DIFFERENCE path retained. No record/backfill/closure/schema/HTTP DTO change. Absent/nonmonetary amount behavior unchanged.",
       "verification": "Existing ConfirmationApiTests.ReviewedLifecycle_RequiresObservedDispatch_IndependentCurrentEvidence_AndReviewedAlternative: real old API returned200 instead of required400 for0.000001 variance (RED1). Guard returns400; no response appended; original nonresponse/alternative/lateDIFFERENCE exact0.000001/independent review/closure assertions PASS (GREEN1).",
       "scopeLimits": "No new approved-explanation workflow, SAD/ReviewPoint links, other source adapters, full Task18/T059 or qualified/live acceptance. Backend-only change; prior source-picker/browser evidence is not rerun or promoted to current full acceptance."
+    },
+    "nativeSuccessorCatalogueCapture20261024": {
+      "status": "FOCUSED_PASS_TEST_ONLY_REPAIR",
+      "failedSource": "dd6cf852afd4205d0e0afc6027cdd721d59c25bd",
+      "failedRun": 40084191819,
+      "failedJob": 120844071555,
+      "sourceMatch": "MATCH",
+      "fullE2eCounts": "337PASS/1FAIL",
+      "failure": "OpenAsync eagerly read catalogue.TextAsync after target-period navigation released response body. ExactTRX/log retained.",
+      "repair": "Existing PlaywrightResponseCapture.RunAsync retains actual GET status/body before fulfill/navigation; identical method/URL predicate and HTTP200 expectation, no timeout increase, no product/migration/UI change. Full source-selection/originalrequest/assent/lost-response/independentapproval/manifest/hash/DB assertions retained.",
+      "focused": "One existing NativeSuccessorOpeningUsesExactReviewedClosedSourceAndRecoversOriginalUiRequest fresh-build PASS74s; no fullLocal suite.",
+      "limits": "Precedingdd6API still pending; currentf39full still pending; no FULL_CI_PASS or provider/professional approval."
     }
   },
   "lastUpdatedOn": "2026-10-24"

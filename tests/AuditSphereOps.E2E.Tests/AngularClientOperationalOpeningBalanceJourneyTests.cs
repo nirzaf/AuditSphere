@@ -347,16 +347,17 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     {
       await browserPage.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
       await Assertions.Expect(browserPage.GetByRole(AriaRole.Heading, new() { Name = "Native successor opening", Exact = true })).ToBeVisibleAsync();
-      var catalogue = await browserPage.RunAndWaitForResponseAsync(
-        () => browserPage.GetByLabel("Opening period", new() { Exact = true }).SelectOptionAsync(targetId.ToString()),
-        response => response.Request.Method == "GET" && response.Url.Contains($"/operational-opening-successors/catalog/{targetId:D}?", StringComparison.Ordinal));
-      Assert.True(catalogue.Status == 200, $"Catalogue HTTP {catalogue.Status}: {await catalogue.TextAsync()}");
+      // Retain the exact response body before the target-period navigation can release it.
+      var catalogue = await PlaywrightResponseCapture.RunAsync(browserPage,
+        request => request.Method == "GET" && request.Url.Contains($"/operational-opening-successors/catalog/{targetId:D}?", StringComparison.Ordinal),
+        () => browserPage.GetByLabel("Opening period", new() { Exact = true }).SelectOptionAsync(targetId.ToString()));
+      Assert.True(catalogue.Status == 200, $"Catalogue HTTP {catalogue.Status}: {catalogue.Body}");
       await browserPage.GetByRole(AriaRole.Button, new() { Name = "Native predecessor opening", Exact = true }).ClickAsync();
       await Assertions.Expect(browserPage.GetByRole(AriaRole.Heading, new() { Name = "Exact native successor opening", Exact = true })).ToBeVisibleAsync();
       if (browserPage == page)
       {
         try { await Assertions.Expect(browserPage.GetByLabel("Accepted native trial balance source", new() { Exact = false })).ToBeVisibleAsync(new() { Timeout = 5000 }); }
-        catch (Exception ex) { throw new InvalidOperationException($"Catalogue: {await catalogue.TextAsync()} UI: {await browserPage.Locator("body").InnerTextAsync()}", ex); }
+        catch (Exception ex) { throw new InvalidOperationException($"Catalogue: {catalogue.Body} UI: {await browserPage.Locator("body").InnerTextAsync()}", ex); }
       }
     }
     await OpenAsync(page, makerOrigin);
