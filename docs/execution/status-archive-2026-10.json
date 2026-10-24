@@ -24819,7 +24819,8 @@
       },
       "sourceBoundary": "Bank08:21bundle index e6e0c23fbf560e77e3dae12b94acbe2f48d3b1979681e549ede7051a3c65bf14 matched before builtin. Node26.8.2 vs pinned26.8.1; exactpin CI pending.",
       "limits": "Read-only inspection, no reconciliation review/creation UI or typed confirmation source adapter. Synthetic seeded GL is not verified ingestion/provider acceptance. No human AT/native zoom.",
-      "evidence": ".local/autonomous/evidence/bank-reconciliation-inspection-20261024"
+      "evidence": ".local/autonomous/evidence/bank-reconciliation-inspection-20261024",
+      "supersededFullCi": "40080106661 on5f94: Angular/Domain/build-contractsPASS, API/E2Erunning without failedjob/step observed atsupersede; cancelrequested after dd6full400841sourceMATCH. No fullPASS claimed."
     },
     "nativeSuccessorOpening20261024": {
       "scope": "Partial Task11: source-bound zeroP&L/empty historical subledger successor, not full continuity or public activation.",
@@ -24828,7 +24829,13 @@
       "builtin": "Tab20capture09:39:19.998Z before09:39:34.916544Z expiry; after blocklayout correction tab21capture09:42:23.857Z before09:42:40.498712Z expiry. Keyboard previewH3,135debit/135credit, actual source/manifest/population andzeroAR/AP, uncheckedassent/createdisabled. Tabsclosed/fixturesreleased; originalEntra1preserved. No builtinmutation or humanAT/nativezoom claim.",
       "provenance": "Private evidence native-successor-opening-20261024; native-successor-guards-20261024; successor-opening-api-ui-20261024. Owned fixtures use synthetic mandate/ACTIVE context, actual capture/worker-validation/sourceacceptance/close/independentreview commands. Package validations/text artifacts are scaffolds, not rendered report approval. Final catalogue read-auth correction rebuilt/reverified via named API/browser journey; built-in visual capture precedes that backend-only guard correction.",
       "limits": "No nonempty-item carryforward/automatic P&L close, chart/currency conversion, public period activation, live migration/deployment, fullproduct/professional/provider acceptance. Race checks observed legal ordering, not every isolation/ordering. Approval requestId is not a durable retained receipt. Initial selector/timing test failures retained; no product fix claimed from those.",
-      "publication": "Prepared coherent code slice; exact new commit/CI to be recorded after push.",
+      "publication": {
+        "commit": "dd6cf852afd4205d0e0afc6027cdd721d59c25bd",
+        "fullCiRun": 40084191819,
+        "sourceMatch": "MATCH",
+        "status": "RUNNING_NOT_FULL_CI_PASS",
+        "scope": "42ownedpaths coherent source-bound successor subset + docs; broaderTask11 stillpartial."
+      },
       "catalogFinalAuthority": "ActualRED2 after epoch/grant change during finalreadiness\u2192GREEN5 including originalguardcohort; held/frozen catalogue historyreads and disabledprepare/approve flags2PASS. FinalcurrentAPI rebuilt named successorjourney1PASS. Initialreview retained."
     }
   },
