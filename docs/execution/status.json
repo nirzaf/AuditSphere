@@ -1709,7 +1709,7 @@
   },
   "currentSourceCi": {
     "sourceCommit": "5f94a1f8f9fe4fcf26f891c8e50b63e413de1139",
-    "evidence": "Exact bank source MATCH; Angular passed, remaining full jobs running. Successor overlay excluded.",
+    "evidence": "Exact bank source MATCH; Angular/Domain/build-contracts passed; API/E2E running. Unpublished successor overlay excluded.",
     "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40080106661 RUNNING; not FULL_CI_PASS."
   }
 }
