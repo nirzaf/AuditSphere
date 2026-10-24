@@ -24730,6 +24730,26 @@
         "runtimeEvidence": "The actual migrated guarded local test database allowed both pre-fix overwrites; no schema prevention claimed. No raw catalog/schemaPASS fabricated.",
         "remaining": "No new entity, DTO, route, schema, generic review policy, provider or external effect."
       }
+    },
+    "f7ExactCiDispatch20261024": {
+      "runId": 40064309210,
+      "candidate": "f7e7308d6f2949ea95f0be7bf0171bb9d2172fb6",
+      "sourceMatch": "MATCH",
+      "angular": "PASS",
+      "remaining": "Domain/API/E2E/contracts running, never full acceptance yet.",
+      "evidence": ".local/autonomous/evidence/confirmation-review-immutability-20261024/current-ci.json",
+      "previousCiPointer": {
+        "candidate": "f93eefbbbdffb7bf90f370e1ea7d65ac8eac145d",
+        "runId": 40058170604,
+        "sourceMatch": "MATCH",
+        "status": "RUNNING",
+        "observedAtUtc": "2026-10-24T03:41:26+00:00",
+        "fullPass": false,
+        "passed": "Angular/build-contracts-publication",
+        "pending": "Domain/API/E2E",
+        "limits": "Precedingf93 excludes direct-confirmation fix overlay. Final combined source needs its own CI; no current full pass."
+      },
+      "previousDiscoverySource": "d210d301dd98590ab0ce6606b0336f3d448726b6"
     }
   },
   "archivedTargetedVerification": {
