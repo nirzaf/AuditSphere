@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Direct confirmation publication authority (2026-10-24)
+
+A direct confirmation draft could publish after official role revocation committed between its initial authorization and write transaction. The existing reviewed-workspace scope locks now live in the core capability and are reused without changing their order. Direct creation acquires them in its transaction, reauthorizes and checks procedure applicability before publication. The regression reproduces the original unauthorized row and passes after repair; existing taxonomy, sibling isolation and fieldwork lifecycle checks also pass. No schema, API or professional-policy change. Other confirmation mutations and source-balance/difference requirements remain open; exact evidence is in `status.json`.
+
 ## Portal internal-risk boundary and context prerequisites (2026-10-24)
 
 The existing portal API test now retains actual internal checklist evidence and proves permitted client reads omit it, while internal risk routes refuse client identities even with a stray internal grant. The authorized staff control still receives the evidence. Removing only the shared internal-only guard makes the regression fail; exact source restoration and the affected API cohort pass. Production behavior is unchanged; broader rendered/download/export acceptance remains open. Reporting-context review separately identifies existing reusable producers without asserting the requested unified activation exists: that contract remains unverified behind its explicit reviewed prerequisites. Exact evidence is in `status.json` and the requirement manifest.

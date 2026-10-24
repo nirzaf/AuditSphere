@@ -16,6 +16,20 @@ public static partial class AuditFieldworkService
 
   private sealed record ScopedAuthorization(bool Succeeded, Guid ClientId, string? ErrorCode = null, string? Message = null);
 
+  // Shared by reviewed confirmation callers and direct service publication: firm, client, engagement.
+  internal static async Task LockConfirmationScopeAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
+  {
+    await db.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE").LoadAsync(ct);
+    var engagement = await db.Engagements.AsNoTracking()
+      .SingleAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
+    await db.ClientSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {engagement.PracticeClientId} FOR UPDATE").LoadAsync(ct);
+    await db.Engagements.FromSqlInterpolated(
+      $"SELECT * FROM engagements WHERE firm_id = {actor.FirmId} AND id = {engagementId} FOR UPDATE").LoadAsync(ct);
+  }
+
   private static async Task<ScopedAuthorization> AuthorizeEngagementAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, IReadOnlyList<string> roles, CancellationToken ct)
   {

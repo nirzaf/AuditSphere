@@ -24584,6 +24584,22 @@
         "privateEvidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/task04-ci-domain-review.json",
         "limits": "Analogous producers/scope/currentness/history only; not unified context activation, T007/T013 reviewed handoff, T003 professional decision or full current release."
       }
+    },
+    "ascpClosedCurrentPointers20261024": {
+      "earlierOwnerVerification": "Historical owner-test/PR50 records preserved: status-archive-2026-10.json#keys.ascpEarlierOwnerTests20261024; not current-source acceptance.",
+      "criticalGateFollowup": "Historical focused evidence preserved: status-archive-2026-10.json#keys.ascpCriticalAcceptancePointer20261024; no current-CI promotion."
+    },
+    "confirmationDirectAuthority20261024": {
+      "source": "f93eefbbbdffb7bf90f370e1ea7d65ac8eac145d + scoped4file Application/test overlay",
+      "status": "PASS_LOCAL_FOCUSED; CURRENT_CI_REQUIRED",
+      "requirement": "ASCP18recipe4/03 current authority for direct confirmation writes, AGENTS authorization/transactions",
+      "red": "Official RoleAdministrationService revocation and epoch change commit after initial auth at own transaction-start callback; original direct create still succeeds and persists1unauthorizedcase. Named new regression1FAIL on intended assertion; original authorized baseline retained.",
+      "structuralPhase": "Existing workspace firmSHARE/clientUPDATE/engagementUPDATE lock sequence moved unchanged to internal core helper; workspace delegates. Existing taxonomy/sibling lifecycle2PASS. No public/serialized/DI contract change; net10 compilation implicit in focused tests.",
+      "repair": "DirectCreate joins/owns transaction, acquires same scope locks, reauthorizes and checks applicable procedure before constructing case. Uses current authorizedClientId; ProtectedState frozen refusal commit only if own transaction, matching adjacent pattern.",
+      "final": "4PASS/0FAIL/0SKIP: newdirectrevocation, existinglegal taxonomy/unknown refusal, sibling lifecycle isolation, fullFieldworkEvidence_IsScopedAndReviewable. No full local suite.",
+      "test": "AuditConfirmationCommandIsolationTests.DirectConfirmationCreationRefusesAuthorityRevokedBeforeItsTransaction",
+      "privateEvidence": ".local/autonomous/evidence/confirmation-direct-authority-20261024/review.json",
+      "limits": "Isolated real PostgreSQL directcreation boundary; no HTTP/browser/provider/performance/new-schema acceptance. Not every mutation or during-save interleaving exercised; frozen-after-wait refusal branch not independently injected. Sourcebalance/difference requirements remain open, no Task18completionclaim."
     }
   },
   "archivedTargetedVerification": {

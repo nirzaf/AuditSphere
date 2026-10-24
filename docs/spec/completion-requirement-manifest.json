@@ -7599,6 +7599,27 @@
         "sourceMatch": "MATCH",
         "scope": "Named existing Domain producer/guard analogs PASS from retained TRX; no local rerun, no whole-context/full-release/professional acceptance."
       }
+    },
+    "ASCP-18": {
+      "specificationFile": "External four-phase31-task AuditSphere_Atomic_Implementation_Spec.md",
+      "specificationSha256": "48443a258b9c4e12bb8bf4c1fd081734addb4d14a6514599d5b998b87812db9a",
+      "scope": "Recipe4 direct creation current-authority transaction boundary only; not all Task18 recipes or T059 acceptance.",
+      "observedBaseSha": "f93eefbbbdffb7bf90f370e1ea7d65ac8eac145d",
+      "disposition": "IMPLEMENT_DELTA_LOCALLY_VERIFIED",
+      "sourceOwners": [
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Confirmations.cs",
+        "src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Authorization.cs",
+        "src/AuditSphereOps.Application/Audit/ConfirmationWorkspace.cs"
+      ],
+      "regression": {
+        "path": "tests/AuditSphereOps.Domain.Tests/AuditConfirmationCommandIsolationTests.cs",
+        "method": "DirectConfirmationCreationRefusesAuthorityRevokedBeforeItsTransaction",
+        "expectedOutcome": "After official role revocation commits at transaction-start boundary, direct creation refuses without publishing a case; earlier authorized case remains."
+      },
+      "evidence": "docs/execution/status.json#targetedVerification.ascpSpecDiscovery20261024.confirmationDirectAuthority",
+      "remaining": "Other direct mutations and commit-window interleavings; source/ledger/schedule-derived booked amount, human difference explanation and existing difference/review-point links; full current CI and required professional/provider acceptance. Source-contract sidecar pending; no invented source balance or policy.",
+      "acceptance": "PARTIAL_LOCAL_VERIFICATION",
+      "taskComplete": false
     }
   }
 }

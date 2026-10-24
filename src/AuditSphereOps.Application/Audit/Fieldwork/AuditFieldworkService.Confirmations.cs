@@ -20,9 +20,17 @@ public static partial class AuditFieldworkService
     var auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    await LockConfirmationScopeAsync(db, actor, request.EngagementId, ct);
+    auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
+    if (!auth.Succeeded)
+    {
+      // Preserve a newly observed frozen-file refusal when this method owns the transaction.
+      if (tx is not null && auth.ErrorCode == ErrorCodes.ProtectedState) await tx.CommitAsync(ct);
+      return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);
+    }
     if (request.ProcedureId is not null && !await IsApplicableProcedureAsync(db, actor.FirmId, auth.ClientId, request.EngagementId, request.ProcedureId.Value, ct))
       return CommandResult<ConfirmationValue>.Fail(ErrorCodes.GateBlocked, "The linked procedure is not applicable.");
-    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var confirmation = new AuditConfirmationCase
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = auth.ClientId, EngagementId = request.EngagementId,

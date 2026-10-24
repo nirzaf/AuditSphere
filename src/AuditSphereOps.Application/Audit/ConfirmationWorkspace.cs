@@ -88,13 +88,8 @@ public static partial class ConfirmationWorkspace
     return (await Auth(db,a,engagement,ReadRoles,false,ct)).Succeeded?CommandResult<ConfirmationDetail>.Ok(value):Denied<ConfirmationDetail>();
   }
   // Lock order matches role/acceptance transactions. No external dispatch occurs in these local commands.
-  private static async Task Lock(IAuditSphereDbContext db,ActorContext a,Guid engagement,CancellationToken ct)
-  {
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {a.FirmId} FOR SHARE").LoadAsync(ct);
-    var e=await db.Engagements.AsNoTracking().SingleAsync(x=>x.FirmId==a.FirmId && x.Id==engagement,ct);
-    await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id = {a.FirmId} AND id = {e.PracticeClientId} FOR UPDATE").LoadAsync(ct);
-    await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE firm_id = {a.FirmId} AND id = {engagement} FOR UPDATE").LoadAsync(ct);
-  }
+  private static Task Lock(IAuditSphereDbContext db,ActorContext a,Guid engagement,CancellationToken ct) =>
+    AuditFieldworkService.LockConfirmationScopeAsync(db, a, engagement, ct);
   public static async Task<CommandResult<ConfirmationValue>> CreateAsync(IAuditSphereDbContext db,ActorContext a,CreateConfirmationRequest request,string token,bool reviewed,CancellationToken ct=default)
   {
     if(!(await Auth(db,a,request.EngagementId,PrepareRoles,true,ct)).Succeeded)return Denied<ConfirmationValue>();

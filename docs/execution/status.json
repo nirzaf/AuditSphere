@@ -1087,14 +1087,15 @@
         "implementationCommit": "91aa0b2b19ca5f6814b789c30a9896d2e05e6fe2"
       },
       "latestExactCi": {
-        "candidate": "a9a93692e73671470131aa807b12f526034445e1",
-        "runId": 40055833218,
+        "candidate": "f93eefbbbdffb7bf90f370e1ea7d65ac8eac145d",
+        "runId": 40058170604,
         "sourceMatch": "MATCH",
         "status": "RUNNING",
+        "observedAtUtc": "2026-10-24T03:41:26+00:00",
         "fullPass": false,
-        "passed": "Angular/Domain/build-contracts-publication",
-        "pending": "API/E2E",
-        "limits": "Exacta9 source excludes new test-only portal overlay; no full current pass or deployed acceptance claimed."
+        "passed": "Angular/build-contracts-publication",
+        "pending": "Domain/API/E2E",
+        "limits": "Precedingf93 excludes direct-confirmation fix overlay. Final combined source needs its own CI; no current full pass."
       },
       "clientContactReadScope": {
         "status": "PASS_LOCAL_FOCUSED; FULL_CI_PENDING",
@@ -1103,7 +1104,6 @@
         "scope": "App contact/routing/recipient/hierarchy and off-page relationship-count revocation guards; no API schema or DB migration."
       },
       "moduleAtomicTrace": "132 source-line criteria across18moduleparents; SOURCE_TRACED_NOT_ACCEPTED, no functional promotion. Details: status-archive-2026-10.json#keys.moduleAtomicTrace20261024.",
-      "earlierOwnerVerification": "Historical owner-test/PR50 records preserved: status-archive-2026-10.json#keys.ascpEarlierOwnerTests20261024; not current-source acceptance.",
       "clientRoutingOwnerScope": {
         "status": "PASS_LOCAL_FOCUSED; FULL_CI_PENDING",
         "checks": "RED1 privacy exposure -> boundary1PASS + existing routing/authority4PASS; Release/EFdriftPASS. No full local suite.",
@@ -1112,10 +1112,14 @@
         "implementationCommit": "a9a93692e73671470131aa807b12f526034445e1"
       },
       "workflowInvariantTrace": "27 workflow/invariant children plus lifecycle scenario aliases; source-only. PriorWU/parity/R2R finding-level reconciliation remains partial. Archive: status-archive-2026-10.json#keys.workflowInvariantTrace20261024.",
-      "criticalGateFollowup": "Historical focused evidence preserved: status-archive-2026-10.json#keys.ascpCriticalAcceptancePointer20261024; no current-CI promotion.",
       "inheritedParityCrosswalk": "All51 independentPARITY rows source-hashed;13subjectmapped/8partial/30unmapped, no functional promotion. Details: status-archive-2026-10.json#keys.inheritedParityCrosswalk20261024.",
       "portalInternalRiskBoundary": "PASS_FOCUSED_API2; real internal evidence excluded from client reads and internal routes403, including strayPartner grant. Counterfactual detects guard loss. Archive: status-archive-2026-10.json#keys.portalInternalRiskBoundary20261024.",
-      "reportingContextReview": "ASCP04 unified activation UNVERIFIED/BLOCKED_DEPENDENCY; existing producers reused. Six recipe clauses traced in manifest.specificationTaskReconciliation.ASCP-04; no Task04 completion claim."
+      "reportingContextReview": "ASCP04 unified activation UNVERIFIED/BLOCKED_DEPENDENCY; existing producers reused. Six recipe clauses traced in manifest.specificationTaskReconciliation.ASCP-04; no Task04 completion claim.",
+      "confirmationDirectAuthority": {
+        "status": "PASS_FOCUSED4; CURRENT_CI_REQUIRED",
+        "history": "status-archive-2026-10.json#keys.confirmationDirectAuthority20261024",
+        "scope": "Direct creation only; other mutation/source-reconciliation requirements remain open."
+      }
     },
     "archivedOn20261024": {
       "entries": [
