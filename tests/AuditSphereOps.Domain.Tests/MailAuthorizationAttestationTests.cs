@@ -6,6 +6,8 @@ using System.Security.Cryptography.Pkcs;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Microsoft365;
@@ -29,6 +31,84 @@ public sealed class MailAuthorizationAttestationTests
 {
   private static readonly DateTimeOffset Now = new(2026, 10, 23, 12, 0, 0, TimeSpan.Zero);
   private const string Sha256Oid = "2.16.840.1.101.3.4.2.1";
+
+  [Fact]
+  public void OperatorReadbackPreparationBindsActualObservationAndRefusesIncompleteOrChangedInputs()
+  {
+    var original = CreateAttestation(CreateSnapshot(MailAuthorizationModel.LegacyApplicationAccessPolicy),
+      Now.AddMinutes(-1), Now.AddMinutes(20));
+    var canonical = JsonNode.Parse(MailAuthorizationAttestationCanonicalizer.SerializeCanonical(original))!.AsObject();
+    var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    options.Converters.Add(new JsonStringEnumConverter<MailAuthorizationModel>(JsonNamingPolicy.SnakeCaseUpper, allowIntegerValues: false));
+    var binding = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(ExpectedBinding(original), options));
+    var readback = new JsonObject
+    {
+      ["schemaVersion"] = 1, ["mode"] = "ReadOnly", ["status"] = "INCOMPLETE_EVIDENCE",
+      ["errorCode"] = "mail-legacy-capability-evidence-not-verified", ["mutationsAttempted"] = 0,
+      ["mutationsConfirmed"] = 0, ["networkCalls"] = 12, ["redactionsApplied"] = true,
+      ["repositoryCommit"] = original.Source.RepositoryCommit, ["planSha256"] = original.PlanSha256,
+      ["tenantId"] = original.ProviderSnapshot.TenantId.ToString(),
+      ["startedAtUtc"] = Now.AddMinutes(-2), ["completedAtUtc"] = Now.AddSeconds(-30),
+      ["blockedPrerequisites"] = new JsonArray("verification:legacy-mail-capability-evidence-not-verified"),
+      ["changes"] = new JsonArray(),
+      ["checks"] = new JsonArray(
+        new JsonObject { ["id"] = "mail-plan-contract", ["state"] = "PASS" },
+        new JsonObject
+        {
+          ["id"] = "mail-current-state-authorization", ["state"] = "PASS", ["capability"] = "MAIL",
+          ["resourceId"] = original.ProviderSnapshot.RuntimeClientId.ToString(), ["observedAtUtc"] = original.ObservedAtUtc,
+          ["source"] = canonical["source"]!.DeepClone(), ["providerSnapshot"] = canonical["providerSnapshot"]!.DeepClone()
+        },
+        new JsonObject { ["id"] = "mail-capability-evidence", ["state"] = "INCOMPLETE_EVIDENCE" })
+    };
+    foreach (var check in readback["checks"]!.AsArray().Select(x => x!.AsObject()))
+    {
+      check.TryAdd("capability", null); check.TryAdd("resourceId", null);
+      check["expected"] = "Synthetic expected observation"; check["observed"] = "Synthetic observed evidence";
+      check.TryAdd("observedAtUtc", JsonValue.Create(original.ObservedAtUtc));
+      check["expiresAtUtc"] = null; check["evidenceReference"] = null; check["errorCode"] = null;
+    }
+    MailAuthorizationAttestation Prepare(JsonObject value) => MailAuthorizationAttestationCanonicalizer.PrepareReadOnlyAttestation(
+      Encoding.UTF8.GetBytes(value.ToJsonString()), binding, original.Source, Now, original.ExpiresAtUtc);
+    Assert.Equal(MailAuthorizationAttestationCanonicalizer.SerializeCanonical(original),
+      MailAuthorizationAttestationCanonicalizer.SerializeCanonical(Prepare(readback)));
+
+    // Distinct transport/provenance boundaries, not a second copy of the canonicalizer's grant matrix.
+    Action<JsonObject>[] invalidChanges =
+    [
+      value => value["mode"] = "Plan",
+      value => value["changes"]!.AsArray().Add("unexpected provider mutation"),
+      value => value.Remove("changes"),
+      value => value["unrecognizedAuthority"] = true,
+      value => value["checks"]!.AsArray().RemoveAt(0),
+      value => value["planSha256"] = new string('0', 64),
+      value => value["tenantId"] = Guid.NewGuid().ToString(),
+      value => value["mutationsAttempted"] = 1,
+      value => value["networkCalls"] = 0,
+      value => value["startedAtUtc"] = Now.AddHours(-2),
+      value => value["completedAtUtc"] = Now.AddMinutes(1),
+      value => value["checks"]![1]!["observedAtUtc"] = "2026-10-23T11:59:00",
+      value => value["checks"]![1]!["unrecognizedAuthority"] = true,
+      value => value["checks"]!.AsArray().Add(value["checks"]![1]!.DeepClone()),
+      value => value["checks"]![1]!["state"] = "DRIFT",
+      value => value["checks"]![1]!["source"]!["mailAccessModuleSha256"] = new string('0', 64),
+      value => value["checks"]![1]!["providerSnapshot"]!["unexpectedAuthority"] = true
+    ];
+    foreach (var change in invalidChanges)
+    {
+      var altered = readback.DeepClone().AsObject(); change(altered);
+      Assert.Equal(MailAuthorizationAttestationCanonicalizer.InvalidCode,
+        Assert.Throws<MailAuthorizationAttestationException>(() => Prepare(altered)).Code);
+    }
+    Assert.Throws<MailAuthorizationAttestationException>(() => MailAuthorizationAttestationCanonicalizer.PrepareReadOnlyAttestation(
+      Encoding.UTF8.GetBytes(readback.ToJsonString()), binding,
+      original.Source with { RepositoryCommit = new string('0', 40) }, Now, original.ExpiresAtUtc));
+    Assert.Throws<MailAuthorizationAttestationException>(() => MailAuthorizationAttestationCanonicalizer.PrepareReadOnlyAttestation(
+      Encoding.UTF8.GetBytes(readback.ToJsonString()), binding, original.Source, Now, Now.AddHours(2)));
+    var duplicate = readback.ToJsonString().Replace("\"schemaVersion\":1", "\"schemaVersion\":1,\"schemaVersion\":1", StringComparison.Ordinal);
+    Assert.Throws<MailAuthorizationAttestationException>(() => MailAuthorizationAttestationCanonicalizer.PrepareReadOnlyAttestation(
+      Encoding.UTF8.GetBytes(duplicate), binding, original.Source, Now, original.ExpiresAtUtc));
+  }
 
   [Theory]
   [InlineData(MailAuthorizationModel.LegacyApplicationAccessPolicy)]

@@ -360,7 +360,146 @@
       "evidence": [],
       "workUnits": [
         "WU-027"
-      ]
+      ],
+      "atomicCriteria": [
+        {
+          "id": "ACCREQ-4.1.3-OFFER",
+          "sourceLine": 539,
+          "sourceTextSha256": "2a7d179fbb3ea12557bc13c5e477bfcfc433fc9dd9b973b6032233e8bd0c5c0d",
+          "expectedOutcome": "Capture acceptance of the exact dispatched offer and require renewed acceptance after offer change.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/DualKeyEvidence.cs",
+            "symbol": "CommercialAcceptanceStandsAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "Dispatch_BindsArtifactToCurrentQuotation_AndDownstreamUsesAcceptedTerms",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Exact-source API/browser and negative-path evidence; inherited owner-test records are not a fresh run. Compound subclauses require further decomposition."
+        },
+        {
+          "id": "ACCREQ-4.1.3-RISK",
+          "sourceLine": 540,
+          "sourceTextSha256": "77c282a81dfc631b5d2cd9f52bc80ccb40acdbe443533dcc0f8c942d322d29d5",
+          "expectedOutcome": "Require current unconditional Partner risk clearance for the exact route and generation.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+            "symbol": "ActivateAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs",
+            "method": "Activation_RequiresACurrentUnconditionalPartnerAcceptanceForTheSameRoute",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Exact-source API/browser and negative-path evidence; inherited owner-test records are not a fresh run. Compound subclauses require further decomposition."
+        },
+        {
+          "id": "ACCREQ-4.1.3-INDEPENDENT-KEYS",
+          "sourceLine": 541,
+          "sourceTextSha256": "7b39b87e3683c8569e32392d3526de8489cecc5c54f01843dcb6f07e1f0a2c4c",
+          "expectedOutcome": "Neither or one current approval blocks letter issuance; both current keys only establish eligibility.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "GenerateEngagementLetterAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OnboardingReadinessEvaluatesEachKeyIndependentlyFromRealCommercialRecords",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Exact-source API/browser and negative-path evidence; inherited owner-test records are not a fresh run. Compound subclauses require further decomposition."
+        },
+        {
+          "id": "ACCREQ-4.1.3-ADVANCE",
+          "sourceLine": 542,
+          "sourceTextSha256": "2a1c1515901ed94d72cd683f81657154eeb45b3a34d204caad6b009a59e0d02c",
+          "expectedOutcome": "Both keys do not bypass the fully paid and allocated50percent advance activation guard.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+            "symbol": "ActivateAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Exact-source API/browser and negative-path evidence; inherited owner-test records are not a fresh run. Compound subclauses require further decomposition."
+        },
+        {
+          "id": "ACCREQ-4.1.3-HOLDS",
+          "sourceLine": 543,
+          "sourceTextSha256": "b72caf7a043bbd9a2013d96962fa63fb558ec7ffac2810902dbaa6a6728422d6",
+          "expectedOutcome": "Reject activation with active holds, stale decisions or mismatched scope; task completion is not authority.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementActivationWorkspace.cs",
+            "symbol": "StateAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs",
+            "method": "ExactScopeWrongRoleStaleDecisionHoldsAndEpochFailClosed",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Exact-source API/browser and negative-path evidence; inherited owner-test records are not a fresh run. Compound subclauses require further decomposition."
+        },
+        {
+          "id": "ACCREQ-4.1.3-CARDS",
+          "sourceLine": 544,
+          "sourceTextSha256": "4c9287b508a598451e3fd15f2573c7165931f6ad2c2b93bd0eda68c7da985da3",
+          "expectedOutcome": "Display independent commercial/risk cards and separate advance readiness without client disclosure of private risk evidence.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/ClientOnboardingReadinessQuery.cs",
+            "symbol": "GetAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OnboardingReadinessEvaluatesEachKeyIndependentlyFromRealCommercialRecords",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Exact-source API/browser and negative-path evidence; inherited owner-test records are not a fresh run. Compound subclauses require further decomposition."
+        },
+        {
+          "id": "ACCREQ-4.1.3-HISTORY",
+          "sourceLine": 545,
+          "sourceTextSha256": "d9d33700305c55a0a3054777ec5129071ef5a15c8486173533f8071ac91945fb",
+          "expectedOutcome": "Retain authentic decision/source identities and recheck current authority at command execution.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+            "symbol": "ActivateAsync"
+          },
+          "existingTest": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs",
+            "method": "ExactReviewConcurrentRecoveryAndAppendOnlyEvidenceActivateOnce",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "implementation": "SOURCE_TRACED_NOT_ACCEPTED",
+          "acceptance": "VERIFICATION_PENDING",
+          "remaining": "Exact-source API/browser and negative-path evidence; inherited owner-test records are not a fresh run. Compound subclauses require further decomposition."
+        }
+      ],
+      "traceObservation": {
+        "sourceSha": "96de73809f4b03c2d2fc77ecff128826b4284d88",
+        "scope": "Seven mandatory commercial bullets decomposed one level; not the complete requirement denominator. Existing46parent rows retained. No runtime acceptance inferred."
+      }
     },
     {
       "id": "ACCREQ-4.1.4",

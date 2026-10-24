@@ -121,7 +121,7 @@ public sealed class MailAuthorizationAttestationException(string code) : Excepti
 /// duplicate set members are rejected before serialization. The provider digest hashes only the provider snapshot,
 /// never the plan or the outer attestation metadata.
 /// </summary>
-public static class MailAuthorizationAttestationCanonicalizer
+public static partial class MailAuthorizationAttestationCanonicalizer
 {
   public const int CurrentSchemaVersion = 1;
   public const int MaximumSenders = 1000;
@@ -648,7 +648,7 @@ public static class MailAuthorizationAttestationVerifier
     return attestation;
   }
 
-  private static bool MatchesExpectedBinding(MailAuthorizationAttestation attestation,
+  internal static bool MatchesExpectedBinding(MailAuthorizationAttestation attestation,
     MailAuthorizationAttestationExpectedBinding expected)
   {
     if (expected is null || expected.TenantId == Guid.Empty || expected.RuntimeClientId == Guid.Empty ||

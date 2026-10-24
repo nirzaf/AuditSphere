@@ -466,12 +466,80 @@ $authorization[0].source.repositoryCommit
 $authorization[0].providerSnapshot.permissionModel
 ```
 
-This is **unsigned readback**. The Application canonicalizer/verifier and worker
-gate support signed evidence; the enrollment procedure below accepts an already
-issued Legacy attestation. Operator signing/normalization tooling remains a
-separate deliverable: do not manually invent an attestation from this envelope.
-RBAC enrollment and rollout remain separate. A matching readback or an offline
-pass does not establish provider delivery.
+This is **unsigned readback**. The offline preparation command below converts
+the existing Legacy envelope into canonical bytes using the Application
+canonicalizer. Signing under approved custody and the enrollment procedure remain
+separate. RBAC enrollment and rollout remain separate. A matching readback or an
+offline pass does not establish provider delivery.
+
+### Prepare unsigned Legacy evidence offline
+
+Use the same clean, exact checkout approved by the plan and readback. The command
+checks the six current script/module hashes and repository identity against an
+**independently reviewed binding file**, as well as the envelope's source, plan,
+tenant, application, service principal, sender/control identities and actual
+successful provider observation. Do not derive the expected binding by copying
+identities from the untrusted readback. Obtain current connection/consent IDs from
+the authenticated administration workflow and reconcile all identities against
+the approved plan. The binding is metadata, never credentials or private keys.
+
+The binding JSON has the following shape; replace each descriptive placeholder
+with its independently verified value. Its source fields are the reviewed
+checkout's commit and SHA-256 file hashes defined by `Get-M365MailSourceIdentity`.
+
+```json
+{
+  "tenantId": "approved-tenant-guid",
+  "permissionModel": "LEGACY_APPLICATION_ACCESS_POLICY",
+  "runtimeClientId": "approved-mail-client-guid",
+  "enterpriseServicePrincipalObjectId": "approved-enterprise-sp-guid",
+  "connectionRevisionId": "current-connection-revision-guid",
+  "consentAttemptId": "verified-consent-attempt-guid",
+  "planSha256": "approved-plan-sha256",
+  "source": {
+    "repositoryCommit": "approved-checkout-commit",
+    "configureMailAccessSha256": "reviewed-file-sha256",
+    "mailAccessModuleSha256": "reviewed-file-sha256",
+    "modulesLockSha256": "reviewed-file-sha256",
+    "commonModuleSha256": "reviewed-file-sha256",
+    "entraModuleSha256": "reviewed-file-sha256",
+    "planSchemaSha256": "reviewed-file-sha256"
+  },
+  "senderMailboxObjectIds": ["approved-sender-object-guid"],
+  "controlMailboxObjectId": "unrelated-control-mailbox-object-guid"
+}
+```
+
+```powershell
+# Build once on the approved operator machine; no provider connection or sign-in.
+dotnet restore tools/AuditSphereOps.MailEvidenceIssuer/AuditSphereOps.MailEvidenceIssuer.csproj --locked-mode
+dotnet build tools/AuditSphereOps.MailEvidenceIssuer/AuditSphereOps.MailEvidenceIssuer.csproj --no-restore -c Release
+
+# Use a real UTC expiry after now, no more than one hour after readback started.
+# This preparation tool uses a conservative one-hour window. It never refreshes
+# an old observation's timestamp. Recollect old readback through the approved flow.
+$expiry = (Get-Date).ToUniversalTime().AddMinutes(20).ToString('o')
+dotnet tools/AuditSphereOps.MailEvidenceIssuer/bin/Release/net10.0/AuditSphereOps.MailEvidenceIssuer.dll prepare `
+  --readback /approved/operator/mail-readback.json `
+  --binding /approved/operator/reviewed-mail-binding.json `
+  --repository /approved/source/AuditSphere `
+  --expires-utc $expiry `
+  --output /approved/operator/mail.canonical.json
+if ($LASTEXITCODE -ne 0) { throw 'Canonical preparation refused; do not enroll or reconstruct a payload manually.' }
+```
+
+Success is **`UNSIGNED_CANONICAL_PREPARED`**, with the canonical digest only. The
+output directory must already exist and the output must be new. Unix temporary
+output is owner-readable/writable; existing retained files are never overwritten.
+The command makes no network request and has no signing-key or enrollment option.
+It rejects Plan/DryRun results, incomplete/ambiguous provider observations, source
+or binding drift, extra normalized snapshot fields, expired observations and RBAC.
+
+Have the approval owner review the exact bytes/digest and produce detached CMS
+using their existing authorized signing process and custody. The verifier's
+trusted signer pin must come through independent configuration. This tool does
+not establish authentic provider evidence by itself, grant trust, sign, enroll,
+enable dispatch or prove delivery. Keep the existing runtime and enrollment gates.
 
 ### Enroll a signed Legacy authorization receipt
 
@@ -544,7 +612,7 @@ connection or deployment binding removes the current status; the worker also
 reverifies the persisted signed bytes before dispatch. An enrollment receipt is
 authorization evidence, not a mail-send or delivery receipt. Downgrade refuses
 to discard retained signed evidence. Live provider acceptance, signer custody,
-operator issuer tooling and reviewed rollout/rollback remain separate gates.
+approved signing custody and reviewed rollout/rollback remain separate gates.
 
 ## Secondary archive copies and evidence readback (WU-023)
 
