@@ -10,7 +10,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "a2e26a433be288448482825b4f628c428344b0c1",
+  "headCommit": "4ed301647cf76d659563a586a0f6ba69c534f65c",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -832,146 +832,13 @@
     "ascpSpecDiscovery20261024": {
       "status": "PARTIAL; bounded engineering deltas and source traces recorded. Whole specification functionality, current full CI and professional/live acceptance remain open.",
       "source": "f7e7308d6f2949ea95f0be7bf0171bb9d2172fb6",
-      "history": "status-archive-2026-10.json#keys.ascpSpecDiscovery20261024",
-      "custodyTargetGate": "PENDING POLICY-INDEPENDENT-CHECKPOINT-CUSTODY (ASCP28); ADR0009 secondary-copy choice supplies no independent trust/retention/recovery contract. See completion-policy-decisions.json.",
-      "expenseLedgerReferences": {
-        "source": "05b054fdcbbfb44ee2901209d7995c7f78a57bb1 plus scoped-FK model/migration/test overlay",
-        "status": "PASS_LOCAL_FOCUSED; CURRENT_FULL_CI_PENDING",
-        "checks": "RED1 foreign references accepted -> GREEN2 schema/normalposting PASS; EFno drift; APIRelease0warnings/errors",
-        "history": "status-archive-2026-10.json#keys.expenseJournalPostingScope20261024",
-        "migration": "20261024014728_FirmExpenseJournalPostingFirmScope; isolated testDB applied only, no deployed history/data preflight",
-        "implementationCommit": "91aa0b2b19ca5f6814b789c30a9896d2e05e6fe2"
-      },
-      "latestExactCi": {
-        "candidate": "d2cc2b5a1c56046fec723bf3a33f85d705c8cb8d",
-        "runId": 40112119542,
-        "sourceMatch": "MATCH",
-        "status": "RUNNING",
-        "observedAtUtc": "2026-10-24T16:36:03+00:00",
-        "fullPass": false,
-        "passed": "Angular full specs/build",
-        "pending": "Domain/API/E2E/build-contracts-publication",
-        "limits": "Exact accepted-source/binding code candidate. This documentation follow-up is not a new code candidate. Preceding c67/05/21 runs are separate source boundaries; no current full acceptance yet."
-      },
-      "clientContactReadScope": "Focused read-scope checks retained: status-archive-2026-10.json#keys.clientContactReadScope20261024.",
-      "clientRoutingOwnerScope": {
-        "status": "PASS_LOCAL_FOCUSED; FULL_CI_PENDING",
-        "checks": "RED1 privacy exposure -> boundary1PASS + existing routing/authority4PASS; Release/EFdriftPASS. No full local suite.",
-        "history": "status-archive-2026-10.json#keys.clientRoutingOwnerScope20261024",
-        "migration": "ClientContactRoutingOwnerScope; invalid historical owners block deployment migration pending authorized review.",
-        "implementationCommit": "a9a93692e73671470131aa807b12f526034445e1"
-      },
-      "inheritedParityCrosswalk": "All51 independentPARITY rows source-hashed;13subjectmapped/8partial/30unmapped, no functional promotion. Details: status-archive-2026-10.json#keys.inheritedParityCrosswalk20261024.",
-      "portalInternalRiskBoundary": "PASS_FOCUSED_API2; real internal evidence excluded from client reads and internal routes403, including strayPartner grant. Counterfactual detects guard loss. Archive: status-archive-2026-10.json#keys.portalInternalRiskBoundary20261024.",
-      "reportingContextReview": "ASCP04 unified activation UNVERIFIED/BLOCKED_DEPENDENCY; existing producers reused. Six recipe clauses traced in manifest.specificationTaskReconciliation.ASCP-04; no Task04 completion claim.",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.ascpSpecDiscoveryFullSnapshot20261025",
       "confirmationDirectAuthority": {
         "status": "PASS_FOCUSED13; CURRENT_CI_REQUIRED",
         "history": "status-archive-2026-10.json#keys.confirmationReviewPreservation20261024",
         "scope": "Current authority, post-close and original-review guards; broader concurrency/source lineage remain open."
       },
-      "financialPackageBalance": "PASS_FOCUSED3; manual/read/automatic financial-package predicate aligned. Current CI pending. Archive: status-archive-2026-10.json#keys.financialPackageBalanceEligibility20261024.",
-      "accountingHandoff": "Tasks10/11/15 trace retained. NativeTB/GL records below; context activation and successor/qualified acceptance remain partial. History: status-archive-2026-10.json#keys.accountingHandoffReview20261024.",
-      "queueCurrentExpiry": "RED1/GREEN1+calendar2PASS; fullCI pending. Archive: status-archive-2026-10.json#keys.queueCurrentExpiry20261024.",
-      "ciE2eFollowup": "Focused7+1PASS and builtin lifecycle subset; currentCI required. Archive: status-archive-2026-10.json#keys.a9E2eCausalFollowup20261024.",
-      "nativeTbHandoff": {
-        "status": "BOUNDED_FOCUSED_PASS; Task11 remainspartial",
-        "history": "status-archive-2026-10.json#keys.nativeTbHandoffBeforeNativeGl20261024",
-        "remaining": "Successor opening, context activation, professional/live and exact-source full CI; caller-owned seal-isolation variants remain unverified."
-      },
-      "nativeGlHandoff": {
-        "status": "Partial Task11; native GL focused engineering passed; current full CI pending.",
-        "history": "status-archive-2026-10.json#keys.nativeGlHandoffBeforeBankInspection20261024"
-      },
-      "bankInspection": {
-        "status": "Scoped read-only inspection: Domain/API/E2E/builtin and affected Angular passed; exact CI pending.",
-        "history": "status-archive-2026-10.json#keys.bankReconciliationInspection20261024"
-      },
-      "nativeSuccessorOpening": {
-        "status": "Partial Task11; original-item carry focused backend/Angular/browser, rollback protection and EF/OpenAPI checks pass. Exact-source full CI and broader continuity remain open.",
-        "history": "status-archive-2026-10.json#keys.nativeSuccessorOpening20261024",
-        "originalItemCarry20261024": {
-          "scope": "Complete unallocated original opening/sales/purchase invoice populations; v1 bytes retained, v2 original identities without reposting; later supported allocations preserve capture baseline.",
-          "checks": "Domain consumption3PASS; final migration/core1PASS; Angular9PASS/lint/build; existing E2E2PASS plus nonempty repeat1PASS; Release emitter build, EF drift and regenerated canonical OpenAPI drift PASS.",
-          "migration": "20261024130836_ClientOpeningSuccessorCarry; emptyDownUp restores publishedv1, retainedv2Down refused55000. No deployment.",
-          "browser": "Earlier built-in preview/source/keyboard inspected; final retained handoff expired without built-in capture. No humanAT/nativezoom claim.",
-          "remaining": "Historical partial allocations, unsupported cutoffs/nonzeroPL, publicACTIVE activation, broader whole31/currentCI and qualified/live acceptance."
-        }
-      },
-      "bankLinkedSources": "Focused RED1/GREEN1: linked Bank schedules must match current generation. PartialTask18; typed source binding pending. Archive: status-archive-2026-10.json#keys.bankLinkedScheduleGeneration20261024.",
-      "periodEvidencePageFailure": {
-        "status": "Focused existingAngular spec17PASS; no productdefect observed; Task15 partial.",
-        "scope": "503 categorypage removes oldrecord/table/pagination; refresh displays onlyexactnewrecord/revision via adjacentRevisionfact; GETonly.",
-        "notRun": "No standalonebuild/fullsuite/builtin/AT; no packageclose/readiness acceptance."
-      },
-      "riskOwnerCurrentness": {
-        "status": "RED1_GREEN1; bounded OriginalTask08 correction, whole08/31 incomplete.",
-        "source": "RiskBandService.cs currentowner eligibility shared by assignment/routing/completion; no API/schema change.",
-        "red": "SupportedSeniorstaffingRevoke retained ownername/level and omitted Amberownerblocker for unaffected reader.",
-        "green": "Existing Staffing_MapsFourLevelsToEngagementRoles_AndRiskBandsRouteOwnersAndPartnerReview PASS1; lower-rank refusal, explicit qualified restoration, latestrevoked no olderfallback, originalownerhistory and humanPartnerclearance retained.",
-        "limits": "No universal concurrent-revocation, expiry/disabled interleaving, UI/humanAT or fullcurrentCI claim. No history/approval mutation."
-      },
-      "scheduleReviewAuthority": {
-        "status": "RED1_GREEN2 focused; Original03/17/18 and whole31 remain partial.",
-        "red": "Official reviewer role revocation committed at transaction start, yet direct ReviewScheduleAsync persisted APPROVED/completeness text.",
-        "repair": "Existing firm/client/engagement locks, exact scoped schedule FORUPDATE fresh facts, inside currentauthority/self-review/residual checks and precommit reauthorization. Existing directcaller tracking handled without trusting old facts.",
-        "verification": "New single named DB regression plus existing FieldworkEvidence_IsScopedAndReviewable PASS2; no schema/API/UI changes or full local suite.",
-        "limits": "No universal race/currentness/archive-fence/caller-owned transaction claim. No production review endpoint was found: real source-intake/bind/review composition remains required; test-seeded sources are not product acceptance."
-      },
-      "scheduleCsvProfile": {
-        "status": "Focused pure parser35PASS; actual source-intake/capture/independent-review API/UI NOT_IMPLEMENTED.",
-        "profile": "audit-client-listing-csv.v1, strictUTF8 CSV, explicit mapping; rawSHA separate from canonical parsed-rowSHA; literal rawcells/leadingzero/sign/zero/date-null preserved; optional labelled technical rowidentity.",
-        "checks": "Two focused methods/35parameterized cases PASS57ms; numeric19,6 perrow and complete signedtotal, exactmax, NUL/grammar/currency/date/byte/row/header/cell bounds, no rounding/truncation. Static review found no blocker.",
-        "limits": "No PBC reader/provider, accepted-TB control resolver, immutable capture/review receipt, API/UI/builtin or wholeT058/31 acceptance implied."
-      },
-      "scheduleSourceContentReader": {
-        "status": "Focused staged-byte boundary16PASS; no DI/API/source-intake flow or provider acceptance.",
-        "scope": "Read only server-resolved PBC staged download plan under explicit root. Exact expected content SHA/count, regular contained files, per-read byte cap, symlink/outside/missing/tampered/truncated denial; cancellation propagated.",
-        "checks": "Two focused methods/16cases PASS25ms with actual synthetic tempfiles and links. No database/full local suite.",
-        "limits": "Caller still owns current authorization/PBC acceptance/source selection and rechecks. No provider rawreader, file writes, staging retention policy, live effect or concurrent-race guarantee. No capture/review workflow implemented."
-      },
-      "scheduleAccountControls": {
-        "status": "Pure calculator focused7PASS; source-intake workflow remains incomplete.",
-        "scope": "Explicit distinct ordinal account scope independent of listing; exact signed per-account TB tie-outs, observed row counts and numeric19,6 refusal. Selected missing TB or out-of-scope listing refuses; selected omitted listing remains zero with nonzero difference.",
-        "checks": "Existing project named AuditScheduleControlReconciliationTests: Passed7 Failed0 Skipped0, 15ms. Offsetting errors have netzero yet both remain nonzero; leadingzeros, signed six-place values, missing/duplicate/outside/precision/aggregatebounds covered.",
-        "limits": "No source acceptance, professional completeness, persistence, API/UI or fullCI claim. No full local suite."
-      },
-      "scheduleCreationAuthority": {
-        "status": "RED1_GREEN3; direct creation guard, whole03/17/31 partial.",
-        "observed": "Official RoleAdministrationService revocation committed at transaction start, yet baseline CreateScheduleAsync persisted a new schedule.",
-        "repair": "Existing firm/client/engagement lock order and fresh professional/session/grant authorization inside transaction, before save and through commit; dedupe readback also reauthorizes.",
-        "checks": "Named new creation + existing review-revocation + original FieldworkEvidence_IsScopedAndReviewable: Passed3 Failed0 Skipped0, 59s. Positive creation/dedupe and unchanged original row count retained. No full local suite.",
-        "limits": "No ambient transaction, all-interleaving, typed capture/API/UI or current fullCI acceptance."
-      },
-      "scheduleBindingAuthority": {
-        "status": "Two observed RED boundaries corrected; final focused binding3 plus genuine-source1 and existing PBC review1: Passed5 Failed0 Skipped0, 57s.",
-        "observed": "Direct binding replaced original source after official grant revocation (RED1). Initial fix also accepted binding with tracked pending Deleted target (separate RED1).",
-        "repair": "Standalone owned transaction, firm/client/engagement and exact schedule locks; fresh current professional/session/grant checks through commit. Target ChangeTracker includes Deleted, refusing pending states without discarding them.",
-        "compatibility": "No production public-bind callers found; standalone binding explicitly refuses ambient transactions. Future atomic typed capture needs transaction-required internal composition; not implemented. Existing source-replacement and scoped denial checks retained.",
-        "limits": "No universal race, unrelated pending-context flush, exact-context typed capture or fullCI claim."
-      },
-      "scheduleAcceptedSourceResolution": {
-        "status": "Internal resolver actual local-source fixture PASS1 before timestamp correction; final combined cohort PASS5. Real capture/review API/UI remains NOT_IMPLEMENTED.",
-        "scope": "Exact accepted PBC receipt/current request/upload/completed transfer and verified staged CSV; independently accepted selected TB period/book/basis/entity/currency with ACTIVE context/native currentness; strict PBC canonical entity/ISO period. Explicit account scope, complete TB witnesses, exact signed values, actual older row dates and deterministic manifest.",
-        "observed": "Actual CSV0010=125/0020=75 vs selectedTB100/100: global residual0 yet per-account+25/-25; AllAccountsReconciled false. Genuine service acceptance, repeat manifests identical, undeclared account/wrong date/scope and actual staged-byte tamper refused, no schedules/rows written.",
-        "simulationBoundary": "PBC durable operation uses established local SimulationPbcProviderSink. TB rows loaded/sealed in synthetic ACTIVE context then actual independent source acceptance; no live-provider/import-file product/activation/professional acceptance claim.",
-        "precision": "New PBC acceptance timestamps quantized to retained PostgreSQL microseconds before unchanged v1 digest recipe, consistent with existing project patterns. Source-proven portability correction; no local timestamp failure was observed. Historical bytes/digests unchanged; unprovable legacy reconstruction fails closed.",
-        "remaining": "Register immutable capture/review model with semantic guards, atomic helper composition/original receipts/recovery, API/Angular and browser acceptance. No manifest presence means professional completeness.",
-        "fixtureScope": "Final named source rerun Passed1 Failed0 Skipped0, 3s after removing references to unregistered future capture classes; actual schedule persistence and all source/tamper assertions retained."
-      },
-      "scheduleTransactionComposition": {
-        "status": "Focused8PASS/0FAIL/0SKIP, 57s. Internal transaction-required primitives; whole17/31 incomplete.",
-        "scope": "Public create/review/bind signatures and owned-transaction guards preserved through private shared implementations. Internal create/bind/review require existing transaction, keep authorization/source/maker checks and never begin/commit/dispose caller transaction. Caller must roll back its entire transaction on any failure.",
-        "evidence": "Existing binding/revocation/fieldwork cohort plus two original transaction cases: provisional create/dedupe/bind/independent-review remain invisible to a separate connection; outer rollback removes both schedule/rows, outer commit alone publishes exact source/original row. Missing-transaction internal calls refuse.",
-        "limits": "No public ambient-transaction support, savepoint isolation, typed capture/review receipt, API/UI or professional acceptance claimed. No full local suite."
-      },
-      "acceptedPbcClosureContinuity": {
-        "status": "Actual source continuity RED1/GREEN1; broader source capture/review remains pending.",
-        "red": "Actual assigned reviewer closed the accepted request; original receipt bytes and accounting generation remained unchanged, but resolver refused the source.",
-        "repair": "Accept only exact accepted revision or known next closed revision. Current state/revision retained outside immutable source manifest and in fresh-read fence; never pretend CLOSED is ACCEPTED. Other receipt/upload/transfer/hash/context/role and tamper gates unchanged.",
-        "checks": "Existing genuine-source method Passed1 Failed0 Skipped0, 50s: stable complete manifest/hash, receipt/data identity after official close, actual CLOSED metadata/revision and final staged-byte tamper refusal.",
-        "provenance": "Local test binary included pending two-table source-capture migration/SQL overlay with empty capture/review tables. Initial rehearsal failed SQL42601; parenthesized CASE expressions corrected before final pass. This proves the tested source-read flow and empty install only, not data-bearing capture/SQL/Down/API/UI acceptance.",
-        "limits": "No legacy receipt/hash rewrites, re-enabled uploads or live-provider/professional acceptance. No full local suite."
-      }
+      "note": "Full 2026-10-24 discovery snapshot is preserved in the archive; latest workstream states remain in their dedicated targetedVerification records."
     },
     "archivedOn20261024": {
       "entries": [
@@ -1044,8 +911,34 @@
       "baseline": "62463e0b2a4afb6b3783958811fac0ea32880c1e",
       "scope": "Cut-off test and subsequent-match recording exposed at /api/ui/selection-items/{id}/cut-off-test and /subsequent-match with append-only expectedRevision fencing; sample-set view now projects cutOffRevision/subsequentRevision; Angular decoders, per-stream revision drafts and fieldwork record forms wired; OpenAPI contract re-emitted.",
       "checks": "fieldwork.spec.ts 36/36 pass (new revision-fence/refusal case); AuditSamplingServiceTests+FieldworkConnectionsTests 5/5 Release pass; Release API build 0 warnings; verify-openapi current; Angular lint clean; git diff --check clean.",
-      "limits": "No local E2E/browser run (Playwright host unavailable in-session); T058 remains PARTIAL: approved cut-off window policy, finding links and MUS policy decisions remain open. Full CI on 893da808 dispatched, not yet terminal; no FULL_CI_PASS claimed.",
+      "limits": "No local E2E/browser run was recorded for this integration slice. T058 remains partial: subsequent references are not validated imported bank/GL row links; approved cut-off-window and MUS policies and finding linkage remain open. Current-source full CI is tracked in t058SubsequentAmountPrecision20261025.",
       "sourceCommit": "893da808b8bff0c395d2b646890b3d9c6f2298a8"
+    },
+    "t058SubsequentAmountPrecision20261025": {
+      "status": "FOCUSED_PASS_FULL_CI_RUNNING",
+      "sourceCommit": "4ed301647cf76d659563a586a0f6ba69c534f65c",
+      "change": "Reject a subsequent-match amount when representing it at six decimal places changes its value; retain accepted amount unchanged.",
+      "regression": "AuditSamplingServiceTests.CutOffAndSubsequentMatching_AreDerivedAndVisibleInTheSampleSet rejects 900.0000004 against a 900.000000 sample before the valid full match.",
+      "focusedCommand": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AuditSamplingServiceTests.CutOffAndSubsequentMatching_AreDerivedAndVisibleInTheSampleSet'",
+      "focusedResult": "1 passed, 0 failed; test ran on the exact source tree later committed as this SHA; no code changes followed the focused run.",
+      "fullCi": {
+        "runId": 40133039876,
+        "sourceMatch": "MATCH",
+        "status": "RUNNING",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/40133039876"
+      },
+      "fastCi": {
+        "runId": 40133000520,
+        "workflow": "AuditSphereOps CI",
+        "status": "RUNNING",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/40133000520"
+      },
+      "acceptanceImageWorkflow": {
+        "runId": 40133000519,
+        "status": "RUNNING",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/40133000519"
+      },
+      "limits": "The subsequent reference remains free text rather than a typed imported bank/GL row link. Approved cut-off window and MUS policy, finding linkage, rendered browser acceptance and qualified methodology acceptance remain open."
     }
   },
   "externalGates": [
@@ -1619,9 +1512,11 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "893da808b8bff0c395d2b646890b3d9c6f2298a8",
-    "evidence": "Sampling cut-off/subsequent API+Angular slice; focused Angular 36 pass, focused Domain 5 pass, OpenAPI current. Exact-source full verification dispatched; not FULL_CI_PASS.",
-    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40132097923 RUNNING (ref 893da808, correlation as-893da808b8bf-samplingui)",
-    "precedingFull": "40131071167 dispatches 6ebc0662 (migration-probe ordering repair) and 40131026731 dispatches 62463e0b (revision fencing) remain RUNNING; 40128614450 on 8feed9c0 showed the Domain harness sequencing failure now superseded by 6ebc0662. None is acceptance for 893da808."
+    "sourceCommit": "4ed301647cf76d659563a586a0f6ba69c534f65c",
+    "evidence": "T058 amount precision guard; exact focused Domain regression passed on the tree later committed as this SHA. No full tests were run locally.",
+    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40133039876 RUNNING (exact source MATCH).",
+    "fastCi": "https://github.com/nirzaf/AuditSphere/actions/runs/40133000520 RUNNING on this SHA.",
+    "acceptanceImageWorkflow": "https://github.com/nirzaf/AuditSphere/actions/runs/40133000519 RUNNING on this SHA; this is an image workflow, not deployment acceptance.",
+    "precedingFull": "40132097923 on 893da808 remains RUNNING with Angular passed and API, E2E, Domain and build/contract verification in progress; it is not current-source acceptance. Earlier 40131071167 and 40131026731 remain separate source runs."
   }
 }

@@ -1,6 +1,6 @@
 # Current-slice archive, October 2026
 
-> **STATUS: HISTORICAL.** Sections moved verbatim from `auditsphere-execution-current-slice.md` on 2026-10-08 to keep the current handoff small. They are the audit trail of earlier slices. Never edit them to change a verdict; record a new observation in the current slice or in `status.json`.
+> **STATUS: HISTORICAL.** Sections moved verbatim from `auditsphere-execution-current-slice.md` on 2026-10-08 and 2026-10-25 to keep the current handoff small. They are the audit trail of earlier slices. Never edit them to change a verdict; record a new observation in the current slice or in `status.json`.
 
 ## Engagement workflow phase cues (2026-10-18)
 
@@ -8068,3 +8068,133 @@ Workpaper replies and recovery remain bound to engagement and identity; context 
 ## Scoped accounting and staffing persistence (2026-10-23)
 
 Profile/dimension history retains scoped revisions without legacy backfill. TB/GL resolve exact scope. GL imports retain current authority through save; chunk replay locks firm/client/actor before its batch to avoid the source-acceptance lock cycle. API/Angular submit bounded reasons; an owned setup journey checks retained reasons and cutover denial. Staffing/resource/cost-rate and expense actor/account keys bind owners; nullable draft reviewers remain supported. Context activation, wider key inventory and broader acceptance remain open. See `status.json`.
+
+## Earlier work-table accessibility evidence
+
+The keyboard scrolling, reduced-motion and viewport follow-ups are preserved verbatim in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md), with scoped evidence in [status.json](status.json). Human screen-reader and full current-source release acceptance remain open.
+
+## Versioned workflow task groups and accessibility focus (2026-10-20)
+
+Full browser, keyboard, focused-test and CI narrative moved to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md). Current evidence and open gates remain in `status.json` under `targetedVerification.ste22F07WorkflowPhaseCues` and `targetedVerification.accessibilityRenderedSweep20261020`.
+
+## Exact deadline-task handoff and reconciliation writer fences
+
+Task reminders now open their exact engagement-scoped task, including unassigned work absent from My tasks. Selection is context-bound; actions require matching server queue permissions and revision, and mutations refresh both views. Reconciliation writers serialize with period close and exact-proof approval; approved matching proof append retains the reviewed schedule, and caller-owned transactions are preserved. Focused API, Angular, PostgreSQL, responsive and built-in browser evidence, repaired failures and exact source identities are in `deadlineExactTask20261019` and `reconciliationWriterFences20261019` in [status.json](status.json). Bounded fair reminder evidence is archived with its live pointer. The broader rule catalogue, recurring accounting work-pack acceptance, human AT, professional/provider gates and full current-source release remain open.
+
+## Role-dialog keyboard boundary check and milestone atomicity (2026-10-19)
+
+Scoped keyboard/atomicity evidence and rollout limits are retained in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Human AT, broader payment concurrency and full release acceptance remain open.
+
+## Milestone invoice source identity (2026-10-19)
+
+Full agreement invoice identity, retained legacy recovery and long-heading evidence are in `targetedVerification.feeInvoiceIdentity20261019` in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Broader payment/source acceptance remains open.
+
+## Scope-bound workflow receipt recovery (2026-10-19)
+
+Focused evidence and remaining limits are retained in `targetedVerification.workflowEvidenceRecoveryScope20261019` in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md).
+
+## Time workspace grant expiry (2026-10-19)
+
+Focused evidence and remaining limits are retained in `targetedVerification.timeWorkspaceGrantExpiry20261019` in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md).
+
+## Portal finance and CI wait checks (2026-10-19)
+
+Scoped portal keyboard and CI-wait evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md) and [status.json](status.json). Broader accessibility and release acceptance remain open.
+
+## Locked upload intent freshness (2026-10-19)
+
+Resume, chunk recording and trusted completion refresh the already locked upload intent before reading token, revision or received state. Existing regressions reproduced stale revision and stale staged-state receipts, then passed after the fix. The original delegation race test also passes with a retained valid token denied after revocation. Exact source, rebuilt API evidence and limits are in `targetedVerification.uploadIntentFreshness20261019` in [status.json](status.json). This corrects reused service contexts; no current HTTP context-reuse path was observed. Whole-family state acceptance, current-source full release and external/professional gates remain open.
+
+## Practice completion safeguards (2026-10-19)
+
+Earlier archive/restore focus, task-receipt lookup, staff-cost ambiguity and portal delegation safeguards are retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md) and their [status.json](status.json) records. Broader state and release gates remain open.
+
+## Earlier workflow and consolidation checks (2026-10-19)
+
+Reviewed operational reopening and approved-component keyboard evidence are retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md) and their scoped records in [status.json](status.json). Broader workflow, human accessibility and full release gates remain open.
+
+## Atomic correspondence dispatch claim (2026-10-19)
+
+The shared recipient/dispatch firm fence ends before provider I/O. Exact source and concurrency checks are retained in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md); this does not serialize every professional fact writer.
+
+## Operational cancellation and recovery (2026-10-19)
+
+Original cancellation evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md) and archived status record.
+
+## Browser CI recovery and search interaction (2026-10-19)
+
+Focused repairs and retained diagnostics are in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md) and [status.json](status.json). Full API/E2E acceptance and the earlier runner shutdown/hang causes remain unproven.
+
+## Earlier accessibility and CI repair chronology (2026-10-19)
+
+Detailed implementation history moved verbatim to the [historical current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Human assistive-technology review and complete supported-state acceptance remain open.
+
+## Default API Microsoft 365 credential isolation (2026-10-18)
+
+The base Hostinger Compose definition now mounts the API's six allowed capability directories individually and read-only. It excludes the parent credential directory and the privileged client-sites certificate, preserves the three data mounts and leaves all other service settings unchanged. Missing capability host directories fail closed; operators must prepare protected empty directories for disabled capabilities before reviewed recreation. Existing containers retain their previous mounts until recreated and inspected. The compatibility override remains available for older source revisions; the CLI runbook and configuration reference explain the upgrade sequence.
+
+Dummy-input base and override Compose comparisons and documentation checks pass. Actual process visibility is not verified because the local Docker daemon is unavailable; no VPS services, tenant permissions or credentials were changed. The published documentation source is confirmed on remote master with successful fast CI; full release verification and live mount/provider acceptance remain separate. Exact evidence is in `m365ClientTenantGuide` in [status.json](status.json).
+
+## Customer tenant Microsoft 365 operator documentation (2026-10-18)
+
+The [client-tenant CLI runbook](../operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) now covers registrations, consent, certificate/secret custody, first administrator, exact SharePoint grants, dedicated-site rollout, Exchange sender scope, mail/DNS alternatives, rotation, recovery and a private AI-agent handoff checklist. The [configuration reference](../operations/auditsphere-operations-reference-microsoft365-configuration-current.md) maps the complete base Compose input set and additional runtime/session/signing/provider settings to source owners. The optional isolation override example preserves data mounts and replaces the API parent credential mount with narrow capability mounts; it is not automatically deployed. The existing operator Wiki pages are published with the CLI procedure, configuration inventory and retained signing guidance; the Wiki revision is recorded in the execution ledger.
+
+Shell/PowerShell/Python syntax, input inventory, dummy-input Compose merges and documentation checks are recorded under `m365ClientTenantGuide` in [status.json](status.json). Customer/provider commands were not executed, no live settings were changed, and no application regression was run for this documentation work. Production live-worker composition, missing Azure credential/session wiring and integrated Exchange RBAC verification remain engineering/release gates; SMTP/Resend attachment limitations and privileged-mount prerequisites are explicit. Documentation completion promotes no professional, task-card or tenant-acceptance state.
+
+## Documentation reconciliation revalidation (2026-10-18)
+
+The documentation reconciliation report was revalidated against `master@d4bbef4d`; PR #46 and the companion PR #47 are already merged. The operative index now keeps Tasks 01–09 at technical-evidence-only, Task 10 `BLOCKED_DECISION`, and Task 11 `PARTIAL`. No task-card, professional-approval or external-gate status was promoted. The R2R index's two links to repository architecture guidance now target the canonical `master` files so the extracted task pack remains internally valid.
+
+Source integrity, Markdown health, naming, narrative-metric, task-pack, generated-board and diff checks passed. Fast CI `39134304836` passed on `d4bbef4d`; it predates this documentation refresh and is not full regression evidence. Full release run `39132911253` is pinned to `f5f96d9e`; Domain failed and API/E2E were still running at the 14:15 UTC observation. No application tests were run locally. See [the reconciliation report](auditsphere-execution-report-documentation-reconciliation-current.md) and [`status.json`](status.json) for the exact record.
+
+The earlier reversible client archive slice and its historical CI limits are retained verbatim in [the historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#reversible-client-archive-history-2026-10-18).
+
+The earlier firm receivables query slice and historical CI observations remain intact in [the historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#firm-receivables-age-all-posted-invoice-categories-2026-10-18).
+
+## Client relationship dates and retained history (2026-10-18)
+
+Commit `05406665c6d7e8ba1413b189d00d1cc1d5d12ba0` preserves revoked client relationships in the authorized hierarchy and reports `ACTIVE`, `FUTURE`, `EXPIRED`, or `REVOKED` using the current UTC date and the stored effective period. The legal-entity panel now displays the existing registration number and jurisdiction alongside legal name, tax identifier and entity type. Counterpart details remain omitted unless the actor has current authorization for both client records.
+
+Focused evidence on this source: the PostgreSQL Domain tests `OrganizationRelationships_BuildsHierarchy_AndEnforcesCycleAndBoundaryInvariants` and `OrganizationRelationships_PreservesEffectivePeriodAndProjectsCurrentStatus` passed 2/2; the Angular `client-relationships.spec.ts` passed 8/8; `bash scripts/contracts/verify-openapi.sh` passed; and the Angular production build passed with the existing `commercial/settings.scss` component-style budget warning (7.53 kB against 4.00 kB). Built-in-browser verification remains **NOT_VERIFIED** because the existing port 5029 tabs render only the workspace shell with no route content; I left that process untouched. No client records or live provider settings were changed.
+
+ASPM-CRM-02 remains PARTIAL: the product has no established client archival lifecycle or searchable archived-client history. Its direct fast CI run `39118460754` was cancelled after a newer commit; run `39119098499` failed OpenAPI contract drift on `954a623f` because `effectiveStatus` was missing from the generated contract. The contract was regenerated in `9fad72d0`; run `39119821556` passed on that parent SHA, and `39120222007` passed on `1f4e5430`. Full release run `39117606930` is pinned to `9f15c482`; its Domain job recorded the two failures described above and the run was cancelled before API/E2E completion. Detailed evidence is in [`status.json`](status.json#targetedVerification.aspmCrm02RelationshipHistory20261018). The previous lead-history slice's fast CI passed on commit `6819612a81c902bd278a1842b883e741b084edce` (run `39117697497`); its current browser acceptance remains unverified.
+
+## Retained lead action history (2026-10-18)
+
+ASPM-CRM-01 now retains append-only lead activity for creation, qualification, opportunity creation, proposal revision/review/marking as sent, acceptance or decline, and the exact client-conversion link. Each event is written with its business command; idempotent retries do not add duplicate events. The lead workspace projects source, current owner and creation time, plus a stable chronological history page capped at 200 events. Authorized staff can request older history with a lead-bound keyset cursor.
+
+Existing leads receive only a clearly marked metadata backfill for source, creation time and owner. It does not invent historical actors or actions, and the workspace identifies this legacy-history gap. The criterion remains PARTIAL because historical commercial actions cannot be reconstructed and manual browser acceptance is unavailable.
+
+Focused evidence on this source: the PostgreSQL Domain cohort passed 4/4, the Angular decoder/workspace spec passed 5/5, the API Release/OpenAPI emitter build passed with zero warnings and errors, OpenAPI drift and EF model-drift checks passed, and the Angular production build passed with the existing `commercial/settings.scss` budget warning (7.53 kB against 4.00 kB). Documentation checks and exact source SHA are recorded in [`status.json`](status.json#targetedVerification.aspmCrmLeadHistory20261018).
+
+Built-in-browser acceptance is **NOT_VERIFIED**. The existing API on port 5029 still serves a blank main area and the browser console reports a missing hashed Angular chunk; I left that long-running process untouched. No live provider, client data, professional decision or production gate was changed or accepted. The full release workflow on the preceding source commit `de8b6655d250867262550e998cd6d5fe46388977` is not a pass: its Domain job failed while API and Playwright jobs remained in progress at the last observation. Current-source CI is still required.
+
+## Pinned workflow task designation in queues (2026-10-18)
+
+Commit `e4c5fa5f6def0077662b784650ac8d66f53ba956` projects each templated task's Required/Optional designation from its exact firm, pinned template revision and step. Manual tasks return no designation. The Angular My Work list, board and calendar show the value as plain text. It is informational only and does not gate task completion, lifecycle transitions or professional review.
+
+Focused PostgreSQL coverage passed 1/1 in `EngagementWorkflowPlanTests.PlanPinsPublishedTemplateAndSchedule_AndRecoversRetryWithoutDuplicateTasks`; it verifies the old plan still reports Required/Optional after a later draft revision. The focused `work-queue.spec.ts` passed 18/18, including all three layouts and manual tasks. The OpenAPI emitter Release build passed with 0 warnings/errors, the generated contract is current, and the Angular production build passed with its existing `commercial/settings.scss` budget warning (7.53 kB against 4.00 kB). Fast CI run `39113115375` passed on the preceding source commit `aad8c8de`; full release verification run `39113751546` was dispatched against this exact source commit.
+
+Built-in browser smoke check on the current Angular dev server at port 4301 used the existing synthetic API at port 5029. The queue rendered its manual synthetic task without a Required/Optional label. That API process predates the new response field, so positive template-backed labels were not browser-verified; they are covered by the Angular spec. No business records were changed. ASPM-WF-02 remains PARTIAL: required-task graph semantics, broader role/accessibility acceptance and full release verification remain open.
+
+## Client portal invoice settlement projection (2026-10-18)
+
+ASPM-COM-06 remains `FOCUSED_PASS_BROWSER_SCOPE_LIMITED`: the focused server and Angular evidence is retained, but the client-role browser workflow and invoice-specific provider delivery receipt remain unverified. The detailed implementation packet and its constraints are preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md); current check status is in [`status.json`](status.json#targetedVerification.clientPortalInvoiceSettlement20261018).
+
+## Certification revocation versus reviewed staffing (2026-10-18)
+
+Added a deterministic PostgreSQL interleaving regression on source commit `8a01261066f5e105bd993ac999a61b840d2cff29`. The test pauses an independent certification revocation while it holds the firm publication lock, observes a previously reviewed higher-level assignment waiting on that lock, lets the revocation commit, and confirms the assignment is refused with no new assignment, staffing receipt or staffing grant. Its exact result and CI history are retained in [`status.json`](status.json#targetedVerification.staffingCertificationRevocationRace20261018) and the referenced status archive.
+
+ASPM-RES-02 remains PARTIAL: broader resource and release acceptance are still open. This backend transaction-ordering change has no new UI behavior; earlier synthetic-browser evidence for the certification status display remains scoped to that display only.
+
+## Recorded resource availability in the selected range (2026-10-18)
+
+The resource grid now returns and displays the exact saved leave, training and public-holiday entries that overlap its selected weeks, per staff member. Each entry shows its kind, inclusive start/end dates and recorded minutes per day. The projection exposes no private reason text and adds no inferred approval state. Existing aggregate capacity arithmetic and the firm-wide resource authorization boundary are unchanged.
+
+The source API response, generated OpenAPI schema, selected-range decoder, and focused Domain/Angular/browser checks cover the new projection. Exact commands and counts are recorded in [`status.json`](status.json#targetedVerification.resourceAvailabilityProjection20261018). Fast CI run `39109639455` passed on the exact source commit; it is not the full release regression suite. The existing local browser server on port 5029 still serves a shell whose route content is blank; that manual check remains blocked by the stale local host rather than treated as acceptance. ASPM-RES-01 remains PARTIAL pending broad role, range-boundary, responsive/accessibility and current release acceptance.
+
+Earlier resource-allocation evidence is retained in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#phase--and-risk-attributed-resource-allocations-2026-10-18).
+
+## Practice-management and workflow bounds (2026-10-18)
+
+Resource allocation eligibility, time-source billing reservation guards against reserved revision edits, and workflow dependency graph bounds (500-task / 4,000-edge limit) were verified with focused PostgreSQL regressions on commits `5996f36d` and `5e9a1eb5`. Exact test evidence is preserved in `status.json` (`targetedVerification.practiceResourceEligibility20261018`, `practiceResourcePhaseRisk20261018`, `workflowDependencyGraphLimit20261018`).
