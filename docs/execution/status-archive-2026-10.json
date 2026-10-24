@@ -24836,7 +24836,8 @@
         "status": "RUNNING_NOT_FULL_CI_PASS",
         "scope": "42ownedpaths coherent source-bound successor subset + docs; broaderTask11 stillpartial."
       },
-      "catalogFinalAuthority": "ActualRED2 after epoch/grant change during finalreadiness\u2192GREEN5 including originalguardcohort; held/frozen catalogue historyreads and disabledprepare/approve flags2PASS. FinalcurrentAPI rebuilt named successorjourney1PASS. Initialreview retained."
+      "catalogFinalAuthority": "ActualRED2 after epoch/grant change during finalreadiness\u2192GREEN5 including originalguardcohort; held/frozen catalogue historyreads and disabledprepare/approve flags2PASS. FinalcurrentAPI rebuilt named successorjourney1PASS. Initialreview retained.",
+      "precedingCiObservation": "Exactdd6full40084191819: Angular/Domain/build-contractsPASS; API/E2Erunning. Preserved for native/shared findings; not current30dc fullacceptance."
     },
     "bankLinkedScheduleGeneration20261024": {
       "scope": "PartialTask18 prerequisite: exact current generation of BOTH linked approved Bank schedules on create/review. Not typed booked-source adapter or T059 closure.",
@@ -24849,7 +24850,13 @@
       "green": "Same named existing workflow1PASS/0FAIL/0SKIP,58.5s; retains ledger100/statement90/timing-10 approvedhistory, refusesstalecasecreation andsyntheticcurrentBank/oldSchedule review without reviewer/statusmutations.",
       "checks": "Domain namedReleasebuild/test anddiffcheckPASS; no fullsuite/localAPI/UI/schema/provider run. Pure backend generationguard, notnewUIcontract.",
       "limits": "No concurrentinterleaving proof, typedsourceSnapshot persistence, respondent mapping/professionalapproval, externaldispatch or fullTask18acceptance. ExactnewsourceCI pending.",
-      "publication": "Coherent prerequisite prepared; exact commit/run tofollow."
+      "publication": {
+        "commit": "30dc24db64d74905f7f192ef4494645d8b00cc73",
+        "fullCiRun": 40085778730,
+        "sourceMatch": "MATCH",
+        "status": "RUNNING_NOT_FULL_CI_PASS",
+        "observed": "AngularPASS; Domain/API/E2E/build-contracts running. Focused local proof remains distinct."
+      }
     }
   },
   "archivedTargetedVerification": {

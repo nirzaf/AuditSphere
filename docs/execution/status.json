@@ -1713,8 +1713,8 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "dd6cf852afd4205d0e0afc6027cdd721d59c25bd",
-    "evidence": "Exact successor source MATCH; full release verification running. Prior bank run superseded without observed failed jobs/steps; no FULL_CI_PASS.",
-    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40084191819 RUNNING; not FULL_CI_PASS."
+    "sourceCommit": "30dc24db64d74905f7f192ef4494645d8b00cc73",
+    "evidence": "Exact bank-schedule guard source MATCH; Angular passed, remaining full jobs running. Prior successor run is separate; no FULL_CI_PASS.",
+    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40085778730 RUNNING; not FULL_CI_PASS."
   }
 }
