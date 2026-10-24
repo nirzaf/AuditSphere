@@ -59,6 +59,11 @@ public static partial class AuditFieldworkService
     await using var transaction = await db.Database.BeginTransactionAsync(ct);
     try
     {
+      var clientId = auth.ClientId;
+      await LockConfirmationScopeAsync(db, actor, request.EngagementId, ct);
+      auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
+      if (!auth.Succeeded || auth.ClientId != clientId)
+        return CommandResult<SamplingRunView>.Fail(auth.ErrorCode ?? ErrorCodes.ScopeDenied, auth.Message ?? "Access denied.");
       var procedure = await db.AuditProcedures.FromSqlInterpolated($"SELECT * FROM audit_procedures WHERE firm_id={actor.FirmId} AND id={request.ProcedureId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if (procedure is null || procedure.EngagementId != request.EngagementId || procedure.ClientId != auth.ClientId)
@@ -108,6 +113,12 @@ public static partial class AuditFieldworkService
       };
       db.AuditSamplingRuns.Add(run);
       await db.SaveChangesAsync(ct);
+      var currentSource = await AuditScheduleSourceWorkspace.CheckCurrentScheduleSourceAsync(
+        db, actor, sampling.ClientId, request.EngagementId, sampling.Schedule.Id, ct);
+      if (!currentSource.Succeeded) return CommandResult<SamplingRunView>.Fail(currentSource.ErrorCode!, currentSource.Message!);
+      auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
+      if (!auth.Succeeded || auth.ClientId != clientId)
+        return CommandResult<SamplingRunView>.Fail(auth.ErrorCode ?? ErrorCodes.ScopeDenied, auth.Message ?? "Access denied.");
       await transaction.CommitAsync(ct);
       return await GetSamplingRunAsync(db, actor, run.Id, ct);
     }
@@ -135,6 +146,13 @@ public static partial class AuditFieldworkService
     if (schedule is null) return Denied<PreparedSampling>();
     if (schedule.Status != AuditScheduleStatuses.Approved)
       return CommandResult<PreparedSampling>.Fail(ErrorCodes.GateBlocked, "Sample only from an approved schedule.");
+    var currentSource = await AuditScheduleSourceWorkspace.CheckCurrentScheduleSourceAsync(
+      db, actor, auth.ClientId, request.EngagementId, schedule.Id, ct);
+    if (!currentSource.Succeeded) return CommandResult<PreparedSampling>.Fail(currentSource.ErrorCode!, currentSource.Message!);
+    var clientId = auth.ClientId;
+    auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
+    if (!auth.Succeeded || auth.ClientId != clientId)
+      return CommandResult<PreparedSampling>.Fail(auth.ErrorCode ?? ErrorCodes.ScopeDenied, auth.Message ?? "Access denied.");
 
     var method = request.Method.Trim().ToUpperInvariant();
     var fields = request.AttributeFields?.Select(x => x?.Trim().ToUpperInvariant() ?? string.Empty)

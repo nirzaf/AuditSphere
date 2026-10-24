@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Globalization;
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
@@ -38,8 +39,10 @@ public sealed class AuditScheduleIntakeSourcesTests
     Assert.False(db.Database.HasPendingModelChanges());
   }
 
-  [Fact]
-  public async Task AcceptedPbcListingAndSelectedTbCapturePreserveAccountVarianceReceiptsAndOriginalRows()
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task AcceptedPbcListingAndSelectedTbCapturePreserveAccountVarianceReceiptsAndOriginalRows(bool balanced)
   {
     await using var pg = await PgTestSchema.CreateAsync();
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
@@ -134,7 +137,9 @@ public sealed class AuditScheduleIntakeSourcesTests
       // Seed raw TB membership only while LOADING; acceptance is a real independent service decision.
       var datasetId = Guid.NewGuid();
       var tbBytes = Encoding.UTF8.GetBytes("AccountCode,Amount,Currency,Entity\n" +
-        "0010,100,QAR,TEST ENTITY\n0020,100,QAR,TEST ENTITY\n4000,-200,QAR,TEST ENTITY\n");
+        (balanced
+          ? "0010,125,QAR,TEST ENTITY\n0020,75,QAR,TEST ENTITY\n4000,-200,QAR,TEST ENTITY\n"
+          : "0010,100,QAR,TEST ENTITY\n0020,100,QAR,TEST ENTITY\n4000,-200,QAR,TEST ENTITY\n"));
       var tbHash = Hashing.Sha256Hex(tbBytes);
       Guid decisionId;
       await using (var acceptTb = new AuditSphereDbContext(pg.Options))
@@ -149,7 +154,7 @@ public sealed class AuditScheduleIntakeSourcesTests
           ImportedByUserId = f.Staff.Id, ImportedAt = DateTimeOffset.UtcNow
         };
         acceptTb.TrialBalanceDatasets.Add(dataset);
-        acceptTb.TrialBalanceRows.AddRange(new[] { ("0010", 100m), ("0020", 100m), ("4000", -200m) }.Select(x =>
+        acceptTb.TrialBalanceRows.AddRange(new[] { ("0010", balanced ? 125m : 100m), ("0020", balanced ? 75m : 100m), ("4000", -200m) }.Select(x =>
           new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = datasetId, AccountCode = x.Item1,
             AccountName = "Synthetic " + x.Item1, Amount = x.Item2, Currency = "QAR", Entity = "TEST ENTITY" }));
         await acceptTb.SaveChangesAsync(ct);
@@ -180,9 +185,9 @@ public sealed class AuditScheduleIntakeSourcesTests
       Assert.Equal(200m, facts.ClosingControl);
       Assert.Equal(0m, facts.Residual);
       Assert.True(facts.HasCompleteListingCoverage);
-      Assert.False(facts.AllAccountsReconciled);
+      Assert.Equal(balanced, facts.AllAccountsReconciled);
       Assert.Equal(new[] { "0010", "0020" }, facts.AccountTieOuts.Select(x => x.AccountCode));
-      Assert.Equal(new[] { 25m, -25m }, facts.AccountTieOuts.Select(x => x.Difference));
+      Assert.Equal(balanced ? new[] { 0m, 0m } : new[] { 25m, -25m }, facts.AccountTieOuts.Select(x => x.Difference));
       Assert.Equal(new DateOnly(2025, 12, 15), facts.Rows[0].TransactionDate);
       Assert.Equal(receiptId, facts.PbcAcceptanceReceiptId);
       Assert.Equal(decisionId, facts.AcceptedTbDecisionId);
@@ -263,8 +268,8 @@ public sealed class AuditScheduleIntakeSourcesTests
         var preview = await AuditScheduleSourceWorkspace.PreviewCaptureAsync(command, staff, reader,
           f.EngagementId, captureId, captureFields, ct);
         Assert.True(preview.Succeeded, preview.Message);
-        Assert.Equal(new[] { "25.000000", "-25.000000" }, preview.Value!.Accounts.Select(x => x.Difference));
-        Assert.False(preview.Value.AllAccountsReconciled);
+        Assert.Equal(balanced ? new[] { "0.000000", "0.000000" } : new[] { "25.000000", "-25.000000" }, preview.Value!.Accounts.Select(x => x.Difference));
+        Assert.Equal(balanced, preview.Value.AllAccountsReconciled);
         captureRequest = new(captureId, preview.Value.CanonicalInput, preview.Value.ManifestHash,
           long.Parse(preview.Value.InputGeneration, CultureInfo.InvariantCulture),
           long.Parse(preview.Value.PeriodRevision, CultureInfo.InvariantCulture), preview.Value.RequestHash, true);
@@ -296,7 +301,7 @@ public sealed class AuditScheduleIntakeSourcesTests
         Assert.All(captures, captured => Assert.True(captured.Succeeded, captured.Message));
         Assert.Equal(captures[0].Value, captures[1].Value);
         originalCapture = captures[0].Value!;
-        Assert.Equal("UNRECONCILED", originalCapture.Receipt.Status); // Net-zero is not per-account reconciliation.
+        Assert.Equal(balanced ? "RECONCILED" : "UNRECONCILED", originalCapture.Receipt.Status); // Net-zero is not per-account reconciliation.
         Assert.Equal("200.000000", originalCapture.Receipt.SignedTotal);
         Assert.Equal("200.000000", originalCapture.Receipt.ClosingControl);
         Assert.Equal("0.000000", originalCapture.Receipt.Residual);
@@ -313,7 +318,7 @@ public sealed class AuditScheduleIntakeSourcesTests
         Assert.Equal(1, await repeatCapture.AuditSchedules.CountAsync(ct));
         var core = await repeatCapture.AuditSchedules.AsNoTracking().SingleAsync(ct);
         Assert.Equal(decisionId, core.AcceptedSourceDecisionId);
-        Assert.Equal("UNRECONCILED", core.Status);
+        Assert.Equal(balanced ? "RECONCILED" : "UNRECONCILED", core.Status);
         var legacyReview = await AuditFieldworkService.ReviewScheduleAsync(repeatCapture, reviewer,
           new(core.Id, "Legacy review cannot replace retained source review", false), ct);
         Assert.Equal(ErrorCodes.ProtectedState, legacyReview.ErrorCode);
@@ -340,7 +345,7 @@ public sealed class AuditScheduleIntakeSourcesTests
         var forgedApproval = await Assert.ThrowsAsync<PostgresException>(() => repeatCapture.Database.ExecuteSqlInterpolatedAsync(
           $"UPDATE audit_schedules SET status = 'APPROVED', completeness_decision = 'unrecorded' WHERE id = {scheduleId}", ct));
         Assert.Equal("23514", forgedApproval.SqlState);
-        Assert.Equal("UNRECONCILED", (await repeatCapture.AuditSchedules.AsNoTracking().SingleAsync(ct)).Status);
+        Assert.Equal(balanced ? "RECONCILED" : "UNRECONCILED", (await repeatCapture.AuditSchedules.AsNoTracking().SingleAsync(ct)).Status);
         Assert.Empty(await repeatCapture.AuditScheduleSourceReviews.AsNoTracking().ToListAsync(ct));
         var captureMigration = repeatCapture.Database.GetMigrations()
           .Single(x => x.EndsWith("_AuditScheduleSourceIntake", StringComparison.Ordinal));
@@ -353,6 +358,115 @@ public sealed class AuditScheduleIntakeSourcesTests
         Assert.Equal(1, await repeatCapture.AuditScheduleSourceCaptures.CountAsync(ct));
       }
 
+      // Independent review uses fresh command contexts; capture previews never confer approval.
+      var reviewFields = new AuditScheduleSourceReviewFields("APPROVE", "Exact selected accounts checked", "Synthetic retained listing");
+      var reviewRequestId = Guid.NewGuid();
+      var scheduleToReview = originalCapture.Receipt.ScheduleId;
+      async Task<AuditScheduleSourceReviewRequest> PreviewDecision(AuditScheduleSourceReviewFields fields, Guid id)
+      {
+        await using var previewDb = new AuditSphereDbContext(pg.Options);
+        var preview = await AuditScheduleSourceWorkspace.PreviewReviewAsync(previewDb, reviewer, reader,
+          f.EngagementId, scheduleToReview, id, fields, ct);
+        Assert.True(preview.Succeeded, preview.Message);
+        return new(id, scheduleToReview, preview.Value!.CaptureHash,
+          long.Parse(preview.Value.InputGeneration, CultureInfo.InvariantCulture), preview.Value.ReviewBasis,
+          preview.Value.CanonicalInput, preview.Value.RequestHash, true);
+      }
+      async Task<AuditScheduleSourceReceiptView?> SubmitDecision(AuditScheduleSourceReviewRequest request,
+        bool succeeds, string? code = null)
+      {
+        await using var commandDb = new AuditSphereDbContext(pg.Options);
+        var outcome = await AuditScheduleSourceWorkspace.ReviewAsync(commandDb, reviewer, reader,
+          f.EngagementId, request, ct);
+        Assert.Equal(succeeds, outcome.Succeeded);
+        if (succeeds) Assert.NotNull(outcome.Value);
+        else if (code is not null) Assert.Equal(code, outcome.ErrorCode);
+        return outcome.Value;
+      }
+      await using (var self = new AuditSphereDbContext(pg.Options))
+      {
+        var denied = await AuditScheduleSourceWorkspace.PreviewReviewAsync(self, staff, reader,
+          f.EngagementId, scheduleToReview, Guid.NewGuid(), reviewFields, ct);
+        Assert.False(denied.Succeeded);
+        Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+      }
+      await using (var currentReview = new AuditSphereDbContext(pg.Options))
+      {
+        var preview = await AuditScheduleSourceWorkspace.PreviewReviewAsync(currentReview, reviewer, reader,
+          f.EngagementId, scheduleToReview, reviewRequestId, reviewFields, ct);
+        Assert.True(preview.Succeeded, preview.Message);
+        Assert.True(preview.Value!.SourceCurrent);
+        Assert.Equal(balanced, preview.Value.CanApprove);
+      }
+      await using (var ioPreview = new AuditSphereDbContext(pg.Options))
+      {
+        var unavailable = await AuditScheduleSourceWorkspace.PreviewReviewAsync(ioPreview, reviewer,
+          new UnavailableSourceReader(), f.EngagementId, scheduleToReview, Guid.NewGuid(), reviewFields, ct);
+        Assert.True(unavailable.Succeeded, unavailable.Message);
+        Assert.False(unavailable.Value!.SourceCurrent);
+        Assert.False(unavailable.Value.CanApprove);
+        Assert.Equal(ErrorCodes.GateBlocked, unavailable.Value.SourceFailureCode);
+      }
+      var approval = await PreviewDecision(reviewFields, reviewRequestId);
+      await SubmitDecision(approval with { Reviewed = false }, false);
+      AuditScheduleSourceReviewRequest finalReviewRequest;
+      AuditScheduleSourceReceiptView? originalReview = null;
+      if (balanced)
+      {
+        finalReviewRequest = approval;
+        originalReview = await SubmitDecision(approval, true);
+      }
+      else
+      {
+        await SubmitDecision(approval, false, ErrorCodes.GateBlocked);
+        // This current-source RETURN basis must become stale when the accepted bytes disappear.
+        finalReviewRequest = await PreviewDecision(new("RETURN", "Per-account differences require rework", "Synthetic retained listing"),
+          Guid.NewGuid());
+      }
+
+      var currentProcedureId = Guid.NewGuid();
+      var unusedProcedureId = Guid.NewGuid();
+      var samplingRequest = new RunSamplingRequest(f.EngagementId, currentProcedureId, scheduleToReview,
+        "RANDOM", null, null, 1, 73, "Synthetic source-bound sample of the accepted listing.");
+      CreateSelectionRequest SelectionFor(Guid procedureId) => new(f.EngagementId, procedureId,
+        scheduleToReview, null, "ALL", "Synthetic complete accepted listing selection.",
+        [new("row-a", 125m, "QAR", "Complete listing"), new("row-b", 75m, "QAR", "Complete listing")]);
+      if (balanced)
+      {
+        await using var consumer = new AuditSphereDbContext(pg.Options);
+        consumer.AuditProcedures.AddRange(new[] { currentProcedureId, unusedProcedureId }.Select(id => new AuditProcedure
+        {
+          Id = id, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+          SourceProcedureId = id == currentProcedureId ? "SYNTHETIC-CURRENT" : "SYNTHETIC-UNUSED",
+          Title = "Synthetic listing source consumption",
+          ApplicabilityStatus = AuditApplicabilityStatuses.Applicable, Status = AuditProcedureStatuses.Planned,
+          CreatedAt = DateTimeOffset.UtcNow
+        }));
+        await consumer.SaveChangesAsync(ct);
+        var preview = await AuditFieldworkService.PreviewSamplingAsync(consumer, staff, samplingRequest, ct);
+        Assert.True(preview.Succeeded, preview.Message);
+        Assert.Equal(1, preview.Value!.Outcome.SelectedCount);
+        var selected = await AuditFieldworkService.CreateSelectionAsync(consumer, staff, SelectionFor(currentProcedureId), ct);
+        Assert.True(selected.Succeeded, selected.Message);
+        Assert.Equal(200m, selected.Value!.SelectedSignedTotal);
+      }
+      async Task AssertConsumersRefuseStaleSource()
+      {
+        await using var consumer = new AuditSphereDbContext(pg.Options);
+        var preview = await AuditFieldworkService.PreviewSamplingAsync(consumer, staff, samplingRequest, ct);
+        Assert.False(preview.Succeeded);
+        // Use a genuinely unused applicable procedure: duplicate selection must not mask source refusal.
+        var selected = await AuditFieldworkService.CreateSelectionAsync(consumer, staff, SelectionFor(unusedProcedureId), ct);
+        Assert.False(selected.Succeeded);
+        Assert.NotEqual(ErrorCodes.IdempotencyConflict, selected.ErrorCode);
+        Assert.Equal(1, await consumer.AuditSelections.CountAsync(ct));
+        Assert.Equal(2, await consumer.AuditSelectionItems.CountAsync(ct));
+        Assert.False(await consumer.AuditSelections.AnyAsync(x => x.ProcedureId == unusedProcedureId, ct));
+        var original = await consumer.AuditSelections.AsNoTracking().SingleAsync(ct);
+        Assert.Equal(currentProcedureId, original.ProcedureId);
+        Assert.Equal(originalCapture.Receipt.InputGeneration, original.InputGeneration.ToString(CultureInfo.InvariantCulture));
+      }
+
       // Last: change the actual staged file, retaining all real accepted receipts and provider bytes.
       var chunk = await resolve.PbcUploadChunks.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == staged.UploadIntentId, ct);
       var altered = (byte[])csv.Clone();
@@ -362,6 +476,52 @@ public sealed class AuditScheduleIntakeSourcesTests
         receiptId, decisionId, sourceDate, columns, ["0010", "0020"], ct);
       Assert.False(tampered.Succeeded);
       Assert.Equal("pbc.staging-unverifiable", tampered.ErrorCode);
+      if (balanced) await AssertConsumersRefuseStaleSource();
+      if (!balanced)
+      {
+        await SubmitDecision(finalReviewRequest, false, ErrorCodes.GenerationStale);
+        finalReviewRequest = await PreviewDecision(finalReviewRequest.Fields, finalReviewRequest.RequestId);
+        await using (var unavailable = new AuditSphereDbContext(pg.Options))
+        {
+          var preview = await AuditScheduleSourceWorkspace.PreviewReviewAsync(unavailable, reviewer, reader,
+            f.EngagementId, scheduleToReview, Guid.NewGuid(), reviewFields, ct);
+          Assert.True(preview.Succeeded, preview.Message);
+          Assert.False(preview.Value!.SourceCurrent);
+          Assert.False(preview.Value.CanApprove);
+          Assert.Equal("pbc.staging-unverifiable", preview.Value.SourceFailureCode);
+        }
+        originalReview = await SubmitDecision(finalReviewRequest, true);
+      }
+      Assert.NotNull(originalReview);
+      Assert.Equal(balanced ? "APPROVE" : "RETURN", originalReview.Receipt.Action);
+      Assert.Equal(balanced ? "APPROVED" : "UNRECONCILED", originalReview.Receipt.Status);
+      Assert.Equal(f.Reviewer.Id, originalReview.Receipt.ActorUserId);
+      Assert.Equal(originalCapture.Receipt.ManifestHash, originalReview.Receipt.ManifestHash);
+      Assert.Equal(originalReview, await SubmitDecision(finalReviewRequest, true));
+      var wrongReviewIntent = await PreviewDecision(finalReviewRequest.Fields with { Reason = "Different decision intent" },
+        finalReviewRequest.RequestId);
+      await SubmitDecision(wrongReviewIntent, false, ErrorCodes.IdempotencyConflict);
+      var replacementReview = await PreviewDecision(finalReviewRequest.Fields with { Reason = "Cannot overwrite retained decision" },
+        Guid.NewGuid());
+      await SubmitDecision(replacementReview, false, ErrorCodes.ProtectedState);
+      await using (var retained = new AuditSphereDbContext(pg.Options))
+      {
+        var reviewRow = await retained.AuditScheduleSourceReviews.AsNoTracking().SingleAsync(ct);
+        Assert.Equal(finalReviewRequest.Fields.Reason, reviewRow.Reason);
+        Assert.Equal(finalReviewRequest.Fields.EvidenceReference, reviewRow.EvidenceReference);
+        Assert.Equal(f.Reviewer.Id, reviewRow.ActorUserId);
+        Assert.Equal(originalReview.ReceiptHash, reviewRow.ReceiptHash);
+        Assert.Equal(JsonSerializer.Serialize(originalReview.Receipt), reviewRow.ReceiptJson);
+        Assert.Equal(originalReview.Receipt.Status, (await retained.AuditSchedules.AsNoTracking().SingleAsync(ct)).Status);
+        var immutableReview = await Assert.ThrowsAsync<PostgresException>(() => retained.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE audit_schedule_source_reviews SET reason = 'overwrite' WHERE id = {reviewRow.Id}", ct));
+        Assert.Equal("55000", immutableReview.SqlState);
+        var recovered = await AuditScheduleSourceWorkspace.GetReviewReceiptAsync(retained, reviewer,
+          f.EngagementId, finalReviewRequest.RequestId, finalReviewRequest.ExpectedRequestHash, ct);
+        Assert.True(recovered.Succeeded, recovered.Message);
+        Assert.True(recovered.Value!.Found);
+        Assert.Equal(originalReview, recovered.Value.Receipt);
+      }
       await using (var recover = new AuditSphereDbContext(pg.Options))
       {
         var lookup = await AuditScheduleSourceWorkspace.GetCaptureReceiptAsync(recover, staff,
@@ -378,6 +538,17 @@ public sealed class AuditScheduleIntakeSourcesTests
         Assert.Equal(originalCapture, receiptFirst.Value);
         Assert.Equal(1, await recover.AuditScheduleSourceCaptures.CountAsync(ct));
       }
+      if (balanced)
+      {
+        // Controlled SQL diagnostic only: restore genuine bytes, then advance the real generation fence.
+        // This isolates stale generation from missing-byte failure; it is not a supported business acceptance.
+        await File.WriteAllBytesAsync(chunk.StagedPath!, csv, ct);
+        await using var advance = new AuditSphereDbContext(pg.Options);
+        Assert.Equal(1, await advance.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE client_safety_states SET input_generation = input_generation + 1 WHERE firm_id = {f.FirmId} AND id = {f.ClientId}", ct));
+        await AssertConsumersRefuseStaleSource();
+        Assert.Equal("APPROVED", (await advance.AuditSchedules.AsNoTracking().SingleAsync(ct)).Status);
+      }
       Assert.Equal(1, await resolve.AuditSchedules.CountAsync(ct));
       Assert.Equal(2, await resolve.AuditScheduleRows.CountAsync(ct));
       Assert.DoesNotContain(resolve.ChangeTracker.Entries(), x =>
@@ -385,6 +556,12 @@ public sealed class AuditScheduleIntakeSourcesTests
     }
     finally { Directory.Delete(staged.StagingRoot, true); }
   }
+  private sealed class UnavailableSourceReader : IAuditScheduleSourceContentReader
+  {
+    public Task<CommandResult<byte[]>> ReadVerifiedAsync(PbcDownload download, string expectedSha256,
+      long expectedByteCount, CancellationToken ct) => throw new IOException("Synthetic staged-file open failure.");
+  }
+
   private sealed class InterruptScheduleSave : SaveChangesInterceptor
   {
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(

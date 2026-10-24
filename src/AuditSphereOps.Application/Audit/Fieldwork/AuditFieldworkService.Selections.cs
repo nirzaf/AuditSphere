@@ -44,6 +44,19 @@ public static partial class AuditFieldworkService
         return CommandResult<SelectionValue>.Fail(ErrorCodes.GateBlocked, "The source population is not approved.");
     }
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var clientId = auth.ClientId;
+    var typedSource = request.ScheduleId is { } sourceId && await db.AuditScheduleSourceCaptures.AsNoTracking()
+      .AnyAsync(x => x.FirmId == actor.FirmId && x.ScheduleId == sourceId, ct);
+    if (typedSource)
+    {
+      await LockConfirmationScopeAsync(db, actor, request.EngagementId, ct);
+      auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
+      if (!auth.Succeeded || auth.ClientId != clientId)
+        return CommandResult<SelectionValue>.Fail(auth.ErrorCode ?? ErrorCodes.ScopeDenied, auth.Message ?? "Access denied.");
+      var current = await AuditScheduleSourceWorkspace.CheckCurrentScheduleSourceAsync(
+        db, actor, clientId, request.EngagementId, request.ScheduleId!.Value, ct);
+      if (!current.Succeeded) return CommandResult<SelectionValue>.Fail(current.ErrorCode!, current.Message!);
+    }
     var generation = await CurrentGenerationAsync(db, auth.ClientId, actor.FirmId, ct);
     if (await db.AuditSelections.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == request.EngagementId &&
         x.ProcedureId == request.ProcedureId && x.ScheduleId == request.ScheduleId && x.PopulationVersionId == request.PopulationVersionId &&
@@ -79,6 +92,15 @@ public static partial class AuditFieldworkService
       InclusionReason = item.InclusionReason.Trim(), CreatedAt = selection.CreatedAt
     }));
     await db.SaveChangesAsync(ct);
+    if (typedSource)
+    {
+      var current = await AuditScheduleSourceWorkspace.CheckCurrentScheduleSourceAsync(
+        db, actor, clientId, request.EngagementId, request.ScheduleId!.Value, ct);
+      if (!current.Succeeded) return CommandResult<SelectionValue>.Fail(current.ErrorCode!, current.Message!);
+      auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
+      if (!auth.Succeeded || auth.ClientId != clientId)
+        return CommandResult<SelectionValue>.Fail(auth.ErrorCode ?? ErrorCodes.ScopeDenied, auth.Message ?? "Access denied.");
+    }
     if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<SelectionValue>.Ok(new(selection.Id, selection.SelectedCount, selection.SelectedSignedTotal, selection.Status));
   }

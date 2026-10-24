@@ -156,6 +156,68 @@ internal static class AuditScheduleIntakeSources
       Array.AsReadOnly(codes), ties, signedTotal, closingControl, residual, manifest, Hashing.Sha256Hex(manifest)));
   }
 
+  // Reuses the actual accepted-source fact owners without inventing a byte reader or
+  // reparsing retained rows. PrepareDownload verifies real staged chunk/count/hash receipts.
+  internal static async Task<CommandResult> CheckRetainedSourcesCurrentAsync(
+    IClientAccountingDbContext db, ActorContext actor, AuditScheduleSourceCapture capture, CancellationToken ct)
+  {
+    var authority = await AuthorizeAsync(db, actor, capture.ClientId, capture.EngagementId, ct);
+    if (!authority.Succeeded) return authority;
+    try
+    {
+      if (Hashing.Sha256Hex(capture.ManifestJson) != capture.ManifestHash)
+        return CommandResult.Fail(ErrorCodes.ProtectedState, "The retained schedule source manifest is inconsistent.");
+      using var document = JsonDocument.Parse(capture.ManifestJson);
+      var manifest = document.RootElement;
+      if (!manifest.TryGetProperty("Pbc", out var originalPbc) ||
+          !manifest.TryGetProperty("TrialBalance", out var originalTb))
+        return CommandResult.Fail(ErrorCodes.ProtectedState, "The retained source descriptors are unavailable.");
+      var pbc = await LoadPbcAsync(db, actor.FirmId, capture.ClientId, capture.EngagementId,
+        capture.PbcAcceptanceReceiptId, ct);
+      if (!pbc.Succeeded) return CommandResult.Fail(pbc.ErrorCode!, pbc.Message!);
+      var tb = await LoadTbAsync(db, actor, capture.ClientId, capture.EngagementId,
+        capture.AcceptedSourceDecisionId, capture.SourceDate, ct);
+      if (!tb.Succeeded) return CommandResult.Fail(tb.ErrorCode!, tb.Message!);
+      if (!SameRetainedFacts(originalPbc, pbc.Value!.Json) || !SameRetainedFacts(originalTb, tb.Value!.Json) ||
+          tb.Value.DatasetId != capture.TrialBalanceDatasetId || tb.Value.PeriodId != capture.PeriodId ||
+          tb.Value.PeriodRevision != capture.PeriodRevision || tb.Value.Generation != capture.InputGeneration)
+        return CommandResult.Fail(ErrorCodes.GenerationStale, "The captured schedule source or reporting context changed.");
+      var download = await PbcService.PrepareDownloadAsync(db, actor, pbc.Value.UploadIntentId, ct);
+      if (!download.Succeeded) return CommandResult.Fail(download.ErrorCode!, download.Message!);
+      if (download.Value is null || download.Value.FileName != pbc.Value.FileName ||
+          download.Value.ByteCount != pbc.Value.ByteCount)
+        return CommandResult.Fail(ErrorCodes.GenerationStale, "The accepted schedule content identity changed.");
+      // Recheck stored facts after filesystem awaits, even for a caller-owned transaction.
+      var finalPbc = await LoadPbcAsync(db, actor.FirmId, capture.ClientId, capture.EngagementId,
+        capture.PbcAcceptanceReceiptId, ct);
+      if (!finalPbc.Succeeded) return CommandResult.Fail(finalPbc.ErrorCode!, finalPbc.Message!);
+      var finalTb = await LoadTbAsync(db, actor, capture.ClientId, capture.EngagementId,
+        capture.AcceptedSourceDecisionId, capture.SourceDate, ct);
+      if (!finalTb.Succeeded) return CommandResult.Fail(finalTb.ErrorCode!, finalTb.Message!);
+      if (!SameRetainedFacts(originalPbc, finalPbc.Value!.Json) || !SameRetainedFacts(originalTb, finalTb.Value!.Json) ||
+          finalTb.Value.Generation != capture.InputGeneration || finalTb.Value.PeriodRevision != capture.PeriodRevision)
+        return CommandResult.Fail(ErrorCodes.GenerationStale, "The captured schedule source changed while reading evidence.");
+      return await AuthorizeAsync(db, actor, capture.ClientId, capture.EngagementId, ct);
+    }
+    catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+    {
+      ct.ThrowIfCancellationRequested();
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The accepted schedule source content is unavailable.");
+    }
+    catch (Exception error) when (error is JsonException or InvalidOperationException or FormatException or OverflowException)
+    {
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "The retained schedule source descriptors are inconsistent.");
+    }
+  }
+
+  private static bool SameRetainedFacts(JsonElement retained, string currentJson)
+  {
+    // Nesting may escape the same string differently. Compare all scalar/array/object facts,
+    // separately from the original manifest bytes, whose retained hash is verified above.
+    using var current = JsonDocument.Parse(currentJson);
+    return JsonElement.DeepEquals(retained, current.RootElement);
+  }
+
   private sealed record PbcFacts(Guid RequestId, long RequestRevision, string RequestState, Guid UploadIntentId,
     long UploadRevision, string FileName, string Hash, long ByteCount, string SourceDigest,
     string EntityScope, string PeriodStart, string PeriodEnd, string Json);

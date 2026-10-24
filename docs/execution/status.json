@@ -1019,6 +1019,19 @@
       "remaining": "Independent review commands, API/Angular and built-in acceptance; exact-source full CI pending. Original31 remains active; no deployment/live or professional acceptance.",
       "finalFocused": "38 PASS / 0 FAIL / 0 SKIP; source-capture database pair plus existing parser cohort. Includes failed staged-save cleanup with subsequent SaveChanges proving no leak, original receipt lookup after source tampering, wrong-intent conflict, concurrent same-request capture, per-account controls, immutable capture/rows, legacy review refusal, empty Down/Up and retained Down refusal.",
       "review": "Independent static review identified tracked early-failure cleanup and repeated SQL population scans; corrected and reverified. SQL uses scoped lookup objects/grouped aggregates; runtime scaling not benchmarked."
+    },
+    "scheduleSourceIndependentReview20261024": {
+      "status": "PARTIALLY_VERIFIED_BACKEND_API_UI_PENDING",
+      "baseline": "c55f1e0d185eb9e6c2b5ec6cc9be17565b425f66",
+      "scope": "Exact preview-bound independent approval/return, one immutable decision, original actor/session receipt recovery; typed source eligibility for sampling, selection creation and picker. Legacy/historical reads preserved.",
+      "checks": {
+        "initialReview": "3 PASS / 0 FAIL / 0 SKIP",
+        "consumerCohort": "4 PASS / 1 FAIL: raw JSON representation rejected a current source; legacy sampling/isolation and empty rollback passed.",
+        "affectedCorrection": "2 PASS / 0 FAIL / 0 SKIP after only descriptor value-comparison fix; matching/mismatching fixtures cover review, IO preview, replay/conflict, tamper and generation refusal."
+      },
+      "integrity": "Original manifest hash, source IDs/digests/context/generation and per-account gates unchanged.",
+      "limits": "API/UI and rendered workflow not implemented; broader selection/item-test and final-readiness source integration remains pending before intake release. Caller-owned transaction variants and runtime scaling not verified. No human/professional/provider approval. Full CI only through pipeline.",
+      "evidence": ".local/autonomous/evidence/schedule-intake-20261024/independent-review-review.json"
     }
   },
   "externalGates": [

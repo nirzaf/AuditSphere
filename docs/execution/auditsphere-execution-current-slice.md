@@ -14,13 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
-## Accepted listing source capture
+## Accepted listing source capture and review
 
-The intake backend retains complete original and normalized listing rows, explicit per-account accepted-TB controls, the exact capture intent, and the original actor-owned receipt in one transaction. Offsetting account differences cannot qualify merely because their net residual is zero. Concurrent retries retain one outcome, and original receipt lookup does not depend on mutable source bytes. Missing receipts remain uncertain outcomes rather than permission to create replacement requests.
+The backend atomically retains complete listing rows, exact selected-TB controls, independent approval/return and original actor-owned receipts. Offsetting account differences cannot qualify through a zero net residual. Return can record an unavailable-source refusal; recovery reads the original outcome before mutable source state. New sampling/selection and picker eligibility recheck typed source facts and bytes, while preserving historical evidence. Descriptor values are compared independently of the immutable manifest byte hash.
 
-Capture evidence and captured financial rows are immutable. Legacy binding/review paths cannot replace typed evidence; a dedicated independent review remains required. Retained evidence blocks destructive downgrade; empty rollback works. Original-cell expansion is bounded.
-
-See `status.json` for verification/publication. Independent review, API/Angular and rendered acceptance remain pending; whole-specification and professional/live acceptance are not established.
+Focused checks, correction evidence and exact-source CI are in `status.json`. API/UI, item-test/final-readiness source integration and rendered acceptance remain pending. This slice supplies no professional/live acceptance or whole-specification completion.
 
 ## Current confirmation, difference and native-successor work
 

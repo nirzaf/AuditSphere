@@ -30,3 +30,14 @@ public sealed record AuditScheduleSourceReceiptView(AuditScheduleSourceReceipt R
 
 /// <summary>Not found is not proof that an earlier in-flight request cannot still commit.</summary>
 public sealed record AuditScheduleSourceReceiptLookup(bool Found, AuditScheduleSourceReceiptView? Receipt);
+
+public sealed record AuditScheduleSourceReviewFields(string Action, string Reason, string EvidenceReference);
+
+public sealed record AuditScheduleSourceReviewRequest(Guid RequestId, Guid ScheduleId,
+  string ExpectedCaptureHash, long ExpectedInputGeneration, string ExpectedReviewBasis,
+  AuditScheduleSourceReviewFields Fields, string ExpectedRequestHash, bool Reviewed);
+
+public sealed record AuditScheduleSourceReviewPreview(Guid RequestId, Guid ScheduleId,
+  string CaptureHash, string InputGeneration, string ReviewBasis, string RequestHash,
+  AuditScheduleSourceReviewFields CanonicalInput, bool SourceCurrent, bool CanApprove,
+  string? SourceFailureCode, string Status, Guid? ExistingReviewId);

@@ -7,6 +7,41 @@ namespace AuditSphereOps.Application.Audit;
 
 public static partial class AuditScheduleSourceWorkspace
 {
+  public static async Task<CommandResult<AuditScheduleSourceReceiptLookup>> GetReviewReceiptAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid engagementId, Guid requestId,
+    string expectedRequestHash, CancellationToken ct = default)
+  {
+    if (requestId == Guid.Empty || !Hash(expectedRequestHash)) return Invalid<AuditScheduleSourceReceiptLookup>();
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<AuditScheduleSourceReceiptLookup>.Fail(ErrorCodes.ProtectedState,
+        "Receipt recovery requires its own read transaction.");
+    var auth = await AuditFieldworkService.AuthorizeScheduleReviewAsync(db, actor, engagementId, ct);
+    if (!auth.Succeeded) return Failure<Guid, AuditScheduleSourceReceiptLookup>(auth);
+    var clientId = auth.Value;
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await AuditFieldworkService.LockConfirmationScopeAsync(db, actor, engagementId, ct);
+    auth = await AuditFieldworkService.AuthorizeScheduleReviewAsync(db, actor, engagementId, ct);
+    if (!auth.Succeeded || auth.Value != clientId)
+      return CommandResult<AuditScheduleSourceReceiptLookup>.Fail(auth.ErrorCode ?? ErrorCodes.ScopeDenied,
+        auth.Message ?? "Access denied.");
+    var review = await db.AuditScheduleSourceReviews.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ActorUserId == actor.UserId && x.ActorEpoch == actor.SessionEpoch &&
+      x.RequestId == requestId, ct);
+    AuditScheduleSourceReceiptView? receipt = null;
+    if (review is not null)
+    {
+      if (review.ClientId != clientId || review.EngagementId != engagementId || review.RequestHash != expectedRequestHash)
+        return Conflict<AuditScheduleSourceReceiptLookup>();
+      var retained = ReadReviewReceipt(review);
+      if (!retained.Succeeded) return Failure<AuditScheduleSourceReceiptView, AuditScheduleSourceReceiptLookup>(retained);
+      receipt = retained.Value;
+    }
+    auth = await AuditFieldworkService.AuthorizeScheduleReviewAsync(db, actor, engagementId, ct);
+    if (!auth.Succeeded) return Failure<Guid, AuditScheduleSourceReceiptLookup>(auth);
+    await tx.CommitAsync(ct);
+    return CommandResult<AuditScheduleSourceReceiptLookup>.Ok(new(review is not null, receipt));
+  }
+
   /// <summary>Reads the original actor-owned outcome; absence never authorizes a replacement command.</summary>
   public static async Task<CommandResult<AuditScheduleSourceReceiptLookup>> GetCaptureReceiptAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid engagementId, Guid requestId,

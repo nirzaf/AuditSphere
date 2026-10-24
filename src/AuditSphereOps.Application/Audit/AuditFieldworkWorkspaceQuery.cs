@@ -184,6 +184,16 @@ public static class AuditFieldworkWorkspaceQuery
     }
     var schedules = await db.AuditSchedules.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.Status == AuditScheduleStatuses.Approved)
       .Select(x => new FieldworkSchedule(x.Id, x.ScheduleType, x.RowCount, x.Currency)).ToListAsync(ct);
+    var typedScheduleIds = await db.AuditScheduleSourceCaptures.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.ClientId == engagement!.PracticeClientId && x.EngagementId == engagementId)
+      .Select(x => x.ScheduleId).ToListAsync(ct);
+    var typedScheduleSet = typedScheduleIds.ToHashSet();
+    foreach (var schedule in schedules.Where(x => typedScheduleSet.Contains(x.Id)).ToArray())
+    {
+      var current = await AuditScheduleSourceWorkspace.CheckCurrentScheduleSourceAsync(
+        db, actor, engagement!.PracticeClientId, engagementId, schedule.Id, ct);
+      if (!current.Succeeded) schedules.Remove(schedule);
+    }
     var candidates = await AuditFieldworkService.EvidenceCandidatesAsync(db, actor, engagementId, ct);
     var physical = (await AuditFieldworkService.PhysicalItemsAsync(db, actor, engagementId, ct)).Select(x => new FieldworkPhysicalItem(x.Id, x.FileIndex, x.BoxReference,
       x.Description, x.CurrentLocation, x.Movements.Select(m => new FieldworkMovement(m.ToLocation, m.MovedAt)).ToList(), x.Procedures.Select(p => p.Title).ToList())).ToList();
