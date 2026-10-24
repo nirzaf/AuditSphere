@@ -897,7 +897,12 @@
           "remaining": "Historical partial allocations, unsupported cutoffs/nonzeroPL, publicACTIVE activation, broader whole31/currentCI and qualified/live acceptance."
         }
       },
-      "bankLinkedSources": "Focused RED1/GREEN1: linked Bank schedules must match current generation. PartialTask18; typed source binding pending. Archive: status-archive-2026-10.json#keys.bankLinkedScheduleGeneration20261024."
+      "bankLinkedSources": "Focused RED1/GREEN1: linked Bank schedules must match current generation. PartialTask18; typed source binding pending. Archive: status-archive-2026-10.json#keys.bankLinkedScheduleGeneration20261024.",
+      "periodEvidencePageFailure": {
+        "status": "Focused existingAngular spec17PASS; no productdefect observed; Task15 partial.",
+        "scope": "503 categorypage removes oldrecord/table/pagination; refresh displays onlyexactnewrecord/revision via adjacentRevisionfact; GETonly.",
+        "notRun": "No standalonebuild/fullsuite/builtin/AT; no packageclose/readiness acceptance."
+      }
     },
     "archivedOn20261024": {
       "entries": [
@@ -1508,9 +1513,9 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "1782dabd2d0718fe656a315f750b3e1dab5fd78f",
-    "evidence": "Exact-source 1782 release: Angular/Domain/build/contracts pass; API414PASS2FAIL, E2E336PASS2FAIL. Static route/base-helper checks repaired cd528c48, focusedAPI2PASS. Revocation click handling and Operations diagnostics published95cff915, focusedE2E2PASS; prior Operations cause unproven, current full acceptance not established. Native carry focused evidence is separate from this preceding full run.",
-    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40093743543 FAIL; not FULL_CI_PASS.",
-    "latestPublishedCorrection": "95cff915275a33cc231c60a099fcad8e506b5ea5"
+    "sourceCommit": "21ce80012f4fde4d2ca6049bc48293a9896b7f7a",
+    "evidence": "Exact full run source MATCH, RUNNING. Includes original-item carry and published API/E2E test corrections. Period-evidence regression follow-up is separate; no current full pass claimed.",
+    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40103517434 RUNNING; not FULL_CI_PASS.",
+    "precedingFull": "1782 run40093743543 terminal API414PASS2FAIL/E2E336PASS2FAIL; static checks and revocation helper repaired, Operations initialdenial cause unproven; diagnostics retained."
   }
 }

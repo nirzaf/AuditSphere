@@ -182,6 +182,61 @@ describe('exact accounting period record and handoffs', () => {
     http.expectNone(request => request.method !== 'GET');
   });
 
+  it('clears a prior evidence page after a 503 and restores only the refreshed page', () => {
+    const fixture = open();
+    read(record());
+    const root = fixture.nativeElement as HTMLElement;
+    const priorPageRecordId = id(2000);
+    expect(root.textContent).toContain(priorPageRecordId);
+    expect(root.textContent).toContain('9223372036854775807');
+
+    const next = Array.from(root.querySelectorAll('button')).find(button => button.textContent?.includes('Next evidence page'))!;
+    next.click();
+    TestBed.tick();
+    http.expectOne('/api/ui/accounting/periods/' + id(1) + '/evidence/books?page=2')
+      .flush({}, { status: 503, statusText: 'Service Unavailable' });
+    TestBed.tick();
+
+    expect(root.textContent).toContain('Temporarily unavailable. Retry shortly.');
+    expect(root.textContent).not.toContain(priorPageRecordId);
+    expect(root.textContent).not.toContain('Books · 27 records · Page');
+    expect(root.querySelector('[aria-label="Period evidence table scroll area"]')).toBeNull();
+    expect(root.querySelector('[aria-label="Period evidence pagination"]')).toBeNull();
+
+    const refresh = Array.from(root.querySelectorAll('button'))
+      .find(button => button.textContent?.includes('Refresh period evidence'))!;
+    refresh.click();
+    TestBed.tick();
+    http.expectOne('/api/ui/accounting/periods/' + id(1) + '/evidence')
+      .flush(evidenceIndex(id(1), id(10), 27));
+    TestBed.tick();
+    const refreshedRows = Array.from({ length: 25 }, (_, index) => ({
+      id: id(3000 + index),
+      code: index === 0 ? 'REFRESHED-BOOK' : `REFRESHED-${index}`,
+      basis: 'STATUTORY',
+      inclusionRule: 'ALL_ENTITIES',
+      currency: 'QAR',
+      status: 'ACTIVE',
+      revision: '3',
+    }));
+    http.expectOne('/api/ui/accounting/periods/' + id(1) + '/evidence/books?page=1')
+      .flush({ periodId: id(1), clientId: id(10), kind: 'books', page: 1, pageSize: 25, totalCount: 27, items: refreshedRows });
+    TestBed.tick();
+
+    expect(root.textContent).not.toContain('Temporarily unavailable. Retry shortly.');
+    expect(root.textContent).toContain('Page 1 of 2');
+    expect(root.textContent).toContain(id(3000));
+    expect(root.textContent).toContain('REFRESHED-BOOK');
+    const refreshedRow = Array.from(root.querySelectorAll('tbody tr'))
+      .find(row => row.textContent?.includes(id(3000)));
+    expect(refreshedRow).toBeDefined();
+    const revisionLabel = Array.from(refreshedRow?.querySelectorAll('dt') ?? [])
+      .find(term => term.textContent?.trim() === 'Revision');
+    expect(revisionLabel?.nextElementSibling?.textContent?.trim()).toBe('3');
+    expect(root.textContent).not.toContain(priorPageRecordId);
+    http.expectNone(request => request.method !== 'GET');
+  });
+
   it('rejects an evidence index with a mismatched client identity before requesting a category page', () => {
     const fixture = open();
     http.expectOne('/api/ui/accounting/periods/' + id(1)).flush(record());
