@@ -32,7 +32,9 @@ public sealed record CommercialPipelineCard(Guid Id, Guid LeadId, string LeadNam
 public sealed record CommercialPipelineStage(string Stage, int Count, IReadOnlyList<CommercialPipelineCurrencyTotal> Totals,
   int UnavailableCurrencyCount, IReadOnlyList<CommercialPipelineCard> Items, bool HasMore);
 
-public sealed record CommercialPipeline(IReadOnlyList<CommercialPipelineStage> Stages, int PageSize);
+public sealed record CommercialPipelineClient(Guid Id, string Name);
+public sealed record CommercialPipeline(IReadOnlyList<CommercialPipelineStage> Stages, int PageSize,
+  IReadOnlyList<CommercialPipelineClient>? Clients = null, bool ClientsHaveMore = false);
 
 /// <summary>
 /// Read-only cross-lead opportunity board grouped by the existing opportunity stages. It performs no stage change;
@@ -72,17 +74,23 @@ public static class CommercialPipelineQuery
     var query = db.Opportunities.AsNoTracking().Where(o => o.FirmId == actor.FirmId);
     if (service is not null) query = query.Where(o => o.ServiceRoute == service);
     if (currency is not null) query = query.Where(o => o.Currency == currency);
-    if (filter.ClientId is { } clientId) query = query.Where(o => o.PracticeClientId == clientId);
     if (unassigned) query = query.Where(o => o.OwnerUserId == null);
     else if (ownerId is { } owner) query = query.Where(o => o.OwnerUserId == owner);
+    var clientOptionsQuery = query;
+    if (filter.ClientId is { } clientId) query = query.Where(o => o.PracticeClientId == clientId);
     var stages = cursor is null ? Stages : [cursor.Stage];
 
     // Counts, totals and cards come from one observation, so a column never describes a different cohort.
     var snapshot = db.Database.CurrentTransaction is null
       ? await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct) : null;
     var columns = new List<CommercialPipelineStage>();
+    var clientOptions = new List<CommercialPipelineClient>();
     try
     {
+      clientOptions = await db.PracticeClients.AsNoTracking().Where(c => c.FirmId == actor.FirmId &&
+          clientOptionsQuery.Any(o => o.PracticeClientId == c.Id))
+        .OrderBy(c => c.CommercialName ?? c.LegalName).ThenBy(c => c.Id)
+        .Select(c => new CommercialPipelineClient(c.Id, c.CommercialName ?? c.LegalName)).Take(101).ToListAsync(ct);
       var groups = await query.Where(o => stages.Contains(o.Stage))
         .GroupBy(o => new { o.Stage, o.Currency })
         .Select(g => new { g.Key.Stage, g.Key.Currency, Count = g.Count(), Total = g.Sum(o => o.ExpectedFee) })
@@ -147,7 +155,8 @@ public static class CommercialPipelineQuery
     }
 
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
-    return auth.Succeeded ? CommandResult<CommercialPipeline>.Ok(new(columns, pageSize))
+    return auth.Succeeded ? CommandResult<CommercialPipeline>.Ok(new(columns, pageSize,
+      clientOptions.Take(100).ToArray(), clientOptions.Count > 100))
       : CommandResult<CommercialPipeline>.Fail(auth.ErrorCode!, "Pipeline unavailable.");
   }
 }

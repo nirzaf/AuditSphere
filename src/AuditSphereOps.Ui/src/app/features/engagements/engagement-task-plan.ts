@@ -44,6 +44,7 @@ const optionalEvidence = (value: unknown, path: string) => {
 };
 const planStep = obj({
   stepKey: str(80), templateStepId: guid, title: str(200), instructions: str(4000), phase: str(40),
+  taskGroupName: nullable(str(120)), requiredTask: nullable(bool),
   sortOrder: int, dueDate: nullable(date), plannedEffortMinutes: nullable(int),
   suggestedStaffingLevel: nullable(str(80)), selectedAssigneeUserId: nullable(guid),
   eligibleOwners: arr(ownerCandidate, 100), dependsOnStepKeys: arr(str(80), 100),
@@ -148,6 +149,7 @@ function isPendingPlan(value: unknown): value is PendingPlan {
             @for (step of preview.steps; track step.stepKey) {
               <li>
                 <h4>{{ step.sortOrder }}. {{ step.title }}</h4>
+                <p>Task group: {{ step.taskGroupName ?? 'Ungrouped' }} · {{ step.requiredTask === null ? 'Requiredness unavailable' : step.requiredTask ? 'Required' : 'Optional' }}</p>
                 <p>{{ step.instructions }}</p>
                 <p><audit-status [value]="step.phase" /> · {{ step.dueDate ?? 'No due date' }} · {{ step.plannedEffortMinutes ?? 'No effort estimate' }} min</p>
                 @if (step.dependsOnStepKeys.length) { <p>Prerequisites: {{ step.dependsOnStepKeys.join(', ') }}</p> }

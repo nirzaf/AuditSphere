@@ -35,10 +35,11 @@ public sealed record BillingInvoiceWorkspace(
   IReadOnlyList<BillingCreditNoteSummary> CreditNotes, bool CreditNotesHaveMore,
   IReadOnlyList<BillingPaymentTermsSummary> PaymentTerms, bool PaymentTermsHaveMore,
   bool CanSubmitPaymentTerms, bool CanReviewPaymentTerms,
-  bool CanIssueCreditNote, bool CanApproveInvoice, bool CanPostInvoice, bool CanSendInvoice);
+  bool CanIssueCreditNote, bool CanApproveInvoice, bool CanPostInvoice, bool CanSendInvoice,
+  IReadOnlyList<BillingInvoiceLineSource>? LineSources = null);
 
 /// <summary>Bounded invoice payment and credit-note context for the authorized finance workspace.</summary>
-public static class BillingInvoiceWorkspaceQuery
+public static partial class BillingInvoiceWorkspaceQuery
 {
   private const int PageLimit = 100;
   private const int PaymentTermsHistoryLimit = 20;
@@ -182,6 +183,8 @@ public static class BillingInvoiceWorkspaceQuery
     var canSend = (await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, account.PracticeClientId, RequiredRoles: BillingRoles, InternalOnly: true), ct)).Succeeded;
 
+    var lineSources = await ReadLineSourcesAsync(db, actor.FirmId, account.PracticeClientId,
+      detail.Value.Invoice.Currency ?? account.Currency, detail.Value.Lines, ct);
     if (!await BillingService.CanOpenInvoiceAsync(db, actor, invoiceId, ct))
       return CommandResult<BillingInvoiceWorkspace>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
@@ -190,6 +193,6 @@ public static class BillingInvoiceWorkspaceQuery
       allocations,
       creditRows.Take(PageLimit).ToArray(), creditRows.Count > PageLimit,
       visibleTerms, termsRows.Count > PaymentTermsHistoryLimit, canSubmitTerms, canReviewTerms, canIssue,
-      canApprove, canPost, canSend));
+      canApprove, canPost, canSend, lineSources));
   }
 }

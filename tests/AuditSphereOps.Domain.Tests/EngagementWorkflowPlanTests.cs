@@ -77,6 +77,10 @@ public sealed class EngagementWorkflowPlanTests
         new PreviewEngagementWorkflowPlanRequest(revisionId));
       Assert.True(preview.Succeeded, preview.Message);
       Assert.True(preview.Value!.CanExecute);
+      Assert.Equal("Planning", preview.Value.Steps[0].TaskGroupName);
+      Assert.True(preview.Value.Steps[0].RequiredTask);
+      Assert.Equal("Fieldwork", preview.Value.Steps[1].TaskGroupName);
+      Assert.False(preview.Value.Steps[1].RequiredTask);
       Assert.Equal(new DateOnly(2027, 4, 20), preview.Value!.Steps[0].DueDate);
       Assert.Equal(new DateOnly(2027, 4, 25), preview.Value.Steps[1].DueDate);
       Assert.Equal(schedule.Value!.Id, preview.Value!.MilestonePlanId);

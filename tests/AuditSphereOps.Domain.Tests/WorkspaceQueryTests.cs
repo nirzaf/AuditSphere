@@ -154,6 +154,8 @@ public sealed class WorkspaceQueryTests
     var board = (await CommercialPipelineQuery.GetAsync(db, admin)).Value!;
     Assert.Equal(CommercialPipelineQuery.Stages, board.Stages.Select(s => s.Stage));
     Assert.Equal(13, board.Stages.Sum(s => s.Count));
+    Assert.Equal(fixture.ClientId, Assert.Single(board.Clients!).Id);
+    Assert.False(board.ClientsHaveMore);
     Assert.DoesNotContain(board.Stages.SelectMany(s => s.Items), c => c.LeadName == "Foreign pipeline lead");
     var discovery = board.Stages[0];
     Assert.Equal((12, 10, true, 0), (discovery.Count, discovery.Items.Count, discovery.HasMore, discovery.UnavailableCurrencyCount));

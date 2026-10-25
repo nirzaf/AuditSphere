@@ -43,6 +43,18 @@ describe('Invoice exact read and allocation pagination', () => {
     const posted = open({ ...invoice(1), status: 'POSTED', postedAt: '2026-10-02T09:00:00Z' });
     expect((posted.nativeElement as HTMLElement).querySelector('[data-testid="invoice-sent-untracked"]')).toBeNull();
   });
+  it('opens only a validated exact line source and leaves unavailable sources without a link', () => {
+    const source = { lineId: id(70), kind: 'FEE_MILESTONE', state: 'AVAILABLE', sourceId: id(71), sourceRevision: 1,
+      feeAgreementId: id(72), workDate: null, durationMinutes: null, message: 'ADVANCE fee milestone.' };
+    const payload = { ...invoice(1), lines: [{ ...invoice(1).lines[0], id: id(70), source }] };
+    const host = open(payload).nativeElement as HTMLElement;
+    expect(host.querySelector('a[href="/app/finance/fee-agreements/' + id(72) + '"]')).not.toBeNull();
+    expect(host.textContent).toContain('billed revision 1');
+    http.expectNone(r => r.method !== 'GET');
+    const mismatch = open({ ...payload, lines: [{ ...payload.lines[0], source: { ...source, lineId: id(73) } }] });
+    expect(mismatch.componentInstance.invoice.data()).toBeNull();
+    expect(mismatch.nativeElement.querySelector('a[href="/app/finance/fee-agreements/' + id(72) + '"]')).toBeNull();
+  });
   it('offers section shortcuts that only move focus and keeps terms beside credit notes', () => {
     const host = open().nativeElement as HTMLElement;
     const shortcuts = Array.from(host.querySelectorAll<HTMLButtonElement>('nav[aria-label="Invoice sections"] button'));
@@ -53,6 +65,18 @@ describe('Invoice exact read and allocation pagination', () => {
     expect(Array.from(host.querySelectorAll('section h2')).map(h => h.id).slice(0, 6)).toEqual(
       ['invoice-heading', 'lines-heading', 'receipts-heading', 'payment-terms-heading', 'credits-heading', 'workflow-heading']);
     expect(host.querySelector('nav[aria-label="Breadcrumb"] a[href="/app/finance/invoices"]')).not.toBeNull();
+    http.expectNone(r => r.method !== 'GET');
+  });
+  it('starts in read mode and retains unsubmitted payment fields and assent when its disclosure closes', () => {
+    const f = open(), host = f.nativeElement as HTMLElement;
+    const panel = host.querySelector<HTMLDetailsElement>('details[data-action="receipt"]')!;
+    expect(panel.open).toBe(false);
+    panel.querySelector('summary')!.click();
+    expect(panel.open).toBe(true);
+    f.componentInstance.receiptForm.patchValue({ amount: '12.340001', reference: 'Exact receipt', reviewed: true });
+    panel.querySelector('summary')!.click();
+    panel.querySelector('summary')!.click();
+    expect(f.componentInstance.receiptForm.getRawValue()).toEqual({ amount: '12.340001', reference: 'Exact receipt', reviewed: true });
     http.expectNone(r => r.method !== 'GET');
   });
   it('rejects a wrong returned identity through HTTP without rendering invoice content or actions', () => {

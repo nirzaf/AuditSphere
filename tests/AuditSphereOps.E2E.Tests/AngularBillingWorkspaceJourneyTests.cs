@@ -102,6 +102,7 @@ public sealed class AngularBillingWorkspaceJourneyTests
       Assert.DoesNotContain("SYN-ANG-E2E-INV-001", invalid[0].GetProperty("body").GetString(), StringComparison.Ordinal);
     }
 
+    await page.Locator("details[data-action=\"receipt\"] > summary").ClickAsync();
     await page.GetByLabel("Payment amount (QAR)", new() { Exact = true }).FillAsync("40");
     await page.GetByLabel("Bank or cheque transaction reference", new() { Exact = true }).FillAsync("SYN-ANG-BANK-001");
     await page.GetByLabel("I reviewed the payment amount and transaction reference.", new() { Exact = true }).CheckAsync();
@@ -111,6 +112,7 @@ public sealed class AngularBillingWorkspaceJourneyTests
     await using (var db = host.CreateDbContext())
       receiptId = await db.Receipts.AsNoTracking().Where(x => x.Reference == "SYN-ANG-BANK-001").Select(x => x.Id).SingleAsync();
 
+    await page.Locator("details[data-action=\"allocation\"] > summary").ClickAsync();
     await page.GetByLabel("Receipt and available balance", new() { Exact = true }).SelectOptionAsync(receiptId.ToString("D"));
     await page.GetByLabel("Amount to allocate (QAR)", new() { Exact = true }).FillAsync("25");
     await page.GetByLabel("I reviewed this receipt, invoice and allocation amount.", new() { Exact = true }).CheckAsync();
@@ -154,6 +156,7 @@ public sealed class AngularBillingWorkspaceJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Verify the saved billing state", Exact = true })).ToHaveCountAsync(0);
 
+    await page.Locator("details[data-action=\"credit\"] > summary").ClickAsync();
     await page.GetByLabel("Credit note number", new() { Exact = true }).FillAsync("SYN-ANG-CN-001");
     await page.GetByLabel("Credit amount (QAR)", new() { Exact = true }).FillAsync("10");
     await page.GetByLabel("Reason", new() { Exact = true }).FillAsync("Synthetic reviewed adjustment");
@@ -173,6 +176,7 @@ public sealed class AngularBillingWorkspaceJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Verify the saved billing state", Exact = true })).ToHaveCountAsync(0);
     Assert.Equal(1, creditCalls);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, $"/app/practice/invoices/{invoiceId:D}", "axelor-invoice-read");
     var interceptedReceiptPage = false;
     var interceptedCreditPage = false;
     await page.RouteAsync("**/api/ui/finance/invoices/**", async interception =>

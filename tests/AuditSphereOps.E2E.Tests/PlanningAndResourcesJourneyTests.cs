@@ -316,6 +316,18 @@ public sealed class PlanningAndResourcesJourneyTests
     var row = page.Locator("tr[data-user='Sam Senior']");
     await Assertions.Expect(row).ToContainTextAsync("Over-allocated");
     await Assertions.Expect(row).ToContainTextAsync("30 / 20 h");
+    var inspectionWrites = 0;
+    page.Request += (_, request) => { if (request.Method == "POST") Interlocked.Increment(ref inspectionWrites); };
+    var details = row.Locator("button[aria-label^='Details for']").First;
+    await details.FocusAsync();
+    await details.PressAsync("Enter");
+    await Assertions.Expect(page.Locator("#cell-detail-heading")).ToBeFocusedAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Sam Senior · week of", Exact = false }))
+      .ToContainTextAsync("1800 minutes");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Close details", Exact = true }).ClickAsync();
+    await Assertions.Expect(details).ToBeFocusedAsync();
+    Assert.Equal(0, inspectionWrites);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/app/practice/resources", "axelor-resource-details");
 
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
   }

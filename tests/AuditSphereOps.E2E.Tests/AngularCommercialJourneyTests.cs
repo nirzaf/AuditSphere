@@ -601,6 +601,15 @@ public sealed class AngularCommercialJourneyTests
       Assert.Equal("Committed revision scope", proposals[1].Scope);
       Assert.Equal("Retried revision scope", proposals[2].Scope);
     }
+    await page.GetByLabel("Scope", new() { Exact = true }).FillAsync("Unsubmitted comparison draft");
+    await page.GetByLabel("Compare recorded revision", new() { Exact = true }).SelectOptionAsync(proposalId.ToString("D"));
+    var comparison = page.Locator("table.revision-comparison");
+    await Assertions.Expect(comparison).ToContainTextAsync("Original scope");
+    await Assertions.Expect(comparison).ToContainTextAsync("Retried revision scope");
+    await Assertions.Expect(comparison).ToContainTextAsync("1000");
+    await Assertions.Expect(page.GetByLabel("Scope", new() { Exact = true })).ToHaveValueAsync("Unsubmitted comparison draft");
+    Assert.Equal(3, revisionPosts);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, $"/ui/app/practice/proposals/{retryRequestId:D}", "axelor-proposal-comparison");
     Assert.Empty(errors);
   }
 
@@ -889,12 +898,12 @@ public sealed class AngularCommercialJourneyTests
     }
     await documents.GetByRole(AriaRole.Textbox, new() { Name = "Assigned Partner and team CVs", Exact = true }).FillAsync("Synthetic reviewed team draft");
     await documents.GetByRole(AriaRole.Textbox, new() { Name = "Deliverables timeline", Exact = true }).FillAsync("Synthetic delivery draft");
-    await page.Locator("audit-proposal > a").ClickAsync();
+    await page.Locator("audit-proposal").GetByRole(AriaRole.Link, new() { Name = "Leads", Exact = true }).ClickAsync();
     var dialog = page.GetByRole(AriaRole.Dialog);
     await Assertions.Expect(dialog.GetByRole(AriaRole.Heading, new() { Name = "Unsubmitted edits", Exact = true })).ToBeVisibleAsync();
     await dialog.GetByRole(AriaRole.Button, new() { Name = "Keep editing", Exact = true }).ClickAsync();
     await Assertions.Expect(documents.GetByRole(AriaRole.Textbox, new() { Name = "Deliverables timeline", Exact = true })).ToHaveValueAsync("Synthetic delivery draft");
-    await page.Locator("audit-proposal > a").ClickAsync();
+    await page.Locator("audit-proposal").GetByRole(AriaRole.Link, new() { Name = "Leads", Exact = true }).ClickAsync();
     await dialog.GetByRole(AriaRole.Button, new() { Name = "Save draft and continue", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Practice leads", Exact = true })).ToBeVisibleAsync();
     await page.GotoAsync(url);

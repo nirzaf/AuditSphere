@@ -31,7 +31,8 @@ const stage = obj({
   unavailableCurrencyCount: nat, items: arr(card, 50), hasMore: bool,
 });
 export type PipelineStage = ReturnType<typeof stage>;
-const pipeline = obj({ stages: arr(stage, PIPELINE_STAGES.length), pageSize: nat });
+const pipeline = obj({ stages: arr(stage, PIPELINE_STAGES.length), pageSize: nat,
+  clients: nullable(arr(obj({ id: guid, name: str(300) }), 100)), clientsHaveMore: nullable(bool) });
 
 /** Refuses a board whose cards, counts and totals do not describe one coherent cohort. */
 export function decodePipeline(value: unknown, path: string) {
@@ -44,8 +45,8 @@ export function decodePipeline(value: unknown, path: string) {
   return result;
 }
 
-interface Filters { owner: string; service: string; currency: string }
-const NO_FILTERS: Filters = { owner: '', service: '', currency: '' };
+interface Filters { owner: string; service: string; currency: string; clientId: string }
+const NO_FILTERS: Filters = { owner: '', service: '', currency: '', clientId: '' };
 
 @Component({
   selector: 'audit-commercial-pipeline',
@@ -60,6 +61,8 @@ const NO_FILTERS: Filters = { owner: '', service: '', currency: '' };
     .pipeline-card { border: 1px solid var(--as-control-border); border-radius: var(--as-radius-md); padding: 8px; overflow-wrap: anywhere; }
     .pipeline-card h3 { margin: 0 0 4px; font-size: 0.95rem; }
     .pipeline-card p { margin: 2px 0; }
+    .pipeline-board.pipeline-tables { display: block; }
+    .pipeline-tables .pipeline-stage { margin-block: 12px; }
     @media (max-width: 720px) { .pipeline-board { grid-template-columns: 1fr; } }
   `],
   template: `
@@ -73,16 +76,24 @@ const NO_FILTERS: Filters = { owner: '', service: '', currency: '' };
       </label>
       <label>Service route <input name="service" [(ngModel)]="draft.service" maxlength="100" /></label>
       <label>Currency <input name="currency" [(ngModel)]="draft.currency" maxlength="3" size="4" /></label>
+      <label>Client <select name="client" [(ngModel)]="draft.clientId"><option value="">Any client</option>
+        @for (client of board.data()?.clients ?? []; track client.id) { <option [value]="client.id">{{ client.name }}</option> }
+      </select></label>
       <button matButton="outlined" type="submit">Apply filters</button>
       <button matButton type="button" (click)="clearFilters()" [disabled]="!hasFilters()">Clear filters</button>
     </form>
+    @if (board.data()?.clientsHaveMore) { <p>Client choices show the first 100 matching clients. Narrow owner, service or currency to find another client.</p> }
+    <div class="pipeline-filters">
+      <label>Display <select aria-label="Pipeline display" [value]="display()" (change)="display.set($any($event.target).value)"><option value="board">Board</option><option value="table">Table</option></select></label>
+      <label>Stages <select aria-label="Pipeline stage display" [value]="stageScope()" (change)="stageScope.set($any($event.target).value)"><option value="all">All stages</option><option value="open">Open stages</option><option value="closed">Won and lost</option></select></label>
+    </div>
     <p class="pipeline-scope">Counts and expected-fee totals cover every opportunity matching the filters. Each currency is totalled
       separately; nothing is converted or weighted by probability. Cards load one page at a time.</p>
     <audit-state [loading]="board.loading()" [error]="board.error()" label="opportunity pipeline" />
     @if (moreError()) { <p role="alert">{{ moreError() }}</p> }
     @if (columns(); as stages) {
-      <div class="pipeline-board">
-        @for (column of stages; track column.stage) {
+      <div class="pipeline-board" [class.pipeline-tables]="display() === 'table'">
+        @for (column of stages; track column.stage) { @if (showsStage(column.stage)) {
           <section class="pipeline-stage" [attr.aria-labelledby]="'pipeline-' + column.stage">
             <h2 [id]="'pipeline-' + column.stage"><span>{{ stageLabel(column.stage) }}</span><span>{{ column.count }}</span></h2>
             <ul class="pipeline-totals" [attr.aria-label]="stageLabel(column.stage) + ' expected fees by currency'">
@@ -92,9 +103,20 @@ const NO_FILTERS: Filters = { owner: '', service: '', currency: '' };
               @if (column.unavailableCurrencyCount > 0) { <li>{{ column.unavailableCurrencyCount }} with an unavailable currency, not totalled</li> }
             </ul>
             @if (column.count > 0) { <p class="pipeline-window">Showing {{ column.items.length }} of {{ column.count }}</p> }
+            @if (display() === 'table') {
+              <div class="table-scroll"><table><caption>{{ stageLabel(column.stage) }} opportunities · same loaded records as the board</caption>
+                <thead><tr><th scope="col">Opportunity / client</th><th scope="col">Service / period</th><th scope="col">Owner</th><th scope="col">Expected fee</th><th scope="col">Proposal / next action</th></tr></thead>
+                <tbody>@for (item of column.items; track item.id) { <tr [attr.data-opportunity-id]="item.id">
+                  <td><a [routerLink]="['/app/practice/leads', item.leadId]">{{ item.leadName }}</a><small>{{ item.clientName ?? 'No converted client' }} · {{ item.id }}</small></td>
+                  <td>{{ item.serviceRoute }} · {{ item.periodStart }} to {{ item.periodEnd }}</td><td>{{ ownerLabel(item) }}</td>
+                  <td>{{ item.expectedFee | money }} {{ item.currency }}</td><td>@if (item.proposalId) { <a [routerLink]="['/app/practice/proposals', item.proposalId]">Proposal revision {{ item.proposalRevision }}</a> · {{ proposalLabel(item.proposalStatus) }} } @else { No proposal yet }
+                    @if (item.nextAction) { <p>{{ item.nextAction }}</p> }</td>
+                </tr> } @empty { <tr><td colspan="5">No opportunities in this stage.</td></tr> }</tbody>
+              </table></div>
+            } @else {
             <ul class="pipeline-cards" [attr.aria-label]="stageLabel(column.stage) + ' opportunities'">
               @for (item of column.items; track item.id) {
-                <li><article class="pipeline-card">
+                <li><article class="pipeline-card" [attr.data-opportunity-id]="item.id">
                   <h3><a [routerLink]="['/app/practice/leads', item.leadId]">{{ item.leadName }}</a></h3>
                   <p>{{ item.serviceRoute }} · {{ item.periodStart }} to {{ item.periodEnd }}</p>
                   @if (item.clientName) { <p>Client: {{ item.clientName }}</p> }
@@ -108,12 +130,13 @@ const NO_FILTERS: Filters = { owner: '', service: '', currency: '' };
                 </article></li>
               }
             </ul>
+            }
             @if (column.hasMore) {
               <button matButton type="button" (click)="loadMore(column)" [disabled]="loadingMore() !== null">
                 {{ loadingMore() === column.stage ? 'Loading…' : 'Show more ' + stageLabel(column.stage).toLowerCase() }}</button>
             }
           </section>
-        }
+        } }
       </div>
     }
   `,
@@ -122,12 +145,18 @@ export class CommercialPipeline {
   private readonly api = inject(Api);
   draft: Filters = { ...NO_FILTERS };
   private readonly filters = signal<Filters>({ ...NO_FILTERS });
+  readonly display = signal<'board' | 'table'>('board');
+  readonly stageScope = signal<'all' | 'open' | 'closed'>('all');
+  showsStage(stage: PipelineStageName): boolean {
+    return this.stageScope() === 'all' || (this.stageScope() === 'closed') === (stage === 'WON' || stage === 'LOST');
+  }
   readonly board = this.api.resource(() => {
     const params = new URLSearchParams();
-    const { owner, service, currency } = this.filters();
+    const { owner, service, currency, clientId } = this.filters();
     if (owner) params.set('owner', owner);
     if (service) params.set('service', service);
     if (currency) params.set('currency', currency);
+    if (clientId) params.set('clientId', clientId);
     const query = params.toString();
     return '/api/ui/pipeline' + (query ? '?' + query : '');
   }, decodePipeline, 'The pipeline requires a firm-wide Administrator, Partner, Manager or Relationship Manager assignment.');
@@ -148,7 +177,7 @@ export class CommercialPipeline {
 
   apply(): void {
     this.moreError.set('');
-    this.filters.set({ owner: this.draft.owner, service: this.draft.service.trim(), currency: this.draft.currency.trim().toUpperCase() });
+    this.filters.set({ owner: this.draft.owner, service: this.draft.service.trim(), currency: this.draft.currency.trim().toUpperCase(), clientId: this.draft.clientId });
   }
   clearFilters(): void { this.draft = { ...NO_FILTERS }; this.apply(); }
   stageLabel(value: PipelineStageName): string { return STAGE_LABELS[value]; }
@@ -170,10 +199,11 @@ export class CommercialPipeline {
     this.loadingMore.set(column.stage);
     this.moreError.set('');
     const params = new URLSearchParams({ stage: column.stage, beforeCreatedAt: last.createdAt, beforeId: last.id });
-    const { owner, service, currency } = this.filters();
+    const { owner, service, currency, clientId } = this.filters();
     if (owner) params.set('owner', owner);
     if (service) params.set('service', service);
     if (currency) params.set('currency', currency);
+    if (clientId) params.set('clientId', clientId);
     try {
       const next = await this.api.get('/api/ui/pipeline?' + params.toString(), decodePipeline);
       const page = next.stages.length === 1 && next.stages[0].stage === column.stage ? next.stages[0] : null;

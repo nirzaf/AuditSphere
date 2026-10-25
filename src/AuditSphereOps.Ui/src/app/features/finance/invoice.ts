@@ -3,16 +3,30 @@ import { AbstractControl, FormBuilder, ReactiveFormsModule, Validators } from '@
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, routeGuid } from '../../core/api';
-import { arr, bool, date, dec, guid, instant, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, date, dec, guid, instant, nat, nullable, obj, oneOf, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 
 const positiveAmount = Validators.pattern(/^\d+(?:\.\d{1,6})?$/);
 
+const invoiceLine = obj({ id: nullable(guid), description: text, quantity: dec, unitPrice: dec, lineTotal: dec,
+  source: nullable(obj({ lineId: guid, kind: oneOf('MANUAL', 'FEE_MILESTONE', 'TIME', 'SOURCE'),
+    state: oneOf('MANUAL', 'AVAILABLE', 'UNAVAILABLE'), sourceId: nullable(guid), sourceRevision: nullable(nat),
+    feeAgreementId: nullable(guid), workDate: nullable(date), durationMinutes: nullable(nat), message: text })) });
+const decodeInvoiceLine: typeof invoiceLine = (value, path) => {
+  const line = invoiceLine(value, path), source = line.source;
+  if (source && (!line.id || source.lineId !== line.id ||
+      (source.state === 'AVAILABLE' && (!source.sourceId || source.sourceRevision === null ||
+        (source.kind === 'FEE_MILESTONE' ? !source.feeAgreementId : source.kind !== 'TIME'))) ||
+      (source.state !== 'AVAILABLE' && (source.sourceId !== null || source.feeAgreementId !== null))))
+    throw new Error('Invoice source does not match its exact line.');
+  return line;
+};
+
 export const decodeInvoice = obj({
   id: guid, billingAccountId: guid, invoiceNumber: text, currency: nullable(text), subtotal: dec, tax: dec, total: dec, revision: nat, status: text,
   createdAt: instant, postedAt: nullable(instant), outstanding: dec, credited: dec, allocated: dec, canAct: bool,
-  lines: arr(obj({ description: text, quantity: dec, unitPrice: dec, lineTotal: dec }), 5000),
+  lines: arr(decodeInvoiceLine, 5000),
   allocations: arr(obj({ id: guid, receiptId: guid, receiptReference: text, currency: text, createdAt: instant,
     amount: dec, appliedAfterReversals: dec, reversed: dec, remainingToReverse: dec, latestReversalRevision: nat,
     canRequestReversal: bool, canReviewReversal: bool,
@@ -68,7 +82,15 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
         <h2 id="lines-heading" tabindex="-1">Invoice line items</h2>
         <div class="table-scroll"><table><caption class="sr-only">Invoice lines</caption>
           <thead><tr><th scope="col">Description</th><th scope="col" class="number">Quantity</th><th scope="col" class="number">Unit price</th><th scope="col" class="number">Total</th></tr></thead>
-          <tbody>@for (l of i.lines; track $index) { <tr><td>{{ l.description }}</td><td class="number">{{ l.quantity | money }}</td><td class="number">{{ l.unitPrice | money }}</td><td class="number">{{ l.lineTotal | money }}</td></tr> }
+          <tbody>@for (l of i.lines; track $index) { <tr><td>{{ l.description }}
+            @if (l.source; as source) {
+              <details><summary>Source evidence · {{ source.kind }}</summary><p>{{ source.message }}</p>
+                @if (source.sourceId) { <p>Source <code>{{ source.sourceId }}</code> · billed revision {{ source.sourceRevision }}</p> }
+                @if (source.workDate) { <p>Work date {{ source.workDate }} · {{ source.durationMinutes }} minutes</p> }
+                @if (source.feeAgreementId) { <a [routerLink]="['/app/finance/fee-agreements', source.feeAgreementId]">Open exact fee settlement</a> }
+              </details>
+            } @else { <small>Source detail was not supplied by this server.</small> }
+          </td><td class="number">{{ l.quantity | money }}</td><td class="number">{{ l.unitPrice | money }}</td><td class="number">{{ l.lineTotal | money }}</td></tr> }
           @empty { <tr><td colspan="4">No line items recorded on this invoice.</td></tr> }</tbody>
           <tfoot><tr><td colspan="3" class="number">Total</td><td class="number">{{ linesTotal(i.lines) | money }}</td></tr></tfoot></table></div>
       </section>
@@ -142,6 +164,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
         }
         @if (i.canAct) {
           <h3>Record a payment</h3>
+          <details data-action="receipt"><summary>Prepare payment receipt</summary>
           <p>Record the bank or cheque reference first. Then allocate available funds to posted invoices in this billing account.</p>
           <form [formGroup]="receiptForm" (ngSubmit)="recordReceipt(i)">
             <label for="receipt-amount">Payment amount ({{ i.currency ?? 'billing currency' }})</label>
@@ -155,8 +178,10 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
             <label class="check"><input type="checkbox" formControlName="reviewed" /> I reviewed the payment amount and transaction reference.</label>
             <button matButton="filled" type="submit" [disabled]="busy() || uncertain() || receiptForm.invalid">Record receipt</button>
           </form>
+          </details>
           @if (i.status === 'POSTED' || i.status === 'SENT') {
             <h3>Allocate a recorded receipt</h3>
+            <details data-action="allocation"><summary>Prepare receipt allocation</summary>
             @if (receiptsWithBalance().length) {
               <form [formGroup]="allocationForm" (ngSubmit)="allocate(i)">
                 <label for="allocation-receipt">Receipt and available balance</label>
@@ -172,6 +197,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
                 <button matButton="filled" type="submit" [disabled]="busy() || uncertain() || allocationForm.invalid">Allocate receipt</button>
               </form>
             } @else { <p>No unallocated receipts are available for this billing account.</p> }
+            </details>
           } @else { <p>Receipt allocation is available after the invoice is posted.</p> }
         }
       </section>
@@ -187,6 +213,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
         @if (i.paymentTermsHaveMore) { <p>Showing the latest 20 term revisions. Earlier immutable revisions remain retained in the billing history.</p> }
         @if (i.canSubmitPaymentTerms) {
           <h3>Propose a payment-terms revision</h3>
+          <details data-action="terms"><summary>Prepare payment terms</summary>
           <form [formGroup]="termsForm" (ngSubmit)="submitTerms(i)">
             <label for="terms-due-date">Contractual due date</label><input id="terms-due-date" type="date" formControlName="dueDate" />
             @if (termsForm.controls.dueDate.touched && termsForm.controls.dueDate.invalid) { <p role="alert">Select the date required by the contract.</p> }
@@ -200,6 +227,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
             <label class="check"><input type="checkbox" formControlName="reviewed" /> I checked the due date against the referenced contractual evidence.</label>
             <button matButton="filled" type="submit" [disabled]="busy() || uncertain() || termsForm.invalid">Submit terms for independent review</button>
           </form>
+          </details>
         }
         @if (i.canReviewPaymentTerms) {
           @if (i.paymentTerms[0]; as t) {
@@ -224,6 +252,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
         @if (creditHistoryMessage()) { <p role="alert">{{ creditHistoryMessage() }}</p> }
         @if (i.canIssueCreditNote && (i.status === 'POSTED' || i.status === 'SENT')) {
           <h3>Issue a credit note</h3>
+          <details data-action="credit"><summary>Prepare credit note</summary>
           <form [formGroup]="creditForm" (ngSubmit)="issueCredit(i)">
             <label for="credit-note-number">Credit note number</label><input id="credit-note-number" formControlName="noteNumber" maxlength="64" autocomplete="off" />
             @if (creditForm.controls.noteNumber.touched && creditForm.controls.noteNumber.invalid) { <p role="alert">Enter a credit note number up to 64 characters.</p> }
@@ -235,6 +264,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
             <label class="check"><input type="checkbox" formControlName="reviewed" /> I reviewed the credit note number, amount and reason.</label>
             <button matButton="filled" type="submit" [disabled]="busy() || uncertain() || creditForm.invalid">Issue credit note</button>
           </form>
+          </details>
         }
       </section>
       @if (i.canAct) {

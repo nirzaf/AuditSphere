@@ -103132,6 +103132,74 @@
           }
         }
       },
+      "BillingInvoiceLineSource": {
+        "required": [
+          "lineId",
+          "kind",
+          "state",
+          "sourceId",
+          "sourceRevision",
+          "feeAgreementId",
+          "workDate",
+          "durationMinutes",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "lineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "sourceRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "feeAgreementId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "workDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "durationMinutes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "BillingPaymentTermsSummary": {
         "required": [
           "id",
@@ -111916,6 +111984,19 @@
               "string"
             ],
             "format": "int32"
+          },
+          "clients": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CommercialPipelineClient"
+            }
+          },
+          "clientsHaveMore": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -112041,6 +112122,22 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "CommercialPipelineClient": {
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -122846,6 +122943,23 @@
             "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
             "type": "string",
             "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "source": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BillingInvoiceLineSource"
+              }
+            ]
+          },
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -158683,6 +158797,18 @@
             "items": {
               "$ref": "#/components/schemas/WorkflowPlanEvidenceRequirementPreview"
             }
+          },
+          "taskGroupName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "requiredTask": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },

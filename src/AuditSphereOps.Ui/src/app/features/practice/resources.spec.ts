@@ -174,17 +174,20 @@ describe('Resource planning forms', () => {
     ).toContain('approved actual 10 hours');
     f.destroy();
   });
-  it('opens read-only staff/week details and filters the loaded grid without any write', () => {
+  it('opens read-only staff/week details and filters the loaded grid without any write', async () => {
     const f = setup();
     const host = f.nativeElement as HTMLElement;
     (host.querySelector('button[aria-label="Details for Synthetic planner week of 2026-10-04"]') as HTMLButtonElement).click();
     TestBed.tick();
+    await new Promise(resolve => setTimeout(resolve));
+    expect(document.activeElement?.id).toBe('cell-detail-heading');
     const detail = host.querySelector('section[aria-labelledby="cell-detail-heading"]')!.textContent!;
     expect(detail).toMatch(/Net capacity\s*20 h/);
     expect(detail).toContain('planned utilization 150%');
     expect(detail).toMatch(/Approved actual time, all classifications\s*10 h/);
     expect(detail).toContain('actual billable utilization 50%');
     expect(detail).toContain('Over-allocated: planned allocation exceeds net capacity.');
+    expect(detail).toContain('2026-10-05 to 2026-10-06 · 480 minutes per working day');
     expect(host.querySelector(`section[aria-labelledby="cell-detail-heading"] a[href="/app/engagements/${engagement}"]`)).not.toBeNull();
     const filter = host.querySelector('.resource-filter input') as HTMLInputElement;
     filter.value = 'audit';
@@ -196,6 +199,12 @@ describe('Resource planning forms', () => {
     filter.dispatchEvent(new Event('input'));
     TestBed.tick();
     expect(host.textContent).toContain('Showing 1 of 1 team members.');
+    f.componentInstance.teamFilter.set('current qualification');
+    f.componentInstance.overAllocatedOnly.set(true);
+    TestBed.tick();
+    expect(host.textContent).toContain('Showing 1 of 1 team members.');
+    host.querySelector<HTMLButtonElement>('section[aria-labelledby="cell-detail-heading"] button')!.click();
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Details for Synthetic planner week of 2026-10-04');
     http.expectNone((r) => r.method !== 'GET');
     f.destroy();
   });

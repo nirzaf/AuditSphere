@@ -52,6 +52,44 @@ const proposal = {
   },
   versions: [],
 };
+describe('explicit proposal revision comparison', () => {
+  const priorId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const current = decodeProposal({ ...proposal, versions: [{ id: priorId, revision: '2', status: 'SUPERSEDED',
+    fee: '12000', currency: 'USD', createdAt: '2026-01-01T00:00:00Z', sentAt: null, responseAt: null }] });
+  function workspace(result: unknown = { ...proposal, id: priorId, revision: '2', fee: '12000', currency: 'USD', scope: 'Prior scope' }) {
+    const get = vi.fn(() => of(result));
+    const w = Object.assign(Object.create(ProposalDetail.prototype) as object, {
+      comparisonToken: 0, comparison: signal<ReturnType<typeof decodeProposal> | null>(null), comparisonRevisionId: signal(''),
+      comparisonLoading: signal(false), comparisonMessage: signal(''), data: signal<ReturnType<typeof decodeProposal> | null>(current),
+      http: { get }, session: { current: () => ({ staff: true }), invalidation: () => 0, clear: vi.fn() },
+      error: signal(''), reviewed: true, draft: { scope: 'Unsaved current input' },
+    }) as unknown as ProposalDetail;
+    return { w, get };
+  }
+  it('compares only an explicitly selected recorded revision without changing draft, assent or fee precision', () => {
+    const { w, get } = workspace();
+    w.compareRevision(priorId);
+    expect(get).toHaveBeenCalledExactlyOnceWith('/api/ui/proposals/' + priorId);
+    expect(w.comparisonRows(current, w.comparison()!).find(row => row[0] === 'Fee'))
+      .toEqual(['Fee', '9007199254740993.01', '12000']);
+    expect(w.draft.scope).toBe('Unsaved current input');
+    expect(w.reviewed).toBe(true);
+    w.compareRevision(id);
+    expect(w.comparison()).toBeNull();
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+  it('refuses a scope-swapped revision and clears comparison and current content on denial', () => {
+    const { w, get } = workspace({ ...proposal, id: priorId, revision: '2', opportunityId: priorId });
+    w.compareRevision(priorId);
+    expect(w.comparison()).toBeNull();
+    expect(w.comparisonMessage()).toContain('does not match');
+    get.mockReturnValue(throwError(() => ({ status: 403 })));
+    w.compareRevision(priorId);
+    expect(w.data()).toBeNull();
+    expect(w.reviewed).toBe(false);
+    expect(w.comparison()).toBeNull();
+  });
+});
 describe('Commercial proposal contract', () => {
   it('preserves fee precision', () => {
     expect(decodeProposal(proposal).fee).toBe('9007199254740993.01');
@@ -160,6 +198,7 @@ describe('proposal refresh draft preservation', () => {
       drafts: { load: () => null, save: vi.fn(), clear: vi.fn() },
       uncertain: signal(false), revisionCreatePending: signal(false), recoverableRevisionCreate: signal(false),
       commandStatus: signal(''),
+      clearComparison: vi.fn(),
       tabDraft: { dirty: () => dirty, reset: vi.fn(), bind: vi.fn() },
       draft: { scope: 'Unsubmitted scope' }, reviewed: true, legalName: '',
     };

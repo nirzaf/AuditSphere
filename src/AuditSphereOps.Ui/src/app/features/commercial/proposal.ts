@@ -679,6 +679,28 @@ export function isResponseChannel(value: string): boolean {
         Recover proposal tab draft
       </button>
       <h2 id="proposal-revisions-heading" tabindex="-1">Recorded revisions</h2>
+      <label>Compare recorded revision
+        <select aria-label="Compare recorded revision" [value]="comparisonRevisionId()"
+          (change)="compareRevision($any($event.target).value)" [disabled]="loading()">
+          <option value="">Choose a revision to compare</option>
+          @for (version of proposal.versions; track version.id) {
+            @if (version.id !== proposal.id) { <option [value]="version.id">Revision {{ version.revision }} · {{ version.status }}</option> }
+          }
+        </select>
+      </label>
+      @if (comparisonLoading()) { <p role="status">Loading the selected authorized revision…</p> }
+      @if (comparisonMessage()) { <p role="status">{{ comparisonMessage() }}</p> }
+      @if (comparison(); as compared) {
+        <p>Read-only comparison. Each offer retains its own acceptance and exact response evidence.</p>
+        <div class="table-scroll"><table class="revision-comparison">
+          <caption>Proposal revision {{ proposal.revision }} compared with selected revision {{ compared.revision }}</caption>
+          <thead><tr><th scope="col">Field</th><th scope="col">Revision {{ proposal.revision }}</th><th scope="col">Revision {{ compared.revision }}</th><th scope="col">Difference</th></tr></thead>
+          <tbody>@for (row of comparisonRows(proposal, compared); track row[0]) {
+            <tr><th scope="row">{{ row[0] }}</th><td style="white-space:pre-wrap;overflow-wrap:anywhere">{{ row[1] || 'Not offered' }}</td>
+              <td style="white-space:pre-wrap;overflow-wrap:anywhere">{{ row[2] || 'Not offered' }}</td><td>{{ row[1] === row[2] ? 'Same' : 'Changed' }}</td></tr>
+          }</tbody>
+        </table></div>
+      }
       <ul>
         @for (version of proposal.versions; track version.id) {
           <li>
@@ -787,6 +809,12 @@ export class ProposalDetail {
   }
   private id = '';
   private request?: Subscription;
+  private comparisonRequest?: Subscription;
+  private comparisonToken = 0;
+  readonly comparison = signal<Proposal | null>(null);
+  readonly comparisonRevisionId = signal('');
+  readonly comparisonLoading = signal(false);
+  readonly comparisonMessage = signal('');
   private savedRevisionIntent: ProposalRevisionIntent | null = null;
   private revisionRequestId: string = crypto.randomUUID();
   readonly data = signal<Proposal | null>(null);
@@ -859,9 +887,11 @@ export class ProposalDetail {
     inject(DestroyRef).onDestroy(() => {
       route.unsubscribe();
       this.request?.unsubscribe();
+      this.clearComparison();
     });
   }
   private reset(): void {
+    this.clearComparison();
     this.tabDraft.reset();
     this.request?.unsubscribe();
     this.data.set(null);
@@ -1140,7 +1170,63 @@ export class ProposalDetail {
         },
       });
   }
+  clearComparison(): void {
+    this.comparisonRequest?.unsubscribe();
+    this.comparisonToken++;
+    this.comparison.set(null);
+    this.comparisonRevisionId.set('');
+    this.comparisonLoading.set(false);
+    this.comparisonMessage.set('');
+  }
+  compareRevision(revisionId: string): void {
+    this.clearComparison();
+    const current = this.data();
+    const selected = current?.versions.find(v => v.id.toLowerCase() === revisionId.toLowerCase());
+    if (!revisionId) return;
+    if (!current || !selected || selected.id === current.id || !this.session.current()?.staff) {
+      this.comparisonMessage.set('Choose a recorded revision of this opportunity.');
+      return;
+    }
+    this.comparisonRevisionId.set(selected.id);
+    this.comparisonLoading.set(true);
+    const ticket = this.comparisonToken, generation = this.session.invalidation();
+    this.comparisonRequest = this.http.get<unknown>('/api/ui/proposals/' + selected.id).pipe(timeout(15000)).subscribe({
+      next: value => {
+        if (ticket !== this.comparisonToken || generation !== this.session.invalidation()) return;
+        try {
+          const compared = decodeProposal(value);
+          if (compared.id.toLowerCase() !== selected.id.toLowerCase() || compared.opportunityId !== current.opportunityId ||
+              compared.revision !== selected.revision) throw new Error('Wrong comparison identity.');
+          this.comparison.set(compared);
+        } catch {
+          this.comparisonMessage.set('The returned revision does not match this opportunity. No comparison is shown.');
+        }
+        this.comparisonLoading.set(false);
+      },
+      error: failure => {
+        if (ticket !== this.comparisonToken || generation !== this.session.invalidation()) return;
+        this.comparisonLoading.set(false);
+        this.comparisonMessage.set('Selected revision is unavailable. Retry its authorized read.');
+        if (failure.status === 401 || failure.status === 403) {
+          this.data.set(null);
+          this.reviewed = false;
+          this.error.set('Proposal unavailable. Current firm-wide commercial access is required.');
+          if (failure.status === 401) this.session.clear();
+        }
+      },
+    });
+  }
+  comparisonRows(current: Proposal, compared: Proposal): [string, string, string][] {
+    return [
+      ['Scope', current.scope, compared.scope], ['Service profile', current.serviceProfile, compared.serviceProfile],
+      ['Period', current.periodStart + ' to ' + current.periodEnd, compared.periodStart + ' to ' + compared.periodEnd],
+      ['Currency', current.currency, compared.currency], ['Fee', current.fee, compared.fee],
+      ['Deliverables', current.deliverables, compared.deliverables], ['Timeline', current.timeline, compared.timeline],
+      ['Exclusions', current.exclusions, compared.exclusions], ['Dependencies', current.dependencies, compared.dependencies],
+    ];
+  }
   load(): void {
+    this.clearComparison();
     this.request?.unsubscribe();
     const preserveDraft = this.tabDraft.dirty();
     const pendingDraft = { ...this.draft };
@@ -1158,6 +1244,7 @@ export class ProposalDetail {
           if (generation !== this.session.invalidation()) return;
           try {
             const p = decodeProposal(value);
+            if (p.id.toLowerCase() !== this.id.toLowerCase()) throw new Error('Wrong proposal identity.');
             this.data.set(p);
             this.draft = {
               serviceProfile: p.serviceProfile,

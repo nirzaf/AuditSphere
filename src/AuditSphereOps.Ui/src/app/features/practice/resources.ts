@@ -195,18 +195,43 @@ export class ResourcePlanning {
   );
   /** Narrows the loaded grid by name, department or skill; it never changes or reloads planning data. */
   readonly teamFilter = signal('');
+  readonly overAllocatedOnly = signal(false);
   readonly visibleRows = computed(() => {
     const rows = this.view.data()?.grid.rows ?? [];
     const term = this.teamFilter().trim().toLowerCase();
-    return term ? rows.filter((r) => [r.name, r.department, ...r.skills].some((v) => v.toLowerCase().includes(term))) : rows;
+    return rows.filter(r => (!this.overAllocatedOnly() || r.weeks.some(w => w.overAllocated)) &&
+      (!term || [r.name, r.department, ...r.skills, ...r.certifications.map(c => c.name)].some(v => v.toLowerCase().includes(term))));
   });
   /** Read-only staff/week inspection; selecting a cell never saves. */
   readonly selectedCell = signal<{ userId: string; weekStart: string } | null>(null);
+  readonly cellHeading = viewChild<ElementRef<HTMLElement>>('cellHeading');
+  private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
+  private cellFocusOrigin: HTMLElement | null = null;
+  inspectCell(userId: string, weekStart: string, origin: EventTarget | null): void {
+    this.cellFocusOrigin = origin instanceof HTMLElement ? origin : null;
+    this.selectedCell.set({ userId, weekStart });
+    const owner = this.owner(), focusOrigin = this.cellFocusOrigin;
+    setTimeout(() => {
+      if (!this.alive || owner !== this.owner() || this.selectedCell()?.userId !== userId || this.selectedCell()?.weekStart !== weekStart) return;
+      const heading = this.cellHeading()?.nativeElement, document = heading?.ownerDocument;
+      if (document && (document.activeElement === document.body || document.activeElement === focusOrigin)) heading?.focus();
+    });
+  }
+  closeCellDetails(): void {
+    const selected = this.selectedCell();
+    const fallback = selected ? this.element.nativeElement.querySelector<HTMLElement>(
+      'button[data-resource-user="' + selected.userId + '"][data-resource-week="' + selected.weekStart + '"]') : null;
+    this.selectedCell.set(null);
+    (this.cellFocusOrigin?.isConnected ? this.cellFocusOrigin : fallback)?.focus();
+    this.cellFocusOrigin = null;
+  }
   readonly cellDetail = computed(() => {
     const selection = this.selectedCell();
     const row = selection ? this.view.data()?.grid.rows.find((r) => r.userId === selection.userId) : undefined;
     const week = row?.weeks.find((w) => w.weekStart === selection?.weekStart);
-    return row && week ? { row, week, allocations: row.allocations.filter((a) => a.weekStart === week.weekStart) } : null;
+    const nextWeek = week ? resourceWeekStarts(week.weekStart, 2)[1] : null;
+    return row && week && nextWeek ? { row, week, allocations: row.allocations.filter(a => a.weekStart === week.weekStart),
+      availability: row.availability.filter(a => a.startDate < nextWeek && a.endDate >= week.weekStart) } : null;
   });
   readonly versions = signal({ profile: 0, certification: 0, availability: 0, allocation: 0 });
   private readonly dirty = signal({

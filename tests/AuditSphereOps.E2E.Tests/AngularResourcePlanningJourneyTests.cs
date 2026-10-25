@@ -149,6 +149,12 @@ public sealed class AngularResourcePlanningJourneyTests
     Assert.True(await page.EvaluateAsync<bool>("() => { const w = document.querySelector('.table-scroll'); const h = document.querySelector('.table-scroll th:nth-child(4)'); return !!w && !!h && w.scrollWidth > w.clientWidth && h.getBoundingClientRect().width >= 112; }"));
     var gridRegion = page.GetByRole(AriaRole.Region, new() { Name = "Resource grid; scroll horizontally to see all weeks", Exact = true });
     await page.GetByRole(AriaRole.Button, new() { Name = "Refresh persisted planning state", Exact = true }).PressAsync("Tab");
+    var teamFilter = page.GetByRole(AriaRole.Searchbox, new() { Name = "Filter team members by name, department, skill or recorded certificate", Exact = true });
+    await Assertions.Expect(teamFilter).ToBeFocusedAsync();
+    await teamFilter.PressAsync("Tab");
+    var overAllocatedFilter = page.GetByRole(AriaRole.Checkbox, new() { Name = "Only staff with an over-allocated week", Exact = true });
+    await Assertions.Expect(overAllocatedFilter).ToBeFocusedAsync();
+    await overAllocatedFilter.PressAsync("Tab");
     await Assertions.Expect(gridRegion).ToBeFocusedAsync();
     await gridRegion.PressAsync("ArrowRight");
     await page.WaitForFunctionAsync("() => document.querySelector('[aria-label=\"Resource grid; scroll horizontally to see all weeks\"]').scrollLeft > 0");

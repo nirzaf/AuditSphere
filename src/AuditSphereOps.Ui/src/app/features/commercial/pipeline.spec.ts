@@ -67,6 +67,15 @@ describe('CommercialPipeline', () => {
       const buttons = [...host.querySelectorAll('button')].map(b => b.textContent?.trim());
       expect(buttons).toEqual(['Apply filters', 'Clear filters', 'Show more discovery']);
       expect(host.querySelector('[draggable="true"]')).toBeNull();
+      const before = [...host.querySelectorAll('[data-opportunity-id]')].map(row => row.getAttribute('data-opportunity-id'));
+      fixture.componentInstance.display.set('table');
+      fixture.detectChanges();
+      expect([...host.querySelectorAll('[data-opportunity-id]')].map(row => row.getAttribute('data-opportunity-id'))).toEqual(before);
+      expect(host.querySelector('table caption')?.textContent).toContain('same loaded records as the board');
+      fixture.componentInstance.stageScope.set('open');
+      fixture.detectChanges();
+      expect(host.querySelector('section[aria-labelledby="pipeline-WON"]')).toBeNull();
+      http.expectNone(r => r.method !== 'GET');
       http.verify();
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });

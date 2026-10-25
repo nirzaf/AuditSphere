@@ -101,6 +101,7 @@ public sealed class AngularInvoiceBillingScopeJourneyTests
     Assert.DoesNotContain("Synthetic sibling confidential service", initialBody);
     Assert.DoesNotContain("900.00", initialBody);
 
+    await page.Locator("details[data-action=\"receipt\"] > summary").ClickAsync();
     await page.GetByLabel("Payment amount (QAR)", new() { Exact = true }).FillAsync("40");
     await page.GetByLabel("Bank or cheque transaction reference", new() { Exact = true })
       .FillAsync("SYN-SCOPED-RECEIPT-A");
@@ -147,6 +148,7 @@ public sealed class AngularInvoiceBillingScopeJourneyTests
       Assert.Equal(new[] { 403, 403, 403, 403 }, statuses.RootElement.EnumerateArray()
         .Select(x => x.GetInt32()).ToArray());
 
+    await page.Locator("details[data-action=\"allocation\"] > summary").ClickAsync();
     await page.GetByLabel("Receipt and available balance", new() { Exact = true })
       .SelectOptionAsync(ownReceiptId.ToString("D"));
     await page.GetByLabel("Amount to allocate (QAR)", new() { Exact = true }).FillAsync("25");
@@ -156,6 +158,7 @@ public sealed class AngularInvoiceBillingScopeJourneyTests
     await Assertions.Expect(page.GetByText(
       "Receipt allocation recorded against this invoice.", new() { Exact = true })).ToBeVisibleAsync();
 
+    await page.Locator("details[data-action=\"credit\"] > summary").ClickAsync();
     await page.GetByLabel("Credit note number", new() { Exact = true }).FillAsync("SYN-SCOPED-CREDIT-A");
     await page.GetByLabel("Credit amount (QAR)", new() { Exact = true }).FillAsync("10");
     await page.GetByLabel("Reason", new() { Exact = true }).FillAsync("Synthetic reviewed client adjustment");

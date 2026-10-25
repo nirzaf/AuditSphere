@@ -46,6 +46,8 @@ The 2026-10-25 exact-source full run found one Domain assertion comparing a pre-
 
 The latest full verification exposed an accounting-profile assent defect, a stale completion-screen test locator, and an unexplained timeout while checking revoked-scope behavior. The assent behavior and locator are corrected and their focused Playwright journeys pass; the timeout remains under observation. Follow-up exact-source verification is running, and the canonical run-by-run evidence is in [execution status](docs/execution/status.json).
 
+**Axelor-inspired UX update:** Remaining workspace changes add exact proposal comparison, equivalent pipeline views, pinned task-plan context, invoice source evidence and read-first financial actions, and keyboard resource inspection. Focused checks and selected built-in browser journeys passed; connected acceptance, exact-candidate full CI and UI rollback remain open. See the [UX tracker](docs/execution/auditsphere-execution-tracker-axelor-practice-ux-current.md) and [execution status](docs/execution/status.json). No full local suite ran.
+
 The [product brief](docs/requirements/auditsphere-requirements-specification-product-brief-current.md) and [practice-management crosswalk](docs/execution/auditsphere-execution-tracker-practice-management-v22-crosswalk-current.md) define scope more precisely. The [API/Angular parity tracker](docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md) distinguishes implemented code from browser/CI acceptance. The [v3 screen-to-code matrix](docs/design/auditsphere-ux-matrix-v3-screen-to-code-proposed.md) is **PROPOSED**, not proof of 19-screen production parity.
 
 ### Audit engagement lifecycle

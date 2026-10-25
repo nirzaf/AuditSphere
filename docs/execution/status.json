@@ -1070,6 +1070,11 @@
       "rehearsal": "Corrected exact images passed restored-copy run:58 migrations (226 to284),334 table projections unchanged, health and both /ui roots200; temp resources removed. Live unchanged.",
       "remaining": "API retry2:387/388; one failure was stale catalogue expectation of duplicate root routes. Test correction is in progress; current-source CI pending. Attempt1 exit143 cause unknown. Focused local run stopped before a result due concurrent .NET builds. Final backup/cutover/browser and signed mail evidence pending.",
       "evidence": ".local/autonomous/evidence/release-ui-root-20261025/api-execution-failure-review.json"
+    },
+    "axelorRemaining20261025": {
+      "result": "Domain7; Angular70+resource16 rerun; E2E4+repair5+resource1 PASS. Full CI pending.",
+      "evidence": ".local/autonomous/evidence/axelor-remaining-20261025/review.json",
+      "limits": "Selected browser states; no whole-spec/human/live acceptance."
     }
   },
   "externalGates": [

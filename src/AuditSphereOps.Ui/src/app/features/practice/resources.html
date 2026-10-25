@@ -55,9 +55,10 @@
 <div [hidden]="!!pending() || cmd.uncertain()">
   @if (view.data(); as v) {
     <label class="resource-filter"
-      >Filter team members by name, department or skill
+      >Filter team members by name, department, skill or recorded certificate
       <input type="search" maxlength="100" [value]="teamFilter()" (input)="teamFilter.set($any($event.target).value)"
     /></label>
+    <label><input type="checkbox" [checked]="overAllocatedOnly()" (change)="overAllocatedOnly.set($any($event.target).checked)" /> Only staff with an over-allocated week</label>
     <p class="resource-filter-scope">
       Showing {{ visibleRows().length }} of {{ v.grid.rows.length }} team members. Filtering and cell details only change
       this view; they never save planning data.
@@ -137,7 +138,8 @@
                   }
                   <button matButton type="button" class="cell-detail"
                     [attr.aria-label]="'Details for ' + r.name + ' week of ' + c.weekStart"
-                    (click)="selectedCell.set({ userId: r.userId, weekStart: c.weekStart })">Details</button>
+                    [attr.data-resource-user]="r.userId" [attr.data-resource-week]="c.weekStart"
+                    (click)="inspectCell(r.userId, c.weekStart, $event.currentTarget)">Details</button>
                 </td>
               }
             </tr>
@@ -151,7 +153,7 @@
     </div>
     @if (cellDetail(); as d) {
       <section class="panel" aria-labelledby="cell-detail-heading">
-        <h2 id="cell-detail-heading">{{ d.row.name }} · week of {{ d.week.weekStart }}</h2>
+        <h2 #cellHeading id="cell-detail-heading" tabindex="-1">{{ d.row.name }} · week of {{ d.week.weekStart }}</h2>
         <dl class="facts">
           <dt>Net capacity</dt>
           <dd>{{ hrs(d.week.capacityMinutes) }} h (weekly capacity less recorded unavailability on working days)</dd>
@@ -166,6 +168,10 @@
           <dd>{{ hrs(d.week.approvedBillableMinutes) }} h · {{ d.week.actualUtilizationPercent !== null
             ? 'actual billable utilization ' + whole(d.week.actualUtilizationPercent) + '%' : 'actual utilization unavailable: no net capacity' }}</dd>
         </dl>
+        <h3>Recorded unavailability overlapping this week</h3>
+        <ul>@for (a of d.availability; track a.id) {
+          <li>{{ availabilityLabel(a.kind) }} · {{ a.startDate }} to {{ a.endDate }} · {{ a.minutesPerDay }} minutes per working day</li>
+        } @empty { <li>No recorded unavailability overlaps this week.</li> }</ul>
         @if (d.week.overAllocated) {
           <p class="error-text">Over-allocated: planned allocation exceeds net capacity.</p>
         }
@@ -174,13 +180,13 @@
           @for (a of d.allocations; track a.engagementId + a.phase + (a.riskArea ?? '')) {
             <li>
               <a [routerLink]="['/app/engagements', a.engagementId]">{{ a.engagementLabel }}</a> ·
-              {{ a.phase === 'UNASSIGNED' ? 'Legacy phase not assigned' : phaseLabel(a.phase) }} · {{ hrs(a.plannedMinutes) }} hours
+              {{ a.phase === 'UNASSIGNED' ? 'Legacy phase not assigned' : phaseLabel(a.phase) }} · {{ a.plannedMinutes }} minutes ({{ hrs(a.plannedMinutes) }} hours)
             </li>
           } @empty {
             <li>No allocation recorded for this week.</li>
           }
         </ul>
-        <button matButton type="button" (click)="selectedCell.set(null)">Close details</button>
+        <button matButton type="button" (click)="closeCellDetails()">Close details</button>
       </section>
     }
     <section class="panel" aria-labelledby="recorded-availability-heading">

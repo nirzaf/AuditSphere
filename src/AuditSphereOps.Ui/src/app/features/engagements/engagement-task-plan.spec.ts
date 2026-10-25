@@ -175,7 +175,7 @@ describe('Engagement task plan preview and receipt recovery', () => {
     component.selectTemplate(revisionId);
     const previewing = component.previewPlan();
     const fieldwork = { ...preview.steps[0], stepKey: 'fieldwork', title: 'Fieldwork', sortOrder: 2, dueDate: '2026-11-30',
-      dependsOnStepKeys: ['planning'], missingEligibleAssignee: true };
+      dependsOnStepKeys: ['planning'], missingEligibleAssignee: true, taskGroupName: 'Evidence review', requiredTask: false };
     TestBed.inject(HttpTestingController).expectOne({ method: 'POST', url: `/api/ui/engagements/${engagementId}/task-plan/preview` })
       .flush({ value: { ...preview, steps: [preview.steps[0], fieldwork] } });
     await previewing;
@@ -183,5 +183,7 @@ describe('Engagement task plan preview and receipt recovery', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('.plan-summary')?.textContent?.replace(/\s+/g, ' ').trim())
       .toBe('2 step(s) · 1 without an eligible engagement assignee · 1 without a due date · 1 with prerequisites');
     expect(component.reviewed()).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain('Task group: Evidence review · Optional');
+    expect(fixture.nativeElement.textContent).toContain('Task group: Ungrouped · Requiredness unavailable');
   });
 });

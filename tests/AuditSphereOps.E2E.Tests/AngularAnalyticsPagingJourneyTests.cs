@@ -47,10 +47,14 @@ public sealed class AngularAnalyticsPagingJourneyTests
     var economics = page.GetByRole(AriaRole.Region, new() { Name = "Engagement economics", Exact = true });
     await Assertions.Expect(economics.Locator("tbody tr")).ToHaveCountAsync(50);
     var summary = page.Locator("p[aria-label='Task completion and milestone performance']");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Operational delivery", Exact = true }).ClickAsync();
     await Assertions.Expect(summary).ToContainTextAsync("0 / 51 applicable tasks completed");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Engagement economics", Exact = true }).ClickAsync();
     await economics.GetByRole(AriaRole.Button, new() { Name = "Next engagements", Exact = true }).ClickAsync();
     await Assertions.Expect(economics.Locator("tbody tr")).ToHaveCountAsync(1);
+    await page.GetByRole(AriaRole.Button, new() { Name = "Operational delivery", Exact = true }).ClickAsync();
     await Assertions.Expect(summary).ToContainTextAsync("0 / 51 applicable tasks completed");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Engagement economics", Exact = true }).ClickAsync();
     await economics.GetByRole(AriaRole.Button, new() { Name = "First engagements", Exact = true }).ClickAsync();
     await Assertions.Expect(economics.Locator("tbody tr")).ToHaveCountAsync(50);
     Assert.Empty(errors);

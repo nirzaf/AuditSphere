@@ -83,6 +83,9 @@ public sealed class AngularWorkflowEvidenceJourneyTests
     await page.GotoAsync(origin + $"/app/engagements/{f.EngagementId}?templateRevisionId={revisionId}#engagement-task-plan");
     await Assertions.Expect(page.GetByRole(AriaRole.Radio, new() { Name = templateName })).ToBeCheckedAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Preview task plan", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.Locator("ol.plan-steps")).ToContainTextAsync("Task group: Ungrouped");
+    await Assertions.Expect(page.Locator("ol.plan-steps")).ToContainTextAsync("Required");
+    await Assertions.Expect(page.Locator("ol.plan-steps")).ToContainTextAsync("Optional");
     await page.GetByLabel("I reviewed this exact plan, staffing, dates, and template revision.", new() { Exact = true }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Create operational tasks", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Plan receipt confirmed", Exact = true })).ToBeVisibleAsync();

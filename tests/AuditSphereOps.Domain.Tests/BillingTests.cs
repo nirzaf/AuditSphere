@@ -300,6 +300,15 @@ public sealed class BillingTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var invoiceId = await db.Invoices.Select(x => x.Id).SingleAsync();
+      var workspace = await BillingInvoiceWorkspaceQuery.GetAsync(db, fixture.ManagerActor, invoiceId);
+      Assert.True(workspace.Succeeded, workspace.Message);
+      var source = Assert.Single(workspace.Value!.LineSources!);
+      Assert.Equal("AVAILABLE", source.State);
+      Assert.Equal(entryId, source.SourceId);
+      Assert.Equal(1L, source.SourceRevision);
+      Assert.Equal(90, source.DurationMinutes);
+      Assert.Null(source.FeeAgreementId);
+      Assert.False((await BillingInvoiceWorkspaceQuery.GetAsync(db, fixture.PartnerActor, invoiceId)).Succeeded);
       Assert.Equal("billing.source-duplicate", (await BillingService.CreateInvoiceDraftAsync(db, fixture.ManagerActor,
         new CreateInvoiceDraftRequest(accountId, "INV-SOURCE-2", [line]))).ErrorCode);
       Assert.True((await BillingService.SubmitInvoiceAsync(db, fixture.ManagerActor, invoiceId)).Succeeded);
@@ -591,6 +600,12 @@ public sealed class BillingTests
       var milestone = await db.FeeMilestones.AsNoTracking().SingleAsync(x => x.Id == milestoneId);
       Assert.Equal(invoiceId, milestone.InvoiceId);
       Assert.Equal(FeeMilestoneStates.Invoiced, milestone.State);
+      var workspace = await BillingInvoiceWorkspaceQuery.GetAsync(db, fixture.ManagerActor, invoiceId);
+      Assert.True(workspace.Succeeded, workspace.Message);
+      var source = Assert.Single(workspace.Value!.LineSources!);
+      Assert.Equal("AVAILABLE", source.State);
+      Assert.Equal(milestoneId, source.SourceId);
+      Assert.Equal(agreementIds[index], source.FeeAgreementId);
     }
 
     var failedInvoiceNumber = $"AGR-{agreementIds[4].ToString("N").ToUpperInvariant()}-ADV";
