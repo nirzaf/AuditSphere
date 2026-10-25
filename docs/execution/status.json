@@ -10,7 +10,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "4ed301647cf76d659563a586a0f6ba69c534f65c",
+  "headCommit": "4ac21e05aa640cbfc140619c33222a1af7689850",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1099,6 +1099,17 @@
         "status": "CANCEL_REQUESTED_AFTER_E2E_FAILURE",
         "details": "API had remained in progress since 2026-10-25T01:02:22Z; GitHub would not provide logs while running. The E2E job already failed on this predecessor source, so it is not current acceptance. API outcome is unresolved."
       }
+    },
+    "wu039ConnectedJourney20261025": {
+      "status": "FOCUSED_PASS_SCOPE_PARTIAL_CI_PENDING",
+      "commit": "4ac21e05aa640cbfc140619c33222a1af7689850",
+      "filter": "CompletionUnit=WU-039",
+      "test": "AngularProcedureCommandJourneyTests.CashAndBankProcedureRecoversExactSubmissionAndIndependentReviewerCanReturnIt",
+      "result": "1 passed; 0 failed; 0 skipped",
+      "evidence": ".local/autonomous/evidence/wu039-connected-journey-20261025/review.json and test-results/WU-039.trx",
+      "journey": "Synthetic PBC received-file hash through linked audit procedure, recovered submission receipt and independent-review return.",
+      "remaining": "One journey only; commercial, planning, accounting, reporting, firm-ledger, archive, professional and live acceptance remain open. WU-012/WU-014 dependencies are pending.",
+      "ci": "Fast 40158152171 running. Full 40158258596 running; immutable source MATCH."
     }
   },
   "externalGates": [
@@ -1672,14 +1683,10 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "4ed301647cf76d659563a586a0f6ba69c534f65c",
-    "evidence": "T058 amount precision guard; focused regression passed on exact source. Full release verifier exposed the pre-follow-up ledger size budget issue. Latest docs-only follow-up is 7cdb7f986dd34167028fa7ea5f7d89d73dba817d.",
-    "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40133039876 RUNNING, exact source MATCH; Angular and unfiltered Domain passed. Verify · Build/contracts/publication failed only the Markdown ledger-size check on 4ed; unfiltered API and E2E remain in progress; no FULL_CI_PASS.",
-    "fastCi": "40133000520 CANCELLED after newer docs push; not a failure. Latest docs-source fast CI 40133206996 PASSED on 7cdb7f986dd34167028fa7ea5f7d89d73dba817d: Docs Health, Angular and .NET Release build.",
-    "acceptanceImageWorkflow": "https://github.com/nirzaf/AuditSphere/actions/runs/40133000519 SUCCESS: private images built; this is not deployment or production acceptance.",
-    "precedingFull": "40132097923 on 893da808 is a preceding-source run and not current-source acceptance.",
-    "docsFollowUpCommit": "7cdb7f986dd34167028fa7ea5f7d89d73dba817d",
-    "docsFollowUpFastCi": "https://github.com/nirzaf/AuditSphere/actions/runs/40133206996 SUCCESS for Docs Health, Angular and .NET Release build; full unfiltered suites were not part of this workflow."
+    "sourceCommit": "4ac21e05aa640cbfc140619c33222a1af7689850",
+    "fastCi": "40158152171 RUNNING; pushed head matches current source.",
+    "releaseVerification": "40158258596 RUNNING; resolved immutable source MATCH. No FULL_CI_PASS yet.",
+    "precedingFull": "40157541524 on 7703f3f868c232f857f0ca4c6109b99b93bc9f58; still running at last observation, not current acceptance."
   },
-  "updatedAtUtc": "2026-10-25T03:09:45Z"
+  "updatedAtUtc": "2026-10-25T03:27:32Z"
 }

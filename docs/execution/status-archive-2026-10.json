@@ -25023,6 +25023,16 @@
         "provenance": "Local test binary included pending two-table source-capture migration/SQL overlay with empty capture/review tables. Initial rehearsal failed SQL42601; parenthesized CASE expressions corrected before final pass. This proves the tested source-read flow and empty install only, not data-bearing capture/SQL/Down/API/UI acceptance.",
         "limits": "No legacy receipt/hash rewrites, re-enabled uploads or live-provider/professional acceptance. No full local suite."
       }
+    },
+    "currentSourceCiBeforeWu039Journey20261025": {
+      "sourceCommit": "4ed301647cf76d659563a586a0f6ba69c534f65c",
+      "evidence": "T058 amount precision guard; focused regression passed on exact source. Full release verifier exposed the pre-follow-up ledger size budget issue. Latest docs-only follow-up is 7cdb7f986dd34167028fa7ea5f7d89d73dba817d.",
+      "releaseVerification": "https://github.com/nirzaf/AuditSphere/actions/runs/40133039876 RUNNING, exact source MATCH; Angular and unfiltered Domain passed. Verify · Build/contracts/publication failed only the Markdown ledger-size check on 4ed; unfiltered API and E2E remain in progress; no FULL_CI_PASS.",
+      "fastCi": "40133000520 CANCELLED after newer docs push; not a failure. Latest docs-source fast CI 40133206996 PASSED on 7cdb7f986dd34167028fa7ea5f7d89d73dba817d: Docs Health, Angular and .NET Release build.",
+      "acceptanceImageWorkflow": "https://github.com/nirzaf/AuditSphere/actions/runs/40133000519 SUCCESS: private images built; this is not deployment or production acceptance.",
+      "precedingFull": "40132097923 on 893da808 is a preceding-source run and not current-source acceptance.",
+      "docsFollowUpCommit": "7cdb7f986dd34167028fa7ea5f7d89d73dba817d",
+      "docsFollowUpFastCi": "https://github.com/nirzaf/AuditSphere/actions/runs/40133206996 SUCCESS for Docs Health, Angular and .NET Release build; full unfiltered suites were not part of this workflow."
     }
   },
   "archivedTargetedVerification": {
