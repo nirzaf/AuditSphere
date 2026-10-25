@@ -21180,6 +21180,93 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcDocumentRegistration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BindingSha256Hex")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("binding_sha256_hex");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("DocumentReferenceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("document_reference_id");
+
+                    b.Property<Guid>("DocumentSnapshotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("document_snapshot_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("PbcUploadIntentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_upload_intent_id");
+
+                    b.Property<string>("ProviderIdentity")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("provider_identity");
+
+                    b.Property<DateTimeOffset>("RegisteredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("registered_at");
+
+                    b.Property<Guid>("TransferOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("transfer_operation_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_pbc_document_registrations_firm_id_id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_pbc_document_registrations_scope_id");
+
+                    b.HasIndex("FirmId", "DocumentReferenceId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_pbc_document_registration_reference");
+
+                    b.HasIndex("FirmId", "DocumentSnapshotId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_pbc_document_registration_snapshot");
+
+                    b.HasIndex("FirmId", "PbcUploadIntentId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_pbc_document_registration_upload");
+
+                    b.HasIndex("FirmId", "TransferOperationId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "DocumentReferenceId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "DocumentSnapshotId")
+                        .HasDatabaseName("IX_pbc_document_registrations_firm_id_client_id_engagement_id~1");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcUploadIntentId")
+                        .HasDatabaseName("IX_pbc_document_registrations_firm_id_client_id_engagement_id~2");
+
+                    b.ToTable("pbc_document_registrations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_pbc_document_registration_values", "length(trim(provider_identity)) BETWEEN 1 AND 1000 AND binding_sha256_hex ~ '^[0-9a-f]{64}$'");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcReminderReceipt", b =>
                 {
                     b.Property<Guid>("Id")
@@ -21447,6 +21534,158 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("pbc_request_delegations", null, t =>
                         {
                             t.HasCheckConstraint("ck_pbc_request_delegation_values", "delegator_user_id <> delegate_user_id AND ((revoked_at IS NULL) = (revoked_by_user_id IS NULL))");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcStorageDisposition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("LocalCopy")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("local_copy");
+
+                    b.Property<Guid>("PbcDocumentRegistrationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_document_registration_id");
+
+                    b.Property<Guid>("PbcUploadIntentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_upload_intent_id");
+
+                    b.Property<string>("ReadSource")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("read_source");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_pbc_storage_dispositions_scope_id");
+
+                    b.HasIndex("FirmId", "PbcDocumentRegistrationId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_pbc_storage_disposition_registration");
+
+                    b.HasIndex("FirmId", "PbcUploadIntentId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_pbc_storage_disposition_upload");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcDocumentRegistrationId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcUploadIntentId")
+                        .HasDatabaseName("IX_pbc_storage_dispositions_firm_id_client_id_engagement_id_p~1");
+
+                    b.ToTable("pbc_storage_dispositions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_pbc_storage_disposition_values", "read_source IN ('LOCAL_STAGED','SELECTED_SITE') AND local_copy IN ('RETAINED','RELEASED') AND revision >= 1 AND NOT (read_source = 'LOCAL_STAGED' AND local_copy = 'RELEASED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcStorageEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("LocalCopy")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("local_copy");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<Guid?>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<Guid>("PbcStorageDispositionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_storage_disposition_id");
+
+                    b.Property<string>("ReadSource")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("read_source");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ActorUserId");
+
+                    b.HasIndex("FirmId", "OperationId");
+
+                    b.HasIndex("FirmId", "PbcStorageDispositionId", "Revision")
+                        .IsUnique()
+                        .HasDatabaseName("ux_pbc_storage_event_revision");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcStorageDispositionId");
+
+                    b.ToTable("pbc_storage_events", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_pbc_storage_event_values", "((kind = 'REMOTE_READ_ACTIVATED' AND read_source = 'SELECTED_SITE' AND local_copy = 'RETAINED') OR (kind = 'REMOTE_READ_REVERTED' AND read_source = 'LOCAL_STAGED' AND local_copy = 'RETAINED') OR (kind = 'LOCAL_COPY_RELEASED' AND read_source = 'SELECTED_SITE' AND local_copy = 'RELEASED')) AND revision >= 1 AND length(trim(reason)) BETWEEN 1 AND 500 AND (actor_user_id IS NOT NULL OR operation_id IS NOT NULL)");
                         });
                 });
 
@@ -36927,6 +37166,37 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcDocumentRegistration", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Completion.DurableOperation", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TransferOperationId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.DocumentReference", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "DocumentReferenceId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.DocumentSnapshot", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "DocumentSnapshotId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcUploadIntent", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcUploadIntentId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcReminderReceipt", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Documents.PbcCommunication", null)
@@ -37000,6 +37270,45 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Documents.PbcRequest", null)
                         .WithMany()
                         .HasForeignKey("PbcRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcStorageDisposition", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcDocumentRegistration", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcDocumentRegistrationId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcUploadIntent", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcUploadIntentId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcStorageEvent", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Completion.DurableOperation", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "OperationId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcStorageDisposition", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcStorageDispositionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

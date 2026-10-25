@@ -496,6 +496,9 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Documents.PbcRequest> PbcRequests => db.PbcRequests;
     public DbSet<AuditSphereOps.Domain.Documents.PbcUploadIntent> PbcUploadIntents => db.PbcUploadIntents;
     public DbSet<AuditSphereOps.Domain.Documents.PbcAcceptanceReceipt> PbcAcceptanceReceipts => db.PbcAcceptanceReceipts;
+    public DbSet<AuditSphereOps.Domain.Documents.PbcDocumentRegistration> PbcDocumentRegistrations => db.PbcDocumentRegistrations;
+    public DbSet<AuditSphereOps.Domain.Documents.PbcStorageDisposition> PbcStorageDispositions => db.PbcStorageDispositions;
+    public DbSet<AuditSphereOps.Domain.Documents.PbcStorageEvent> PbcStorageEvents => db.PbcStorageEvents;
     public DbSet<AuditSphereOps.Domain.Documents.PbcUploadChunk> PbcUploadChunks => db.PbcUploadChunks;
     public DbSet<AuditSphereOps.Domain.Documents.PbcCommunication> PbcCommunications => db.PbcCommunications;
     public DbSet<AuditSphereOps.Domain.Documents.PbcReminderReceipt> PbcReminderReceipts => db.PbcReminderReceipts;

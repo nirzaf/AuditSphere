@@ -5,6 +5,8 @@ using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Providers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -152,6 +154,29 @@ public sealed class PbcSelectedSiteWorkerTests
     // A same-scope snapshot cannot register an upload whose provider transfer has not completed.
     Assert.Equal("23514", await InsertAsync(h.A.ClientId, h.A.EngagementId, stagedA.UploadIntentId, operationA.Id,
       reference.Id, snapshot.Id, identity));
+  }
+
+  [Fact]
+  public async Task RegistrationMigration_DownRefusesRetainedEvidence_AndReappliesWhenEmpty()
+  {
+    const string previous = "20261025050756_BudgetReceiptFirmScope";
+    var (h, _) = await CreateAsync();
+    await using var _h = h;
+    await using (var empty = h.Db())
+    {
+      // Destructive down/up rehearsal is confined to this disposable schema.
+      var migrator = empty.GetService<IMigrator>();
+      await migrator.MigrateAsync(previous);
+      await migrator.MigrateAsync();
+    }
+
+    await h.ProvisionAsync(h.A);
+    var staged = await h.UploadAsync(h.A, h.RequestA, Document("retained registration"));
+    Assert.True(await h.Worker.ProcessNextAsync());
+    await using var db = h.Db();
+    var refused = await Assert.ThrowsAnyAsync<Exception>(() => db.GetService<IMigrator>().MigrateAsync(previous));
+    Assert.Equal("55000", Assert.IsType<Npgsql.PostgresException>(refused.InnerException ?? refused).SqlState);
+    Assert.Equal(1, await db.PbcDocumentRegistrations.CountAsync(x => x.PbcUploadIntentId == staged.UploadIntentId));
   }
 
   [Fact]
