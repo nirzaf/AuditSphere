@@ -13,7 +13,7 @@ public sealed class AngularClientPortalUploadRecoveryJourneyTests
 {
   [Fact]
   [Trait("CaseId", "ANGULAR-PORTAL-UPLOAD-RESUME-E2E")]
-  public async Task LostChunkAcknowledgement_ResumesExactFileFromPersistedChunkReceipt()
+  public async Task LostStartAndChunkAcknowledgements_ResumeExactFileWithoutDuplicateIntent()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-PORTAL-UPLOAD-RESUME-E2E");
     var fixture = host.Fixture;
@@ -54,9 +54,23 @@ public sealed class AngularClientPortalUploadRecoveryJourneyTests
     var bytes = RandomNumberGenerator.GetBytes(chunkBytes + 137);
     string? firstCapability = null;
     string? resumedCapability = null;
+    var uploadStartPosts = 0;
     var secondChunkIntercepted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     var releaseSecondChunk = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     var intercepted = 0;
+    var uploadStartRoute = $"**/api/ui/portal/requests/{requestId:D}/uploads";
+    await page.RouteAsync(uploadStartRoute, async route =>
+    {
+      if (route.Request.Method != "POST" || Interlocked.Increment(ref uploadStartPosts) != 1)
+      {
+        await route.ContinueAsync();
+        return;
+      }
+      // The server commits the upload intent, but the client never receives its capability receipt.
+      await using var created = await route.FetchAsync();
+      Assert.Equal(200, created.Status);
+      await route.AbortAsync("failed");
+    });
     await page.RouteAsync("**/api/pbc/uploads/*/chunks/0", async route =>
     {
       if (route.Request.Method != "POST" || Interlocked.Increment(ref intercepted) != 1)
@@ -100,6 +114,25 @@ public sealed class AngularClientPortalUploadRecoveryJourneyTests
     await page.GetByRole(AriaRole.Button, new() { Name = "Upload file", Exact = true }).ClickAsync();
 
     var receipt = page.Locator("article.receipt").Filter(new() { HasText = "synthetic-resume.bin" });
+    await Assertions.Expect(page.Locator("body")).ToContainTextAsync(
+      "The outcome is not confirmed. Refresh to see the persisted state before repeating this action.", new() { Timeout = 20000 });
+    await Assertions.Expect(receipt).ToContainTextAsync($"0 / {bytes.Length} bytes", new() { Timeout = 20000 });
+    await using (var proof = host.CreateDbContext())
+    {
+      var started = await proof.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.PbcRequestId == requestId);
+      Assert.Equal(PbcUploadStates.Started, started.State);
+      Assert.Equal(0, started.ReceivedByteCount);
+      Assert.Equal(1, uploadStartPosts);
+    }
+    // Recovery requires the same selected bytes and resumes this receipt instead of creating another intent.
+    await page.GetByLabel("Choose a file (up to 250 MB)", new() { Exact = true }).SetInputFilesAsync(new FilePayload
+    {
+      Name = "synthetic-resume.bin", MimeType = "application/octet-stream", Buffer = bytes
+    });
+    var resume = receipt.GetByRole(AriaRole.Button, new() { Name = "Resume staged upload", Exact = true });
+    await Assertions.Expect(resume).ToBeEnabledAsync(new() { Timeout = 10000 });
+    await resume.ClickAsync();
+
     await Assertions.Expect(receipt).ToContainTextAsync($"{chunkBytes} / {bytes.Length} bytes", new() { Timeout = 20000 });
     Assert.NotNull(firstCapability);
     Assert.Contains("outcome", await page.Locator("body").InnerTextAsync(), StringComparison.OrdinalIgnoreCase);
@@ -110,7 +143,7 @@ public sealed class AngularClientPortalUploadRecoveryJourneyTests
     {
       Name = "synthetic-resume.bin", MimeType = "application/octet-stream", Buffer = bytes
     });
-    var resume = receipt.GetByRole(AriaRole.Button, new() { Name = "Resume staged upload", Exact = true });
+    resume = receipt.GetByRole(AriaRole.Button, new() { Name = "Resume staged upload", Exact = true });
     await Assertions.Expect(resume).ToBeEnabledAsync(new() { Timeout = 10000 });
     await resume.ClickAsync();
     await secondChunkIntercepted.Task.WaitAsync(TimeSpan.FromSeconds(20));
@@ -129,6 +162,7 @@ public sealed class AngularClientPortalUploadRecoveryJourneyTests
     await Assertions.Expect(receipt).ToContainTextAsync($"{bytes.Length} / {bytes.Length} bytes");
     Assert.NotNull(resumedCapability);
     Assert.NotEqual(firstCapability, resumedCapability);
+    Assert.Equal(1, uploadStartPosts);
 
     await using (var proof = host.CreateDbContext())
     {
