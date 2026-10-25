@@ -10,7 +10,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "f7e1b94043d9e1b911867072dcb13f3252ea12c5",
+  "headCommit": "fc0ec97863ddf710d44052379ab50959c794dae1",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1016,61 +1016,6 @@
       },
       "next": "The two verified corrections are committed. The protected README metrics were removed after fast Docs Health found them. Corrected-source fast and full CI are running; see narrativeMetricsFastCiRepair20261025. The revoked-scope response timeout remains unexplained."
     },
-    "narrativeMetricsFastCiRepair20261025": {
-      "status": "LOCAL_DOCS_FIX_PASS_FAST_GATE_DOCS_HEALTH_FAILED_FULL_RUN_SUPERSEDED",
-      "candidateCodeCommit": "dc80869575a6576ab18ed22eed365bd15ad3eb6f",
-      "fastRun": {
-        "runId": 40157214578,
-        "sourceMatch": "HEAD_MATCH",
-        "angular": "PASS",
-        "docsHealth": "FAIL: Validate narrative documents for volatile metrics; README.md contained exact CI/test metrics reserved for this status ledger.",
-        "dotnetRelease": "CANCELLED when a newer push superseded the workflow; not a build failure."
-      },
-      "finding": "The protected README narrative included an exact run identifier and an E2E pass ratio; scripts/docs/validate-narrative-metrics.py correctly rejected those volatile facts.",
-      "correction": "Removed the volatile values from README and retained exact IDs/counts only in this execution ledger. The narrative-metrics validator and full markdown documentation health validator now pass locally.",
-      "localChecks": [
-        {
-          "command": "python3 scripts/docs/validate-narrative-metrics.py",
-          "result": "PASS after README correction; before correction it reproduced the fast CI finding."
-        },
-        {
-          "command": "python3 scripts/docs/validate-markdown-documentation.py",
-          "result": "PASS; 228 Markdown files, 3,623 relative links, 487 repository paths, and documentation budgets validated."
-        },
-        {
-          "command": "git diff --check",
-          "result": "PASS"
-        }
-      ],
-      "supersededFullRun": {
-        "runId": 40157333094,
-        "resolvedSha": "dc80869575a6576ab18ed22eed365bd15ad3eb6f",
-        "sourceMatch": "MATCH",
-        "status": "CANCELLED_AFTER_DETERMINISTIC_DOCS_FAILURE",
-        "reason": "Its source contained the README violation discovered in the push-triggered fast Docs Health job.",
-        "conclusion": "CANCELLED; Angular/.NET/contract jobs cancelled; aggregate release contract failed because required gates were cancelled."
-      },
-      "next": "Observe exact full 40157541524 and corrected fast 40157502647; retrieve exact new failures if any. Continue the next ready source-review engineering while CI runs. No full local suite.",
-      "correctedPushFastRun": {
-        "runId": 40157502647,
-        "sourceCommit": "7703f3f868c232f857f0ca4c6109b99b93bc9f58",
-        "status": "IN_PROGRESS",
-        "jobs": "Docs Health and Angular running at 2026-10-25T03:15Z."
-      },
-      "correctedFullRun": {
-        "runId": 40157541524,
-        "sourceCommit": "7703f3f868c232f857f0ca4c6109b99b93bc9f58",
-        "sourceMatch": "MATCH",
-        "status": "RUNNING",
-        "observedAtUtc": "2026-10-25T03:15:49Z",
-        "jobs": "Angular and full specs in progress."
-      },
-      "oldPredecessorApi": {
-        "runId": 40148916402,
-        "status": "CANCEL_REQUESTED_AFTER_E2E_FAILURE",
-        "details": "API had remained in progress since 2026-10-25T01:02:22Z; GitHub would not provide logs while running. The E2E job already failed on this predecessor source, so it is not current acceptance. API outcome is unresolved."
-      }
-    },
     "wu039ConnectedJourney20261025": {
       "status": "FOCUSED_PASS_CI_PENDING",
       "commit": "940ff390940c34f0605980af08dc0bf9f7decfe2",
@@ -1093,12 +1038,26 @@
       "modelDrift": "PASS",
       "evidence": ".local/autonomous/evidence/wu004-composite-budget-receipts-20261025/review.json"
     },
+    "findingReceiptRefresh20261025": {
+      "status": "FOCUSED_PASS_EXACT_CI_PENDING",
+      "sourceCommit": "fc0ec97863ddf710d44052379ab50959c794dae1",
+      "implementation": "The exact actor-owned receipt remains visible while the finding resource refreshes; if the refresh finishes without authorized data, the review component is hidden.",
+      "localChecks": "Angular production build PASS; focused lost-committed Playwright recovery PASS 1/1 after holding the exact finding GET; isolated cold/warm/router/dataset budget case PASS 1/1. Full local suites NOT_RUN. Existing commercial/settings.scss style-budget warning remains.",
+      "previousFullRun": "40164830806 on f7e1b940: E2E 337/339; receipt visibility defect fixed on fc0ec978. Cold first paint measured 13,326ms against 12,000ms; isolated local performance check passed, cause remains unproven. API job remains in progress.",
+      "currentFastCi": "40173305587: Angular and Docs Health passed; .NET Release build remains in progress at 2026-10-25T07:39:17Z; workflow head fc0ec978, ci-status source resolution UNRESOLVED.",
+      "currentReleaseVerification": "40173365579: release-source artifact MATCH fc0ec978; Angular/full specs passed; Verify, Domain, API and E2E jobs remain in progress at 2026-10-25T07:39:17Z.",
+      "evidence": ".local/autonomous/evidence/finding-receipt-refresh-20261025/review.json"
+    },
     "wu024DeploymentBindings20261025": {
       "sourceCommit": "02d8b914b780c7c99d672e6024c874cba70c30e0",
       "status": "PARTIAL_STATIC_BINDINGS_PASS_EXTERNAL_ACCEPTANCE_OPEN",
       "evidence": ".local/autonomous/evidence/wu024-deployment-bindings-20261025/review.json",
       "verification": "All-profile synthetic Compose render: 9 services, 6 volumes, no services started. Test/Export envelopes valid INCOMPLETE_EVIDENCE; 25 PASS, 1 outbound-host-policy MISSING, 0 FAIL. Offline script assertions 32/32 PASS.",
       "remaining": "Runtime environment/mounts, schema, readiness, approved egress policy, rollback and live acceptance remain unobserved."
+    },
+    "narrativeMetricsFastCiRepair20261025": {
+      "status": "ARCHIVED_HISTORY",
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.narrativeMetricsFastCiRepair20261025"
     }
   },
   "externalGates": [
@@ -1672,11 +1631,11 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "f7e1b94043d9e1b911867072dcb13f3252ea12c5",
-    "fastCi": "40164795237: push-triggered CI running at exact workflow head f7e1b940; job conclusions pending.",
-    "releaseVerification": "40164830806: release-source artifact MATCH f7e1b940; Angular/full-spec job running; .NET jobs pending.",
-    "docsOnlyFast": "40163211753: Docs Health, Angular and .NET Release build passed on predecessor docs-only commit 0a0ef309.",
-    "precedingFull": "40162457986: source MATCH 02d8b914; Angular/build/contracts/Domain passed; API/E2E still running at last observation."
+    "sourceCommit": "fc0ec97863ddf710d44052379ab50959c794dae1",
+    "fastCi": "40173305587: Angular and Docs Health passed; .NET Release build in progress; workflow head matches fc0ec978, source resolution remains UNRESOLVED.",
+    "releaseVerification": "40173365579: exact release-source artifact MATCH fc0ec978; Angular/full specs passed; Verify, unfiltered Domain/API/E2E jobs remain in progress.",
+    "previousRelease": "40164830806: exact source MATCH f7e1b940; E2E 337/339 with the receipt-visibility defect fixed on fc0ec978 and a 13,326ms cold-start overrun not reproduced by the focused local performance case; unfiltered API remains in progress.",
+    "docsOnlyFast": "40164907619: all jobs succeeded at workflow head 1b4b7009; source resolution UNRESOLVED, so exact-source FAST_CI_PASS is not asserted."
   },
-  "updatedAtUtc": "2026-10-25T05:15:49Z"
+  "updatedAtUtc": "2026-10-25T07:41:49Z"
 }
