@@ -1100,11 +1100,11 @@
       "commit": "940ff390940c34f0605980af08dc0bf9f7decfe2",
       "filter": "CompletionUnit=WU-039",
       "cases": "Prior seven-case cohort plus connected PBC method: staff-created request; exact client upload; worker transfer; independent review.",
-      "result": "New named method passed 1/1 locally; combined eight-case cohort not rerun.",
-      "evidence": ".local/autonomous/evidence/wu039-pbc-connected-request-20261025/review.json and test-results/WU-039-pbc-connected-request.trx; prior cohort evidence retained.",
+      "result": "Combined WU-039 filter passed locally: 8/8; 0 failed, 0 skipped.",
+      "evidence": ".local/autonomous/evidence/wu039-connected-request-cohort-20261025/review.json; TRX sha256 1aa47a09a3511b0ebcce89eff30c5df6bcd7abd753ae715c5a3ac20fbfdc0eaa.",
       "journeyBoundary": "Same request is created by staff, uploaded by client, transferred by worker and accepted by an independent reviewer; no commercial-to-archive identity.",
       "remaining": "Broader planning, reporting, firm ledger, archive, WU-012/WU-014 dependencies and professional/live acceptance remain open.",
-      "ci": "Release 40160126775 is queued with source MATCH on 940ff390; prior full 40159095169 on 94a1bd32 remains running. The status push triggers the current fast gate; no result is claimed."
+      "ci": "Full 40160126775 source MATCH remains running; fast 40160196900 docs and Angular passed, .NET build running. No full pass is claimed."
     }
   },
   "externalGates": [
