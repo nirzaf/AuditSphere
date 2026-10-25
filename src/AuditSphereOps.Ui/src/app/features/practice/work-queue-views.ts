@@ -9,11 +9,12 @@ export interface QueueTaskLike {
   dueDate: string | null;
 }
 
-export type QueueDisplay = 'LIST' | 'BOARD' | 'CALENDAR';
+export type QueueDisplay = 'LIST' | 'BOARD' | 'CALENDAR' | 'GROUPED';
 export const QUEUE_DISPLAYS: { key: QueueDisplay; label: string }[] = [
   { key: 'LIST', label: 'List' },
   { key: 'BOARD', label: 'Board' },
   { key: 'CALENDAR', label: 'Calendar' },
+  { key: 'GROUPED', label: 'Grouped' },
 ];
 
 export interface BoardColumn<T> {
@@ -94,4 +95,45 @@ export function queueCalendar<T extends QueueTaskLike>(tasks: readonly T[]): Que
     return { weekStart, days };
   });
   return { weeks, undated };
+}
+
+export interface QueueGroupTaskLike extends QueueTaskLike {
+  engagementId: string;
+  clientName: string;
+  engagementServiceRoute: string;
+  engagementPeriod: string;
+  phase: string;
+  ordinal: number;
+  taskGroupName?: string | null;
+}
+export interface TaskGroup<T> { name: string | null; tasks: T[] }
+export interface PhaseGroup<T> { phase: string; label: string; count: number; taskGroups: TaskGroup<T>[] }
+export interface EngagementGroup<T> { engagementId: string; label: string; count: number; phases: PhaseGroup<T>[] }
+
+/**
+ * Engagement, then workflow phase, then template task group, over one loaded page. Engagements keep the server's order;
+ * phases and task groups follow their lowest task ordinal, and tasks their ordinal. Counts describe this page only.
+ */
+export function groupedTasks<T extends QueueGroupTaskLike>(tasks: readonly T[]): EngagementGroup<T>[] {
+  const engagements = new Map<string, T[]>();
+  for (const task of tasks) engagements.set(task.engagementId, [...(engagements.get(task.engagementId) ?? []), task]);
+  const byOrdinal = (a: T, b: T) => a.ordinal - b.ordinal || a.taskId.localeCompare(b.taskId);
+  return [...engagements.entries()].map(([engagementId, members]) => {
+    const phases = new Map<string, T[]>();
+    for (const task of [...members].sort(byOrdinal)) phases.set(task.phase, [...(phases.get(task.phase) ?? []), task]);
+    const first = members[0];
+    return {
+      engagementId, count: members.length,
+      label: `${first.clientName} · ${first.engagementServiceRoute} · ${first.engagementPeriod}`,
+      phases: [...phases.entries()].map(([phase, phaseTasks]) => {
+        const groups = new Map<string | null, T[]>();
+        for (const task of phaseTasks) {
+          const name = task.taskGroupName?.trim() || null;
+          groups.set(name, [...(groups.get(name) ?? []), task]);
+        }
+        return { phase, label: phase.replaceAll('_', ' ').toLowerCase().replace(/^./, c => c.toUpperCase()), count: phaseTasks.length,
+          taskGroups: [...groups.entries()].map(([name, groupTasks]) => ({ name, tasks: groupTasks })) };
+      }),
+    };
+  });
 }

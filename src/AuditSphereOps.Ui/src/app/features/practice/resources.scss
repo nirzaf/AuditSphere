@@ -40,3 +40,6 @@ li {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.resource-filter { display: grid; gap: .25rem; max-width: 28rem; margin-block: .5rem; }
+.resource-filter-scope { color: var(--as-text-muted, #4c5968); }
+.cell-detail { display: block; margin-top: .25rem; }

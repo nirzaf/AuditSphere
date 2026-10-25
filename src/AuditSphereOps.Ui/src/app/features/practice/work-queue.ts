@@ -6,7 +6,7 @@ import { Api, CommandState } from '../../core/api';
 import { arr, bool, date, guid, instant, int, nullable, obj, oneOf, str, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { SessionService } from '../../core/session';
-import { QUEUE_DISPLAYS, QueueDisplay, boardColumns, queueCalendar } from './work-queue-views';
+import { QUEUE_DISPLAYS, QueueDisplay, boardColumns, groupedTasks, queueCalendar } from './work-queue-views';
 import { WorkflowTaskDependenciesPanel } from './workflow-task-dependencies';
 import { WorkflowTaskEvidencePanel } from './workflow-task-evidence';
 import { decodeWorkflowTaskWorkspace, WorkflowTaskCancellationPanel } from './workflow-task-cancellation';
@@ -321,6 +321,7 @@ const queueViews: { key: QueueView; label: string }[] = [
         <small><a [routerLink]="['/app/engagements', task.engagementId]">{{ task.clientName }}</a> · {{ task.engagementServiceRoute }} · {{ task.engagementPeriod }}</small>
         <small>{{ task.phase.replaceAll('_', ' ') }} · #{{ task.ordinal }} · {{ task.dueDate ? 'due ' + task.dueDate : 'no due date' }} · {{ task.assigneeDisplayName ?? 'Unassigned' }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }@if (task.mappingVersionId) { · mapping {{ task.mappingVersionId }} }</small>
         @if (task.pbcRequestId) { <small><a [routerLink]="['/app/engagements', task.engagementId, 'pbc']">PBC request · {{ task.pbcState }}</a></small> }
+        @if (task.taskStatus === 'OPEN' || task.taskStatus === 'IN_PROGRESS') { <small><a routerLink="/app/practice/time" [queryParams]="{ taskId: task.taskId }">Record time for this task</a></small> }
         @if (task.reviewState) {
           <small>{{ task.reviewState === 'UNDER_REVIEW' ? 'resubmitted work awaits independent review' : 'current audit result needs resubmission' }}</small>
           @if (task.reviewComment) { <small>Reviewer: {{ task.reviewComment }}</small> }
@@ -398,6 +399,25 @@ const queueViews: { key: QueueView; label: string }[] = [
           }
         }
       }
+      @if (display() === 'GROUPED') {
+        <p class="queue-note">Grouped by engagement, workflow phase and template task group. Counts cover this page of tasks only; the engagement holds its complete task list.</p>
+        @for (engagement of grouped(result.tasks); track engagement.engagementId) {
+          <section class="queue-group" [attr.aria-label]="engagement.label">
+            <h2><a [routerLink]="['/app/engagements', engagement.engagementId]">{{ engagement.label }}</a> <small>({{ engagement.count }} on this page)</small></h2>
+            @for (phase of engagement.phases; track phase.phase) {
+              <h3>{{ phase.label }} <small>({{ phase.count }})</small></h3>
+              @for (group of phase.taskGroups; track group.name) {
+                @if (group.name) { <h4>Task group: {{ group.name }}</h4> }
+                @for (task of group.tasks; track task.taskId) {
+                  <ng-container *ngTemplateOutlet="card; context: { $implicit: task }" />
+                }
+              }
+            }
+          </section>
+        } @empty {
+          <p>No tasks on this page.</p>
+        }
+      }
       @if (display() === 'LIST') {
       <div class="table-scroll" role="region" aria-label="Operational task list" aria-describedby="work-table-scroll-instructions" tabindex="0" (keydown)="scrollWorkTable($event)"><table>
         <caption>{{ labelFor(result.view) }} — workflow tasks</caption>
@@ -418,6 +438,7 @@ const queueViews: { key: QueueView; label: string }[] = [
               <td><a [routerLink]="['/app/engagements', task.engagementId]">{{ task.clientName }}</a><small>{{ task.engagementServiceRoute }} · {{ task.engagementPeriod }}</small></td>
               <td>{{ task.title }}<small>Source: {{ task.sourceKey || 'Not recorded' }}@if (task.templateRevisionId) { · template revision {{ task.templateRevisionId }} }@if (task.templateStepId) { · step {{ task.templateStepId }} }</small>@if (task.requiredTask !== null) { <small>Template task designation: {{ task.requiredTask ? 'Required' : 'Optional' }}</small> }@if (task.taskGroupName) { <small>Task group: {{ task.taskGroupName }}</small> }<small>{{ task.phase.replace('_', ' ') }} · #{{ task.ordinal }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }@if (task.mappingVersionId) { · mapping {{ task.mappingVersionId }} }</small>
                 @if (task.pbcRequestId) { <small><a [routerLink]="['/app/engagements', task.engagementId, 'pbc']">PBC request · {{ task.pbcState }}</a></small> }
+                @if (task.taskStatus === 'OPEN' || task.taskStatus === 'IN_PROGRESS') { <small><a routerLink="/app/practice/time" [queryParams]="{ taskId: task.taskId }">Record time for this task</a></small> }
                 @if (task.reviewState) {
                   <small><audit-status [value]="task.reviewState" /> · {{ task.reviewState === 'UNDER_REVIEW' ? 'resubmitted work awaits independent review' : 'current audit result needs resubmission' }}</small>
                   @if (task.reviewComment) { <small>Reviewer: {{ task.reviewComment }}</small> }
@@ -559,6 +580,7 @@ export class WorkflowWorkQueue {
   readonly blockedPrerequisites = hasBlockingPrerequisites;
   readonly board = boardColumns;
   readonly calendar = queueCalendar;
+  readonly grouped = groupedTasks;
   readonly selectedView = signal<QueueView>('MY_TASKS');
   readonly reminderTaskSelection = signal<ReminderTaskSelection | null>(null);
   readonly reminderTaskLinkError = signal('');

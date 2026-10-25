@@ -174,6 +174,31 @@ describe('Resource planning forms', () => {
     ).toContain('approved actual 10 hours');
     f.destroy();
   });
+  it('opens read-only staff/week details and filters the loaded grid without any write', () => {
+    const f = setup();
+    const host = f.nativeElement as HTMLElement;
+    (host.querySelector('button[aria-label="Details for Synthetic planner week of 2026-10-04"]') as HTMLButtonElement).click();
+    TestBed.tick();
+    const detail = host.querySelector('section[aria-labelledby="cell-detail-heading"]')!.textContent!;
+    expect(detail).toMatch(/Net capacity\s*20 h/);
+    expect(detail).toContain('planned utilization 150%');
+    expect(detail).toMatch(/Approved actual time, all classifications\s*10 h/);
+    expect(detail).toContain('actual billable utilization 50%');
+    expect(detail).toContain('Over-allocated: planned allocation exceeds net capacity.');
+    expect(host.querySelector(`section[aria-labelledby="cell-detail-heading"] a[href="/app/engagements/${engagement}"]`)).not.toBeNull();
+    const filter = host.querySelector('.resource-filter input') as HTMLInputElement;
+    filter.value = 'audit';
+    filter.dispatchEvent(new Event('input'));
+    TestBed.tick();
+    expect(host.textContent).toContain('Showing 0 of 1 team members.');
+    expect(host.textContent).toContain('No team member matches this filter.');
+    filter.value = 'ifrs';
+    filter.dispatchEvent(new Event('input'));
+    TestBed.tick();
+    expect(host.textContent).toContain('Showing 1 of 1 team members.');
+    http.expectNone((r) => r.method !== 'GET');
+    f.destroy();
+  });
   it('keeps selected week columns and an aligned empty row when there are no active staff', () => {
     expect(resourceWeekStarts('2026-10-04', 3)).toEqual([
       '2026-10-04',

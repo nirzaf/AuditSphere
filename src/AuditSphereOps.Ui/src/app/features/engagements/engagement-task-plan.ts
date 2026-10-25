@@ -140,6 +140,10 @@ function isPendingPlan(value: unknown): value is PendingPlan {
           @if (preview.existingTaskCount > 0 && !preview.alreadyInstantiated) {
             <p role="status">{{ preview.existingTaskCount }} existing engagement task(s) were considered. Review them before proceeding.</p>
           }
+          @if (planSummary(preview.steps); as summary) {
+            <p class="plan-summary">{{ summary.steps }} step(s) · {{ summary.unassigned }} without an eligible engagement assignee ·
+              {{ summary.undated }} without a due date · {{ summary.withPrerequisites }} with prerequisites</p>
+          }
           <ol class="plan-steps">
             @for (step of preview.steps; track step.stepKey) {
               <li>
@@ -257,6 +261,11 @@ export class EngagementTaskPlan {
     .filter((item) => !item.archived && item.currentPublishedRevision?.serviceRoute === this.serviceRoute())
     .map((item) => ({ templateId: item.templateId, revision: item.currentPublishedRevision! })));
   readonly selectedRevisionId = signal('');
+  /** Counts over the previewed steps only; it states gaps and changes nothing in the reviewed plan. */
+  planSummary(steps: PlanPreview['steps']) {
+    return { steps: steps.length, unassigned: steps.filter(step => step.missingEligibleAssignee).length,
+      undated: steps.filter(step => step.dueDate === null).length, withPrerequisites: steps.filter(step => step.dependsOnStepKeys.length > 0).length };
+  }
   readonly referenceUnavailable = computed(() => !!this.suggestedRevisionId() &&
     !this.publishedTemplates().some(item => item.revision.revisionId === this.suggestedRevisionId()));
   readonly plan = signal<PlanPreview | null>(null);

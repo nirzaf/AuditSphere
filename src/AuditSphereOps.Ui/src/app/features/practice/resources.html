@@ -54,6 +54,14 @@
 <audit-state [loading]="view.loading()" [error]="view.error()" label="the resource grid" />
 <div [hidden]="!!pending() || cmd.uncertain()">
   @if (view.data(); as v) {
+    <label class="resource-filter"
+      >Filter team members by name, department or skill
+      <input type="search" maxlength="100" [value]="teamFilter()" (input)="teamFilter.set($any($event.target).value)"
+    /></label>
+    <p class="resource-filter-scope">
+      Showing {{ visibleRows().length }} of {{ v.grid.rows.length }} team members. Filtering and cell details only change
+      this view; they never save planning data.
+    </p>
     <div
       class="table-scroll"
       role="region"
@@ -72,7 +80,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (r of v.grid.rows; track r.userId) {
+          @for (r of visibleRows(); track r.userId) {
             <tr [attr.data-user]="r.name">
               <th scope="row">
                 {{ r.name
@@ -127,17 +135,54 @@
                   @if (c.overAllocated) {
                     <small class="error-text">Over-allocated</small>
                   }
+                  <button matButton type="button" class="cell-detail"
+                    [attr.aria-label]="'Details for ' + r.name + ' week of ' + c.weekStart"
+                    (click)="selectedCell.set({ userId: r.userId, weekStart: c.weekStart })">Details</button>
                 </td>
               }
             </tr>
           } @empty {
             <tr>
-              <td [attr.colspan]="v.grid.weeks + 3">No active staff.</td>
+              <td [attr.colspan]="v.grid.weeks + 3">{{ v.grid.rows.length ? 'No team member matches this filter.' : 'No active staff.' }}</td>
             </tr>
           }
         </tbody>
       </table>
     </div>
+    @if (cellDetail(); as d) {
+      <section class="panel" aria-labelledby="cell-detail-heading">
+        <h2 id="cell-detail-heading">{{ d.row.name }} · week of {{ d.week.weekStart }}</h2>
+        <dl class="facts">
+          <dt>Net capacity</dt>
+          <dd>{{ hrs(d.week.capacityMinutes) }} h (weekly capacity less recorded unavailability on working days)</dd>
+          <dt>Recorded unavailability</dt>
+          <dd>{{ hrs(d.week.unavailableMinutes) }} h</dd>
+          <dt>Planned allocation</dt>
+          <dd>{{ hrs(d.week.plannedMinutes) }} h · {{ d.week.plannedUtilizationPercent !== null
+            ? 'planned utilization ' + whole(d.week.plannedUtilizationPercent) + '%' : 'planned utilization unavailable: no net capacity' }}</dd>
+          <dt>Approved actual time, all classifications</dt>
+          <dd>{{ hrs(d.week.approvedActualMinutes) }} h</dd>
+          <dt>Approved billable time</dt>
+          <dd>{{ hrs(d.week.approvedBillableMinutes) }} h · {{ d.week.actualUtilizationPercent !== null
+            ? 'actual billable utilization ' + whole(d.week.actualUtilizationPercent) + '%' : 'actual utilization unavailable: no net capacity' }}</dd>
+        </dl>
+        @if (d.week.overAllocated) {
+          <p class="error-text">Over-allocated: planned allocation exceeds net capacity.</p>
+        }
+        <h3>Engagement allocations this week</h3>
+        <ul>
+          @for (a of d.allocations; track a.engagementId + a.phase + (a.riskArea ?? '')) {
+            <li>
+              <a [routerLink]="['/app/engagements', a.engagementId]">{{ a.engagementLabel }}</a> ·
+              {{ a.phase === 'UNASSIGNED' ? 'Legacy phase not assigned' : phaseLabel(a.phase) }} · {{ hrs(a.plannedMinutes) }} hours
+            </li>
+          } @empty {
+            <li>No allocation recorded for this week.</li>
+          }
+        </ul>
+        <button matButton type="button" (click)="selectedCell.set(null)">Close details</button>
+      </section>
+    }
     <section class="panel" aria-labelledby="recorded-availability-heading">
       <h2 id="recorded-availability-heading">Recorded unavailability in selected range</h2>
       <p>These saved entries are planning inputs. They do not imply a separate approval decision.</p>

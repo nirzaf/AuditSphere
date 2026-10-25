@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boardColumns, firmWeekStart, queueCalendar } from './work-queue-views';
+import { boardColumns, firmWeekStart, groupedTasks, queueCalendar } from './work-queue-views';
 
 const task = (taskId: string, taskStatus: string, dueDate: string | null) => ({ taskId, taskStatus, dueDate });
 const tasks = [
@@ -47,5 +47,27 @@ describe('work queue board and calendar', () => {
 
   it('refuses a malformed date instead of placing the task on a wrong day', () => {
     expect(() => queueCalendar([task('x', 'OPEN', 'soon')])).toThrow();
+  });
+});
+
+describe('work queue grouped arrangement', () => {
+  const grouped = (taskId: string, engagementId: string, phase: string, ordinal: number, taskGroupName: string | null) => ({
+    taskId, taskStatus: 'OPEN', dueDate: null, engagementId, clientName: `Client ${engagementId}`, engagementServiceRoute: 'AUDIT',
+    engagementPeriod: '2026', phase, ordinal, taskGroupName,
+  });
+  const page = [
+    grouped('t3', 'E2', 'AUDIT_FIELDWORK', 3, null), grouped('t1', 'E1', 'AUDIT_FIELDWORK', 5, 'Cash'),
+    grouped('t2', 'E1', 'AUDIT_PLANNING', 1, '  '), grouped('t4', 'E1', 'AUDIT_FIELDWORK', 4, 'Cash'), grouped('t5', 'E1', 'AUDIT_FIELDWORK', 2, 'Revenue'),
+  ];
+
+  it('shows every loaded task exactly once, by engagement, phase and task group', () => {
+    const groups = groupedTasks(page);
+    expect(ids(groups.flatMap(g => g.phases.flatMap(p => p.taskGroups.flatMap(t => t.tasks))))).toEqual(ids(page));
+    expect(groups.map(g => [g.engagementId, g.count])).toEqual([['E2', 1], ['E1', 4]]);
+    const e1 = groups[1];
+    expect(e1.phases.map(p => [p.phase, p.label, p.count])).toEqual([['AUDIT_PLANNING', 'Audit planning', 1], ['AUDIT_FIELDWORK', 'Audit fieldwork', 3]]);
+    expect(e1.phases[0].taskGroups).toEqual([{ name: null, tasks: [page[2]] }]);
+    expect(e1.phases[1].taskGroups.map(t => [t.name, t.tasks.map(x => x.taskId)])).toEqual([['Revenue', ['t5']], ['Cash', ['t4', 't1']]]);
+    expect(groupedTasks([])).toEqual([]);
   });
 });

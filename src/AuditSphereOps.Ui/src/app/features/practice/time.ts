@@ -1,7 +1,7 @@
 import { afterNextRender, Component, computed, DestroyRef, ElementRef, HostListener, Injector, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { Api, CommandState } from '../../core/api';
@@ -126,6 +126,7 @@ export const decodeTime = (value: unknown, path: string) => {
       </section>
       <section class="panel" aria-labelledby="log-heading">
         <h2 id="log-heading">Record time draft</h2>
+        @if (taskContextNotice()) { <p role="status">{{ taskContextNotice() }}</p> }
         @if (!v.openTasks.length) { <p>No open tasks are currently available to book time against. Create or assign an open task first.</p> }
         @else {
           <form class="inline-form" (submit)="$event.preventDefault(); saveDraft()">
@@ -265,6 +266,10 @@ export const decodeTime = (value: unknown, path: string) => {
 export class PracticeTime implements NavigationProtected {
   private readonly api = inject(Api);
   private readonly drafts = inject(Drafts);
+  /** A task named by a My Work link; preselected only when the server lists it as open for this user. */
+  private readonly linkedTaskId = inject(ActivatedRoute, { optional: true })?.snapshot?.queryParamMap.get('taskId')?.toLowerCase() ?? null;
+  private linkedTaskResolved = false;
+  readonly taskContextNotice = signal('');
   private readonly session = inject(SessionService);
   private readonly dialog = inject(MatDialog);
   readonly entriesPositions = signal<readonly (HistoryCursor | null)[]>([null]);
@@ -343,6 +348,19 @@ export class PracticeTime implements NavigationProtected {
       : null;
   }
   constructor() {
+    effect(() => {
+      const data = this.view.data();
+      if (!data || !this.linkedTaskId || this.linkedTaskResolved) return;
+      this.linkedTaskResolved = true;
+      const task = data.openTasks.find(t => t.id.toLowerCase() === this.linkedTaskId);
+      if (!task) { this.taskContextNotice.set('The linked task is not open for your time capture with your current access.'); return; }
+      if (this.draft.task && this.draft.task.toLowerCase() !== task.id.toLowerCase()) {
+        this.taskContextNotice.set(`A saved time draft for another task is open. Choose “${task.title}” as the work task to record time against it.`);
+        return;
+      }
+      this.draft = { ...this.draft, task: task.id };
+      this.taskContextNotice.set(`Time capture is prepared for “${task.title}”. Nothing is recorded until you save the draft.`);
+    });
     const savedTask = this.drafts.load('practice-task', PracticeTime.validTask);
     if (savedTask) this.task = savedTask;
     const savedDraft = this.drafts.load('practice-time-draft', PracticeTime.validDraft);

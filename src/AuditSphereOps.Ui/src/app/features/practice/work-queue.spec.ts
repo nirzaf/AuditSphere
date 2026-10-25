@@ -423,12 +423,14 @@ describe('workflow queue assignment filters', () => {
       }
 
       const display = host.querySelector('nav[aria-label="Work queue display"]')!;
-      expect(Array.from(display.querySelectorAll('button')).map(x => x.textContent?.trim())).toEqual(['List', 'Board', 'Calendar']);
+      expect(Array.from(display.querySelectorAll('button')).map(x => x.textContent?.trim())).toEqual(['List', 'Board', 'Calendar', 'Grouped']);
       const buttons = Array.from(host.querySelectorAll('button')).map(x => x.textContent?.trim());
       expect(buttons).toContain('Review prerequisites');
       expect(buttons).toContain('Review task ordering');
       expect(buttons).toContain('View activity');
       expect(host.querySelector('[data-cancel-task]')).toBeNull(); // Missing server affordance fails closed.
+      // Time capture is a link to the existing time page with the task as context; it records nothing here.
+      expect(host.querySelector(`a[href="/app/practice/time?taskId=${task.taskId}"]`)?.textContent).toBe('Record time for this task');
 
       component.selectView('TEAM'); TestBed.tick();
       http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true')).flush({ view: 'TEAM', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });

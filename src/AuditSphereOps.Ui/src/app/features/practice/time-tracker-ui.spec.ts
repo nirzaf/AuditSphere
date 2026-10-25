@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { By } from '@angular/platform-browser';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
@@ -761,5 +761,41 @@ describe('foreground practice time tracker integration', () => {
       expect(component.tracker().intervals).toEqual([]);
       expect(component.timerNotice()).toBe('Timer clock or interval limit changed. The open interval was not recorded; review completed intervals or enter time manually.');
     } finally { fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); clock.mockRestore(); }
+  });
+});
+
+describe('time capture opened from a My Work task link', () => {
+  async function openLinked(linkedTask: string) {
+    sessionStorage.clear();
+    TestBed.configureTestingModule({
+      imports: [PracticeTime],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    });
+    TestBed.inject(SessionService).current.set({ userId, firmId: userId, generation: '1', staff: true });
+    await TestBed.inject(Router).navigateByUrl('/?taskId=' + linkedTask);
+    const fixture = TestBed.createComponent(PracticeTime);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne('/api/ui/practice/time').flush(workspace);
+    TestBed.tick(); fixture.detectChanges();
+    return { fixture, http, text: () => (fixture.nativeElement as HTMLElement).textContent ?? '' };
+  }
+
+  it('preselects a task the server lists as open and records nothing', async () => {
+    const { fixture, http, text } = await openLinked(taskId.toUpperCase());
+    try {
+      expect(fixture.componentInstance.draft.task).toBe(taskId);
+      expect(text()).toContain('Time capture is prepared for “Prepare lead schedule”. Nothing is recorded until you save the draft.');
+      http.expectNone(request => request.method !== 'GET');
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('does not select a task outside the open list', async () => {
+    const { fixture, http, text } = await openLinked('44444444-4444-4444-8444-444444444444');
+    try {
+      expect(fixture.componentInstance.draft.task).toBe('');
+      expect(text()).toContain('The linked task is not open for your time capture with your current access.');
+      http.expectNone(request => request.method !== 'GET');
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 });

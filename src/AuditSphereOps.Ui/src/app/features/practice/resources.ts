@@ -10,6 +10,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { FormField, FormRoot, disabled, form, validate } from '@angular/forms/signals';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
@@ -109,7 +110,7 @@ export const toMinutes = resourceMinutes;
 
 @Component({
   selector: 'audit-resource-planning',
-  imports: [FormField, FormRoot, MatButtonModule, MatDialogModule, ResourceEditor, ...SHARED],
+  imports: [FormField, FormRoot, MatButtonModule, MatDialogModule, RouterLink, ResourceEditor, ...SHARED],
   templateUrl: './resources.html',
   styleUrl: './resources.scss',
   host: { '(window:beforeunload)': 'beforeUnload($event)' },
@@ -192,6 +193,21 @@ export class ResourcePlanning {
   readonly hasAllocations = computed(
     () => this.view.data()?.grid.rows.some((r) => r.allocations.length) ?? false,
   );
+  /** Narrows the loaded grid by name, department or skill; it never changes or reloads planning data. */
+  readonly teamFilter = signal('');
+  readonly visibleRows = computed(() => {
+    const rows = this.view.data()?.grid.rows ?? [];
+    const term = this.teamFilter().trim().toLowerCase();
+    return term ? rows.filter((r) => [r.name, r.department, ...r.skills].some((v) => v.toLowerCase().includes(term))) : rows;
+  });
+  /** Read-only staff/week inspection; selecting a cell never saves. */
+  readonly selectedCell = signal<{ userId: string; weekStart: string } | null>(null);
+  readonly cellDetail = computed(() => {
+    const selection = this.selectedCell();
+    const row = selection ? this.view.data()?.grid.rows.find((r) => r.userId === selection.userId) : undefined;
+    const week = row?.weeks.find((w) => w.weekStart === selection?.weekStart);
+    return row && week ? { row, week, allocations: row.allocations.filter((a) => a.weekStart === week.weekStart) } : null;
+  });
   readonly versions = signal({ profile: 0, certification: 0, availability: 0, allocation: 0 });
   private readonly dirty = signal({
     profile: false,

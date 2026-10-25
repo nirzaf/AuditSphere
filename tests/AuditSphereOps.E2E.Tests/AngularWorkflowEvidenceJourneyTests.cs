@@ -164,7 +164,7 @@ public sealed class AngularWorkflowEvidenceJourneyTests
     await page.GotoAsync(origin + "/app/work");
     await page.GetByRole(AriaRole.Navigation, new() { Name = "Work queue views", Exact = true })
       .GetByRole(AriaRole.Button, new() { Name = "Team", Exact = true }).ClickAsync();
-    foreach (var layout in new[] { "List", "Board", "Calendar" })
+    foreach (var layout in new[] { "List", "Board", "Calendar", "Grouped" })
     {
       var display = page.GetByRole(AriaRole.Navigation, new() { Name = "Work queue display", Exact = true });
       await display.GetByRole(AriaRole.Button, new() { Name = layout, Exact = true }).PressAsync("Space");
