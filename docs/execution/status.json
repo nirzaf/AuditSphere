@@ -10,7 +10,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "c4e986162f90919c022e19fc550d4c002c1746f3",
+  "headCommit": "f7e1b94043d9e1b911867072dcb13f3252ea12c5",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1087,7 +1087,7 @@
     },
     "wu004BudgetReceiptCompositeForeignKeys20261025": {
       "status": "FOCUSED_PASS_SCOPE_PARTIAL_CI_PENDING",
-      "sourceParent": "0a0ef309",
+      "sourceCommit": "f7e1b94043d9e1b911867072dcb13f3252ea12c5",
       "migration": "20261025050756_BudgetReceiptFirmScope",
       "result": "Migrated-schema test 1/1; four exact cross-firm receipt FKs reject with SQLSTATE 23503. Of 887 firm-scoped FKs, 50 candidate links still lack fixture rows; append-only and upgrade/downgrade coverage remain incomplete.",
       "modelDrift": "PASS",
@@ -1672,11 +1672,11 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "02d8b914b780c7c99d672e6024c874cba70c30e0",
-    "fastCi": "40162378455: GitHub conclusion success; Docs, Angular and Release-build jobs all succeeded on exact workflow head 02d8b914. ci-status reports sourceMatch UNRESOLVED because this push run has no release-source artifact.",
-    "releaseVerification": "40162457986: release-source artifact MATCH 02d8b914; Angular/full specs and build/contracts/publication passed; API, Domain and E2E still running.",
-    "docsOnlyFast": "40163102727: running on docs-only commit c4e98616; does not change the code candidate.",
-    "precedingFull": "40161404727 on 48cd3e68: predecessor only; still running."
+    "sourceCommit": "f7e1b94043d9e1b911867072dcb13f3252ea12c5",
+    "fastCi": "40164795237: push-triggered CI running at exact workflow head f7e1b940; job conclusions pending.",
+    "releaseVerification": "40164830806: release-source artifact MATCH f7e1b940; Angular/full-spec job running; .NET jobs pending.",
+    "docsOnlyFast": "40163211753: Docs Health, Angular and .NET Release build passed on predecessor docs-only commit 0a0ef309.",
+    "precedingFull": "40162457986: source MATCH 02d8b914; Angular/build/contracts/Domain passed; API/E2E still running at last observation."
   },
-  "updatedAtUtc": "2026-10-25T04:48:04Z"
+  "updatedAtUtc": "2026-10-25T05:15:49Z"
 }
