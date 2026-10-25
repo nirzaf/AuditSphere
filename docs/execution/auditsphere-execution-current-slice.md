@@ -142,6 +142,10 @@ The prior source-bounded verification and remaining gates are retained in the [s
 
 The approved Acceptance Compose target has a read-only binding checker and safe public-settings exporter. Exact source, environment declarations, selected capability identities and all-service credential isolation have focused offline evidence; Apply is refused. Model provenance, running mounts, schema, readiness, egress and rollback remain unobserved. Existing CI routes include the cohort. See the local M365 automation guide and `status.json`; no deployment or live acceptance is claimed.
 
+### Rendered deployment bindings (2026-10-25)
+
+On source `02d8b914`, Docker Compose rendered every declared profile against a temporary synthetic-only environment; the command did not start services, and the temporary environment file was removed. The resulting sanitized model contained all nine services and six storage volumes. `Test-DeploymentBindings.ps1` and `Export-DeploymentSettings.ps1` both returned valid `INCOMPLETE_EVIDENCE` envelopes: all 25 applicable static binding checks passed, one outbound-host-policy check is `MISSING`, and none failed. The focused offline deployment-binding script assertions passed 32/32. Runtime environment/mounts, database schema compatibility, worker readiness, approved egress policy, rollback and live acceptance remain unobserved; WU-024 stays partial and externally blocked. Evidence: `status.json` and the ignored local review record.
+
 ## Completion evidence identities (2026-10-23)
 
 Completion exposes persisted artifact IDs and full hashes. The existing release validator now separates recorded approvals from current package evidence and blocks prepare after source return or lost Partner authority; issued history is preserved. Focused PostgreSQL/Angular, build and contract checks are recorded in `status.json`. The owned early-lock journey passed; interactive and full completion acceptance remain open.

@@ -10,7 +10,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "94a1bd32e3d0873104f8d8be1bb3459446422c0e",
+  "headCommit": "02d8b914b780c7c99d672e6024c874cba70c30e0",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -132,21 +132,9 @@
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
       "jsonPath": "keys.targetedVerification.workflowTaskPbcFollowUp"
     },
-    "workflowPbcReminders": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowPbcReminders"
-    },
     "workflowCommercialAcceptance": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
       "jsonPath": "keys.targetedVerification.workflowCommercialAcceptance"
-    },
-    "workflowTaskActivity": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json",
-      "key": "targetedVerification.workflowTaskActivity"
-    },
-    "workflowClientWait": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json",
-      "key": "targetedVerification.workflowClientWait"
     },
     "workflowTaskDueDateHistory": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
@@ -162,14 +150,6 @@
       "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.accessibilityRenderedSweep20261020CurrentRecord",
       "currentFollowUp": "targetedVerification.accessibilityReview20261021"
     },
-    "workflowAnnualPeriodBinding": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowAnnualPeriodBinding"
-    },
-    "workflowReviewInbox": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowReviewInbox"
-    },
     "agentCapabilityRunner": {
       "archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.agentCapabilityRunner20261016"
     },
@@ -180,10 +160,6 @@
     "workflowAnalyticsPaging": {
       "status": "ARCHIVED_FOCUSED_EVIDENCE",
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowAnalyticsPaging"
-    },
-    "workflowAnnualPeriodOverlap": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowAnnualPeriodOverlap"
     },
     "workflowRecurringRiskScope": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
@@ -1109,7 +1085,14 @@
       "result": "1/1 focused E2E PASS; full 40161404727 and fast 40161352561 running on 48cd3e68",
       "evidence": ".local/autonomous/evidence/wu034-unknown-start-recovery-20261025/review.json"
     },
-    "wu004CompositeForeignKeyMapping20261025": "Focused 1/1 pass; 887 firm-table FKs checked. 54 single-column links had no seed row (0 target-FK probes); WU-004 partial. Evidence/digests: .local/autonomous/evidence/wu004-composite-fk-mapping-20261025/review.json."
+    "wu004CompositeForeignKeyMapping20261025": "Focused 1/1 pass; 887 firm-table FKs checked. 54 single-column links had no seed row (0 target-FK probes); WU-004 partial. Evidence/digests: .local/autonomous/evidence/wu004-composite-fk-mapping-20261025/review.json.",
+    "wu024DeploymentBindings20261025": {
+      "sourceCommit": "02d8b914b780c7c99d672e6024c874cba70c30e0",
+      "status": "PARTIAL_STATIC_BINDINGS_PASS_EXTERNAL_ACCEPTANCE_OPEN",
+      "evidence": ".local/autonomous/evidence/wu024-deployment-bindings-20261025/review.json",
+      "verification": "All-profile synthetic Compose render: 9 services, 6 volumes, no services started. Test/Export envelopes valid INCOMPLETE_EVIDENCE; 25 PASS, 1 outbound-host-policy MISSING, 0 FAIL. Offline script assertions 32/32 PASS.",
+      "remaining": "Runtime environment/mounts, schema, readiness, approved egress policy, rollback and live acceptance remain unobserved."
+    }
   },
   "externalGates": [
     {
@@ -1682,10 +1665,10 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "48cd3e6811ec08fe3a1822ef82d5f56eebfc2ef4",
-    "fastCi": "40161352561 cancelled after Docs/Angular PASS; .NET pending. Docs fast 40161667047 on 6aff: Docs/Angular PASS, .NET running.",
-    "releaseVerification": "40161404727: source MATCH 48cd; Angular/full specs PASS, all remaining jobs RUNNING.",
-    "precedingFull": "40160126775/940ff390: predecessor-only."
+    "sourceCommit": "02d8b914b780c7c99d672e6024c874cba70c30e0",
+    "fastCi": "40162378455: RUNNING; Docs and Angular PASS, Release build running.",
+    "releaseVerification": "40162457986: source MATCH; Angular/full specs PASS; API, Domain, E2E and verification running.",
+    "precedingFull": "40161404727 on 48cd3e68: predecessor only; still running."
   },
-  "updatedAtUtc": "2026-10-25T04:28:46Z"
+  "updatedAtUtc": "2026-10-25T04:44:04Z"
 }
