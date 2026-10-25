@@ -25535,6 +25535,106 @@
       "finalFocused": "38 PASS / 0 FAIL / 0 SKIP; source-capture database pair plus existing parser cohort. Includes failed staged-save cleanup with subsequent SaveChanges proving no leak, original receipt lookup after source tampering, wrong-intent conflict, concurrent same-request capture, per-account controls, immutable capture/rows, legacy review refusal, empty Down/Up and retained Down refusal.",
       "review": "Independent static review identified tracked early-failure cleanup and repeated SQL population scans; corrected and reverified. SQL uses scoped lookup objects/grouped aggregates; runtime scaling not benchmarked.",
       "archivedOn": "2026-10-24"
+    },
+    "t058SubsequentAmountPrecision20261025": {
+      "status": "FOCUSED_PASS_OLD_FULL_CI_HAS_VERIFIER_AND_E2E_FAILURES_API_PENDING",
+      "sourceCommit": "4ed301647cf76d659563a586a0f6ba69c534f65c",
+      "change": "Reject a subsequent-match amount when representing it at six decimal places changes its value; retain accepted amount unchanged.",
+      "regression": "AuditSamplingServiceTests.CutOffAndSubsequentMatching_AreDerivedAndVisibleInTheSampleSet rejects 900.0000004 against a 900.000000 sample before the valid full match.",
+      "focusedCommand": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AuditSamplingServiceTests.CutOffAndSubsequentMatching_AreDerivedAndVisibleInTheSampleSet'",
+      "focusedResult": "1 passed, 0 failed; test ran on the exact source tree later committed as this SHA; no code changes followed the focused run.",
+      "fullCi": {
+        "runId": 40133039876,
+        "sourceMatch": "MATCH",
+        "status": "RUNNING_WITH_VERIFIER_AND_E2E_FAILURE_API_PENDING",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/40133039876",
+        "failedJob": "Verify · Build, contracts and publication",
+        "failedStep": "Documentation, agent catalog and UI inventory validators",
+        "failure": "At source 4ed30164, status.json was 103481 bytes (>102400) and current-slice Markdown was 62568 bytes (>61440). The documentation follow-up reduced current sizes below limits; local validator and latest docs fast workflow passed.",
+        "followUpDocsCommit": "7cdb7f986dd34167028fa7ea5f7d89d73dba817d",
+        "followUpDocsFastRunId": 40133206996,
+        "followUpDocsFastStatus": "SUCCESS",
+        "lastObservedAtUtc": "2026-10-24T21:33:06+00:00",
+        "completedJobs": {
+          "Angular and full specs": "SUCCESS",
+          "Domain unfiltered": "SUCCESS",
+          "Verify Build/contracts/publication": "FAILURE_DOCUMENTATION_LEDGER_BUDGET",
+          "Playwright E2E unfiltered": "FAILURE_336_PASSED_3_FAILED_OF_339"
+        },
+        "pendingJobs": {
+          "API unfiltered": "RUNNING"
+        }
+      },
+      "fastCi": {
+        "runId": 40133000520,
+        "workflow": "AuditSphereOps CI",
+        "status": "CANCELLED_BY_DOCUMENTATION_FOLLOW_UP",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/40133000520"
+      },
+      "acceptanceImageWorkflow": {
+        "runId": 40133000519,
+        "status": "SUCCESS_IMAGE_BUILD_ONLY",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/40133000519"
+      },
+      "limits": "The subsequent reference remains free text rather than a typed imported bank/GL row link. Approved cut-off window and MUS policy, finding linkage, rendered browser acceptance and qualified methodology acceptance remain open.",
+      "latestDocsFastCi": {
+        "runId": 40133206996,
+        "sourceCommit": "7cdb7f986dd34167028fa7ea5f7d89d73dba817d",
+        "status": "SUCCESS",
+        "checks": "Docs Health, Angular build, .NET Release build"
+      }
+    },
+    "t058FullE2eTriage20261025": {
+      "status": "FOCUSED_COHORT_PASS_CURRENT_FULL_CI_RUNNING",
+      "sourceCommit": "d154e4e14887e6a394a13dc659a45fa8fd4ffbf3",
+      "priorFullRun": {
+        "runId": 40133039876,
+        "sourceCommit": "4ed301647cf76d659563a586a0f6ba69c534f65c",
+        "sourceMatch": "MATCH",
+        "status": "RUNNING_WITH_VERIFIER_AND_E2E_FAILURES_API_PENDING",
+        "e2e": "336 passed, 3 failed of 339; two journeys needed to select the Sampling tab after Source-backed schedules became the first tab; successor-preview test read the response body after navigation; the three failures were reproduced and corrected.",
+        "verificationFailure": "The verifier's documentation budget check failed on the pre-trimmed 4ed30164 ledger sizes; docs-only follow-up 7cdb7f98 and fast run 40133206996 passed.",
+        "apiJob": "Still running at 2026-10-24T23:09:29Z; this old-source run is not current acceptance."
+      },
+      "change": "Sampling preview focus restoration now checks the Sampling tab's current index (1); two existing E2E journeys explicitly select Sampling; successor-preview E2E captures the response body before fulfill/navigation.",
+      "angularBuild": {
+        "command": "npm --prefix src/AuditSphereOps.Ui run build",
+        "result": "PASS; existing commercial/settings.scss style-budget warning (7.53 KB vs 4 KB budget)."
+      },
+      "focusedCommand": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~NativeSuccessorOpeningUsesExactReviewedClosedSourceAndRecoversOriginalUiRequest|FullyQualifiedName~SeniorUploadsDrillsSamplesIndexesAndInsertsAStep|FullyQualifiedName~AdoptedProgramReviewedFieldworkAndFrozenWorkpaperSurviveReload'",
+      "focusedResult": "4 passed, 0 failed, 0 skipped on the source tree later committed as d154e4e1; Angular dist was rebuilt first; no full local suites were run.",
+      "currentFastCi": {
+        "runId": 40141556384,
+        "sourceCommit": "d154e4e14887e6a394a13dc659a45fa8fd4ffbf3",
+        "status": "CANCELLED_BY_DOCUMENTATION_FOLLOW_UP_127aa1ae"
+      },
+      "latestFastCi": {
+        "runId": 40141737173,
+        "sourceCommit": "127aa1ae9bf0c5e166ad3f1ebe985c12bc292cc5",
+        "status": "SUCCESS",
+        "completedJobs": [
+          "Build · Angular: SUCCESS",
+          "Docs · Health: SUCCESS",
+          "Build · .NET Release: SUCCESS"
+        ]
+      },
+      "currentFullCi": {
+        "runId": 40141797352,
+        "sourceCommit": "127aa1ae9bf0c5e166ad3f1ebe985c12bc292cc5",
+        "sourceMatch": "MATCH",
+        "status": "RUNNING_PRE_IMPLEMENTATION_BASELINE",
+        "completedJobs": [
+          "Resolve: SUCCESS",
+          "Build · Angular and full specs: SUCCESS",
+          "Verify · Build, contracts and publication: SUCCESS",
+          "Domain unfiltered: SUCCESS"
+        ],
+        "pendingJobs": [
+          "API unfiltered",
+          "Playwright E2E unfiltered"
+        ]
+      },
+      "limits": "Pre-implementation baseline full run 40141797352 remains in progress and is not acceptance for commit 71969138. The exact-source full run 40143495963 is tracked in scheduleSourceIndependentReviewDetails20261025. No full local suites; T058 and professional/browser acceptance remain partial."
     }
   },
   "lastUpdatedOn": "2026-10-25"

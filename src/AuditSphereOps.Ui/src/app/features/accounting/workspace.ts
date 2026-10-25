@@ -488,6 +488,9 @@ export class AccountingWorkspace {
           this.error.set('Profile save outcome is unknown because the API response was not recognized. Refresh to inspect persisted setup; do not retry while the outcome is unresolved.');
           return;
         }
+        // Acknowledgement creates a new immutable profile revision. Revoke assent to the
+        // previous revision immediately; the workspace refresh below is asynchronous.
+        this.reviewed = false;
         this.clearProfileOutcomeUnknown(w.clientId);
         this.select(w.clientId);
       },

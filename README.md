@@ -36,6 +36,8 @@ A supplemental comprehensive gap guide is used as a cross-check against the appr
 
 The 2026-10-25 exact-source full run found one Domain assertion comparing a pre-save timestamp with its PostgreSQL projection. The assertion now compares against the persisted timestamp while retaining exact representation ID and signatory checks; the named test passes locally, and corrected-source full CI is pending.
 
+Full run `40148916402` matched `69264b34` but its E2E job reported 336/339 passing. The profile-revision assent defect is fixed and its rebuilt Playwright journey passes; the completion-opinion check now follows the rendered term/value structure. A separate scope-revocation response timeout passes in the focused rerun but remains unexplained. The API job was still running; the next exact-source result and details are tracked in [execution status](docs/execution/status.json).
+
 The [product brief](docs/requirements/auditsphere-requirements-specification-product-brief-current.md) and [practice-management crosswalk](docs/execution/auditsphere-execution-tracker-practice-management-v22-crosswalk-current.md) define scope more precisely. The [API/Angular parity tracker](docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md) distinguishes implemented code from browser/CI acceptance. The [v3 screen-to-code matrix](docs/design/auditsphere-ux-matrix-v3-screen-to-code-proposed.md) is **PROPOSED**, not proof of 19-screen production parity.
 
 ### Audit engagement lifecycle

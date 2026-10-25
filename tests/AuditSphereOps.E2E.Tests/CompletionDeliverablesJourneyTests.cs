@@ -176,7 +176,10 @@ public sealed class CompletionDeliverablesJourneyTests
     await opinionBasis.PressAsync("Tab");
     await page.GetByRole(AriaRole.Button, new() { Name = "Record opinion (Engagement Partner)" }).ClickAsync();
     await Assertions.Expect(result).ToContainTextAsync("Qualified opinion recorded.");
-    await Assertions.Expect(page.GetByText("Current opinion: Qualified — Inventory", new() { Exact = false })).ToBeVisibleAsync();
+    var currentOpinion = page.Locator("[data-current-opinion]");
+    await Assertions.Expect(currentOpinion).ToBeVisibleAsync();
+    await Assertions.Expect(currentOpinion.GetByText("Current opinion", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(currentOpinion.Locator("dd").First).ToContainTextAsync("Qualified — Inventory");
 
     foreach (var title in new[] { "Independent Auditor's Report", "Management Representation Letter" })
     {
