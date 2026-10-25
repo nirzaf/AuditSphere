@@ -111557,12 +111557,32 @@
       },
       "CompletionOpinion": {
         "required": [
+          "id",
+          "partnerClearanceId",
+          "decidedByUserId",
+          "decidedAt",
           "opinionType",
           "label",
           "focusArea"
         ],
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "partnerClearanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decidedByUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
           "opinionType": {
             "type": "string"
           },
@@ -111589,6 +111609,119 @@
           },
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "CompletionPackageReview": {
+        "required": [
+          "id",
+          "financialPackageId",
+          "packageRevision",
+          "packageGeneration",
+          "packageHash",
+          "financialPackageArtifactId",
+          "artifactVersion",
+          "artifactSha256Hex",
+          "presentationRevisionId",
+          "presentationCompositionId",
+          "compositionManifestDigest",
+          "stage",
+          "decision",
+          "evidenceMode",
+          "evidenceReference",
+          "decidedByUserId",
+          "decidedAt",
+          "sequence"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "financialPackageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "packageRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "packageGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "packageHash": {
+            "type": "string"
+          },
+          "financialPackageArtifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "artifactVersion": {
+            "type": "string"
+          },
+          "artifactSha256Hex": {
+            "type": "string"
+          },
+          "presentationRevisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "presentationCompositionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "compositionManifestDigest": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "stage": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "evidenceMode": {
+            "type": "string"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "decidedByUserId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sequence": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -111708,13 +111841,20 @@
       },
       "CompletionRepresentation": {
         "required": [
+          "id",
           "code",
           "title",
           "narrative",
-          "obtained"
+          "obtained",
+          "obtainedAt",
+          "signatoryName"
         ],
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "code": {
             "type": "string"
           },
@@ -111726,6 +111866,19 @@
           },
           "obtained": {
             "type": "boolean"
+          },
+          "obtainedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "signatoryName": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -117186,7 +117339,8 @@
           "freezeDays",
           "trail",
           "trailCoverageNote",
-          "locks"
+          "locks",
+          "packageReviews"
         ],
         "type": "object",
         "properties": {
@@ -117342,6 +117496,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DocumentLockView"
+            }
+          },
+          "packageReviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompletionPackageReview"
             }
           },
           "holdingLetter": {

@@ -40,8 +40,13 @@ public sealed partial class AuditDeliverablesTests
 
     Assert.True(workspace.Value.PackageEvidence!.Current, workspace.Value.PackageEvidence.Message);
     Assert.True(workspace.Value.PartnerApproved);
-    var decisionIds = await db.FinancialPackageReviewDecisions.AsNoTracking()
-      .Where(x => x.FinancialPackageId == packageId).OrderBy(x => x.Id).Select(x => x.Id).ToListAsync();
+    var decisions = await db.FinancialPackageReviewDecisions.AsNoTracking()
+      .Where(x => x.FinancialPackageId == packageId).OrderBy(x => x.Sequence).ToListAsync();
+    var expectedReviewEvidence = decisions.Select(x => new CompletionPackageReview(x.Id, x.FinancialPackageId,
+      x.PackageRevision, x.PackageGeneration, x.PackageHash, x.FinancialPackageArtifactId, x.ArtifactVersion,
+      x.ArtifactSha256Hex, x.PresentationRevisionId, x.PresentationCompositionId, x.CompositionManifestDigest,
+      x.Stage, x.Decision, x.EvidenceMode, x.EvidenceReference, x.DecidedByUserId, x.DecidedAt, x.Sequence)).ToList();
+    Assert.Equal(expectedReviewEvidence, workspace.Value.PackageReviews);
     var returned = await CashFlowSourceReviewCall.RecordAsync(db, w.A("senior", "AccountingReviewer"),
       packageId, "RETURNED", "Synthetic correction requires independent source re-review.");
     Assert.True(returned.Succeeded, returned.Message);
@@ -54,8 +59,7 @@ public sealed partial class AuditDeliverablesTests
     var packageGates = stale.Value.Gates.Where(x => x.Name.StartsWith("Package ", StringComparison.Ordinal)).ToList();
     Assert.NotEmpty(packageGates);
     Assert.All(packageGates, gate => { Assert.Equal("RECORDED_APPROVAL", gate.Status); Assert.Equal("neutral", gate.Tone); });
-    Assert.Equal(decisionIds, await db.FinancialPackageReviewDecisions.AsNoTracking()
-      .Where(x => x.FinancialPackageId == packageId).OrderBy(x => x.Id).Select(x => x.Id).ToListAsync());
+    Assert.Equal(expectedReviewEvidence, stale.Value.PackageReviews);
     // An issued record is historical fact even when its source is no longer current for a new release.
     Assert.Equal(releaseId, stale.Value.Release!.ReleaseId);
     Assert.Equal(release.ReleaseManifestDigest, stale.Value.Release.ReleaseManifestDigest);

@@ -14,8 +14,13 @@ export const decodeSignatureCheck = obj({ signatureKind: oneOf('VISUAL', 'CERTIF
   subject: nullable(text), thumbprintSha256: nullable(text), message: text });
 export const decodeCompletion = obj({ engagementId: guid,
   gates: arr(obj({ name: text, status: text, tone: text, authority: nullable(text), date: nullable(instant) }), 50),
-  representations: arr(obj({ code: text, title: text, narrative: text, obtained: bool }), 500),
-  packageId: nullable(guid), packageStatus: text, packageEvidence: nullable(obj({ current: bool, message: text })), partnerApproved: bool, eqrStatus: text, releaseCandidateId: nullable(guid),
+  representations: arr(obj({ id: guid, code: text, title: text, narrative: text, obtained: bool, obtainedAt: nullable(instant), signatoryName: nullable(text) }), 500),
+  packageId: nullable(guid), packageStatus: text, packageEvidence: nullable(obj({ current: bool, message: text })),
+  packageReviews: arr(obj({ id: guid, financialPackageId: guid, packageRevision: nat, packageGeneration: nat, packageHash: text,
+    financialPackageArtifactId: guid, artifactVersion: text, artifactSha256Hex: text, presentationRevisionId: nullable(guid),
+    presentationCompositionId: nullable(guid), compositionManifestDigest: nullable(text), stage: text, decision: text, evidenceMode: text,
+    evidenceReference: text, decidedByUserId: nullable(guid), decidedAt: instant, sequence: nat }), 1000),
+  partnerApproved: bool, eqrStatus: text, releaseCandidateId: nullable(guid),
   release: nullable(obj({ candidateId: guid, candidateStatus: oneOf('READY', 'ISSUED'), targetKind: text, targetRevision: nat, candidateRevision: nat,
     manifestDigest: text, candidateCreatedAt: instant, checkpointId: nullable(guid), checkpointState: oneOf('ABSENT', 'VERIFIED', 'PENDING', 'MISMATCHED', 'EXPIRED'),
     checkpointVerifiedAt: nullable(instant), checkpointMatchesCandidate: bool, checkpointReadBackMatchesManifest: bool, releaseId: nullable(guid),
@@ -24,7 +29,7 @@ export const decodeCompletion = obj({ engagementId: guid,
   confirmations: arr(obj({ caseId: guid, type: text, respondent: text, bookedAmount: dec, currency: text, status: text, monitoring: text,
     daysSinceDispatch: nullable(int), critical: bool, criticalityRationale: nullable(text) }), 2000),
   deliverables: arr(deliverable, 500), clearance: nullable(obj({ id: guid, summaryReviewMemorandumId: guid, partnerUserId: guid, clearedAt: instant })),
-  opinion: nullable(obj({ opinionType: text, label: text, focusArea: nullable(text) })),
+  opinion: nullable(obj({ id: guid, partnerClearanceId: guid, decidedByUserId: guid, decidedAt: instant, opinionType: text, label: text, focusArea: nullable(text) })),
   opinionAreas: arr(obj({ id: guid, code: text, name: text }), 2000),
   shared: arr(obj({ title: text, openComments: arr(obj({ id: guid, body: text }), 500) }), 500),
   signedLetters: arr(obj({ id: guid, deliverableId: guid, version: nat, managementSignatory: text, contentSha256: text, uploadedAt: instant, verified: bool, current: bool }), 100),
@@ -64,6 +69,20 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
           <p [attr.role]="evidence.current ? 'status' : 'alert'" data-package-evidence><strong>Current package release evidence: {{ evidence.current ? 'Verified' : 'Not established' }}.</strong> {{ evidence.message }}</p>
           @if (!evidence.current) { <p>Recorded approvals remain historical evidence; they do not establish that the package is currently ready for release.</p> }
         }
+        <h3>Financial package review decisions</h3>
+        @if (w.packageReviews.length) {
+          <div class="table-scroll"><table aria-label="Exact financial package review decisions">
+            <thead><tr><th scope="col">Decision identity</th><th scope="col">Package basis</th><th scope="col">Presentation and artifact</th><th scope="col">Recorded decision</th></tr></thead>
+            <tbody>@for (r of w.packageReviews; track r.id) {
+              <tr [attr.data-package-review]="r.id">
+                <td><strong>{{ r.stage }} · {{ r.decision }}</strong><br />Review ID <code>{{ r.id }}</code><br />Reviewer user <code>{{ r.decidedByUserId ?? 'Not recorded' }}</code></td>
+                <td>Package <code>{{ r.financialPackageId }}</code><br />Revision {{ r.packageRevision }} · generation {{ r.packageGeneration }}<br />Hash <code>{{ r.packageHash }}</code></td>
+                <td>Artifact <code>{{ r.financialPackageArtifactId }}</code> · {{ r.artifactVersion }} · <code>{{ r.artifactSha256Hex }}</code><br />Presentation revision {{ r.presentationRevisionId ?? 'Not recorded' }}<br />Composition {{ r.presentationCompositionId ?? 'Not recorded' }}<br />Manifest {{ r.compositionManifestDigest ?? 'Not recorded' }}</td>
+                <td>{{ r.evidenceMode }} · {{ r.evidenceReference }}<br />Sequence {{ r.sequence }} · <time [attr.datetime]="r.decidedAt">{{ r.decidedAt }}</time></td>
+              </tr>
+            }</tbody>
+          </table></div>
+        } @else { <p>No current package review decisions are recorded.</p> }
         @if (w.release; as r) {
           <dl class="facts">
             <dt>Candidate</dt><dd><a [routerLink]="['/app/releases', r.candidateId]">{{ r.candidateId }}</a> · {{ r.candidateStatus }} · {{ r.targetKind }} revision {{ r.targetRevision }} (candidate revision {{ r.candidateRevision }})</dd>
@@ -178,7 +197,19 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
             <textarea name="basis" [(ngModel)]="f.basis" rows="3" maxlength="4000" required></textarea></label>
         }
         <button matButton="filled" (click)="send(base() + '/opinion', { opinionType: f.opinion, focusArea: f.focus || null, basis: f.basis || null }, label(f.opinion) + ' opinion recorded.')" [disabled]="cmd.busy()">Record opinion (Engagement Partner)</button>
-        @if (w.opinion; as o) { <p>Current opinion: <strong>{{ o.label }}</strong>{{ o.focusArea ? ' — ' + o.focusArea : '' }}.</p> }
+        @if (w.opinion; as o) {
+          @if (srm(w); as currentSrm) {
+            @if (currentSrm.current && w.clearance?.summaryReviewMemorandumId === currentSrm.id && w.clearance.id === o.partnerClearanceId) {
+              <dl class="facts" data-current-opinion>
+                <dt>Current opinion</dt><dd><strong>{{ o.label }}</strong>{{ o.focusArea ? ' — ' + o.focusArea : '' }}</dd>
+                <dt>Opinion decision ID</dt><dd><code>{{ o.id }}</code></dd>
+                <dt>Partner clearance ID</dt><dd><code>{{ o.partnerClearanceId }}</code></dd>
+                <dt>Deciding Partner user</dt><dd><code>{{ o.decidedByUserId }}</code></dd>
+                <dt>Decided at</dt><dd><time [attr.datetime]="o.decidedAt">{{ o.decidedAt }}</time></dd>
+              </dl>
+            } @else { <p>No current opinion is established for the current Partner clearance.</p> }
+          } @else { <p>No current opinion is established without a current Summary Review Memorandum.</p> }
+        }
 
         <h3>Deliverables</h3>
         <p class="actions">@for (r of reports; track r[0]) { <button matButton="outlined" (click)="report(r[0])" [disabled]="cmd.busy()">Generate {{ r[1] }}</button> }</p>
@@ -284,8 +315,15 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
       </section>
       <section class="panel" aria-labelledby="rep-heading">
         <h2 id="rep-heading">Written representations</h2>
-        <p>Management representations are required before the report date. Each representation is version-bound to the exact final package.</p>
-        @for (r of w.representations; track r.code) { <p><strong>{{ r.code }}</strong> {{ r.title }}: {{ r.narrative }} <audit-status [value]="r.obtained ? 'OBTAINED' : 'PENDING'" /></p> }
+        <p>Management representation records are shown separately from their received status and any signed-letter evidence.</p>
+        @for (r of w.representations; track r.id) {
+          <article [attr.data-management-representation]="r.id">
+            <p><strong>{{ r.code }}</strong> {{ r.title }}: {{ r.narrative }} <audit-status [value]="r.obtained ? 'OBTAINED' : 'PENDING'" /></p>
+            <dl class="facts"><dt>Representation record ID</dt><dd><code>{{ r.id }}</code></dd>
+              <dt>Signatory</dt><dd>{{ r.signatoryName ?? 'Not recorded' }}</dd>
+              <dt>Obtained at</dt><dd>@if (r.obtainedAt; as obtainedAt) { <time [attr.datetime]="obtainedAt">{{ obtainedAt }}</time> } @else { Not recorded }</dd></dl>
+          </article>
+        }
         @empty { <p>No written representations recorded for this engagement.</p> }
       </section>
       <section class="panel" aria-labelledby="fs-heading">

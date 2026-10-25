@@ -1002,13 +1002,21 @@ public sealed partial class AuditDeliverablesTests
   }
 
   [Fact]
-  public async Task CurrentPartnerClearanceProjectsPartnerApprovalBeforeOpinionSelection()
+  public async Task CompletionProjectsExactRepresentationClearanceAndOpinionDecisionIdentities()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
     var srmId = await PartnerClearCurrentSummaryAsync(pg, w);
     await using var db = new AuditSphereDbContext(pg.Options);
     var partner = w.A("partner", "Partner");
+    var representation = new WrittenRepresentation
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+      Code = "REP-COMPLETION", Title = "Management responsibilities", Narrative = "Synthetic representation evidence.",
+      Obtained = true, ObtainedAt = DateTimeOffset.UtcNow, SignatoryName = "Synthetic finance director"
+    };
+    db.WrittenRepresentations.Add(representation);
+    await db.SaveChangesAsync();
 
     Assert.Null(await AuditDeliverableService.CurrentOpinionAsync(db, partner, w.EngagementId));
     var workspace = await EngagementCompletionWorkspaceQuery.GetAsync(db, partner, w.EngagementId, DateTimeOffset.UtcNow);
@@ -1019,6 +1027,9 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(srmId, projectedClearance.SummaryReviewMemorandumId);
     Assert.Equal(storedClearance.PartnerUserId, projectedClearance.PartnerUserId);
     Assert.Equal(storedClearance.ClearedAt, projectedClearance.ClearedAt);
+    var projectedRepresentation = Assert.Single(workspace.Value.Representations);
+    Assert.Equal((representation.Id, representation.SignatoryName, representation.ObtainedAt),
+      (projectedRepresentation.Id, projectedRepresentation.SignatoryName, projectedRepresentation.ObtainedAt));
     var lifecycle = await EngagementLifecycleQuery.GetAsync(db, partner, w.EngagementId);
 
     Assert.True(lifecycle.Succeeded, lifecycle.Message);
@@ -1027,6 +1038,16 @@ public sealed partial class AuditDeliverablesTests
     Assert.Contains("Partner audit opinion decision pending", lifecycle.Value.Summary.BlockedReasons);
     Assert.DoesNotContain(lifecycle.Value.Summary.BlockedReasons,
       reason => reason.StartsWith("Partner clearance of a current Summary Review Memorandum is pending.", StringComparison.Ordinal));
+
+    var decided = await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId,
+      AuditOpinionTypes.Unmodified, null, null);
+    Assert.True(decided.Succeeded, decided.Message);
+    var storedOpinion = await db.AuditOpinionDecisions.AsNoTracking().SingleAsync(x => x.Id == decided.Value);
+    var afterOpinion = await EngagementCompletionWorkspaceQuery.GetAsync(db, partner, w.EngagementId, DateTimeOffset.UtcNow);
+    Assert.True(afterOpinion.Succeeded, afterOpinion.Message);
+    var projectedOpinion = Assert.IsType<CompletionOpinion>(afterOpinion.Value!.Opinion);
+    Assert.Equal((storedOpinion.Id, storedOpinion.PartnerClearanceId, storedOpinion.DecidedByUserId, storedOpinion.DecidedAt),
+      (projectedOpinion.Id, projectedOpinion.PartnerClearanceId, projectedOpinion.DecidedByUserId, projectedOpinion.DecidedAt));
   }
 
   [Fact]

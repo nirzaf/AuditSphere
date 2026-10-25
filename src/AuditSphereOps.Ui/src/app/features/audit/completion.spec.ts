@@ -25,15 +25,22 @@ const validPayload = {
       ],
       representations: [
         {
+          id: id1,
           code: 'REP-01',
           title: 'Management Responsibilities',
           narrative: 'Management acknowledges its responsibility for the financial statements.',
           obtained: true,
+          obtainedAt: '2026-10-02T10:30:00Z',
+          signatoryName: 'Chief Financial Officer',
         },
       ],
       packageId: id2,
       packageStatus: 'VALIDATED',
       packageEvidence: { current: true, message: 'Exact package evidence is current.' },
+      packageReviews: [{ id: id1, financialPackageId: id2, packageRevision: 4, packageGeneration: 2, packageHash: hash64,
+        financialPackageArtifactId: id3, artifactVersion: 'v2', artifactSha256Hex: hash64, presentationRevisionId: id2,
+        presentationCompositionId: id3, compositionManifestDigest: hash64, stage: 'PARTNER_APPROVAL', decision: 'APPROVED',
+        evidenceMode: 'SIGNED_IN', evidenceReference: 'partner-review-4', decidedByUserId: id2, decidedAt: '2026-10-02T12:10:00Z', sequence: 3 }],
       partnerApproved: true,
       eqrStatus: 'CONCURRED',
       releaseCandidateId: id3,
@@ -93,6 +100,10 @@ const validPayload = {
         clearedAt: '2026-10-02T12:00:00Z',
       },
       opinion: {
+        id: id1,
+        partnerClearanceId: id3,
+        decidedByUserId: id2,
+        decidedAt: '2026-10-02T12:10:30Z',
         opinionType: 'UNMODIFIED',
         label: 'Clean (unmodified)',
         focusArea: null,
@@ -185,6 +196,9 @@ describe('Audit Completion Contracts', () => {
     expect(decoded.release?.issueState).toBe('ISSUED');
     expect(decoded.release?.checkpointReadBackMatchesManifest).toBe(true);
     expect(decoded.clearance).toEqual({ id: id3, summaryReviewMemorandumId: id1, partnerUserId: id2, clearedAt: '2026-10-02T12:00:00Z' });
+    expect(decoded.opinion?.partnerClearanceId).toBe(id3);
+    expect(decoded.representations[0].id).toBe(id1);
+    expect(decoded.packageReviews[0].id).toBe(id1);
     expect(decoded.locks.length).toBe(1);
   });
 
@@ -286,13 +300,20 @@ describe('Early compliance lock panel (STE 4.4.3)', () => {
     const summary = { ...validPayload.deliverables[0], id: id3, kind: 'SUMMARY_REVIEW_MEMORANDUM',
       title: 'Summary Review Memorandum', version: 2, current: true };
     const f = load(http, { ...validPayload, deliverables: [...validPayload.deliverables, summary], clearance: {
-      id: id1, summaryReviewMemorandumId: id3, partnerUserId: id2, clearedAt: '2026-10-02T12:00:00Z' } });
+      id: id3, summaryReviewMemorandumId: id3, partnerUserId: id2, clearedAt: '2026-10-02T12:00:00Z' } });
     const host = f.nativeElement as HTMLElement;
     const clearance = host.querySelector('[data-partner-clearance]');
-    expect(clearance?.textContent).toContain(id1);
+    expect(clearance?.textContent).toContain(id3);
     expect(clearance?.textContent).toContain(id3);
     expect(clearance?.textContent).toContain(id2);
     expect(clearance?.textContent).toContain('2026-10-02 12:00 UTC');
+    const opinion = host.querySelector('[data-current-opinion]');
+    expect(opinion?.textContent).toContain(id1);
+    expect(opinion?.textContent).toContain(id3);
+    expect(opinion?.textContent).toContain(id2);
+    expect(host.querySelector(`[data-package-review="${id1}"]`)?.textContent).toContain('partner-review-4');
+    expect(host.querySelector(`[data-management-representation="${id1}"]`)?.textContent).toContain('Chief Financial Officer');
+    expect(host.querySelector(`[data-management-representation="${id1}"]`)?.textContent).toContain('2026-10-02T10:30:00Z');
   });
 
   it('does not associate a clearance with a different or stale latest SRM', () => {
@@ -304,6 +325,7 @@ describe('Early compliance lock panel (STE 4.4.3)', () => {
     const host = f.nativeElement as HTMLElement;
     expect(host.querySelector('[data-partner-clearance]')).toBeNull();
     expect(host.textContent).toContain('No current Partner clearance is established for this SRM.');
+    expect(host.querySelector('[data-current-opinion]')).toBeNull();
   });
 
   it('submits Manager rationale once and refreshes current approval and SRM state', async () => {
