@@ -15,10 +15,12 @@ public sealed partial class AuditSphereDbContext
     e.Property(x => x.RequestHash).HasMaxLength(64);
     e.Property(x => x.ReviewBasis).HasMaxLength(64);
     e.HasIndex(x => new { x.FirmId, x.ActorId, x.RequestId }).IsUnique();
-    e.HasIndex(x => x.BudgetId).IsUnique();
+    e.HasIndex(x => new { x.FirmId, x.BudgetId }).IsUnique();
     e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ActorId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
-    e.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Restrict);
-    e.HasOne<EngagementBudget>().WithMany().HasForeignKey(x => x.BudgetId).OnDelete(DeleteBehavior.Restrict);
+    e.HasOne<Engagement>().WithMany().HasForeignKey(x => new { x.FirmId, x.EngagementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    e.HasOne<EngagementBudget>().WithMany().HasForeignKey(x => new { x.FirmId, x.BudgetId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
   }
 }

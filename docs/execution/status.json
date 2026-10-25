@@ -1085,7 +1085,14 @@
       "result": "1/1 focused E2E PASS; full 40161404727 and fast 40161352561 running on 48cd3e68",
       "evidence": ".local/autonomous/evidence/wu034-unknown-start-recovery-20261025/review.json"
     },
-    "wu004CompositeForeignKeyMapping20261025": "Focused 1/1 pass; 887 firm-table FKs checked. 54 single-column links had no seed row (0 target-FK probes); WU-004 partial. Evidence/digests: .local/autonomous/evidence/wu004-composite-fk-mapping-20261025/review.json.",
+    "wu004BudgetReceiptCompositeForeignKeys20261025": {
+      "status": "FOCUSED_PASS_SCOPE_PARTIAL_CI_PENDING",
+      "sourceParent": "0a0ef309",
+      "migration": "20261025050756_BudgetReceiptFirmScope",
+      "result": "Migrated-schema test 1/1; four exact cross-firm receipt FKs reject with SQLSTATE 23503. Of 887 firm-scoped FKs, 50 candidate links still lack fixture rows; append-only and upgrade/downgrade coverage remain incomplete.",
+      "modelDrift": "PASS",
+      "evidence": ".local/autonomous/evidence/wu004-composite-budget-receipts-20261025/review.json"
+    },
     "wu024DeploymentBindings20261025": {
       "sourceCommit": "02d8b914b780c7c99d672e6024c874cba70c30e0",
       "status": "PARTIAL_STATIC_BINDINGS_PASS_EXTERNAL_ACCEPTANCE_OPEN",

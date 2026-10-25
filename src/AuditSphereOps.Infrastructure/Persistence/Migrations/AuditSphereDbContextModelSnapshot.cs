@@ -23913,10 +23913,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BudgetId")
+                    b.HasIndex("FirmId", "BudgetId")
                         .IsUnique();
 
-                    b.HasIndex("EngagementId");
+                    b.HasIndex("FirmId", "EngagementId");
 
                     b.HasIndex("FirmId", "ActorId", "RequestId")
                         .IsUnique();
@@ -24050,10 +24050,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BudgetId")
+                    b.HasIndex("FirmId", "BudgetId")
                         .IsUnique();
 
-                    b.HasIndex("EngagementId");
+                    b.HasIndex("FirmId", "EngagementId");
 
                     b.HasIndex("FirmId", "ActorId", "RequestId")
                         .IsUnique();
@@ -37399,21 +37399,23 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.BudgetApproval", b =>
                 {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("AuditSphereOps.Domain.Practice.EngagementBudget", null)
                         .WithMany()
-                        .HasForeignKey("BudgetId")
+                        .HasForeignKey("FirmId", "BudgetId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
                         .WithMany()
-                        .HasForeignKey("EngagementId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ActorId")
+                        .HasForeignKey("FirmId", "EngagementId")
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -37438,21 +37440,23 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.BudgetPreparation", b =>
                 {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("AuditSphereOps.Domain.Practice.EngagementBudget", null)
                         .WithMany()
-                        .HasForeignKey("BudgetId")
+                        .HasForeignKey("FirmId", "BudgetId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
                         .WithMany()
-                        .HasForeignKey("EngagementId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("FirmId", "ActorId")
+                        .HasForeignKey("FirmId", "EngagementId")
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

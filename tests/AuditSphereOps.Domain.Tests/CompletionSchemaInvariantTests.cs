@@ -109,8 +109,10 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
 
     // Probe each single-column key: copy a seeded child row, repoint it at another firm's parent and observe
     // whether the database refuses it. Every probe is rolled back; nothing is committed.
-    await PbcSeed.SeedAsync(pg);
-    await PbcSeed.SeedAsync(pg);
+    var own = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    var ownSpareBudgetId = await SeedBudgetChildRowsAsync(pg, own);
+    var foreignSpareBudgetId = await SeedBudgetChildRowsAsync(pg, foreign);
     var accepted = new List<string>();
     var notProbed = new List<string>();
     var unexpectedRefusals = new List<string>();
@@ -152,11 +154,88 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       await new NpgsqlCommand("ROLLBACK TO SAVEPOINT probe", connection, transaction).ExecuteNonQueryAsync();
       output.WriteLine($"PROBE {child}.{column} -> {parent}: {outcome}");
     }
+    foreach (var child in new[] { "budget_approvals", "budget_preparations" })
+    {
+      await AssertBudgetReceiptCrossFirmReferenceRefusedAsync(connection, transaction, child, "budget_id", own,
+        foreign, ownSpareBudgetId, foreignSpareBudgetId);
+      await AssertBudgetReceiptCrossFirmReferenceRefusedAsync(connection, transaction, child, "engagement_id", own,
+        foreign, ownSpareBudgetId, foreignSpareBudgetId);
+    }
     await transaction.RollbackAsync();
     output.WriteLine($"Single-column scoped-key probes: discovered {probes.Count}; refused by target FK {refusedByTargetForeignKey}; " +
       $"accepted cross-firm {accepted.Count}; no fixture row {notProbed.Count}; unexpected refusal {unexpectedRefusals.Count}");
     Assert.True(accepted.Count == 0, "Cross-firm references accepted: " + string.Join(", ", accepted));
     Assert.True(unexpectedRefusals.Count == 0, "Probe blocked before the target FK: " + string.Join("; ", unexpectedRefusals));
+  }
+
+  private static async Task AssertBudgetReceiptCrossFirmReferenceRefusedAsync(
+    NpgsqlConnection connection, NpgsqlTransaction transaction, string child, string column,
+    PbcSeed.Fixture own, PbcSeed.Fixture foreign, Guid ownSpareBudgetId, Guid foreignSpareBudgetId)
+  {
+    var budgetId = column == "budget_id" ? foreignSpareBudgetId : ownSpareBudgetId;
+    var engagementId = column == "engagement_id" ? foreign.EngagementId : own.EngagementId;
+    var expectedConstraint = $"FK_{child}_{(column == "budget_id" ? "engagement_budgets" : "engagements")}_firm_id_{column}";
+    await new NpgsqlCommand("SAVEPOINT budget_receipt_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    var insert = new NpgsqlCommand($"""
+      INSERT INTO "{child}"
+      SELECT (jsonb_populate_record(NULL::"{child}", to_jsonb(c) || jsonb_build_object(
+        'budget_id', @budget_id, 'engagement_id', @engagement_id,
+        'request_id', gen_random_uuid(), 'id', gen_random_uuid()))).*
+      FROM "{child}" c
+      WHERE c.firm_id = @firm_id
+      LIMIT 1
+      """, connection, transaction);
+    insert.Parameters.AddWithValue("budget_id", budgetId);
+    insert.Parameters.AddWithValue("engagement_id", engagementId);
+    insert.Parameters.AddWithValue("firm_id", own.FirmId);
+    PostgresException? observed = null;
+    try { await insert.ExecuteNonQueryAsync(); }
+    catch (PostgresException exception) { observed = exception; }
+    await new NpgsqlCommand("ROLLBACK TO SAVEPOINT budget_receipt_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    await new NpgsqlCommand("RELEASE SAVEPOINT budget_receipt_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    Assert.True(observed is not null, $"{child}.{column} unexpectedly accepted a cross-firm reference.");
+    Assert.Equal("23503", observed!.SqlState);
+    Assert.Equal(expectedConstraint, observed.ConstraintName);
+  }
+
+  private static async Task<Guid> SeedBudgetChildRowsAsync(PgTestSchema pg, PbcSeed.Fixture fixture)
+  {
+    await using var db = new AuditSphereDbContext(pg.Options);
+    await BudgetPreparationReviewSeed.PopulateAsync(db, fixture);
+
+    var preparer = PbcSeed.Actor(fixture.Staff, "Manager");
+    var preparation = new BudgetPreparationRequest(Guid.NewGuid(), new("QAR", "0",
+      [new("Senior", "AUDIT", 480, "PLANNING", "Revenue")]));
+    var preparationPreview = await BudgetPreparationWorkspace.PreviewAsync(db, preparer, fixture.EngagementId, preparation);
+    Assert.True(preparationPreview.Succeeded, preparationPreview.Message);
+    preparation = preparation with
+    {
+      Fields = preparationPreview.Value!.Fields,
+      Reviewed = true,
+      ReviewBasis = preparationPreview.Value.ReviewBasis,
+      RequestHash = preparationPreview.Value.RequestHash
+    };
+    var prepared = await BudgetPreparationWorkspace.ExecuteAsync(db, preparer, fixture.EngagementId, preparation);
+    Assert.True(prepared.Succeeded, prepared.Message);
+
+    var approver = PbcSeed.Actor(fixture.Admin, "Administrator");
+    var approval = new BudgetApprovalRequest(Guid.NewGuid(), new(prepared.Value!.BudgetId, "1"));
+    var approvalPreview = await BudgetApprovalWorkspace.PreviewAsync(db, approver, fixture.EngagementId, approval);
+    Assert.True(approvalPreview.Succeeded, approvalPreview.Message);
+    approval = approval with
+    {
+      Reviewed = true,
+      ReviewBasis = approvalPreview.Value!.ReviewBasis,
+      RequestHash = approvalPreview.Value.RequestHash
+    };
+    var approved = await BudgetApprovalWorkspace.ExecuteAsync(db, approver, fixture.EngagementId, approval);
+    Assert.True(approved.Succeeded, approved.Message);
+
+    // A second valid parent keeps the foreign-key probe away from immutable-receipt unique indexes.
+    var spare = await PracticeTimeService.ReviseBudgetAsync(db, preparer,
+      new(fixture.EngagementId, "QAR", [new("Senior", "AUDIT", 480, "PLANNING", "Revenue")], 1));
+    Assert.True(spare.Succeeded, spare.Message);
+    return spare.Value;
   }
 
   [Fact]
