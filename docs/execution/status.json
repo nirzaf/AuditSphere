@@ -675,9 +675,7 @@
     },
     "portalSplitRightsInverse20261025": {
       "status": "FOCUSED_LOCAL_PASS_CI_PENDING",
-      "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/portal/request.spec.ts'",
-      "result": "11/11; both independent upload/reply permission splits are asserted. PBC 250 MiB matches PbcService.MaxUploadBytes and the persistence constraint; request/package summaries state current-page counts.",
-      "limits": "Test-only follow-up; current-commit CI and broader WU-034 portal, browser and professional acceptance remain open."
+      "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.portalSplitRightsInverse20261025"
     },
     "workflowTemplateLineage20261021": {
       "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
@@ -1086,6 +1084,10 @@
       },
       "remaining": "Exact-source full CI 40144697389 is running after the OpenAPI correction; fast CI 40144694030 is also running. No reviewer browser journey or qualified professional acceptance is verified. TB replacement lifecycle, lock revocation, caller-transaction variants, methodology and provider acceptance remain open.",
       "contractCommit": "6063c2211e1c9767e41f3b85915c5f372ce48d16"
+    },
+    "completionExactDecisionProjection20261025": {
+      "status": "FOCUSED_LOCAL_PASS_CI_PENDING",
+      "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.completionExactDecisionProjection20261025"
     }
   },
   "externalGates": [
