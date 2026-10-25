@@ -15242,6 +15242,31 @@
       }
     },
     "targetedVerification": {
+      "sharePointPrimary20261025": {
+        "sourceBaseline": "6196662a",
+        "reviewedSpecificationBaseline": "afc52301d9ccf9349af30c6c69cd9d28b6fadb36",
+        "observedAtUtc": "2026-10-25T09:40:57.781521+00:00",
+        "specification": "docs/architecture/auditsphere-sharepoint-primary-storage-implementation-spec-proposed.md",
+        "ownerSuppliedFile": "docs/AuditSphere_SharePoint_Primary_Storage_Implementation_Spec.md (preserved unchanged; canonical copy satisfies repository naming policy)",
+        "status": "IN_PROGRESS",
+        "SP-00": "Source-backed family inventory, exact PBC local-reader map and proposed ADR-0019 recorded. Live corpus/host volume and policy/operational decisions are not measured or approved.",
+        "next": "SP-02 exact scoped transfer registration, preserving all accepted-source revisions; SP-01 manual mode remains an independently gated additive path.",
+        "implementation": "No product behavior changed in this inventory slice; all SP-AC criteria remain NOT_VERIFIED until behavior-specific evidence.",
+        "externalGates": [
+          "D-SP-01 manual mode adoption",
+          "D-SP-02 direct staff-access operator",
+          "D-SP-03 working-source custody and backup",
+          "D-SP-04 secondary archive handover",
+          "D-SP-05 measured physical budgets and cleanup cohort authorization",
+          "D-SP-06 optional capability disposition"
+        ],
+        "verification": {
+          "documentation": "PASS locally: validate-markdown-documentation.py, validate-markdown-filenames.py, validate-narrative-metrics.py and git diff --check; ADR register encoding corruption corrected before commit",
+          "projectTests": "NOT_RUN; documentation-only slice and owner CI preference",
+          "providerOperations": "NOT_RUN; no tenant grants, configuration, live probes, deployment or file deletion"
+        },
+        "handoff": "docs/execution/auditsphere-execution-sharepoint-primary-storage-current.md"
+      },
       "angularQualitySpec3Implementation20261023": {
         "specification": "Owner-supplied AuditSphere_Atomic_Implementation_Spec (3).md; Angular Quality and Development-Speed; seven tasks, AS-UIQ-01 through AS-UIQ-05.",
         "attachmentSha256": "3efd927ff3088c0a7dbdedf986fb0a6c91cfbabcdc6a82832d88f8b0d44ec958",

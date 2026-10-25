@@ -94,6 +94,7 @@
     }
   ],
   "targetedVerification": {
+    "sharePointPrimary": {"handoff": "auditsphere-execution-sharepoint-primary-storage-current.md"},
     "angularMigrationAcceptanceCrossFirmIsolation": {
       "result": "PASS",
       "scopeStatus": "PARTIAL",

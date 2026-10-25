@@ -28,6 +28,12 @@ ADR-0016 is approved for firm-held X.509 PDF signing under the owner's 2026-10-1
 | [ADR-0017](auditsphere-architecture-adr-0017-ste-v22-delegated-requirement-decisions-approved.md) | STE v2.2 delegated decisions: recorded deviations stand; Partner-only actions fail closed; Track B questions; response channel; Sunday to Thursday working week; recorded critical-estimate flag | APPROVED | Keeps ADR-0003 and ADR-0011 and the product-brief WhatsApp non-goal; decides open STE v2.2 rows |
 | [ADR-0018](auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md) | Practice reporting bases: non-billable time has no charge-out value; one billable utilization basis; receivables age every posted firm invoice; monthly profit and loss series; rate aliases everywhere. | APPROVED | Decides only how firm reports are calculated. Professional, legal and commercial decisions DEC-01 to DEC-11 stay open where listed. |
 
+## Proposed storage decision
+
+| ID | Decision | Status | Relationship |
+| --- | --- | --- | --- |
+| [ADR-0019](auditsphere-architecture-adr-0019-sharepoint-primary-working-documents-proposed.md) | Verified manual client sites and SharePoint-primary working bytes, with bounded temporary storage | PROPOSED | Preserves ADR-0006 defaults and ADR-0009 authority; production mode/custody/capacity adoption remains open |
+
 ## Earlier decision records (R2R)
 
 R2R-ADR-01 to R2R-ADR-10 live in §2.4 of [baseline architecture and ADRs](../../task_breakdown/reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md): module ownership, mediator/bUnit (varied by ADR-0001), money/FX precision (`numeric(19,6)`, `decimal`, banker's rounding), framework editions, context identity and stale propagation, source/artifact storage, presentation/package split, release/records exclusions, consolidation methods, capability-to-role mappings.

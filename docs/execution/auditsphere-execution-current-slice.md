@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## SharePoint-primary working-document implementation (2026-10-25)
+
+The owner assigned the [storage implementation specification](../architecture/auditsphere-sharepoint-primary-storage-implementation-spec-proposed.md). The [source/consumer inventory](auditsphere-execution-sharepoint-primary-storage-current.md) records the PBC local-path readers, other binary-bearing families and the next registration/read slices. ADR-0019 is proposed; existing site automation, archive authority and production deletion defaults remain intact. No tenant operation, deployment or cleanup occurred. Custody, actual capacity, manual operator responsibility and provider acceptance remain separate gates. Exact source and verification evidence is retained in the status archive.
+
 ## Exact full E2E failure triage and accounting profile assent (2026-10-25)
 
 A recent full verification exposed three E2E findings. After an acknowledged immutable accounting-profile revision, the UI kept the prior revision's assent checked until asynchronous refresh; it now clears assent immediately. A completion-screen test flattened semantic `<dl>` content into text the page does not render; it now verifies the term and exact value separately. The revoked-scope planning-state response timeout did not reproduce in the focused rerun, so its cause remains unproven and the denial assertion is unchanged. Focused Playwright verification passed for the corrected journeys; no full local suite ran. The first follow-up fast gate also found volatile run details in the protected README narrative. Those details were moved out of the README and the local documentation validators now pass. A full run started on that README-invalid source was superseded; corrected-source verification is running. Exact run IDs, counts and job outcomes are recorded only in `status.json`.
