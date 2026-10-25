@@ -113,7 +113,8 @@ const NO_FILTERS: Filters = { clientId: '', clientName: '', status: '', currency
                 @if (r.status === 'SENT') { <small>Recorded as sent by staff; no dispatch or delivery evidence.</small> }
                 @if (settlement(r); as s) { <small>{{ s }}</small> }</td>
               <td>{{ r.currency }}</td><td class="number">{{ r.total | money }}</td><td class="number">{{ r.credited | money }}</td>
-              <td class="number">{{ r.allocated | money }}</td><td class="number">{{ r.outstanding | money }}</td>
+              <td class="number">{{ r.allocated | money }}</td>
+              <td class="number">{{ r.status === 'POSTED' || r.status === 'SENT' ? (r.outstanding | money) : 'Not receivable' }}</td>
               <td>{{ r.approvedDueDate ?? 'No approved terms' }}@if (r.paymentTermsPending) { <small>Terms revision pending review</small> }</td></tr>
           } @empty { <tr><td colspan="10">No invoices on this page.</td></tr> }</tbody>
         </table></div>

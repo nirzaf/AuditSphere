@@ -60,6 +60,8 @@ describe('FirmInvoices', () => {
       expect(rows[0]).toContain('No balance outstanding');
       expect(rows[1]).toContain('Multiple engagements');
       expect(rows[1]).not.toContain('outstanding');
+      expect(rows[1]).toContain('Not receivable');
+      expect(rows[1]).not.toContain('50.00 No approved terms');
       expect(rows[2]).toContain('Partially settled');
       expect(rows[2]).toContain('Terms revision pending review');
       expect(host.querySelector('a[href="/app/practice/invoices/22222222-2222-4222-8222-222222222222"]')).not.toBeNull();
