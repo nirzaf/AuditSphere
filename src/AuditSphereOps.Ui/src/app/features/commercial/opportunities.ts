@@ -191,7 +191,7 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
     '(document:keydown)': 'recordFocusInteraction()',
   },
   template: `
-    <a routerLink="/app/practice/leads">Leads</a>
+    <a routerLink="/app/practice/leads">Leads</a> · <a routerLink="/app/practice/pipeline">Opportunity pipeline</a>
     <h1>Opportunities</h1>
     @if (loading()) {
       <mat-progress-bar mode="indeterminate" aria-label="Loading opportunities" />

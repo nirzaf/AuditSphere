@@ -159,7 +159,8 @@ export class FirmExpenseRejectionDialog {
           <p><small>Accounting-period basis: posted journals are assigned to the period shown below; the posted timestamp is audit context. Reversals and adjustments affect their assigned period. Opening-balance and YEAR_END_CLOSE journals remain in the trial balance but are excluded from operating P&amp;L. Mixed currencies fail closed until separately translated.</small></p>
           <h3>Monthly profit and loss</h3>
           @if (t.monthlyProfitLoss.length) {
-            <p>One row for each accounting month in the range. The months add up to the selected-period totals above. The comparison is the same month one year earlier.</p>
+            <p>One row for each accounting month in the range. The months add up to the selected-period totals above. The comparison is the same month one year earlier; a month without a prior-year accounting period shows No period, never zero.
+              Profit here is posted firm-ledger revenue less expense, which differs from billed less staff cost in Practice analytics.</p>
             <div class="table-scroll"><table>
               <caption>Monthly profit and loss from {{ t.fromPeriod }} to {{ t.toPeriod }} in {{ t.currency ?? 'unconfigured currency' }}</caption>
               <thead><tr><th>Month</th><th class="number">Revenue</th><th class="number">Expenses</th><th class="number">Profit</th><th class="number">Profit, same month last year</th></tr></thead>

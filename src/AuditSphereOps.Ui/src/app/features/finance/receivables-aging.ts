@@ -25,6 +25,7 @@ export const decodeReceivablesAging = obj({
     engagementName: nullable(text), currency: text, invoiceCount: int, originalAmount: dec,
     appliedReceipts: dec, reversedReceipts: dec, appliedCredits: dec, outstanding: dec }), 10000),
 });
+type FirmReceivablesAgingReport = ReturnType<typeof decodeReceivablesAging>;
 
 @Component({
   selector: 'audit-receivables-aging',
@@ -60,9 +61,16 @@ export const decodeReceivablesAging = obj({
       </section>
       <section class="panel" aria-labelledby="receivables-heading">
         <h2 id="receivables-heading">Invoice detail</h2>
+        <label>Show invoices for
+          <select [value]="clientFilter()" (change)="clientFilter.set($any($event.target).value)">
+            <option value="">All clients in this report</option>
+            @for (c of reportClients(r); track c.clientId) { <option [value]="c.clientId">{{ c.legalClientName }}</option> }
+          </select>
+        </label>
+        <p class="hint">Showing {{ visibleRows(r).length }} of {{ r.rows.length }} invoices. The client filter narrows only this table; the subtotals and the CSV export cover the complete report. Undated invoices stay in the report and are labelled for terms review. <a routerLink="/app/finance/invoices">Firm invoices</a> lists current balances without an as-of date.</p>
         <div class="table-scroll"><table><caption class="sr-only">Posted firm invoices and due-date ageing at the selected date</caption>
           <thead><tr><th scope="col">Legal client</th><th scope="col">Engagement</th><th scope="col">Type / invoice</th><th scope="col">Due date</th><th scope="col" class="number">Original</th><th scope="col" class="number">Receipts</th><th scope="col" class="number">Reversals</th><th scope="col" class="number">Credits</th><th scope="col" class="number">Outstanding</th><th scope="col">Days overdue</th><th scope="col">Bucket</th><th scope="col">Finance follow-up</th></tr></thead>
-          <tbody>@for (row of r.rows; track row.invoiceId) { <tr>
+          <tbody>@for (row of visibleRows(r); track row.invoiceId) { <tr>
             <th scope="row">{{ row.legalClientName }}</th><td>@if (row.engagementId && row.engagementName) { <a [routerLink]="['/app/engagements', row.engagementId]">{{ row.engagementName }}</a> } @else { Not linked }</td>
             <td>{{ row.invoiceType }} · <a [routerLink]="['/app/practice/invoices', row.invoiceId]">{{ row.invoiceNumber }}</a></td>
             <td>{{ row.dueDate ?? 'Undated · review terms' }}</td><td class="number">{{ row.originalAmount | money }} {{ row.currency }}</td>
@@ -114,6 +122,18 @@ export class FirmReceivablesAging {
   readonly asOf = signal(new Date().toISOString().slice(0, 10));
   readonly report = this.api.resource(() => `/api/ui/finance/receivables-aging?asOf=${encodeURIComponent(this.asOf())}`,
     decodeReceivablesAging, 'Receivables ageing is limited to firm-wide FinanceManager and FinanceReviewer grants.');
+  /** Display-only narrowing of the returned report; the request, subtotals and export are unchanged. */
+  readonly clientFilter = signal('');
+  reportClients(report: FirmReceivablesAgingReport): { clientId: string; legalClientName: string }[] {
+    const clients = new Map<string, string>();
+    for (const row of report.rows) clients.set(row.clientId, row.legalClientName);
+    return [...clients].map(([clientId, legalClientName]) => ({ clientId, legalClientName }))
+      .sort((a, b) => a.legalClientName.localeCompare(b.legalClientName));
+  }
+  visibleRows(report: FirmReceivablesAgingReport): FirmReceivablesAgingReport['rows'] {
+    const client = this.clientFilter();
+    return client ? report.rows.filter(row => row.clientId === client) : report.rows;
+  }
   readonly exporting = signal(false);
   readonly message = signal('');
   readonly failed = signal(false);

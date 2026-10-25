@@ -47,7 +47,9 @@ interface PendingClose {
     <a routerLink="/app">← Back to portfolio</a>
     <audit-page-header title="Firm ledger & financial operations" eyebrow="Firm economics"
       description="Restricted firm-ledger operations (§41.3). Firm accounts, balanced postings, and period close decisions enforce exact monetary balance and strict immutability." />
-    <p class="actions"><button matButton="outlined" (click)="ledger.reload()">Refresh firm ledger</button><a routerLink="/app/finance/books">Firm books</a><a routerLink="/app/finance/fee-agreements">Fee settlements</a><a routerLink="/app/finance/receivables-aging">Receivables ageing</a><a routerLink="/app/finance/end-of-service">End-of-service provision</a></p>
+    <nav class="actions" aria-label="Firm finance reports"><a routerLink="/app/finance/books">Firm books</a><a routerLink="/app/finance/invoices">Firm invoices</a><a routerLink="/app/finance/fee-agreements">Fee settlements</a><a routerLink="/app/finance/receivables-aging">Receivables ageing</a><a routerLink="/app/finance/end-of-service">End-of-service provision</a></nav>
+    <p class="hint">This page holds firm-ledger setup, journals and period controls. Reports open separately and only read posted firm records; engagement economics in Practice analytics is an operational measure, not ledger profit.</p>
+    <p class="actions"><button matButton="outlined" (click)="ledger.reload()">Refresh firm ledger</button></p>
     <audit-state [loading]="ledger.loading()" [error]="ledger.error()" label="firm finance records" />
     @if (ledger.data(); as l) {
       <p role="status">{{ l.periods.length }} fiscal periods · {{ l.accounts.length }} firm accounts · {{ l.postings.length }} recent postings shown</p>

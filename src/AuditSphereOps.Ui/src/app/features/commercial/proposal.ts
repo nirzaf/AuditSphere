@@ -1,4 +1,4 @@
-import { Component, DestroyRef, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -210,7 +210,7 @@ export function isResponseChannel(value: string): boolean {
     MatProgressBarModule,
   ],
   template: `
-    <a routerLink="/app/practice/leads">Leads</a>
+    <a routerLink="/app/practice/leads">Leads</a> · <a routerLink="/app/practice/pipeline">Opportunity pipeline</a>
     <h1>Proposal</h1>
     @if (loading()) {
       <mat-progress-bar mode="indeterminate" aria-label="Loading proposal" />
@@ -220,8 +220,14 @@ export function isResponseChannel(value: string): boolean {
       <button matButton (click)="load()">Retry</button>
     }
     @if (data(); as proposal) {
-      <h2>{{ proposal.leadName }}</h2>
+      <h2 id="proposal-overview-heading" tabindex="-1">{{ proposal.leadName }}</h2>
       <p>{{ proposal.status }} · Revision {{ proposal.revision }}</p>
+      <nav class="proposal-sections" aria-label="Proposal sections">
+        <button matButton type="button" (click)="jump('proposal-overview-heading')">Overview</button>
+        @if (proposal.status === 'INTERNAL_REVIEW') { <button matButton type="button" (click)="jump('proposal-dispatch-heading')">Dispatch preview</button> }
+        <button matButton type="button" (click)="jump('proposal-workflow-heading')">Commercial workflow</button>
+        <button matButton type="button" (click)="jump('proposal-revisions-heading')">Recorded revisions</button>
+      </nav>
       <dl>
         <dt>Proposal ID</dt>
         <dd>
@@ -331,7 +337,7 @@ export function isResponseChannel(value: string): boolean {
       </dl>
       @if (proposal.status === 'INTERNAL_REVIEW') {
         <section aria-label="Proposal dispatch preview">
-          <h2>Dispatch preview</h2>
+          <h2 id="proposal-dispatch-heading" tabindex="-1">Dispatch preview</h2>
           <p>Purpose: {{ proposal.dispatchPreview.purpose }} · Resolved for {{ proposal.dispatchPreview.resolvedAsOf }}</p>
           <dl>
             <dt>Recipient resolution</dt>
@@ -374,7 +380,7 @@ export function isResponseChannel(value: string): boolean {
           <p>Fee agreement and billing milestones</p>
         }
       </section>
-      <h2>Commercial workflow</h2>
+      <h2 id="proposal-workflow-heading" tabindex="-1">Commercial workflow</h2>
       <p>
         Sending queues exactly one durable email bound to the exact dispatched offer identity; its
         delivery state is tracked by the mail worker below. A commercial acceptance does not activate
@@ -672,7 +678,7 @@ export function isResponseChannel(value: string): boolean {
       >
         Recover proposal tab draft
       </button>
-      <h2>Recorded revisions</h2>
+      <h2 id="proposal-revisions-heading" tabindex="-1">Recorded revisions</h2>
       <ul>
         @for (version of proposal.versions; track version.id) {
           <li>
@@ -696,6 +702,13 @@ export function isResponseChannel(value: string): boolean {
 })
 export class ProposalDetail {
   private readonly http = inject(HttpClient);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  /** Section shortcuts only move focus; every section and its pending command state stay rendered. */
+  jump(id: string): void {
+    const heading = this.host.nativeElement.querySelector<HTMLElement>('#' + id);
+    heading?.scrollIntoView?.({ block: 'start' });
+    heading?.focus();
+  }
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly session = inject(SessionService);
