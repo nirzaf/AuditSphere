@@ -82,7 +82,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
         <h2 id="lines-heading" tabindex="-1">Invoice line items</h2>
         <div class="table-scroll"><table><caption class="sr-only">Invoice lines</caption>
           <thead><tr><th scope="col">Description</th><th scope="col" class="number">Quantity</th><th scope="col" class="number">Unit price</th><th scope="col" class="number">Total</th></tr></thead>
-          <tbody>@for (l of i.lines; track $index) { <tr><td>{{ l.description }}
+          <tbody>@for (l of i.lines; track $index) { <tr><td><span>{{ l.description }}</span>
             @if (l.source; as source) {
               <details><summary>Source evidence · {{ source.kind }}</summary><p>{{ source.message }}</p>
                 @if (source.sourceId) { <p>Source <code>{{ source.sourceId }}</code> · billed revision {{ source.sourceRevision }}</p> }

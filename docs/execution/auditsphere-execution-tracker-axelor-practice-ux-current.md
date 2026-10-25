@@ -6,6 +6,8 @@
 
 Implementation baseline: `81873f58` (the specification inspected `89fa2f22`; the only intervening changes are the SharePoint-primary storage slices, which this work does not touch). The remaining-work pass re-read the owners on the later master, including concurrent mail/storage work, without changing those integrations. Observed test and CI results belong in `status.json`; this tracker records scope, preserved behavior and remaining evidence.
 
+The invoice description remains an independent text element beside expandable source evidence. Existing exact-description, distinct-role, scoped-denial and revocation assertions are retained; current verification and release status remain in `status.json`.
+
 ## Non-regression rules applied to every story
 
 - Existing routes, deep links, write contracts, command/recovery flows and server authorization are unchanged; new query parameters and response fields are optional and additive.
