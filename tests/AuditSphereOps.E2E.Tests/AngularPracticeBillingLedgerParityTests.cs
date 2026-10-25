@@ -357,6 +357,37 @@ public sealed class AngularPracticeBillingLedgerParityTests
     Assert.DoesNotContain("Acme Holdings W.L.L.", body);
     Assert.DoesNotContain("Senior Manager A", body);
 
+    int discoveryOperations, discoverySites, discoveryPostings;
+    await using (var db = host.CreateDbContext())
+    {
+      discoveryOperations = await db.DurableOperations.CountAsync();
+      discoverySites = await db.ClientSharePointSites.CountAsync();
+      discoveryPostings = await db.FirmPostings.CountAsync();
+    }
+    await page.GotoAsync(origin + "/app/practice/pipeline");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Opportunity pipeline", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Link,
+      new() { Name = leadName, Exact = true })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Currency", Exact = true }).FillAsync("QAR");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Apply filters", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Link,
+      new() { Name = leadName, Exact = true })).ToBeVisibleAsync();
+    await page.ReloadAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Link,
+      new() { Name = leadName, Exact = true })).ToBeVisibleAsync();
+    await using (var db = host.CreateDbContext())
+    {
+      Assert.Equal(discoveryOperations, await db.DurableOperations.CountAsync());
+      Assert.Equal(discoverySites, await db.ClientSharePointSites.CountAsync());
+      Assert.Equal(discoveryPostings, await db.FirmPostings.CountAsync());
+    }
+    await page.GotoAsync(origin + $"/app/practice/proposals/{proposalId:D}");
+    await Assertions.Expect(page.GetByText(latestScope, new() { Exact = true })).ToBeVisibleAsync();
+
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin,
+      $"/app/practice/proposals/{proposalId:D}", "ux-commercial-firm-role");
+
     var token = await page.EvaluateAsync<string>("window.__proposalParityToken = crypto.randomUUID()");
     var missingProposalId = Guid.NewGuid();
     await PushRouteAsync(page, $"/app/practice/proposals/{missingProposalId:D}");
@@ -396,6 +427,38 @@ public sealed class AngularPracticeBillingLedgerParityTests
     Assert.DoesNotContain(latestScope, restrictedBody);
     Assert.DoesNotContain(proposalId.ToString("D"), restrictedBody);
     Assert.DoesNotContain(firstProposalId.ToString("D"), restrictedBody);
+
+    // A client-scoped commercial grant cannot read the new complete summaries.
+    // Inspecting a denied workspace must not enqueue provider or financial work.
+    int operationsBeforeReads, sitesBeforeReads, postingsBeforeReads;
+    await using (var db = host.CreateDbContext())
+    {
+      operationsBeforeReads = await db.DurableOperations.CountAsync();
+      sitesBeforeReads = await db.ClientSharePointSites.CountAsync();
+      postingsBeforeReads = await db.FirmPostings.CountAsync();
+    }
+    foreach (var (route, endpoint) in new[]
+    {
+      ("/app/practice/leads", "/api/ui/leads"),
+      ("/app/practice/pipeline", "/api/ui/pipeline"),
+      ("/app/finance/invoices", "/api/ui/finance/invoices")
+    })
+    {
+      var response = await restrictedPage.Context.APIRequest.GetAsync(restrictedOrigin + endpoint);
+      Assert.Equal(403, response.Status);
+      Assert.DoesNotContain(leadName, await response.TextAsync());
+      await restrictedPage.GotoAsync(restrictedOrigin + route);
+      await Assertions.Expect(restrictedPage.GetByRole(AriaRole.Alert)).ToBeVisibleAsync();
+      Assert.DoesNotContain(leadName, await restrictedPage.Locator("main").InnerTextAsync());
+    }
+    await OwnedBrowserFixtureHandoff.WaitAsync(restrictedOrigin,
+      "/app/practice/pipeline", "ux-commercial-scoped-role");
+    await using (var db = host.CreateDbContext())
+    {
+      Assert.Equal(operationsBeforeReads, await db.DurableOperations.CountAsync());
+      Assert.Equal(sitesBeforeReads, await db.ClientSharePointSites.CountAsync());
+      Assert.Equal(postingsBeforeReads, await db.FirmPostings.CountAsync());
+    }
     Assert.Empty(errors);
   }
 

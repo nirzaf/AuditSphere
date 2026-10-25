@@ -290,5 +290,6 @@ public sealed class AngularFirmBooksJourneyTests
     }
     Assert.Empty(errors);
     await OwnedBrowserFixtureHandoff.WaitAsync(preparerOrigin, "/app/finance/books", "firm-report-snapshot");
+    await OwnedBrowserFixtureHandoff.WaitAsync(reviewerOrigin, "/app/finance/books", "ux-finance-reviewer");
   }
 }

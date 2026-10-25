@@ -1039,6 +1039,12 @@
       "result": "Domain7/Angular70/resource16; E2E4+5+1; connected2/previousUI2 PASS; full pending.",
       "evidence": ".local/autonomous/evidence/axelor-remaining-20261025/review.json",
       "limits": "Selected browser states; no whole-spec/human/live acceptance."
+    },
+    "axelorFinal20261025": {
+      "result": "Existing changed role/report cohort2PASS after fresh Release build; prior single books1PASS/scoped1PASS and separate commercial-role1PASS. Exact c15 Domain CI1747PASS; API/E2E still pending. This test-only verification extension requires its own final exact-candidate CI.",
+      "evidence": ".local/autonomous/evidence/axelor-final-20261025/review.json",
+      "scope": "Static prior event/router-link parity; builtin ordinary commercial/client-scoped denied/finance preparer and distinct reviewer; no removed inventoried actions; provider/posting counts unchanged around discovery.",
+      "limits": "Not FULL_CI_PASS; no human AT/nativezoom/live-provider/professional certification; whole original31 assignment remains active."
     }
   },
   "externalGates": [

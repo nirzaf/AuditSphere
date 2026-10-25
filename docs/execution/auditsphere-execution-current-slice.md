@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Axelor UX final scoped verification (2026-10-25)
+
+The owner reiterated completion of every applicable story in the attached UX specification. Static prior-action/deep-link parity is recorded separately from executed behavior. Existing journeys now cover ordinary commercial pipeline filtering/refresh, scoped lead/pipeline/invoice denial and unchanged provider/posting intentions. Built-in browser review exercised commercial, denied and independent finance roles; negative monthly P&L, report detail and missing comparator matched the existing accounting basis. No financial, tenant, provider or professional rules changed. Focused results and candidate identities are in `targetedVerification.axelorFinal20261025`; exact final-candidate full CI remains required. Broader human/provider/professional acceptance is not fabricated or silently folded into this bounded UX change.
+
 ## Acceptance release follow-up (2026-10-25)
 
 The owner reiterated release authorization for the existing Acceptance target after required checks pass. Exact-candidate fast CI, immutable images and the owned restored-database rehearsal passed; full verification is still active. Read-only inspection found the preceding source already running, with outbound mail paused. Current storage mounts and configuration were inventoried for the fresh quiesced cutover backup. The pending documentation rollover was reviewed: moved records are retained verbatim, and active source/CI fields now supersede their historical snapshots. No latest-source cutover occurred. Exact identities and results are in `hostingerAcceptance.latestReleasePreparation` and `currentSourceCi` in `status.json`.
