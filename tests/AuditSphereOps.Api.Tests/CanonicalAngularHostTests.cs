@@ -38,6 +38,11 @@ public sealed class CanonicalAngularHostTests
         using var r=await c.GetAsync(path);Assert.Equal(HttpStatusCode.OK,r.StatusCode);Assert.Equal("text/html",r.Content.Headers.ContentType!.MediaType);
         var body=await r.Content.ReadAsStringAsync();Assert.Contains("<base href=\"/\">",body);Assert.Contains("src=\"/ui/main-CURRENT1.js\"",body);Assert.True(r.Headers.CacheControl!.NoStore);
       }
+      foreach(var path in new[]{"/ui","/ui/"})
+      {
+        using var r=await c.GetAsync(path);Assert.Equal(HttpStatusCode.OK,r.StatusCode);
+        Assert.Contains("<base href=\"/ui/\">",await r.Content.ReadAsStringAsync());Assert.True(r.Headers.CacheControl!.NoStore);
+      }
       Assert.Contains("<base href=\"/ui/\">",await c.GetStringAsync("/ui/app"));
       Assert.Equal("CURRENT-SYNTHETIC-ASSET",await c.GetStringAsync("/ui/main-CURRENT1.js"));
       Assert.Equal("PREVIOUS-SYNTHETIC-CHUNK",await c.GetStringAsync("/ui/chunk-PREVIOUS.js"));
@@ -53,7 +58,14 @@ public sealed class CanonicalAngularHostTests
     // A fresh host with canonical ownership disabled is the explicit local rollback.
     settings["AngularUi:CanonicalRoutes"]="false";
     using(var factory=new StandaloneApiApplicationFactory(settings))using(var c=factory.CreateClient(new(){AllowAutoRedirect=false}))
-    {Assert.Equal(HttpStatusCode.NotFound,(await c.GetAsync("/app")).StatusCode);Assert.Contains("<base href=\"/ui/\">",await c.GetStringAsync("/ui/app"));Assert.Equal("/ui/app",(await c.GetAsync("/")).Headers.Location!.OriginalString);}
+    {
+      Assert.Equal(HttpStatusCode.NotFound,(await c.GetAsync("/app")).StatusCode);Assert.Contains("<base href=\"/ui/\">",await c.GetStringAsync("/ui/app"));Assert.Equal("/ui/app",(await c.GetAsync("/")).Headers.Location!.OriginalString);
+      foreach(var path in new[]{"/ui","/ui/"})
+      {
+        using var r=await c.GetAsync(path);Assert.Equal(HttpStatusCode.OK,r.StatusCode);
+        Assert.Contains("<base href=\"/ui/\">",await r.Content.ReadAsStringAsync());Assert.True(r.Headers.CacheControl!.NoStore);
+      }
+    }
   }
   [Fact]
   public async Task CanonicalRoutesRejectMissingOrIncompatibleAssetsAtStartup()

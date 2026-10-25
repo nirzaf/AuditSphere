@@ -211,6 +211,8 @@ Do not run an unfiltered local test suite after every edit. Use the relevant `sr
 
 Always inspect the [Actions runs](https://github.com/nirzaf/AuditSphere/actions) and `docs/execution/status.json` for the exact **tested commit**. A queued, running, historical or partly successful workflow is not `FULL_CI_PASS`.
 
+**Hostinger rollout:** The authorized upgrade is in preparation. Restored-copy migration checks passed; container smoke exposed a duplicate Angular root route that is now corrected in source. The corrected image still needs exact-commit CI and runtime verification. Outbound mail requires current signed authorization evidence before restart.
+
 ## Microsoft 365, SharePoint, and operator automation
 
 AuditSphere uses **separately credentialed capabilities** for Entra login, directory/admin functions, mail, document transfers and client-site administration. Standard document access uses exact-resource grants; the separately approved privileged `client-sites` worker performs site provisioning and assigned-staff membership reconciliation. Its elevated SharePoint authority must not be shared with the general API, mail or document workers.

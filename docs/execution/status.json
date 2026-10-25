@@ -10,7 +10,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "fc0ec97863ddf710d44052379ab50959c794dae1",
+  "headCommit": "8031d4da6ea9e803ae8eb2b61cfa6379e5fe1759",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1058,6 +1058,15 @@
     "narrativeMetricsFastCiRepair20261025": {
       "status": "ARCHIVED_HISTORY",
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.narrativeMetricsFastCiRepair20261025"
+    },
+    "releasePreflight20261025": {
+      "status": "UI_ROOT_FIX_FOCUSED_PASS_CORRECTED_IMAGE_AND_CI_PENDING",
+      "authorization": "Owner requested release now; existing Hostinger Acceptance target.",
+      "sourceWindow": "fc0ec978 container preflight; correction based on 8031d4da with exact file hashes retained in review evidence.",
+      "rehearsal": "Private backup catalog-checked and restored; 58 migrations applied (226 to 284). Original row projections across 334 tables unchanged. Temporary API health live/ready 200; /ui/ 500 exposed duplicate root endpoints. Temporary DB/container/env files removed; live DB/containers unchanged.",
+      "correction": "One /ui registration covers /ui and /ui/. Existing canonical-host regression RED 1; fixed host/route-ownership cohort GREEN 2, 0 fail/skip.",
+      "remaining": "Corrected-source images, exact full CI, new container smoke, final cutover backup and rollout remain pending. Mail signed-authorization evidence is absent; mail must remain paused at cutover.",
+      "evidence": ".local/autonomous/evidence/release-ui-root-20261025/review.json"
     }
   },
   "externalGates": [
@@ -1632,10 +1641,10 @@
   },
   "currentSourceCi": {
     "sourceCommit": "fc0ec97863ddf710d44052379ab50959c794dae1",
-    "fastCi": "40173305587 on fc0ec978: superseded/cancelled by docs-only push after Angular and Docs Health passed; .NET Release build was cancelled. Not a failure.",
-    "releaseVerification": "40173365579: exact release-source artifact MATCH fc0ec978; Angular/full specs, Verify and unfiltered Domain passed; unfiltered API and E2E remain in progress.",
-    "docsOnlyFast": "40173820833 on workflow head 3fc30199: Docs Health, Angular and .NET Release jobs all succeeded; ci-status source resolution is UNRESOLVED, so no FAST_CI_PASS is claimed.",
-    "previousRelease": "40164830806: exact source MATCH f7e1b940; E2E 337/339 with receipt-visibility defect fixed on fc0ec978 and a 13,326ms cold-start overrun not reproduced in focused local performance case; unfiltered API remains in progress."
+    "status": "PRECEDING_SOURCE_ONLY: restored-container UI root defect requires the routing correction in this commit and new exact-source gates.",
+    "fastCi": "40173305587 attempt 2 completed all jobs successfully on fc0ec978; .NET checkout log explicitly confirms that commit.",
+    "releaseVerification": "40173365579 source MATCH fc0ec978: Angular/full specs, Verify and Domain passed; API/E2E running. This source is not release-eligible because the separate container smoke found /ui root ambiguity.",
+    "docsOnlyFast": "40175026927 on 8031d4da: Angular/Docs Health passed; .NET Release in progress at prior observation."
   },
-  "updatedAtUtc": "2026-10-25T08:01:43Z"
+  "updatedAtUtc": "2026-10-25T08:27:57Z"
 }
