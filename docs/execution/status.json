@@ -1015,7 +1015,7 @@
       "limits": "Pre-implementation baseline full run 40141797352 remains in progress and is not acceptance for commit 71969138. The exact-source full run 40143495963 is tracked in scheduleSourceIndependentReviewDetails20261025. No full local suites; T058 and professional/browser acceptance remain partial."
     },
     "scheduleSourceIndependentReviewDetails20261025": {
-      "status": "FOCUSED_PASS_API_ANGULAR_EXACT_SOURCE_CI_RUNNING_BROWSER_NOT_RUN",
+      "status": "FOCUSED_PASS_API_ANGULAR_OPENAPI_EXACT_FULL_RUNNING_BROWSER_NOT_RUN",
       "codeCommit": "8e5b5b170fc24367fae3bd7f24f05afa607034c5",
       "change": "Independent review preview now carries the exact accepted PBC/TB/period/book context and account tie-outs. A bounded read returns original listing cells for the exact capture hash; reviewer scope is rechecked, preparer self-review is denied, and assent/recording stay blocked until the first exact page loads. Cached rows are hidden while a different page is loading.",
       "checks": {
@@ -1058,58 +1058,28 @@
         "reason": "Built-in browser inventory had no local AuditSphere reviewer workspace or authenticated synthetic reviewer fixture; only the Entra tab was available."
       },
       "ci": {
-        "fast": {
-          "runId": 40144507388,
-          "sourceCommit": "8e5b5b170fc24367fae3bd7f24f05afa607034c5",
-          "status": "PENDING_AT_RECORD_TIME",
-          "completedJobs": [],
-          "pendingJobs": [
-            "Docs · Health",
-            "Build · Angular",
-            "Build · .NET Release"
-          ]
-        },
-        "full": {
-          "runId": 40144518182,
-          "sourceCommit": "8e5b5b170fc24367fae3bd7f24f05afa607034c5",
-          "sourceMatch": "UNRESOLVED_AT_RECORD_TIME",
-          "status": "QUEUED_AT_RECORD_TIME",
-          "completedJobs": [],
-          "pendingJobs": [
-            "Resolve · Requested ref"
-          ]
-        },
-        "precedingFeeFull": {
-          "runId": 40144184527,
-          "sourceCommit": "fee8053287073f5aa109678897b40e5e7ef60665",
+        "currentFull": {
+          "runId": 40144697389,
+          "sourceCommit": "6063c2211e1c9767e41f3b85915c5f372ce48d16",
           "sourceMatch": "MATCH",
-          "status": "RUNNING_AT_2026-10-24T23:50Z; preceding test source, not current acceptance"
+          "status": "RUNNING at 2026-10-25T00:00:57Z; Angular/full specs passed; unfiltered Domain/API/E2E and Verify jobs in progress."
         },
-        "precedingReviewDetailsFull": {
-          "runId": 40143495963,
-          "sourceCommit": "7196913876100f86d19a286ac7f0aa505e6681de",
-          "sourceMatch": "MATCH",
-          "status": "RUNNING_AT_2026-10-24T23:43Z; preceding source, not current acceptance"
+        "currentFast": {
+          "runId": 40144694030,
+          "headCommit": "6063c2211e1c9767e41f3b85915c5f372ce48d16",
+          "status": "RUNNING at 2026-10-25T00:00:57Z; Docs Health and Angular passed; .NET Release build in progress."
         },
-        "preChangeFull": {
-          "runId": 40141797352,
-          "sourceCommit": "127aa1ae9bf0c5e166ad3f1ebe985c12bc292cc5",
-          "sourceMatch": "MATCH",
-          "status": "RUNNING_PRE_IMPLEMENTATION_BASELINE",
-          "completedJobs": [
-            "Resolve: SUCCESS",
-            "Angular and full specs: SUCCESS",
-            "Verify build/contracts/publication: SUCCESS",
-            "Domain unfiltered: SUCCESS"
-          ],
-          "pendingJobs": [
-            "API unfiltered",
-            "Playwright E2E unfiltered"
-          ],
-          "note": "This run predates commit 71969138 and is not acceptance for the reviewer-evidence change."
+        "openApiFailureAndFix": {
+          "failedRunId": 40143495963,
+          "failedSource": "7196913876100f86d19a286ac7f0aa505e6681de",
+          "cause": "OpenAPI drift: the new review/source-rows GET route and response schema were absent from the committed contract.",
+          "evidence": ".local/autonomous/evidence/ci-40143495963-contract/07-openapi-contract-drift.log",
+          "fixCommit": "6063c2211e1c9767e41f3b85915c5f372ce48d16",
+          "fixVerification": "Regenerated contracts/auditsphere-openapi.json with AuditSphereOps.OpenApiEmitter; bash scripts/contracts/verify-openapi.sh passed."
         }
       },
-      "remaining": "Focused source, Angular and positive HTTP reviewer checks pass. Playwright or built-in browser workflow, current exact-source full CI, and separate professional acceptance remain unverified; do not infer live or professional approval."
+      "remaining": "Exact-source full CI 40144697389 is running after the OpenAPI correction; fast CI 40144694030 is also running. No reviewer browser journey or qualified professional acceptance is verified. TB replacement lifecycle, lock revocation, caller-transaction variants, methodology and provider acceptance remain open.",
+      "contractCommit": "6063c2211e1c9767e41f3b85915c5f372ce48d16"
     }
   },
   "externalGates": [
