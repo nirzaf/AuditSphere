@@ -163,6 +163,39 @@ describe('Client request draft polling', () => {
     expect(reply).not.toBeNull();
     expect(root.textContent).toContain(notice);
     expect(root.textContent).toContain('Reply to the audit team');
+    fixture.componentInstance.reply.controls.body.setValue('Reply permitted while upload is denied');
+    fixture.detectChanges();
+    const sendReply = Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+      .find(button => button.textContent?.trim() === 'Send reply')!;
+    expect(sendReply.disabled).toBe(false);
+    http.expectNone(request => request.method === 'POST');
+    fixture.destroy();
+  });
+
+  it('keeps upload available when reply capability is denied', () => {
+    const fixture = TestBed.createComponent(ClientPbcRequest);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne(`/api/ui/portal/requests/${id}`).flush({
+      ...requestWorkspace(false, false, { canUpload: true, canReply: false }), state: 'SENT',
+    });
+    TestBed.tick(); fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const component = fixture.componentInstance;
+    const dropZone = root.querySelector<HTMLElement>('.drop-zone')!;
+    const fileInput = root.querySelector<HTMLInputElement>('#portal-file')!;
+    expect(dropZone.getAttribute('aria-disabled')).toBe('false');
+    expect(fileInput.disabled).toBe(false);
+    expect(root.querySelector('#portal-reply')).toBeNull();
+    expect(Array.from(root.querySelectorAll('button')).some(button => button.textContent?.trim() === 'Send reply')).toBe(false);
+
+    component.file.set(new File(['synthetic evidence'], 'support.pdf', { type: 'application/pdf' }));
+    component.hash.set('a'.repeat(64));
+    fixture.detectChanges();
+    const upload = Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+      .find(button => button.textContent?.trim() === 'Upload file')!;
+    expect(upload.disabled).toBe(false);
+    component.sendReply();
     http.expectNone(request => request.method === 'POST');
     fixture.destroy();
   });

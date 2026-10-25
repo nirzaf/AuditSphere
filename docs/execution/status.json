@@ -673,6 +673,12 @@
       "archive": "status-archive-2026-10.json#/keys/targetedVerification/focusedEvidenceHistory20261021/portalRequestCapabilities20261021",
       "limits": "Independent upload/reply capability slice verified locally; full current-source, whole-state/humanAT and live/professional acceptance remain open."
     },
+    "portalSplitRightsInverse20261025": {
+      "status": "FOCUSED_LOCAL_PASS_CI_PENDING",
+      "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/portal/request.spec.ts'",
+      "result": "11/11; both independent upload/reply permission splits are asserted. PBC 250 MiB matches PbcService.MaxUploadBytes and the persistence constraint; request/package summaries state current-page counts.",
+      "limits": "Test-only follow-up; current-commit CI and broader WU-034 portal, browser and professional acceptance remain open."
+    },
     "workflowTemplateLineage20261021": {
       "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
       "archive": "status-archive-2026-10.json#/keys/targetedVerification/focusedEvidenceHistory20261021/workflowTemplateLineage20261021",
