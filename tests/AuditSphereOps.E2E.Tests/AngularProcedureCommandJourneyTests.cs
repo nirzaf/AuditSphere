@@ -75,6 +75,7 @@ public sealed class AngularProcedureCommandJourneyTests
 
   [Fact]
   [Trait("CaseId", "AS-AWP-PROCEDURE-COMMAND-RECOVERY-01")]
+  [Trait("CompletionUnit", "WU-039")]
   public async Task CashAndBankProcedureRecoversExactSubmissionAndIndependentReviewerCanReturnIt()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false,

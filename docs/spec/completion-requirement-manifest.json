@@ -155,7 +155,8 @@
         "tests/AuditSphereOps.Domain.Tests/FieldworkConnectionsTests.cs",
         "tests/AuditSphereOps.Domain.Tests/AuditSamplingEngineTests.cs",
         "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
-        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagerReview.cs"
+        "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.ManagerReview.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularProcedureCommandJourneyTests.cs"
       ],
       "status": "SOURCE_TRACED",
       "evidence": [],
