@@ -71,11 +71,25 @@ public sealed class EngagementActivationAdvanceGateTests
     var finance = PbcSeed.Actor(f.Admin, "FinanceManager");
     var originalReceipt = await db.Receipts.AsNoTracking().SingleAsync(x => x.Id == milestone.ReceiptId!.Value);
     var secondReceipt = await BillingService.RecordReceiptAsync(db, finance,
-      new(originalReceipt.BillingAccountId, 6000m, "SYNTHETIC-SECOND-ADVANCE", RequestId: Guid.CreateVersion7()));
+      new(originalReceipt.BillingAccountId, 5999.99m, "SYNTHETIC-SECOND-ADVANCE", RequestId: Guid.CreateVersion7()));
     Assert.True(secondReceipt.Succeeded, secondReceipt.Message);
     var allocation = await BillingService.AllocateReceiptCommandAsync(db, finance,
-      new(secondReceipt.Value, milestone.InvoiceId!.Value, 6000m, Guid.CreateVersion7()));
+      new(secondReceipt.Value, milestone.InvoiceId!.Value, 5999.99m, Guid.CreateVersion7()));
     Assert.True(allocation.Succeeded, allocation.Message);
+    Assert.Equal(9999.99m, await BillingService.GetNetAppliedToInvoiceAsync(db, f.FirmId, milestone.InvoiceId.Value));
+    var oneCentShort = await EngagementActivationWorkspace.StateAsync(db, partner, f.EngagementId);
+    Assert.True(oneCentShort.Succeeded, oneCentShort.Message);
+    Assert.False(oneCentShort.Value!.Eligible);
+    Assert.Contains(oneCentShort.Value.Blockers, x => x.Code == "advance.unpaid");
+    Assert.Equal(ErrorCodes.GateBlocked,
+      (await EngagementLifecycleService.ActivateAsync(db, partner, f.EngagementId)).ErrorCode);
+    Assert.Empty(await db.EngagementActivations.ToListAsync());
+    var finalCentReceipt = await BillingService.RecordReceiptAsync(db, finance,
+      new(originalReceipt.BillingAccountId, 0.01m, "SYNTHETIC-FINAL-ADVANCE-CENT", RequestId: Guid.CreateVersion7()));
+    Assert.True(finalCentReceipt.Succeeded, finalCentReceipt.Message);
+    var finalCent = await BillingService.AllocateReceiptCommandAsync(db, finance,
+      new(finalCentReceipt.Value, milestone.InvoiceId.Value, 0.01m, Guid.CreateVersion7()));
+    Assert.True(finalCent.Succeeded, finalCent.Message);
     Assert.Equal(10000m, await BillingService.GetNetAppliedToInvoiceAsync(db, f.FirmId, milestone.InvoiceId.Value));
     var ready = await EngagementActivationWorkspace.StateAsync(db, partner, f.EngagementId);
     Assert.True(ready.Succeeded, ready.Message);
