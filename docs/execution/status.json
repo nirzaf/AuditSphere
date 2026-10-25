@@ -1096,20 +1096,20 @@
       }
     },
     "wu039ConnectedJourney20261025": {
-      "status": "FOCUSED_PASS_PARTIAL_CI_PENDING",
+      "status": "FOCUSED_PASS_CI_PENDING",
       "commit": "940ff390940c34f0605980af08dc0bf9f7decfe2",
       "filter": "CompletionUnit=WU-039",
-      "cases": "Prior seven-case cohort plus connected PBC method: staff-created request; exact client upload; worker transfer; independent review.",
-      "result": "Combined WU-039 filter passed locally: 8/8; 0 failed, 0 skipped.",
+      "result": "8/8 pass; 0 failed or skipped.",
       "evidence": ".local/autonomous/evidence/wu039-connected-request-cohort-20261025/review.json; TRX sha256 1aa47a09a3511b0ebcce89eff30c5df6bcd7abd753ae715c5a3ac20fbfdc0eaa.",
-      "journeyBoundary": "Same request is created by staff, uploaded by client, transferred by worker and accepted by an independent reviewer; no commercial-to-archive identity.",
-      "remaining": "Broader planning, reporting, firm ledger, archive, WU-012/WU-014 dependencies and professional/live acceptance remain open.",
-      "ci": "Full 40160126775 source MATCH remains running; fast 40160196900 docs and Angular passed, .NET build running. No full pass is claimed."
+      "journeyBoundary": "One request links those steps; no commercial-to-archive identity.",
+      "remaining": "Other journeys, WU-012/WU-014 and professional/live acceptance remain open.",
+      "ci": "40160126775 on 940ff390 is predecessor-only."
     },
     "portalUploadStartRecovery20261025": {
       "result": "1/1 focused E2E PASS; full 40161404727 and fast 40161352561 running on 48cd3e68",
       "evidence": ".local/autonomous/evidence/wu034-unknown-start-recovery-20261025/review.json"
-    }
+    },
+    "wu004CompositeForeignKeyMapping20261025": "Focused 1/1 pass; 887 firm-table FKs checked. 54 single-column links had no seed row (0 target-FK probes); WU-004 partial. Evidence/digests: .local/autonomous/evidence/wu004-composite-fk-mapping-20261025/review.json."
   },
   "externalGates": [
     {
@@ -1683,9 +1683,9 @@
   },
   "currentSourceCi": {
     "sourceCommit": "48cd3e6811ec08fe3a1822ef82d5f56eebfc2ef4",
-    "fastCi": "40161352561 RUNNING on exact source 48cd3e68; Docs Health and Angular passed, .NET Release build in progress at 2026-10-25T04:21:54Z.",
-    "releaseVerification": "40161404727 RUNNING; immutable source MATCH on 48cd3e68. Angular/full specs passed; build/contracts/publication and unfiltered Domain/API/E2E remain in progress. No FULL_CI_PASS.",
-    "precedingFull": "40160126775 remains RUNNING on 940ff390; predecessor source only."
+    "fastCi": "40161352561 cancelled after Docs/Angular PASS; .NET pending. Docs fast 40161667047 on 6aff: Docs/Angular PASS, .NET running.",
+    "releaseVerification": "40161404727: source MATCH 48cd; Angular/full specs PASS, all remaining jobs RUNNING.",
+    "precedingFull": "40160126775/940ff390: predecessor-only."
   },
-  "updatedAtUtc": "2026-10-25T04:21:54Z"
+  "updatedAtUtc": "2026-10-25T04:28:46Z"
 }

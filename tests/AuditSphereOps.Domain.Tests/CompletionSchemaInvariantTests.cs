@@ -45,8 +45,15 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       SELECT c.conname, child.relname, parent.relname,
              CASE WHEN cardinality(c.conkey) = 1 THEN (SELECT attname FROM pg_attribute WHERE attrelid = c.conrelid AND attnum = c.conkey[1]) END,
              CASE WHEN cardinality(c.confkey) = 1 THEN (SELECT attname FROM pg_attribute WHERE attrelid = c.confrelid AND attnum = c.confkey[1]) END,
-             EXISTS (SELECT 1 FROM unnest(c.conkey) k JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k
-                     WHERE a.attname = 'firm_id') AS carries_firm
+             EXISTS (
+               SELECT 1
+               FROM unnest(c.conkey, c.confkey) AS key_pair(child_attnum, parent_attnum)
+               JOIN pg_attribute child_scope
+                 ON child_scope.attrelid = c.conrelid AND child_scope.attnum = key_pair.child_attnum
+               JOIN pg_attribute parent_scope
+                 ON parent_scope.attrelid = c.confrelid AND parent_scope.attnum = key_pair.parent_attnum
+               WHERE child_scope.attname = 'firm_id' AND parent_scope.attname = 'firm_id'
+             ) AS carries_firm
       FROM pg_constraint c
       JOIN pg_class child ON child.oid = c.conrelid
       JOIN pg_class parent ON parent.oid = c.confrelid
@@ -54,15 +61,39 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       WHERE c.contype = 'f' AND n.nspname = current_schema()
         AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.conrelid AND a.attname = 'firm_id' AND NOT a.attisdropped)
         AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.confrelid AND a.attname = 'firm_id' AND NOT a.attisdropped)
-        -- A single-column key is scoped when another key on the same columns to the same parent also binds firm_id.
-        AND NOT EXISTS (SELECT 1 FROM pg_constraint o JOIN pg_attribute fa ON fa.attrelid = o.conrelid AND fa.attname = 'firm_id'
-                        WHERE o.contype = 'f' AND o.oid <> c.oid AND o.conrelid = c.conrelid AND o.confrelid = c.confrelid
-                          AND c.conkey <@ o.conkey AND fa.attnum = ANY (o.conkey))
+        -- Treat a key as scope-bound only when a second FK preserves every child-to-parent column mapping
+        -- and explicitly maps firm_id to the parent firm_id. Merely sharing child columns with some other FK
+        -- can otherwise hide an unscoped reference to a different unique key on the same parent table.
+        AND NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint o
+          WHERE o.contype = 'f' AND o.oid <> c.oid
+            AND o.conrelid = c.conrelid AND o.confrelid = c.confrelid
+            AND EXISTS (
+              SELECT 1
+              FROM unnest(o.conkey, o.confkey) AS scoped(child_attnum, parent_attnum)
+              JOIN pg_attribute child_scope
+                ON child_scope.attrelid = o.conrelid AND child_scope.attnum = scoped.child_attnum
+              JOIN pg_attribute parent_scope
+                ON parent_scope.attrelid = o.confrelid AND parent_scope.attnum = scoped.parent_attnum
+              WHERE child_scope.attname = 'firm_id' AND parent_scope.attname = 'firm_id'
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM unnest(c.conkey, c.confkey) AS direct(child_attnum, parent_attnum)
+              WHERE NOT EXISTS (
+                SELECT 1
+                FROM unnest(o.conkey, o.confkey) AS combined(child_attnum, parent_attnum)
+                WHERE combined.child_attnum = direct.child_attnum
+                  AND combined.parent_attnum = direct.parent_attnum
+              )
+            )
+        )
       ORDER BY child.relname, c.conname
       """;
     var scoped = 0;
     var unscoped = new List<string>();
-    var probes = new List<(string Child, string Column, string Parent, string Reference)>();
+    var probes = new List<(string Constraint, string Child, string Column, string Parent, string Reference)>();
     await using (var command = new NpgsqlCommand(sql, connection))
     await using (var reader = await command.ExecuteReaderAsync())
       while (await reader.ReadAsync())
@@ -71,9 +102,9 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
         if (reader.GetBoolean(5)) continue;
         unscoped.Add($"{reader.GetString(1)} -> {reader.GetString(2)} ({reader.GetString(0)})");
         if (!reader.IsDBNull(3) && !reader.IsDBNull(4))
-          probes.Add((reader.GetString(1), reader.GetString(3), reader.GetString(2), reader.GetString(4)));
+          probes.Add((reader.GetString(0), reader.GetString(1), reader.GetString(3), reader.GetString(2), reader.GetString(4)));
       }
-    output.WriteLine($"Foreign keys between firm-scoped tables: {scoped}; without firm_id: {unscoped.Count}");
+    output.WriteLine($"Foreign keys between firm-scoped tables: {scoped}; without exact firm_id mapping: {unscoped.Count}");
     Assert.True(scoped > 20, $"Only {scoped} firm-scoped foreign keys found; the probe would be vacuous.");
 
     // Probe each single-column key: copy a seeded child row, repoint it at another firm's parent and observe
@@ -81,9 +112,12 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     await PbcSeed.SeedAsync(pg);
     await PbcSeed.SeedAsync(pg);
     var accepted = new List<string>();
+    var notProbed = new List<string>();
+    var unexpectedRefusals = new List<string>();
+    var refusedByTargetForeignKey = 0;
     await using var transaction = await connection.BeginTransactionAsync();
     await new NpgsqlCommand("SET CONSTRAINTS ALL IMMEDIATE", connection, transaction).ExecuteNonQueryAsync();
-    foreach (var (child, column, parent, reference) in probes)
+    foreach (var (constraint, child, column, parent, reference) in probes)
     {
       await new NpgsqlCommand("SAVEPOINT probe", connection, transaction).ExecuteNonQueryAsync();
       var probe = $"""
@@ -98,16 +132,31 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       try
       {
         var rows = await new NpgsqlCommand(probe, connection, transaction).ExecuteNonQueryAsync();
-        outcome = rows == 0 ? "NOT_PROBED" : "ACCEPTED_CROSS_FIRM";
-        if (rows > 0) accepted.Add($"{child}.{column} -> {parent}");
+        outcome = rows == 0 ? "NO_FIXTURE_ROW" : "ACCEPTED_CROSS_FIRM";
+        if (rows == 0) notProbed.Add($"{child}.{column} -> {parent}");
+        else accepted.Add($"{child}.{column} -> {parent}");
       }
-      catch (PostgresException exception) { outcome = $"REFUSED {exception.SqlState} {exception.MessageText}"; }
+      catch (PostgresException exception)
+      {
+        if (exception.SqlState == "23503" && exception.ConstraintName == constraint)
+        {
+          refusedByTargetForeignKey++;
+          outcome = $"REFUSED_BY_TARGET_FK {exception.SqlState} {constraint}";
+        }
+        else
+        {
+          unexpectedRefusals.Add($"{child}.{column} -> {parent}: {exception.SqlState} {exception.ConstraintName ?? "(no constraint)"}");
+          outcome = $"UNEXPECTED_REFUSAL {exception.SqlState} {exception.ConstraintName ?? "(no constraint)"}";
+        }
+      }
       await new NpgsqlCommand("ROLLBACK TO SAVEPOINT probe", connection, transaction).ExecuteNonQueryAsync();
       output.WriteLine($"PROBE {child}.{column} -> {parent}: {outcome}");
     }
     await transaction.RollbackAsync();
-    output.WriteLine($"Single-column scoped-key probes: {probes.Count}; accepted cross-firm: {accepted.Count}");
+    output.WriteLine($"Single-column scoped-key probes: discovered {probes.Count}; refused by target FK {refusedByTargetForeignKey}; " +
+      $"accepted cross-firm {accepted.Count}; no fixture row {notProbed.Count}; unexpected refusal {unexpectedRefusals.Count}");
     Assert.True(accepted.Count == 0, "Cross-firm references accepted: " + string.Join(", ", accepted));
+    Assert.True(unexpectedRefusals.Count == 0, "Probe blocked before the target FK: " + string.Join("; ", unexpectedRefusals));
   }
 
   [Fact]
