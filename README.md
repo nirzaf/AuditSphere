@@ -211,7 +211,7 @@ Do not run an unfiltered local test suite after every edit. Use the relevant `sr
 
 Always inspect the [Actions runs](https://github.com/nirzaf/AuditSphere/actions) and `docs/execution/status.json` for the exact **tested commit**. A queued, running, historical or partly successful workflow is not `FULL_CI_PASS`.
 
-**Hostinger rollout:** The authorized upgrade is waiting for full API and E2E CI. The corrected container passed restored-copy migration, health and Angular root checks; existing row values were preserved. Outbound mail requires current signed authorization evidence before restart. The live application remains unchanged until release gates pass.
+**Hostinger rollout:** The authorized upgrade is waiting for an API CI retry after the first test command terminated without a result. Browser/E2E tests and restored-copy migration, health and Angular root checks passed; existing row values were preserved. Outbound mail requires current signed authorization evidence before restart. The live application remains unchanged until release checks pass.
 
 ## Microsoft 365, SharePoint, and operator automation
 
