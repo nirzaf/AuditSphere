@@ -25447,6 +25447,74 @@
       },
       "backupPreparation": "Use observed project-owned Docker volume mounts, protected .env/overlay/config, and a fresh catalog-validated quiesced DB dump before live mutation. Preserve rollback evidence; no automatic destructive DB restore.",
       "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-e53.json"
+    },
+    "currentSourceCiBeforeFinalAcceptanceTests20261026": {
+      "sourceCommit": "a48db01526015e4b5e767620160eff3a699e4a77",
+      "fastCi": "PASS run40234318970; alljobs actualcheckoutMATCH",
+      "releaseVerification": "40234333952 RUNNING source MATCH; Angular/fullspecsPASS; Domain/API/E2E/Verifyactive",
+      "imagePublication": "PASS run40234318959; exactcheckout and immutablemanifestpushes",
+      "runtimeRehearsal": "PASS exacta48: schema286/0migrations/379original projectionsunchanged; health+bothuncachedAngularroots200; ownedDB/container/envcleanupread-onlyverified",
+      "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
+      "updatedAtUtc": "2026-10-25T21:25:28.950404+00:00",
+      "successorStatus": "Preceding runtime candidate; test-only acceptance coverage successor requires exact final-source gates. No FULL_CI_PASS or cutover claimed."
+    },
+    "hostingerPreparationBeforeFinalAcceptanceTests20261026": {
+      "observedAtUtc": "2026-10-25T21:25:28.950404+00:00",
+      "sourceCommit": "a48db01526015e4b5e767620160eff3a699e4a77",
+      "implementationCommit": "a4a832298b3918d57347ada5bd67d684ba06876e",
+      "currentFastRun": 40234318970,
+      "fastStatus": "PASS actualcheckout alljobs",
+      "currentFullRun": 40234333952,
+      "fullStatus": "40234333952 RUNNING source MATCH; Angular/fullspecsPASS; Domain/API/E2E/Verifyactive",
+      "currentImageBuildRun": 40234318959,
+      "imageStatus": "PASS exactcheckout andimmutablepushes",
+      "imageDigests": {
+        "api": "ghcr.io/nirzaf/auditsphere-acceptance-api:a48db01526015e4b5e767620160eff3a699e4a77@sha256:1da8878456258b5ed4b8fdafb49477771b2ce0a55b955b33a811bbc79035831e",
+        "worker": "ghcr.io/nirzaf/auditsphere-acceptance-worker:a48db01526015e4b5e767620160eff3a699e4a77@sha256:0e480c9770a54eaf10d660119968834ffdef7f6ee5f75680e89df58211689a68",
+        "migrations": "ghcr.io/nirzaf/auditsphere-acceptance-migrations:a48db01526015e4b5e767620160eff3a699e4a77@sha256:d9432b67fc84831c398bd609c2b5830ec5f5e8787baf763aeffd9783b549af54"
+      },
+      "currentSourceRehearsal": {
+        "status": "PASS_RESTORED_COPY_LATEST_SOURCE",
+        "report": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/rehearsal-a48.json",
+        "sourceSha": "a48db01526015e4b5e767620160eff3a699e4a77",
+        "migrationCountBefore": 286,
+        "migrationCountAfter": 286,
+        "migrationHead": "20261025144831_PbcStorageCommandReceipts",
+        "migrationsApplied": 0,
+        "originalTableCount": 379,
+        "originalRowsAndValuesUnchanged": true,
+        "apiChecks": {
+          "ready": 200,
+          "live": 200,
+          "ui": 200,
+          "uiAngularShellPresent": true,
+          "uiSlash": 200,
+          "uiSlashAngularShellPresent": true
+        },
+        "disposableDatabaseRemoved": true,
+        "ownedContainerRemoved": true,
+        "temporaryEnvironmentFilesRemoved": true,
+        "liveDatabaseChangedByRehearsal": false,
+        "liveContainersChangedByRehearsal": false
+      },
+      "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
+      "mailBoundary": "Already paused at observed preflight; remains paused without genuine signed sender authorization.",
+      "liveObserved": {
+        "sourceCheckout": "bba5f4b902dac67905bcf3925410cd0a31ec703d",
+        "imageSource": "bba5f4b902dac67905bcf3925410cd0a31ec703d",
+        "schema": "286:20261025144831_PbcStorageCommandReceipts",
+        "coreServices": [
+          "api",
+          "worker-general",
+          "worker-processing",
+          "worker-records"
+        ],
+        "mailRunning": false,
+        "deploymentProvenance": "Observed read-only; no claim this run deployed the earlier source.",
+        "latestSourceDeployed": false
+      },
+      "backupPreparation": "Use observed project-owned Docker volume mounts, protected .env/overlay/config, and a fresh catalog-validated quiesced DB dump before live mutation. Preserve rollback evidence; no automatic destructive DB restore.",
+      "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-a48.json"
     }
   },
   "archivedTargetedVerification": {
@@ -26192,6 +26260,14 @@
         "worker": "ghcr.io/nirzaf/auditsphere-acceptance-worker@sha256:1edb7ee7d19f762d49094afb91a891c9be96851369ef39c183230fd828c42957",
         "migrations": "ghcr.io/nirzaf/auditsphere-acceptance-migrations@sha256:4d132ebef5cfbcba529b541a94631a2131c9e5e62bc1519b17d86a2c5dea4737"
       }
+    },
+    "axelorFinalBeforeAcceptanceGapProof20261026": {
+      "result": "Changed existing role/report cohort2PASS after fresh Release build; distinct built-in commercial/scoped/finance roles exercised. Exact advance boundary1PASS (9999.99 blocked, separately recorded0.01 reaches10000). Preceding c15 Domain CI1747PASS, API/E2E pending; final exact candidate CI required.",
+      "evidence": ".local/autonomous/evidence/axelor-final-20261025/review.json",
+      "scope": "Static prior event/router-link parity; builtin ordinary commercial/client-scoped denied/finance preparer and distinct reviewer; no removed inventoried actions; provider/posting counts unchanged around discovery.",
+      "limits": "No FULL_CI_PASS claimed. Rejected currency fixture violated existing DB integrity; speculative UI change reverted. Initial final-cent fixture reused unique receipt/invoice pair; separate-cent receipt correction passed. No human AT/nativezoom/live-provider/professional certification; original31 active.",
+      "finalSource": "a48db01526015e4b5e767620160eff3a699e4a77",
+      "ci": "40234333952 RUNNING source MATCH; Angular/fullspecsPASS; Domain/API/E2E/Verifyactive"
     }
   },
   "lastUpdatedOn": "2026-10-25"

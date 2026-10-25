@@ -1041,12 +1041,12 @@
       "limits": "Selected browser states; no whole-spec/human/live acceptance."
     },
     "axelorFinal20261025": {
-      "result": "Changed existing role/report cohort2PASS after fresh Release build; distinct built-in commercial/scoped/finance roles exercised. Exact advance boundary1PASS (9999.99 blocked, separately recorded0.01 reaches10000). Preceding c15 Domain CI1747PASS, API/E2E pending; final exact candidate CI required.",
-      "evidence": ".local/autonomous/evidence/axelor-final-20261025/review.json",
-      "scope": "Static prior event/router-link parity; builtin ordinary commercial/client-scoped denied/finance preparer and distinct reviewer; no removed inventoried actions; provider/posting counts unchanged around discovery.",
-      "limits": "No FULL_CI_PASS claimed. Rejected currency fixture violated existing DB integrity; speculative UI change reverted. Initial final-cent fixture reused unique receipt/invoice pair; separate-cent receipt correction passed. No human AT/nativezoom/live-provider/professional certification; original31 active.",
-      "finalSource": "a48db01526015e4b5e767620160eff3a699e4a77",
-      "ci": "40234333952 RUNNING source MATCH; Angular/fullspecsPASS; Domain/API/E2E/Verifyactive"
+      "status": "FOCUSED_TRACE_REVIEWED_FINAL_FULL_CI_PENDING",
+      "finalSource": "b94e3ddc472827f1604b20f477a1e376597e83dc",
+      "result": "Existing final role/report cohort2PASS, exactadvance1PASS, selected builtin commercial/scoped/financepair and source/actionparity reviewed. Direct final reminder1/calculator1/resourceAngular16PASS recorded separately. No full local suites.",
+      "evidence": ".local/autonomous/evidence/axelor-final-20261025/acceptance-audit.json",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.axelorFinalBeforeAcceptanceGapProof20261026",
+      "remaining": "Final current-source fullCI and authorized Acceptance cutover; no broader professional/provider/humanAT/nativezoom certification claimed."
     },
     "axelorInvoiceDescription20261026": {
       "status": "FOCUSED_FAST_IMAGES_REHEARSAL_PASS_FULL_PENDING",
@@ -1060,7 +1060,7 @@
       "sourceCommit": "a48db01526015e4b5e767620160eff3a699e4a77"
     },
     "axelorFinalAcceptanceGap20261026": {
-      "status": "FOCUSED_PASS_FINAL_SOURCE_CI_REQUIRED",
+      "status": "FOCUSED_FAST_IMAGES_REHEARSAL_PASS_FULL_PENDING",
       "runtimeSourceUnchanged": "a48db01526015e4b5e767620160eff3a699e4a77",
       "requirements": [
         "UX-AC-24",
@@ -1070,7 +1070,18 @@
       "behavior": "Reminder-selected task beyond500-row workspace remains exact, then HTTP401/noID/title and rendered protected-content removal after sessionrevocation. Calculator6000capacity/6600planned/6000all-approved/4800billable yields110%planned/80%billable. Existing displaymock480/1200 corrected50% to40%; no production calculation change.",
       "browser": "Owned builtin same exact task ID/title/read-onlycontext observed; tab12 closed before fixture release; automatic same-session revocation scenario passed afterward.",
       "evidence": ".local/autonomous/evidence/axelor-final-20261025/acceptance-gap-review.json",
-      "remaining": "Publish test-only slice and verify exact final fast/full/images and current-source rehearsal before Acceptance cutover. Earlier a48 results remain predecessor evidence."
+      "remaining": "Exact full40236162417MATCH: Angular/VerifyPASS; Domain/API/E2Eactive. Final requirement acceptance and authorized Acceptance cutover pending.",
+      "finalSource": "b94e3ddc472827f1604b20f477a1e376597e83dc"
+    },
+    "axelorPrecedingFailures20261026": {
+      "source": "Preceding c15 and7a; not currentacceptance",
+      "api": "c15 API121262425454 failed: hostedrunnerlostcommunication confirmed by GitHubannotation, noTRX/visiblefailedtest; CPU/memory/network causeunproven. Currentb94 unfilteredAPIrequired.",
+      "e2e": "7a335PASS4FAIL:3knowninvoice failures fixeda48; UND/lostcommitted finding10s-barrier timeout exactcase1PASS unchanged, causeunproven; no productfix/timeoutchange.",
+      "evidence": [
+        ".local/autonomous/evidence/axelor-final-20261025/c15-new-api-failure/review.json",
+        ".local/autonomous/evidence/axelor-final-20261025/preceding-7a-new-e2e/review.json"
+      ],
+      "superseded": "Owned7a/e53/a48 pending runs canceled after finalb94MATCH and snapshots; knownfailedTRXs retained; no FULL_CI_PASS claimed."
     }
   },
   "externalGates": [
@@ -1262,24 +1273,24 @@
   "hostingerAcceptance": {
     "archivedLegacy": "status-archive-2026-10.json#keys.hostingerAcceptanceLegacy20261015",
     "latestReleasePreparation": {
-      "observedAtUtc": "2026-10-25T21:25:28.950404+00:00",
-      "sourceCommit": "a48db01526015e4b5e767620160eff3a699e4a77",
+      "observedAtUtc": "2026-10-25T21:50:48.252657+00:00",
+      "sourceCommit": "b94e3ddc472827f1604b20f477a1e376597e83dc",
       "implementationCommit": "a4a832298b3918d57347ada5bd67d684ba06876e",
-      "currentFastRun": 40234318970,
+      "currentFastRun": 40236150477,
       "fastStatus": "PASS actualcheckout alljobs",
-      "currentFullRun": 40234333952,
-      "fullStatus": "40234333952 RUNNING source MATCH; Angular/fullspecsPASS; Domain/API/E2E/Verifyactive",
-      "currentImageBuildRun": 40234318959,
+      "currentFullRun": 40236162417,
+      "fullStatus": "40236162417 RUNNING sourceMATCH; Angular/fullspecs and Verify/build/contracts PASS; Domain/API/E2Eactive",
+      "currentImageBuildRun": 40236150660,
       "imageStatus": "PASS exactcheckout andimmutablepushes",
       "imageDigests": {
-        "api": "ghcr.io/nirzaf/auditsphere-acceptance-api:a48db01526015e4b5e767620160eff3a699e4a77@sha256:1da8878456258b5ed4b8fdafb49477771b2ce0a55b955b33a811bbc79035831e",
-        "worker": "ghcr.io/nirzaf/auditsphere-acceptance-worker:a48db01526015e4b5e767620160eff3a699e4a77@sha256:0e480c9770a54eaf10d660119968834ffdef7f6ee5f75680e89df58211689a68",
-        "migrations": "ghcr.io/nirzaf/auditsphere-acceptance-migrations:a48db01526015e4b5e767620160eff3a699e4a77@sha256:d9432b67fc84831c398bd609c2b5830ec5f5e8787baf763aeffd9783b549af54"
+        "api": "ghcr.io/nirzaf/auditsphere-acceptance-api:b94e3ddc472827f1604b20f477a1e376597e83dc@sha256:62e40736bb1a67b8e05a5325e6d5d1c654b6bb4ca9ea85bb65d1554a128520b0",
+        "worker": "ghcr.io/nirzaf/auditsphere-acceptance-worker:b94e3ddc472827f1604b20f477a1e376597e83dc@sha256:60a5063d8a7feba74b28491aeaf9e53d2eedef600e7754cbc2cb3fd48ac0d385",
+        "migrations": "ghcr.io/nirzaf/auditsphere-acceptance-migrations:b94e3ddc472827f1604b20f477a1e376597e83dc@sha256:09b192a3a9e6e92760a411be2192f8a1fd765659b569c83747e16ef5985e6228"
       },
       "currentSourceRehearsal": {
         "status": "PASS_RESTORED_COPY_LATEST_SOURCE",
-        "report": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/rehearsal-a48.json",
-        "sourceSha": "a48db01526015e4b5e767620160eff3a699e4a77",
+        "report": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/rehearsal-b94.json",
+        "sourceSha": "b94e3ddc472827f1604b20f477a1e376597e83dc",
         "migrationCountBefore": 286,
         "migrationCountAfter": 286,
         "migrationHead": "20261025144831_PbcStorageCommandReceipts",
@@ -1317,7 +1328,7 @@
         "latestSourceDeployed": false
       },
       "backupPreparation": "Use observed project-owned Docker volume mounts, protected .env/overlay/config, and a fresh catalog-validated quiesced DB dump before live mutation. Preserve rollback evidence; no automatic destructive DB restore.",
-      "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-a48.json"
+      "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-b94.json"
     }
   },
   "apiAngularParity": {
@@ -1520,14 +1531,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "a48db01526015e4b5e767620160eff3a699e4a77",
-    "fastCi": "PASS run40234318970; alljobs actualcheckoutMATCH",
-    "releaseVerification": "40234333952 RUNNING source MATCH; Angular/fullspecsPASS; Domain/API/E2E/Verifyactive",
-    "imagePublication": "PASS run40234318959; exactcheckout and immutablemanifestpushes",
-    "runtimeRehearsal": "PASS exacta48: schema286/0migrations/379original projectionsunchanged; health+bothuncachedAngularroots200; ownedDB/container/envcleanupread-onlyverified",
+    "sourceCommit": "b94e3ddc472827f1604b20f477a1e376597e83dc",
+    "fastCi": "PASS run40236150477; alljobs actualcheckoutMATCH",
+    "releaseVerification": "40236162417 RUNNING sourceMATCH; Angular/fullspecs and Verify/build/contracts PASS; Domain/API/E2Eactive",
+    "imagePublication": "PASS run40236150660; exactcheckout and immutablemanifestpushes",
+    "runtimeRehearsal": "PASS exactb94: schema286/0migrations/379original projectionsunchanged; health+bothuncachedAngularroots200; ownedDB/container/privateenvcleanupverified read-only",
     "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
-    "updatedAtUtc": "2026-10-25T21:25:28.950404+00:00",
-    "successorStatus": "Preceding runtime candidate; test-only acceptance coverage successor requires exact final-source gates. No FULL_CI_PASS or cutover claimed."
+    "updatedAtUtc": "2026-10-25T21:50:48.252657+00:00"
   },
   "updatedAtUtc": "2026-10-25T19:22:40.871517+00:00"
 }
