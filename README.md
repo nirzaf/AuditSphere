@@ -211,7 +211,7 @@ Do not run an unfiltered local test suite after every edit. Use the relevant `sr
 
 Always inspect the [Actions runs](https://github.com/nirzaf/AuditSphere/actions) and `docs/execution/status.json` for the exact **tested commit**. A queued, running, historical or partly successful workflow is not `FULL_CI_PASS`.
 
-**Hostinger rollout:** The exact-source API retry found one stale route-catalogue assertion (387/388 tests passed): it listed `/ui` and `/ui/` as separate endpoints. The assertion now models the single root endpoint; existing host coverage still checks both request forms. CI for the correction is pending. E2E passed 339/339, and the restored-copy rehearsal preserved existing rows. Deployment awaits passing current-source CI and release checks; outbound mail stays paused until signed authorization evidence is installed.
+**Hostinger rollout:** The exact-source API retry found one stale route-catalogue assertion: it listed `/ui` and `/ui/` as separate endpoints. The assertion now models the single root endpoint; existing host coverage still checks both request forms. CI for the correction is pending. The prior browser suite passed, and the restored-copy rehearsal preserved existing rows. Deployment awaits passing current-source CI and release checks; outbound mail stays paused until signed authorization evidence is installed.
 
 ## Microsoft 365, SharePoint, and operator automation
 
