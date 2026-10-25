@@ -58,7 +58,10 @@
         "tests/AuditSphereOps.Domain.Tests/QuotationCalculatorTests.cs",
         "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
         "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs",
-        "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs"
+        "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularCommercialJourneyTests.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularProposalWorkflowJourneyTests.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularClientConversionJourneyTests.cs"
       ],
       "status": "SOURCE_TRACED",
       "evidence": [],
@@ -247,7 +250,8 @@
       "tests": [
         "tests/AuditSphereOps.Domain.Tests/FirmOperationsTests.cs",
         "tests/AuditSphereOps.Domain.Tests/EndOfServiceAccrualTests.cs",
-        "tests/AuditSphereOps.Domain.Tests/FirmReceivablesAgingQueryTests.cs"
+        "tests/AuditSphereOps.Domain.Tests/FirmReceivablesAgingQueryTests.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularPracticeTimeScopeParityJourneyTests.cs"
       ],
       "status": "SOURCE_TRACED",
       "evidence": [],

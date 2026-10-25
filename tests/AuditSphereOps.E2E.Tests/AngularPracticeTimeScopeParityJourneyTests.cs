@@ -12,6 +12,7 @@ public sealed class AngularPracticeTimeScopeParityJourneyTests
 {
   [Fact]
   [Trait("CaseId", "STE-GAP-009-RATE-FSLI-BROWSER")]
+  [Trait("CompletionUnit", "WU-039")]
   public async Task SeparateAdministratorApprovesSteRateAndMappedTaskPinsItToBillableTime()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false,

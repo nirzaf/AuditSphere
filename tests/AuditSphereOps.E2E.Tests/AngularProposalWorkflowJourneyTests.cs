@@ -197,6 +197,7 @@ public sealed class AngularProposalWorkflowJourneyTests
   [InlineData(true)]
   [InlineData(false)]
   [Trait("CaseId", "AS-PAR-002-ANG-COMM-PROPOSAL-WORKFLOW-01")]
+  [Trait("CompletionUnit", "WU-039")]
   public async Task ProposalWorkflowRequiresIndependentReviewAndRecordsSendAndClientResponse(bool accepted)
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false,

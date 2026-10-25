@@ -5,6 +5,7 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class AngularClientConversionJourneyTests
 {
  [Theory][InlineData(false)][InlineData(true)]
+ [Trait("CompletionUnit", "WU-039")]
  public async Task ReviewedConversionLostResponseRecoversAfterReloadWithoutDuplicateClient(bool canonical)
  {
   await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-CLIENT-CONVERSION");var f=host.Fixture;Guid id;

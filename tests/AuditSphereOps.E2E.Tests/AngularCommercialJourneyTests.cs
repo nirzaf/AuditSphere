@@ -14,6 +14,7 @@ public sealed class AngularCommercialJourneyTests
 {
   [Fact]
   [Trait("CaseId", "ANGULAR-COMMERCIAL-LEAD-RECOVERY-01")]
+  [Trait("CompletionUnit", "WU-039")]
   public async Task LostLeadCreateResponse_ReloadResolvesSameRequestWithoutDuplicate()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false,
