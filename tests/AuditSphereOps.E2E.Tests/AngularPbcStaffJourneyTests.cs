@@ -12,7 +12,8 @@ public sealed class AngularPbcStaffJourneyTests
 {
   [Fact]
   [Trait("CaseId", "ANGULAR-PBC-STAFF-INBOX")]
-  public async Task StaffInbox_CreatesRequest_QueuesTransfer_AndReviewerAcceptsExactVerifiedVersion()
+  [Trait("CompletionUnit", "WU-039")]
+  public async Task StaffCreatedRequest_CarriesClientUploadThroughTransferAndIndependentReview()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-PBC-STAFF-INBOX");
     var fixture = host.Fixture;
@@ -25,18 +26,23 @@ public sealed class AngularPbcStaffJourneyTests
       await db.SaveChangesAsync();
     }
     var uploadBytes = Encoding.UTF8.GetBytes("Synthetic PBC bytes for the Angular staff completion journey.");
-    var staged = await PbcSeed.StageUploadAsync(host.Database, fixture,
-      PbcSeed.Actor(fixture.Client, "ClientUser"), host.RequestId, uploadBytes,
-      "staged-bank-statements.txt", "text/plain");
+    const string fileName = "staged-bank-statements.txt";
+    var uploadSha256 = AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(uploadBytes);
 
+    var origin = await host.StartApiForIdentityAsync(fixture.Staff,
+      new Dictionary<string, string>
+      {
+        ["AngularUi__Enabled"] = "true",
+        ["Storage__PbcStagingRoot"] = host.StagingRoot
+      });
+    var clientOrigin = await host.StartApiForIdentityAsync(fixture.Client,
+      new Dictionary<string, string>
+      {
+        ["AngularUi__Enabled"] = "true",
+        ["Storage__PbcStagingRoot"] = host.StagingRoot
+      });
     try
     {
-      var origin = await host.StartApiForIdentityAsync(fixture.Staff,
-        new Dictionary<string, string>
-        {
-          ["AngularUi__Enabled"] = "true",
-          ["Storage__PbcStagingRoot"] = staged.StagingRoot
-        });
       using var playwright = await Playwright.CreateAsync();
       await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
       await using var context = await browser.NewContextAsync();
@@ -48,7 +54,7 @@ public sealed class AngularPbcStaffJourneyTests
       await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
       await Assertions.Expect(page.GetByRole(AriaRole.Heading,
         new() { Name = "Prepared-by-client requests", Exact = true })).ToBeVisibleAsync();
-      await Assertions.Expect(page.GetByText("1 requests · 1 upload intents · 0 received uploads", new() { Exact = true }))
+      await Assertions.Expect(page.GetByText("1 requests · 0 upload intents · 0 received uploads", new() { Exact = true }))
         .ToBeVisibleAsync();
 
       const string description = "Angular staff journey: November bank reconciliation statements";
@@ -99,47 +105,82 @@ public sealed class AngularPbcStaffJourneyTests
           x.RecipientEmail == fixture.Client.Email);
       }
 
-      var stagedRequestCard = page.Locator("section.panel").Filter(new() { HasText = "Bank statements" });
+      await using var clientContext = await browser.NewContextAsync();
+      var clientPage = await clientContext.NewPageAsync();
+      var clientErrors = new List<string>();
+      clientPage.PageError += (_, error) => clientErrors.Add(error);
+      await clientPage.GotoAsync(clientOrigin + "/auth/sign-in?returnUrl=%2Fui%2Fportal");
+      await Assertions.Expect(clientPage.GetByRole(AriaRole.Heading,
+        new() { Name = "Client portal", Exact = true })).ToBeVisibleAsync();
+      var provideLink = clientPage.GetByRole(AriaRole.Link, new() { Name = description, Exact = false });
+      await Assertions.Expect(provideLink).ToBeVisibleAsync();
+      await provideLink.ClickAsync();
+      var chooser = clientPage.GetByLabel("Choose a file (up to 250 MB)", new() { Exact = true });
+      await chooser.SetInputFilesAsync(new FilePayload
+      {
+        Name = fileName,
+        MimeType = "text/plain",
+        Buffer = uploadBytes
+      });
+      await clientPage.GetByRole(AriaRole.Button, new() { Name = "Upload file", Exact = true }).ClickAsync();
+      await Assertions.Expect(clientPage.GetByText(
+        "File bytes staged. Your audit team must verify trusted completion and suitability before the request is received or accepted.",
+        new() { Exact = true })).ToBeVisibleAsync();
+
+      Guid uploadId;
+      await using (var db = host.CreateDbContext())
+      {
+        var upload = await db.PbcUploadIntents.AsNoTracking().SingleAsync(x =>
+          x.PbcRequestId == createdRequestId && x.FileName == fileName);
+        uploadId = upload.Id;
+        Assert.Equal((PbcUploadStates.Chunking, uploadBytes.Length, uploadSha256),
+          (upload.State, upload.ReceivedByteCount, upload.DeclaredSha256Hex));
+        Assert.Single(await db.PbcUploadChunks.AsNoTracking().Where(x => x.PbcUploadIntentId == uploadId).ToListAsync());
+      }
+
+      await page.ReloadAsync();
+      await Assertions.Expect(newRequestCard).ToContainTextAsync($"Client uploaded {fileName}");
+      var stagedRequestCard = newRequestCard;
       await stagedRequestCard.GetByRole(AriaRole.Button,
         new() { Name = "Complete staged transfer", Exact = true }).ClickAsync();
       await Assertions.Expect(page.GetByText(
         "Staged bytes verified; a durable provider transfer is queued. The request is not received until that transfer completes.",
         new() { Exact = true })).ToBeVisibleAsync();
-      await Assertions.Expect(stagedRequestCard).ToContainTextAsync("Client uploaded staged-bank-statements.txt");
+      await Assertions.Expect(stagedRequestCard).ToContainTextAsync($"Client uploaded {fileName}");
       await Assertions.Expect(stagedRequestCard.GetByRole(AriaRole.Link, new() { Name = "Download", Exact = true }))
-        .ToHaveAttributeAsync("href", $"/api/pbc/uploads/{staged.UploadIntentId:D}/download");
+        .ToHaveAttributeAsync("href", $"/api/pbc/uploads/{uploadId:D}/download");
 
       await using (var db = host.CreateDbContext())
       {
-        var intent = await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == staged.UploadIntentId);
-        Assert.Equal((PbcUploadStates.Staged, uploadBytes.Length, staged.DeclaredSha256Hex),
+        var intent = await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == uploadId);
+        Assert.Equal((PbcUploadStates.Staged, uploadBytes.Length, uploadSha256),
           (intent.State, intent.ReceivedByteCount, intent.FinalSha256Hex));
         Assert.NotNull(intent.TransferOperationId);
         var operation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == intent.TransferOperationId);
-        Assert.Equal((fixture.ClientId, fixture.EngagementId, staged.UploadIntentId),
+        Assert.Equal((fixture.ClientId, fixture.EngagementId, uploadId),
           (operation.ClientId, operation.EngagementId, operation.TargetId));
         Assert.Equal((PbcDocumentTransferHandler.Kind, OperationState.PENDING),
           (operation.OperationKind, operation.Status));
       }
 
       await host.StartGeneralWorkerAsync();
-      await host.WaitForReceivedAsync(staged.UploadIntentId);
+      await host.WaitForReceivedAsync(uploadId);
       await page.ReloadAsync();
-      var deliveredRequestCard = page.Locator("section.panel").Filter(new() { HasText = "Bank statements" });
+      var deliveredRequestCard = page.Locator("section.panel").Filter(new() { HasText = description });
       var deliveredFileRow = deliveredRequestCard.GetByRole(AriaRole.Row)
-        .Filter(new() { HasText = "staged-bank-statements.txt" });
+        .Filter(new() { HasText = fileName });
       await Assertions.Expect(deliveredFileRow.GetByText("received", new() { Exact = true })).ToBeVisibleAsync();
       await Assertions.Expect(deliveredFileRow.GetByText("completed", new() { Exact = true })).ToBeVisibleAsync();
 
       await using (var db = host.CreateDbContext())
       {
-        var intent = await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == staged.UploadIntentId);
-        Assert.Equal((PbcUploadStates.Received, uploadBytes.Length, staged.DeclaredSha256Hex),
+        var intent = await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == uploadId);
+        Assert.Equal((PbcUploadStates.Received, uploadBytes.Length, uploadSha256),
           (intent.State, intent.ReceivedByteCount, intent.ProviderReceiptDigest));
         var operation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == intent.TransferOperationId);
         Assert.Equal(OperationState.COMPLETED, operation.Status);
         Assert.StartsWith("sim://pbc/", operation.ResultIdentity!);
-        Assert.Equal(staged.DeclaredSha256Hex, operation.ResultDigest);
+        Assert.Equal(uploadSha256, operation.ResultDigest);
       }
 
       var browserDownload = await page.RunAndWaitForDownloadAsync(() =>
@@ -151,7 +192,7 @@ public sealed class AngularPbcStaffJourneyTests
         Assert.Equal(uploadBytes, browserBytes.ToArray());
       }
 
-      await using var download = await context.APIRequest.GetAsync(origin + $"/api/pbc/uploads/{staged.UploadIntentId:D}/download",
+      await using var download = await context.APIRequest.GetAsync(origin + $"/api/pbc/uploads/{uploadId:D}/download",
         new() { MaxRedirects = 0 });
       Assert.Equal(200, download.Status);
       Assert.Equal("no-store", download.Headers["cache-control"]);
@@ -168,8 +209,8 @@ public sealed class AngularPbcStaffJourneyTests
       await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading,
         new() { Name = "Prepared-by-client requests", Exact = true })).ToBeVisibleAsync();
 
-      var reviewCard = reviewerPage.Locator("section.panel").Filter(new() { HasText = "Bank statements" });
-      await Assertions.Expect(reviewCard.GetByText("Client uploaded staged-bank-statements.txt", new() { Exact = true }))
+      var reviewCard = reviewerPage.Locator("section.panel").Filter(new() { HasText = description });
+      await Assertions.Expect(reviewCard.GetByText($"Client uploaded {fileName}", new() { Exact = true }))
         .ToBeVisibleAsync();
       await reviewCard.GetByRole(AriaRole.Button,
         new() { Name = "Begin assigned review", Exact = true }).ClickAsync();
@@ -185,24 +226,25 @@ public sealed class AngularPbcStaffJourneyTests
 
       var acceptedEvidence = reviewCard.GetByRole(AriaRole.Region,
         new() { Name = "Accepted submission version", Exact = true });
-      await Assertions.Expect(acceptedEvidence).ToContainTextAsync("staged-bank-statements.txt");
-      await Assertions.Expect(acceptedEvidence).ToContainTextAsync(staged.DeclaredSha256Hex);
+      await Assertions.Expect(acceptedEvidence).ToContainTextAsync(fileName);
+      await Assertions.Expect(acceptedEvidence).ToContainTextAsync(uploadSha256);
       await Assertions.Expect(acceptedEvidence).ToContainTextAsync(fixture.Reviewer.Id.ToString());
       await using (var db = host.CreateDbContext())
       {
-        var request = await db.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == host.RequestId);
-        var receipt = await db.PbcAcceptanceReceipts.AsNoTracking().SingleAsync(x => x.PbcRequestId == host.RequestId);
+        var request = await db.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == createdRequestId);
+        var receipt = await db.PbcAcceptanceReceipts.AsNoTracking().SingleAsync(x => x.PbcRequestId == createdRequestId);
         Assert.Equal(PbcStates.Accepted, request.State);
-        Assert.Equal((staged.UploadIntentId, fixture.Reviewer.Id, staged.DeclaredSha256Hex),
+        Assert.Equal((uploadId, fixture.Reviewer.Id, uploadSha256),
           (receipt.PbcUploadIntentId, receipt.ReviewerUserId, receipt.ContentSha256Hex));
       }
 
       Assert.Empty(errors);
+      Assert.Empty(clientErrors);
       Assert.Empty(reviewerErrors);
     }
     finally
     {
-      PbcSeed.DeleteDirectory(staged.StagingRoot);
+      PbcSeed.DeleteDirectory(host.StagingRoot);
     }
   }
 }
