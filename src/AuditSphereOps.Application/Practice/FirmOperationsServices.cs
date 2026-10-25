@@ -185,14 +185,15 @@ public static partial class PracticeAnalyticsQuery
 {
   public static readonly string[] Definitions =
   [
-    "Contract contribution = agreed contract fee − lifetime approved-time standard value, in the contract currency. This is separate from period billed-minus-actual-cost profit; missing rates or mixed currencies make it unavailable.",
+    "Contract contribution = agreed contract fee − lifetime approved-time standard value, in the contract currency. This lifetime basis is separate from the period's billed less recorded staff cost and from firm ledger profit; missing rates or mixed currencies make it unavailable.",
     "Standard value = approved billable minutes × captured charge-out rate ÷ 60. Approved non-billable and no-charge time counts in actual hours and actual cost and has no charge-out value; it is shown separately. Billable time without a captured rate still makes the value unavailable.",
-    "Actual cost = approved minutes × staff cost rate effective on the work date ÷ 60 (charge-out rates are not costs). Missing or conflicting latest effective rates make cost, profit and margin unavailable.",
-    "Billed = posted invoice lines sourced from the engagement's approved time or fee milestones (credit notes deducted).",
-    "Collected = receipt allocations to those invoices, pro rata to the engagement's share of each invoice.",
-    "Realization = billed ÷ standard value; collection = collected ÷ billed; margin = (billed − actual cost) ÷ billed.",
-    "Period financial totals are available only when approved time, the current approved budget and posted invoices use one known currency; no foreign-exchange conversion is implied.",
-    "Actual cost and profit are unavailable when an effective staff cost rate is missing or uses a different currency from the approved time entry.",
+    "Actual cost = approved minutes × staff cost rate effective on the work date ÷ 60 (charge-out rates are not costs). Missing or conflicting latest effective rates make recorded staff cost, billed less recorded staff cost and its margin unavailable.",
+    "Billed = posted invoice lines sourced from the engagement's approved time or fee milestones (credit notes deducted), engagement to date at the time of the query rather than limited to the selected work dates. It is not recognized revenue.",
+    "Collected = receipt allocations to those invoices net of approved reversals, pro rata to the engagement's share of each invoice, engagement to date. It is not cash received within the selected period.",
+    "Billing realization = billed ÷ standard value; collection ratio = collected ÷ billed; billed-less-staff-cost margin = (billed − recorded staff cost) ÷ billed. Billed less recorded staff cost excludes overheads and is not firm accounting profit. Ratios are per engagement and are never averaged into a firm ratio.",
+    "Budget hours remaining / overrun = current approved budget minutes − approved actual minutes in the selected work dates; a negative value is an overrun, and an engagement without an approved budget has no budget minutes.",
+    "Engagement financial figures are available only when approved time, the current approved budget and posted invoices use one known currency; no foreign-exchange conversion is implied.",
+    "Recorded staff cost and billed less recorded staff cost are unavailable when an effective staff cost rate is missing or uses a different currency from the approved time entry.",
     "Utilization = approved billable minutes ÷ (weekly capacity × weeks − recorded unavailability); the weekly resource grid uses the same basis. Task completion = due-date tasks completed ÷ non-cancelled tasks due in the selected period; tasks without a due date are not applicable. On-time = tasks completed by their due date ÷ tasks due in the period.",
     "Workload = non-cancelled tasks due in the selected period, grouped by assigned staff member. Open includes overdue tasks; overdue is also shown separately. Unassigned and unavailable staff assignments have separate buckets. This is a task count, not a capacity or effort measure.",
     "Phase task performance = non-cancelled tasks due in the selected period grouped by their current workflow phase binding. Tasks without a workflow binding appear separately as unassigned phase. Completion is task status plus persisted completion timestamp; these operational counts do not establish phase or audit-gate readiness.",

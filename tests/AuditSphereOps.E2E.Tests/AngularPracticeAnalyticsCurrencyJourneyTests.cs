@@ -59,15 +59,21 @@ public sealed class AngularPracticeAnalyticsCurrencyJourneyTests
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" +
       Uri.EscapeDataString("/app/practice/analytics"));
 
-    var table = page.GetByRole(AriaRole.Table, new() { Name = "Engagement economics", Exact = false });
+    // Each focused view shows one engagement page; the caption names the view and its page scope.
+    var table = page.GetByRole(AriaRole.Table, new() { Name = "engagement page", Exact = false });
+    var engagementRow = table.GetByRole(AriaRole.Row).Filter(new() { HasText = "PBC TEST CLIENT" });
+    async Task ExpectView(string view, string[] cells)
+    {
+      await page.GetByRole(AriaRole.Navigation, new() { Name = "Analytics views" })
+        .GetByRole(AriaRole.Button, new() { Name = view, Exact = true }).ClickAsync();
+      await Assertions.Expect(table).ToContainTextAsync(view);
+      await Assertions.Expect(engagementRow.GetByRole(AriaRole.Cell)).ToHaveTextAsync(cells);
+    }
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Practice analytics", Exact = true })).ToBeVisibleAsync();
-    var engagementRow = table.GetByRole(AriaRole.Row).Filter(new() { HasText = "PBC TEST CLIENT" });
-    await Assertions.Expect(engagementRow.GetByRole(AriaRole.Cell)).ToHaveTextAsync(new[]
-    {
-      "QAR", "1.0", "1.0", "600.00", "200.00", "0.00", "0.00", "0%", "n/a", "-200.00", "n/a",
-      "Unavailable", "Unavailable", "Unavailable"
-    });
+    await ExpectView("Engagement economics", ["QAR", "600.00", "200.00", "0.00", "0.00", "0%", "n/a", "-200.00", "n/a"]);
+    await ExpectView("Capacity and time", ["1.0", "1.0", "0.0", "0.0"]);
+    await ExpectView("Contract comparison", ["Unavailable", "Unavailable", "Unavailable", "Unavailable"]);
 
     await using (var db = host.CreateDbContext())
     {
@@ -84,11 +90,10 @@ public sealed class AngularPracticeAnalyticsCurrencyJourneyTests
 
     await page.ReloadAsync();
     await Assertions.Expect(table).ToContainTextAsync("Mixed — financial totals unavailable");
-    await Assertions.Expect(engagementRow.GetByRole(AriaRole.Cell)).ToHaveTextAsync(new[]
-    {
-      "Mixed — financial totals unavailable", "1.0", "2.0", "—", "—", "—", "—", "n/a", "n/a", "—", "n/a",
-      "Unavailable", "Unavailable", "Unavailable"
-    });
+    await ExpectView("Engagement economics",
+      ["Mixed — financial totals unavailable", "—", "—", "—", "—", "n/a", "n/a", "—", "n/a"]);
+    await ExpectView("Capacity and time", ["1.0", "2.0", "0.0", "-1.0 overrun"]);
+    await ExpectView("Contract comparison", ["Unavailable", "Unavailable", "Unavailable", "Unavailable"]);
     Assert.Empty(errors);
   }
 }

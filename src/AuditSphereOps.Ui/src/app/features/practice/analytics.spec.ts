@@ -109,3 +109,69 @@ describe('Analytics economics continuation', () => {
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 });
+
+describe('Analytics focused views and metric labels', () => {
+  const engagement = {
+    engagementId: '22222222-2222-4222-8222-222222222222', label: 'Synthetic client · AUDIT 2026-12-31', currency: 'QAR',
+    budgetMinutes: 600, budgetValue: '30000.00', actualMinutes: 660, standardValue: '25000.00', actualCost: '10000.00',
+    billed: '15000.00', collected: '6000.00', realizationPercent: '60.0', collectionPercent: '40.0', profit: '5000.00',
+    marginPercent: '33.3', budgetVarianceMinutes: -60, costComplete: true, contractedFee: '20000.00', contractCurrency: 'QAR',
+    lifetimeStandardValue: '25000.00', contractedFeeLessStandardValue: '-5000.00', nonChargeableMinutes: 30,
+  };
+  const mixed = {
+    ...engagement, engagementId: '33333333-3333-4333-8333-333333333333', label: 'Mixed client · AUDIT 2026-12-31', currency: 'MIXED',
+    budgetValue: null, standardValue: null, actualCost: null, billed: null, collected: null, realizationPercent: null,
+    collectionPercent: null, profit: null, marginPercent: null, costComplete: false, contractedFee: null, contractCurrency: null,
+    lifetimeStandardValue: null, contractedFeeLessStandardValue: null,
+  };
+
+  function render() {
+    TestBed.configureTestingModule({ imports: [PracticeAnalytics], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const id = '11111111-1111-4111-8111-111111111111';
+    TestBed.inject(SessionService).current.set({ userId: id, firmId: id, generation: '1', staff: true });
+    const fixture = TestBed.createComponent(PracticeAnalytics);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne(request => request.url.startsWith('/api/ui/practice/analytics?'))
+      .flush({ ...payload, engagements: [engagement, mixed] });
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    const select = (label: string) => {
+      [...host.querySelectorAll<HTMLButtonElement>('.analytics-views button')].find(b => b.textContent?.trim() === label)!.click();
+      fixture.detectChanges();
+    };
+    const headers = () => [...host.querySelectorAll('table')[0].querySelectorAll('thead th')].map(th => th.textContent?.trim());
+    const cells = (label: string) => [...[...host.querySelectorAll('tbody tr')]
+      .find(row => row.querySelector('th')?.textContent?.includes(label))!.querySelectorAll('td')].map(td => td.textContent?.trim());
+    return { fixture, http, host, select, headers, cells };
+  }
+
+  it('keeps billing realization, billed less staff cost and contract contribution distinct and unaveraged', () => {
+    const { fixture, http, host, select, headers, cells } = render();
+    try {
+      expect(host.querySelector('.analytics-views button[aria-pressed="true"]')?.textContent?.trim()).toBe('Engagement economics');
+      expect(headers()).toContain('Billing realization');
+      expect(headers()).toContain('Billed less recorded staff cost');
+      expect(headers().some(h => /profit/i.test(h ?? ''))).toBe(false);
+      expect(cells('Synthetic client')).toEqual(['QAR', '25,000.00', '10,000.00', '15,000.00', '6,000.00', '60%', '40%', '5,000.00', '33.3%']);
+      expect(cells('Mixed client')).toEqual(['Mixed — financial totals unavailable', '—', '—', '—', '—', 'n/a', 'n/a', '—', 'n/a']);
+      expect(host.textContent).toContain('the page is not a firm total');
+      expect(host.textContent).toContain('not the firm\'s accounting profit');
+
+      select('Contract comparison');
+      expect(headers()).toEqual(['Engagement', 'Contract currency', 'Agreed contract fee', 'Lifetime standard value', 'Contract contribution']);
+      expect(cells('Synthetic client')).toEqual(['QAR', '20,000.00', '25,000.00', '-5,000.00']);
+      expect(cells('Mixed client')).toEqual(['Unavailable', 'Unavailable', 'Unavailable', 'Unavailable']);
+
+      select('Capacity and time');
+      expect(cells('Synthetic client')).toEqual(['10.0', '11.0', '0.5', '-1.0 overrun']);
+      expect(host.textContent).toContain('Utilization by department');
+
+      select('Operational delivery');
+      expect(host.textContent).not.toContain('Synthetic client');
+      expect(host.textContent).toContain('Task workload by assignee');
+      expect(host.textContent).toContain('Definitions');
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+});

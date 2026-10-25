@@ -257,6 +257,11 @@ public sealed partial class FirmOperationsTests
       Assert.Equal((4, 3, 1, 2, 2, 7.5m), (view.ReviewTurnaround.Decisions, view.ReviewTurnaround.Reviewed,
         view.ReviewTurnaround.ChangesRequired, view.ReviewTurnaround.Measured, view.ReviewTurnaround.Excluded, view.ReviewTurnaround.AverageHours!.Value));
       Assert.Contains(view.Definitions, d => d.Contains("charge-out rates are not costs"));
+      // Labels name the existing formulas; billed less staff cost is never presented as firm accounting profit.
+      Assert.Contains(view.Definitions, d => d.StartsWith("Billing realization = billed ÷ standard value", StringComparison.Ordinal) &&
+        d.Contains("is not firm accounting profit") && d.Contains("never averaged into a firm ratio"));
+      Assert.Contains(view.Definitions, d => d.StartsWith("Budget hours remaining / overrun = current approved budget minutes − approved actual minutes", StringComparison.Ordinal));
+      Assert.Contains(view.Definitions, d => d.StartsWith("Billed = ", StringComparison.Ordinal) && d.Contains("engagement to date"));
       Assert.Contains(view.Definitions, d => d.Contains("task count, not a capacity or effort measure"));
       Assert.Contains(view.Definitions, d => d.Contains("do not establish phase or audit-gate readiness"));
       Assert.Contains(view.Definitions, d => d.Contains("not a review-quality or audit-clearance measure"));
