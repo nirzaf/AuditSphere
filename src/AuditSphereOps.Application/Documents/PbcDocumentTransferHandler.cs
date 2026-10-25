@@ -10,6 +10,37 @@ namespace AuditSphereOps.Application.Documents;
 /// <summary>Verified provider registration evidence for a staged PBC transfer.</summary>
 public sealed record PbcProviderReceipt(string Identity, string ContentSha256Hex, long ByteCount);
 
+/// <summary>Exact selected-site drive item version parsed from a server-produced provider receipt.</summary>
+public sealed record PbcSelectedSiteItem(string DriveId, string ItemId, string VersionId);
+
+/// <summary>
+/// Server-produced selected-site receipt format and deterministic stored names. Receipts are validated
+/// evidence, never browser-supplied addresses; an unparseable receipt is not inferred from a filename.
+/// </summary>
+public static class PbcSelectedSiteIdentity
+{
+  public const string Prefix = "graph-drive-item:";
+
+  public static string Format(string driveId, string itemId, string versionId) => $"{Prefix}{driveId}:{itemId}:{versionId}";
+
+  public static PbcSelectedSiteItem? Parse(string identity)
+  {
+    if (!identity.StartsWith(Prefix, StringComparison.Ordinal)) return null;
+    // Drive IDs contain no ':' ("b!…"), item IDs are alphanumeric, version IDs look like "1.0".
+    var parts = identity[Prefix.Length..].Split(':');
+    return parts.Length == 3 && parts.All(x => x.Length > 0) ? new(parts[0], parts[1], parts[2]) : null;
+  }
+
+  /// <summary>Upload intent ID prefix plus a SharePoint-safe version of the client's file name.</summary>
+  public static string StoredName(Guid uploadIntentId, string fileName)
+  {
+    var invalid = new[] { '"', '*', ':', '<', '>', '?', '/', '\\', '|', '#', '%', '~', '&', '{', '}' };
+    var clean = new string(Path.GetFileName(fileName).Select(c => invalid.Contains(c) || char.IsControl(c) ? '_' : c).ToArray()).Trim('.', ' ');
+    if (clean.Length > 150) clean = clean[^150..];
+    return $"{uploadIntentId:N}-{(clean.Length == 0 ? "document" : clean)}";
+  }
+}
+
 /// <summary>
 /// Trusted provider boundary for staged PBC bytes (spec section 43.5 item 6). Implementations
 /// stream staged bytes into the selected provider target and return verified registration
@@ -169,6 +200,7 @@ public sealed class PbcDocumentTransferHandler(
     request.State = PbcStates.Received;
     request.Revision++;
     request.UpdatedAt = now;
+    await RegisterSelectedSiteDocumentAsync(db, op, intent, verifiedRemoteResult, now, ct);
     db.OperationEvents.Add(new OperationEvent
     {
       Id = Guid.CreateVersion7(), OperationId = op.Id, Token = op.AttemptToken,
@@ -177,6 +209,59 @@ public sealed class PbcDocumentTransferHandler(
     // The durable operation result records the verified provider registration identity and
     // content digest; the registration event evidence remains append-only.
     return new(verifiedRemoteResult.Identity, verifiedRemoteResult.Digest);
+  }
+
+  /// <summary>
+  /// Registers the verified selected-site item as a scoped document reference and exact-version snapshot in
+  /// the publication transaction, so RECEIVED never commits without it. Simulated receipts are not SharePoint
+  /// evidence and register nothing; a live receipt that is not an exact supported identity fails closed.
+  /// </summary>
+  private async Task RegisterSelectedSiteDocumentAsync(IAuditSphereDbContext db, DurableOperation op,
+    PbcUploadIntent intent, OperationResult verified, DateTimeOffset now, CancellationToken ct)
+  {
+    var item = PbcSelectedSiteIdentity.Parse(verified.Identity);
+    if (item is null)
+    {
+      if (Definition.Mode == OperationMode.LIVE) throw new OperationBlockedException("provider-identity-unsupported");
+      return;
+    }
+    if (verified.Identity.Length > 1000 || item.DriveId.Length > 200 || item.ItemId.Length > 200 || item.VersionId.Length > 200)
+      throw new OperationBlockedException("provider-identity-unsupported");
+
+    var bindings = await db.RepositoryBindings.AsNoTracking().Where(x =>
+      x.FirmId == op.FirmId && x.ClientId == intent.ClientId && x.EngagementId == intent.EngagementId &&
+      x.Classification == "working" && x.CapabilityProfile == "selected-site").Take(2).ToListAsync(ct);
+    if (bindings.Count != 1 || bindings[0].DriveId != item.DriveId)
+      throw new OperationBlockedException("provider-receipt-conflict");
+    var binding = bindings[0];
+    // One registration per upload, and one upload per provider item: never relabel or share an item.
+    if (await db.PbcDocumentRegistrations.AnyAsync(x => x.FirmId == op.FirmId && x.PbcUploadIntentId == intent.Id, ct) ||
+        await db.DocumentReferences.AnyAsync(x => x.FirmId == op.FirmId && x.ClientId == intent.ClientId &&
+          x.EngagementId == intent.EngagementId && x.RepositoryBindingId == binding.Id && x.ItemId == item.ItemId, ct))
+      throw new OperationBlockedException("provider-receipt-conflict");
+
+    var reference = new DocumentReference
+    {
+      Id = Guid.CreateVersion7(), FirmId = op.FirmId, ClientId = intent.ClientId, EngagementId = intent.EngagementId,
+      RepositoryBindingId = binding.Id, DriveId = item.DriveId, ItemId = item.ItemId,
+      Path = PbcSelectedSiteIdentity.StoredName(intent.Id, intent.FileName), Purpose = "Evidence", CreatedAt = now
+    };
+    var snapshot = new DocumentSnapshot
+    {
+      Id = Guid.CreateVersion7(), FirmId = op.FirmId, ClientId = intent.ClientId, EngagementId = intent.EngagementId,
+      DocumentReferenceId = reference.Id, DriveId = item.DriveId, ItemId = item.ItemId, VersionId = item.VersionId,
+      Sha256Hex = verified.Digest.ToLowerInvariant(), ByteCount = intent.DeclaredByteCount,
+      CapturedBy = "operation:" + op.Id.ToString("D"), CapturedAt = now
+    };
+    db.DocumentReferences.Add(reference);
+    db.DocumentSnapshots.Add(snapshot);
+    db.PbcDocumentRegistrations.Add(new PbcDocumentRegistration
+    {
+      Id = Guid.CreateVersion7(), FirmId = op.FirmId, ClientId = intent.ClientId, EngagementId = intent.EngagementId,
+      PbcUploadIntentId = intent.Id, TransferOperationId = op.Id, DocumentReferenceId = reference.Id,
+      DocumentSnapshotId = snapshot.Id, ProviderIdentity = verified.Identity,
+      BindingSha256Hex = RepositoryBindingDigest.Compute(binding), RegisteredAt = now
+    });
   }
 
   private static string RegistrationEvidence(PbcUploadIntent intent) => JsonSerializer.Serialize(new

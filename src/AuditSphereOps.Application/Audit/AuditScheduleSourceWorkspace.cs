@@ -68,6 +68,8 @@ public static partial class AuditScheduleSourceWorkspace
       return CommandResult<AuditScheduleSourceReceiptView>.Fail(ErrorCodes.ManifestMismatch,
         "Review the exact current capture intent before publishing it.");
 
+    reader = await AuditScheduleIntakeSources.PrefetchRemoteSourceAsync(db, actor, reader, clientId, engagementId,
+      fields.PbcAcceptanceReceiptId, ct);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     Guid? ownedSchedule = null;
     var completed = false;

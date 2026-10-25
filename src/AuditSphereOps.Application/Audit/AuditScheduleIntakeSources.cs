@@ -156,8 +156,42 @@ internal static partial class AuditScheduleIntakeSources
       Array.AsReadOnly(codes), ties, signedTotal, closingControl, residual, manifest, Hashing.Sha256Hex(manifest)));
   }
 
+  /// <summary>
+  /// SharePoint-primary sources are fetched and verified before the caller opens its locked business
+  /// transaction (no provider I/O under the write lock). Inside it, the returned reader serves only those
+  /// bytes, and only for the identical registered source and expected identity resolved again from current
+  /// records; any change is stale. Pre-cutover staged sources are still read under the lock as before.
+  /// </summary>
+  internal static async Task<IAuditScheduleSourceContentReader> PrefetchRemoteSourceAsync(
+    IClientAccountingDbContext db, ActorContext actor, IAuditScheduleSourceContentReader reader,
+    Guid clientId, Guid engagementId, Guid pbcAcceptanceReceiptId, CancellationToken ct)
+  {
+    if (db.Database.CurrentTransaction is not null) return reader;
+    var pbc = await LoadPbcAsync(db, actor.FirmId, clientId, engagementId, pbcAcceptanceReceiptId, ct);
+    if (!pbc.Succeeded || !await db.PbcStorageDispositions.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+          x.PbcUploadIntentId == pbc.Value!.UploadIntentId && x.ReadSource == PbcReadSources.SelectedSite, ct))
+      return reader;
+    var download = await PbcService.PrepareDownloadAsync(db, actor, pbc.Value!.UploadIntentId, ct);
+    if (!download.Succeeded || download.Value?.Remote is not { } source) return reader;
+    var content = await reader.ReadVerifiedAsync(download.Value, pbc.Value.Hash, pbc.Value.ByteCount, ct);
+    return new PrefetchedSourceReader(reader, source, pbc.Value.Hash, pbc.Value.ByteCount, content);
+  }
+
+  private sealed class PrefetchedSourceReader(IAuditScheduleSourceContentReader staged, PbcRemoteSource source,
+    string sha256, long byteCount, CommandResult<byte[]> content) : IAuditScheduleSourceContentReader
+  {
+    public Task<CommandResult<byte[]>> ReadVerifiedAsync(PbcDownload download, string expectedSha256,
+      long expectedByteCount, CancellationToken ct) =>
+      download?.Remote is null
+        ? staged.ReadVerifiedAsync(download!, expectedSha256, expectedByteCount, ct)
+        : Task.FromResult(download.Remote == source && expectedSha256 == sha256 && expectedByteCount == byteCount
+          ? content
+          : CommandResult<byte[]>.Fail(ErrorCodes.GenerationStale, "The accepted source changed while it was being read."));
+  }
+
   // Reuses the actual accepted-source fact owners without inventing a byte reader or
-  // reparsing retained rows. PrepareDownload verifies real staged chunk/count/hash receipts.
+  // reparsing retained rows. PrepareDownload verifies real staged chunk/count/hash receipts,
+  // or resolves the immutable registered snapshot once SharePoint reads are activated.
   internal static async Task<CommandResult> CheckRetainedSourcesCurrentForAuthorizedScopeAsync(
     IClientAccountingDbContext db, Guid firmId, Guid clientId, Guid engagementId,
     AuditScheduleSourceCapture capture, CancellationToken ct)
@@ -183,7 +217,7 @@ internal static partial class AuditScheduleIntakeSources
           tb.Value.DatasetId != capture.TrialBalanceDatasetId || tb.Value.PeriodId != capture.PeriodId ||
           tb.Value.PeriodRevision != capture.PeriodRevision || tb.Value.Generation != capture.InputGeneration)
         return CommandResult.Fail(ErrorCodes.GenerationStale, "The captured schedule source or reporting context changed.");
-      var staged = await PbcService.VerifyAcceptedStagedContentForAuthorizedScopeAsync(db, firmId, clientId,
+      var staged = await PbcService.VerifyAcceptedSourceContentForAuthorizedScopeAsync(db, firmId, clientId,
         engagementId, pbc.Value.UploadIntentId, pbc.Value.FileName, pbc.Value.Hash, pbc.Value.ByteCount, ct);
       if (!staged.Succeeded) return staged;
       // Recheck stored facts after filesystem awaits, even for a caller-owned transaction.

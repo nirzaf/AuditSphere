@@ -373,6 +373,8 @@ public sealed class PbcTransferTests
       Assert.Equal(transfer.Fixture.Reviewer.Id, receipt.ReviewerUserId);
       Assert.Matches("^[0-9a-f]{64}$", receipt.SourceDigest);
       Assert.Equal(1, await verify.PbcAcceptanceReceipts.CountAsync(x => x.PbcRequestId == transfer.RequestId));
+      // A simulated provider receipt is not SharePoint evidence and creates no document registration.
+      Assert.False(await verify.PbcDocumentRegistrations.AnyAsync(x => x.PbcUploadIntentId == receipt.PbcUploadIntentId));
       var accepted = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == transfer.RequestId);
       Assert.Equal(PbcStates.Accepted, accepted.State);
       Assert.Equal(receipt.AcceptedAt, accepted.AcceptedAt);

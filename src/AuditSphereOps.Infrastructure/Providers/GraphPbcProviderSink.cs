@@ -12,7 +12,6 @@ namespace AuditSphereOps.Infrastructure.Providers;
 /// </summary>
 public sealed class GraphPbcProviderSink : IPbcProviderSink
 {
-  private const string Prefix = "graph-drive-item:";
   private readonly PbcRepositoryBindingResolver? resolver;
   private readonly GraphSelectedSiteDrive? drive;
   private readonly IAuditSphereDbContextFactory? factory;
@@ -53,7 +52,7 @@ public sealed class GraphPbcProviderSink : IPbcProviderSink
   public async Task<PbcProviderReceipt?> VerifyAsync(PbcTransferScope scope, string identity, CancellationToken ct)
   {
     if (resolver is null || drive is null || factory is null) throw NotApproved();
-    var parsed = Parse(identity) ?? throw new OperationBlockedException("provider-receipt-conflict");
+    var parsed = PbcSelectedSiteIdentity.Parse(identity) ?? throw new OperationBlockedException("provider-receipt-conflict");
     var (target, location) = await TargetAsync(scope, ct);
     if (parsed.DriveId != target.DriveId) throw new OperationBlockedException("provider-receipt-conflict");
     var item = await drive.GetItemAsync(location, parsed.ItemId, ct);
@@ -64,26 +63,14 @@ public sealed class GraphPbcProviderSink : IPbcProviderSink
   }
 
   /// <summary>
-  /// Hashes the exact version: the current one after upload or probe, or the recorded one on verify. The
-  /// current content is attributed to a version only when equal version/content-tag observations bracket
-  /// the full read. A version that is (or became during the read) historical is read through the
-  /// historical-version endpoint; a change that keeps the version label is an unknown outcome. Bytes read
-  /// across a change are discarded, never relabelled as the observed version.
+  /// Hashes the exact version: the current one after upload or probe, or the recorded one on verify, using the
+  /// drive's version-fenced read so bytes read across a change are never relabelled as the observed version.
   /// </summary>
   private async Task<PbcProviderReceipt> ReadBackAsync(SelectedSiteLocation location, PbcRepositoryTarget target,
     string itemId, string? versionId, long maxBytes, CancellationToken ct)
   {
-    var before = await drive!.ObserveVersionAsync(location, itemId, ct);
-    var version = versionId ?? before.VersionId;
-    if (version == before.VersionId)
-    {
-      var (sha, size) = await drive.ContentDigestAsync(location, itemId, null, maxBytes, ct);
-      var after = await drive.ObserveVersionAsync(location, itemId, ct);
-      if (after == before) return new($"{Prefix}{target.DriveId}:{itemId}:{version}", sha, size);
-      if (after.VersionId == version) throw new IOException("selected-site-version-changed");
-    }
-    var (historicalSha, historicalSize) = await drive.ContentDigestAsync(location, itemId, version, maxBytes, ct);
-    return new($"{Prefix}{target.DriveId}:{itemId}:{version}", historicalSha, historicalSize);
+    var (version, sha, size) = await drive!.ReadExactVersionAsync(location, itemId, versionId, maxBytes, null, ct);
+    return new(PbcSelectedSiteIdentity.Format(target.DriveId, itemId, version), sha, size);
   }
 
   private async Task<(PbcRepositoryTarget Target, SelectedSiteLocation Location)> TargetAsync(PbcTransferScope scope, CancellationToken ct)
@@ -111,21 +98,6 @@ public sealed class GraphPbcProviderSink : IPbcProviderSink
   }
 
   /// <summary>Upload intent ID prefix plus a SharePoint-safe version of the client's file name.</summary>
-  public static string StoredName(Guid uploadIntentId, string fileName)
-  {
-    var invalid = new[] { '"', '*', ':', '<', '>', '?', '/', '\\', '|', '#', '%', '~', '&', '{', '}' };
-    var clean = new string(Path.GetFileName(fileName).Select(c => invalid.Contains(c) || char.IsControl(c) ? '_' : c).ToArray()).Trim('.', ' ');
-    if (clean.Length > 150) clean = clean[^150..];
-    return $"{uploadIntentId:N}-{(clean.Length == 0 ? "document" : clean)}";
-  }
-
-  private sealed record ParsedIdentity(string DriveId, string ItemId, string VersionId);
-
-  private static ParsedIdentity? Parse(string identity)
-  {
-    if (!identity.StartsWith(Prefix, StringComparison.Ordinal)) return null;
-    // Drive IDs contain no ':' ("b!…"), item IDs are alphanumeric, version IDs look like "1.0".
-    var parts = identity[Prefix.Length..].Split(':');
-    return parts.Length == 3 && parts.All(x => x.Length > 0) ? new(parts[0], parts[1], parts[2]) : null;
-  }
+  public static string StoredName(Guid uploadIntentId, string fileName) =>
+    PbcSelectedSiteIdentity.StoredName(uploadIntentId, fileName);
 }

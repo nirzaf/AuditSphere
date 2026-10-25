@@ -70,8 +70,10 @@ public sealed record PbcUploadResumeReceipt(Guid UploadIntentId, Guid PbcRequest
   long ReceivedByteCount, int NextChunkIndex, long Revision, string Capability);
 
 public sealed record PbcMessageRequest(Guid PbcRequestId, string Body, string PublicBaseUrl);
+/// <summary>A prepared download: the exact registered remote version once remote reads are activated, otherwise
+/// the verified pre-cutover staged chunks. Exactly one of <see cref="ChunkPaths"/> or <see cref="Remote"/> is used.</summary>
 public sealed record PbcDownload(string FileName, string ContentType, long ByteCount,
-  IReadOnlyList<string> ChunkPaths);
+  IReadOnlyList<string> ChunkPaths, PbcRemoteSource? Remote = null);
 
 /// <summary>
 /// Local PBC and upload boundary. It records bounded transfer intent/chunk receipts
@@ -333,6 +335,11 @@ public static partial class PbcService
     if (!auth.Succeeded) return CommandResult<PbcDownload>.Fail(auth.ErrorCode!, auth.Message!);
     if (intent.State is not (PbcUploadStates.Staged or PbcUploadStates.Received))
       return CommandResult<PbcDownload>.Fail("pbc.download-state", "The upload has not passed trusted completion.");
+    var remote = await ResolveReadSourceAsync(db, intent, ct);
+    if (remote.Error is not null)
+      return CommandResult<PbcDownload>.Fail(remote.Error, "The registered SharePoint source no longer matches this upload.");
+    if (remote.Source is not null)
+      return CommandResult<PbcDownload>.Ok(new(intent.FileName, intent.ContentType, intent.DeclaredByteCount, [], remote.Source));
     var verified = await VerifyStagedChunksAsync(db, actor.FirmId, intent, ct);
     if (verified.Error is not null)
       return CommandResult<PbcDownload>.Fail(verified.Error, verified.Message);
@@ -342,9 +349,10 @@ public static partial class PbcService
     return CommandResult<PbcDownload>.Ok(new(intent.FileName, intent.ContentType, intent.DeclaredByteCount, paths));
   }
 
-  /// <summary>Verifies the accepted staged bytes for an already-authorized scoped source consumer.
+  /// <summary>Verifies the accepted source bytes for an already-authorized scoped source consumer: the immutable
+  /// registered snapshot once remote reads are activated (no provider I/O here), otherwise the staged chunks.
   /// It exposes no path or content and must not be used as a public authorization boundary.</summary>
-  internal static async Task<CommandResult> VerifyAcceptedStagedContentForAuthorizedScopeAsync(
+  internal static async Task<CommandResult> VerifyAcceptedSourceContentForAuthorizedScopeAsync(
     IAuditSphereDbContext db, Guid firmId, Guid clientId, Guid engagementId, Guid uploadIntentId,
     string expectedFileName, string expectedSha256, long expectedByteCount, CancellationToken ct)
   {
@@ -356,6 +364,10 @@ public static partial class PbcService
         !string.Equals(intent.FinalSha256Hex, expectedSha256, StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(intent.DeclaredSha256Hex, expectedSha256, StringComparison.OrdinalIgnoreCase))
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The accepted schedule content identity changed.");
+    var remote = await ResolveReadSourceAsync(db, intent, ct);
+    if (remote.Error is not null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The registered SharePoint source no longer matches this upload.");
+    if (remote.Source is not null) return CommandResult.Ok();
     var verified = await VerifyStagedChunksAsync(db, firmId, intent, ct);
     return verified.Error is null ? CommandResult.Ok() : CommandResult.Fail(verified.Error, verified.Message);
   }

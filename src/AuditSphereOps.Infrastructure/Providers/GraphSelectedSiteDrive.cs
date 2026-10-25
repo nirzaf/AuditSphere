@@ -81,7 +81,7 @@ public sealed class GraphSelectedSiteDrive(HttpClient graph, ISelectedSiteTokenS
       var item = await ItemAsync(created, ct);
       itemId = item.ItemId;
       if (item.ParentId != folderItemId) return new(true, false, await DeleteAsync(token, location.DriveId, itemId, ct), "probe-parent-mismatch", correlation);
-      var (digest, size) = await ContentDigestAsync(token, location.DriveId, itemId, null, content.Length, ct);
+      var (digest, size) = await ContentDigestAsync(token, location.DriveId, itemId, null, content.Length, null, ct);
       var matched = digest == expected && size == content.Length;
       var deleted = await DeleteAsync(token, location.DriveId, itemId, ct);
       itemId = null;
@@ -195,16 +195,47 @@ public sealed class GraphSelectedSiteDrive(HttpClient graph, ISelectedSiteTokenS
   }
 
   /// <summary>
+  /// Reads the exact version (the current one when versionId is null) and returns its version ID, SHA-256 and
+  /// size, copying the bytes to <paramref name="destination"/> when one is given. The current content is attributed
+  /// to a version only when equal version/content-tag observations bracket the full read. A version that is (or
+  /// became during the read) historical is read through the historical-version endpoint; a change that keeps the
+  /// version label is an unknown outcome. Bytes read across a change are discarded, never relabelled.
+  /// </summary>
+  internal async Task<(string VersionId, string Sha256, long Size)> ReadExactVersionAsync(SelectedSiteLocation location,
+    string itemId, string? versionId, long maxBytes, Stream? destination, CancellationToken ct)
+  {
+    var before = await ObserveVersionAsync(location, itemId, ct);
+    var version = versionId ?? before.VersionId;
+    if (version == before.VersionId)
+    {
+      var (sha, size) = await ContentDigestAsync(location, itemId, null, maxBytes, Restart(destination), ct);
+      var after = await ObserveVersionAsync(location, itemId, ct);
+      if (after == before) return (version, sha, size);
+      if (after.VersionId == version) throw new IOException("selected-site-version-changed");
+    }
+    var (historicalSha, historicalSize) = await ContentDigestAsync(location, itemId, version, maxBytes, Restart(destination), ct);
+    return (version, historicalSha, historicalSize);
+  }
+
+  private static Stream? Restart(Stream? destination)
+  {
+    if (destination is null) return null;
+    destination.SetLength(0);
+    destination.Position = 0;
+    return destination;
+  }
+
+  /// <summary>
   /// SHA-256 of a historical version's bytes, or of the current content when versionId is null (Graph's
   /// version-content endpoint does not serve the current version). A current read is not bound to any
   /// version by itself: callers bracket it with <see cref="ObserveVersionAsync"/>.
   /// </summary>
   internal async Task<(string Sha256, long Size)> ContentDigestAsync(SelectedSiteLocation location, string itemId,
-    string? versionId, long maxBytes, CancellationToken ct) =>
-    await ContentDigestAsync(await TokenAsync(location, ct), location.DriveId, itemId, versionId, maxBytes, ct);
+    string? versionId, long maxBytes, Stream? destination, CancellationToken ct) =>
+    await ContentDigestAsync(await TokenAsync(location, ct), location.DriveId, itemId, versionId, maxBytes, destination, ct);
 
   private async Task<(string Sha256, long Size)> ContentDigestAsync(string token, string driveId, string itemId,
-    string? versionId, long maxBytes, CancellationToken ct)
+    string? versionId, long maxBytes, Stream? destination, CancellationToken ct)
   {
     var path = versionId is null
       ? $"{Graph}/drives/{Id(driveId)}/items/{Id(itemId)}/content"
@@ -217,13 +248,14 @@ public sealed class GraphSelectedSiteDrive(HttpClient graph, ISelectedSiteTokenS
       var location = response.Headers.Location ?? throw Blocked("selected-site-download-location-missing");
       using var download = await transport.SendAsync(location, HttpMethod.Get, null, ct);
       if (!download.IsSuccessStatusCode) throw Blocked("selected-site-download-rejected");
-      return await HashAsync(download, maxBytes, ct);
+      return await HashAsync(download, maxBytes, destination, ct);
     }
     if (!response.IsSuccessStatusCode) throw Classify(response);
-    return await HashAsync(response, maxBytes, ct);
+    return await HashAsync(response, maxBytes, destination, ct);
   }
 
-  private static async Task<(string, long)> HashAsync(HttpResponseMessage response, long maxBytes, CancellationToken ct)
+  private static async Task<(string, long)> HashAsync(HttpResponseMessage response, long maxBytes, Stream? destination,
+    CancellationToken ct)
   {
     using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
     await using var stream = await response.Content.ReadAsStreamAsync(ct);
@@ -235,6 +267,7 @@ public sealed class GraphSelectedSiteDrive(HttpClient graph, ISelectedSiteTokenS
       total += read;
       if (total > maxBytes) throw Blocked("selected-site-content-too-large");
       digest.AppendData(buffer, 0, read);
+      if (destination is not null) await destination.WriteAsync(buffer.AsMemory(0, read), ct);
     }
     return (Hex(digest.GetHashAndReset()), total);
   }

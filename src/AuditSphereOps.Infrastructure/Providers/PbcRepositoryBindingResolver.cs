@@ -41,18 +41,51 @@ public sealed class PbcRepositoryBindingResolver(IAuditSphereDbContextFactory fa
       x.DesiredAccess == "read-write" && x.ObservedAccess == "read-write" &&
       x.CapabilityProfile == "selected-site").Take(2).ToListAsync(ct);
     if (bindings.Count != 1) throw Block();
-    var binding = bindings[0];
+    return await ResolveBindingTargetAsync(db, scope.FirmId, scope.ClientId, bindings[0], ct, "PBC_UPLOAD", "PBC_READBACK");
+  }
 
+  /// <summary>
+  /// Resolves the read target of a registered PBC version. Read eligibility is separate from transfer eligibility:
+  /// accepted and closed sources stay readable, but only through the exact binding the registration pinned, with
+  /// its current verified read-back capability, workspace, connection and dedicated-site evidence. Read access
+  /// never implies write access or reactivates an upload.
+  /// </summary>
+  public async Task<PbcRepositoryTarget> ResolveReadAsync(PbcRemoteSource source, CancellationToken ct)
+  {
+    if (source is null || source.FirmId == Guid.Empty || source.ClientId == Guid.Empty ||
+        source.EngagementId == Guid.Empty || source.RegistrationId == Guid.Empty)
+      throw Block();
+    await using var db = await factory.CreateAsync(ct);
+    var registration = await db.PbcDocumentRegistrations.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == source.FirmId && x.Id == source.RegistrationId && x.ClientId == source.ClientId &&
+      x.EngagementId == source.EngagementId && x.PbcUploadIntentId == source.UploadIntentId &&
+      x.DocumentSnapshotId == source.SnapshotId, ct);
+    if (registration is null || registration.BindingSha256Hex != source.BindingSha256Hex) throw Block();
+    var reference = await db.DocumentReferences.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == source.FirmId && x.Id == registration.DocumentReferenceId &&
+      x.ClientId == source.ClientId && x.EngagementId == source.EngagementId, ct);
+    var binding = reference is null ? null : await db.RepositoryBindings.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == source.FirmId && x.Id == reference.RepositoryBindingId &&
+      x.ClientId == source.ClientId && x.EngagementId == source.EngagementId, ct);
+    // A re-pointed or re-tested binding no longer matches the digest the registration pinned.
+    if (binding is null || BindingDigest(binding) != registration.BindingSha256Hex || binding.DriveId != source.DriveId ||
+        reference!.ItemId != source.ItemId)
+      throw Block();
+    return await ResolveBindingTargetAsync(db, source.FirmId, source.ClientId, binding, ct, "PBC_READBACK");
+  }
+
+  private static async Task<PbcRepositoryTarget> ResolveBindingTargetAsync(IAuditSphereDbContext db, Guid firmId,
+    Guid clientId, RepositoryBinding binding, CancellationToken ct, params string[] operations)
+  {
     var capability = await db.IntegrationCapabilities.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == scope.FirmId && x.RepositoryBindingId == binding.Id, ct);
+      x.FirmId == firmId && x.RepositoryBindingId == binding.Id, ct);
     if (capability is null || capability.HealthStatus != "VERIFIED" ||
         capability.TestedAt is null ||
-        !HasPermissions(capability.TestedPermissions, BindingDigest(binding),
-          "PBC_UPLOAD", "PBC_READBACK"))
+        !HasPermissions(capability.TestedPermissions, BindingDigest(binding), operations))
       throw Block();
 
     var clientWorkspaces = await db.ClientWorkspaces.AsNoTracking().Where(x =>
-      x.FirmId == scope.FirmId && x.PracticeClientId == scope.ClientId &&
+      x.FirmId == firmId && x.PracticeClientId == clientId &&
       x.State == ClientWorkspaceStates.Ready && x.TenantId == binding.TenantId &&
       // The binding root is the engagement's PBC folder inside this client's workspace; the tested
       // binding fingerprint (not a root-folder equality) pins that exact folder.
@@ -62,21 +95,21 @@ public sealed class PbcRepositoryBindingResolver(IAuditSphereDbContextFactory fa
     if (clientWorkspaces.Count != 1) throw Block();
     var clientWorkspace = clientWorkspaces[0];
     if (!await db.AcceptanceDecisions.AsNoTracking().AnyAsync(x =>
-      x.Id == clientWorkspace.AcceptanceDecisionId && x.FirmId == scope.FirmId &&
-      x.PracticeClientId == scope.ClientId && x.Decision == "Accepted", ct))
+      x.Id == clientWorkspace.AcceptanceDecisionId && x.FirmId == firmId &&
+      x.PracticeClientId == clientId && x.Decision == "Accepted", ct))
       throw Block();
     if (!await db.FolderTemplateVersions.AsNoTracking().AnyAsync(x =>
-      x.Id == clientWorkspace.FolderTemplateVersionId && x.FirmId == scope.FirmId &&
+      x.Id == clientWorkspace.FolderTemplateVersionId && x.FirmId == firmId &&
       x.Purpose == FolderTemplatePurposes.ClientWorkspace && x.ApprovedAt != null, ct))
       throw Block();
 
     var workspace = await db.FirmWorkspaceConfigurations.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == scope.FirmId && x.ConnectionRevisionId == clientWorkspace.ConnectionRevisionId &&
+      x.FirmId == firmId && x.ConnectionRevisionId == clientWorkspace.ConnectionRevisionId &&
       x.FolderTemplateVersionId == clientWorkspace.FolderTemplateVersionId &&
       x.TenantId == binding.TenantId, ct);
     if (workspace is null || workspace.AccessProfile != Microsoft365AccessProfiles.AppMediated)
       throw Block();
-    var clientSite = await db.ClientSharePointSites.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientId, ct);
+    var clientSite = await db.ClientSharePointSites.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.ClientId == clientId, ct);
     if (clientSite != null)
     {
       if (clientSite.State != "READY" || clientSite.VerifiedAt == null || clientSite.ConnectionRevisionId != workspace.ConnectionRevisionId ||
@@ -85,12 +118,12 @@ public sealed class PbcRepositoryBindingResolver(IAuditSphereDbContextFactory fa
     }
     else
     {
-      var cutover = await db.FirmWorkspaceConfigurations.AsNoTracking().Where(x => x.FirmId == scope.FirmId).MinAsync(x => x.ClientSitesRequiredFrom, ct);
-      if (cutover != null && await db.PracticeClients.AnyAsync(x => x.FirmId == scope.FirmId && x.Id == scope.ClientId && x.CreatedAt >= cutover, ct)) throw Block();
+      var cutover = await db.FirmWorkspaceConfigurations.AsNoTracking().Where(x => x.FirmId == firmId).MinAsync(x => x.ClientSitesRequiredFrom, ct);
+      if (cutover != null && await db.PracticeClients.AnyAsync(x => x.FirmId == firmId && x.Id == clientId && x.CreatedAt >= cutover, ct)) throw Block();
       if (workspace.SiteId != binding.SiteId || workspace.DriveId != binding.DriveId) throw Block();
     }
     var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.Id == workspace.ConnectionRevisionId && x.FirmId == scope.FirmId &&
+      x.Id == workspace.ConnectionRevisionId && x.FirmId == firmId &&
       x.State == Microsoft365RevisionStates.Active && (x.ConsentState == "VERIFIED" || x.ConsentState == "OBSERVED") &&
       x.TenantId == binding.TenantId, ct);
     if (connection is null || string.IsNullOrWhiteSpace(connection.RuntimeCredentialReference))

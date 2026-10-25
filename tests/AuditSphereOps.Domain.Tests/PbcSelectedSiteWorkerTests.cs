@@ -47,6 +47,111 @@ public sealed class PbcSelectedSiteWorkerTests
     Assert.StartsWith($"graph-drive-item:{FakeGraphDrive.DriveId}:", operation.ResultIdentity);
     Assert.Single(graph.Items, x => !x.Folder && x.Name.StartsWith(staged.UploadIntentId.ToString("N"), StringComparison.Ordinal));
     Assert.Equal(0, graph.BearerSentToSharePoint);
+
+    // Publication registered the exact verified version as a scoped reference and snapshot in the same transaction.
+    var registration = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == staged.UploadIntentId);
+    var snapshot = await db.DocumentSnapshots.AsNoTracking().SingleAsync(x => x.Id == registration.DocumentSnapshotId);
+    var reference = await db.DocumentReferences.AsNoTracking().SingleAsync(x => x.Id == registration.DocumentReferenceId);
+    var binding = await db.RepositoryBindings.AsNoTracking().SingleAsync(x => x.EngagementId == h.A.EngagementId);
+    Assert.Equal((operation.Id, operation.ResultIdentity), (registration.TransferOperationId, registration.ProviderIdentity));
+    Assert.Equal(operation.ResultIdentity, PbcSelectedSiteIdentity.Format(snapshot.DriveId, snapshot.ItemId, snapshot.VersionId));
+    Assert.Equal((staged.DeclaredSha256Hex, intent.DeclaredByteCount, reference.Id), (snapshot.Sha256Hex, snapshot.ByteCount, snapshot.DocumentReferenceId));
+    Assert.Equal((binding.Id, h.A.ClientId, h.A.EngagementId), (reference.RepositoryBindingId, reference.ClientId, reference.EngagementId));
+    Assert.Equal(RepositoryBindingDigest.Compute(binding), registration.BindingSha256Hex);
+    foreach (var mutation in new FormattableString[]
+    {
+      $"UPDATE pbc_document_registrations SET provider_identity = 'rewritten' WHERE id = {registration.Id}",
+      $"UPDATE document_snapshots SET version_id = '9.0' WHERE id = {snapshot.Id}",
+      $"DELETE FROM document_references WHERE id = {reference.Id}"
+    })
+      Assert.Equal("55000", (await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(mutation))).SqlState);
+
+    // Acceptance pins the same upload revision; registration never needs to rewrite accepted evidence.
+    var reviewer = PbcSeed.Actor(h.A.Reviewer, "Reviewer");
+    var requestRevision = (await db.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == h.RequestA)).Revision;
+    var underReview = await PbcService.ChangeStateAsync(db, reviewer, new PbcStateChangeRequest(h.RequestA, PbcStates.UnderReview, requestRevision));
+    Assert.True(underReview.Succeeded, underReview.ErrorCode);
+    var accepted = await PbcService.ChangeStateAsync(db, reviewer, new PbcStateChangeRequest(h.RequestA, PbcStates.Accepted, requestRevision + 1,
+      ReviewedUploadIntentId: intent.Id, ReviewedUploadRevision: intent.Revision, ReviewedContentSha256Hex: staged.DeclaredSha256Hex));
+    Assert.True(accepted.Succeeded, accepted.ErrorCode);
+    var receipt = await db.PbcAcceptanceReceipts.AsNoTracking().SingleAsync(x => x.PbcRequestId == h.RequestA);
+    Assert.Equal((intent.Revision, registration.ProviderIdentity), (receipt.UploadIntentRevision, receipt.ProviderIdentity));
+  }
+
+  [Fact]
+  public async Task Publication_WithUnsupportedOrOtherDriveIdentity_FailsClosedWithoutRegistration()
+  {
+    var (h, _) = await CreateAsync();
+    await using var _h = h;
+    await h.ProvisionAsync(h.A);
+    var staged = await h.UploadAsync(h.A, h.RequestA, Document("conflicting identity"));
+    var operation = await h.OperationAsync(staged.UploadIntentId);
+    foreach (var (identity, code) in new[]
+    {
+      ("sim://pbc/" + staged.UploadIntentId, "provider-identity-unsupported"),
+      ($"graph-drive-item:b!other-drive:{Guid.NewGuid():N}:1.0", "provider-receipt-conflict")
+    })
+    {
+      await using var db = h.Db();
+      var blocked = await Assert.ThrowsAsync<OperationBlockedException>(() =>
+        h.Handler.PublishAsync(db, operation, new OperationResult(identity, staged.DeclaredSha256Hex), default));
+      Assert.Equal(code, blocked.Code);
+    }
+    await using var verify = h.Db();
+    Assert.False(await verify.PbcDocumentRegistrations.AnyAsync());
+    Assert.Equal(PbcUploadStates.Staged, (await verify.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == staged.UploadIntentId)).State);
+  }
+
+  [Fact]
+  public async Task RegistrationConstraints_RejectReplayCrossScopeAndUnverifiedRows()
+  {
+    var (h, _) = await CreateAsync();
+    await using var _h = h;
+    await h.ProvisionAsync(h.A);
+    await h.ProvisionAsync(h.B);
+    var stagedB = await h.UploadAsync(h.B, h.RequestB, Document("client B registered"));
+    Assert.True(await h.Worker.ProcessNextAsync());
+    var stagedA = await h.UploadAsync(h.A, h.RequestA, Document("client A still staged"));
+    var operationA = await h.OperationAsync(stagedA.UploadIntentId);
+
+    await using var db = h.Db();
+    var b = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == stagedB.UploadIntentId);
+    var bindingA = await db.RepositoryBindings.AsNoTracking().SingleAsync(x => x.EngagementId == h.A.EngagementId);
+    async Task<string> InsertAsync(Guid clientId, Guid engagementId, Guid intentId, Guid operationId, Guid referenceId, Guid snapshotId, string identity) =>
+      (await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO pbc_document_registrations (id, firm_id, client_id, engagement_id, pbc_upload_intent_id, transfer_operation_id,
+          document_reference_id, document_snapshot_id, provider_identity, binding_sha256_hex, registered_at)
+        VALUES ({Guid.NewGuid()}, {h.A.FirmId}, {clientId}, {engagementId}, {intentId}, {operationId},
+          {referenceId}, {snapshotId}, {identity}, {b.BindingSha256Hex}, {DateTimeOffset.UtcNow})
+        """))).SqlState;
+
+    // Replay of the same upload registration yields no second row.
+    Assert.Equal("23505", await InsertAsync(b.ClientId, b.EngagementId, b.PbcUploadIntentId, b.TransferOperationId,
+      b.DocumentReferenceId, b.DocumentSnapshotId, b.ProviderIdentity));
+
+    var now = DateTimeOffset.UtcNow;
+    var reference = new DocumentReference
+    {
+      Id = Guid.NewGuid(), FirmId = h.A.FirmId, ClientId = h.A.ClientId, EngagementId = h.A.EngagementId,
+      RepositoryBindingId = bindingA.Id, DriveId = bindingA.DriveId, ItemId = "unverified-item", Path = "unverified.csv",
+      Purpose = "Evidence", CreatedAt = now
+    };
+    var snapshot = new DocumentSnapshot
+    {
+      Id = Guid.NewGuid(), FirmId = h.A.FirmId, ClientId = h.A.ClientId, EngagementId = h.A.EngagementId,
+      DocumentReferenceId = reference.Id, DriveId = bindingA.DriveId, ItemId = reference.ItemId, VersionId = "1.0",
+      Sha256Hex = stagedA.DeclaredSha256Hex, ByteCount = stagedA.ByteCount, CapturedBy = "test", CapturedAt = now
+    };
+    db.DocumentReferences.Add(reference);
+    db.DocumentSnapshots.Add(snapshot);
+    await db.SaveChangesAsync();
+    var identity = PbcSelectedSiteIdentity.Format(snapshot.DriveId, snapshot.ItemId, snapshot.VersionId);
+    // Client B's scope cannot claim client A's upload or document rows.
+    Assert.Equal("23503", await InsertAsync(h.B.ClientId, h.B.EngagementId, stagedA.UploadIntentId, operationA.Id,
+      reference.Id, snapshot.Id, identity));
+    // A same-scope snapshot cannot register an upload whose provider transfer has not completed.
+    Assert.Equal("23514", await InsertAsync(h.A.ClientId, h.A.EngagementId, stagedA.UploadIntentId, operationA.Id,
+      reference.Id, snapshot.Id, identity));
   }
 
   [Fact]
@@ -87,6 +192,7 @@ public sealed class PbcSelectedSiteWorkerTests
     await using var db = h.Db();
     Assert.Equal(PbcUploadStates.Received, (await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == staged.UploadIntentId)).State);
     Assert.Equal(1, graph.UploadSessionCalls); // never re-sent
+    Assert.Equal(1, await db.PbcDocumentRegistrations.CountAsync(x => x.PbcUploadIntentId == staged.UploadIntentId));
   }
 
   [Fact]

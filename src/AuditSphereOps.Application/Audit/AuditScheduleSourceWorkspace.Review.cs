@@ -28,6 +28,7 @@ public static partial class AuditScheduleSourceWorkspace
         "Source review preview requires its own transaction.");
     var auth = await AuditFieldworkService.AuthorizeScheduleReviewAsync(db, actor, engagementId, ct);
     if (!auth.Succeeded) return Failure<Guid, AuditScheduleSourceReviewPreview>(auth);
+    reader = await PrefetchCapturedSourceAsync(db, actor, reader, auth.Value, engagementId, scheduleId, ct);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     await AuditFieldworkService.LockConfirmationScopeAsync(db, actor, engagementId, ct);
     auth = await AuditFieldworkService.AuthorizeScheduleReviewAsync(db, actor, engagementId, ct);
@@ -69,6 +70,7 @@ public static partial class AuditScheduleSourceWorkspace
     if (!Bounded(json) || Hashing.Sha256Hex(json) != request.ExpectedRequestHash)
       return CommandResult<AuditScheduleSourceReceiptView>.Fail(ErrorCodes.ManifestMismatch,
         "Review the exact independent decision preview before submitting it.");
+    reader = await PrefetchCapturedSourceAsync(db, actor, reader, clientId, engagementId, request.ScheduleId, ct);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var completed = false;
     try
@@ -154,6 +156,22 @@ public static partial class AuditScheduleSourceWorkspace
           _ => false
         }).ToArray()) entry.State = EntityState.Detached;
     }
+  }
+
+  /// <summary>Fetches a captured SharePoint-primary source outside the locked review transaction; the locked
+  /// path still resolves and checks every fact itself and treats any source change as stale.</summary>
+  private static async Task<IAuditScheduleSourceContentReader> PrefetchCapturedSourceAsync(IClientAccountingDbContext db,
+    ActorContext actor, IAuditScheduleSourceContentReader reader, Guid clientId, Guid engagementId, Guid scheduleId,
+    CancellationToken ct)
+  {
+    var requestJson = await db.AuditScheduleSourceCaptures.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && x.ClientId == clientId && x.EngagementId == engagementId && x.ScheduleId == scheduleId)
+      .Select(x => x.RequestJson).SingleOrDefaultAsync(ct);
+    CaptureIntent? intent = null;
+    try { intent = requestJson is null ? null : JsonSerializer.Deserialize<CaptureIntent>(requestJson); }
+    catch (JsonException) { }
+    return intent?.Fields is null ? reader : await AuditScheduleIntakeSources.PrefetchRemoteSourceAsync(db, actor, reader,
+      clientId, engagementId, intent.Fields.PbcAcceptanceReceiptId, ct);
   }
 
   private static async Task<CommandResult<ReviewFacts>> LoadReviewFactsAsync(IClientAccountingDbContext db,

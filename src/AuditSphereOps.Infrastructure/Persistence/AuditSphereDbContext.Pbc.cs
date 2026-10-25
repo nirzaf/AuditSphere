@@ -88,6 +88,75 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.UploaderUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var registration = b.Entity<PbcDocumentRegistration>();
+    registration.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_pbc_document_registrations_firm_id_id");
+    registration.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_pbc_document_registrations_scope_id");
+    registration.Property(x => x.ProviderIdentity).HasMaxLength(1000);
+    registration.Property(x => x.BindingSha256Hex).HasMaxLength(64);
+    registration.HasIndex(x => new { x.FirmId, x.PbcUploadIntentId }).IsUnique()
+      .HasDatabaseName("ux_pbc_document_registration_upload");
+    registration.HasIndex(x => new { x.FirmId, x.DocumentReferenceId }).IsUnique()
+      .HasDatabaseName("ux_pbc_document_registration_reference");
+    registration.HasIndex(x => new { x.FirmId, x.DocumentSnapshotId }).IsUnique()
+      .HasDatabaseName("ux_pbc_document_registration_snapshot");
+    registration.ToTable("pbc_document_registrations", t => t.HasCheckConstraint("ck_pbc_document_registration_values",
+      "length(trim(provider_identity)) BETWEEN 1 AND 1000 AND binding_sha256_hex ~ '^[0-9a-f]{64}$'"));
+    registration.HasOne<PbcUploadIntent>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcUploadIntentId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    registration.HasOne<DocumentReference>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.DocumentReferenceId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    registration.HasOne<DocumentSnapshot>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.DocumentSnapshotId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    registration.HasOne<AuditSphereOps.Domain.Completion.DurableOperation>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.TransferOperationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var disposition = b.Entity<PbcStorageDisposition>();
+    disposition.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_pbc_storage_dispositions_scope_id");
+    disposition.Property(x => x.ReadSource).HasMaxLength(32);
+    disposition.Property(x => x.LocalCopy).HasMaxLength(16);
+    disposition.HasIndex(x => new { x.FirmId, x.PbcUploadIntentId }).IsUnique()
+      .HasDatabaseName("ux_pbc_storage_disposition_upload");
+    disposition.HasIndex(x => new { x.FirmId, x.PbcDocumentRegistrationId }).IsUnique()
+      .HasDatabaseName("ux_pbc_storage_disposition_registration");
+    disposition.ToTable("pbc_storage_dispositions", t => t.HasCheckConstraint("ck_pbc_storage_disposition_values",
+      "read_source IN ('LOCAL_STAGED','SELECTED_SITE') AND local_copy IN ('RETAINED','RELEASED') AND revision >= 1 AND " +
+      "NOT (read_source = 'LOCAL_STAGED' AND local_copy = 'RELEASED')"));
+    disposition.HasOne<PbcUploadIntent>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcUploadIntentId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    disposition.HasOne<PbcDocumentRegistration>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcDocumentRegistrationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var storageEvent = b.Entity<PbcStorageEvent>();
+    storageEvent.Property(x => x.Kind).HasMaxLength(32);
+    storageEvent.Property(x => x.ReadSource).HasMaxLength(32);
+    storageEvent.Property(x => x.LocalCopy).HasMaxLength(16);
+    storageEvent.Property(x => x.Reason).HasMaxLength(500);
+    storageEvent.HasIndex(x => new { x.FirmId, x.PbcStorageDispositionId, x.Revision }).IsUnique()
+      .HasDatabaseName("ux_pbc_storage_event_revision");
+    storageEvent.ToTable("pbc_storage_events", t => t.HasCheckConstraint("ck_pbc_storage_event_values",
+      "((kind = 'REMOTE_READ_ACTIVATED' AND read_source = 'SELECTED_SITE' AND local_copy = 'RETAINED') OR " +
+      "(kind = 'REMOTE_READ_REVERTED' AND read_source = 'LOCAL_STAGED' AND local_copy = 'RETAINED') OR " +
+      "(kind = 'LOCAL_COPY_RELEASED' AND read_source = 'SELECTED_SITE' AND local_copy = 'RELEASED')) AND revision >= 1 AND " +
+      "length(trim(reason)) BETWEEN 1 AND 500 AND (actor_user_id IS NOT NULL OR operation_id IS NOT NULL)"));
+    storageEvent.HasOne<PbcStorageDisposition>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcStorageDispositionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    storageEvent.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    storageEvent.HasOne<AuditSphereOps.Domain.Completion.DurableOperation>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.OperationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var intent = b.Entity<PbcUploadIntent>();
     intent.HasAlternateKey(x => new { x.FirmId, x.Id })
       .HasName("AK_pbc_upload_intents_firm_id_id");

@@ -133,6 +133,83 @@ public sealed class PbcAcceptanceReceipt
   public string SourceDigest { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// Append-only association of one provider-verified PBC upload with the scoped document reference
+/// and exact-version snapshot of its selected-site item. It is technical registration evidence,
+/// not a review decision, and never changes the upload revision an acceptance receipt pins.
+/// </summary>
+public sealed class PbcDocumentRegistration
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid PbcUploadIntentId { get; set; }
+  public Guid TransferOperationId { get; set; }
+  public Guid DocumentReferenceId { get; set; }
+  public Guid DocumentSnapshotId { get; set; }
+  public string ProviderIdentity { get; set; } = string.Empty;
+  public string BindingSha256Hex { get; set; } = string.Empty;
+  public DateTimeOffset RegisteredAt { get; set; }
+}
+
+/// <summary>Where a registered PBC upload's bytes are read from. No row means the pre-cutover local read.</summary>
+public static class PbcReadSources
+{
+  public const string LocalStaged = "LOCAL_STAGED";
+  public const string SelectedSite = "SELECTED_SITE";
+}
+
+/// <summary>Whether the temporary local staging copy of a registered upload is still retained.</summary>
+public static class PbcLocalCopyStates
+{
+  public const string Retained = "RETAINED";
+  public const string Released = "RELEASED";
+}
+
+public static class PbcStorageEventKinds
+{
+  public const string RemoteReadActivated = "REMOTE_READ_ACTIVATED";
+  public const string RemoteReadReverted = "REMOTE_READ_REVERTED";
+  public const string LocalCopyReleased = "LOCAL_COPY_RELEASED";
+}
+
+/// <summary>
+/// Current storage disposition of one registered PBC upload, separate from its business state and from
+/// the revisions an acceptance receipt pins. Every revision has exactly one append-only event.
+/// </summary>
+public sealed class PbcStorageDisposition
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid PbcUploadIntentId { get; set; }
+  public Guid PbcDocumentRegistrationId { get; set; }
+  public string ReadSource { get; set; } = PbcReadSources.LocalStaged;
+  public string LocalCopy { get; set; } = PbcLocalCopyStates.Retained;
+  public long Revision { get; set; } = 1;
+  public DateTimeOffset UpdatedAt { get; set; }
+}
+
+/// <summary>Append-only transition evidence for a <see cref="PbcStorageDisposition"/> revision.</summary>
+public sealed class PbcStorageEvent
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid PbcStorageDispositionId { get; set; }
+  public long Revision { get; set; }
+  public string Kind { get; set; } = string.Empty;
+  public string ReadSource { get; set; } = string.Empty;
+  public string LocalCopy { get; set; } = string.Empty;
+  public Guid? ActorUserId { get; set; }
+  public Guid? OperationId { get; set; }
+  public string Reason { get; set; } = string.Empty;
+  public DateTimeOffset OccurredAt { get; set; }
+}
+
 public sealed class PbcUploadChunk
 {
   public Guid Id { get; set; }

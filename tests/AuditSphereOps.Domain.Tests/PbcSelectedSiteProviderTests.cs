@@ -270,7 +270,7 @@ public sealed class PbcSelectedSiteProviderTests
       var item = await h.Drive.UploadAsync(location, target.RootFolderId, "large.bin", plan, CancellationToken.None);
       Assert.Equal(offset, item.Size);
       Assert.Equal(3, h.Graph.FragmentRanges.Count);
-      var (sha, size) = await h.Drive.ContentDigestAsync(location, item.ItemId, null, offset, CancellationToken.None);
+      var (sha, size) = await h.Drive.ContentDigestAsync(location, item.ItemId, null, offset, null, CancellationToken.None);
       Assert.Equal((plan.FinalSha256Hex, offset), (sha, size));
     }
     finally { Directory.Delete(directory, recursive: true); }
