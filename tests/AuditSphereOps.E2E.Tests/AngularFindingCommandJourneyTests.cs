@@ -79,6 +79,7 @@ public sealed class AngularFindingCommandJourneyTests
     if (mode != "success")
     {
       var recovery = page.GetByRole(AriaRole.Region, new() { Name = "Exact finding request recovery", Exact = true });
+      var verified = page.GetByRole(AriaRole.Region, new() { Name = "Verified finding receipt", Exact = true });
       await Assertions.Expect(recovery).ToBeVisibleAsync();
       // A browser timeout may expose recovery while the intercepted server request is still running.
       // This scenario promises a committed outcome; prove it before unroute/reload and receipt reads.
@@ -89,39 +90,67 @@ public sealed class AngularFindingCommandJourneyTests
       await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Exact finding preview", Exact = true })).ToHaveCountAsync(0);
       recoveryStateStatuses.Clear();
       (int Status, string Body) lookup;
+      var findingRefreshStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+      var releaseFindingRefresh = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+      var findingRefreshPattern = $"**/api/ui/findings/{findingId:D}";
+      if (mode == "lost-committed")
+        await page.RouteAsync(findingRefreshPattern, async route =>
+        {
+          if (route.Request.Method != "GET") { await route.ContinueAsync(); return; }
+          var response = await route.FetchAsync();
+          findingRefreshStarted.TrySetResult();
+          await releaseFindingRefresh.Task.WaitAsync(TimeSpan.FromSeconds(30));
+          await route.FulfillAsync(new() { Response = response });
+        });
       try
       {
-        lookup = await PlaywrightResponseCapture.RunAsync(page,
-          request => request.Method == "GET" && request.Url.Contains($"/api/ui/findings/{findingId:D}/commands/receipts/{identities[0].Id}?requestHash={identities[0].Hash}", StringComparison.Ordinal),
-          () => recovery.GetByRole(AriaRole.Button, new() { Name = "Look up exact finding receipt", Exact = true }).ClickAsync());
+        try
+        {
+          lookup = await PlaywrightResponseCapture.RunAsync(page,
+            request => request.Method == "GET" && request.Url.Contains($"/api/ui/findings/{findingId:D}/commands/receipts/{identities[0].Id}?requestHash={identities[0].Hash}", StringComparison.Ordinal),
+            () => recovery.GetByRole(AriaRole.Button, new() { Name = "Look up exact finding receipt", Exact = true }).ClickAsync());
+        }
+        catch (TimeoutException exception)
+        {
+          throw new TimeoutException($"{exception.Message} Finding command-state HTTP statuses: {string.Join(", ", recoveryStateStatuses)}", exception);
+        }
+        var (lookupStatus, lookupBody) = lookup;
+        Assert.True(lookupStatus == 200, $"Exact synthetic finding receipt lookup returned HTTP {lookupStatus}: {lookupBody}");
+        using var lookupDocument = JsonDocument.Parse(lookupBody);
+        var found = lookupDocument.RootElement.GetProperty("found").GetBoolean();
+        Assert.Equal(mode == "lost-committed", found);
+        if (found)
+        {
+          var receipt = lookupDocument.RootElement.GetProperty("receipt");
+          Assert.Equal(findingId.ToString("D"), receipt.GetProperty("findingId").GetString());
+          Assert.Equal(action, receipt.GetProperty("action").GetString());
+          Assert.Equal(identities[0].Id, receipt.GetProperty("requestId").GetString());
+          Assert.Equal(identities[0].Hash, receipt.GetProperty("requestHash").GetString());
+        }
+        if (mode == "lost-committed")
+        {
+          await findingRefreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+          await Assertions.Expect(verified).ToContainTextAsync(action);
+          await Assertions.Expect(page.GetByRole(AriaRole.Progressbar, new() { Name = "Loading finding", Exact = true })).ToBeVisibleAsync();
+          releaseFindingRefresh.TrySetResult();
+          await Assertions.Expect(page.GetByRole(AriaRole.Progressbar, new() { Name = "Loading finding", Exact = true })).ToHaveCountAsync(0);
+        }
+        Assert.Single(identities);
+        if (mode == "lost-uncommitted")
+        {
+          await Assertions.Expect(recovery).ToContainTextAsync("No receipt was found at lookup time.");
+          await Assertions.Expect(recovery).ToContainTextAsync(identities[0].Id);
+          await PrepareAsync(); Assert.Single(identities); await ConfirmAsync();
+        }
       }
-      catch (TimeoutException exception)
+      finally
       {
-        throw new TimeoutException($"{exception.Message} Finding command-state HTTP statuses: {string.Join(", ", recoveryStateStatuses)}", exception);
-      }
-      var (lookupStatus, lookupBody) = lookup;
-      Assert.True(lookupStatus == 200, $"Exact synthetic finding receipt lookup returned HTTP {lookupStatus}: {lookupBody}");
-      using var lookupDocument = JsonDocument.Parse(lookupBody);
-      var found = lookupDocument.RootElement.GetProperty("found").GetBoolean();
-      Assert.Equal(mode == "lost-committed", found);
-      if (found)
-      {
-        var receipt = lookupDocument.RootElement.GetProperty("receipt");
-        Assert.Equal(findingId.ToString("D"), receipt.GetProperty("findingId").GetString());
-        Assert.Equal(action, receipt.GetProperty("action").GetString());
-        Assert.Equal(identities[0].Id, receipt.GetProperty("requestId").GetString());
-        Assert.Equal(identities[0].Hash, receipt.GetProperty("requestHash").GetString());
-      }
-      Assert.Single(identities);
-      if (mode == "lost-uncommitted")
-      {
-        await Assertions.Expect(recovery).ToContainTextAsync("No receipt was found at lookup time.");
-        await Assertions.Expect(recovery).ToContainTextAsync(identities[0].Id);
-        await PrepareAsync(); Assert.Single(identities); await ConfirmAsync();
+        releaseFindingRefresh.TrySetResult();
+        if (mode == "lost-committed") await page.UnrouteAsync(findingRefreshPattern);
       }
     }
-    var verified = page.GetByRole(AriaRole.Region, new() { Name = "Verified finding receipt", Exact = true });
-    await Assertions.Expect(verified).ToContainTextAsync(action); await Assertions.Expect(verified).ToContainTextAsync(findingId.ToString("D"));
+    var finalVerified = page.GetByRole(AriaRole.Region, new() { Name = "Verified finding receipt", Exact = true });
+    await Assertions.Expect(finalVerified).ToContainTextAsync(action); await Assertions.Expect(finalVerified).ToContainTextAsync(findingId.ToString("D"));
     Assert.Equal(mode == "lost-uncommitted" ? 2 : 1, identities.Count);
     Assert.All(identities, identity => Assert.Equal(identities[0], identity));
     await using (var db = host.CreateDbContext())

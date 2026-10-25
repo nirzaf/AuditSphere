@@ -104,7 +104,7 @@ export class PopulationRecord {
         </form>
         } <p><small>Only designated matters with a complete recommendation are rendered in the management letter; findings left internal-only never appear in client reporting. A Manager, Partner or Administrator records the designation, and changing a designated matter invalidates the generated letter.</small></p></section>
     }
-    @if (rec.data()) { <audit-finding-command-review [flow]="flow" /> }
+    @if (rec.data() || flow.receipt() && rec.loading()) { <audit-finding-command-review [flow]="flow" /> }
   `,
   styles: [`
     form textarea { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
