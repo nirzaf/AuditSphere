@@ -33,13 +33,13 @@
   },
   "remainingLocalWork": [
     {
-      "item": "AS-PAR-002 \u2014 remaining whole-application scope and revocation coverage",
+      "item": "AS-PAR-002 — remaining whole-application scope and revocation coverage",
       "status": "PARTIAL",
       "details": "Whole-application scope, revocation, source-action behavior and dynamic acceptance remain partial. Use apiAngularParity for the attached backlog; the previous verification narrative is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-PAR-009 \u2014 Pricing review, evidence-bound dispatch and client response",
+      "item": "AS-PAR-009 — Pricing review, evidence-bound dispatch and client response",
       "status": "PARTIAL",
       "details": "Pricing implementation exists; firm-approved policy, provider delivery evidence and current end-to-end acceptance remain separate gates. Earlier implementation and check history is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -51,43 +51,43 @@
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "STE-NXT-014 \u2014 End-of-service accrual as a provision (ADR-0010)",
+      "item": "STE-NXT-014 — End-of-service accrual as a provision (ADR-0010)",
       "status": "PARTIAL",
       "details": "End-of-service accrual requires the existing approved treatment, provision and expense account configuration and independent Partner confirmation. Prior technical verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "ADR-0016 \u2014 Certificate signing of the final report (specification 4.4.1, 4.4.2)",
+      "item": "ADR-0016 — Certificate signing of the final report (specification 4.4.1, 4.4.2)",
       "status": "PARTIAL",
       "details": "Final report certificate policy, legal acceptance and live deployment remain explicit external/operator gates. Earlier technical signing evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-002 / FSR-010 / FSR-011 first slice \u2014 typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
+      "item": "FSR-002 / FSR-010 / FSR-011 first slice — typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
       "status": "PARTIAL",
       "details": "Typed and pinned financial statement presentation is implemented incrementally. Professional policy, complete approved schedules/disclosures, report composition and release acceptance remain governed by their current records. Prior slice narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-005 first slice \u2014 cash-flow movement evidence and adjusted cash cross-cast",
+      "item": "FSR-005 first slice — cash-flow movement evidence and adjusted cash cross-cast",
       "status": "PARTIAL",
       "details": "Source-backed cash flow and its professional classification policy remain governed by their current completion records. Historical first-slice verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "CP-13 \u2014 signed equity components and transfer workflow",
+      "item": "CP-13 — signed equity components and transfer workflow",
       "status": "PARTIAL",
       "details": "Equity components and transfer workflows remain subject to source lineage and independent professional acceptance. Historical increment evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-WF-V22 \u2014 v2.2 workflow experience PRs D\u2013I (WF-04 to WF-15) and production acceptance",
+      "item": "AS-WF-V22 — v2.2 workflow experience PRs D–I (WF-04 to WF-15) and production acceptance",
       "status": "PARTIAL",
       "details": "Workflow implementation does not replace professional approval or production acceptance. Current focused evidence is in targetedVerification; earlier long-form incremental narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) \u2014 NOT COMPLETE",
+      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) — NOT COMPLETE",
       "status": "PARTIAL",
       "details": "The production-readiness backlog remains incomplete; its external and independent acceptance gates are not closed by local parity implementation.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -1045,18 +1045,19 @@
       "evidence": ".local/autonomous/evidence/axelor-final-20261025/review.json",
       "scope": "Static prior event/router-link parity; builtin ordinary commercial/client-scoped denied/finance preparer and distinct reviewer; no removed inventoried actions; provider/posting counts unchanged around discovery.",
       "limits": "No FULL_CI_PASS claimed. Rejected currency fixture violated existing DB integrity; speculative UI change reverted. Initial final-cent fixture reused unique receipt/invoice pair; separate-cent receipt correction passed. No human AT/nativezoom/live-provider/professional certification; original31 active.",
-      "finalSource": "e53f05f5a24a1af7b8c094292fd456d603825cc2",
-      "ci": "Fast40229170552 PASS_MATCH; full40229188832 MATCH Angular/VerifyPASS Domain/API/E2Eactive; images40229190648/rehearsalPASS; no cutover."
+      "finalSource": "a48db01526015e4b5e767620160eff3a699e4a77",
+      "ci": "40234333952 RUNNING source MATCH; Angular/fullspecsPASS; Domain/API/E2E/Verifyactive"
     },
     "axelorInvoiceDescription20261026": {
-      "status": "FOCUSED_PASS_CURRENT_SOURCE_CI_REQUIRED",
+      "status": "FOCUSED_FAST_IMAGES_REHEARSAL_PASS_FULL_PENDING",
       "precedingRun": 40224215180,
       "precedingResult": "E2E336PASS3FAIL; exact invoice descriptions obscured by sibling expandable source text",
       "local": "Original three named tests RED3 then GREEN3; Angular30, scoped lint and fresh production build PASS; no full local suite",
       "change": "Standalone span around invoice description; no test or command changes",
       "evidence": ".local/autonomous/evidence/axelor-final-20261025/c15-new-e2e-failure",
-      "remaining": "Current correction fast/full/images and exact-image rehearsal, final acceptance audit and Acceptance cutover remain pending",
-      "browser": "Owned built-in invoice read and source expansion observed; exact description, Sent status and unchanged QAR amount; owned tab closed and fixture released. Named repeat1PASS."
+      "remaining": "Exact full40234333952 MATCH: AngularPASS; Domain/API/E2E/Verify active. Final requirement acceptance and authorized Acceptance cutover pending.",
+      "browser": "Owned built-in invoice read and source expansion observed; exact description, Sent status and unchanged QAR amount; owned tab closed and fixture released. Named repeat1PASS.",
+      "sourceCommit": "a48db01526015e4b5e767620160eff3a699e4a77"
     }
   },
   "externalGates": [
@@ -1108,7 +1109,7 @@
     {
       "gate": "P10",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Full \u00a747 real-tenant acceptance and professional sign-off"
+      "required": "Full §47 real-tenant acceptance and professional sign-off"
     },
     {
       "gate": "M365-ADMIN",
@@ -1248,24 +1249,24 @@
   "hostingerAcceptance": {
     "archivedLegacy": "status-archive-2026-10.json#keys.hostingerAcceptanceLegacy20261015",
     "latestReleasePreparation": {
-      "observedAtUtc": "2026-10-25T20:22:30.113457+00:00",
-      "sourceCommit": "e53f05f5a24a1af7b8c094292fd456d603825cc2",
+      "observedAtUtc": "2026-10-25T21:25:28.950404+00:00",
+      "sourceCommit": "a48db01526015e4b5e767620160eff3a699e4a77",
       "implementationCommit": "a4a832298b3918d57347ada5bd67d684ba06876e",
-      "currentFastRun": 40229170552,
-      "fastStatus": "PASS all jobs; actual checkoutgitlogMATCH proof retained.",
-      "currentFullRun": 40229188832,
-      "fullStatus": "40229188832 RUNNING source MATCH; Angular/full specs and Verify/build/contracts/publication PASS; Domain/API/E2E active.",
-      "currentImageBuildRun": 40229190648,
-      "imageStatus": "PASS actualcheckout and3immutablecompletedpushes",
+      "currentFastRun": 40234318970,
+      "fastStatus": "PASS actualcheckout alljobs",
+      "currentFullRun": 40234333952,
+      "fullStatus": "40234333952 RUNNING source MATCH; Angular/fullspecsPASS; Domain/API/E2E/Verifyactive",
+      "currentImageBuildRun": 40234318959,
+      "imageStatus": "PASS exactcheckout andimmutablepushes",
       "imageDigests": {
-        "api": "ghcr.io/nirzaf/auditsphere-acceptance-api:e53f05f5a24a1af7b8c094292fd456d603825cc2@sha256:1001eea577bbb6cc7cc4cd1b589bd740e9ee4305a7bad04352491d6bc5dfdaaf",
-        "worker": "ghcr.io/nirzaf/auditsphere-acceptance-worker:e53f05f5a24a1af7b8c094292fd456d603825cc2@sha256:52fb0f52d7f54806a7ea3ae5ff6e9a31069fa28e159b476538ef3ee0b4ed79d9",
-        "migrations": "ghcr.io/nirzaf/auditsphere-acceptance-migrations:e53f05f5a24a1af7b8c094292fd456d603825cc2@sha256:f588aa82923805f68e31d68fa59fb0a79af559269ca5688fe99eec5fed39cb65"
+        "api": "ghcr.io/nirzaf/auditsphere-acceptance-api:a48db01526015e4b5e767620160eff3a699e4a77@sha256:1da8878456258b5ed4b8fdafb49477771b2ce0a55b955b33a811bbc79035831e",
+        "worker": "ghcr.io/nirzaf/auditsphere-acceptance-worker:a48db01526015e4b5e767620160eff3a699e4a77@sha256:0e480c9770a54eaf10d660119968834ffdef7f6ee5f75680e89df58211689a68",
+        "migrations": "ghcr.io/nirzaf/auditsphere-acceptance-migrations:a48db01526015e4b5e767620160eff3a699e4a77@sha256:d9432b67fc84831c398bd609c2b5830ec5f5e8787baf763aeffd9783b549af54"
       },
       "currentSourceRehearsal": {
         "status": "PASS_RESTORED_COPY_LATEST_SOURCE",
-        "report": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/rehearsal-e53.json",
-        "sourceSha": "e53f05f5a24a1af7b8c094292fd456d603825cc2",
+        "report": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/rehearsal-a48.json",
+        "sourceSha": "a48db01526015e4b5e767620160eff3a699e4a77",
         "migrationCountBefore": 286,
         "migrationCountAfter": 286,
         "migrationHead": "20261025144831_PbcStorageCommandReceipts",
@@ -1303,7 +1304,7 @@
         "latestSourceDeployed": false
       },
       "backupPreparation": "Use observed project-owned Docker volume mounts, protected .env/overlay/config, and a fresh catalog-validated quiesced DB dump before live mutation. Preserve rollback evidence; no automatic destructive DB restore.",
-      "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-e53.json"
+      "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-a48.json"
     }
   },
   "apiAngularParity": {
@@ -1506,13 +1507,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "e53f05f5a24a1af7b8c094292fd456d603825cc2",
-    "fastCi": "PASS run40229170552; all three jobs successful with actual checkout git-log MATCH.",
-    "releaseVerification": "40229188832 RUNNING source MATCH; Angular/full specs and Verify/build/contracts/publication PASS; Domain/API/E2E active.",
-    "imagePublication": "PASS run40229190648; exact checkout and completed immutable manifest pushes.",
-    "runtimeRehearsal": "PASS exacte53: schema286/0 migrations,379 original table projections unchanged, localhealth and bothuncachedAngularroots200; ownedDB/container/privateenvcleanup verified read-only.",
+    "sourceCommit": "a48db01526015e4b5e767620160eff3a699e4a77",
+    "fastCi": "PASS run40234318970; alljobs actualcheckoutMATCH",
+    "releaseVerification": "40234333952 RUNNING source MATCH; Angular/fullspecsPASS; Domain/API/E2E/Verifyactive",
+    "imagePublication": "PASS run40234318959; exactcheckout and immutablemanifestpushes",
+    "runtimeRehearsal": "PASS exacta48: schema286/0migrations/379original projectionsunchanged; health+bothuncachedAngularroots200; ownedDB/container/envcleanupread-onlyverified",
     "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
-    "updatedAtUtc": "2026-10-25T20:22:30.113457+00:00"
+    "updatedAtUtc": "2026-10-25T21:25:28.950404+00:00"
   },
   "updatedAtUtc": "2026-10-25T19:22:40.871517+00:00"
 }
