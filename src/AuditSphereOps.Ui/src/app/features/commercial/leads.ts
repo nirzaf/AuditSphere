@@ -29,13 +29,27 @@ interface Lead {
   createdAt: string;
   /** LEAD_INGESTION (stage 1) until a proposal exists; PROPOSAL_OR_LATER once one does. */
   lifecycleStage?: string | null;
+  ownerUserId?: string | null;
+  ownerName?: string | null;
+  /** UNASSIGNED, ACTIVE, DISABLED or MISSING; a recorded owner is never replaced. */
+  ownerState?: string | null;
+}
+/** Complete counts over every lead matching the same search and filters, not only this page. */
+interface LeadSummary {
+  matching: number;
+  awaitingQualification: number;
+  qualified: number;
 }
 interface LeadPage {
   items: Lead[];
   total: number;
   page: number;
   pageSize: number;
+  summary?: LeadSummary | null;
 }
+export const LEAD_STATUSES = ['NEW', 'QUALIFIED', 'UNQUALIFIED', 'LOST'] as const;
+const OWNER_STATES = ['UNASSIGNED', 'ACTIVE', 'DISABLED', 'MISSING'];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 interface LeadDraft {
   name: string;
   source: string;
@@ -60,13 +74,29 @@ export function decodeLeads(value: unknown): LeadPage {
     if (
       !l ||
       typeof l.id !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(l.id) ||
+      !UUID.test(l.id) ||
       !['name', 'source', 'status', 'createdAt'].every((k) => typeof l[k] === 'string') ||
       !['primaryContactName', 'primaryContactEmail'].every(
         (k) => l[k] === null || typeof l[k] === 'string',
-      )
+      ) ||
+      !(l.ownerUserId == null || (typeof l.ownerUserId === 'string' && UUID.test(l.ownerUserId))) ||
+      !(l.ownerName == null || typeof l.ownerName === 'string') ||
+      !(l.ownerState == null || OWNER_STATES.includes(l.ownerState))
     )
       throw new Error('Invalid lead');
+  const s = v['summary'];
+  if (s != null) {
+    if (typeof s !== 'object') throw new Error('Invalid lead summary');
+    const counts = s as Record<string, unknown>;
+    if (
+      !['matching', 'awaitingQualification', 'qualified'].every(
+        (k) => Number.isSafeInteger(counts[k]) && Number(counts[k]) >= 0,
+      ) ||
+      counts['matching'] !== v['total'] ||
+      Number(counts['awaitingQualification']) + Number(counts['qualified']) > Number(counts['matching'])
+    )
+      throw new Error('Invalid lead summary');
+  }
   return v as unknown as LeadPage;
 }
 /** Lead channels from the owner-approved set (STE 4.1.1). The server stores the same canonical values. */
@@ -91,15 +121,85 @@ export function isLeadChannel(value: string): boolean {
     '(document:pointerdown)': 'recordFocusInteraction()',
     '(document:keydown)': 'recordFocusInteraction()',
   },
+  styles: `
+    .lead-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0 1rem;
+      align-items: center;
+    }
+    .lead-create {
+      margin: 0.5rem 0 1rem;
+      border: 1px solid var(--as-control-border);
+      border-radius: var(--as-radius-md);
+      padding: 0.5rem 1rem;
+    }
+    .lead-create > summary {
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .portfolio-metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .lead-summary-scope {
+      color: var(--as-text-muted);
+    }
+  `,
   template: `
     <h1 id="leads-page-heading" tabindex="-1">Practice leads</h1>
     <a routerLink="/app/practice/commercial-settings">Commercial settings</a>
     <p>Commercial qualification remains separate from client acceptance and credit decisions.</p>
-    <form (ngSubmit)="load()">
+    <form class="lead-filters" (ngSubmit)="load()" aria-label="Lead search and filters">
       <mat-form-field
         ><mat-label>Search lead name</mat-label
         ><input matInput name="search" [(ngModel)]="search" maxlength="100" /></mat-form-field
-      ><button matButton type="submit">Search</button>
+      ><mat-form-field
+        ><mat-label>Status</mat-label
+        ><select
+          matNativeControl
+          name="statusFilter"
+          aria-label="Filter by lead status"
+          [(ngModel)]="statusFilter"
+          (ngModelChange)="load()"
+        >
+          <option value="">All statuses</option>
+          @for (status of statuses; track status) {
+            <option [value]="status">{{ statusLabel(status) }}</option>
+          }
+        </select></mat-form-field
+      ><mat-form-field
+        ><mat-label>Channel</mat-label
+        ><select
+          matNativeControl
+          name="sourceFilter"
+          aria-label="Filter by lead channel"
+          [(ngModel)]="sourceFilter"
+          (ngModelChange)="load()"
+        >
+          <option value="">All channels</option>
+          @for (channel of channels; track channel) {
+            <option [value]="channel">{{ channel }}</option>
+          }
+        </select></mat-form-field
+      ><mat-form-field
+        ><mat-label>Owner</mat-label
+        ><select
+          matNativeControl
+          name="ownerFilter"
+          aria-label="Filter by lead owner"
+          [(ngModel)]="ownerFilter"
+          (ngModelChange)="load()"
+        >
+          <option value="">Any owner</option>
+          <option value="me">My leads</option>
+          <option value="unassigned">Unassigned</option>
+        </select></mat-form-field
+      ><button matButton type="submit">Search</button
+      ><button matButton type="button" [disabled]="!hasFilters()" (click)="clearFilters()">
+        Clear filters
+      </button>
     </form>
     @if (loading()) {
       <mat-progress-bar mode="indeterminate" aria-label="Loading leads" />
@@ -109,8 +209,8 @@ export function isLeadChannel(value: string): boolean {
       <button matButton (click)="load()">Retry</button>
     }
     @if (data(); as leads) {
-      <section>
-        <h2>Record lead</h2>
+      <details class="lead-create" [open]="createOpen() || createPending()" (toggle)="onCreateToggle($event)">
+        <summary>Record a new lead</summary>
         <form (ngSubmit)="create()">
           <mat-form-field
             ><mat-label>Lead name</mat-label
@@ -178,17 +278,39 @@ export function isLeadChannel(value: string): boolean {
             Resolve saved lead request
           </button>
         }
-      </section>
+      </details>
       <section class="portfolio-metrics" aria-label="Lead summary">
-        <article>
-          <h2>Leads in this search</h2>
-          <strong>{{ leads.total }}</strong>
-        </article>
-        <article>
-          <h2>Awaiting qualification</h2>
-          <strong>{{ leads.items.filter((l) => l.status === 'NEW').length }}</strong>
-        </article>
+        @if (leads.summary; as summary) {
+          <article>
+            <h2>Matching leads</h2>
+            <strong>{{ summary.matching }}</strong>
+          </article>
+          <article>
+            <h2>New · awaiting qualification</h2>
+            <strong>{{ summary.awaitingQualification }}</strong>
+          </article>
+          <article>
+            <h2>Qualified</h2>
+            <strong>{{ summary.qualified }}</strong>
+          </article>
+        } @else {
+          <article>
+            <h2>Leads in this search</h2>
+            <strong>{{ leads.total }}</strong>
+          </article>
+          <article>
+            <h2>New on this page</h2>
+            <strong>{{ newOnPage(leads) }}</strong>
+          </article>
+        }
       </section>
+      <p class="lead-summary-scope">
+        {{
+          leads.summary
+            ? 'Counts cover every lead matching the current search and filters, not only this page.'
+            : 'The lead total covers the whole search; "New on this page" counts only the loaded page.'
+        }}
+      </p>
       <p role="status">
         {{ leads.total }} leads in this search
         <button matButton (click)="load()" [disabled]="loading() || busy()">Refresh leads</button>
@@ -208,6 +330,7 @@ export function isLeadChannel(value: string): boolean {
               <th>Name</th>
               <th>Source</th>
               <th>Contact</th>
+              <th>Owner</th>
               <th>Recorded</th>
               <th>Status</th>
               <th>Lifecycle</th>
@@ -222,8 +345,9 @@ export function isLeadChannel(value: string): boolean {
                 </td>
                 <td>{{ lead.source }}</td>
                 <td>{{ lead.primaryContactName }} · {{ lead.primaryContactEmail }}</td>
+                <td>{{ ownerLabel(lead) }}</td>
                 <td>{{ lead.createdAt.slice(0, 10) }}</td>
-                <td>{{ lead.status }}</td>
+                <td>{{ statusLabel(lead.status) }}</td>
                 <td>{{ lead.lifecycleStage === 'LEAD_INGESTION' ? 'Stage 1 · Lead ingestion' : lead.lifecycleStage === 'PROPOSAL_OR_LATER' ? 'Proposal and later stages' : '—' }}</td>
                 <td>
                   @if (lead.status === 'NEW') {
@@ -242,7 +366,7 @@ export function isLeadChannel(value: string): boolean {
         </table>
       </div>
       @if (!leads.items.length) {
-        <p>No leads match this search.</p>
+        <p>{{ hasFilters() ? 'No leads match this search and these filters.' : 'No leads match this search.' }}</p>
       }
       <nav aria-label="Lead pages">
         <button matButton [disabled]="leads.page === 0" (click)="load(leads.page - 1)">
@@ -279,9 +403,13 @@ export class Leads {
   private qualificationRequest?: Subscription;
   private destroyed = false;
   search = '';
+  statusFilter = '';
+  sourceFilter = '';
+  ownerFilter = '';
   name = '';
   source = '';
   readonly channels = LEAD_CHANNELS;
+  readonly statuses = LEAD_STATUSES;
   contactName = '';
   contactEmail = '';
   private readonly drafts = inject(Drafts);
@@ -353,6 +481,8 @@ export class Leads {
   readonly recoverableLeadCreate = signal(false);
   readonly commandStatus = signal('');
   readonly qualification = signal<Lead | null>(null);
+  /** The creation panel opens for an empty lead list or a saved draft; the user may open or close it at any time. */
+  readonly createOpen = signal(false);
   private qualificationTrigger: HTMLButtonElement | null = null;
   private focusInteraction = 0;
   private createRequestId: string = crypto.randomUUID();
@@ -367,6 +497,8 @@ export class Leads {
         this.busy.set(false);
         this.data.set(null);
         this.search = this.name = this.source = this.contactName = this.contactEmail = '';
+        this.statusFilter = this.sourceFilter = this.ownerFilter = '';
+        this.createOpen.set(false);
         this.qualificationTrigger = null;
         this.qualification.set(null);
         this.commandStatus.set('');
@@ -384,6 +516,9 @@ export class Leads {
             this.createRequestId = saved.requestId;
             this.createPending.set(saved.submissionPending);
             this.uncertain.set(saved.submissionPending);
+            this.createOpen.set(
+              saved.submissionPending || !!(saved.name || saved.contactName || saved.contactEmail),
+            );
             this.recoverableLeadCreate.set(saved.submissionPending);
             if (saved.submissionPending)
               this.commandStatus.set(
@@ -516,6 +651,38 @@ export class Leads {
         },
       });
   }
+  statusLabel(status: string): string {
+    return (
+      { NEW: 'New', QUALIFIED: 'Qualified', UNQUALIFIED: 'Unqualified', LOST: 'Lost' }[status] ?? status
+    );
+  }
+  ownerLabel(lead: Lead): string {
+    switch (lead.ownerState) {
+      case 'UNASSIGNED':
+        return 'Unassigned';
+      case 'ACTIVE':
+        return lead.ownerName ?? 'Unknown owner';
+      case 'DISABLED':
+        return `${lead.ownerName ?? 'Unknown owner'} (disabled)`;
+      case 'MISSING':
+        return 'Unknown owner';
+      default:
+        return '—';
+    }
+  }
+  newOnPage(leads: LeadPage): number {
+    return leads.items.filter((l) => l.status === 'NEW').length;
+  }
+  hasFilters(): boolean {
+    return !!(this.statusFilter || this.sourceFilter || this.ownerFilter);
+  }
+  clearFilters(): void {
+    this.statusFilter = this.sourceFilter = this.ownerFilter = '';
+    this.load();
+  }
+  onCreateToggle(event: Event): void {
+    if (event.target instanceof HTMLDetailsElement) this.createOpen.set(event.target.open);
+  }
   startQualification(lead: Lead, trigger: EventTarget | null): void {
     this.qualificationTrigger = trigger instanceof HTMLButtonElement ? trigger : null;
     this.qualification.set(lead);
@@ -594,14 +761,21 @@ export class Leads {
     if (!this.session.current()?.staff) return;
     const generation = this.session.invalidation();
     this.loading.set(true);
+    const params: Record<string, string | number> = { search: this.search, page };
+    if (this.statusFilter) params['status'] = this.statusFilter;
+    if (this.sourceFilter) params['source'] = this.sourceFilter;
+    if (this.ownerFilter) params['owner'] = this.ownerFilter;
+    const unfiltered = !this.search.trim() && !this.hasFilters();
     this.request = this.http
-      .get<unknown>('/api/ui/leads', { params: { search: this.search, page } })
+      .get<unknown>('/api/ui/leads', { params })
       .pipe(timeout(15000))
       .subscribe({
         next: (value) => {
           if (generation !== this.session.invalidation()) return;
           try {
-            this.data.set(decodeLeads(value));
+            const leads = decodeLeads(value);
+            this.data.set(leads);
+            if (unfiltered && leads.total === 0) this.createOpen.set(true);
           } catch {
             this.error.set('Leads returned an unsupported response.');
           }

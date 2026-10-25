@@ -164,13 +164,15 @@ public static partial class UiEndpoints
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
-    group.MapGet("/leads", async (string? search, int? page, HttpContext http, TrustedActorResolver resolver,
-      IDbContextFactory<AuditSphereDbContext> factory) =>
+    static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+    group.MapGet("/leads", async (string? search, int? page, string? status, string? source, string? owner, HttpContext http,
+      TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await PracticeLeadQuery.PageAsync(db, actor, search, page ?? 0, ct: http.RequestAborted);
+      var result = await PracticeLeadQuery.PageAsync(db, actor, search, page ?? 0,
+        filter: new PracticeLeadFilter(NullIfEmpty(status), NullIfEmpty(source), NullIfEmpty(owner)), ct: http.RequestAborted);
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "request.invalid" ? 400 : 403);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);

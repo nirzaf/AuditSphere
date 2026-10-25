@@ -87,6 +87,29 @@ public sealed class WorkspaceQueryTests
     Assert.False((await PracticeLeadQuery.PageAsync(db, PbcSeed.Actor(fixture.Staff, "Staff"))).Succeeded);
     Assert.False((await PracticeLeadQuery.PageAsync(db, admin, pageSize: 101)).Succeeded);
     Assert.Empty((await PracticeLeadQuery.PageAsync(db, admin, "foreign")).Value!.Items);
+
+    // Summaries count the complete filtered cohort, never only the loaded page.
+    for (var i = 0; i < 27; i++)
+      Assert.True((await PracticeCrmService.CreateLeadAsync(db, admin, new($"Bulk lead {i:00}", i % 2 == 0 ? "Email" : "Phone",
+        OwnerUserId: i < 3 ? fixture.Admin.Id : null))).Succeeded);
+    var qualifiedId = (await db.Leads.AsNoTracking().SingleAsync(x => x.Name == "Bulk lead 00")).Id;
+    Assert.True((await PracticeCrmService.QualifyLeadAsync(db, admin, qualifiedId)).Succeeded);
+    var bulk = (await PracticeLeadQuery.PageAsync(db, admin, "bulk")).Value!;
+    Assert.Equal((27, 25), (bulk.Total, bulk.Items.Count));
+    Assert.Equal(new PracticeLeadSummary(27, 26, 1), bulk.Summary);
+    Assert.Equal(14, (await PracticeLeadQuery.PageAsync(db, admin, "bulk", filter: new(Source: "Email"))).Value!.Summary!.Matching);
+    var mine = (await PracticeLeadQuery.PageAsync(db, admin, "bulk", filter: new(Owner: "me"))).Value!;
+    Assert.Equal(3, mine.Total);
+    Assert.All(mine.Items, x => Assert.Equal((fixture.Admin.Id, PracticeLeadOwnerStates.Active), (x.OwnerUserId!.Value, x.OwnerState)));
+    var unassigned = (await PracticeLeadQuery.PageAsync(db, admin, "bulk", filter: new(Owner: "unassigned"))).Value!;
+    Assert.Equal(24, unassigned.Total);
+    Assert.All(unassigned.Items, x => Assert.Equal((null, PracticeLeadOwnerStates.Unassigned), (x.OwnerName, x.OwnerState)));
+    Assert.Equal(new PracticeLeadSummary(1, 0, 1),
+      (await PracticeLeadQuery.PageAsync(db, admin, "bulk", filter: new(Status: "QUALIFIED"))).Value!.Summary);
+    foreach (var invalid in new PracticeLeadFilter[] { new(Status: "WON"), new(Source: "web form"), new(Owner: "someone") })
+      Assert.Equal("request.invalid", (await PracticeLeadQuery.PageAsync(db, admin, filter: invalid)).ErrorCode);
+    // A narrowing filter grants nothing to a user without firm-wide commercial access.
+    Assert.False((await PracticeLeadQuery.PageAsync(db, PbcSeed.Actor(fixture.Staff, "Staff"), filter: new(Owner: "me"))).Succeeded);
   }
 
   [Fact]

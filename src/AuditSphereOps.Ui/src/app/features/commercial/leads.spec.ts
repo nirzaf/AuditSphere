@@ -17,6 +17,21 @@ describe('Commercial lead contract', () => {
       decodeLeads({ items: [{ id: 'email@example.test' }], total: 1, page: 0, pageSize: 25 }),
     ).toThrow();
   });
+  it('accepts complete summaries only when they describe the same cohort as the total', () => {
+    const page = (summary: unknown) => ({ items: [], total: 40, page: 0, pageSize: 25, summary });
+    expect(decodeLeads(page({ matching: 40, awaitingQualification: 30, qualified: 5 })).summary?.awaitingQualification).toBe(30);
+    expect(() => decodeLeads(page({ matching: 39, awaitingQualification: 1, qualified: 1 }))).toThrow();
+    expect(() => decodeLeads(page({ matching: 40, awaitingQualification: 35, qualified: 6 }))).toThrow();
+    expect(() => decodeLeads(page({ matching: 40, awaitingQualification: -1, qualified: 0 }))).toThrow();
+  });
+  it('rejects an unknown owner state or malformed owner identity', () => {
+    const lead = { id: '00000000-0000-0000-0000-000000000001', name: 'L', source: 'Email', primaryContactName: null,
+      primaryContactEmail: null, status: 'NEW', createdAt: '2026-10-16T00:00:00Z' };
+    expect(() => decodeLeads({ items: [{ ...lead, ownerState: 'GUESSED' }], total: 1, page: 0, pageSize: 25 })).toThrow();
+    expect(() => decodeLeads({ items: [{ ...lead, ownerUserId: 'me' }], total: 1, page: 0, pageSize: 25 })).toThrow();
+    expect(decodeLeads({ items: [{ ...lead, ownerState: 'UNASSIGNED', ownerUserId: null }], total: 1, page: 0, pageSize: 25 })
+      .items[0].ownerState).toBe('UNASSIGNED');
+  });
 });
 
 describe('Lead channels (STE 4.1.1)', () => {
@@ -62,6 +77,39 @@ describe('Lead qualification exact confirmation and denial', () => {
     fixture.detectChanges();
     return fixture;
   }
+  it('shows complete server counts and labels a page-only fallback honestly', () => {
+    const fixture = TestBed.createComponent(Leads);
+    fixture.detectChanges(); TestBed.tick();
+    const lead = { id, name: 'Synthetic lead', source: 'Email', primaryContactName: null,
+      primaryContactEmail: null, status: 'NEW', createdAt: '2026-10-16T00:00:00Z', ownerState: 'UNASSIGNED' };
+    http.expectOne(r => r.url === '/api/ui/leads').flush({ items: [lead], total: 30, page: 0, pageSize: 25,
+      summary: { matching: 30, awaitingQualification: 7, qualified: 4 } });
+    fixture.detectChanges();
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('New · awaiting qualification');
+    expect(text).toMatch(/New · awaiting qualification\s*7/);
+    expect(text).toContain('not only this page');
+    expect(text).toContain('Unassigned');
+    fixture.componentInstance.load();
+    http.expectOne(r => r.url === '/api/ui/leads').flush({ items: [lead], total: 30, page: 0, pageSize: 25 });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toMatch(/New on this page\s*1/);
+  });
+  it('sends only the chosen filters, never widening a malformed choice', () => {
+    const { c } = open();
+    c.statusFilter = 'NEW'; c.ownerFilter = 'me'; c.load();
+    const request = http.expectOne(r => r.url === '/api/ui/leads');
+    expect(request.request.params.get('status')).toBe('NEW');
+    expect(request.request.params.get('owner')).toBe('me');
+    expect(request.request.params.has('source')).toBe(false);
+    request.flush({ items: [], total: 0, page: 0, pageSize: 25, summary: { matching: 0, awaitingQualification: 0, qualified: 0 } });
+    expect(c.createOpen()).toBe(false);
+    c.clearFilters();
+    const cleared = http.expectOne(r => r.url === '/api/ui/leads');
+    expect(cleared.request.params.has('status')).toBe(false);
+    cleared.flush({ items: [], total: 0, page: 0, pageSize: 25 });
+    expect(c.createOpen()).toBe(true);
+  });
   it('refuses an unconfirmed or different lead identity without dispatch', () => {
     const { c, lead } = open(); c.qualify(id); c.qualification.set(lead); c.qualify(other);
     http.expectNone(r => r.method === 'POST');

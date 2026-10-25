@@ -2325,6 +2325,27 @@
               ],
               "format": "int32"
             }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "owner",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -140308,6 +140329,25 @@
               "null",
               "string"
             ]
+          },
+          "ownerUserId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "ownerName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ownerState": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -140343,6 +140383,50 @@
             "format": "int32"
           },
           "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "summary": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PracticeLeadSummary"
+              }
+            ]
+          }
+        }
+      },
+      "PracticeLeadSummary": {
+        "required": [
+          "matching",
+          "awaitingQualification",
+          "qualified"
+        ],
+        "type": "object",
+        "properties": {
+          "matching": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "awaitingQualification": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "qualified": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
