@@ -606,11 +606,6 @@
       "status": "FOCUSED_AND_BROWSER_PASS_NOT_FULL_ACCEPTANCE",
       "pending": "Current-source full CI and broader role/human acceptance. No migration or deployment."
     },
-    "releaseRun39475043022": {
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261020.releaseRun39475043022",
-      "status": "HISTORICAL_FAIL_FOCUSED_FOLLOWUP_PASS",
-      "pending": "Original CI cause unproven; current-source full CI required."
-    },
     "firmReportIdentity20261020": {
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261020.firmReportIdentity20261020",
       "status": "FOCUSED_AND_BROWSER_PASS_NOT_FULL_ACCEPTANCE",
@@ -1109,7 +1104,7 @@
       "evidence": ".local/autonomous/evidence/wu039-expanded-journeys-20261025/review.json and test-results/WU-039-expanded.trx",
       "journeyBoundary": "Independent synthetic fixtures; not a single identity traced from intake through archive.",
       "remaining": "Planning, broader reporting, firm ledger, archive, WU-012/WU-014 dependencies and professional/live acceptance remain open.",
-      "ci": "Full 40159095169 resolves MATCH and is RUNNING; fast 40159038393 was RUNNING on source 94a1bd32. Neither pass is claimed."
+      "ci": "Full 40159095169 resolves MATCH on 94a1bd32; still running. Fast 40159038393 was cancelled by the docs push, not failed. Docs fast 40159198383 failed Docs Health because status.json reached 102452 bytes (52 over budget); redundant pointer to already-archived history removed; local docs validation passes."
     }
   },
   "externalGates": [

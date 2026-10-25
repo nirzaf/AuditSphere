@@ -7713,7 +7713,7 @@ Optional phase capture and retained display pass focused/API/browser checks. Ful
 
 ## Firm reports and finding recovery
 
-Report paging/export now binds one source identity; finding recovery waits for synchronized context. Focused and browser checks passed. Full current-source CI remains pending; see `firmReportIdentity20261020` and `releaseRun39475043022` in `status.json`.
+Report paging/export now binds one source identity; finding recovery waits for synchronized context. Focused and browser checks passed. Full current-source CI remains pending; see `firmReportIdentity20261020` in `status.json` and archived failure/follow-up evidence at `status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261020.releaseRun39475043022`.
 
 
 ## Recorded communication history
