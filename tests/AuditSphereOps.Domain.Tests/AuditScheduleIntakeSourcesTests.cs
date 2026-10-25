@@ -40,9 +40,10 @@ public sealed class AuditScheduleIntakeSourcesTests
   }
 
   [Theory]
-  [InlineData(false)]
-  [InlineData(true)]
-  public async Task AcceptedPbcListingAndSelectedTbCapturePreserveAccountVarianceReceiptsAndOriginalRows(bool balanced)
+  [InlineData(false, false)]
+  [InlineData(true, false)]
+  [InlineData(true, true)]
+  public async Task AcceptedPbcListingAndSelectedTbCapturePreserveAccountVarianceReceiptsAndOriginalRows(bool balanced, bool remoteOnly)
   {
     await using var pg = await PgTestSchema.CreateAsync();
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
@@ -96,8 +97,24 @@ public sealed class AuditScheduleIntakeSourcesTests
       // Local simulation uses the real durable transfer/verification boundary. No LIVE provider is invoked.
       var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
       var store = new PostgresOperationStore(factory);
-      var handler = new PbcDocumentTransferHandler(factory,
-        new SimulationPbcProviderSink(Path.Combine(staged.StagingRoot, "provider")));
+      IPbcProviderSink sink = new SimulationPbcProviderSink(Path.Combine(staged.StagingRoot, "provider"));
+      if (remoteOnly)
+      {
+        // A provider-verified selected-site receipt registers the exact SharePoint version at publication.
+        const string driveId = "b!schedule-remote-drive";
+        await using var bind = new AuditSphereDbContext(pg.Options);
+        bind.RepositoryBindings.Add(new RepositoryBinding
+        {
+          Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+          TenantId = "tenant", SiteId = "site", DriveId = driveId, RootFolderId = "root", Classification = "working",
+          DesiredAccess = "read-write", ObservedAccess = "read-write", CapabilityProfile = "selected-site",
+          CreatedAt = DateTimeOffset.UtcNow
+        });
+        await bind.SaveChangesAsync(ct);
+        sink = new SelectedSiteReceiptSink(new PbcProviderReceipt(
+          PbcSelectedSiteIdentity.Format(driveId, "listing-item", "1.0"), staged.DeclaredSha256Hex, csv.Length));
+      }
+      var handler = new PbcDocumentTransferHandler(factory, sink);
       await using (var complete = new AuditSphereDbContext(pg.Options))
       {
         var completed = await PbcService.CompleteUploadAsync(complete, staff,
@@ -169,11 +186,32 @@ public sealed class AuditScheduleIntakeSourcesTests
         decisionId = accepted.Value;
       }
 
-      var reader = new PbcStagedScheduleContentReader(staged.StagingRoot);
+      var stagedReader = new PbcStagedScheduleContentReader(staged.StagingRoot);
+      IAuditScheduleSourceContentReader reader = stagedReader;
       var columns = new AuditScheduleCsvColumns("AccountCode", "Description", "SignedAmount", "Currency",
         "StableRowId", "TransactionDate");
       await using var resolve = new AuditSphereDbContext(pg.Options);
       var receiptFacts = await resolve.PbcAcceptanceReceipts.AsNoTracking().SingleAsync(x => x.Id == receiptId, ct);
+      string? localManifest = null;
+      MemoryRemoteReader? remote = null;
+      if (remoteOnly)
+      {
+        var local = await AuditScheduleIntakeSources.ResolveAsync(resolve, staff, stagedReader, f.ClientId, f.EngagementId,
+          receiptId, decisionId, sourceDate, columns, ["0010", "0020"], ct);
+        Assert.True(local.Succeeded, local.Message);
+        localManifest = local.Value!.ManifestJson;
+        var registration = await resolve.PbcDocumentRegistrations.AsNoTracking()
+          .SingleAsync(x => x.PbcUploadIntentId == staged.UploadIntentId, ct);
+        var activated = await PbcService.ActivateRemoteReadAsync(resolve, PbcSeed.Actor(f.Admin, "Administrator"),
+          new PbcReadDispositionRequest(staged.UploadIntentId, registration.Id, 0, "Synthetic remote-only schedule source"), ct);
+        Assert.True(activated.Succeeded, activated.Message);
+        // Remote-only from here: every retained staged chunk is removed before any further read.
+        foreach (var path in await resolve.PbcUploadChunks.AsNoTracking()
+          .Where(x => x.PbcUploadIntentId == staged.UploadIntentId).Select(x => x.StagedPath!).ToListAsync(ct))
+          File.Delete(path);
+        remote = new MemoryRemoteReader(csv);
+        reader = new PbcScheduleSourceContentReader(stagedReader, remote);
+      }
       var result = await AuditScheduleIntakeSources.ResolveAsync(resolve, staff, reader, f.ClientId, f.EngagementId,
         receiptId, decisionId, sourceDate, columns, ["0010", "0020"], ct);
       // Do not round/backfill service acceptance timestamps: this genuine path must expose digest precision mismatches.
@@ -196,6 +234,11 @@ public sealed class AuditScheduleIntakeSourcesTests
       Assert.Equal(bookId, facts.BookId);
       Assert.Equal(sourceDate, facts.SourceDate);
       Assert.Equal(staged.DeclaredSha256Hex, facts.RawFileSha256);
+      if (localManifest is not null)
+      {
+        Assert.Equal(localManifest, facts.ManifestJson);
+        Assert.True(remote!.Reads > 0);
+      }
       var repeat = await AuditScheduleIntakeSources.ResolveAsync(resolve, staff, reader, f.ClientId, f.EngagementId,
         receiptId, decisionId, sourceDate, columns, ["0020", "0010"], ct);
       Assert.True(repeat.Succeeded, repeat.Message);
@@ -563,6 +606,23 @@ public sealed class AuditScheduleIntakeSourcesTests
         Assert.Equal(originalCapture.Receipt.InputGeneration, original.InputGeneration.ToString(CultureInfo.InvariantCulture));
       }
 
+      if (remoteOnly)
+      {
+        // Accepted evidence stays current without local chunks; a SharePoint read that no longer matches the
+        // registered version fails closed without rewriting the approved review.
+        await using var current = new AuditSphereDbContext(pg.Options);
+        var readiness = await AuditFieldworkService.EvaluateCompletionAsync(current, reviewer, f.EngagementId, ct);
+        Assert.True(readiness.Succeeded, readiness.Message);
+        Assert.DoesNotContain("schedule-source:stale-or-unavailable", readiness.Value!.Blockers);
+        Assert.Equal("APPROVED", originalReview!.Receipt.Status);
+        remote!.Tampered = true;
+        var unverified = await AuditScheduleIntakeSources.ResolveAsync(resolve, staff, reader, f.ClientId, f.EngagementId,
+          receiptId, decisionId, sourceDate, columns, ["0010", "0020"], ct);
+        Assert.Equal("pbc.source-integrity", unverified.ErrorCode);
+        Assert.Equal("APPROVED", (await current.AuditSchedules.AsNoTracking().SingleAsync(ct)).Status);
+        return;
+      }
+
       // Last: change the actual staged file, retaining all real accepted receipts and provider bytes.
       var chunk = await resolve.PbcUploadChunks.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == staged.UploadIntentId, ct);
       var altered = (byte[])csv.Clone();
@@ -652,6 +712,32 @@ public sealed class AuditScheduleIntakeSourcesTests
     }
     finally { Directory.Delete(staged.StagingRoot, true); }
   }
+  private sealed class SelectedSiteReceiptSink(PbcProviderReceipt receipt) : IPbcProviderSink
+  {
+    public Task<PbcProviderReceipt> UploadAsync(PbcTransferPlan plan, CancellationToken ct) => Task.FromResult(receipt);
+    public Task<PbcProviderReceipt?> VerifyAsync(PbcTransferScope scope, string identity, CancellationToken ct) =>
+      Task.FromResult<PbcProviderReceipt?>(identity == receipt.Identity ? receipt : null);
+    public Task<PbcProviderReceipt?> ProbeAsync(PbcTransferScope scope, CancellationToken ct) =>
+      Task.FromResult<PbcProviderReceipt?>(null);
+  }
+
+  /// <summary>Releases bytes only when they match the registered hash and size, like the selected-site reader.</summary>
+  private sealed class MemoryRemoteReader(byte[] content) : IPbcRemoteContentReader
+  {
+    public int Reads { get; private set; }
+    public bool Tampered { get; set; }
+
+    public Task<CommandResult<PbcVerifiedContent>> ReadVerifiedAsync(PbcRemoteSource source, CancellationToken ct)
+    {
+      Reads++;
+      var bytes = (byte[])content.Clone();
+      if (Tampered) bytes[^3] = (byte)'9';
+      return Task.FromResult(bytes.Length != source.ByteCount || Hashing.Sha256Hex(bytes) != source.Sha256Hex
+        ? CommandResult<PbcVerifiedContent>.Fail("pbc.source-integrity", "The SharePoint version does not match its registered hash and size.")
+        : CommandResult<PbcVerifiedContent>.Ok(new PbcVerifiedContent(new MemoryStream(bytes, writable: false), bytes.Length)));
+    }
+  }
+
   private sealed class UnavailableSourceReader : IAuditScheduleSourceContentReader
   {
     public Task<CommandResult<byte[]>> ReadVerifiedAsync(PbcDownload download, string expectedSha256,

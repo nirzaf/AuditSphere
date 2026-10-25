@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
@@ -173,20 +174,33 @@ internal static partial class AuditScheduleIntakeSources
       return reader;
     var download = await PbcService.PrepareDownloadAsync(db, actor, pbc.Value!.UploadIntentId, ct);
     if (!download.Succeeded || download.Value?.Remote is not { } source) return reader;
-    var content = await reader.ReadVerifiedAsync(download.Value, pbc.Value.Hash, pbc.Value.ByteCount, ct);
-    return new PrefetchedSourceReader(reader, source, pbc.Value.Hash, pbc.Value.ByteCount, content);
+    try
+    {
+      var content = await reader.ReadVerifiedAsync(download.Value, pbc.Value.Hash, pbc.Value.ByteCount, ct);
+      return new PrefetchedSourceReader(reader, source, pbc.Value.Hash, pbc.Value.ByteCount, content, null);
+    }
+    catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+    {
+      // Replayed where the locked path reads, so an unavailable source keeps its existing handling there.
+      ct.ThrowIfCancellationRequested();
+      return new PrefetchedSourceReader(reader, source, pbc.Value.Hash, pbc.Value.ByteCount, null,
+        ExceptionDispatchInfo.Capture(error));
+    }
   }
 
   private sealed class PrefetchedSourceReader(IAuditScheduleSourceContentReader staged, PbcRemoteSource source,
-    string sha256, long byteCount, CommandResult<byte[]> content) : IAuditScheduleSourceContentReader
+    string sha256, long byteCount, CommandResult<byte[]>? content, ExceptionDispatchInfo? failure) : IAuditScheduleSourceContentReader
   {
     public Task<CommandResult<byte[]>> ReadVerifiedAsync(PbcDownload download, string expectedSha256,
-      long expectedByteCount, CancellationToken ct) =>
-      download?.Remote is null
-        ? staged.ReadVerifiedAsync(download!, expectedSha256, expectedByteCount, ct)
-        : Task.FromResult(download.Remote == source && expectedSha256 == sha256 && expectedByteCount == byteCount
-          ? content
-          : CommandResult<byte[]>.Fail(ErrorCodes.GenerationStale, "The accepted source changed while it was being read."));
+      long expectedByteCount, CancellationToken ct)
+    {
+      if (download?.Remote is null) return staged.ReadVerifiedAsync(download!, expectedSha256, expectedByteCount, ct);
+      if (download.Remote != source || expectedSha256 != sha256 || expectedByteCount != byteCount)
+        return Task.FromResult(CommandResult<byte[]>.Fail(ErrorCodes.GenerationStale,
+          "The accepted source changed while it was being read."));
+      failure?.Throw();
+      return Task.FromResult(content!);
+    }
   }
 
   // Reuses the actual accepted-source fact owners without inventing a byte reader or
