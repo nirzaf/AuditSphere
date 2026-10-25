@@ -308,3 +308,7 @@ Exact published 1782 CI failed with API 414 pass / 2 fail and E2E 336 pass / 2 f
 ## Bank linked-source freshness
 
 Bank creation and review now reject approved linked schedules whose generation differs from the current client generation. A focused existing workflow reproduced stale-source creation before the fix and passed afterward, retaining the original approved reconciliation and refusing a synthetic historical-invalid review. This is a source-adapter prerequisite, not runtime race proof, typed booked-balance retention or T059/Task 18 completion.
+
+## Client-portal unknown upload-start recovery
+
+The existing upload-recovery Playwright journey now drops the response after the API commits one upload intent, verifies the visible `STARTED` receipt and unknown-outcome message, reselects the exact file, then resumes that same intent. It also drops a committed chunk acknowledgement and proves the next resume completes the original file without another intent. The focused method passed 1/1 on `48cd3e68`; TRX and source details are under `portalUploadStartRecovery20261025` in [status.json](status.json). At the latest observation, fast CI `40161352561` had passed Docs Health and Angular while its .NET Release build was still running; full release verification `40161404727` had resolved the exact source and passed its Angular/full-spec job, with build/contracts/publication and .NET Domain/API/E2E jobs still running. No worker/provider acceptance or independent staff acceptance is claimed; WU-034 remains partial.

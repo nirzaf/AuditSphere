@@ -1105,6 +1105,10 @@
       "journeyBoundary": "Same request is created by staff, uploaded by client, transferred by worker and accepted by an independent reviewer; no commercial-to-archive identity.",
       "remaining": "Broader planning, reporting, firm ledger, archive, WU-012/WU-014 dependencies and professional/live acceptance remain open.",
       "ci": "Full 40160126775 source MATCH remains running; fast 40160196900 docs and Angular passed, .NET build running. No full pass is claimed."
+    },
+    "portalUploadStartRecovery20261025": {
+      "result": "1/1 focused E2E PASS; full 40161404727 and fast 40161352561 running on 48cd3e68",
+      "evidence": ".local/autonomous/evidence/wu034-unknown-start-recovery-20261025/review.json"
     }
   },
   "externalGates": [
@@ -1678,10 +1682,10 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "940ff390940c34f0605980af08dc0bf9f7decfe2",
-    "fastCi": "The status update is pushed; the current fast workflow result is tracked in ignored autonomous state. No outcome inferred.",
-    "releaseVerification": "40160126775 QUEUED; resolved immutable source MATCH on 940ff390. No FULL_CI_PASS.",
-    "precedingFull": "40159095169 RUNNING on 94a1bd32; predecessor source only, not current acceptance."
+    "sourceCommit": "48cd3e6811ec08fe3a1822ef82d5f56eebfc2ef4",
+    "fastCi": "40161352561 RUNNING on exact source 48cd3e68; Docs Health and Angular passed, .NET Release build in progress at 2026-10-25T04:21:54Z.",
+    "releaseVerification": "40161404727 RUNNING; immutable source MATCH on 48cd3e68. Angular/full specs passed; build/contracts/publication and unfiltered Domain/API/E2E remain in progress. No FULL_CI_PASS.",
+    "precedingFull": "40160126775 remains RUNNING on 940ff390; predecessor source only."
   },
-  "updatedAtUtc": "2026-10-25T03:58:34Z"
+  "updatedAtUtc": "2026-10-25T04:21:54Z"
 }
