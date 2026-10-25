@@ -1044,8 +1044,8 @@
       "implementation": "The exact actor-owned receipt remains visible while the finding resource refreshes; if the refresh finishes without authorized data, the review component is hidden.",
       "localChecks": "Angular production build PASS; focused lost-committed Playwright recovery PASS 1/1 after holding the exact finding GET; isolated cold/warm/router/dataset budget case PASS 1/1. Full local suites NOT_RUN. Existing commercial/settings.scss style-budget warning remains.",
       "previousFullRun": "40164830806 on f7e1b940: E2E 337/339; receipt visibility defect fixed on fc0ec978. Cold first paint measured 13,326ms against 12,000ms; isolated local performance check passed, cause remains unproven. API job remains in progress.",
-      "currentFastCi": "40173305587: Angular and Docs Health passed; .NET Release build remains in progress at 2026-10-25T07:39:17Z; workflow head fc0ec978, ci-status source resolution UNRESOLVED.",
-      "currentReleaseVerification": "40173365579: release-source artifact MATCH fc0ec978; Angular/full specs passed; Verify, Domain, API and E2E jobs remain in progress at 2026-10-25T07:39:17Z.",
+      "currentFastCi": "Code run 40173305587 was cancelled by the docs-only push after Angular and Docs Health passed; .NET Release build was cancelled, so this is not a failure. Docs-only run 40173820833 completed all jobs successfully on workflow head 3fc30199; source resolution is UNRESOLVED, so FAST_CI_PASS is not asserted.",
+      "currentReleaseVerification": "40173365579: release-source artifact MATCH fc0ec978; Angular/full specs, Build/contracts/publication Verify, and unfiltered Domain passed. Unfiltered API and Playwright E2E remain in progress at 2026-10-25T08:00:40Z.",
       "evidence": ".local/autonomous/evidence/finding-receipt-refresh-20261025/review.json"
     },
     "wu024DeploymentBindings20261025": {
@@ -1632,10 +1632,10 @@
   },
   "currentSourceCi": {
     "sourceCommit": "fc0ec97863ddf710d44052379ab50959c794dae1",
-    "fastCi": "40173305587: Angular and Docs Health passed; .NET Release build in progress; workflow head matches fc0ec978, source resolution remains UNRESOLVED.",
-    "releaseVerification": "40173365579: exact release-source artifact MATCH fc0ec978; Angular/full specs passed; Verify, unfiltered Domain/API/E2E jobs remain in progress.",
-    "previousRelease": "40164830806: exact source MATCH f7e1b940; E2E 337/339 with the receipt-visibility defect fixed on fc0ec978 and a 13,326ms cold-start overrun not reproduced by the focused local performance case; unfiltered API remains in progress.",
-    "docsOnlyFast": "40164907619: all jobs succeeded at workflow head 1b4b7009; source resolution UNRESOLVED, so exact-source FAST_CI_PASS is not asserted."
+    "fastCi": "40173305587 on fc0ec978: superseded/cancelled by docs-only push after Angular and Docs Health passed; .NET Release build was cancelled. Not a failure.",
+    "releaseVerification": "40173365579: exact release-source artifact MATCH fc0ec978; Angular/full specs, Verify and unfiltered Domain passed; unfiltered API and E2E remain in progress.",
+    "docsOnlyFast": "40173820833 on workflow head 3fc30199: Docs Health, Angular and .NET Release jobs all succeeded; ci-status source resolution is UNRESOLVED, so no FAST_CI_PASS is claimed.",
+    "previousRelease": "40164830806: exact source MATCH f7e1b940; E2E 337/339 with receipt-visibility defect fixed on fc0ec978 and a 13,326ms cold-start overrun not reproduced in focused local performance case; unfiltered API remains in progress."
   },
-  "updatedAtUtc": "2026-10-25T07:41:49Z"
+  "updatedAtUtc": "2026-10-25T08:01:43Z"
 }
