@@ -1072,7 +1072,7 @@
       "evidence": ".local/autonomous/evidence/release-ui-root-20261025/api-execution-failure-review.json"
     },
     "axelorRemaining20261025": {
-      "result": "Domain7; Angular70+resource16 rerun; E2E4+repair5+resource1 PASS. Full CI pending.",
+      "result": "Domain7/Angular70/resource16; E2E4+5+1; connected2/previousUI2 PASS; full pending.",
       "evidence": ".local/autonomous/evidence/axelor-remaining-20261025/review.json",
       "limits": "Selected browser states; no whole-spec/human/live acceptance."
     }

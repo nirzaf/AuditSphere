@@ -243,8 +243,10 @@ public sealed class AngularPracticeBillingLedgerParityTests
       await db.SaveChangesAsync();
     }
 
-    var origin = await host.StartApiForIdentityAsync(f.Staff,
-      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = "true" });
+    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = "true" };
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH") is { Length: > 0 } buildPath)
+      settings["AngularUi__BuildPath"] = buildPath;
+    var origin = await host.StartApiForIdentityAsync(f.Staff, settings);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await browser.NewPageAsync();

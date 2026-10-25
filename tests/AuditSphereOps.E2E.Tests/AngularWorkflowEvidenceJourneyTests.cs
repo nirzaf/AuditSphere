@@ -193,6 +193,96 @@ public sealed class AngularWorkflowEvidenceJourneyTests
         await Assertions.Expect(item).ToContainTextAsync("step " + stepIds[key]);
       }
     }
+    // Continue this same published-template/task identity into planning, approved time and finance reads.
+    // These are owned synthetic actors/decisions; no professional gate or real provider is activated.
+    var workDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    var week = workDate.AddDays(-(int)workDate.DayOfWeek);
+    Guid timeId, invoiceId;
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, f.Admin, "Manager"),
+        PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"));
+      await db.SaveChangesAsync();
+      var planner = PbcSeed.Actor(f.Admin, "Administrator");
+      var staffing = await StaffingService.AssignAsync(db, planner, new(f.EngagementId, f.Staff.Id, StaffingLevels.StaffAssociate));
+      Assert.True(staffing.Succeeded, staffing.Message);
+      Assert.True((await ResourcePlanningService.SaveProfileAsync(db, planner, new(f.Staff.Id, "Synthetic audit", "IFRS", 2400, 75m))).Succeeded);
+      Assert.True((await ResourcePlanningService.SetAllocationAsync(db, planner, new(f.EngagementId, f.Staff.Id, week, 120, BudgetPhases.Fieldwork))).Succeeded);
+      var manager = PbcSeed.Actor(f.Admin, "Manager");
+      var partner = PbcSeed.Actor(f.Reviewer, "Partner");
+      var rate = await PracticeTimeService.ReviseRateCardAsync(db, manager, new("Staff", "Fieldwork", "QAR", 100m));
+      Assert.True(rate.Succeeded, rate.Message);
+      Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, partner, rate.Value)).Succeeded);
+    }
+    // Follow the generated task's existing link as its actual assigned staff user.
+    await staffPage.GetByRole(AriaRole.Link, new() { Name = "Record time for this task", Exact = true }).ClickAsync();
+    await Assertions.Expect(staffPage.Locator("select[name='task']")).ToHaveValueAsync(requiredTaskId.ToString("D"));
+    await staffPage.Locator("input[name='date']").FillAsync(workDate.ToString("yyyy-MM-dd"));
+    await staffPage.Locator("input[name='minutes']").FillAsync("60");
+    await staffPage.Locator("input[name='role']").FillAsync("Staff");
+    await staffPage.Locator("input[name='activity']").FillAsync("Fieldwork");
+    await staffPage.GetByRole(AriaRole.Button, new() { Name = "Save time draft", Exact = true }).ClickAsync();
+    var timeRow = staffPage.GetByRole(AriaRole.Row).Filter(new() { HasText = requiredTitle });
+    var submitted = await PlaywrightResponseCapture.RunAsync(staffPage,
+      request => request.Method == "POST" && request.Url.Contains("/api/ui/practice/time/entries/", StringComparison.Ordinal) && request.Url.EndsWith("/submit", StringComparison.Ordinal),
+      () => timeRow.GetByRole(AriaRole.Button, new() { Name = "Submit", Exact = true }).ClickAsync());
+    Assert.InRange(submitted.Status, 200, 299);
+    await using (var db = host.CreateDbContext())
+    {
+      var entry = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.TaskId == requiredTaskId);
+      timeId = entry.Id;
+      Assert.Equal(PracticeTimeStates.TimeSubmitted, entry.Status);
+      Assert.Equal(f.EngagementId, entry.EngagementId);
+      var approved = await PracticeTimeService.ApproveTimeAsync(db, PbcSeed.Actor(f.Reviewer, "Partner"), timeId);
+      Assert.True(approved.Succeeded, approved.Message);
+      var grid = await ResourcePlanningService.GetGridAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), week, 1);
+      Assert.True(grid.Succeeded, grid.Message);
+      var cell = Assert.Single(Assert.Single(grid.Value!.Rows, x => x.UserId == f.Staff.Id).Weeks);
+      Assert.Equal(120, cell.PlannedMinutes);
+      Assert.Equal(60, cell.ApprovedActualMinutes);
+      Assert.Equal(60, cell.ApprovedBillableMinutes);
+      var finance = PbcSeed.Actor(f.Admin, "FinanceManager");
+      var unbilled = await FirmUnbilledTimeQuery.GetAsync(db, finance, new(workDate, workDate, f.ClientId, f.EngagementId));
+      Assert.True(unbilled.Succeeded, unbilled.Message);
+      var source = Assert.Single(unbilled.Value!.Rows);
+      Assert.Equal(timeId, source.TimeEntryId);
+      Assert.Equal(60, source.DurationMinutes);
+      Assert.Equal(100m, source.StandardValue);
+      Assert.Equal(FirmUnbilledTimeBuckets.Unallocated, source.Bucket);
+      Assert.Empty(await db.Invoices.ToListAsync()); // Viewing time/planning must never auto-bill.
+      var account = await BillingService.CreateBillingAccountAsync(db, finance, new(f.ClientId, "QAR"));
+      Assert.True(account.Succeeded, account.Message);
+      var draft = await BillingService.CreateInvoiceDraftAsync(db, finance,
+        new(account.Value, "SYN-AXELOR-TEMPLATE-TIME", [new("Exact approved template task time", 1m, 100m, "TIME", timeId, entry.Revision)]));
+      Assert.True(draft.Succeeded, draft.Message);
+      invoiceId = draft.Value;
+      var invoice = await BillingInvoiceWorkspaceQuery.GetAsync(db, finance, invoiceId);
+      Assert.True(invoice.Succeeded, invoice.Message);
+      var retained = Assert.Single(invoice.Value!.LineSources!);
+      Assert.Equal(timeId, retained.SourceId);
+      Assert.Equal(entry.Revision, retained.SourceRevision);
+      Assert.Equal(60, retained.DurationMinutes);
+      var reserved = await FirmUnbilledTimeQuery.GetAsync(db, finance, new(workDate, workDate, f.ClientId, f.EngagementId));
+      Assert.True(reserved.Succeeded, reserved.Message);
+      Assert.Equal(invoiceId, Assert.Single(reserved.Value!.Rows).InvoiceId);
+      Assert.Equal(FirmUnbilledTimeBuckets.Reserved, Assert.Single(reserved.Value.Rows).Bucket);
+      var analytics = await PracticeAnalyticsQuery.GetAsync(db, actor: finance, from: workDate, to: workDate, page: new());
+      Assert.True(analytics.Succeeded, analytics.Message);
+      var economics = Assert.Single(analytics.Value!.Engagements, x => x.EngagementId == f.EngagementId);
+      Assert.Equal(60, economics.ActualMinutes);
+      Assert.Equal(100m, economics.StandardValue);
+      Assert.Equal(0m, economics.Billed); // A reserved draft is not posted revenue.
+      Assert.NotEqual(PracticeTimeStates.TaskCompleted, (await db.WorkTasks.SingleAsync(x => x.Id == requiredTaskId)).Status);
+      Assert.Single(await db.WorkflowTaskPlanReceipts.ToListAsync());
+      Assert.Equal(revisionId, (await db.WorkflowTaskBindings.SingleAsync(x => x.WorkTaskId == requiredTaskId)).TemplateRevisionId);
+      Assert.Empty(await db.MaterialityApprovals.ToListAsync());
+      Assert.Empty(await db.AuditProcedureReviews.ToListAsync());
+    }
+    await page.GotoAsync(origin + $"/app/practice/invoices/{invoiceId:D}");
+    await Assertions.Expect(page.GetByRole(AriaRole.Table, new() { Name = "Invoice lines", Exact = true })).ToContainTextAsync("Exact approved template task time");
+    await page.GetByText("Source evidence · TIME", new() { Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Table, new() { Name = "Invoice lines", Exact = true })).ToContainTextAsync(timeId.ToString("D"));
+    await page.GotoAsync(origin + "/app/work");
     Assert.Empty(errors);
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/app/work", "workflow-template-lineage");
   }

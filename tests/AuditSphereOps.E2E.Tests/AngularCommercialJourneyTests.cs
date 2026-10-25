@@ -811,6 +811,76 @@ public sealed class AngularCommercialJourneyTests
       Assert.Equal(50m, agreement.AdvancePercent);
       Assert.All(await db.FeeMilestones.Where(m => m.AgreementId == agreement.Id).ToListAsync(), m => Assert.Equal(3750m, m.Amount));
     }
+    // Continue this same accepted offer through its own client, blocked engagement and exact advance source.
+    // Distinct synthetic finance actors retain the existing maker/checker boundary.
+    var f = host.Fixture;
+    Guid advanceInvoiceId, agreementId, draftEngagementId;
+    int operationsBeforeReads, sitesBeforeReads;
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, f.Staff, "FinanceManager"),
+        PbcSeed.Grant(f.FirmId, f.Reviewer, "FinanceReviewer"));
+      db.FirmFinanceProfiles.Add(new FirmFinanceProfile { Id = Guid.NewGuid(), FirmId = f.FirmId,
+        FunctionalCurrency = "QAR", ProfileKind = BillingStates.TestProfile, Approved = true,
+        ApprovedByUserId = f.Reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+      var agreement = await db.EngagementFeeAgreements.SingleAsync(x => x.ProposalId == proposalId);
+      agreementId = agreement.Id;
+      var commercial = PbcSeed.Actor(f.Admin, "Administrator");
+      var partner = PbcSeed.Actor(f.Reviewer, "Partner");
+      var draft = await AuditSphereOps.Application.Acceptance.EngagementLifecycleService.CreateDraftAsync(db, partner,
+        new(agreement.PracticeClientId, "FinancialStatementAudit", "2026-01-01", "2026-12-31", "Standard"));
+      Assert.True(draft.Succeeded, draft.Message);
+      draftEngagementId = draft.Value;
+      Assert.True((await FeeAgreementService.LinkEngagementAsync(db, commercial, agreementId, draftEngagementId)).Succeeded);
+      var maker = PbcSeed.Actor(f.Staff, "FinanceManager");
+      var checker = PbcSeed.Actor(f.Reviewer, "FinanceReviewer");
+      var advance = await FeeAgreementService.IssueAdvanceInvoiceAsync(db, maker, agreementId);
+      Assert.True(advance.Succeeded, advance.Message);
+      advanceInvoiceId = advance.Value;
+      Assert.Equal(advanceInvoiceId, (await FeeAgreementService.IssueAdvanceInvoiceAsync(db, maker, agreementId)).Value);
+      Assert.True((await BillingService.SubmitInvoiceAsync(db, maker, advanceInvoiceId)).Succeeded);
+      Assert.False((await BillingService.ApproveInvoiceAsync(db, maker, advanceInvoiceId)).Succeeded);
+      Assert.True((await BillingService.ApproveInvoiceAsync(db, checker, advanceInvoiceId)).Succeeded);
+      Assert.True((await BillingService.PostInvoiceAsync(db, maker, advanceInvoiceId)).Succeeded);
+      var invoice = await db.Invoices.AsNoTracking().SingleAsync(x => x.Id == advanceInvoiceId);
+      var receipt = await BillingService.RecordReceiptAsync(db, maker,
+        new(invoice.BillingAccountId, 3750m, "SYN-AXELOR-ADVANCE-RECEIPT", RequestId: Guid.NewGuid()));
+      Assert.True(receipt.Succeeded, receipt.Message);
+      var allocation = new AllocateReceiptRequest(receipt.Value, advanceInvoiceId, 3750m, Guid.NewGuid());
+      Assert.True((await BillingService.AllocateReceiptAsync(db, maker, allocation)).Succeeded);
+      Assert.True((await BillingService.AllocateReceiptAsync(db, maker, allocation)).Succeeded);
+      var balance = await BillingService.GetInvoiceBalanceAsync(db, maker, advanceInvoiceId);
+      Assert.True(balance.Succeeded, balance.Message);
+      Assert.Equal(0m, balance.Value!.Outstanding);
+      Assert.Single(await db.ReceiptAllocations.Where(x => x.InvoiceId == advanceInvoiceId).ToListAsync());
+      var engagement = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == draftEngagementId);
+      Assert.Equal(agreement.PracticeClientId, engagement.PracticeClientId);
+      Assert.Equal("Draft", engagement.Status);
+      Assert.True(engagement.ProfessionalWorkBlocked);
+      Assert.False((await AuditSphereOps.Application.Acceptance.EngagementLifecycleService.ActivateAsync(db, partner, draftEngagementId)).Succeeded);
+      var source = await BillingInvoiceWorkspaceQuery.GetAsync(db, maker, advanceInvoiceId);
+      Assert.True(source.Succeeded, source.Message);
+      var retained = Assert.Single(source.Value!.LineSources!);
+      var milestone = await db.FeeMilestones.AsNoTracking().SingleAsync(x => x.AgreementId == agreementId && x.Kind == FeeMilestoneKinds.Advance);
+      Assert.Equal(milestone.Id, retained.SourceId);
+      Assert.Equal(agreementId, retained.FeeAgreementId);
+      operationsBeforeReads = await db.DurableOperations.CountAsync();
+      sitesBeforeReads = await db.ClientSharePointSites.CountAsync();
+    }
+    var financeOrigin = await host.StartApiForIdentityAsync(f.Staff, settings);
+    var financePage = await browser.NewPageAsync();
+    financePage.PageError += (_, error) => errors.Add(error);
+    await financePage.GotoAsync(financeOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString($"/ui/app/practice/invoices/{advanceInvoiceId:D}"));
+    await financePage.GetByText("Source evidence · FEE_MILESTONE", new() { Exact = true }).ClickAsync();
+    await financePage.GetByRole(AriaRole.Link, new() { Name = "Open exact fee settlement", Exact = true }).ClickAsync();
+    await Assertions.Expect(financePage.GetByRole(AriaRole.Heading, new() { Name = "Client fee settlement", Exact = true })).ToBeVisibleAsync();
+    await using (var db = host.CreateDbContext())
+    {
+      Assert.Equal(operationsBeforeReads, await db.DurableOperations.CountAsync());
+      Assert.Equal(sitesBeforeReads, await db.ClientSharePointSites.CountAsync());
+      Assert.Single(await db.Invoices.Where(x => x.Id == advanceInvoiceId).ToListAsync());
+    }
     await page.GotoAsync(origin + "/ui/app/practice/commercial-settings");
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Commercial settings", Exact = true })).ToBeVisibleAsync();
     await page.GetByRole(AriaRole.Textbox, new() { Name = "Legal name", Exact = true }).FillAsync("Synthetic Angular Revised Firm");
