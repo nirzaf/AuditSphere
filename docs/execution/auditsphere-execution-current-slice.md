@@ -32,11 +32,11 @@ Cut-off and subsequent-match evidence now retains the selected procedure and app
 
 The preceding full run `40128614450` on `8feed9c0` exposed a test-harness sequencing failure: its protected down-migration probe rolled back later schema before the same test finished. The assertion remains unchanged and now runs after the workflow's final database checks. The affected Domain test passes 1/1 on `6ebc0662`; exact-source full verification `40131071167` is running. See `status.json` for run/source boundaries.
 
-## Accepted listing source capture and review
+## Accepted listing source capture and independent row review (2026-10-25)
 
 The backend atomically retains complete listing rows, exact selected-TB controls, independent approval/return and original actor-owned receipts. Offsetting account differences cannot qualify through a zero net residual. Return can record an unavailable-source refusal; recovery reads the original outcome before mutable source state. New sampling/selection and picker eligibility recheck typed source facts and bytes, while preserving historical evidence. Descriptor values are compared independently of the immutable manifest byte hash.
 
-Source-currentness guards cover selection review, item-test record/review and readiness. API-route and Angular-catalog integration have focused coverage (see `status.json`). The rendered workflow, exact-source CI and qualified acceptance remain open.
+Source-currentness guards cover selection review, item-test record/review and readiness. The Angular reviewer preview binds original rows to the exact capture hash; a reviewer-only, bounded API route now returns those rows, and a PostgreSQL-backed check verifies reviewer success and preparer HTTP 403. The generated OpenAPI contract is current. Exact-source full CI `40144697389` on `6063c221` is running after the contract correction; no browser or qualified professional acceptance is claimed. Remaining technical and external gates are tracked in `status.json`.
 
 ## Current confirmation, difference and native-successor work
 
