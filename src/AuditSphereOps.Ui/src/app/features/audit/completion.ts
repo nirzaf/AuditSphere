@@ -23,7 +23,7 @@ export const decodeCompletion = obj({ engagementId: guid,
     issueState: oneOf('NOT_ISSUED', 'ISSUED', 'RECONCILIATION_REQUIRED') })), canPrepareRelease: bool,
   confirmations: arr(obj({ caseId: guid, type: text, respondent: text, bookedAmount: dec, currency: text, status: text, monitoring: text,
     daysSinceDispatch: nullable(int), critical: bool, criticalityRationale: nullable(text) }), 2000),
-  deliverables: arr(deliverable, 500), clearance: nullable(obj({ clearedAt: instant })),
+  deliverables: arr(deliverable, 500), clearance: nullable(obj({ id: guid, summaryReviewMemorandumId: guid, partnerUserId: guid, clearedAt: instant })),
   opinion: nullable(obj({ opinionType: text, label: text, focusArea: nullable(text) })),
   opinionAreas: arr(obj({ id: guid, code: text, name: text }), 2000),
   shared: arr(obj({ title: text, openComments: arr(obj({ id: guid, body: text }), 500) }), 500),
@@ -148,7 +148,17 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
         <label>Reviewer recommendations <textarea name="rec" [(ngModel)]="f.recommendations" rows="2" maxlength="8000"></textarea></label>
         <button matButton="outlined" (click)="send(base() + '/srm', { recommendations: f.recommendations }, 'Summary Review Memorandum generated.')" [disabled]="cmd.busy()">Generate Summary Review Memorandum</button>
         @if (srm(w); as s) {
-          <p>Latest SRM v{{ s.version }} is <strong>{{ s.current ? 'current' : 'stale' }}</strong>. {{ w.clearance ? 'Cleared by the Partner on ' + w.clearance.clearedAt.slice(0, 16).replace('T', ' ') + '.' : 'No current Partner clearance.' }}</p>
+          <p>Latest SRM v{{ s.version }} is <strong>{{ s.current ? 'current' : 'stale' }}</strong>.</p>
+          @if (s.current && w.clearance?.summaryReviewMemorandumId === s.id) {
+            <dl data-partner-clearance>
+              <dt>Current Partner clearance</dt><dd><code>{{ w.clearance.id }}</code></dd>
+              <dt>Cleared Summary Review Memorandum</dt><dd><code>{{ w.clearance.summaryReviewMemorandumId }}</code></dd>
+              <dt>Engagement Partner user</dt><dd><code>{{ w.clearance.partnerUserId }}</code></dd>
+              <dt>Cleared at</dt><dd>{{ w.clearance.clearedAt.slice(0, 16).replace('T', ' ') }} UTC</dd>
+            </dl>
+          } @else {
+            <p>No current Partner clearance is established for this SRM.</p>
+          }
           <label>Key risk areas reviewed <input name="risks" [(ngModel)]="f.risks" maxlength="2000" /></label>
           <label>Financial-statement notes reviewed <input name="notes" [(ngModel)]="f.notes" maxlength="2000" /></label>
           <button matButton="filled" (click)="send(base() + '/clearance', { srmId: s.id, keyRiskAreasComment: f.risks, notesComment: f.notes }, 'Partner clearance recorded.')" [disabled]="cmd.busy()">Record Partner clearance</button>

@@ -111432,10 +111432,25 @@
       },
       "CompletionClearance": {
         "required": [
+          "id",
+          "summaryReviewMemorandumId",
+          "partnerUserId",
           "clearedAt"
         ],
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "summaryReviewMemorandumId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "partnerUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "clearedAt": {
             "type": "string",
             "format": "date-time"

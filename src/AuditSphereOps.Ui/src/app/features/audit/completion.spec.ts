@@ -87,6 +87,9 @@ const validPayload = {
         },
       ],
       clearance: {
+        id: id3,
+        summaryReviewMemorandumId: id1,
+        partnerUserId: id2,
         clearedAt: '2026-10-02T12:00:00Z',
       },
       opinion: {
@@ -181,6 +184,7 @@ describe('Audit Completion Contracts', () => {
     expect(decoded.freeze?.state).toBe('FROZEN');
     expect(decoded.release?.issueState).toBe('ISSUED');
     expect(decoded.release?.checkpointReadBackMatchesManifest).toBe(true);
+    expect(decoded.clearance).toEqual({ id: id3, summaryReviewMemorandumId: id1, partnerUserId: id2, clearedAt: '2026-10-02T12:00:00Z' });
     expect(decoded.locks.length).toBe(1);
   });
 
@@ -275,6 +279,31 @@ describe('Early compliance lock panel (STE 4.4.3)', () => {
     expect(host.textContent).not.toContain('ISA-003');
     const action = Array.from(host.querySelectorAll('button')).find((button) => button.textContent?.includes('Record Manager workprogramme approval')) as HTMLButtonElement;
     expect(action.disabled).toBe(true);
+  });
+
+  it('shows exact Partner clearance identities only for the current SRM', () => {
+    const http = setup();
+    const summary = { ...validPayload.deliverables[0], id: id3, kind: 'SUMMARY_REVIEW_MEMORANDUM',
+      title: 'Summary Review Memorandum', version: 2, current: true };
+    const f = load(http, { ...validPayload, deliverables: [...validPayload.deliverables, summary], clearance: {
+      id: id1, summaryReviewMemorandumId: id3, partnerUserId: id2, clearedAt: '2026-10-02T12:00:00Z' } });
+    const host = f.nativeElement as HTMLElement;
+    const clearance = host.querySelector('[data-partner-clearance]');
+    expect(clearance?.textContent).toContain(id1);
+    expect(clearance?.textContent).toContain(id3);
+    expect(clearance?.textContent).toContain(id2);
+    expect(clearance?.textContent).toContain('2026-10-02 12:00 UTC');
+  });
+
+  it('does not associate a clearance with a different or stale latest SRM', () => {
+    const http = setup();
+    const summary = { ...validPayload.deliverables[0], id: id3, kind: 'SUMMARY_REVIEW_MEMORANDUM',
+      title: 'Summary Review Memorandum', version: 2, current: false };
+    const f = load(http, { ...validPayload, deliverables: [...validPayload.deliverables, summary], clearance: {
+      id: id1, summaryReviewMemorandumId: id1, partnerUserId: id2, clearedAt: '2026-10-02T12:00:00Z' } });
+    const host = f.nativeElement as HTMLElement;
+    expect(host.querySelector('[data-partner-clearance]')).toBeNull();
+    expect(host.textContent).toContain('No current Partner clearance is established for this SRM.');
   });
 
   it('submits Manager rationale once and refreshes current approval and SRM state', async () => {

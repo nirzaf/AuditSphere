@@ -14,7 +14,7 @@ namespace AuditSphereOps.Application.Completion;
 
 public sealed record CompletionGate(string Name, string Status, string Tone, string? Authority, DateTimeOffset? Date);
 public sealed record CompletionRepresentation(string Code, string Title, string Narrative, bool Obtained);
-public sealed record CompletionClearance(DateTimeOffset ClearedAt);
+public sealed record CompletionClearance(Guid Id, Guid SummaryReviewMemorandumId, Guid PartnerUserId, DateTimeOffset ClearedAt);
 public sealed record CompletionPackageEvidence(bool Current, string Message);
 public sealed record CompletionOpinion(string OpinionType, string Label, string? FocusArea);
 public sealed record CompletionComment(Guid Id, string Body);
@@ -141,7 +141,7 @@ public static class EngagementCompletionWorkspaceQuery
       eqr?.Status ?? "NOT_ASSIGNED", candidate?.Id, release,
       releaseAuthority.Succeeded && packageEvidence?.Current == true,
       dashboard.Succeeded ? dashboard.Value! : [], await AuditDeliverableService.ListAsync(db, actor, engagementId, ct),
-      clearance is null ? null : new CompletionClearance(clearance.ClearedAt),
+      clearance is null ? null : new CompletionClearance(clearance.Id, clearance.SummaryReviewMemorandumId, clearance.PartnerUserId, clearance.ClearedAt),
       opinion is null ? null : new CompletionOpinion(opinion.OpinionType, AuditOpinionTypes.Label(opinion.OpinionType), opinion.FocusArea),
       await AuditDeliverableService.AffectedFinancialStatementAreasAsync(db, actor, engagementId, ct), shared,
       await AuditDeliverableService.SignedRepresentationsAsync(db, actor, engagementId, ct), bundles.Succeeded ? bundles.Value : null, opinionTypes,

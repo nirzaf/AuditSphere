@@ -1006,11 +1006,19 @@ public sealed partial class AuditDeliverablesTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
-    await PartnerClearCurrentSummaryAsync(pg, w);
+    var srmId = await PartnerClearCurrentSummaryAsync(pg, w);
     await using var db = new AuditSphereDbContext(pg.Options);
     var partner = w.A("partner", "Partner");
 
     Assert.Null(await AuditDeliverableService.CurrentOpinionAsync(db, partner, w.EngagementId));
+    var workspace = await EngagementCompletionWorkspaceQuery.GetAsync(db, partner, w.EngagementId, DateTimeOffset.UtcNow);
+    Assert.True(workspace.Succeeded, workspace.Message);
+    var projectedClearance = Assert.IsType<CompletionClearance>(workspace.Value!.Clearance);
+    var storedClearance = await db.PartnerCompletionClearances.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId);
+    Assert.Equal(storedClearance.Id, projectedClearance.Id);
+    Assert.Equal(srmId, projectedClearance.SummaryReviewMemorandumId);
+    Assert.Equal(storedClearance.PartnerUserId, projectedClearance.PartnerUserId);
+    Assert.Equal(storedClearance.ClearedAt, projectedClearance.ClearedAt);
     var lifecycle = await EngagementLifecycleQuery.GetAsync(db, partner, w.EngagementId);
 
     Assert.True(lifecycle.Succeeded, lifecycle.Message);
