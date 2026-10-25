@@ -18,7 +18,9 @@ public sealed class AngularRoutingContractTests
     var source = File.ReadAllText(Path.Combine(RepositoryRoot(), "src", "AuditSphereOps.Ui", "src", "app", "app.routes.ts"));
     var expected = Regex.Matches(source, "path:\\s*'([^']*)'").Select(match => match.Groups[1].Value)
       .Where(path => path.Length > 0).Select(path => "/ui/" + Regex.Replace(path, @":(id|clientId|datasetId|importBatchId)\b", "{$1:guid}").Replace(":kind", "{kind}", StringComparison.Ordinal))
-      .Append("/ui").Append("/ui/").Order(StringComparer.Ordinal).ToArray();
+      // ASP.NET endpoint routing treats /ui and /ui/ as the same route. The host test
+      // separately verifies both request forms resolve to this single root endpoint.
+      .Append("/ui").Order(StringComparer.Ordinal).ToArray();
     Assert.Equal(expected, UiEndpoints.SpaRoutes.Order(StringComparer.Ordinal).ToArray());
     Assert.DoesNotContain(UiEndpoints.SpaRoutes, route => route.Contains('*') || route.StartsWith("/api", StringComparison.Ordinal));
   }
