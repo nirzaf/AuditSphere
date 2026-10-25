@@ -1082,6 +1082,20 @@
         ".local/autonomous/evidence/axelor-final-20261025/preceding-7a-new-e2e/review.json"
       ],
       "superseded": "Owned7a/e53/a48 pending runs canceled after finalb94MATCH and snapshots; knownfailedTRXs retained; no FULL_CI_PASS claimed."
+    },
+    "axelorCurrentE2eTriage20261026": {
+      "sourceSha": "b94e3ddc472827f1604b20f477a1e376597e83dc",
+      "runId": 40236162417,
+      "jobId": 121298606916,
+      "ciResult": "336 passed /3 failed /339 executed /0 skipped",
+      "failures": [
+        "EngagementAndAuditPlanClearOnScopeChangeAndRefuseRevokedWrites navigation retained original view",
+        "ReviewedLocalCommand CANCEL/dropResponseFalse disabledbutton",
+        "ReviewedLocalCommand LIFT_QUARANTINE/dropResponseFalse disabledbutton"
+      ],
+      "localResult": "Exact existing3cases rebuilt andpassedunchanged; nofullsuite; rootcauseUNPROVEN, no runtime/test/timeoutchange",
+      "proof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/b94-new-e2e-failure/focused-review.json",
+      "next": "Preserve active API job; retry onlyfailedE2E when run terminal; no deployment before currentfullPASS"
     }
   },
   "externalGates": [
@@ -1273,13 +1287,13 @@
   "hostingerAcceptance": {
     "archivedLegacy": "status-archive-2026-10.json#keys.hostingerAcceptanceLegacy20261015",
     "latestReleasePreparation": {
-      "observedAtUtc": "2026-10-25T21:50:48.252657+00:00",
+      "observedAtUtc": "2026-10-25T23:29:09.310200+00:00",
       "sourceCommit": "b94e3ddc472827f1604b20f477a1e376597e83dc",
       "implementationCommit": "a4a832298b3918d57347ada5bd67d684ba06876e",
       "currentFastRun": 40236150477,
       "fastStatus": "PASS actualcheckout alljobs",
       "currentFullRun": 40236162417,
-      "fullStatus": "40236162417 RUNNING sourceMATCH; Angular/fullspecs and Verify/build/contracts PASS; Domain/API/E2Eactive",
+      "fullStatus": "40236162417 sourceMATCH: Angular/Verify/Domain PASS; E2E336PASS3FAIL339; exact3focusedPASS unchanged/rootcauseUNPROVEN; APIrunning. Failedjobretry refused while overallrun active; retain API and retry failedE2E afterterminal.",
       "currentImageBuildRun": 40236150660,
       "imageStatus": "PASS exactcheckout andimmutablepushes",
       "imageDigests": {
@@ -1311,7 +1325,7 @@
         "liveDatabaseChangedByRehearsal": false,
         "liveContainersChangedByRehearsal": false
       },
-      "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
+      "cutoverStatus": "HELD_CURRENT_E2E_FAILURE_API_RUNNING",
       "mailBoundary": "Already paused at observed preflight; remains paused without genuine signed sender authorization.",
       "liveObserved": {
         "sourceCheckout": "bba5f4b902dac67905bcf3925410cd0a31ec703d",
@@ -1533,11 +1547,11 @@
   "currentSourceCi": {
     "sourceCommit": "b94e3ddc472827f1604b20f477a1e376597e83dc",
     "fastCi": "PASS run40236150477; alljobs actualcheckoutMATCH",
-    "releaseVerification": "40236162417 RUNNING sourceMATCH; Angular/fullspecs and Verify/build/contracts PASS; Domain/API/E2Eactive",
+    "releaseVerification": "40236162417 sourceMATCH: Angular/Verify/Domain PASS; E2E336PASS3FAIL339; exact3focusedPASS unchanged/rootcauseUNPROVEN; APIrunning. Failedjobretry refused while overallrun active; retain API and retry failedE2E afterterminal.",
     "imagePublication": "PASS run40236150660; exactcheckout and immutablemanifestpushes",
     "runtimeRehearsal": "PASS exactb94: schema286/0migrations/379original projectionsunchanged; health+bothuncachedAngularroots200; ownedDB/container/privateenvcleanupverified read-only",
-    "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
-    "updatedAtUtc": "2026-10-25T21:50:48.252657+00:00"
+    "cutoverStatus": "HELD_CURRENT_E2E_FAILURE_API_RUNNING",
+    "updatedAtUtc": "2026-10-25T23:29:09.310200+00:00"
   },
-  "updatedAtUtc": "2026-10-25T19:22:40.871517+00:00"
+  "updatedAtUtc": "2026-10-25T23:29:09.310200+00:00"
 }
