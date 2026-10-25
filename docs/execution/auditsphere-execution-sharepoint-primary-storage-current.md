@@ -2,9 +2,9 @@
 
 **Status:** CURRENT
 
-**Purpose:** Source-backed storage inventory, dependency map and execution handoff for the owner-assigned [implementation specification](../architecture/auditsphere-sharepoint-primary-storage-implementation-spec-proposed.md).
+**Purpose:** Source-backed storage inventory, dependency map and execution handoff for the owner-assigned [functional-parity storage specification](../architecture/auditsphere-sharepoint-primary-storage-functional-parity-spec-proposed.md), which supersedes the [earlier specification](../architecture/auditsphere-sharepoint-primary-storage-implementation-spec-proposed.md).
 
-The specification remains proposed for production activation. The [proposed ADR-0019](../architecture/adr/auditsphere-architecture-adr-0019-sharepoint-primary-working-documents-proposed.md) preserves existing automated defaults and ADR-0009 archive authority. This inventory establishes engineering boundaries; it is not a live corpus measurement, migration manifest, tenant proof or deletion authorization. Exact source and verification observations belong in `status.json`.
+The change is storage-only: site provisioning, rollout cutoff, staff Full Control, folder taxonomy, Microsoft identities and permissions, PBC flows, limits, routes and contracts, and ADR-0009 archive authority are unchanged. The [proposed ADR-0019](../architecture/adr/auditsphere-architecture-adr-0019-sharepoint-primary-working-documents-proposed.md) records that scope. This handoff is not a live corpus measurement, tenant proof, activation or deletion authorization. Exact source and verification observations belong in `status.json` under `targetedVerification.sharePointPrimary`.
 
 ## Storage and consumer inventory
 
@@ -26,41 +26,43 @@ All rows below need measured tenant/host volume before production enrollment. No
 
 ## Exact PBC local-path dependency map
 
-The bounded source scan excludes generated migration snapshots, which describe historical schema rather than runtime readers.
+The bounded source scan excludes generated migration snapshots. Status after the implemented slices:
 
-1. `src/AuditSphereOps.Domain/Documents/Pbc.cs`: retained `StagedPath` provenance on chunk rows.
-2. `src/AuditSphereOps.Application/Documents/PbcService.cs`: `PbcDownload.ChunkPaths`, `PrepareDownloadAsync`, chunk registration and full staged-byte completion verification.
-3. `src/AuditSphereOps.Application/Documents/PbcDocumentTransferHandler.cs`: ordered staged plan, pre-effect verification and simulation sink; uncertain transfers still require staged bytes.
-4. `src/AuditSphereOps.Infrastructure/Providers/GraphSelectedSiteDrive.cs`: uploads each retained staged chunk. Keep this path for resumable transfers.
-5. `src/AuditSphereOps.Api/ApiHost.DocumentEndpoints.cs`: upload chunk publication and staff-only local download streaming.
-6. `src/AuditSphereOps.Infrastructure/Providers/PbcStagedScheduleContentReader.cs`: contained regular-file and exact total-byte/hash checks; the source reader must change before cleanup.
-7. `src/AuditSphereOps.Application/Audit/AuditScheduleIntakeCatalog.cs` and `src/AuditSphereOps.Application/Audit/AuditScheduleIntakeSources.cs`: use the download descriptor for listing availability and accepted-source content/currentness.
-8. `src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Pbc.cs`: retains bounded path metadata. Historical paths and acceptance receipts are preserved after any future disposition transition.
+1. `src/AuditSphereOps.Domain/Documents/Pbc.cs`: retained `StagedPath` provenance on chunk rows. Unchanged and never rewritten; release is recorded separately in `PbcStorageDisposition`/`PbcStorageEvent`.
+2. `src/AuditSphereOps.Application/Documents/PbcService.cs`: `PrepareDownloadAsync` returns the exact registered `PbcRemoteSource` once an upload's disposition selects SharePoint, otherwise verified staged `ChunkPaths`; there is no fallback between them. Source-currentness checks use the immutable registered snapshot without provider I/O.
+3. `src/AuditSphereOps.Application/Documents/PbcDocumentTransferHandler.cs`: transfer and reconciliation still need staged bytes; cleanup refuses any upload with a non-terminal operation.
+4. `src/AuditSphereOps.Infrastructure/Providers/GraphSelectedSiteDrive.cs`: uploads unchanged; `ReadExactVersionAsync` adds the version-fenced exact read used by readers.
+5. `src/AuditSphereOps.Api/ApiHost.DocumentEndpoints.cs`: the download serves a verified spool for remote sources and rechecks authority after the remote read; the staged branch is unchanged.
+6. `src/AuditSphereOps.Infrastructure/Providers/PbcStagedScheduleContentReader.cs`: unchanged for pre-cutover sources; `PbcScheduleSourceContentReader` dispatches remote sources to the exact registered version.
+7. `src/AuditSphereOps.Application/Audit/AuditScheduleIntakeCatalog.cs` and `AuditScheduleIntakeSources.cs`: remote sources are prefetched and verified before the locked capture/review transaction; IO failures replay where the locked path reads.
+8. `src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.Pbc.cs`: adds the registration, disposition and event tables; historical paths and acceptance receipts are preserved.
 
-API composition currently injects the staged schedule reader in `src/AuditSphereOps.Api/ApiHost.Providers.cs`. The API's external-effect safety setting remains unchanged. A remote read resolver must permit authorized accepted/closed sources without broadening transfer eligibility in `PbcRepositoryBindingResolver`.
+The API composes the remote reader with the Sites.Selected credential and drive it already uses for workspace provisioning; no new permission, credential or process. `PbcRepositoryBindingResolver` keeps its upload resolver unchanged and adds separate read resolvers for registered versions and backfill candidates.
 
 ## Implementation sequence and acceptance ownership
 
 | Story | Current disposition | Next evidence |
 | --- | --- | --- |
-| SP-00 | Source inventory and proposed ADR recorded; runtime measurements and policy adoption remain open. | Documentation validation; operator-owned volume/custody/role decisions. |
-| SP-01 | Pending. Automated site behavior remains unchanged. | Reviewed manual verification/activation, exact-scope denial and mode-race evidence; production adoption decision. |
-| SP-02 | Implemented: a verified live selected-site transfer commits `RECEIVED` together with a scoped `DocumentReference`, exact-version `DocumentSnapshot` and append-only `PbcDocumentRegistration` (binding digest pinned). Migration `PbcDocumentRegistrationAndStorageDisposition` adds the registration, storage-disposition and storage-event tables with deferred source guards and append-only triggers; Down refuses while registration evidence exists. Simulated receipts register nothing; unsupported live or other-drive identities fail closed. Historical backfill is SP-06. | Exact-source CI for the migration and the focused `PbcSelectedSiteWorkerTests`/`PbcTransferTests` cohort. |
-| SP-03 | IN PROGRESS: exact-version content reader, source descriptor and storage-disposition drafts exist. API composition/download wiring, shared scratch capacity and migration activation remain incomplete. | Complete the authorized read path and source-consumer integration before any cutover or cleanup. |
-| SP-04 | Pending SP-03. | Remote-only source capture/currentness, identical rows/tie-outs and no provider I/O under business write locks. |
-| SP-05 | Pending SP-03/04 and custody/capacity decisions. | Shared reservations, leases, dry-run manifests and crash-safe audited cleanup; deletion disabled until authorization. |
-| SP-06 | Pending SP-02. | Scoped metadata-only delta/cursor replay, reset and external-change observations. |
-| SP-07 | Pending read, registration, quota and custody prerequisites. | Synthetic pilot, resumable manifest, exact remote-only use and supported rollback/rehydration. |
-| SP-08 | All non-PBC rows retained above; conversion/operational handover pending. | Per-family verified disposition, operator staff-access procedure and retained/accepted archive capability. |
-| SP-09 | Pending implementation and qualified deployment evidence. | Applicable SP-AC matrix on one immutable candidate, real selected-site positive/negative proof, mounted-volume and recovery rehearsal. |
+| SP-00 | Source inventory recorded above. | Measured per-family volume on the real host before production claims. |
+| SP-01 | No prohibited source area was changed: site provisioning, membership, folder templates, M365 identities, PBC upload transport, routes and OpenAPI are untouched (`verify-openapi.sh` current). Existing PBC HTTP, transfer, provider and schedule-intake cohorts pass. | Exact-source CI; live site/membership parity observations under authorized tenant access. |
+| SP-02 | Implemented: publication registers a scoped reference, exact-version snapshot and append-only registration in the `RECEIVED` transaction. Migration `PbcDocumentRegistrationAndStorageDisposition` installs deferred source guards and append-only triggers; Down refuses while evidence exists. Simulated receipts register nothing. | Exact-source CI for the migration. |
+| SP-03 | Implemented: administrator-only per-upload activation/revert (`ActivateRemoteReadAsync`/`RevertToLocalReadAsync`) and exact-version reads behind the existing download with the same headers and staff-only audience. | Invocation surface for activation (see D-SP-05); real selected-site read observation. |
+| SP-04 | Implemented: remote-only accepted schedule sources yield the identical manifest, capture, independent review and currentness without local chunks; mismatched remote bytes fail closed without rewriting approvals. | Exact-source CI; pilot observation. |
+| SP-05 | Implemented, disabled by default: `PlanLocalCopyCleanupAsync` dry-run and `ReleaseLocalCopyAsync` (enabled deployments only) with allowlist/link, final-decision, hold and active-operation gates, fresh verified remote read, record-before-delete and retryable deletion. | Owner cleanup authorization and invocation surface; synthetic pilot. |
+| SP-06 | Implemented: `PlanRegistrationBackfillAsync` and `BackfillRegistrationAsync` register earlier verified transfers from the completed transfer's recorded identity after an exact-version read-back, without changing upload, request or acceptance evidence. | Run against real retained transfers once authorized. |
+| SP-07 | Pending owner authorization: bounded synthetic pilot of activation, remote-only use, cleanup and rollback/rehydration. | Pilot evidence with original files retained first. |
+| SP-08 | Pending: each non-PBC family in the inventory needs its own writer/reader disposition before any change. | Per-family inventory and equivalence. |
+| SP-09 | Pending: exact-source CI, live selected-site positive/negative proof, workload and restore evidence. | Release-candidate evidence. |
 
 ## Decisions and safe defaults
 
-- D-SP-01: owner adoption of manual-management responsibility remains unrecorded; keep automated mode/defaults.
-- D-SP-02: name the administrator responsible for granting/removing direct staff access. Local application revocation never claims remote removal.
-- D-SP-03: record version retention, backup/recovery and required authoritative-archive capture per family before removing the only retained copy.
-- D-SP-04: retain the existing isolated archive-copy/grant-verification capability until its accepted handover. No operator assurance becomes provider `OBSERVED` automatically.
-- D-SP-05: actual mounted-volume capacity, physical/global/per-firm budgets, headroom, proxy buffering and approved cleanup cohort are unmeasured/unapproved; cleanup remains disabled.
-- D-SP-06: keep optional Microsoft identities until actual sign-in/onboarding/mail/archive consumers have an accepted disposition.
+These are the operational decisions from specification §16; none is a functionality redesign.
 
-These are production/acceptance dependencies. Independent reversible engineering proceeds with current defaults intact, no tenant writes, no deployment and no local project test cases; verification uses the existing CI workflows.
+- D-SP-01 SharePoint working-version retention and recovery: verified hashes do not guarantee site administrators keep the version. Safe default: never remove the only required copy.
+- D-SP-02 SharePoint outage parity: after cleanup, downloads and remote-only source reads depend on SharePoint availability. Safe default: keep cleanup off for any class that needs offline availability.
+- D-SP-03 VPS temporary budget and recovery: streaming, import, render and remaining archive/checkpoint bytes still need storage. Safe default: measure first; do not reduce upload limits.
+- D-SP-04 Pilot cleanup authorization: physical deletion is irreversible locally. Safe default: explicit dry-run review, approval, narrow cohort and independent restore/read verification.
+- D-SP-05 Invocation surface: activation, cleanup and backfill are administrator-only Application commands with no route or screen, because the specification forbids new administration panels and mandatory steps. An operator surface (reviewed backward-compatible admin route, operator tool or configured worker cohort) must be chosen before SP-07.
+- D-SP-06 Supported rollback: binaries that assume staged `ChunkPaths` are not valid rollback targets after cleanup. Safe default: keep a remote-read-capable build or prove exact rehydration before any release.
+
+Production migration, activation, deletion, tenant changes and deployment still require explicit owner authorization; nothing here grants it.

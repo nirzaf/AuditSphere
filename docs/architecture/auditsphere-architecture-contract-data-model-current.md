@@ -31,6 +31,8 @@
 
 Procedure execution adds `audit_procedure_command_receipts` (append-only actor/request receipts with definition, generation, result/review and evidence-digest identity) and the nullable `evidence_digest` column. The submitted evidence snapshot is stored inside the immutable `audit_procedure_results.structured_result_json` under the server-reserved versioned property `_auditEvidenceSnapshot`; direct result/review writes are not accepted. See [AuditProcedureCommandReceipt](../../src/AuditSphereOps.Domain/Audit/AuditProcedureCommandReceipt.cs) and `AuditProgramService.Evidence.cs`.
 
+SharePoint-primary PBC storage adds `pbc_document_registrations` (append-only link from a received upload and its completed transfer to an exact-version `document_snapshots` row and its `document_references` row, guarded at commit), `pbc_storage_dispositions` (per-upload read source and local-copy state, moving only LOCAL_STAGED → SELECTED_SITE → back, or SELECTED_SITE → RELEASED) and append-only `pbc_storage_events`. `pbc_upload_chunks.staged_path` history is never rewritten when a staged copy is released.
+
 Use the [code map](auditsphere-architecture-code-map.md) to go from a capability to its Application services.
 
 ## 3. Changing the schema

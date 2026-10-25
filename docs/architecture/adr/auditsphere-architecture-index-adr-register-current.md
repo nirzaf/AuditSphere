@@ -32,7 +32,7 @@ ADR-0016 is approved for firm-held X.509 PDF signing under the owner's 2026-10-1
 
 | ID | Decision | Status | Relationship |
 | --- | --- | --- | --- |
-| [ADR-0019](auditsphere-architecture-adr-0019-sharepoint-primary-working-documents-proposed.md) | Verified manual client sites and SharePoint-primary working bytes, with bounded temporary storage | PROPOSED | Preserves ADR-0006 defaults and ADR-0009 authority; production mode/custody/capacity adoption remains open |
+| [ADR-0019](auditsphere-architecture-adr-0019-sharepoint-primary-working-documents-proposed.md) | SharePoint-primary working-document storage with functional parity: exact registered versions behind existing reads, gated staging cleanup | PROPOSED | Narrow supplement; ADR-0006 and ADR-0009 unchanged. Remote-read activation, cleanup, retention/outage decisions and pilot acceptance remain open |
 
 ## Earlier decision records (R2R)
 

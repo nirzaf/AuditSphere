@@ -1,9 +1,11 @@
 # AuditSphere — SharePoint-Primary Working Documents
 ## Implementation specification for the existing .NET application
 
+> **SUPERSEDED (2026-10-25).** The owner replaced this specification with the [functional-parity revision](auditsphere-sharepoint-primary-storage-functional-parity-spec-proposed.md). Its manual site-management mode, administrator-managed onboarding, staff-membership handover, client-sites worker retirement and delta-synchronization proposals must not be implemented. Retained for lineage only.
+
 | Document control | Value |
 |---|---|
-| Status | **PROPOSED — implementation and production activation require the decisions and gates below** |
+| Status | **SUPERSEDED** by the functional-parity revision; originally PROPOSED |
 | Prepared | 25 October 2026 |
 | Repository | `nirzaf/AuditSphere` |
 | Reviewed branch / immutable commit | `master` / `afc52301d9ccf9349af30c6c69cd9d28b6fadb36` |

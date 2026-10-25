@@ -16,7 +16,7 @@ newer exact-source CI and slice evidence live under `targetedVerification`.
 
 ## SharePoint-primary working-document implementation (2026-10-25)
 
-The owner assigned the [storage implementation specification](../architecture/auditsphere-sharepoint-primary-storage-implementation-spec-proposed.md). The [source/consumer inventory](auditsphere-execution-sharepoint-primary-storage-current.md) records the PBC local-path readers, other binary-bearing families and the next registration/read slices. ADR-0019 is proposed; existing site automation, archive authority and production deletion defaults remain intact. No tenant operation, deployment or cleanup occurred. Custody, actual capacity, manual operator responsibility and provider acceptance remain separate gates. Exact source and verification evidence is retained in the status archive.
+The owner replaced the earlier storage specification with the [functional-parity revision](../architecture/auditsphere-sharepoint-primary-storage-functional-parity-spec-proposed.md); ADR-0019 was rewritten to that storage-only scope. SP-02 to SP-06 are implemented as engineering slices: transfer registration and its migration, exact-version reads behind the existing PBC download and accepted schedule-source consumers, gated staging release, and verified backfill. Remote reads and cleanup stay off by default; no tenant operation, deployment, activation or deletion occurred. The [execution handoff](auditsphere-execution-sharepoint-primary-storage-current.md) lists the remaining owner decisions and pilot gates; focused results are under `targetedVerification.sharePointPrimary`.
 
 ## Exact full E2E failure triage and accounting profile assent (2026-10-25)
 

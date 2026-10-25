@@ -1,29 +1,27 @@
-# ADR-0019: Verified manual client sites and SharePoint-primary working documents
+# ADR-0019: SharePoint-primary working-document storage with functional parity
 
-**Status: PROPOSED** · Date: 2026-10-25 · Decider: repository owner
+**Status: PROPOSED** · Date: 2026-10-25 · Decider: repository owner · Scope: narrow storage supplement; supersedes nothing
 
 ## Context
 
-The owner assigned the [SharePoint-primary implementation specification](../auditsphere-sharepoint-primary-storage-implementation-spec-proposed.md). Existing selected-site transfers verify remote versions, but PBC downloads and schedule-source currentness still require retained local chunks. Transfer success alone cannot authorize their deletion. The [implementation inventory](../../execution/auditsphere-execution-sharepoint-primary-storage-current.md) records the source boundaries and unresolved decisions.
+The owner assigned the [functional-parity storage specification](../auditsphere-sharepoint-primary-storage-functional-parity-spec-proposed.md), which replaces the [earlier specification](../auditsphere-sharepoint-primary-storage-implementation-spec-proposed.md). Selected-site PBC transfers already verify exact remote versions, but PBC downloads and accepted schedule-source reads still depended on retained local staging chunks, so those chunks could never be reclaimed. The [implementation handoff](../../execution/auditsphere-execution-sharepoint-primary-storage-current.md) records the inventory, the implemented slices and the remaining gates.
 
-ADR-0006 currently owns automated site creation and assigned-staff Full Control. ADR-0009 keeps issued evidence authoritative in the release/archive store. Neither is superseded by this proposal.
+ADR-0006 (automated dedicated client sites and assigned-staff Full Control) and ADR-0009 (authoritative release/archive store with a secondary SharePoint copy) remain in force unchanged.
 
 ## Proposed decision
 
-- Add an explicitly selected `MANUAL_VERIFIED` site-management mode alongside backward-compatible `AUTOMATED` behavior. Preserve the persisted dedicated-site rollout boundary; disabling automation does not permit shared-site fallback.
-- A Microsoft 365 administrator creates/adopts the exact client site, grants the existing selected-site document identity and owns direct staff access. Activation requires reviewed, current tenant/client/site/drive/root, connection and template evidence. A manual receipt never asserts automated creation or observed membership.
-- Reuse `DocumentReference`, `DocumentSnapshot`, repository bindings and durable operations. Register exact scoped PBC source/provider identities atomically; accepted source receipts and revisions are not rewritten during backfill or cleanup.
-- Resolve enrolled working bytes through exact-version verified reads. Authorize before provider I/O, verify the complete hash and size in bounded private scratch, then recheck local authority and source/binding identity before releasing content. Keep remote I/O outside committing business transactions.
-- Add shared temporary reservations and reader/transfer leases before enabling bounded cleanup. Cleanup requires migrated consumers, exact registration, custody/hold decisions, explicit cohort authorization and auditable recovery. No cleanup is enabled by this ADR proposal.
-- Preserve issued reports, signed release evidence, authoritative archives/checkpoints, secrets and normalized business records in their existing custody. Retain the privileged archive capability until an independently accepted handover covers every remaining responsibility.
+- Change only where already-verified PBC working bytes are read from and when temporary local staging may be reclaimed. Site provisioning, rollout cutoff, staff membership, folder taxonomy, Microsoft identities and permissions, PBC flows, limits, routes and contracts, and the archive/release controls are unchanged.
+- Register each provider-verified live selected-site transfer as a scoped `DocumentReference`, exact-version `DocumentSnapshot` and append-only `PbcDocumentRegistration` in the existing `RECEIVED` publication transaction. Earlier verified transfers are backfilled only from the completed transfer's recorded identity, after an exact-version read-back. Upload, request and acceptance revisions, receipts and source digests are never rewritten.
+- Read a registered upload from SharePoint only after its per-upload storage disposition selects it. The existing staff download endpoint and accepted schedule-source consumers verify the complete SHA-256 and size into a private spool before releasing bytes, recheck authority afterwards, never substitute another version and never fall back silently to a local copy. Provider I/O stays outside protected business write transactions. The API reuses the existing Sites.Selected credential it already holds for workspace provisioning.
+- Reclaim a staged copy only through a separately enabled, administrator-run release for an explicitly enumerated cohort, after a fresh verified remote read, with a final PBC decision, no active operation or work hold, allowlisted non-link paths, and an append-only release record written before deletion. Cleanup is disabled by default and never touches SharePoint, PBC history or release/archive/checkpoint stores.
 
 ## Alternatives considered
 
-- Permanent VPS mirror: retains the current operational dependency and does not meet the requested storage outcome.
-- New storage provider, Graph SDK, queue or application framework: unnecessary; existing provider and durable-operation boundaries are reused.
-- Silent global remote/local fallback: rejected because it obscures which exact retained source is authoritative.
-- Disable the privileged worker immediately: rejected because archive-copy and permission-verification duties still exist.
+- Manual site-management mode, administrator-managed onboarding or client-sites worker retirement: rejected; unnecessary for storage and conflicts with functional parity.
+- Delta synchronization worker or new Graph permissions: rejected; exact known versions are read on access.
+- Silent remote/local fallback: rejected because it obscures which exact retained source served the bytes.
+- New storage provider, queue or framework: unnecessary.
 
 ## Consequences and adoption gates
 
-This proposal permits review of a bounded implementation plan; it does not itself alter approved runtime policy. Independent additive engineering preserves current defaults and leaves production activation/deletion off. Owner decisions D-SP-01 through D-SP-06, actual grants, capacity measurements, custody/backup responsibilities and an accepted rollback/recovery rehearsal remain distinct evidence. Manual administration is an operator responsibility, not a claim of automated revocation or immutable SharePoint retention.
+Deleting a local copy makes that document's retrieval depend on SharePoint availability; literal outage parity cannot be promised once a copy is reclaimed. Remote-read activation and cleanup therefore stay off until the owner records the SharePoint version-retention/recovery, outage-parity and pilot-cohort decisions, approves a bounded synthetic pilot, and accepts a rehearsed rollback (a remote-read-capable build or verified rehydration). Exact-source CI, real selected-site observation and storage/custody acceptance remain separate evidence.
