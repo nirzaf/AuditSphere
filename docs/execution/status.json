@@ -1004,7 +1004,7 @@
       "checks": "Angular production build PASS with the existing commercial/settings.scss 7.53 kB / 4 kB style-budget warning. Existing PostgreSQL-backed Playwright journey ReviewedSetupPersistsProfilePeriodAndBook PASS 1/1 after build; it verifies the next revision checkbox is unchecked and retained revision data is exact.",
       "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularAccountingJourneyTests.ReviewedSetupPersistsProfilePeriodAndBook' --logger 'trx;LogFileName=accounting-profile-assent-built.trx' --results-directory .local/autonomous/evidence/accounting-profile-assent-built-20261025",
       "evidence": ".local/autonomous/evidence/accounting-profile-assent-built-20261025/review.json",
-      "ci": "Full run 40148916402 resolves exactly to 69264b349b09c94ddac03eab2a3c426d24618519; Angular, Domain and build/contracts/publication passed, API and E2E were running at observation. This run predates and does not include this working-tree fix; exact-source CI must follow its commit.",
+      "ci": "The predecessor full run on 69264b349b09 passed Angular, Domain, and build/contracts/publication but its E2E job failed; it predates this fix. Follow-up exact-source verification is tracked under narrativeMetricsFastCiRepair20261025 and the status ledger.",
       "limits": "The focused E2E verifies profile revision assent behavior only. It does not establish full-suite, human screen-reader, native zoom, professional policy, or live-provider acceptance."
     },
     "fullE2eFailureTriage40148920261025": {
@@ -1043,7 +1043,42 @@
         "fullRunArtifact": ".local/autonomous/evidence/ci-40148916402-e2e/trx/e2e.trx",
         "reproductionTrx": ".local/autonomous/evidence/ci-40148916402-e2e/reproduction/current-e2e-failures.trx"
       },
-      "next": "Commit the two verified corrections and dispatch exact-source full CI; retain the scope-response timeout as unproven until the new run resolves or reproduces it."
+      "next": "Two verified corrections are committed and pushed. The README narrative-metrics gate then exposed volatile facts in README; they are removed and validated locally. A full run on the same docs-invalid source was superseded. Dispatch exact-source full verification for the corrected documentation commit and continue observing the unexplained scope-revocation timeout."
+    },
+    "narrativeMetricsFastCiRepair20261025": {
+      "status": "LOCAL_DOCS_FIX_PASS_FAST_GATE_DOCS_HEALTH_FAILED_FULL_RUN_SUPERSEDED",
+      "candidateCodeCommit": "dc80869575a6576ab18ed22eed365bd15ad3eb6f",
+      "fastRun": {
+        "runId": 40157214578,
+        "sourceMatch": "HEAD_MATCH",
+        "angular": "PASS",
+        "docsHealth": "FAIL: Validate narrative documents for volatile metrics; README.md contained exact CI/test metrics reserved for this status ledger.",
+        "dotnetRelease": "IN_PROGRESS at 2026-10-25T03:12:15Z; not yet classified"
+      },
+      "finding": "The protected README narrative included an exact run identifier and an E2E pass ratio; scripts/docs/validate-narrative-metrics.py correctly rejected those volatile facts.",
+      "correction": "Removed the volatile values from README and retained exact IDs/counts only in this execution ledger. The narrative-metrics validator and full markdown documentation health validator now pass locally.",
+      "localChecks": [
+        {
+          "command": "python3 scripts/docs/validate-narrative-metrics.py",
+          "result": "PASS after README correction; before correction it reproduced the fast CI finding."
+        },
+        {
+          "command": "python3 scripts/docs/validate-markdown-documentation.py",
+          "result": "PASS; 228 Markdown files, 3,623 relative links, 487 repository paths, and documentation budgets validated."
+        },
+        {
+          "command": "git diff --check",
+          "result": "PASS"
+        }
+      ],
+      "supersededFullRun": {
+        "runId": 40157333094,
+        "resolvedSha": "dc80869575a6576ab18ed22eed365bd15ad3eb6f",
+        "sourceMatch": "MATCH",
+        "status": "CANCELLATION_REQUESTED_SUPERSEDED_BY_DETERMINISTIC_DOCS_FAILURE",
+        "reason": "Its source contained the README violation discovered in the push-triggered fast Docs Health job."
+      },
+      "next": "Commit/push the README and execution-status correction, observe the fast workflow for any other failure, and dispatch a fresh exact-source full verification. No local full test suite ran."
     }
   },
   "externalGates": [
