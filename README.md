@@ -34,6 +34,8 @@ A supplemental comprehensive gap guide is used as a cross-check against the appr
 
 **Completion-evidence update:** The completion API and screen now expose exact package-review, Partner-clearance/Summary Review Memorandum, opinion, and received-representation identities separately. Opinion display requires a current SRM and its matching clearance; retained package decisions remain distinct from current package readiness, and representation records are not implied to be bound to a package or signed letter. Focused checks and exact-source CI status are recorded in [execution status](docs/execution/status.json). WU-035 remains partial pending full CI, browser acceptance and professional review.
 
+The 2026-10-25 exact-source full run found one Domain assertion comparing a pre-save timestamp with its PostgreSQL projection. The assertion now compares against the persisted timestamp while retaining exact representation ID and signatory checks; the named test passes locally, and corrected-source full CI is pending.
+
 The [product brief](docs/requirements/auditsphere-requirements-specification-product-brief-current.md) and [practice-management crosswalk](docs/execution/auditsphere-execution-tracker-practice-management-v22-crosswalk-current.md) define scope more precisely. The [API/Angular parity tracker](docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md) distinguishes implemented code from browser/CI acceptance. The [v3 screen-to-code matrix](docs/design/auditsphere-ux-matrix-v3-screen-to-code-proposed.md) is **PROPOSED**, not proof of 19-screen production parity.
 
 ### Audit engagement lifecycle

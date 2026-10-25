@@ -1028,7 +1028,11 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(storedClearance.PartnerUserId, projectedClearance.PartnerUserId);
     Assert.Equal(storedClearance.ClearedAt, projectedClearance.ClearedAt);
     var projectedRepresentation = Assert.Single(workspace.Value.Representations);
-    Assert.Equal((representation.Id, representation.SignatoryName, representation.ObtainedAt),
+    var persistedRepresentation = await db.WrittenRepresentations.AsNoTracking()
+      .Where(x => x.Id == representation.Id)
+      .Select(x => new { x.Id, x.SignatoryName, x.ObtainedAt })
+      .SingleAsync();
+    Assert.Equal((representation.Id, representation.SignatoryName, persistedRepresentation.ObtainedAt),
       (projectedRepresentation.Id, projectedRepresentation.SignatoryName, projectedRepresentation.ObtainedAt));
     var lifecycle = await EngagementLifecycleQuery.GetAsync(db, partner, w.EngagementId);
 
