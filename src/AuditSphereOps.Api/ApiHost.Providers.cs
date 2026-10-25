@@ -29,7 +29,7 @@ public static partial class ApiHost
         ? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "pbc-staging")
         : string.Empty;
     // Production without its configured root remains safely unavailable: the reader fails closed.
-    builder.Services.AddSingleton<IAuditScheduleSourceContentReader>(new PbcStagedScheduleContentReader(pbcStagingRoot));
+    builder.Services.AddSingleton(new PbcStagedScheduleContentReader(pbcStagingRoot));
     var workflowReminders = new WorkflowReminderOptions(
       builder.Configuration.GetValue<bool>("WorkflowExperience:Enabled") &&
         builder.Configuration.GetValue<bool>("WorkflowReminders:Enabled"),
@@ -121,6 +121,17 @@ public static partial class ApiHost
     builder.Services.AddTransient<ISelectedSiteWorkspaceProvisioner>(sp => new GraphSelectedSiteDrive(
       sp.GetRequiredService<IHttpClientFactory>().CreateClient("selected-site-graph"), sp.GetRequiredService<ISelectedSiteTokenSource>(),
       sp.GetRequiredService<GraphPreauthenticatedTransport>(), selectedSiteConfigured));
+    // SharePoint-primary reads reuse the same Sites.Selected credential and drive; no new permission. Only an upload
+    // whose storage disposition selects SharePoint is read remotely; every other upload keeps its staged-chunk read.
+    builder.Services.AddSingleton(sp => new PbcRepositoryBindingResolver(sp.GetRequiredService<IAuditSphereDbContextFactory>()));
+    var pbcReadScratchRoot = builder.Configuration["Storage:PbcReadScratchRoot"]
+      ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "pbc-read-scratch");
+    builder.Services.AddTransient<IPbcRemoteContentReader>(sp => new SelectedSitePbcContentReader(
+      sp.GetRequiredService<PbcRepositoryBindingResolver>(), new GraphSelectedSiteDrive(
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient("selected-site-graph"), sp.GetRequiredService<ISelectedSiteTokenSource>(),
+        sp.GetRequiredService<GraphPreauthenticatedTransport>(), selectedSiteConfigured), pbcReadScratchRoot));
+    builder.Services.AddTransient<IAuditScheduleSourceContentReader>(sp => new PbcScheduleSourceContentReader(
+      sp.GetRequiredService<PbcStagedScheduleContentReader>(), sp.GetRequiredService<IPbcRemoteContentReader>()));
 
     var checkpointRoot = builder.Configuration["Storage:ReleaseCheckpointRoot"]
       ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "release-checkpoints");

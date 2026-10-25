@@ -157,6 +157,36 @@ public static partial class ApiHost
           Results.Problem(prepared.Message, statusCode: StatusCodes.Status409Conflict);
 
       var download = prepared.Value!;
+      if (download.Remote is { } remote)
+      {
+        // Exact registered SharePoint version: fully hashed into a private spool before any response byte, then the
+        // actor and the identical registered source are rechecked after the remote I/O. No fallback to a local copy.
+        var reader = http.RequestServices.GetService<IPbcRemoteContentReader>();
+        if (reader is null)
+          return Results.Problem("The registered SharePoint version is temporarily unavailable; retry later.",
+            statusCode: StatusCodes.Status409Conflict);
+        var read = await reader.ReadVerifiedAsync(remote, ct);
+        if (!read.Succeeded) return Results.Problem(read.Message, statusCode: StatusCodes.Status409Conflict);
+        await using var content = read.Value!;
+        var current = await actorResolver.ResolveAsync(http.User, ct);
+        if (current is null) return Results.Unauthorized();
+        await using var recheckDb = await dbFactory.CreateDbContextAsync(ct);
+        var recheck = await PbcService.PrepareDownloadAsync(recheckDb, current, uploadId, ct);
+        if (!recheck.Succeeded)
+          return recheck.ErrorCode == ErrorCodes.ScopeDenied ? Results.Forbid() :
+            Results.Problem(recheck.Message, statusCode: StatusCodes.Status409Conflict);
+        if (recheck.Value!.Remote != remote || content.Length != download.ByteCount)
+          return Results.Problem("The registered source changed while it was being read; retry.",
+            statusCode: StatusCodes.Status409Conflict);
+        http.Response.StatusCode = StatusCodes.Status200OK;
+        http.Response.ContentType = download.ContentType;
+        http.Response.ContentLength = download.ByteCount;
+        http.Response.Headers.CacheControl = "no-store";
+        http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        http.Response.Headers.ContentDisposition = $"attachment; filename*=UTF-8''{Uri.EscapeDataString(download.FileName)}";
+        await content.Content.CopyToAsync(http.Response.Body, ct);
+        return Results.Empty;
+      }
       var configuredRoot = app.Configuration["Storage:PbcStagingRoot"];
       var stagingRoot = Path.GetFullPath(configuredRoot ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "pbc-staging"));
       var rootPrefix = stagingRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;

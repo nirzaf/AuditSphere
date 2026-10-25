@@ -4,11 +4,14 @@ using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 
@@ -272,6 +275,128 @@ public sealed class PbcHttpTests
   }
 
   [Fact]
+  public async Task RemoteDownloadKeepsTheContractAndReleasesNothingWithoutVerifiedCurrentAuthority()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("PBC-REMOTE-DOWNLOAD");
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var staff = PbcSeed.Actor(fixture.Staff, "Staff");
+    var clientActor = PbcSeed.Actor(fixture.Client, "ClientUser");
+    var requestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, fixture, staff, clientActor);
+    using var ownedRoot = new OwnedApiRoot();
+    var root = ownedRoot.Path;
+    var bytes = "%PDF-1.7 remote primary API download"u8.ToArray();
+    var sha = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+    using (var clientFactory = CreateFactory(pg.ConnectionString, fixture.Client, root))
+    using (var uploadClient = await SignInAsync(clientFactory, fixture.Client))
+    {
+      var start = await StartUploadAsync(pg, fixture, clientActor, requestId, bytes);
+      using var chunk = await uploadClient.SendAsync(ChunkRequest(start.UploadIntentId, 0, bytes, start.Capability));
+      Assert.Equal(HttpStatusCode.OK, chunk.StatusCode);
+    }
+    const string driveId = "b!api-remote-drive";
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.RepositoryBindings.Add(new RepositoryBinding
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+        TenantId = "tenant", SiteId = "site", DriveId = driveId, RootFolderId = "root", Classification = "working",
+        DesiredAccess = "read-write", ObservedAccess = "read-write", CapabilityProfile = "selected-site",
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+    }
+    // The real publication path registers the provider-verified selected-site version.
+    var contextFactory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    var transferHandler = new PbcDocumentTransferHandler(contextFactory,
+      new FixedReceiptSink(new PbcProviderReceipt(PbcSelectedSiteIdentity.Format(driveId, "item-remote", "1.0"), sha, bytes.Length)));
+    var operationStore = new PostgresOperationStore(contextFactory);
+    Guid uploadId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      uploadId = (await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.PbcRequestId == requestId)).Id;
+      var completed = await PbcService.CompleteUploadAsync(db, staff, new CompletePbcUploadRequest(uploadId, sha),
+        operationStore, transferHandler);
+      Assert.True(completed.Succeeded, completed.ErrorCode);
+    }
+    var options = new WorkerOptions(fixture.FirmId, "Test", AllowSimulationAdapters: true);
+    var workerHost = new AuditSphereOps.Worker.Worker(
+      new OperationDispatcher(operationStore, new DurableOperationRegistry([transferHandler], options), options),
+      [new PbcTransferDiscovery(contextFactory, operationStore, transferHandler, options)],
+      NullLogger<AuditSphereOps.Worker.Worker>.Instance);
+    Assert.True(await workerHost.ProcessNextAsync());
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var registration = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == uploadId);
+      var activated = await PbcService.ActivateRemoteReadAsync(db, PbcSeed.Actor(fixture.Admin, "Administrator"),
+        new PbcReadDispositionRequest(uploadId, registration.Id, 0, "Synthetic remote-read pilot"));
+      Assert.True(activated.Succeeded, activated.ErrorCode);
+    }
+    // Remote-only: the response must not depend on the retained staged chunks.
+    foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)) File.Delete(file);
+
+    var reader = new StubRemoteReader(bytes);
+    using var factory = CreateFactory(pg.ConnectionString, fixture.Staff, root,
+      configureServices: services => services.AddTransient<IPbcRemoteContentReader>(_ => reader));
+    using var client = await SignInAsync(factory, fixture.Staff);
+    var url = $"/api/pbc/uploads/{uploadId:D}/download";
+    using (var response = await client.GetAsync(url))
+    {
+      Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+      Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+      Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
+      Assert.Contains("attachment", response.Content.Headers.ContentDisposition?.ToString() ?? "");
+      Assert.Equal(bytes, await response.Content.ReadAsByteArrayAsync());
+      Assert.Equal((uploadId, sha, (long)bytes.Length), (reader.Last!.UploadIntentId, reader.Last.Sha256Hex, reader.Last.ByteCount));
+    }
+
+    reader.Fail = true;
+    using (var mismatch = await client.GetAsync(url))
+    {
+      Assert.Equal(HttpStatusCode.Conflict, mismatch.StatusCode);
+      Assert.DoesNotContain("remote primary", await mismatch.Content.ReadAsStringAsync());
+    }
+
+    // Authority lost during the remote read releases nothing.
+    reader.Fail = false;
+    reader.DuringRead = async () =>
+    {
+      await using var revoke = new AuditSphereDbContext(pg.Options);
+      await revoke.Users.Where(u => u.Id == fixture.Staff.Id)
+        .ExecuteUpdateAsync(x => x.SetProperty(u => u.SessionEpoch, u => u.SessionEpoch + 1));
+    };
+    using (var revoked = await client.GetAsync(url))
+    {
+      Assert.Equal(HttpStatusCode.Unauthorized, revoked.StatusCode);
+      Assert.DoesNotContain("remote primary", await revoked.Content.ReadAsStringAsync());
+    }
+  }
+
+  private sealed class FixedReceiptSink(PbcProviderReceipt receipt) : IPbcProviderSink
+  {
+    public Task<PbcProviderReceipt> UploadAsync(PbcTransferPlan plan, CancellationToken ct) => Task.FromResult(receipt);
+    public Task<PbcProviderReceipt?> VerifyAsync(PbcTransferScope scope, string identity, CancellationToken ct) =>
+      Task.FromResult<PbcProviderReceipt?>(identity == receipt.Identity ? receipt : null);
+    public Task<PbcProviderReceipt?> ProbeAsync(PbcTransferScope scope, CancellationToken ct) =>
+      Task.FromResult<PbcProviderReceipt?>(null);
+  }
+
+  private sealed class StubRemoteReader(byte[] content) : IPbcRemoteContentReader
+  {
+    public bool Fail { get; set; }
+    public Func<Task>? DuringRead { get; set; }
+    public PbcRemoteSource? Last { get; private set; }
+
+    public async Task<CommandResult<PbcVerifiedContent>> ReadVerifiedAsync(PbcRemoteSource source, CancellationToken ct)
+    {
+      Last = source;
+      if (DuringRead is { } during) { DuringRead = null; await during(); }
+      return Fail
+        ? CommandResult<PbcVerifiedContent>.Fail("pbc.source-integrity", "The SharePoint version does not match its registered hash and size; no content was released.")
+        : CommandResult<PbcVerifiedContent>.Ok(new PbcVerifiedContent(new MemoryStream(content, writable: false), content.Length));
+    }
+  }
+
+  [Fact]
   [Trait("Category", "HealthAndConfiguration")]
   [Trait("CaseId", "PROP-API-05")]
   public async Task LivenessStaysHealthyWhenDatabaseIsAbsentAndStartupDoesNotCreateIt()
@@ -436,7 +561,7 @@ public sealed class PbcHttpTests
 
   private static StandaloneApiApplicationFactory CreateFactory(string connectionString,
     AuditSphereOps.Domain.Security.AppUser identity, string root, string? environment = null,
-    bool developmentIdentity = true, bool oidc = false)
+    bool developmentIdentity = true, bool oidc = false, Action<IServiceCollection>? configureServices = null)
   {
     var settings = new Dictionary<string, string?>
     {
@@ -456,7 +581,7 @@ public sealed class PbcHttpTests
       settings["Identity:ClientSecret"] = "synthetic-test-secret";
     }
     if (environment is not null) settings["ASPNETCORE_ENVIRONMENT"] = environment;
-    return new(settings, environmentName: environment ?? "Test");
+    return new(settings, configureServices, environment ?? "Test");
   }
 
   private static async Task<HttpClient> SignInAsync(StandaloneApiApplicationFactory factory,

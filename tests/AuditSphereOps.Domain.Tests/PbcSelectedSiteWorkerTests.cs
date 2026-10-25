@@ -180,6 +180,80 @@ public sealed class PbcSelectedSiteWorkerTests
   }
 
   [Fact]
+  public async Task RemoteRead_ServesOnlyThePinnedVerifiedVersion_AndRevertsToTheRetainedLocalCopy()
+  {
+    var (h, graph) = await CreateAsync();
+    await using var _h = h;
+    await h.ProvisionAsync(h.A);
+    await h.ProvisionAsync(h.B);
+    var original = Document("remote primary");
+    var staged = await h.UploadAsync(h.A, h.RequestA, original);
+    Assert.True(await h.Worker.ProcessNextAsync());
+    var reviewer = PbcSeed.Actor(h.A.Reviewer, "Reviewer");
+    await using var db = h.Db();
+    var registration = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == staged.UploadIntentId);
+
+    // Before activation the retained staged chunks are read exactly as before.
+    var local = await PbcService.PrepareDownloadAsync(db, reviewer, staged.UploadIntentId);
+    Assert.True(local.Succeeded, local.ErrorCode);
+    Assert.Null(local.Value!.Remote);
+    Assert.NotEmpty(local.Value.ChunkPaths);
+
+    var activate = new PbcReadDispositionRequest(staged.UploadIntentId, registration.Id, 0, "Pilot remote read");
+    Assert.Equal(ErrorCodes.ScopeDenied, (await PbcService.ActivateRemoteReadAsync(db, reviewer, activate)).ErrorCode);
+    var active = await PbcService.ActivateRemoteReadAsync(db, h.Admin, activate);
+    Assert.True(active.Succeeded, active.ErrorCode);
+    Assert.Equal((PbcReadSources.SelectedSite, PbcLocalCopyStates.Retained, 1L), (active.Value!.ReadSource, active.Value.LocalCopy, active.Value.Revision));
+    var replay = await PbcService.ActivateRemoteReadAsync(db, h.Admin, activate with { ExpectedRevision = 1 });
+    Assert.Equal(active.Value, replay.Value);
+    Assert.Equal(ErrorCodes.GenerationStale, (await PbcService.ActivateRemoteReadAsync(db, h.Admin, activate)).ErrorCode);
+
+    var remote = await PbcService.PrepareDownloadAsync(db, reviewer, staged.UploadIntentId);
+    Assert.True(remote.Succeeded, remote.ErrorCode);
+    var source = Assert.IsType<PbcRemoteSource>(remote.Value!.Remote);
+    Assert.Empty(remote.Value.ChunkPaths);
+    Assert.Equal((registration.Id, staged.DeclaredSha256Hex, (long)original.Length), (source.RegistrationId, source.Sha256Hex, source.ByteCount));
+    // The staff-only audience is unchanged: neither this client's portal user nor another client's can read it.
+    foreach (var denied in new[] { PbcSeed.Actor(h.A.Client, "ClientUser"), PbcSeed.Actor(h.B.Client, "ClientUser") })
+      Assert.Equal(ErrorCodes.ScopeDenied, (await PbcService.PrepareDownloadAsync(db, denied, staged.UploadIntentId)).ErrorCode);
+
+    var scratch = Path.Combine(Path.GetTempPath(), "AuditSphereOps.Tests", $"pbc-read-{Guid.NewGuid():N}");
+    try
+    {
+      var reader = new SelectedSitePbcContentReader(new PbcRepositoryBindingResolver(h.Factory), h.Drive, scratch);
+      async Task<byte[]> ReadAsync(PbcRemoteSource s)
+      {
+        var read = await reader.ReadVerifiedAsync(s, CancellationToken.None);
+        Assert.True(read.Succeeded, read.ErrorCode);
+        await using var content = read.Value!;
+        using var copy = new MemoryStream();
+        await content.Content.CopyToAsync(copy);
+        return copy.ToArray();
+      }
+      Assert.Equal(original, await ReadAsync(source));
+      // A later SharePoint edit adds a version; the pinned version is still the one served.
+      graph.Tamper(source.ItemId, Document("edited in SharePoint"));
+      Assert.Equal(original, await ReadAsync(source));
+      // Bytes that do not match the registered hash are never released.
+      var mismatch = await reader.ReadVerifiedAsync(source with { Sha256Hex = new string('0', 64) }, CancellationToken.None);
+      Assert.Equal("pbc.source-integrity", mismatch.ErrorCode);
+      Assert.Null(mismatch.Value);
+      Assert.Empty(Directory.EnumerateFileSystemEntries(scratch));
+    }
+    finally { if (Directory.Exists(scratch)) Directory.Delete(scratch, recursive: true); }
+
+    // Before any cleanup the upload can return to its retained local copy.
+    var reverted = await PbcService.RevertToLocalReadAsync(db, h.Admin, activate with { ExpectedRevision = 1, Reason = "Pilot rollback" });
+    Assert.True(reverted.Succeeded, reverted.ErrorCode);
+    Assert.Equal((PbcReadSources.LocalStaged, 2L), (reverted.Value!.ReadSource, reverted.Value.Revision));
+    var rolledBack = await PbcService.PrepareDownloadAsync(db, reviewer, staged.UploadIntentId);
+    Assert.Equal(local.Value.ChunkPaths, rolledBack.Value!.ChunkPaths);
+    Assert.Equal(2, await db.PbcStorageEvents.CountAsync());
+    Assert.Equal("55000", (await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+      db.Database.ExecuteSqlRawAsync("UPDATE pbc_storage_events SET reason = 'rewritten'"))).SqlState);
+  }
+
+  [Fact]
   public async Task GraphThrottling_RetriesLater_ThenCompletes()
   {
     var (h, graph) = await CreateAsync();
