@@ -25113,6 +25113,207 @@
       "precedingFull": "40132097923 on 893da808 is a preceding-source run and not current-source acceptance.",
       "docsFollowUpCommit": "7cdb7f986dd34167028fa7ea5f7d89d73dba817d",
       "docsFollowUpFastCi": "https://github.com/nirzaf/AuditSphere/actions/runs/40133206996 SUCCESS for Docs Health, Angular and .NET Release build; full unfiltered suites were not part of this workflow."
+    },
+    "hostingerAcceptanceLegacy20261015": {
+      "recordedAtUtc": "2026-10-15T13:28:06Z",
+      "vpsCheckout": "12e51e6031605245c22df8331d7ca12f345dbf36",
+      "releaseImageSource": "48e9f2059662d0712f2d1b23d5616b4e8494dad4",
+      "liveMigrationHead": "20261015113704_ClientBundleReceiptAcknowledgements",
+      "liveMigrationCount": 225,
+      "backup": {
+        "path": "/opt/auditsphere/storage/backups/auditsphere-pre-deploy-20261015T131215Z.dump",
+        "bytes": 1862104,
+        "format": "PostgreSQL custom",
+        "catalogValidated": true,
+        "catalogEntries": 3016,
+        "restoredToDisposableDatabase": true
+      },
+      "rehearsal": {
+        "migrationHead": "20261015113704_ClientBundleReceiptAcknowledgements",
+        "migrationCount": 225,
+        "migrationsApplied": 34,
+        "migrations": "PASS",
+        "apiReadyHttp": 200,
+        "temporaryResourcesRemoved": true,
+        "liveDatabaseChanged": false
+      },
+      "deploymentStatus": "DEPLOYED_API_READY",
+      "selectedSiteProbe": {
+        "certificateMatchesRegistration": true,
+        "tokenRoles": [
+          "Sites.Selected"
+        ],
+        "approvedSiteHttp": 200,
+        "unrelatedControlHttp": 403,
+        "diagnostic": "exact-resource-and-control-denial",
+        "fileWriteAttempted": true,
+        "siteGrantChanged": true,
+        "recheckedAtUtc": "2026-10-11T17:36:47.672211Z",
+        "ownerReportedGrantApplied": true,
+        "furtherRetriesPaused": false,
+        "siteGrantRole": "write",
+        "siteGrantTarget": "AuditSphere Development",
+        "temporaryGrantorRemoved": true,
+        "temporaryGrantorConsentRemoved": true,
+        "runtimeAppIdConfigured": true,
+        "runtimeCredentialReference": "configuration:SelectedSite",
+        "credentialReferenceAligned": true,
+        "environmentFileMode": "0600",
+        "apiOnlyRecreated": true,
+        "apiReadyHttp": 200,
+        "workerContainersUnchanged": true,
+        "liveDatabaseChanged": false,
+        "migrationRan": false,
+        "controlSiteGrantCreated": false,
+        "auditSphereState": "VERIFIED",
+        "auditSphereRevision": 7,
+        "auditSphereDiagnostic": "exact-resource-and-control-denial",
+        "auditSphereObservedAtUtc": "2026-10-11T17:36:47.672211Z",
+        "probeResult": "PASS",
+        "uploadHttp": 201,
+        "readBackMatched": true,
+        "deleteHttp": 204,
+        "deletedItemHttp": 404,
+        "libraryEmptyAfterProbe": true,
+        "workspaceActivated": false,
+        "pbcWorkerStarted": false
+      },
+      "directoryReaderSetup": {
+        "status": "LIVE_VERIFIED",
+        "dedicatedCertificateInstalled": true,
+        "publicCertificateUploaded": true,
+        "fixedWebCallbacksSaved": true,
+        "directoryReaderEnabled": true,
+        "tenantConsentEnabled": true,
+        "consentState": "CONSENT_VERIFIED",
+        "consentObservedAtUtc": "2026-10-11T10:06:09.505075Z",
+        "identityObservedAtUtc": "2026-10-11T10:06:21.662753Z",
+        "directoryState": "STALE",
+        "capabilityDiagnostic": "bounded-read-succeeded",
+        "capabilityObservedAtUtc": "2026-10-11T11:00:22.852302Z",
+        "mutationCapabilitiesEnabled": true,
+        "freshnessObservedAtUtc": "2026-10-11T17:36:47.672211Z"
+      },
+      "apiReadyHttp": 200,
+      "publicReadyHttp": 200,
+      "workerContainersUnchanged": true,
+      "liveUpgradeBackup": {
+        "path": "/opt/auditsphere/storage/backups/pre-approved-upgrade-20261011T010838Z.dump",
+        "bytes": 1828313,
+        "format": "PostgreSQL custom",
+        "catalogValidated": true
+      },
+      "mailSetup": {
+        "status": "LIVE_TRANSPORT_DELIVERED_AND_CAPABILITY_VERIFIED",
+        "senderAndControlledRecipientApproved": true,
+        "senderMailboxObservedInExchange": true,
+        "existingCertificateMatchesRegistration": true,
+        "existingCredentialStagedPrivatelyOnVps": true,
+        "newEntraCredentialAdded": false,
+        "environmentDraftUpdated": true,
+        "runtimeRecreated": true,
+        "mailEnabled": true,
+        "testSent": true,
+        "exchangeCloudShell": "NO_VALID_AZURE_SUBSCRIPTION",
+        "exchangePowerShell": "CONNECTED_ACTIVE_IN_TEMPORARY_LINUX_CONTAINER",
+        "mailboxPolicyChanged": true,
+        "authenticationDiagnostic": "Local interactive authentication rejected macOS 27.0.1; official temporary Linux PowerShell container succeeded.",
+        "approvedSenderPolicyResult": "Granted",
+        "unrelatedFixturePolicyResult": "Denied",
+        "scopeGroupMemberCount": 1,
+        "unrelatedGraphHttp": 403,
+        "unrelatedGraphDiagnostic": "ErrorAccessDenied",
+        "tokenRoles": [
+          "Mail.Send"
+        ],
+        "syntheticMailHttp": 202,
+        "syntheticMailSentAtUtc": "2026-10-11T10:47:31Z",
+        "syntheticMailCorrelationId": "50f113bd-dfe8-4348-aaab-643331485803",
+        "syntheticMailProviderRequestId": "fa31aa11-77dc-4848-be9c-dabbe8ed9172",
+        "exchangeTraceStatus": "Delivered",
+        "exchangeTraceObservedAtUtc": "2026-10-11T10:50:55Z",
+        "apiCapabilityState": "VERIFIED",
+        "apiCapabilityDiagnostic": "app-role-present",
+        "apiCapabilityObservedAtUtc": "2026-10-11T10:48:27.840287Z",
+        "savedMailSetup": "CONFIGURED",
+        "savedRecordsSetup": "NOT_CONFIGURED",
+        "savedSetupRevision": 6,
+        "existingWorkersUnchanged": true,
+        "liveMailWorkerStarted": true,
+        "temporaryVerificationResourcesRemoved": true
+      },
+      "documentationCi": {
+        "runId": 38131117854,
+        "commit": "4a348ac80a8926da2fdc5a2093c426b021d52155",
+        "conclusion": "success"
+      },
+      "directoryMutationSetup": {
+        "status": "CONFIGURED_AND_CAPABILITY_VERIFIED",
+        "existingProvisioningCertificateReused": true,
+        "guestInvitationPublicCertificateUploaded": true,
+        "groupMembershipPublicCertificateUploaded": true,
+        "privateKeysRetainedOnVps": true,
+        "separateAppIdsConfigured": true,
+        "exactSingleRoleTokensVerified": true,
+        "provisioning": {
+          "role": "User.Create",
+          "state": "VERIFIED",
+          "diagnostic": "app-role-present"
+        },
+        "guestInvitation": {
+          "role": "User.Invite.All",
+          "state": "VERIFIED",
+          "diagnostic": "app-role-present"
+        },
+        "groupMembership": {
+          "role": "GroupMember.ReadWrite.All",
+          "state": "VERIFIED",
+          "diagnostic": "bounded-read-succeeded"
+        },
+        "observedAtUtc": "2026-10-11T11:00:22.852302Z",
+        "apiReadyHttp": 200,
+        "existingWorkersUnchanged": true,
+        "directoryMutationExecuted": false,
+        "fullMutationJourneysVerified": false
+      },
+      "mailWorkerActivation": {
+        "status": "RUNNING_AND_POLLING",
+        "imageSource": "e64a0cf97adc93fa8416c6288e02bb62fb30db00",
+        "composeSource": "107a9f97257274e708b76d08d94c58fdbd704d5a",
+        "preActivationActiveMailOperations": 0,
+        "preActivationQueuedCommercialNotifications": 0,
+        "preActivationQueuedPbcMail": 0,
+        "preActivationUnreviewedRecipients": 0,
+        "restartCount": 0,
+        "logFailureLines": 0,
+        "successfulPollingQueriesObserved": true,
+        "credentialKeyReadable": true,
+        "onlyOwnCredentialMounted": true,
+        "siblingCredentialPathsAbsent": true,
+        "credentialMountReadOnly": true,
+        "apiAndOtherWorkerContainersUnchanged": true,
+        "publicReadyHttp": 200,
+        "operationsUiAuthorized": true,
+        "operationsUiErrorLogs": 0,
+        "businessMailOperationExecuted": false,
+        "pbcWorkerStarted": false
+      },
+      "latestReleasePreparation": {
+        "observedAtUtc": "2026-10-25T14:11:03Z",
+        "runtimeCodeSource": "b07b12a8942f6055eceda7b0054ae46a38fbe4fa",
+        "currentMasterHead": "89fa2f22706a630b7c9d923fc8e4878100dcb0e2",
+        "previousCandidate": "5b9211acde8f0a37148ac2410a1e65b3067156fb",
+        "previousCandidateRehearsal": "status-archive-2026-10.json#archivedTargetedVerification.releasePreparationCandidate5b20261025",
+        "currentFastRun": 40200703971,
+        "currentFullRun": 40200815097,
+        "currentImageBuildRun": 40200704068,
+        "fastStatus": "RUNNING; Angular and Docs Health passed; .NET Release running.",
+        "fullStatus": "SOURCE_MATCH; Angular/full specs passed; Verify, API, Domain and E2E running.",
+        "imageStatus": "RUNNING for exact current master source; 5b predecessor digests are ineligible.",
+        "currentSourceRehearsal": "NOT_STARTED_WAITING_FOR_CURRENT_IMAGES",
+        "cutoverStatus": "PENDING_EXACT_CURRENT_FAST_FULL_IMAGES_AND_REHEARSAL",
+        "mailBoundary": "Legacy mail must be paused at cutover and remain paused until genuine signed sender-authorization evidence is installed."
+      }
     }
   },
   "archivedTargetedVerification": {
@@ -25725,6 +25926,139 @@
         ]
       },
       "limits": "Pre-implementation baseline full run 40141797352 remains in progress and is not acceptance for commit 71969138. The exact-source full run 40143495963 is tracked in scheduleSourceIndependentReviewDetails20261025. No full local suites; T058 and professional/browser acceptance remain partial."
+    },
+    "fullE2eFailureTriage40148920261025": {
+      "status": "LOCAL_REPRODUCTIONS_PASS_ONE_SCOPE_TIMEOUT_UNEXPLAINED_NEW_FULL_PENDING",
+      "sourceCommit": "69264b349b09c94ddac03eab2a3c426d24618519",
+      "exactFullRun": {
+        "runId": 40148916402,
+        "sourceMatch": "MATCH",
+        "e2e": "336 passed, 3 failed of 339",
+        "api": "Still running at 2026-10-25T03:15Z, with logs unavailable while active; cancellation requested after the E2E failure made the predecessor run noncurrent. API outcome unresolved.",
+        "otherJobs": "Angular/full specs, Domain unfiltered, and build/contracts/publication passed"
+      },
+      "failures": [
+        {
+          "test": "CompletionDeliverablesJourneyTests.AngularPartnerReleasesBundle_ClientDownloads_AndRequiredSigningRejectsReplay",
+          "finding": "The assertion searched for a flattened colon phrase; the Angular UI renders the opinion as a semantic dl with separate Current opinion term and Qualified — Inventory value.",
+          "change": "Existing E2E now targets [data-current-opinion], asserts the exact term and value separately.",
+          "focusedResult": "PASS in the two-test completion/scope reproduction cohort."
+        },
+        {
+          "test": "AngularAccountingJourneyTests.ReviewedSetupPersistsProfilePeriodAndBook",
+          "finding": "After the API acknowledged a new immutable profile revision, assent to the old revision remained checked until the asynchronous workspace reload.",
+          "change": "Clear reviewed assent immediately on recognized successful revision acknowledgement.",
+          "focusedResult": "Fresh Angular build PASS with existing style-budget warning; PostgreSQL-backed Playwright method PASS 1/1 after build."
+        },
+        {
+          "test": "AngularClientScopeEngagementParityJourneyTests.EngagementAndAuditPlanClearOnScopeChangeAndRefuseRevokedWrites",
+          "finding": "CI timed out after 30 seconds waiting for the command-state GET response following role revocation.",
+          "change": "No product behavior or expected security assertion changed; cause is not established.",
+          "focusedResult": "PASS in the two-test completion/scope reproduction cohort; keep the CI observation open for recurrence."
+        }
+      ],
+      "localFocusedChecks": {
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~CompletionDeliverablesJourneyTests.AngularPartnerReleasesBundle_ClientDownloads_AndRequiredSigningRejectsReplay|FullyQualifiedName~AngularClientScopeEngagementParityJourneyTests.EngagementAndAuditPlanClearOnScopeChangeAndRefuseRevokedWrites' --logger 'trx;LogFileName=current-e2e-failures.trx' --results-directory .local/autonomous/evidence/ci-40148916402-e2e/reproduction",
+        "result": "2 passed, 0 failed, 0 skipped; 50 seconds. Accounting profile journey separately passed 1/1 after fresh Angular build. No full local test suite ran.",
+        "fullRunArtifact": ".local/autonomous/evidence/ci-40148916402-e2e/trx/e2e.trx",
+        "reproductionTrx": ".local/autonomous/evidence/ci-40148916402-e2e/reproduction/current-e2e-failures.trx"
+      },
+      "next": "The two verified corrections are committed. The protected README metrics were removed after fast Docs Health found them. Corrected-source fast and full CI are running; see narrativeMetricsFastCiRepair20261025. The revoked-scope response timeout remains unexplained."
+    },
+    "releasePreflight20261025": {
+      "status": "FAST_IMAGES_REHEARSAL_PASS_API_CONTRACT_FIX_PENDING",
+      "authorization": "Owner requested release now; existing Hostinger Acceptance target.",
+      "sourceCommit": "6d592f8f6e9319bc4f477a4621068817f4b0662f",
+      "initialFailure": "fc0 duplicate /ui and /ui/ registrations caused 500; fixed in6d592f8f; RED1/GREEN2.",
+      "rehearsal": "Corrected exact images passed restored-copy run:58 migrations (226 to284),334 table projections unchanged, health and both /ui roots200; temp resources removed. Live unchanged.",
+      "remaining": "API retry2:387/388; one failure was stale catalogue expectation of duplicate root routes. Test correction is in progress; current-source CI pending. Attempt1 exit143 cause unknown. Focused local run stopped before a result due concurrent .NET builds. Final backup/cutover/browser and signed mail evidence pending.",
+      "evidence": ".local/autonomous/evidence/release-ui-root-20261025/api-execution-failure-review.json"
+    },
+    "releasePreparationCandidate5b20261025": {
+      "observedAtUtc": "2026-10-25T14:05:26Z",
+      "runtimeCodeSource": "5b9211acde8f0a37148ac2410a1e65b3067156fb",
+      "documentationHead": "2c1562c00173deec1957c122c96beac4f9f57d93",
+      "currentFullRun": 40199953407,
+      "currentFastRun": 40199893887,
+      "imagePublicationRun": 40199112944,
+      "images": "PASS; immutable digests retained in ignored release evidence manifest",
+      "restoredCopyRehearsal": {
+        "status": "PASS",
+        "migrationCount": 285,
+        "migrationHead": "20261025130755_PbcDocumentRegistrationAndStorageDisposition",
+        "migrationsApplied": 59,
+        "originalTableCount": 334,
+        "originalRowsAndValuesUnchanged": true,
+        "apiLiveHttp": 200,
+        "apiReadyHttp": 200,
+        "uiHttp": 200,
+        "uiSlashHttp": 200,
+        "liveDatabaseChanged": false,
+        "liveContainersChanged": false,
+        "disposableDatabaseRemoved": true,
+        "temporaryEnvironmentFilesRemoved": true,
+        "evidence": ".local/autonomous/evidence/release-ui-root-20261025/rehearsal-5b.json"
+      },
+      "cutoverStatus": "PENDING_CURRENT_EXACT_FAST_AND_FULL_CI",
+      "mailBoundary": "Legacy mail must be paused at cutover and remain paused until genuine signed sender-authorization evidence is installed."
+    },
+    "currentSourceCiCommittedBeforeC1520261025": {
+      "sourceCommit": "6d592f8f6e9319bc4f477a4621068817f4b0662f",
+      "fastCi": "40176745597 PASS; checked-out SHA matched; proof retained.",
+      "releaseVerification": "40176766617 sourceMATCH attempt2 API FAIL:387/388, stale root-route catalogue assertion. Corrected source CI pending. Attempt1 exit143 cause unknown; E2E339/339, Angular, Domain and Verify passed.",
+      "imagePublication": "40176745617 PASS; pinned image digests retained.",
+      "runtimeRehearsal": "6d rehearsal PASS:58 migrations,334 projections unchanged, health and both UI roots200."
+    },
+    "currentSourceCiPreparedBeforeC1520261025": {
+      "sourceCommit": "89fa2f22706a630b7c9d923fc8e4878100dcb0e2",
+      "fastCi": "PASS run40200703971; all jobs succeeded and checkout git-log SHAs matched the candidate.",
+      "releaseVerification": "40200815097 SOURCE MATCH; Angular/full specs, Verify and Domain passed; unfiltered API/E2E still running.",
+      "imagePublication": "PASS run40200704068; exact checkout SHA verified; all three immutable image digests are in hostingerAcceptance.latestReleasePreparation.imageDigests.",
+      "runtimeRehearsal": "PASS on exact source: 59 migrations (226→285), 334 original table projections unchanged, /health/live, /health/ready, /ui and /ui/ all 200; disposable DB and environment cleaned; live DB/services unchanged.",
+      "cutoverStatus": "PENDING_EXACT_FULL_CI_AND_FINAL_QUIESCED_BACKUP",
+      "updatedAtUtc": "2026-10-25T14:38:06Z"
+    },
+    "releasePreparationBeforeC1520261025": {
+      "observedAtUtc": "2026-10-25T14:38:06Z",
+      "runtimeCodeSource": "b07b12a8942f6055eceda7b0054ae46a38fbe4fa",
+      "currentMasterHead": "89fa2f22706a630b7c9d923fc8e4878100dcb0e2",
+      "previousCandidate": "5b9211acde8f0a37148ac2410a1e65b3067156fb",
+      "previousCandidateRehearsal": "status-archive-2026-10.json#archivedTargetedVerification.releasePreparationCandidate5b20261025",
+      "currentFastRun": 40200703971,
+      "currentFullRun": 40200815097,
+      "currentImageBuildRun": 40200704068,
+      "fastStatus": "PASS: all three jobs succeeded; each job checkout git-log SHA matched the exact master candidate.",
+      "fullStatus": "RUNNING, source MATCH; Angular/full specs, Verify and Domain passed; unfiltered API and E2E remain in progress.",
+      "imageStatus": "PASS: all three jobs succeeded on exact checkout SHA; immutable manifest digests recorded below.",
+      "currentSourceRehearsal": {
+        "status": "PASS; final release gates remain pending.",
+        "sourceSha": "89fa2f22706a630b7c9d923fc8e4878100dcb0e2",
+        "report": "LOCAL_ONLY .local/autonomous/evidence/release-ui-root-20261025/rehearsal-89fa.json",
+        "migrationsApplied": 59,
+        "migrationCount": "226 to 285",
+        "migrationHead": "20261025130755_PbcDocumentRegistrationAndStorageDisposition",
+        "originalTableCount": 334,
+        "originalRowsAndValuesUnchanged": true,
+        "apiChecks": {
+          "live": 200,
+          "ready": 200,
+          "ui": 200,
+          "uiShell": true,
+          "uiSlash": 200,
+          "uiSlashShell": true
+        },
+        "liveDatabaseChanged": false,
+        "liveContainersChanged": false,
+        "disposableDatabaseRemoved": true,
+        "temporaryEnvironmentFilesRemoved": true
+      },
+      "cutoverStatus": "PENDING_EXACT_FULL_CI_AND_FINAL_QUIESCED_BACKUP",
+      "mailBoundary": "Legacy mail must be paused at cutover and remain paused until genuine signed sender-authorization evidence is installed.",
+      "imageDigests": {
+        "api": "ghcr.io/nirzaf/auditsphere-acceptance-api@sha256:5930ef4e527eedb584a0ecd90281f5a990645f7f7bf2d3a55bf1d6a2efc11116",
+        "worker": "ghcr.io/nirzaf/auditsphere-acceptance-worker@sha256:1edb7ee7d19f762d49094afb91a891c9be96851369ef39c183230fd828c42957",
+        "migrations": "ghcr.io/nirzaf/auditsphere-acceptance-migrations@sha256:4d132ebef5cfbcba529b541a94631a2131c9e5e62bc1519b17d86a2c5dea4737"
+      }
     }
   },
   "lastUpdatedOn": "2026-10-25"
