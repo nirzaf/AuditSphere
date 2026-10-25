@@ -247,6 +247,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<PbcStorageEvent> PbcStorageEvents => Set<PbcStorageEvent>();
 
+  public DbSet<PbcStorageCommandReceipt> PbcStorageCommandReceipts => Set<PbcStorageCommandReceipt>();
+
   public DbSet<PbcUploadIntent> PbcUploadIntents => Set<PbcUploadIntent>();
 
   public DbSet<PbcUploadChunk> PbcUploadChunks => Set<PbcUploadChunk>();

@@ -44,31 +44,54 @@ public static partial class PbcService
       return TenantAdministration.Denied<PbcStorageDispositionReceipt>();
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var changed = await ChangeReadSourceInTransactionAsync(db, actor, request, target, reason, ct);
+    if (!changed.Result.Succeeded) return changed.Result;
+    try
+    {
+      await tx.CommitAsync(ct);
+    }
+    catch (DbUpdateException)
+    {
+      return StaleDisposition();
+    }
+    return changed.Result;
+  }
+
+  /// <summary>
+  /// Disposition change inside the caller's transaction. Returns the storage event it wrote, or no event when the
+  /// upload already has the requested read source at the expected revision (an idempotent replay).
+  /// </summary>
+  internal static async Task<(CommandResult<PbcStorageDispositionReceipt> Result, PbcStorageEvent? Event)>
+    ChangeReadSourceInTransactionAsync(IAuditSphereDbContext db, ActorContext actor, PbcReadDispositionRequest request,
+      string target, string reason, CancellationToken ct)
+  {
+    if (db.Database.CurrentTransaction is null)
+      throw new InvalidOperationException("A storage disposition change requires the caller's transaction.");
     // Serialize every disposition change for this upload (activation, revert and cleanup) on the upload row.
     var intents = await db.PbcUploadIntents.FromSqlInterpolated($"""
       SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {request.UploadIntentId} FOR UPDATE
       """).AsNoTracking().ToListAsync(ct);
-    if (intents.Count != 1) return CommandResult<PbcStorageDispositionReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (intents.Count != 1) return (CommandResult<PbcStorageDispositionReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied."), null);
     var intent = intents[0];
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))
-      return TenantAdministration.Denied<PbcStorageDispositionReceipt>();
+      return (TenantAdministration.Denied<PbcStorageDispositionReceipt>(), null);
     var registration = await db.PbcDocumentRegistrations.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.PbcUploadIntentId == intent.Id, ct);
     if (registration is null || registration.Id != request.ExpectedRegistrationId || intent.State != PbcUploadStates.Received)
-      return CommandResult<PbcStorageDispositionReceipt>.Fail("pbc.storage-unregistered",
-        "Only an upload with this exact verified SharePoint registration can change its read source.");
+      return (CommandResult<PbcStorageDispositionReceipt>.Fail("pbc.storage-unregistered",
+        "Only an upload with this exact verified SharePoint registration can change its read source."), null);
 
     var disposition = await db.PbcStorageDispositions.SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.PbcUploadIntentId == intent.Id, ct);
     var currentSource = disposition?.ReadSource ?? PbcReadSources.LocalStaged;
     if (currentSource == target)
-      return (disposition?.Revision ?? 0) == request.ExpectedRevision
+      return ((disposition?.Revision ?? 0) == request.ExpectedRevision
         ? CommandResult<PbcStorageDispositionReceipt>.Ok(Receipt(disposition, intent, registration, target))
-        : Stale();
-    if ((disposition?.Revision ?? 0) != request.ExpectedRevision) return Stale();
+        : StaleDisposition(), null);
+    if ((disposition?.Revision ?? 0) != request.ExpectedRevision) return (StaleDisposition(), null);
     if (target == PbcReadSources.LocalStaged && disposition!.LocalCopy != PbcLocalCopyStates.Retained)
-      return CommandResult<PbcStorageDispositionReceipt>.Fail("pbc.storage-local-released",
-        "The local copy was released; this upload can only be read from its registered SharePoint version.");
+      return (CommandResult<PbcStorageDispositionReceipt>.Fail("pbc.storage-local-released",
+        "The local copy was released; this upload can only be read from its registered SharePoint version."), null);
 
     var now = DateTimeOffset.UtcNow;
     if (disposition is null)
@@ -87,29 +110,29 @@ public static partial class PbcService
       disposition.Revision++;
       disposition.UpdatedAt = now;
     }
-    db.PbcStorageEvents.Add(new PbcStorageEvent
+    var storageEvent = new PbcStorageEvent
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = intent.ClientId, EngagementId = intent.EngagementId,
       PbcStorageDispositionId = disposition.Id, Revision = disposition.Revision,
       Kind = target == PbcReadSources.SelectedSite ? PbcStorageEventKinds.RemoteReadActivated : PbcStorageEventKinds.RemoteReadReverted,
       ReadSource = disposition.ReadSource, LocalCopy = disposition.LocalCopy, ActorUserId = actor.UserId, Reason = reason,
       OccurredAt = now
-    });
+    };
+    db.PbcStorageEvents.Add(storageEvent);
     try
     {
       await db.SaveChangesAsync(ct);
-      await tx.CommitAsync(ct);
     }
     catch (DbUpdateException)
     {
-      return Stale();
+      return (StaleDisposition(), null);
     }
-    return CommandResult<PbcStorageDispositionReceipt>.Ok(Receipt(disposition, intent, registration, target));
-
-    static CommandResult<PbcStorageDispositionReceipt> Stale() =>
-      CommandResult<PbcStorageDispositionReceipt>.Fail(ErrorCodes.GenerationStale,
-        "The upload's storage disposition changed; review its current revision.");
+    return (CommandResult<PbcStorageDispositionReceipt>.Ok(Receipt(disposition, intent, registration, target)), storageEvent);
   }
+
+  private static CommandResult<PbcStorageDispositionReceipt> StaleDisposition() =>
+    CommandResult<PbcStorageDispositionReceipt>.Fail(ErrorCodes.GenerationStale,
+      "The upload's storage disposition changed; review its current revision.");
 
   private static PbcStorageDispositionReceipt Receipt(PbcStorageDisposition? disposition, PbcUploadIntent intent,
     PbcDocumentRegistration registration, string readSource) =>

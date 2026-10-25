@@ -1,5 +1,7 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Text.Json;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Tests;
@@ -279,51 +281,10 @@ public sealed class PbcHttpTests
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("PBC-REMOTE-DOWNLOAD");
     var fixture = await PbcSeed.SeedAsync(pg);
-    var staff = PbcSeed.Actor(fixture.Staff, "Staff");
-    var clientActor = PbcSeed.Actor(fixture.Client, "ClientUser");
-    var requestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, fixture, staff, clientActor);
     using var ownedRoot = new OwnedApiRoot();
     var root = ownedRoot.Path;
     var bytes = "%PDF-1.7 remote primary API download"u8.ToArray();
-    var sha = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-    using (var clientFactory = CreateFactory(pg.ConnectionString, fixture.Client, root))
-    using (var uploadClient = await SignInAsync(clientFactory, fixture.Client))
-    {
-      var start = await StartUploadAsync(pg, fixture, clientActor, requestId, bytes);
-      using var chunk = await uploadClient.SendAsync(ChunkRequest(start.UploadIntentId, 0, bytes, start.Capability));
-      Assert.Equal(HttpStatusCode.OK, chunk.StatusCode);
-    }
-    const string driveId = "b!api-remote-drive";
-    await using (var seed = new AuditSphereDbContext(pg.Options))
-    {
-      seed.RepositoryBindings.Add(new RepositoryBinding
-      {
-        Id = Guid.NewGuid(), FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
-        TenantId = "tenant", SiteId = "site", DriveId = driveId, RootFolderId = "root", Classification = "working",
-        DesiredAccess = "read-write", ObservedAccess = "read-write", CapabilityProfile = "selected-site",
-        CreatedAt = DateTimeOffset.UtcNow
-      });
-      await seed.SaveChangesAsync();
-    }
-    // The real publication path registers the provider-verified selected-site version.
-    var contextFactory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
-    var transferHandler = new PbcDocumentTransferHandler(contextFactory,
-      new FixedReceiptSink(new PbcProviderReceipt(PbcSelectedSiteIdentity.Format(driveId, "item-remote", "1.0"), sha, bytes.Length)));
-    var operationStore = new PostgresOperationStore(contextFactory);
-    Guid uploadId;
-    await using (var db = new AuditSphereDbContext(pg.Options))
-    {
-      uploadId = (await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.PbcRequestId == requestId)).Id;
-      var completed = await PbcService.CompleteUploadAsync(db, staff, new CompletePbcUploadRequest(uploadId, sha),
-        operationStore, transferHandler);
-      Assert.True(completed.Succeeded, completed.ErrorCode);
-    }
-    var options = new WorkerOptions(fixture.FirmId, "Test", AllowSimulationAdapters: true);
-    var workerHost = new AuditSphereOps.Worker.Worker(
-      new OperationDispatcher(operationStore, new DurableOperationRegistry([transferHandler], options), options),
-      [new PbcTransferDiscovery(contextFactory, operationStore, transferHandler, options)],
-      NullLogger<AuditSphereOps.Worker.Worker>.Instance);
-    Assert.True(await workerHost.ProcessNextAsync());
+    var (uploadId, sha) = await ArrangeRegisteredUploadAsync(pg, fixture, root, bytes);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var registration = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == uploadId);
@@ -369,6 +330,156 @@ public sealed class PbcHttpTests
       Assert.Equal(HttpStatusCode.Unauthorized, revoked.StatusCode);
       Assert.DoesNotContain("remote primary", await revoked.Content.ReadAsStringAsync());
     }
+  }
+
+  [Fact]
+  public async Task StorageAdministrationRoutesKeepTheReviewedCommandContractAndStayAdministratorOnly()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("PBC-STORAGE-ADMIN");
+    var fixture = await PbcSeed.SeedAsync(pg);
+    using var ownedRoot = new OwnedApiRoot();
+    var root = ownedRoot.Path;
+    var bytes = "%PDF-1.7 storage administration routes"u8.ToArray();
+    var (uploadId, _) = await ArrangeRegisteredUploadAsync(pg, fixture, root, bytes);
+    var reader = new StubRemoteReader(bytes);
+    void Services(IServiceCollection services)
+    {
+      services.AddTransient<IPbcRemoteContentReader>(_ => reader);
+      services.AddTransient<IPbcRegistrationVerifier>(_ => new StubRegistrationVerifier());
+    }
+    const string api = "/api/ui/administration/pbc-storage";
+
+    // Staff cannot reach any storage administration route.
+    using (var staffFactory = CreateFactory(pg.ConnectionString, fixture.Staff, root, configureServices: Services))
+    using (var staff = await SignInAsync(staffFactory, fixture.Staff))
+    {
+      var staffToken = await XsrfAsync(staff);
+      foreach (var url in new[] { $"{api}/commands/state?uploadIntentId={uploadId:D}", $"{api}/cleanup/plan?uploadIntentId={uploadId:D}",
+        $"{api}/backfill/plan?limit=10" })
+        Assert.Equal(HttpStatusCode.Forbidden, (await staff.GetAsync(url)).StatusCode);
+      using var denied = await PostAsync(staff, staffToken, $"{api}/commands/preview", new
+      {
+        requestId = Guid.NewGuid(), input = new { action = "ACTIVATE_REMOTE_READ", uploadIntentId = uploadId, reason = "Not allowed" },
+        reviewBasis = new string('a', 64)
+      });
+      Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+    }
+
+    using var factory = CreateFactory(pg.ConnectionString, fixture.Admin, root, configureServices: Services);
+    using var admin = await SignInAsync(factory, fixture.Admin);
+    var token = await XsrfAsync(admin);
+    var cleanup = await ReadJsonAsync(admin, $"{api}/cleanup/plan?uploadIntentId={uploadId:D}");
+    Assert.Equal("pbc.cleanup-remote-read-inactive", cleanup[0].GetProperty("disposition").GetString());
+    Assert.Equal(0, (await ReadJsonAsync(admin, $"{api}/backfill/plan?limit=10")).GetArrayLength());
+
+    var state = await ReadJsonAsync(admin, $"{api}/commands/state?uploadIntentId={uploadId:D}");
+    Assert.True(state.GetProperty("canActivateRemoteRead").GetBoolean());
+    Assert.False(state.GetProperty("canReleaseLocalCopy").GetBoolean());
+    var requestId = Guid.NewGuid();
+    var input = new { action = "ACTIVATE_REMOTE_READ", uploadIntentId = uploadId, reason = "Synthetic route pilot" };
+    var reviewBasis = state.GetProperty("reviewBasis").GetString();
+    JsonElement preview;
+    using (var previewed = await PostAsync(admin, token, $"{api}/commands/preview", new { requestId, input, reviewBasis }))
+    {
+      Assert.Equal(HttpStatusCode.OK, previewed.StatusCode);
+      preview = JsonDocument.Parse(await previewed.Content.ReadAsStringAsync()).RootElement.GetProperty("value").Clone();
+    }
+    Assert.True(preview.GetProperty("canProceed").GetBoolean());
+    var requestHash = preview.GetProperty("requestHash").GetString();
+    using (var unconfirmed = await PostAsync(admin, token, $"{api}/commands/actions", new { requestId, input, reviewBasis, expectedRequestHash = requestHash }))
+      Assert.Equal(HttpStatusCode.BadRequest, unconfirmed.StatusCode);
+    string receiptId;
+    using (var executed = await PostAsync(admin, token, $"{api}/commands/actions",
+      new { requestId, input, reviewBasis, expectedRequestHash = requestHash, reviewed = true }))
+    {
+      Assert.Equal(HttpStatusCode.OK, executed.StatusCode);
+      var receipt = JsonDocument.Parse(await executed.Content.ReadAsStringAsync()).RootElement.GetProperty("value");
+      Assert.Equal("SELECTED_SITE", receipt.GetProperty("outcome").GetProperty("readSource").GetString());
+      receiptId = receipt.GetProperty("id").GetString()!;
+    }
+    var lookup = await ReadJsonAsync(admin, $"{api}/commands/receipts/{requestId:D}?requestHash={requestHash}");
+    Assert.True(lookup.GetProperty("found").GetBoolean());
+    Assert.Equal(receiptId, lookup.GetProperty("receipt").GetProperty("id").GetString());
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(PbcReadSources.SelectedSite,
+      (await verify.PbcStorageDispositions.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == uploadId)).ReadSource);
+  }
+
+  private static async Task<string> XsrfAsync(HttpClient client)
+  {
+    using var session = await client.GetAsync("/api/ui/session");
+    Assert.Equal(HttpStatusCode.OK, session.StatusCode);
+    return Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie")
+      .Single(x => x.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..]);
+  }
+
+  private static Task<HttpResponseMessage> PostAsync(HttpClient client, string token, string url, object body)
+  {
+    var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(body) };
+    request.Headers.Add("X-XSRF-TOKEN", token);
+    return client.SendAsync(request);
+  }
+
+  private static async Task<JsonElement> ReadJsonAsync(HttpClient client, string url)
+  {
+    using var response = await client.GetAsync(url);
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
+  }
+
+  private sealed class StubRegistrationVerifier : IPbcRegistrationVerifier
+  {
+    public Task<CommandResult> VerifyUnregisteredAsync(PbcRemoteSource candidate, CancellationToken ct) =>
+      Task.FromResult(CommandResult.Ok());
+  }
+
+  /// <summary>Uploads through the API, then registers the selected-site version through the real publication path.</summary>
+  private static async Task<(Guid UploadId, string Sha)> ArrangeRegisteredUploadAsync(OwnedPostgresDatabase pg,
+    PbcSeed.Fixture fixture, string root, byte[] bytes)
+  {
+    var staff = PbcSeed.Actor(fixture.Staff, "Staff");
+    var clientActor = PbcSeed.Actor(fixture.Client, "ClientUser");
+    var requestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, fixture, staff, clientActor);
+    var sha = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+    using (var clientFactory = CreateFactory(pg.ConnectionString, fixture.Client, root))
+    using (var uploadClient = await SignInAsync(clientFactory, fixture.Client))
+    {
+      var start = await StartUploadAsync(pg, fixture, clientActor, requestId, bytes);
+      using var chunk = await uploadClient.SendAsync(ChunkRequest(start.UploadIntentId, 0, bytes, start.Capability));
+      Assert.Equal(HttpStatusCode.OK, chunk.StatusCode);
+    }
+    const string driveId = "b!api-remote-drive";
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.RepositoryBindings.Add(new RepositoryBinding
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+        TenantId = "tenant", SiteId = "site", DriveId = driveId, RootFolderId = "root", Classification = "working",
+        DesiredAccess = "read-write", ObservedAccess = "read-write", CapabilityProfile = "selected-site",
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+    }
+    // The real publication path registers the provider-verified selected-site version.
+    var contextFactory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    var transferHandler = new PbcDocumentTransferHandler(contextFactory,
+      new FixedReceiptSink(new PbcProviderReceipt(PbcSelectedSiteIdentity.Format(driveId, "item-remote", "1.0"), sha, bytes.Length)));
+    var operationStore = new PostgresOperationStore(contextFactory);
+    Guid uploadId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      uploadId = (await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.PbcRequestId == requestId)).Id;
+      var completed = await PbcService.CompleteUploadAsync(db, staff, new CompletePbcUploadRequest(uploadId, sha),
+        operationStore, transferHandler);
+      Assert.True(completed.Succeeded, completed.ErrorCode);
+    }
+    var options = new WorkerOptions(fixture.FirmId, "Test", AllowSimulationAdapters: true);
+    var workerHost = new AuditSphereOps.Worker.Worker(
+      new OperationDispatcher(operationStore, new DurableOperationRegistry([transferHandler], options), options),
+      [new PbcTransferDiscovery(contextFactory, operationStore, transferHandler, options)],
+      NullLogger<AuditSphereOps.Worker.Worker>.Instance);
+    Assert.True(await workerHost.ProcessNextAsync());
+    return (uploadId, sha);
   }
 
   private sealed class FixedReceiptSink(PbcProviderReceipt receipt) : IPbcProviderSink

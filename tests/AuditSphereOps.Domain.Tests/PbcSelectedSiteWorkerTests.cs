@@ -25,6 +25,8 @@ public sealed class PbcSelectedSiteWorkerTests
     return (await P2PbcHarness.CreateAsync(drive, tenant, "slot:selected-site", "site-a", FakeGraphDrive.DriveId, FakeGraphDrive.RootId), graph);
   }
 
+  private static string Json(object? value) => System.Text.Json.JsonSerializer.Serialize(value);
+
   private static byte[] Document(string label) => System.Text.Encoding.UTF8.GetBytes($"%PDF-1.7 {label} {Guid.NewGuid():N}");
 
   [Fact]
@@ -402,6 +404,140 @@ public sealed class PbcSelectedSiteWorkerTests
     // Upload, request and acceptance evidence are unchanged by technical registration.
     Assert.Equal(retainedIntent, System.Text.Json.JsonSerializer.Serialize(
       await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == staged.UploadIntentId)));
+  }
+
+  [Fact]
+  public async Task StorageCommands_RequireTheExactReviewedIntent_AndRecoverTheirOriginalReceipts()
+  {
+    var (h, graph) = await CreateAsync();
+    await using var _h = h;
+    await h.ProvisionAsync(h.A);
+    var staged = await h.UploadAsync(h.A, h.RequestA, Document("reviewed storage commands"));
+    Assert.True(await h.Worker.ProcessNextAsync());
+    var options = new PbcLocalCopyCleanupOptions(true, staged.StagingRoot);
+    var intentId = staged.UploadIntentId;
+    var scratch = Path.Combine(Path.GetTempPath(), "AuditSphereOps.Tests", $"pbc-read-{Guid.NewGuid():N}");
+    var reader = new SelectedSitePbcContentReader(new PbcRepositoryBindingResolver(h.Factory), h.Drive, scratch);
+    await using var db = h.Db();
+    async Task<PbcStorageCommandPreview> PreviewAsync(string action, Guid requestId, string reason = "Reviewed storage pilot")
+    {
+      var state = await PbcStorageCommandWorkspace.StateAsync(db, h.Admin, options, intentId);
+      Assert.True(state.Succeeded, state.ErrorCode);
+      var preview = await PbcStorageCommandWorkspace.PreviewAsync(db, h.Admin, options,
+        new PbcStorageCommandRequest(requestId, new PbcStorageCommandInput(action, intentId, reason), state.Value!.ReviewBasis));
+      Assert.True(preview.Succeeded, preview.ErrorCode);
+      return preview.Value!;
+    }
+    static PbcStorageCommandRequest Confirm(PbcStorageCommandPreview p) => new(p.RequestId, p.CanonicalInput, p.ReviewBasis, p.RequestHash, true);
+    Task<CommandResult<PbcStorageCommandReceiptView>> ExecuteAsync(PbcStorageCommandRequest r, AuditSphereOps.Application.Abstractions.ActorContext? actor = null) =>
+      PbcStorageCommandWorkspace.ExecuteAsync(db, actor ?? h.Admin, options, reader, reader, r);
+
+    try
+    {
+      var reviewer = PbcSeed.Actor(h.A.Reviewer, "Reviewer");
+      Assert.Equal(ErrorCodes.ScopeDenied, (await PbcStorageCommandWorkspace.StateAsync(db, reviewer, options, intentId)).ErrorCode);
+      var state = (await PbcStorageCommandWorkspace.StateAsync(db, h.Admin, options, intentId)).Value!;
+      Assert.Equal((true, false, false, false), (state.CanActivateRemoteRead, state.CanRevertToLocalRead, state.CanReleaseLocalCopy, state.CanBackfillRegistration));
+      Assert.Equal(ErrorCodes.StaleRevision, (await PbcStorageCommandWorkspace.PreviewAsync(db, h.Admin, options,
+        new PbcStorageCommandRequest(Guid.NewGuid(), new PbcStorageCommandInput(PbcStorageCommandActions.ActivateRemoteRead, intentId, "x"),
+          new string('0', 64)))).ErrorCode);
+
+      // Activation needs fresh assent and the exact preview hash; the receipt binds the real storage event.
+      var activate = await PreviewAsync(PbcStorageCommandActions.ActivateRemoteRead, Guid.NewGuid());
+      Assert.True(activate.CanProceed);
+      Assert.Equal(ErrorCodes.Operations.Invalid, (await ExecuteAsync(Confirm(activate) with { Reviewed = false })).ErrorCode);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, (await ExecuteAsync(Confirm(activate) with { ExpectedRequestHash = new string('a', 64) })).ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await ExecuteAsync(Confirm(activate), reviewer)).ErrorCode);
+      var activated = await ExecuteAsync(Confirm(activate));
+      Assert.True(activated.Succeeded, activated.ErrorCode);
+      var receipt = activated.Value!;
+      Assert.Equal((PbcReadSources.SelectedSite, PbcLocalCopyStates.Retained, "1"),
+        (receipt.Outcome.ReadSource, receipt.Outcome.LocalCopy, receipt.Outcome.DispositionRevision));
+      Assert.Equal(PbcStorageEventKinds.RemoteReadActivated,
+        (await db.PbcStorageEvents.AsNoTracking().SingleAsync(x => x.Id == receipt.Outcome.StorageEventId)).Kind);
+
+      // A lost response is recovered, never re-applied; changed intent cannot reuse the request identity.
+      // Views hold deserialized lists, so compare their serialized form rather than record references.
+      Assert.Equal(Json(receipt), Json((await ExecuteAsync(Confirm(activate))).Value));
+      Assert.Equal(ErrorCodes.IdempotencyConflict, (await ExecuteAsync(Confirm(activate) with
+        { Input = activate.CanonicalInput with { Reason = "Different reason" } })).ErrorCode);
+      var lookup = await PbcStorageCommandWorkspace.LookupAsync(db, h.Admin, activate.RequestId, activate.RequestHash);
+      Assert.True(lookup.Succeeded, lookup.ErrorCode);
+      Assert.Equal(Json(receipt), Json(lookup.Value!.Receipt));
+      Assert.Equal(ErrorCodes.IdempotencyConflict, (await PbcStorageCommandWorkspace.LookupAsync(db, h.Admin, activate.RequestId, new string('b', 64))).ErrorCode);
+      Assert.False((await PbcStorageCommandWorkspace.LookupAsync(db, h.Admin, Guid.NewGuid(), activate.RequestHash)).Value!.Found);
+      Assert.Equal(1, await db.PbcStorageEvents.CountAsync());
+
+      // Release after a final decision: recorded under the receipt, then the staged chunks are deleted.
+      var revision = (await db.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == h.RequestA)).Revision;
+      var upload = await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == intentId);
+      Assert.True((await PbcService.ChangeStateAsync(db, reviewer, new PbcStateChangeRequest(h.RequestA, PbcStates.UnderReview, revision))).Succeeded);
+      Assert.True((await PbcService.ChangeStateAsync(db, reviewer, new PbcStateChangeRequest(h.RequestA, PbcStates.Accepted, revision + 1,
+        ReviewedUploadIntentId: intentId, ReviewedUploadRevision: upload.Revision, ReviewedContentSha256Hex: staged.DeclaredSha256Hex))).Succeeded);
+      var chunks = await db.PbcUploadChunks.AsNoTracking().Where(x => x.PbcUploadIntentId == intentId).Select(x => x.StagedPath!).ToListAsync();
+      var release = await PreviewAsync(PbcStorageCommandActions.ReleaseLocalCopy, Guid.NewGuid(), "Approved synthetic cleanup");
+      var released = await ExecuteAsync(Confirm(release));
+      Assert.True(released.Succeeded, released.ErrorCode);
+      Assert.Equal((PbcLocalCopyStates.Released, "2"), (released.Value!.Outcome.LocalCopy, released.Value.Outcome.DispositionRevision));
+      Assert.Equal(new PbcStorageLocalCopyDeletion(chunks.Count, 0, null), released.Value.LocalCopyDeletion);
+      Assert.All(chunks, path => Assert.False(File.Exists(path)));
+      Assert.Equal(new PbcStorageLocalCopyDeletion(0, chunks.Count, null), (await ExecuteAsync(Confirm(release))).Value!.LocalCopyDeletion);
+      Assert.Null((await PbcStorageCommandWorkspace.LookupAsync(db, h.Admin, release.RequestId, release.RequestHash)).Value!.Receipt!.LocalCopyDeletion);
+      var after = (await PbcStorageCommandWorkspace.StateAsync(db, h.Admin, options, intentId)).Value!;
+      Assert.False(after.CanRevertToLocalRead);
+      Assert.Equal(1, graph.VersionCount(PbcSelectedSiteIdentity.Parse(after.Snapshot.ProviderIdentity!)!.ItemId));
+
+      // Receipts are immutable evidence.
+      Assert.Equal("55000", (await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+        db.Database.ExecuteSqlRawAsync("UPDATE pbc_storage_command_receipts SET action = 'ACTIVATE_REMOTE_READ'"))).SqlState);
+    }
+    finally { if (Directory.Exists(scratch)) Directory.Delete(scratch, recursive: true); }
+  }
+
+  [Fact]
+  public async Task StorageBackfillCommand_RegistersOnlyAfterReadBack_AndBindsTheReceiptToTheRegistration()
+  {
+    var (h, _) = await CreateAsync();
+    await using var _h = h;
+    await h.ProvisionAsync(h.A);
+    var staged = await h.UploadAsync(h.A, h.RequestA, Document("reviewed backfill"));
+    Assert.True(await h.Worker.ProcessNextAsync());
+    await using var db = h.Db();
+    var published = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == staged.UploadIntentId);
+    // Controlled diagnostic: recreate an upload verified before registration existed, bypassing guards only here.
+    await db.Database.ExecuteSqlInterpolatedAsync($"""
+      SET session_replication_role = replica;
+      DELETE FROM pbc_document_registrations WHERE id = {published.Id};
+      DELETE FROM document_snapshots WHERE id = {published.DocumentSnapshotId};
+      DELETE FROM document_references WHERE id = {published.DocumentReferenceId};
+      SET session_replication_role = origin;
+      """);
+    var options = PbcLocalCopyCleanupOptions.Disabled(staged.StagingRoot);
+    var reader = new SelectedSitePbcContentReader(new PbcRepositoryBindingResolver(h.Factory), h.Drive,
+      Path.Combine(Path.GetTempPath(), "AuditSphereOps.Tests", "unused-scratch"));
+    var state = (await PbcStorageCommandWorkspace.StateAsync(db, h.Admin, options, staged.UploadIntentId)).Value!;
+    Assert.Equal((true, false), (state.CanBackfillRegistration, state.CanActivateRemoteRead));
+    var preview = (await PbcStorageCommandWorkspace.PreviewAsync(db, h.Admin, options, new PbcStorageCommandRequest(Guid.NewGuid(),
+      new PbcStorageCommandInput(PbcStorageCommandActions.BackfillRegistration, staged.UploadIntentId, "Register pre-cutover transfer"),
+      state.ReviewBasis))).Value!;
+    var confirm = new PbcStorageCommandRequest(preview.RequestId, preview.CanonicalInput, preview.ReviewBasis, preview.RequestHash, true);
+    var unavailable = await PbcStorageCommandWorkspace.ExecuteAsync(db, h.Admin, options, reader, new UnavailableVerifier(), confirm);
+    Assert.Equal(ErrorCodes.GateBlocked, unavailable.ErrorCode);
+    Assert.False(await db.PbcDocumentRegistrations.AnyAsync(x => x.PbcUploadIntentId == staged.UploadIntentId));
+
+    var registered = await PbcStorageCommandWorkspace.ExecuteAsync(db, h.Admin, options, reader, reader, confirm);
+    Assert.True(registered.Succeeded, registered.ErrorCode);
+    var registration = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.Id == registered.Value!.Outcome.RegistrationId);
+    Assert.Equal((published.ProviderIdentity, staged.UploadIntentId), (registration.ProviderIdentity, registration.PbcUploadIntentId));
+    var row = await db.PbcStorageCommandReceipts.AsNoTracking().SingleAsync();
+    Assert.Equal((registration.Id, (Guid?)null), (row.PbcDocumentRegistrationId!.Value, row.PbcStorageEventId));
+    Assert.Equal(Json(registered.Value), Json((await PbcStorageCommandWorkspace.ExecuteAsync(db, h.Admin, options, reader, reader, confirm)).Value));
+  }
+
+  private sealed class UnavailableVerifier : IPbcRegistrationVerifier
+  {
+    public Task<CommandResult> VerifyUnregisteredAsync(PbcRemoteSource candidate, CancellationToken ct) =>
+      Task.FromResult(CommandResult.Fail(ErrorCodes.GateBlocked, "Synthetic SharePoint outage."));
   }
 
   private sealed class UnavailableRemoteReader : IPbcRemoteContentReader

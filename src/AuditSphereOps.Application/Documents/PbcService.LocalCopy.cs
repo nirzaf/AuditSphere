@@ -61,7 +61,7 @@ public static partial class PbcService
   public const string LocalCopyReleased = "RELEASED";
   private const int MaxLocalCopyPlanItems = 100;
 
-  private sealed record LocalCopyFacts(PbcLocalCopyPlanItem Item, PbcRemoteSource? Source, IReadOnlyList<string> Paths);
+  internal sealed record LocalCopyFacts(PbcLocalCopyPlanItem Item, PbcRemoteSource? Source, IReadOnlyList<string> Paths);
 
   /// <summary>Dry-run for an explicitly enumerated cohort; reads only local records and file metadata.</summary>
   public static async Task<CommandResult<IReadOnlyList<PbcLocalCopyPlanItem>>> PlanLocalCopyCleanupAsync(
@@ -126,46 +126,71 @@ public static partial class PbcService
 
     await using (var tx = await db.Database.BeginTransactionAsync(ct))
     {
-      // Same upload-row lock as activation and revert, so a release can never interleave with a return to local reads.
-      var locked = await db.PbcUploadIntents.FromSqlInterpolated($"""
-        SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {request.UploadIntentId} FOR UPDATE
-        """).AsNoTracking().ToListAsync(ct);
-      if (locked.Count != 1 || !await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))
-        return TenantAdministration.Denied<PbcLocalCopyReleaseReceipt>();
-      var current = await EvaluateLocalCopyAsync(db, actor.FirmId, request.UploadIntentId, options, ct);
-      if (current is null || current.Item != facts.Item) return StaleRelease();
-      var disposition = await db.PbcStorageDispositions.SingleAsync(x =>
-        x.FirmId == actor.FirmId && x.PbcUploadIntentId == request.UploadIntentId, ct);
-      var now = DateTimeOffset.UtcNow;
-      disposition.LocalCopy = PbcLocalCopyStates.Released;
-      disposition.Revision++;
-      disposition.UpdatedAt = now;
-      db.PbcStorageEvents.Add(new PbcStorageEvent
-      {
-        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = disposition.ClientId,
-        EngagementId = disposition.EngagementId, PbcStorageDispositionId = disposition.Id, Revision = disposition.Revision,
-        Kind = PbcStorageEventKinds.LocalCopyReleased, ReadSource = disposition.ReadSource, LocalCopy = disposition.LocalCopy,
-        ActorUserId = actor.UserId, Reason = reason, OccurredAt = now
-      });
+      var recorded = await RecordLocalCopyReleaseInTransactionAsync(db, actor, options, facts, reason, ct);
+      if (!recorded.Result.Succeeded) return CommandResult<PbcLocalCopyReleaseReceipt>.Fail(recorded.Result.ErrorCode!, recorded.Result.Message!);
       try
       {
-        await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
       }
       catch (DbUpdateException)
       {
         return StaleRelease();
       }
-      facts = facts with { Item = facts.Item with { DispositionRevision = disposition.Revision } };
+      facts = recorded.Facts!;
     }
     return DeleteStagedChunks(facts, options);
-
-    static CommandResult<PbcLocalCopyReleaseReceipt> StaleRelease() =>
-      CommandResult<PbcLocalCopyReleaseReceipt>.Fail(ErrorCodes.GenerationStale,
-        "The upload's storage disposition or registered content changed; review a fresh plan.");
   }
 
-  private static async Task<LocalCopyFacts?> EvaluateLocalCopyAsync(IAuditSphereDbContext db, Guid firmId,
+  /// <summary>
+  /// Records the release inside the caller's transaction after the remote version was verified. The returned facts
+  /// carry the post-release revision; the caller deletes the staged chunks only after its commit.
+  /// </summary>
+  internal static async Task<(CommandResult Result, LocalCopyFacts? Facts, PbcStorageEvent? Event)>
+    RecordLocalCopyReleaseInTransactionAsync(IAuditSphereDbContext db, ActorContext actor, PbcLocalCopyCleanupOptions options,
+      LocalCopyFacts facts, string reason, CancellationToken ct)
+  {
+    if (db.Database.CurrentTransaction is null)
+      throw new InvalidOperationException("A local-copy release requires the caller's transaction.");
+    // Same upload-row lock as activation and revert, so a release can never interleave with a return to local reads.
+    var locked = await db.PbcUploadIntents.FromSqlInterpolated($"""
+      SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {facts.Item.UploadIntentId} FOR UPDATE
+      """).AsNoTracking().ToListAsync(ct);
+    if (locked.Count != 1 || !await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))
+      return (TenantAdministration.Denied(), null, null);
+    var current = await EvaluateLocalCopyAsync(db, actor.FirmId, facts.Item.UploadIntentId, options, ct);
+    if (current is null || current.Item != facts.Item) return (StaleReleaseResult(), null, null);
+    var disposition = await db.PbcStorageDispositions.SingleAsync(x =>
+      x.FirmId == actor.FirmId && x.PbcUploadIntentId == facts.Item.UploadIntentId, ct);
+    var now = DateTimeOffset.UtcNow;
+    disposition.LocalCopy = PbcLocalCopyStates.Released;
+    disposition.Revision++;
+    disposition.UpdatedAt = now;
+    var storageEvent = new PbcStorageEvent
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = disposition.ClientId,
+      EngagementId = disposition.EngagementId, PbcStorageDispositionId = disposition.Id, Revision = disposition.Revision,
+      Kind = PbcStorageEventKinds.LocalCopyReleased, ReadSource = disposition.ReadSource, LocalCopy = disposition.LocalCopy,
+      ActorUserId = actor.UserId, Reason = reason, OccurredAt = now
+    };
+    db.PbcStorageEvents.Add(storageEvent);
+    try
+    {
+      await db.SaveChangesAsync(ct);
+    }
+    catch (DbUpdateException)
+    {
+      return (StaleReleaseResult(), null, null);
+    }
+    return (CommandResult.Ok(), facts with { Item = facts.Item with { DispositionRevision = disposition.Revision } }, storageEvent);
+  }
+
+  private static CommandResult<PbcLocalCopyReleaseReceipt> StaleRelease() =>
+    CommandResult<PbcLocalCopyReleaseReceipt>.Fail(ErrorCodes.GenerationStale, StaleReleaseResult().Message!);
+
+  private static CommandResult StaleReleaseResult() => CommandResult.Fail(ErrorCodes.GenerationStale,
+    "The upload's storage disposition or registered content changed; review a fresh plan.");
+
+  internal static async Task<LocalCopyFacts?> EvaluateLocalCopyAsync(IAuditSphereDbContext db, Guid firmId,
     Guid uploadIntentId, PbcLocalCopyCleanupOptions options, CancellationToken ct)
   {
     var intent = await db.PbcUploadIntents.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.Id == uploadIntentId, ct);
@@ -235,7 +260,7 @@ public static partial class PbcService
   }
 
   /// <summary>Deletes only the recorded staged chunk files. Any failure leaves the release recorded and retryable.</summary>
-  private static CommandResult<PbcLocalCopyReleaseReceipt> DeleteStagedChunks(LocalCopyFacts facts,
+  internal static CommandResult<PbcLocalCopyReleaseReceipt> DeleteStagedChunks(LocalCopyFacts facts,
     PbcLocalCopyCleanupOptions options)
   {
     int deleted = 0, absent = 0;

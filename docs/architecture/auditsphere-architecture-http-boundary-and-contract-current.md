@@ -47,6 +47,7 @@ Several capabilities expose one shared transport pattern: `state` returns the cu
 | `/reviews/{reviewPointId}/commands` | `ReviewPointCommandWorkspace` (`UiEndpoints.AuditRecords.cs`) | Clear/reopen; `/reviews/{id}/disposition` delegates to the same workspace. |
 | `/audit/workpapers/{id}/commands` | `WorkpaperCommandWorkspace` (`UiEndpoints.AuditRecords.cs`) | Adds `prepare-save` and `recover`; draft history is never a substitute receipt. |
 | `/operations/commands` | `OperationCommandWorkspace` (`UiEndpoints.OperationCommands.cs`) | Retry, cancel, lift quarantine, approve recovery restart. Older per-operation routes in `UiEndpoints.Operations.cs` refuse without a current preview and explicit assent. |
+| `/administration/pbc-storage/commands` | `PbcStorageCommandWorkspace` (`UiEndpoints.PbcStorage.cs`) | Administrator-only, no UI: activate/revert remote reads, release a staged copy, backfill a registration. Read-only `cleanup/plan` and `backfill/plan` dry runs sit beside it. |
 
 Billing mutations use request-identity receipts without a preview route: `GET /finance/commands/receipts/{requestId}` (`BillingCommandWorkspace`) recovers record-receipt, allocation and credit-note outcomes. Application authorization, freshness, freeze, independence and current-evidence gates remain authoritative behind every route above; the HTTP shape grants nothing.
 

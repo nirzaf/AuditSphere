@@ -136,6 +136,8 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var storageEvent = b.Entity<PbcStorageEvent>();
+    storageEvent.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_pbc_storage_events_scope_id");
     storageEvent.Property(x => x.Kind).HasMaxLength(32);
     storageEvent.Property(x => x.ReadSource).HasMaxLength(32);
     storageEvent.Property(x => x.LocalCopy).HasMaxLength(16);
@@ -155,6 +157,41 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     storageEvent.HasOne<AuditSphereOps.Domain.Completion.DurableOperation>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.OperationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var storageReceipt = b.Entity<PbcStorageCommandReceipt>();
+    storageReceipt.ToTable("pbc_storage_command_receipts", t => t.HasCheckConstraint("ck_pbc_storage_command_receipt_values",
+      "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND " +
+      "request_hash ~ '^[0-9a-f]{64}$' AND review_basis ~ '^[0-9a-f]{64}$' AND " +
+      "((action IN ('ACTIVATE_REMOTE_READ','REVERT_TO_LOCAL_READ','RELEASE_LOCAL_COPY') AND " +
+      "pbc_storage_event_id IS NOT NULL AND pbc_document_registration_id IS NULL) OR " +
+      "(action = 'BACKFILL_REGISTRATION' AND pbc_document_registration_id IS NOT NULL AND pbc_storage_event_id IS NULL)) AND " +
+      "length(input_json) BETWEEN 1 AND 4000 AND length(preview_json) BETWEEN 1 AND 100000 AND length(outcome_json) BETWEEN 1 AND 4000 AND " +
+      "jsonb_typeof(input_json::jsonb) = 'object' AND jsonb_typeof(preview_json::jsonb) = 'object' AND " +
+      "jsonb_typeof(outcome_json::jsonb) = 'object'"));
+    storageReceipt.Property(x => x.Action).HasMaxLength(40);
+    storageReceipt.Property(x => x.RequestHash).HasMaxLength(64);
+    storageReceipt.Property(x => x.ReviewBasis).HasMaxLength(64);
+    storageReceipt.Property(x => x.InputJson).HasMaxLength(PbcStorageCommandReceipt.MaximumInputLength);
+    storageReceipt.Property(x => x.PreviewJson).HasColumnType("text");
+    storageReceipt.Property(x => x.OutcomeJson).HasMaxLength(4000);
+    storageReceipt.HasIndex(x => new { x.FirmId, x.ActorId, x.RequestId }).IsUnique()
+      .HasDatabaseName("ux_pbc_storage_receipt_actor_request");
+    storageReceipt.HasIndex(x => new { x.FirmId, x.PbcStorageEventId }).IsUnique()
+      .HasFilter("pbc_storage_event_id IS NOT NULL").HasDatabaseName("ux_pbc_storage_receipt_event");
+    storageReceipt.HasIndex(x => new { x.FirmId, x.PbcDocumentRegistrationId }).IsUnique()
+      .HasFilter("pbc_document_registration_id IS NOT NULL").HasDatabaseName("ux_pbc_storage_receipt_registration");
+    storageReceipt.HasOne<PbcUploadIntent>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcUploadIntentId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    storageReceipt.HasOne<PbcStorageEvent>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcStorageEventId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    storageReceipt.HasOne<PbcDocumentRegistration>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcDocumentRegistrationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    storageReceipt.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var intent = b.Entity<PbcUploadIntent>();

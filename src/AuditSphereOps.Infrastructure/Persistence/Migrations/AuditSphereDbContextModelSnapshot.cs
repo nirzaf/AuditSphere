@@ -21537,6 +21537,118 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcStorageCommandReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("InputJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("input_json");
+
+                    b.Property<string>("OutcomeJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("outcome_json");
+
+                    b.Property<Guid?>("PbcDocumentRegistrationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_document_registration_id");
+
+                    b.Property<Guid?>("PbcStorageEventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_storage_event_id");
+
+                    b.Property<Guid>("PbcUploadIntentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_upload_intent_id");
+
+                    b.Property<string>("PreviewJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("preview_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("ReviewBasis")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("review_basis");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "PbcDocumentRegistrationId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_pbc_storage_receipt_registration")
+                        .HasFilter("pbc_document_registration_id IS NOT NULL");
+
+                    b.HasIndex("FirmId", "PbcStorageEventId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_pbc_storage_receipt_event")
+                        .HasFilter("pbc_storage_event_id IS NOT NULL");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_pbc_storage_receipt_actor_request");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcDocumentRegistrationId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcStorageEventId")
+                        .HasDatabaseName("IX_pbc_storage_command_receipts_firm_id_client_id_engagement_~1");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcUploadIntentId")
+                        .HasDatabaseName("IX_pbc_storage_command_receipts_firm_id_client_id_engagement_~2");
+
+                    b.ToTable("pbc_storage_command_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_pbc_storage_command_receipt_values", "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND review_basis ~ '^[0-9a-f]{64}$' AND ((action IN ('ACTIVATE_REMOTE_READ','REVERT_TO_LOCAL_READ','RELEASE_LOCAL_COPY') AND pbc_storage_event_id IS NOT NULL AND pbc_document_registration_id IS NULL) OR (action = 'BACKFILL_REGISTRATION' AND pbc_document_registration_id IS NOT NULL AND pbc_storage_event_id IS NULL)) AND length(input_json) BETWEEN 1 AND 4000 AND length(preview_json) BETWEEN 1 AND 100000 AND length(outcome_json) BETWEEN 1 AND 4000 AND jsonb_typeof(input_json::jsonb) = 'object' AND jsonb_typeof(preview_json::jsonb) = 'object' AND jsonb_typeof(outcome_json::jsonb) = 'object'");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcStorageDisposition", b =>
                 {
                     b.Property<Guid>("Id")
@@ -21672,6 +21784,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnName("revision");
 
                     b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_pbc_storage_events_scope_id");
 
                     b.HasIndex("FirmId", "ActorUserId");
 
@@ -37270,6 +37385,35 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Documents.PbcRequest", null)
                         .WithMany()
                         .HasForeignKey("PbcRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcStorageCommandReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcDocumentRegistration", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcDocumentRegistrationId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcStorageEvent", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcStorageEventId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcUploadIntent", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcUploadIntentId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

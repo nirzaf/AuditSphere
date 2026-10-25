@@ -78,6 +78,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<PbcDocumentRegistration> PbcDocumentRegistrations { get; }
   DbSet<PbcStorageDisposition> PbcStorageDispositions { get; }
   DbSet<PbcStorageEvent> PbcStorageEvents { get; }
+  DbSet<PbcStorageCommandReceipt> PbcStorageCommandReceipts { get; }
   DbSet<PbcUploadIntent> PbcUploadIntents { get; }
   DbSet<PbcUploadChunk> PbcUploadChunks { get; }
   DbSet<PbcCommunication> PbcCommunications { get; }

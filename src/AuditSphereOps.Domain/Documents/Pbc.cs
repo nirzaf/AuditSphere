@@ -210,6 +210,33 @@ public sealed class PbcStorageEvent
   public DateTimeOffset OccurredAt { get; set; }
 }
 
+/// <summary>
+/// One administrator's exact reviewed storage command, tied to the real immutable effect it produced: the storage
+/// event of an activation, revert or release, or the registration of a backfill. Never matched from current history.
+/// </summary>
+public sealed class PbcStorageCommandReceipt
+{
+  public const int MaximumInputLength = 4000;
+  public const int MaximumPreviewLength = 100000;
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid PbcUploadIntentId { get; set; }
+  public Guid? PbcStorageEventId { get; set; }
+  public Guid? PbcDocumentRegistrationId { get; set; }
+  public Guid ActorId { get; set; }
+  public long ActorEpoch { get; set; }
+  public Guid RequestId { get; set; }
+  public string RequestHash { get; set; } = string.Empty;
+  public string ReviewBasis { get; set; } = string.Empty;
+  public string Action { get; set; } = string.Empty;
+  public string InputJson { get; set; } = string.Empty;
+  public string PreviewJson { get; set; } = string.Empty;
+  public string OutcomeJson { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 public sealed class PbcUploadChunk
 {
   public Guid Id { get; set; }

@@ -109,27 +109,17 @@ public static partial class PbcService
       return CommandResult<Guid>.Fail(verified.ErrorCode!, "The SharePoint version could not be verified; nothing was registered.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var locked = await db.PbcUploadIntents.FromSqlInterpolated($"""
-      SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {request.UploadIntentId} FOR UPDATE
-      """).AsNoTracking().ToListAsync(ct);
-    if (locked.Count != 1 || !await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))
-      return TenantAdministration.Denied<Guid>();
-    var current = await EvaluateBackfillAsync(db, actor.FirmId, request.UploadIntentId, ct);
-    if (current?.Item.Disposition == RegistrationExists) return await ExistingRegistrationAsync();
-    if (current is null || current.Value.Item != facts.Item) return StaleBackfill();
-    var registration = AddSelectedSiteRegistration(db, locked[0], current.Value.Binding!, current.Value.SelectedItem!,
-      facts.Item.ProviderIdentity, facts.Item.Sha256Hex, facts.Item.TransferOperationId,
-      "backfill:" + actor.UserId.ToString("D"), DateTimeOffset.UtcNow);
+    var added = await BackfillInTransactionAsync(db, actor, facts, ct);
+    if (!added.Result.Succeeded) return added.Result;
     try
     {
-      await db.SaveChangesAsync(ct);
       await tx.CommitAsync(ct);
     }
     catch (DbUpdateException)
     {
       return StaleBackfill();
     }
-    return CommandResult<Guid>.Ok(registration.Id);
+    return added.Result;
 
     async Task<CommandResult<Guid>> ExistingRegistrationAsync()
     {
@@ -137,15 +127,51 @@ public static partial class PbcService
         x.FirmId == actor.FirmId && x.PbcUploadIntentId == request.UploadIntentId, ct);
       return existing.ProviderIdentity == request.ExpectedProviderIdentity ? CommandResult<Guid>.Ok(existing.Id) : StaleBackfill();
     }
-
-    static CommandResult<Guid> StaleBackfill() => CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
-      "The upload's transfer evidence or registration changed; review a fresh plan.");
   }
 
-  private readonly record struct BackfillFacts(PbcRegistrationBackfillItem Item, PbcRemoteSource? Candidate,
+  /// <summary>
+  /// Writes the registration inside the caller's transaction after the exact version was verified. Returns the new
+  /// registration, or none when the same provider identity was already registered (an idempotent replay).
+  /// </summary>
+  internal static async Task<(CommandResult<Guid> Result, PbcDocumentRegistration? Registration)> BackfillInTransactionAsync(
+    IAuditSphereDbContext db, ActorContext actor, BackfillFacts facts, CancellationToken ct)
+  {
+    if (db.Database.CurrentTransaction is null)
+      throw new InvalidOperationException("A registration backfill requires the caller's transaction.");
+    var locked = await db.PbcUploadIntents.FromSqlInterpolated($"""
+      SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {facts.Item.UploadIntentId} FOR UPDATE
+      """).AsNoTracking().ToListAsync(ct);
+    if (locked.Count != 1 || !await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))
+      return (TenantAdministration.Denied<Guid>(), null);
+    var current = await EvaluateBackfillAsync(db, actor.FirmId, facts.Item.UploadIntentId, ct);
+    if (current?.Item.Disposition == RegistrationExists)
+    {
+      var existing = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x =>
+        x.FirmId == actor.FirmId && x.PbcUploadIntentId == facts.Item.UploadIntentId, ct);
+      return (existing.ProviderIdentity == facts.Item.ProviderIdentity ? CommandResult<Guid>.Ok(existing.Id) : StaleBackfill(), null);
+    }
+    if (current is null || current.Value.Item != facts.Item) return (StaleBackfill(), null);
+    var registration = AddSelectedSiteRegistration(db, locked[0], current.Value.Binding!, current.Value.SelectedItem!,
+      facts.Item.ProviderIdentity, facts.Item.Sha256Hex, facts.Item.TransferOperationId,
+      "backfill:" + actor.UserId.ToString("D"), DateTimeOffset.UtcNow);
+    try
+    {
+      await db.SaveChangesAsync(ct);
+    }
+    catch (DbUpdateException)
+    {
+      return (StaleBackfill(), null);
+    }
+    return (CommandResult<Guid>.Ok(registration.Id), registration);
+  }
+
+  private static CommandResult<Guid> StaleBackfill() => CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
+    "The upload's transfer evidence or registration changed; review a fresh plan.");
+
+  internal readonly record struct BackfillFacts(PbcRegistrationBackfillItem Item, PbcRemoteSource? Candidate,
     RepositoryBinding? Binding, PbcSelectedSiteItem? SelectedItem);
 
-  private static async Task<BackfillFacts?> EvaluateBackfillAsync(IAuditSphereDbContext db, Guid firmId,
+  internal static async Task<BackfillFacts?> EvaluateBackfillAsync(IAuditSphereDbContext db, Guid firmId,
     Guid uploadIntentId, CancellationToken ct)
   {
     var intent = await db.PbcUploadIntents.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.Id == uploadIntentId, ct);

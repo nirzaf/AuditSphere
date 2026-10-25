@@ -132,6 +132,13 @@ public static partial class ApiHost
         sp.GetRequiredService<GraphPreauthenticatedTransport>(), selectedSiteConfigured), pbcReadScratchRoot));
     builder.Services.AddTransient<IAuditScheduleSourceContentReader>(sp => new PbcScheduleSourceContentReader(
       sp.GetRequiredService<PbcStagedScheduleContentReader>(), sp.GetRequiredService<IPbcRemoteContentReader>()));
+    builder.Services.AddTransient<IPbcRegistrationVerifier>(sp => new SelectedSitePbcContentReader(
+      sp.GetRequiredService<PbcRepositoryBindingResolver>(), new GraphSelectedSiteDrive(
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient("selected-site-graph"), sp.GetRequiredService<ISelectedSiteTokenSource>(),
+        sp.GetRequiredService<GraphPreauthenticatedTransport>(), selectedSiteConfigured), pbcReadScratchRoot));
+    // Staging cleanup stays off unless a reviewed deployment explicitly enables it; plans work while it is off.
+    builder.Services.AddSingleton(new PbcLocalCopyCleanupOptions(
+      builder.Configuration.GetValue("Storage:PbcLocalCopyCleanup:Enabled", false), pbcStagingRoot));
 
     var checkpointRoot = builder.Configuration["Storage:ReleaseCheckpointRoot"]
       ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "release-checkpoints");
