@@ -127,6 +127,23 @@ public sealed class SteV22OwnerDecisionTests
   }
 
   [Fact]
+  public void ResourceUtilizationKeepsPlannedBillableAndAllApprovedTimeSeparate()
+  {
+    var sunday = new DateOnly(2026, 10, 11);
+    // UX-AC-25 is a calculator fixture, not authority to save a profile/allocation above
+    // the existing 80-hour command limit. All approved time includes 20 non-billable hours.
+    var cell = ResourceGridCalculator.Build(6000, [],
+      [new StaffAllocation { WeekStart = sunday, PlannedMinutes = 6600 }],
+      [(sunday, 4800), (sunday.AddDays(1), 1200)], sunday, 1,
+      approvedBillableTime: [(sunday, 4800)]).Single();
+    Assert.Equal((6000, 6600, 6000, 4800),
+      (cell.CapacityMinutes, cell.PlannedMinutes, cell.ApprovedActualMinutes, cell.ApprovedBillableMinutes));
+    Assert.Equal(110m, cell.PlannedUtilizationPercent);
+    Assert.Equal(80m, cell.ActualUtilizationPercent);
+    Assert.True(cell.OverAllocated);
+  }
+
+  [Fact]
   [Trait("Profile", "Database")]
   public async Task SundayWeekMigration_MovesStoredMondayAllocationsIntoTheWeekThatContainsThem()
   {

@@ -40,6 +40,31 @@ public sealed class AngularEngagementDeadlineReminderJourneyTests
       var cancelled = await EngagementWorkflowTaskService.CancelAsync(db, actor, cancelledTaskId,
         "Synthetic closed task for reminder filtering.", 1);
       Assert.True(cancelled.Succeeded, cancelled.Message);
+
+      // Put the reminder's task beyond the ordinary engagement workspace window. Undated tasks
+      // do not displace the real overdue reminder; exact selection must precede the page bound.
+      var now = DateTimeOffset.UtcNow;
+      var earlierTasks = Enumerable.Range(1, 500).Select(i => new WorkTask
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        Title = $"Synthetic earlier reminder task {i}", Status = PracticeTimeStates.TaskOpen,
+        Phase = BudgetPhases.Unassigned, CreatedAt = now
+      }).ToArray();
+      db.WorkTasks.AddRange(earlierTasks);
+      db.WorkflowTaskBindings.AddRange(earlierTasks.Select((task, index) => new WorkflowTaskBinding
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        WorkTaskId = task.Id, Phase = WorkflowTaskPhases.ArchiveClose, Ordinal = index + 1,
+        SourceKey = $"TEST-REMINDER-WINDOW:{index + 1:D4}", CreationRequestDigest = new string('d', 64),
+        Generation = 1, DueDatePolicy = "MANUAL", AssignmentSource = "MANUAL", CreatedAt = now,
+        CreatedByUserId = f.Admin.Id
+      }));
+      await db.SaveChangesAsync();
+      var bounded = await EngagementWorkflowTaskService.GetAsync(db, actor, f.EngagementId);
+      Assert.True(bounded.Succeeded, bounded.Message);
+      Assert.True(bounded.Value!.Truncated);
+      Assert.Equal(500, bounded.Value.Tasks.Count);
+      Assert.DoesNotContain(bounded.Value.Tasks, task => task.Id == overdueTaskId);
     }
     var taskIds = new[] { overdueTaskId, completedTaskId, cancelledTaskId };
     int activityCountBeforeBrowser;
@@ -143,5 +168,28 @@ public sealed class AngularEngagementDeadlineReminderJourneyTests
     Assert.Empty(pageErrors);
 
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, selectedTaskPath, "deadline-exact-task");
+
+    // The same selected record must disappear when its session is revoked, even though the
+    // reminder URL remains known. This is an owned disposable identity, not a live account.
+    await using (var db = host.CreateDbContext())
+      await db.Users.Where(x => x.Id == f.Admin.Id).ExecuteUpdateAsync(setters =>
+        setters.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1));
+    var deniedResponse = await page.EvaluateAsync<JsonElement>("""
+      async path => {
+        const response = await fetch(path, { cache: 'no-store' });
+        return { status: response.status, body: await response.text() };
+      }
+      """, exactTaskEndpoint);
+    Assert.Equal(401, deniedResponse.GetProperty("status").GetInt32());
+    Assert.DoesNotContain(overdueTitle, deniedResponse.GetProperty("body").GetString()!);
+    Assert.DoesNotContain(overdueTaskId.ToString("D"), deniedResponse.GetProperty("body").GetString()!);
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
+    await Assertions.Expect(selectedTaskSummary).ToHaveCountAsync(0);
+    var deniedPage = await page.Locator("body").InnerTextAsync();
+    Assert.DoesNotContain(overdueTitle, deniedPage);
+    Assert.DoesNotContain(overdueTaskId.ToString("D"), deniedPage);
+    Assert.Empty(mutations);
+    Assert.Empty(pageErrors);
   }
 }

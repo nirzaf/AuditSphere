@@ -1058,6 +1058,19 @@
       "remaining": "Exact full40234333952 MATCH: AngularPASS; Domain/API/E2E/Verify active. Final requirement acceptance and authorized Acceptance cutover pending.",
       "browser": "Owned built-in invoice read and source expansion observed; exact description, Sent status and unchanged QAR amount; owned tab closed and fixture released. Named repeat1PASS.",
       "sourceCommit": "a48db01526015e4b5e767620160eff3a699e4a77"
+    },
+    "axelorFinalAcceptanceGap20261026": {
+      "status": "FOCUSED_PASS_FINAL_SOURCE_CI_REQUIRED",
+      "runtimeSourceUnchanged": "a48db01526015e4b5e767620160eff3a699e4a77",
+      "requirements": [
+        "UX-AC-24",
+        "UX-AC-25"
+      ],
+      "local": "Existing reminderE2E1PASS; calculator namedDomain1PASS; existing Angularresources16PASS; no full local suites",
+      "behavior": "Reminder-selected task beyond500-row workspace remains exact, then HTTP401/noID/title and rendered protected-content removal after sessionrevocation. Calculator6000capacity/6600planned/6000all-approved/4800billable yields110%planned/80%billable. Existing displaymock480/1200 corrected50% to40%; no production calculation change.",
+      "browser": "Owned builtin same exact task ID/title/read-onlycontext observed; tab12 closed before fixture release; automatic same-session revocation scenario passed afterward.",
+      "evidence": ".local/autonomous/evidence/axelor-final-20261025/acceptance-gap-review.json",
+      "remaining": "Publish test-only slice and verify exact final fast/full/images and current-source rehearsal before Acceptance cutover. Earlier a48 results remain predecessor evidence."
     }
   },
   "externalGates": [
@@ -1513,7 +1526,8 @@
     "imagePublication": "PASS run40234318959; exactcheckout and immutablemanifestpushes",
     "runtimeRehearsal": "PASS exacta48: schema286/0migrations/379original projectionsunchanged; health+bothuncachedAngularroots200; ownedDB/container/envcleanupread-onlyverified",
     "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
-    "updatedAtUtc": "2026-10-25T21:25:28.950404+00:00"
+    "updatedAtUtc": "2026-10-25T21:25:28.950404+00:00",
+    "successorStatus": "Preceding runtime candidate; test-only acceptance coverage successor requires exact final-source gates. No FULL_CI_PASS or cutover claimed."
   },
   "updatedAtUtc": "2026-10-25T19:22:40.871517+00:00"
 }

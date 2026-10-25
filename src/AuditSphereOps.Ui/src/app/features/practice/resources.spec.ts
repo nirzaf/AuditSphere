@@ -41,7 +41,7 @@ const workspace = {
             approvedActualMinutes: 600,
             approvedBillableMinutes: 480,
             plannedUtilizationPercent: '150',
-            actualUtilizationPercent: '50',
+            actualUtilizationPercent: '40',
             overAllocated: true,
           },
         ],
@@ -158,7 +158,7 @@ describe('Resource planning forms', () => {
     expect(text).toContain('Synthetic undated qualification · Verification recorded separately · Expiry not recorded');
     expect(text).toContain('approved actual 10 h');
     // Utilization is stated on approved billable time, beside all approved hours.
-    expect(text).toContain('billable 8 h, 50% utilised');
+    expect(text).toContain('billable 8 h, 40% utilised');
     expect(text).toContain('Synthetic engagement');
     expect(text).toContain('Fieldwork');
     expect(text).toContain('Revenue');
@@ -185,7 +185,7 @@ describe('Resource planning forms', () => {
     expect(detail).toMatch(/Net capacity\s*20 h/);
     expect(detail).toContain('planned utilization 150%');
     expect(detail).toMatch(/Approved actual time, all classifications\s*10 h/);
-    expect(detail).toContain('actual billable utilization 50%');
+    expect(detail).toContain('actual billable utilization 40%');
     expect(detail).toContain('Over-allocated: planned allocation exceeds net capacity.');
     expect(detail).toContain('2026-10-05 to 2026-10-06 · 480 minutes per working day');
     expect(host.querySelector(`section[aria-labelledby="cell-detail-heading"] a[href="/app/engagements/${engagement}"]`)).not.toBeNull();
