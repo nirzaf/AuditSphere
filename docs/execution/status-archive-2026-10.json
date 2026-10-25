@@ -25314,6 +25314,72 @@
         "cutoverStatus": "PENDING_EXACT_CURRENT_FAST_FULL_IMAGES_AND_REHEARSAL",
         "mailBoundary": "Legacy mail must be paused at cutover and remain paused until genuine signed sender-authorization evidence is installed."
       }
+    },
+    "currentSourceCiBeforeAxelorFinalE5320261025": {
+      "sourceCommit": "c15b7595dc95281a4461e348c5c87ca0ebf8e917",
+      "fastCi": "PASS run40224163389; all jobs successful, exact checkout SHA verified.",
+      "releaseVerification": "40224215180 RUNNING, source MATCH; Angular/full specs PASS; remaining jobs active.",
+      "imagePublication": "PASS run40224263053; exact checkout and immutable digests recorded in hostingerAcceptance.latestReleasePreparation.",
+      "runtimeRehearsal": "PASS exactc15: schema286 unchanged, no migrations needed,379 original table projections unchanged, health and both UI roots200; owned copy/container/env removed.",
+      "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
+      "updatedAtUtc": "2026-10-25T19:22:40.871517+00:00"
+    },
+    "hostingerPreparationBeforeAxelorFinalE5320261025": {
+      "observedAtUtc": "2026-10-25T19:22:40.871517+00:00",
+      "sourceCommit": "c15b7595dc95281a4461e348c5c87ca0ebf8e917",
+      "implementationCommit": "a4a832298b3918d57347ada5bd67d684ba06876e",
+      "currentFastRun": 40224163389,
+      "fastStatus": "PASS: all three jobs successful with exact checkout git-log proof.",
+      "currentFullRun": 40224215180,
+      "fullStatus": "RUNNING source MATCH; Angular/full specs PASS; Verify/Domain/API/E2E remain active.",
+      "currentImageBuildRun": 40224263053,
+      "imageStatus": "PASS: three exact checkout jobs and immutable manifest pushes.",
+      "imageDigests": {
+        "api": "ghcr.io/nirzaf/auditsphere-acceptance-api:c15b7595dc95281a4461e348c5c87ca0ebf8e917@sha256:c6b3d29649c9d231f3284d0c9ad63d0cf4fa0c7e657fad2729a37569dce80113",
+        "worker": "ghcr.io/nirzaf/auditsphere-acceptance-worker:c15b7595dc95281a4461e348c5c87ca0ebf8e917@sha256:01a39b153aa490c86f60ea984c200715419355a3d82148bda146f05d15c8d208",
+        "migrations": "ghcr.io/nirzaf/auditsphere-acceptance-migrations:c15b7595dc95281a4461e348c5c87ca0ebf8e917@sha256:98c48939432dad39cf1a7464a82e7b7074f141da813e6905fd18216f1ce659df"
+      },
+      "currentSourceRehearsal": {
+        "status": "PASS_RESTORED_COPY_LATEST_SOURCE",
+        "report": "LOCAL_ONLY .local/autonomous/evidence/axelor-remaining-20261025/rehearsal-c15.json",
+        "sourceSha": "c15b7595dc95281a4461e348c5c87ca0ebf8e917",
+        "migrationCountBefore": 286,
+        "migrationCountAfter": 286,
+        "migrationHead": "20261025144831_PbcStorageCommandReceipts",
+        "migrationsApplied": 0,
+        "originalTableCount": 379,
+        "originalRowsAndValuesUnchanged": true,
+        "apiChecks": {
+          "ready": 200,
+          "live": 200,
+          "ui": 200,
+          "uiAngularShellPresent": true,
+          "uiSlash": 200,
+          "uiSlashAngularShellPresent": true
+        },
+        "disposableDatabaseRemoved": true,
+        "ownedContainerRemoved": true,
+        "temporaryEnvironmentFilesRemoved": true,
+        "liveDatabaseChangedByRehearsal": false,
+        "liveContainersChangedByRehearsal": false
+      },
+      "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
+      "mailBoundary": "Already paused at observed preflight; remains paused without genuine signed sender authorization.",
+      "liveObserved": {
+        "sourceCheckout": "bba5f4b902dac67905bcf3925410cd0a31ec703d",
+        "imageSource": "bba5f4b902dac67905bcf3925410cd0a31ec703d",
+        "schema": "286:20261025144831_PbcStorageCommandReceipts",
+        "coreServices": [
+          "api",
+          "worker-general",
+          "worker-processing",
+          "worker-records"
+        ],
+        "mailRunning": false,
+        "deploymentProvenance": "Observed read-only; no claim this run deployed the earlier source.",
+        "latestSourceDeployed": false
+      },
+      "backupPreparation": "Use observed project-owned Docker volume mounts, protected .env/overlay/config, and a fresh catalog-validated quiesced DB dump before live mutation. Preserve rollback evidence; no automatic destructive DB restore."
     }
   },
   "archivedTargetedVerification": {
