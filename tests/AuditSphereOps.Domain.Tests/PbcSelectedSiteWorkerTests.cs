@@ -254,6 +254,106 @@ public sealed class PbcSelectedSiteWorkerTests
   }
 
   [Fact]
+  public async Task LocalCopyCleanup_StaysOffByDefault_AndReleasesOnlyVerifiedEligibleStaging()
+  {
+    var (h, graph) = await CreateAsync();
+    await using var _h = h;
+    await h.ProvisionAsync(h.A);
+    var original = Document("cleanup pilot");
+    var staged = await h.UploadAsync(h.A, h.RequestA, original);
+    Assert.True(await h.Worker.ProcessNextAsync());
+    var reviewer = PbcSeed.Actor(h.A.Reviewer, "Reviewer");
+    var enabled = new PbcLocalCopyCleanupOptions(true, staged.StagingRoot);
+    await using var db = h.Db();
+    var intent = await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == staged.UploadIntentId);
+    var registration = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == intent.Id);
+    var chunkPaths = await db.PbcUploadChunks.AsNoTracking().Where(x => x.PbcUploadIntentId == intent.Id)
+      .OrderBy(x => x.ChunkIndex).Select(x => x.StagedPath!).ToListAsync();
+    async Task<PbcLocalCopyPlanItem> PlanAsync(PbcLocalCopyCleanupOptions options)
+    {
+      var plan = await PbcService.PlanLocalCopyCleanupAsync(db, h.Admin, options, [intent.Id]);
+      Assert.True(plan.Succeeded, plan.ErrorCode);
+      return Assert.Single(plan.Value!);
+    }
+
+    // Not eligible until reads come from the registered version and the PBC decision is final.
+    Assert.Equal("pbc.cleanup-remote-read-inactive", (await PlanAsync(enabled)).Disposition);
+    Assert.True((await PbcService.ActivateRemoteReadAsync(db, h.Admin,
+      new PbcReadDispositionRequest(intent.Id, registration.Id, 0, "Cleanup pilot"))).Succeeded);
+    Assert.Equal("pbc.cleanup-request-open", (await PlanAsync(enabled)).Disposition);
+    var revision = (await db.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == h.RequestA)).Revision;
+    Assert.True((await PbcService.ChangeStateAsync(db, reviewer, new PbcStateChangeRequest(h.RequestA, PbcStates.UnderReview, revision))).Succeeded);
+    Assert.True((await PbcService.ChangeStateAsync(db, reviewer, new PbcStateChangeRequest(h.RequestA, PbcStates.Accepted, revision + 1,
+      ReviewedUploadIntentId: intent.Id, ReviewedUploadRevision: intent.Revision, ReviewedContentSha256Hex: staged.DeclaredSha256Hex))).Succeeded);
+
+    // Chunks outside the allowlisted root or behind a link are never eligible.
+    Assert.Equal("pbc.cleanup-path-outside-allowlist",
+      (await PlanAsync(enabled with { StagingRoot = Path.Combine(staged.StagingRoot, "elsewhere") })).Disposition);
+    var moved = chunkPaths[0] + ".moved";
+    File.Move(chunkPaths[0], moved);
+    File.CreateSymbolicLink(chunkPaths[0], moved);
+    Assert.Equal("pbc.cleanup-path-link", (await PlanAsync(enabled)).Disposition);
+    File.Delete(chunkPaths[0]);
+    File.Move(moved, chunkPaths[0]);
+
+    // The dry-run works while cleanup is disabled and never exposes absolute paths.
+    var plan = await PlanAsync(PbcLocalCopyCleanupOptions.Disabled(staged.StagingRoot));
+    Assert.Equal((PbcService.LocalCopyEligible, PbcLocalCopyPathClasses.Allowlisted, PbcLocalCopyEffects.DeleteStagedChunks, 1L),
+      (plan.Disposition, plan.PathClass, plan.Effect, plan.DispositionRevision));
+    Assert.Equal((registration.Id, staged.DeclaredSha256Hex, chunkPaths.Count), (plan.RegistrationId, plan.Sha256Hex, plan.ChunkCount));
+    Assert.DoesNotContain(staged.StagingRoot, System.Text.Json.JsonSerializer.Serialize(plan));
+
+    var scratch = Path.Combine(Path.GetTempPath(), "AuditSphereOps.Tests", $"pbc-read-{Guid.NewGuid():N}");
+    try
+    {
+      var reader = new SelectedSitePbcContentReader(new PbcRepositoryBindingResolver(h.Factory), h.Drive, scratch);
+      var request = new PbcLocalCopyReleaseRequest(intent.Id, plan.DispositionRevision, plan.Sha256Hex, "Approved synthetic cleanup pilot");
+      Assert.Equal("pbc.cleanup-disabled", (await PbcService.ReleaseLocalCopyAsync(db, h.Admin,
+        PbcLocalCopyCleanupOptions.Disabled(staged.StagingRoot), reader, request)).ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await PbcService.ReleaseLocalCopyAsync(db, reviewer, enabled, reader, request)).ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await PbcService.ReleaseLocalCopyAsync(db, h.Admin, enabled, reader,
+        request with { UploadIntentId = Guid.NewGuid() })).ErrorCode);
+      Assert.Equal(ErrorCodes.GateBlocked, (await PbcService.ReleaseLocalCopyAsync(db, h.Admin, enabled,
+        new UnavailableRemoteReader(), request)).ErrorCode);
+      Assert.All(chunkPaths, path => Assert.True(File.Exists(path)));
+
+      var released = await PbcService.ReleaseLocalCopyAsync(db, h.Admin, enabled, reader, request);
+      Assert.True(released.Succeeded, released.ErrorCode);
+      Assert.Equal((2L, chunkPaths.Count, 0), (released.Value!.DispositionRevision, released.Value.DeletedChunks, released.Value.AlreadyAbsentChunks));
+      Assert.All(chunkPaths, path => Assert.False(File.Exists(path)));
+      // SharePoint and the PBC upload history are untouched; the exact registered version still serves the document.
+      Assert.Equal(1, graph.VersionCount(plan.ItemId));
+      Assert.Equal(chunkPaths, await db.PbcUploadChunks.AsNoTracking().Where(x => x.PbcUploadIntentId == intent.Id)
+        .OrderBy(x => x.ChunkIndex).Select(x => x.StagedPath!).ToListAsync());
+      var download = await PbcService.PrepareDownloadAsync(db, reviewer, intent.Id);
+      var read = await reader.ReadVerifiedAsync(download.Value!.Remote!, CancellationToken.None);
+      Assert.True(read.Succeeded, read.ErrorCode);
+      await using (var content = read.Value!)
+      {
+        using var copy = new MemoryStream();
+        await content.Content.CopyToAsync(copy);
+        Assert.Equal(original, copy.ToArray());
+      }
+
+      // Release is terminal: no return to local reads, and a replay only reports the chunks as already absent.
+      Assert.Equal("pbc.storage-local-released", (await PbcService.RevertToLocalReadAsync(db, h.Admin,
+        new PbcReadDispositionRequest(intent.Id, registration.Id, 2, "Rollback after release"))).ErrorCode);
+      var replay = await PbcService.ReleaseLocalCopyAsync(db, h.Admin, enabled, reader, request with { ExpectedDispositionRevision = 2 });
+      Assert.True(replay.Succeeded, replay.ErrorCode);
+      Assert.Equal((0, chunkPaths.Count), (replay.Value!.DeletedChunks, replay.Value.AlreadyAbsentChunks));
+      Assert.Equal(new[] { PbcStorageEventKinds.RemoteReadActivated, PbcStorageEventKinds.LocalCopyReleased },
+        await db.PbcStorageEvents.AsNoTracking().OrderBy(x => x.Revision).Select(x => x.Kind).ToArrayAsync());
+    }
+    finally { if (Directory.Exists(scratch)) Directory.Delete(scratch, recursive: true); }
+  }
+
+  private sealed class UnavailableRemoteReader : IPbcRemoteContentReader
+  {
+    public Task<CommandResult<PbcVerifiedContent>> ReadVerifiedAsync(PbcRemoteSource source, CancellationToken ct) =>
+      Task.FromResult(CommandResult<PbcVerifiedContent>.Fail(ErrorCodes.GateBlocked, "Synthetic SharePoint outage."));
+  }
+
+  [Fact]
   public async Task GraphThrottling_RetriesLater_ThenCompletes()
   {
     var (h, graph) = await CreateAsync();
