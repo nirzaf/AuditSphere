@@ -113,6 +113,81 @@ public sealed class WorkspaceQueryTests
   }
 
   [Fact]
+  public async Task CommercialPipelineCountsEachOpportunityOnceWithCompleteCurrencyTotals()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var admin = PbcSeed.Actor(fixture.Admin, "Administrator");
+    async Task<Guid> OpenAsync(AuditSphereOps.Application.Abstractions.ActorContext actor, string leadName, decimal fee, string currency,
+      Guid? owner = null, string route = "FinancialStatementAudit")
+    {
+      var lead = await db.Leads.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Name == leadName);
+      var leadId = lead?.Id ?? (await PracticeCrmService.CreateLeadAsync(db, actor, new(leadName, "Referral"))).Value;
+      if (lead is null) Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, leadId)).Succeeded);
+      var created = await PracticeCrmService.CreateOpportunityAsync(db, actor,
+        new(leadId, route, "Entity", "2026-01-01", "2026-12-31", fee, currency, OwnerUserId: owner));
+      Assert.True(created.Succeeded, created.Message);
+      return created.Value;
+    }
+    var proposed = await OpenAsync(admin, "Pipeline lead", 15000m, "QAR", fixture.Admin.Id);
+    var sameClient = await OpenAsync(admin, "Pipeline lead", 2500.5m, "USD");
+    for (var i = 0; i < 11; i++) await OpenAsync(admin, "Pipeline lead", 100m, "QAR", route: "AccountingOnly");
+    await OpenAsync(PbcSeed.Actor(foreign.Admin, "Administrator"), "Foreign pipeline lead", 999m, "QAR");
+    // Two revisions of one proposal and a second opportunity for the same client.
+    foreach (var opportunity in await db.Opportunities.Where(o => o.Id == proposed || o.Id == sameClient).ToListAsync())
+    {
+      opportunity.PracticeClientId = fixture.ClientId;
+      if (opportunity.Id == proposed) opportunity.Stage = AuditSphereOps.Domain.Practice.CrmStates.OpportunityProposal;
+    }
+    AuditSphereOps.Domain.Practice.Proposal Revision(long revision, string status) => new()
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, OpportunityId = proposed, Revision = revision, Status = status,
+      ServiceProfileId = "Standard", Scope = "Scope", Deliverables = "Report", Fee = 15000m, Currency = "QAR",
+      PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.Proposals.AddRange(Revision(1, "SUPERSEDED"), Revision(2, "DRAFT"));
+    await db.SaveChangesAsync();
+    static decimal Amount(string value) => decimal.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+
+    var board = (await CommercialPipelineQuery.GetAsync(db, admin)).Value!;
+    Assert.Equal(CommercialPipelineQuery.Stages, board.Stages.Select(s => s.Stage));
+    Assert.Equal(13, board.Stages.Sum(s => s.Count));
+    Assert.DoesNotContain(board.Stages.SelectMany(s => s.Items), c => c.LeadName == "Foreign pipeline lead");
+    var discovery = board.Stages[0];
+    Assert.Equal((12, 10, true, 0), (discovery.Count, discovery.Items.Count, discovery.HasMore, discovery.UnavailableCurrencyCount));
+    Assert.Equal([("QAR", 11, 1100m), ("USD", 1, 2500.5m)], discovery.Totals.Select(t => (t.Currency, t.Count, Amount(t.ExpectedFee))));
+    var proposal = board.Stages[1];
+    var card = Assert.Single(proposal.Items);
+    Assert.Equal((1, proposed, "2", "DRAFT", 2), (proposal.Count, card.Id, card.ProposalRevision, card.ProposalStatus, card.ProposalRevisions));
+    Assert.Equal((fixture.Admin.Id, PracticeLeadOwnerStates.Active), (card.OwnerUserId!.Value, card.OwnerState));
+    Assert.Equal(15000m, Amount(Assert.Single(proposal.Totals).ExpectedFee));
+    Assert.All(board.Stages.Skip(2), stage => Assert.Equal((0, 0), (stage.Count, stage.Items.Count)));
+
+    // A continuation returns the rest of its stage; reused after a filter change it is refused, never mixed.
+    var last = discovery.Items[^1];
+    var cursor = new CommercialPipelineCursor("DISCOVERY", last.CreatedAt, last.Id);
+    var rest = Assert.Single((await CommercialPipelineQuery.GetAsync(db, admin, cursor: cursor)).Value!.Stages);
+    Assert.Equal((12, 2, false), (rest.Count, rest.Items.Count, rest.HasMore));
+    Assert.Empty(discovery.Items.Select(c => c.Id).Intersect(rest.Items.Select(c => c.Id)));
+    Assert.Equal("request.invalid", (await CommercialPipelineQuery.GetAsync(db, admin, new(Currency: "USD"), cursor)).ErrorCode);
+
+    var clientCards = (await CommercialPipelineQuery.GetAsync(db, admin, new(ClientId: fixture.ClientId))).Value!
+      .Stages.SelectMany(s => s.Items).ToList();
+    Assert.Equal(new HashSet<Guid> { proposed, sameClient }, clientCards.Select(c => c.Id).ToHashSet());
+    Assert.All(clientCards, c => Assert.False(string.IsNullOrEmpty(c.ClientName)));
+    Assert.Equal(sameClient, Assert.Single((await CommercialPipelineQuery.GetAsync(db, admin, new(Currency: "usd"))).Value!
+      .Stages.SelectMany(s => s.Items)).Id);
+    Assert.Equal(1, (await CommercialPipelineQuery.GetAsync(db, admin, new(Owner: "me"))).Value!.Stages.Sum(s => s.Count));
+    Assert.Equal(11, (await CommercialPipelineQuery.GetAsync(db, admin, new(ServiceRoute: "AccountingOnly"))).Value!.Stages.Sum(s => s.Count));
+    foreach (var invalid in new CommercialPipelineFilter[] { new(Owner: "someone"), new(Currency: "US"), new(ServiceRoute: " ") })
+      Assert.Equal("request.invalid", (await CommercialPipelineQuery.GetAsync(db, admin, invalid)).ErrorCode);
+    Assert.Equal("request.invalid", (await CommercialPipelineQuery.GetAsync(db, admin, cursor: cursor with { Stage = "CLOSED" })).ErrorCode);
+    Assert.False((await CommercialPipelineQuery.GetAsync(db, PbcSeed.Actor(fixture.Staff, "Staff"), new(Owner: "me"))).Succeeded);
+  }
+
+  [Fact]
   public async Task ConcurrentEngagementCreationIsSingleBlockedDraft_AndActivationRequiresAcceptance()
   {
     await using var pg = await PgTestSchema.CreateAsync();

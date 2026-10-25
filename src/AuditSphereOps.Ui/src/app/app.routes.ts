@@ -202,6 +202,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/commercial/proposal').then((m) => m.ProposalDetail),
   },
   {
+    path: 'app/practice/pipeline',
+    canActivate: [staffGuard],
+    title: 'Opportunity pipeline · AuditSphere',
+    loadComponent: () => import('./features/commercial/pipeline').then((m) => m.CommercialPipeline),
+  },
+  {
     path: 'app/practice/leads',
     canActivate: [staffGuard],
     title: 'Leads · AuditSphere',

@@ -46,15 +46,8 @@ public static class PracticeLeadQuery
     string? search = null, int page = 0, int pageSize = 25, PracticeLeadFilter? filter = null, CancellationToken ct = default)
   {
     filter ??= new();
-    Guid? ownerId = null;
-    var unassigned = filter.Owner == "unassigned";
-    if (filter.Owner == "me") ownerId = actor.UserId;
-    else if (filter.Owner is not null && !unassigned)
-    {
-      if (!Guid.TryParse(filter.Owner, out var parsed) || parsed == Guid.Empty)
-        return CommandResult<PracticeLeadPage>.Fail("request.invalid", "Invalid lead owner filter.");
-      ownerId = parsed;
-    }
+    if (!TryParseOwnerFilter(filter.Owner, actor.UserId, out var ownerId, out var unassigned))
+      return CommandResult<PracticeLeadPage>.Fail("request.invalid", "Invalid lead owner filter.");
     if (search?.Length > 100 || page is < 0 or > 10000 || pageSize is < 1 or > 100 ||
         (filter.Status is not null && !LeadStatuses.Contains(filter.Status)) ||
         (filter.Source is not null && !LeadChannels.All.Contains(filter.Source)))
@@ -114,6 +107,18 @@ public static class PracticeLeadQuery
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
     return auth.Succeeded ? CommandResult<PracticeLeadPage>.Ok(new(staged, summary.Matching, page, pageSize, summary))
       : CommandResult<PracticeLeadPage>.Fail(auth.ErrorCode!, "Leads unavailable.");
+  }
+
+  /// <summary>Parses an owner filter ("me", "unassigned" or a nonempty user ID); anything else is refused, never widened.</summary>
+  internal static bool TryParseOwnerFilter(string? owner, Guid actorUserId, out Guid? ownerId, out bool unassigned)
+  {
+    ownerId = null;
+    unassigned = owner == "unassigned";
+    if (owner is null || unassigned) return true;
+    if (owner == "me") { ownerId = actorUserId; return true; }
+    if (!Guid.TryParse(owner, out var parsed) || parsed == Guid.Empty) return false;
+    ownerId = parsed;
+    return true;
   }
 
   public static async Task<CommandResult<IReadOnlyList<PracticeLeadListItem>>> ListAsync(

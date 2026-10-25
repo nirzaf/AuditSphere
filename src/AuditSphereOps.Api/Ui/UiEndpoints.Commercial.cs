@@ -182,6 +182,27 @@ public static partial class UiEndpoints
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
+    group.MapGet("/pipeline", async (string? owner, string? service, string? currency, Guid? clientId, string? stage,
+      DateTimeOffset? beforeCreatedAt, Guid? beforeId, HttpContext http, TrustedActorResolver resolver,
+      IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      if (stage is null != beforeCreatedAt is null || beforeCreatedAt is null != beforeId is null)
+        return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await CommercialPipelineQuery.GetAsync(db, actor,
+        new CommercialPipelineFilter(NullIfEmpty(owner), NullIfEmpty(service), NullIfEmpty(currency), clientId),
+        stage is null ? null : new CommercialPipelineCursor(stage, beforeCreatedAt!.Value, beforeId!.Value), ct: http.RequestAborted);
+      if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "request.invalid" ? 400 : 403);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return Results.Ok(result.Value);
+    })
+      .Produces<CommercialPipeline>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/leads", async (LeadInput input, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {

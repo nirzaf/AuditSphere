@@ -18,6 +18,7 @@ export const NAVIGATION: NavGroup[] = [
     { label: 'Portfolio', path: '/app', icon: 'layout-dashboard', exact: true },
     { label: 'My work', path: '/app/work', icon: 'list-checks' },
     { label: 'Practice leads', path: '/app/practice/leads', icon: 'user-round-plus' },
+    { label: 'Opportunity pipeline', path: '/app/practice/pipeline', icon: 'kanban' },
     { label: 'Resources', path: '/app/practice/resources', icon: 'calendar-days' },
     { label: 'Time', path: '/app/practice/time', icon: 'timer' },
     { label: 'Firm ledger', path: '/app/finance', icon: 'book-open', exact: true },

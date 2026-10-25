@@ -34,7 +34,7 @@ public static partial class UiEndpoints
     "/ui/setup/microsoft365", "/ui/app/administration", "/ui/app/administration/users", "/ui/app/administration/microsoft365", "/ui/app/administration/microsoft365/tenant-connection",
     "/ui/portal/accounting/journals/{id:guid}", "/ui/portal/accounting/packages/{id:guid}", "/ui/portal", "/ui/portal/requests/{id:guid}",
     // ASP.NET accepts a trailing slash on this route; a second /ui/ endpoint is ambiguous.
-    "/ui", "/ui/app", "/ui/app/accounting", "/ui/app/practice/leads", "/ui/app/practice/commercial-settings",
+    "/ui", "/ui/app", "/ui/app/accounting", "/ui/app/practice/leads", "/ui/app/practice/pipeline", "/ui/app/practice/commercial-settings",
     "/ui/app/clients/{id:guid}", "/ui/app/clients/{id:guid}/contacts/new", "/ui/app/clients/{id:guid}/engagements/new", "/ui/app/engagements/{id:guid}", "/ui/app/engagements/{id:guid}/activation", "/ui/app/engagements/{id:guid}/analysis/new", "/ui/app/clients/{id:guid}/assessment",
     "/ui/app/practice/proposals/{id:guid}/client-conversion", "/ui/app/practice/proposals/{id:guid}", "/ui/app/practice/leads/{id:guid}",
     "/ui/app/finance/books", "/ui/app/finance", "/ui/app/finance/fee-agreements", "/ui/app/finance/fee-agreements/{id:guid}", "/ui/app/practice/invoices/{id:guid}", "/ui/app/practice/analytics", "/ui/app/library", "/ui/app/library/{id:guid}",
