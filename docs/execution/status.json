@@ -94,7 +94,9 @@
     }
   ],
   "targetedVerification": {
-    "sharePointPrimary": {"handoff": "auditsphere-execution-sharepoint-primary-storage-current.md"},
+    "sharePointPrimary": {
+      "handoff": "auditsphere-execution-sharepoint-primary-storage-current.md"
+    },
     "angularMigrationAcceptanceCrossFirmIsolation": {
       "result": "PASS",
       "scopeStatus": "PARTIAL",
@@ -1061,12 +1063,12 @@
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.narrativeMetricsFastCiRepair20261025"
     },
     "releasePreflight20261025": {
-      "status": "FAST_IMAGES_REHEARSAL_PASS_FULL_API_E2E_PENDING",
+      "status": "FAST_IMAGES_REHEARSAL_E2E_PASS_API_RETRY_PENDING",
       "authorization": "Owner requested release now; existing Hostinger Acceptance target.",
       "sourceCommit": "6d592f8f6e9319bc4f477a4621068817f4b0662f",
       "initialFailure": "fc0ec978 restored container: /ui/ HTTP500 from duplicate /ui and /ui/ endpoint registrations. Corrected6d592f8f; existing regression RED1 then focused host/ownership GREEN2.",
       "rehearsal": "Corrected exact-source images pulled by digest. Private backup catalog-checked/restored; 58 migrations applied (226 to284). Original row projections across334 tables unchanged. API live/ready and both /ui root forms HTTP200 with no-store Angular shells. Disposable DB/container/env files removed; live DB/containers unchanged.",
-      "remaining": "Full current API/E2E CI, final quiesced cutover backup and rollout pending. No built-in-browser release check yet. Current signed mail evidence absent: outbound mail must stay paused at cutover.",
+      "remaining": "API attempt1 exit143, no TRX or identified failed assertion; same-source API-only attempt2 running. Focused publication case1PASS is not a reproduction or fix. Final backup/cutover/browser pending; signed mail evidence absent.",
       "evidence": ".local/autonomous/evidence/release-ui-root-20261025/rehearsal-6d.json"
     }
   },
@@ -1642,10 +1644,10 @@
   },
   "currentSourceCi": {
     "sourceCommit": "6d592f8f6e9319bc4f477a4621068817f4b0662f",
-    "fastCi": "40176745597: all jobs succeeded. Actual checkout git-log in Angular, .NET and Docs jobs MATCH candidate; proof retained in release-ui-root-20261025/fast-source-proof.json.",
-    "releaseVerification": "40176766617: release-source artifact MATCH candidate; Angular/full specs, Verify and unfiltered Domain passed; API/E2E remain in progress. FULL_CI_PASS not established.",
+    "fastCi": "40176745597 all jobs PASS; actual checkout logs MATCH; fast-source-proof.json retained.",
+    "releaseVerification": "40176766617 sourceMATCH: Angular, Verify, Domain and E2E339/339 PASS. API attempt1 exit143 without TRX; root cause unproven. API-only attempt2 running; no FULL_CI_PASS.",
     "imagePublication": "40176745617: all API/worker/migration jobs succeeded at candidate source; exact pulled digests retained in rehearsal-6d.json.",
     "runtimeRehearsal": "PASS on owned restored DB: 58 migrations, original projections unchanged, health live/ready and /ui plus /ui/ all200. Does not establish live rollout or provider acceptance."
   },
-  "updatedAtUtc": "2026-10-25T08:52:21Z"
+  "updatedAtUtc": "2026-10-25T11:19:37.698759+00:00"
 }
