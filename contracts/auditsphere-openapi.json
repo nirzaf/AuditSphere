@@ -71022,6 +71022,150 @@
         ]
       }
     },
+    "/api/ui/finance/invoices": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingWorkbenchPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/finance/receivables-aging": {
       "get": {
         "tags": [
@@ -103103,6 +103247,233 @@
           "receivedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "BillingWorkbenchPage": {
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize",
+          "totals"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingWorkbenchRow"
+            }
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingWorkbenchTotal"
+            }
+          }
+        }
+      },
+      "BillingWorkbenchRow": {
+        "required": [
+          "id",
+          "invoiceNumber",
+          "clientId",
+          "clientName",
+          "kind",
+          "engagementId",
+          "engagementName",
+          "multipleEngagements",
+          "currency",
+          "status",
+          "revision",
+          "createdAt",
+          "postedAt",
+          "sentAt",
+          "total",
+          "credited",
+          "allocated",
+          "outstanding",
+          "approvedDueDate",
+          "paymentTermsPending"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoiceNumber": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "engagementId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "engagementName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "multipleEngagements": {
+            "type": "boolean"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "postedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "sentAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "total": {
+            "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
+            "type": "string",
+            "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "credited": {
+            "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
+            "type": "string",
+            "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "allocated": {
+            "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
+            "type": "string",
+            "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "outstanding": {
+            "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
+            "type": "string",
+            "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "approvedDueDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "paymentTermsPending": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BillingWorkbenchTotal": {
+        "required": [
+          "currency",
+          "basis",
+          "count",
+          "total",
+          "credited",
+          "allocated",
+          "outstanding"
+        ],
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "basis": {
+            "type": "string"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "total": {
+            "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
+            "type": "string",
+            "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "credited": {
+            "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "allocated": {
+            "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "outstanding": {
+            "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
           }
         }
       },

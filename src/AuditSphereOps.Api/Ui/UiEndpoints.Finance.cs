@@ -70,6 +70,14 @@ public static partial class UiEndpoints
           new FirmUnbilledTimeRequest(fromDate, toDate, clientId, engagementId, page ?? 0, pageSize ?? 50), ct);
       })));
 
+    UiEndpointContractMetadata.WithUiResponse<BillingWorkbenchPage>(group.MapGet("/finance/invoices", (Guid? clientId, string? status,
+      string? currency, string? number, int? page, HttpContext http) => ReadAsync(http, (db, actor, ct) =>
+      {
+        static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+        return BillingWorkbenchQuery.PageAsync(db, actor,
+          new BillingWorkbenchFilter(clientId, Blank(status), Blank(currency), Blank(number)), page ?? 0, ct: ct);
+      })));
+
     UiEndpointContractMetadata.WithUiResponse<FirmReceivablesAgingReport>(group.MapGet("/finance/receivables-aging", (string? asOf, HttpContext http) => ReadAsync(http, (db, actor, ct) =>
     {
       // Keep the endpoint's original first-value parsing while binding the nullable query for OpenAPI.

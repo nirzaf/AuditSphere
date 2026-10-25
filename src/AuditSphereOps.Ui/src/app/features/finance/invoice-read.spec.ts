@@ -43,6 +43,18 @@ describe('Invoice exact read and allocation pagination', () => {
     const posted = open({ ...invoice(1), status: 'POSTED', postedAt: '2026-10-02T09:00:00Z' });
     expect((posted.nativeElement as HTMLElement).querySelector('[data-testid="invoice-sent-untracked"]')).toBeNull();
   });
+  it('offers section shortcuts that only move focus and keeps terms beside credit notes', () => {
+    const host = open().nativeElement as HTMLElement;
+    const shortcuts = Array.from(host.querySelectorAll<HTMLButtonElement>('nav[aria-label="Invoice sections"] button'));
+    expect(shortcuts.map(b => b.textContent?.trim())).toEqual(
+      ['Overview', 'Line items', 'Payments and allocations', 'Payment terms', 'Credit notes', 'Workflow actions']);
+    shortcuts[4].click();
+    expect(document.activeElement?.id).toBe('credits-heading');
+    expect(Array.from(host.querySelectorAll('section h2')).map(h => h.id).slice(0, 6)).toEqual(
+      ['invoice-heading', 'lines-heading', 'receipts-heading', 'payment-terms-heading', 'credits-heading', 'workflow-heading']);
+    expect(host.querySelector('nav[aria-label="Breadcrumb"] a[href="/app/finance/invoices"]')).not.toBeNull();
+    http.expectNone(r => r.method !== 'GET');
+  });
   it('rejects a wrong returned identity through HTTP without rendering invoice content or actions', () => {
     const f = open(invoice(1, 2));
     expect(f.componentInstance.invoice.data()).toBeNull();

@@ -111,6 +111,35 @@ public sealed class BillingTests
       Assert.False(deniedDetail.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, deniedDetail.ErrorCode);
       Assert.Null(deniedDetail.Value);
+
+      // Invoice discovery: complete per-currency totals use the detail balance formula; draft value is never receivable.
+      var firmReviewer = User(fixture.FirmId, "FinanceReviewer");
+      db.Users.Add(firmReviewer);
+      db.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, UserId = firmReviewer.Id, Role = "FinanceReviewer",
+        GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = firmReviewer.Id
+      });
+      await db.SaveChangesAsync();
+      Assert.True((await BillingService.CreateInvoiceDraftAsync(db, fixture.ManagerActor,
+        new CreateInvoiceDraftRequest(accountId, "INV-101", [new InvoiceLineRequest("Draft services", 1, 50)]))).Succeeded);
+      var firmFinance = Actor(firmReviewer, "FinanceReviewer");
+      var invoices = (await BillingWorkbenchQuery.PageAsync(db, firmFinance)).Value!;
+      Assert.Equal(2, invoices.Total);
+      Assert.Equal(new (string, string, int, decimal, decimal?, decimal?, decimal?)[]
+        {
+          ("QAR", BillingWorkbenchQuery.Posted, 1, 220m, 20m, 200m, 0m), ("QAR", BillingWorkbenchQuery.Unposted, 1, 50m, null, null, null)
+        }, invoices.Totals.Select(t => (t.Currency, t.Basis, t.Count, t.Total, t.Credited, t.Allocated, t.Outstanding)));
+      var sentRow = invoices.Items.Single(x => x.Id == invoiceId);
+      Assert.Equal((BillingStates.InvoiceSent, "OTHER", 20m, 200m, 0m, (DateOnly?)null, false),
+        (sentRow.Status, sentRow.Kind, sentRow.Credited, sentRow.Allocated, sentRow.Outstanding, sentRow.ApprovedDueDate, sentRow.PaymentTermsPending));
+      Assert.Equal(invoiceId, Assert.Single((await BillingWorkbenchQuery.PageAsync(db, firmFinance, new(Number: "inv-100"))).Value!.Items).Id);
+      Assert.Equal(1, (await BillingWorkbenchQuery.PageAsync(db, firmFinance, new(Status: BillingStates.InvoiceDraft))).Value!.Total);
+      Assert.Equal(0, (await BillingWorkbenchQuery.PageAsync(db, firmFinance, new(Currency: "USD"))).Value!.Total);
+      Assert.Equal(0, (await BillingWorkbenchQuery.PageAsync(db, firmFinance, new(ClientId: otherClientId))).Value!.Total);
+      Assert.Equal("request.invalid", (await BillingWorkbenchQuery.PageAsync(db, firmFinance, new(Status: "PAID"))).ErrorCode);
+      // A client-scoped finance grant opens that client's invoices but not the firm-wide list or its totals.
+      Assert.False((await BillingWorkbenchQuery.PageAsync(db, fixture.ManagerActor)).Succeeded);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))

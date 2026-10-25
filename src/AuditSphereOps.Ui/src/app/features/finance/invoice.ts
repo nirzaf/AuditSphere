@@ -1,4 +1,4 @@
-import { Component, DestroyRef, HostListener, effect, inject, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, effect, inject, signal, untracked } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -45,62 +45,27 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
   selector: 'audit-invoice',
   imports: [ReactiveFormsModule, RouterLink, MatButtonModule, ...SHARED],
   template: `
-    <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a routerLink="/app/finance">Firm finance</a> / <span>Invoice</span></nav>
+    <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a routerLink="/app/finance">Firm finance</a> / <a routerLink="/app/finance/invoices">Invoices</a> / <span>Invoice</span></nav>
     <audit-page-header title="Practice invoice" eyebrow="Practice billing" description="Client invoice record, line items, receipts and credit notes under firm finance controls." />
     <audit-state [loading]="invoice.loading()" [error]="invoice.error()" label="invoice" />
     @if (invoice.data(); as i) {
-      <p role="status">Invoice total {{ i.total | money }} · credited {{ i.credited | money }} · allocated {{ i.allocated | money }} · balance outstanding {{ i.outstanding | money }}</p>
+      <p role="status">{{ i.currency ?? 'Billing account currency' }} · Invoice total {{ i.total | money }} · credited {{ i.credited | money }} · allocated {{ i.allocated | money }} · balance outstanding {{ i.outstanding | money }}</p>
+      <nav class="invoice-sections" aria-label="Invoice sections">
+        @for (section of sections(i.canAct); track section.id) {
+          <button matButton type="button" (click)="jump(section.id)">{{ section.label }}</button>
+        }
+      </nav>
       <section class="panel" aria-labelledby="invoice-heading">
         <p class="eyebrow">Status: <audit-status [value]="i.status" /> (Rev {{ i.revision }})</p>
         @if (i.status === 'SENT') { <p class="hint" data-testid="invoice-sent-untracked">Marked as sent by staff. AuditSphere did not dispatch this invoice and holds no delivery or read evidence.</p> }
-        <h2 id="invoice-heading" class="invoice-number">{{ i.invoiceNumber }}</h2>
+        <h2 id="invoice-heading" class="invoice-number" tabindex="-1">{{ i.invoiceNumber }}</h2>
         <button matButton="outlined" (click)="refresh()" [disabled]="busy()">Refresh invoice</button>
         <dl class="facts"><dt>Invoice ID</dt><dd><code>{{ i.id }}</code></dd><dt>Currency</dt><dd>{{ i.currency ?? 'Default' }}</dd><dt>Subtotal</dt><dd>{{ i.subtotal | money }}</dd>
           <dt>Tax</dt><dd>{{ i.tax | money }}</dd><dt>Total amount</dt><dd><strong>{{ i.total | money }}</strong></dd><dt>Balance outstanding</dt><dd><strong>{{ i.outstanding | money }}</strong></dd>
           <dt>Created</dt><dd>{{ i.createdAt.slice(0, 16).replace('T', ' ') }} UTC</dd>@if (i.postedAt) { <dt>Posted</dt><dd>{{ i.postedAt.slice(0, 16).replace('T', ' ') }} UTC</dd> }</dl>
       </section>
-      <section class="panel" aria-labelledby="payment-terms-heading">
-        <h2 id="payment-terms-heading">Contractual payment terms</h2>
-        <p>Due dates are recorded from contractual evidence and take effect only after an independent FinanceReviewer approves the revision. Invoices with no approved terms stay visibly undated; a pending or rejected change does not replace an earlier approved date.</p>
-        <div class="table-scroll"><table><caption class="sr-only">Reviewed payment terms revision history</caption>
-          <thead><tr><th scope="col">Revision</th><th scope="col">Due date</th><th scope="col">Basis and terms</th><th scope="col">Evidence reference</th><th scope="col">State</th><th scope="col">Review decision</th></tr></thead>
-          <tbody>@for (t of i.paymentTerms; track t.id) { <tr><th scope="row">{{ t.revision }}</th><td>{{ t.dueDate }}</td><td>{{ t.basis }} · {{ t.termsDescription }}</td><td>{{ t.evidenceReference }}</td>
-            <td><audit-status [value]="t.status" /></td><td>{{ t.reviewReason ?? 'Awaiting independent review' }}@if (t.reviewedAt) { · {{ t.reviewedAt.slice(0, 10) }} }</td></tr> }
-          @empty { <tr><td colspan="6">No reviewed payment terms are recorded. This invoice will be marked undated until a supported due date is reviewed.</td></tr> }</tbody>
-        </table></div>
-        @if (i.paymentTermsHaveMore) { <p>Showing the latest 20 term revisions. Earlier immutable revisions remain retained in the billing history.</p> }
-        @if (i.canSubmitPaymentTerms) {
-          <h3>Propose a payment-terms revision</h3>
-          <form [formGroup]="termsForm" (ngSubmit)="submitTerms(i)">
-            <label for="terms-due-date">Contractual due date</label><input id="terms-due-date" type="date" formControlName="dueDate" />
-            @if (termsForm.controls.dueDate.touched && termsForm.controls.dueDate.invalid) { <p role="alert">Select the date required by the contract.</p> }
-            <label for="terms-basis">Terms evidence type</label><select id="terms-basis" formControlName="basis"><option value="CONTRACTUAL_DUE_DATE">Explicit contractual due date</option><option value="REVIEWED_TERMS_SNAPSHOT">Reviewed payment-terms snapshot</option></select>
-            <label for="terms-description">Terms description</label><input id="terms-description" formControlName="termsDescription" maxlength="300" placeholder="For example, NET 30 from invoice date" />
-            @if (termsForm.controls.termsDescription.touched && termsForm.controls.termsDescription.invalid) { <p role="alert">Enter a bounded description of the agreed terms.</p> }
-            <label for="terms-evidence">Evidence reference</label><input id="terms-evidence" formControlName="evidenceReference" maxlength="500" placeholder="Engagement-letter revision or approved records ID" />
-            <small>Enter a stored document or records reference. Do not paste a URL, preauthenticated link, password or token.</small>
-            @if (termsForm.controls.evidenceReference.touched && termsForm.controls.evidenceReference.invalid) { <p role="alert">Enter a document reference only, without URL or query-string data.</p> }
-            <p>Review: submit due date {{ termsForm.controls.dueDate.value || '—' }} under {{ termsForm.controls.basis.value }} using evidence “{{ termsForm.controls.evidenceReference.value || '—' }}”. The due date is not active until a separate reviewer approves it.</p>
-            <label class="check"><input type="checkbox" formControlName="reviewed" /> I checked the due date against the referenced contractual evidence.</label>
-            <button matButton="filled" type="submit" [disabled]="busy() || uncertain() || termsForm.invalid">Submit terms for independent review</button>
-          </form>
-        }
-        @if (i.canReviewPaymentTerms) {
-          @if (i.paymentTerms[0]; as t) {
-            <h3>Independent terms review · Revision {{ t.revision }}</h3>
-            <p>Review due date {{ t.dueDate }}, basis {{ t.basis }}, terms “{{ t.termsDescription }}” and evidence {{ t.evidenceReference }}.</p>
-            <form [formGroup]="termsReviewForm">
-              <label for="terms-review-reason">Review reason</label><textarea id="terms-review-reason" formControlName="reason" maxlength="1000" rows="3"></textarea>
-              @if (termsReviewForm.controls.reason.touched && termsReviewForm.controls.reason.invalid) { <p role="alert">Enter the reason for this decision.</p> }
-              <label class="check"><input type="checkbox" formControlName="reviewed" /> I independently checked this payment-terms revision and its evidence.</label>
-              <div class="actions"><button matButton="filled" (click)="reviewTerms(t.id, true)" [disabled]="busy() || uncertain() || termsReviewForm.invalid">Approve terms</button>
-                <button matButton="outlined" (click)="reviewTerms(t.id, false)" [disabled]="busy() || uncertain() || termsReviewForm.invalid">Reject terms</button></div>
-            </form>
-          }
-        } @else if (i.paymentTerms[0]?.status === 'PENDING_REVIEW') { <p>A separate FinanceReviewer must decide this revision. The submitter cannot approve it.</p> }
-      </section>
       <section class="panel" aria-labelledby="lines-heading">
-        <h2 id="lines-heading">Invoice line items</h2>
+        <h2 id="lines-heading" tabindex="-1">Invoice line items</h2>
         <div class="table-scroll"><table><caption class="sr-only">Invoice lines</caption>
           <thead><tr><th scope="col">Description</th><th scope="col" class="number">Quantity</th><th scope="col" class="number">Unit price</th><th scope="col" class="number">Total</th></tr></thead>
           <tbody>@for (l of i.lines; track $index) { <tr><td>{{ l.description }}</td><td class="number">{{ l.quantity | money }}</td><td class="number">{{ l.unitPrice | money }}</td><td class="number">{{ l.lineTotal | money }}</td></tr> }
@@ -108,7 +73,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
           <tfoot><tr><td colspan="3" class="number">Total</td><td class="number">{{ linesTotal(i.lines) | money }}</td></tr></tfoot></table></div>
       </section>
       <section class="panel" aria-labelledby="receipts-heading">
-        <h2 id="receipts-heading">Payments and receipt allocations</h2>
+        <h2 id="receipts-heading" tabindex="-1">Payments and receipt allocations</h2>
         <div class="table-scroll"><table><caption class="sr-only">Recent receipts for this client billing account</caption><thead><tr>
           <th scope="col">Transaction reference</th><th scope="col">Received</th><th scope="col">Currency</th><th scope="col" class="number">Receipt amount</th><th scope="col" class="number">Allocated</th><th scope="col" class="number">Available</th>
         </tr></thead><tbody>
@@ -210,8 +175,48 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
           } @else { <p>Receipt allocation is available after the invoice is posted.</p> }
         }
       </section>
+      <section class="panel" aria-labelledby="payment-terms-heading">
+        <h2 id="payment-terms-heading" tabindex="-1">Contractual payment terms</h2>
+        <p>Due dates are recorded from contractual evidence and take effect only after an independent FinanceReviewer approves the revision. Invoices with no approved terms stay visibly undated; a pending or rejected change does not replace an earlier approved date.</p>
+        <div class="table-scroll"><table><caption class="sr-only">Reviewed payment terms revision history</caption>
+          <thead><tr><th scope="col">Revision</th><th scope="col">Due date</th><th scope="col">Basis and terms</th><th scope="col">Evidence reference</th><th scope="col">State</th><th scope="col">Review decision</th></tr></thead>
+          <tbody>@for (t of i.paymentTerms; track t.id) { <tr><th scope="row">{{ t.revision }}</th><td>{{ t.dueDate }}</td><td>{{ t.basis }} · {{ t.termsDescription }}</td><td>{{ t.evidenceReference }}</td>
+            <td><audit-status [value]="t.status" /></td><td>{{ t.reviewReason ?? 'Awaiting independent review' }}@if (t.reviewedAt) { · {{ t.reviewedAt.slice(0, 10) }} }</td></tr> }
+          @empty { <tr><td colspan="6">No reviewed payment terms are recorded. This invoice will be marked undated until a supported due date is reviewed.</td></tr> }</tbody>
+        </table></div>
+        @if (i.paymentTermsHaveMore) { <p>Showing the latest 20 term revisions. Earlier immutable revisions remain retained in the billing history.</p> }
+        @if (i.canSubmitPaymentTerms) {
+          <h3>Propose a payment-terms revision</h3>
+          <form [formGroup]="termsForm" (ngSubmit)="submitTerms(i)">
+            <label for="terms-due-date">Contractual due date</label><input id="terms-due-date" type="date" formControlName="dueDate" />
+            @if (termsForm.controls.dueDate.touched && termsForm.controls.dueDate.invalid) { <p role="alert">Select the date required by the contract.</p> }
+            <label for="terms-basis">Terms evidence type</label><select id="terms-basis" formControlName="basis"><option value="CONTRACTUAL_DUE_DATE">Explicit contractual due date</option><option value="REVIEWED_TERMS_SNAPSHOT">Reviewed payment-terms snapshot</option></select>
+            <label for="terms-description">Terms description</label><input id="terms-description" formControlName="termsDescription" maxlength="300" placeholder="For example, NET 30 from invoice date" />
+            @if (termsForm.controls.termsDescription.touched && termsForm.controls.termsDescription.invalid) { <p role="alert">Enter a bounded description of the agreed terms.</p> }
+            <label for="terms-evidence">Evidence reference</label><input id="terms-evidence" formControlName="evidenceReference" maxlength="500" placeholder="Engagement-letter revision or approved records ID" />
+            <small>Enter a stored document or records reference. Do not paste a URL, preauthenticated link, password or token.</small>
+            @if (termsForm.controls.evidenceReference.touched && termsForm.controls.evidenceReference.invalid) { <p role="alert">Enter a document reference only, without URL or query-string data.</p> }
+            <p>Review: submit due date {{ termsForm.controls.dueDate.value || '—' }} under {{ termsForm.controls.basis.value }} using evidence “{{ termsForm.controls.evidenceReference.value || '—' }}”. The due date is not active until a separate reviewer approves it.</p>
+            <label class="check"><input type="checkbox" formControlName="reviewed" /> I checked the due date against the referenced contractual evidence.</label>
+            <button matButton="filled" type="submit" [disabled]="busy() || uncertain() || termsForm.invalid">Submit terms for independent review</button>
+          </form>
+        }
+        @if (i.canReviewPaymentTerms) {
+          @if (i.paymentTerms[0]; as t) {
+            <h3>Independent terms review · Revision {{ t.revision }}</h3>
+            <p>Review due date {{ t.dueDate }}, basis {{ t.basis }}, terms “{{ t.termsDescription }}” and evidence {{ t.evidenceReference }}.</p>
+            <form [formGroup]="termsReviewForm">
+              <label for="terms-review-reason">Review reason</label><textarea id="terms-review-reason" formControlName="reason" maxlength="1000" rows="3"></textarea>
+              @if (termsReviewForm.controls.reason.touched && termsReviewForm.controls.reason.invalid) { <p role="alert">Enter the reason for this decision.</p> }
+              <label class="check"><input type="checkbox" formControlName="reviewed" /> I independently checked this payment-terms revision and its evidence.</label>
+              <div class="actions"><button matButton="filled" (click)="reviewTerms(t.id, true)" [disabled]="busy() || uncertain() || termsReviewForm.invalid">Approve terms</button>
+                <button matButton="outlined" (click)="reviewTerms(t.id, false)" [disabled]="busy() || uncertain() || termsReviewForm.invalid">Reject terms</button></div>
+            </form>
+          }
+        } @else if (i.paymentTerms[0]?.status === 'PENDING_REVIEW') { <p>A separate FinanceReviewer must decide this revision. The submitter cannot approve it.</p> }
+      </section>
       <section class="panel" aria-labelledby="credits-heading">
-        <h2 id="credits-heading">Credit notes</h2>
+        <h2 id="credits-heading" tabindex="-1">Credit notes</h2>
         <div class="table-scroll"><table><caption class="sr-only">Issued credit notes for this invoice</caption><thead><tr><th scope="col">Note number</th><th scope="col">Issued</th><th scope="col">Reason</th><th scope="col" class="number">Amount</th></tr></thead>
           <tbody>@for (c of creditHistory(); track c.id) { <tr><td>{{ c.noteNumber }}</td><td>{{ c.createdAt.slice(0, 16).replace('T', ' ') }} UTC</td><td>{{ c.reason }}</td><td class="number">{{ c.amount | money }} {{ c.currency }}</td></tr> }
           @empty { <tr><td colspan="4">No credit notes have been issued for this invoice.</td></tr> }</tbody></table></div>
@@ -234,7 +239,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
       </section>
       @if (i.canAct) {
         <section class="panel" aria-labelledby="workflow-heading">
-          <h2 id="workflow-heading">Invoice workflow actions</h2>
+          <h2 id="workflow-heading" tabindex="-1">Invoice workflow actions</h2>
           @switch (i.status) {
             @case ('DRAFT') {
               <button matButton="filled" (click)="act(i.id, 'submit', 'Invoice submitted for independent review.')" [disabled]="busy() || uncertain()">Submit invoice for review</button>
@@ -263,10 +268,11 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
     </section> }
     <audit-command-message [message]="message()" [failed]="failed()" />
   `,
-  styles: `.invoice-number { overflow-wrap: anywhere; } form { display: grid; gap: .65rem; max-width: 42rem; margin-block: 1rem 1.5rem; } input, select, textarea { max-width: 34rem; width: 100%; min-height: 2.75rem; } textarea { min-height: 5rem; } .check { display: flex; align-items: flex-start; gap: .65rem; } .check input { width: 1.2rem; min-height: 1.2rem; } h3 { margin-block: 1.5rem .5rem; } small, .muted { color: var(--text-muted, #4c5968); } .actions { display:flex; gap:.75rem; flex-wrap:wrap; } .reversal-history { display:grid; gap:.2rem; margin-block:.5rem; }`,
+  styles: `.invoice-number { overflow-wrap: anywhere; } .invoice-sections { display: flex; flex-wrap: wrap; gap: .25rem; margin-block: .5rem; } form { display: grid; gap: .65rem; max-width: 42rem; margin-block: 1rem 1.5rem; } input, select, textarea { max-width: 34rem; width: 100%; min-height: 2.75rem; } textarea { min-height: 5rem; } .check { display: flex; align-items: flex-start; gap: .65rem; } .check input { width: 1.2rem; min-height: 1.2rem; } h3 { margin-block: 1.5rem .5rem; } small, .muted { color: var(--text-muted, #4c5968); } .actions { display:flex; gap:.75rem; flex-wrap:wrap; } .reversal-history { display:grid; gap:.2rem; margin-block:.5rem; }`,
 })
 export class InvoiceDetail {
   private readonly api = inject(Api);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly session = inject(SessionService);
   private readonly fb = inject(FormBuilder).nonNullable;
   readonly id = routeGuid();
@@ -431,6 +437,19 @@ export class InvoiceDetail {
     }
   }
 
+  /** Section shortcuts only move focus; every section and its pending action state stay rendered. */
+  sections(canAct: boolean): { id: string; label: string }[] {
+    return [
+      { id: 'invoice-heading', label: 'Overview' }, { id: 'lines-heading', label: 'Line items' },
+      { id: 'receipts-heading', label: 'Payments and allocations' }, { id: 'payment-terms-heading', label: 'Payment terms' },
+      { id: 'credits-heading', label: 'Credit notes' }, ...(canAct ? [{ id: 'workflow-heading', label: 'Workflow actions' }] : []),
+    ];
+  }
+  jump(id: string): void {
+    const heading = this.host.nativeElement.querySelector<HTMLElement>('#' + id);
+    heading?.scrollIntoView?.({ block: 'start' });
+    heading?.focus();
+  }
   allocationPage(rows: ReturnType<typeof decodeInvoice>['allocations']) {
     const start = this.allocationPageIndex() * this.allocationPageSize();
     return rows.slice(start, start + this.allocationPageSize());

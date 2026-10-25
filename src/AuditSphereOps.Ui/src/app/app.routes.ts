@@ -56,6 +56,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/finance/fee-settlements').then(m => m.FeeSettlements) },
   { path: 'app/finance/fee-agreements/:id', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Fee settlement · AuditSphere',
     loadComponent: () => import('./features/finance/fee-settlements').then(m => m.FeeAgreementDetailRoute) },
+  { path: 'app/finance/invoices', canActivate: [staffGuard], title: 'Firm invoices · AuditSphere',
+    loadComponent: () => import('./features/finance/invoices').then(m => m.FirmInvoices) },
   { path: 'app/finance/receivables-aging', canActivate: [staffGuard], title: 'Firm receivables ageing · AuditSphere',
     loadComponent: () => import('./features/finance/receivables-aging').then(m => m.FirmReceivablesAging) },
   { path: 'app/finance/end-of-service', canActivate: [staffGuard], title: 'End-of-service provision · AuditSphere',
