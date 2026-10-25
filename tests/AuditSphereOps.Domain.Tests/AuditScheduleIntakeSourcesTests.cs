@@ -357,6 +357,9 @@ public sealed class AuditScheduleIntakeSourcesTests
         Assert.Equal("55000", databaseRefusal.SqlState);
         Assert.Contains(captureMigration, await repeatCapture.Database.GetAppliedMigrationsAsync(ct));
         Assert.Equal(1, await repeatCapture.AuditScheduleSourceCaptures.CountAsync(ct));
+        // Later migrations reverted before the refusal are reapplied so the rest of the flow runs on the current schema.
+        await repeatCapture.GetService<IMigrator>().MigrateAsync(cancellationToken: ct);
+        Assert.Empty(await repeatCapture.Database.GetPendingMigrationsAsync(ct));
       }
 
       // Independent review uses fresh command contexts; capture previews never confer approval.
