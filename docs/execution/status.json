@@ -10,7 +10,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "8031d4da6ea9e803ae8eb2b61cfa6379e5fe1759",
+  "headCommit": "6d592f8f6e9319bc4f477a4621068817f4b0662f",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1060,13 +1060,13 @@
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.narrativeMetricsFastCiRepair20261025"
     },
     "releasePreflight20261025": {
-      "status": "UI_ROOT_FIX_FOCUSED_PASS_CORRECTED_IMAGE_AND_CI_PENDING",
+      "status": "FAST_IMAGES_REHEARSAL_PASS_FULL_API_E2E_PENDING",
       "authorization": "Owner requested release now; existing Hostinger Acceptance target.",
-      "sourceWindow": "fc0ec978 container preflight; correction based on 8031d4da with exact file hashes retained in review evidence.",
-      "rehearsal": "Private backup catalog-checked and restored; 58 migrations applied (226 to 284). Original row projections across 334 tables unchanged. Temporary API health live/ready 200; /ui/ 500 exposed duplicate root endpoints. Temporary DB/container/env files removed; live DB/containers unchanged.",
-      "correction": "One /ui registration covers /ui and /ui/. Existing canonical-host regression RED 1; fixed host/route-ownership cohort GREEN 2, 0 fail/skip.",
-      "remaining": "Corrected-source images, exact full CI, new container smoke, final cutover backup and rollout remain pending. Mail signed-authorization evidence is absent; mail must remain paused at cutover.",
-      "evidence": ".local/autonomous/evidence/release-ui-root-20261025/review.json"
+      "sourceCommit": "6d592f8f6e9319bc4f477a4621068817f4b0662f",
+      "initialFailure": "fc0ec978 restored container: /ui/ HTTP500 from duplicate /ui and /ui/ endpoint registrations. Corrected6d592f8f; existing regression RED1 then focused host/ownership GREEN2.",
+      "rehearsal": "Corrected exact-source images pulled by digest. Private backup catalog-checked/restored; 58 migrations applied (226 to284). Original row projections across334 tables unchanged. API live/ready and both /ui root forms HTTP200 with no-store Angular shells. Disposable DB/container/env files removed; live DB/containers unchanged.",
+      "remaining": "Full current API/E2E CI, final quiesced cutover backup and rollout pending. No built-in-browser release check yet. Current signed mail evidence absent: outbound mail must stay paused at cutover.",
+      "evidence": ".local/autonomous/evidence/release-ui-root-20261025/rehearsal-6d.json"
     }
   },
   "externalGates": [
@@ -1640,11 +1640,11 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "fc0ec97863ddf710d44052379ab50959c794dae1",
-    "status": "PRECEDING_SOURCE_ONLY: restored-container UI root defect requires the routing correction in this commit and new exact-source gates.",
-    "fastCi": "40173305587 attempt 2 completed all jobs successfully on fc0ec978; .NET checkout log explicitly confirms that commit.",
-    "releaseVerification": "40173365579 source MATCH fc0ec978: Angular/full specs, Verify and Domain passed; API/E2E running. This source is not release-eligible because the separate container smoke found /ui root ambiguity.",
-    "docsOnlyFast": "40175026927 on 8031d4da: Angular/Docs Health passed; .NET Release in progress at prior observation."
+    "sourceCommit": "6d592f8f6e9319bc4f477a4621068817f4b0662f",
+    "fastCi": "40176745597: all jobs succeeded. Actual checkout git-log in Angular, .NET and Docs jobs MATCH candidate; proof retained in release-ui-root-20261025/fast-source-proof.json.",
+    "releaseVerification": "40176766617: release-source artifact MATCH candidate; Angular/full specs, Verify and unfiltered Domain passed; API/E2E remain in progress. FULL_CI_PASS not established.",
+    "imagePublication": "40176745617: all API/worker/migration jobs succeeded at candidate source; exact pulled digests retained in rehearsal-6d.json.",
+    "runtimeRehearsal": "PASS on owned restored DB: 58 migrations, original projections unchanged, health live/ready and /ui plus /ui/ all200. Does not establish live rollout or provider acceptance."
   },
-  "updatedAtUtc": "2026-10-25T08:27:57Z"
+  "updatedAtUtc": "2026-10-25T08:52:21Z"
 }
