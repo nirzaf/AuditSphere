@@ -181,10 +181,20 @@ if (liveMail)
       builder.Services.AddSingleton(resend);
       builder.Services.AddSingleton<IPbcMailSender, ResendPbcMailSender>();
       break;
+    case "USESEND":
+      var useSend = new UseSendMailOptions(
+        builder.Configuration["UseSendMail:BaseUrl"] ?? string.Empty,
+        builder.Configuration["UseSendMail:ApiKey"] ?? string.Empty,
+        builder.Configuration["UseSendMail:SenderAddress"] ?? string.Empty);
+      useSend.Validate();
+      builder.Services.AddSingleton(useSend);
+      builder.Services.AddSingleton<IPbcMailSender, UseSendPbcMailSender>();
+      break;
     default:
-      throw new InvalidOperationException("Mail:Provider must be Graph, Smtp or Resend.");
+      throw new InvalidOperationException("Mail:Provider must be Graph, Smtp, Resend or UseSend.");
   }
-  builder.Services.AddSingleton(provider == "GRAPH"
+  // The bearer key is never replayed to a redirect target.
+  builder.Services.AddSingleton(provider is "GRAPH" or "USESEND"
     ? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false })
       { Timeout = TimeSpan.FromSeconds(30) }
     : new HttpClient { Timeout = TimeSpan.FromSeconds(30) });

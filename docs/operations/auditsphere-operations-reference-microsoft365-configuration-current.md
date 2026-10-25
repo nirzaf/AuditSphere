@@ -153,16 +153,17 @@ This configuration documents the runtime contract, not a completed enrollment pa
 
 ## Email provider and reminder options
 
-These settings exist in Worker code but are not all base-Compose variables. Select one provider through a reviewed override/secret store. SMTP/Resend do not produce Graph capability verification and currently omit attachments; they cannot replace Graph attachment workflows.
+These settings exist in Worker code but are not all base-Compose variables. Select one provider through a reviewed override/secret store. SMTP/Resend do not produce Graph capability verification and currently omit attachments; useSend refuses a message that carries an attachment. None of them can replace Graph attachment workflows.
 
 | Key | Expected value |
 | --- | --- |
-| `Mail:Provider` | `GRAPH`, `SMTP` or `RESEND`; base mail profile selects `GRAPH` |
+| `Mail:Provider` | `GRAPH`, `SMTP`, `RESEND` or `USESEND`; base mail profile selects `GRAPH` |
 | `GraphMail:TenantId`, `ClientId`, `SenderObjectId`, `CertificatePath`, `PrivateKeyPath` | Complete separate Graph sender identity and credential |
 | `SmtpMail:Host`, `Port`, `UseSsl` | Approved relay host/port; STARTTLS true for secure relay; not implicit TLS 465 |
 | `SmtpMail:SenderAddress`, `SenderName` | Approved relay sender and optional display name |
 | `SmtpMail:Username`, `Password` | Both set or both absent for explicitly approved relay auth; no XOAUTH2 support |
 | `ResendMail:ApiKey`, `SenderAddress` | Private provider sending key and verified sender |
+| `UseSendMail:BaseUrl`, `ApiKey`, `SenderAddress` | https API base URL of the approved useSend installation, without credentials, query or fragment; private sending key restricted to the sender domain; an alias that installation approves for that key |
 | `PbcReminders:Enabled` | False until reminder policy is approved; enabling can discover/queue new sends |
 | `PbcReminders:DaysBeforeDue` | Worker default 3 |
 | `PbcReminders:OverdueIntervalDays` | Worker default 3 |
