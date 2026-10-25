@@ -12,8 +12,36 @@ namespace AuditSphereOps.Infrastructure.Providers;
 /// before/after version and content-tag observations. No other version, file or local copy is ever substituted.
 /// </summary>
 public sealed class SelectedSitePbcContentReader(PbcRepositoryBindingResolver resolver, GraphSelectedSiteDrive drive,
-  string scratchRoot) : IPbcRemoteContentReader
+  string scratchRoot) : IPbcRemoteContentReader, IPbcRegistrationVerifier
 {
+  /// <summary>Hashes a not-yet-registered exact version (SP-06 backfill) without retaining its bytes.</summary>
+  public async Task<CommandResult> VerifyUnregisteredAsync(PbcRemoteSource candidate, CancellationToken ct)
+  {
+    if (candidate is null || candidate.ByteCount is < 0 or > MaxBytes || !IsSha256(candidate.Sha256Hex) ||
+        string.IsNullOrEmpty(candidate.ItemId) || string.IsNullOrEmpty(candidate.VersionId))
+      return CommandResult.Fail(ErrorCodes.Operations.Invalid, "The candidate source identity is invalid.");
+    try
+    {
+      var target = await resolver.ResolveUnregisteredReadAsync(candidate, ct);
+      if (target.DriveId != candidate.DriveId) return CommandResult.Fail(ErrorCodes.GateBlocked, "The candidate binding is unavailable.");
+      var location = new SelectedSiteLocation(target.TenantId, target.SiteId, target.DriveId, target.RuntimeCredentialReference);
+      var (version, sha, size) = await drive.ReadExactVersionAsync(location, candidate.ItemId, candidate.VersionId,
+        candidate.ByteCount, null, ct);
+      return version == candidate.VersionId && size == candidate.ByteCount && string.Equals(sha, candidate.Sha256Hex, StringComparison.Ordinal)
+        ? CommandResult.Ok()
+        : CommandResult.Fail("pbc.source-integrity", "The SharePoint version does not match the retained transfer receipt.");
+    }
+    catch (OperationBlockedException blocked) when (blocked.Code == "selected-site-content-too-large")
+    {
+      return CommandResult.Fail("pbc.source-integrity", "The SharePoint version does not match the retained transfer receipt.");
+    }
+    catch (Exception error) when (error is OperationBlockedException or SafeRetryException or IOException or
+      HttpRequestException or UnauthorizedAccessException || error is TaskCanceledException && !ct.IsCancellationRequested)
+    {
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The SharePoint version is temporarily unavailable; retry later.");
+    }
+  }
+
   // Matches the PBC upload limit; an exact registered version can never be larger.
   private const long MaxBytes = 250L * 1024 * 1024;
 

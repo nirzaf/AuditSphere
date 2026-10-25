@@ -74,6 +74,28 @@ public sealed class PbcRepositoryBindingResolver(IAuditSphereDbContextFactory fa
     return await ResolveBindingTargetAsync(db, source.FirmId, source.ClientId, binding, ct, "PBC_READBACK");
   }
 
+  /// <summary>
+  /// Resolves the read target of a not-yet-registered backfill candidate: the engagement's single working selected-site
+  /// binding, unchanged since the candidate's digest was computed, on the same drive, with no registration yet.
+  /// </summary>
+  public async Task<PbcRepositoryTarget> ResolveUnregisteredReadAsync(PbcRemoteSource candidate, CancellationToken ct)
+  {
+    if (candidate is null || candidate.FirmId == Guid.Empty || candidate.ClientId == Guid.Empty ||
+        candidate.EngagementId == Guid.Empty || candidate.UploadIntentId == Guid.Empty || candidate.RegistrationId != Guid.Empty)
+      throw Block();
+    await using var db = await factory.CreateAsync(ct);
+    if (await db.PbcDocumentRegistrations.AsNoTracking().AnyAsync(x =>
+          x.FirmId == candidate.FirmId && x.PbcUploadIntentId == candidate.UploadIntentId, ct))
+      throw Block();
+    var bindings = await db.RepositoryBindings.AsNoTracking().Where(x =>
+      x.FirmId == candidate.FirmId && x.ClientId == candidate.ClientId && x.EngagementId == candidate.EngagementId &&
+      x.Classification == "working" && x.CapabilityProfile == "selected-site").Take(2).ToListAsync(ct);
+    if (bindings.Count != 1 || bindings[0].DriveId != candidate.DriveId ||
+        BindingDigest(bindings[0]) != candidate.BindingSha256Hex)
+      throw Block();
+    return await ResolveBindingTargetAsync(db, candidate.FirmId, candidate.ClientId, bindings[0], ct, "PBC_READBACK");
+  }
+
   private static async Task<PbcRepositoryTarget> ResolveBindingTargetAsync(IAuditSphereDbContext db, Guid firmId,
     Guid clientId, RepositoryBinding binding, CancellationToken ct, params string[] operations)
   {

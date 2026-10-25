@@ -240,28 +240,8 @@ public sealed class PbcDocumentTransferHandler(
           x.EngagementId == intent.EngagementId && x.RepositoryBindingId == binding.Id && x.ItemId == item.ItemId, ct))
       throw new OperationBlockedException("provider-receipt-conflict");
 
-    var reference = new DocumentReference
-    {
-      Id = Guid.CreateVersion7(), FirmId = op.FirmId, ClientId = intent.ClientId, EngagementId = intent.EngagementId,
-      RepositoryBindingId = binding.Id, DriveId = item.DriveId, ItemId = item.ItemId,
-      Path = PbcSelectedSiteIdentity.StoredName(intent.Id, intent.FileName), Purpose = "Evidence", CreatedAt = now
-    };
-    var snapshot = new DocumentSnapshot
-    {
-      Id = Guid.CreateVersion7(), FirmId = op.FirmId, ClientId = intent.ClientId, EngagementId = intent.EngagementId,
-      DocumentReferenceId = reference.Id, DriveId = item.DriveId, ItemId = item.ItemId, VersionId = item.VersionId,
-      Sha256Hex = verified.Digest.ToLowerInvariant(), ByteCount = intent.DeclaredByteCount,
-      CapturedBy = "operation:" + op.Id.ToString("D"), CapturedAt = now
-    };
-    db.DocumentReferences.Add(reference);
-    db.DocumentSnapshots.Add(snapshot);
-    db.PbcDocumentRegistrations.Add(new PbcDocumentRegistration
-    {
-      Id = Guid.CreateVersion7(), FirmId = op.FirmId, ClientId = intent.ClientId, EngagementId = intent.EngagementId,
-      PbcUploadIntentId = intent.Id, TransferOperationId = op.Id, DocumentReferenceId = reference.Id,
-      DocumentSnapshotId = snapshot.Id, ProviderIdentity = verified.Identity,
-      BindingSha256Hex = RepositoryBindingDigest.Compute(binding), RegisteredAt = now
-    });
+    PbcService.AddSelectedSiteRegistration(db, intent, binding, item, verified.Identity, verified.Digest, op.Id,
+      "operation:" + op.Id.ToString("D"), now);
   }
 
   private static string RegistrationEvidence(PbcUploadIntent intent) => JsonSerializer.Serialize(new

@@ -347,6 +347,63 @@ public sealed class PbcSelectedSiteWorkerTests
     finally { if (Directory.Exists(scratch)) Directory.Delete(scratch, recursive: true); }
   }
 
+  [Fact]
+  public async Task RegistrationBackfill_UsesOnlyTheRetainedTransferIdentity_AfterExactVersionReadBack()
+  {
+    var (h, graph) = await CreateAsync();
+    await using var _h = h;
+    await h.ProvisionAsync(h.A);
+    var original = Document("pre-cutover transfer");
+    var staged = await h.UploadAsync(h.A, h.RequestA, original);
+    Assert.True(await h.Worker.ProcessNextAsync());
+    await using var db = h.Db();
+    var published = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == staged.UploadIntentId);
+    var itemId = PbcSelectedSiteIdentity.Parse(published.ProviderIdentity)!.ItemId;
+    // Controlled diagnostic: recreate an upload verified before registration existed, bypassing guards only here.
+    await db.Database.ExecuteSqlInterpolatedAsync($"""
+      SET session_replication_role = replica;
+      DELETE FROM pbc_document_registrations WHERE id = {published.Id};
+      DELETE FROM document_snapshots WHERE id = {published.DocumentSnapshotId};
+      DELETE FROM document_references WHERE id = {published.DocumentReferenceId};
+      SET session_replication_role = origin;
+      """);
+    var retainedIntent = System.Text.Json.JsonSerializer.Serialize(
+      await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == staged.UploadIntentId));
+
+    var plan = await PbcService.PlanRegistrationBackfillAsync(db, h.Admin, 10);
+    Assert.True(plan.Succeeded, plan.ErrorCode);
+    var row = Assert.Single(plan.Value!);
+    Assert.Equal((PbcService.RegistrationEligible, published.ProviderIdentity, staged.DeclaredSha256Hex),
+      (row.Disposition, row.ProviderIdentity, row.Sha256Hex));
+    var request = new PbcRegistrationBackfillRequest(staged.UploadIntentId, row.ProviderIdentity, row.Sha256Hex);
+    var verifier = new SelectedSitePbcContentReader(new PbcRepositoryBindingResolver(h.Factory), h.Drive,
+      Path.Combine(Path.GetTempPath(), "AuditSphereOps.Tests", "unused-scratch"));
+    Assert.Equal(ErrorCodes.ScopeDenied, (await PbcService.BackfillRegistrationAsync(db,
+      PbcSeed.Actor(h.A.Reviewer, "Reviewer"), verifier, request)).ErrorCode);
+    Assert.Equal(ErrorCodes.GenerationStale, (await PbcService.BackfillRegistrationAsync(db, h.Admin, verifier,
+      request with { ExpectedProviderIdentity = PbcSelectedSiteIdentity.Format(FakeGraphDrive.DriveId, itemId, "2.0") })).ErrorCode);
+
+    // Bytes that no longer match the retained receipt are never registered.
+    graph.Overwrite(itemId, Document("changed in place"));
+    Assert.Equal("pbc.source-integrity", (await PbcService.BackfillRegistrationAsync(db, h.Admin, verifier, request)).ErrorCode);
+    Assert.False(await db.PbcDocumentRegistrations.AnyAsync(x => x.PbcUploadIntentId == staged.UploadIntentId));
+
+    graph.Overwrite(itemId, original);
+    var registered = await PbcService.BackfillRegistrationAsync(db, h.Admin, verifier, request);
+    Assert.True(registered.Succeeded, registered.ErrorCode);
+    var registration = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.Id == registered.Value);
+    var snapshot = await db.DocumentSnapshots.AsNoTracking().SingleAsync(x => x.Id == registration.DocumentSnapshotId);
+    Assert.Equal((published.ProviderIdentity, published.TransferOperationId, published.BindingSha256Hex),
+      (registration.ProviderIdentity, registration.TransferOperationId, registration.BindingSha256Hex));
+    Assert.Equal((itemId, "1.0", staged.DeclaredSha256Hex, $"backfill:{h.A.Admin.Id:D}"),
+      (snapshot.ItemId, snapshot.VersionId, snapshot.Sha256Hex, snapshot.CapturedBy));
+    Assert.Equal(registered.Value, (await PbcService.BackfillRegistrationAsync(db, h.Admin, verifier, request)).Value);
+    Assert.Empty((await PbcService.PlanRegistrationBackfillAsync(db, h.Admin, 10)).Value!);
+    // Upload, request and acceptance evidence are unchanged by technical registration.
+    Assert.Equal(retainedIntent, System.Text.Json.JsonSerializer.Serialize(
+      await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == staged.UploadIntentId)));
+  }
+
   private sealed class UnavailableRemoteReader : IPbcRemoteContentReader
   {
     public Task<CommandResult<PbcVerifiedContent>> ReadVerifiedAsync(PbcRemoteSource source, CancellationToken ct) =>
