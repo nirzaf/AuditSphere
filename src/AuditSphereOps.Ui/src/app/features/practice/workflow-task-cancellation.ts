@@ -16,6 +16,8 @@ export interface WorkflowTaskCancellationTarget {
   revision: number;
   canCancel: boolean;
   canReopen: boolean;
+  requiredTask?: boolean | null;
+  applicabilityCondition?: string | null;
 }
 export type WorkflowTaskRecoveryAction = 'cancel' | 'reopen';
 
@@ -57,6 +59,14 @@ type FocusOrigin = { element: Element; interaction: number };
       </dl>
 
       @if (state() === 'editing') {
+        @if (canMarkNotApplicable()) {
+          <p>Applies when: {{ task().applicabilityCondition }}. A generic cancellation leaves this required step blocked.</p>
+          <label class="assent"><input type="checkbox" id="task-not-applicable" [checked]="notApplicable()"
+            [disabled]="busy()" (change)="notApplicable.set($any($event.target).checked)" />
+            Record this conditional step as Not Applicable for this engagement and reporting period.
+          </label>
+          <small>An authorized cancellation reason is required. This does not approve underlying professional work.</small>
+        }
         <label for="task-cancellation-reason">Reason for {{ actionMode() === 'cancel' ? 'cancellation' : 'reopening' }}</label>
         <textarea #reasonEditor id="task-cancellation-reason" rows="4" maxlength="2000" [value]="reason"
           [disabled]="busy()" (input)="updateReason($any($event.target).value)"
@@ -157,6 +167,9 @@ export class WorkflowTaskCancellationPanel {
   readonly state = signal<RecoveryState>('editing');
   readonly intent = signal<Intent | null>(null);
   readonly actionMode = computed(() => this.intent()?.action ?? this.action());
+  readonly canMarkNotApplicable = computed(() => this.actionMode() === 'cancel' &&
+    this.task().requiredTask === true && !!this.task().applicabilityCondition?.trim());
+  readonly notApplicable = signal(false);
   readonly observed = signal<Workspace['tasks'][number] | null>(null);
   readonly assent = signal(false);
   readonly busy = signal(false);
@@ -175,7 +188,8 @@ export class WorkflowTaskCancellationPanel {
       const task = this.task();
       const owner = this.ownerKey();
       const context = [task.taskId, task.clientId, task.engagementId, task.title, task.engagementServiceRoute,
-        task.engagementPeriod, task.revision, task.taskStatus, task.canCancel, task.canReopen, this.action()].join('|');
+        task.engagementPeriod, task.revision, task.taskStatus, task.canCancel, task.canReopen,
+      task.requiredTask, task.applicabilityCondition, this.action()].join('|');
       if (owner === this.owner && context === this.context) return;
       this.owner = owner;
       this.context = context;
@@ -200,8 +214,10 @@ export class WorkflowTaskCancellationPanel {
     if (!this.canPerform(task, action) || this.state() !== 'editing' || this.busy()) return;
     this.failed.set(false);
     this.message.set('');
-    const reason = this.reason.trim();
-    if (!reason || reason.length > 2000) {
+    const justification = this.reason.trim();
+    const reason = justification && this.canMarkNotApplicable() && this.notApplicable()
+      ? `Not applicable: ${justification}` : justification;
+    if (!justification || reason.length > 2000) {
       this.failed.set(true);
       this.message.set(`Enter a non-empty ${action === 'cancel' ? 'cancellation' : 'reopening'} reason of up to 2,000 characters.`);
       return;
@@ -343,6 +359,7 @@ export class WorkflowTaskCancellationPanel {
     this.intent.set(null);
     this.observed.set(null);
     this.assent.set(false);
+    this.notApplicable.set(false);
     this.busy.set(false);
     this.failed.set(false);
     this.message.set('');
@@ -377,7 +394,8 @@ export class WorkflowTaskCancellationPanel {
   private contextKey(): string {
     const task = this.task();
     return [task.taskId, task.clientId, task.engagementId, task.title, task.engagementServiceRoute,
-      task.engagementPeriod, task.revision, task.taskStatus, task.canCancel, task.canReopen, this.action()].join('|');
+      task.engagementPeriod, task.revision, task.taskStatus, task.canCancel, task.canReopen,
+      task.requiredTask, task.applicabilityCondition, this.action()].join('|');
   }
 
   canPerform(task: WorkflowTaskCancellationTarget, action: WorkflowTaskRecoveryAction): boolean {

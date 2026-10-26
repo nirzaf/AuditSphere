@@ -227,11 +227,11 @@ describe('workflow queue assignment filters', () => {
     const countOf = (label: string) => card(label).querySelector('.summary-count')?.textContent?.trim();
     return { fixture, http, session, userId, host, overview, cards, card, countOf, component: fixture.componentInstance };
   };
-  const openCancellation = (test: ReturnType<typeof start>) => {
+  const openCancellation = (test: ReturnType<typeof start>, overrides: object = {}) => {
     const { fixture, http, host } = test;
     fixture.detectChanges(); TestBed.tick();
     http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
-      .flush({ view: 'MY_TASKS', tasks: [cancelableTask], hasMore: false, nextCursor: null, summary: summary() });
+      .flush({ view: 'MY_TASKS', tasks: [{ ...cancelableTask, ...overrides }], hasMore: false, nextCursor: null, summary: summary() });
     http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
     TestBed.tick();
     const trigger = host.querySelector<HTMLButtonElement>(`button[data-cancel-task="${task.taskId}"]`)!;
@@ -710,6 +710,27 @@ describe('workflow queue assignment filters', () => {
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
         .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
       expect(component.assignmentUncertain()).toBe(false);
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('records non-applicability only after an explicit conditional-step choice in the reviewed intent', () => {
+    const test = start();
+    const { fixture, http, host } = test;
+    try {
+      const panel = openCancellation(test, { requiredTask: true, templateStepId: task.taskId,
+        applicabilityCondition: 'Only where the entity holds inventory' });
+      expect(host.textContent).toContain('Applies when: Only where the entity holds inventory');
+      panel.updateReason('No inventory at the reporting date.');
+      panel.prepareReview();
+      expect(panel.intent()?.reason).toBe('No inventory at the reporting date.');
+      panel.backToEditing();
+      fixture.detectChanges();
+      host.querySelector<HTMLInputElement>('#task-not-applicable')!.click();
+      fixture.detectChanges();
+      expect(panel.notApplicable()).toBe(true);
+      panel.prepareReview();
+      expect(panel.intent()?.reason).toBe('Not applicable: No inventory at the reporting date.');
       http.verify({ ignoreCancelled: true });
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
