@@ -103,6 +103,20 @@ public static class EngagementProgressQuery
     var truncatedEngagements = rows.GroupBy(x => x.Binding.EngagementId)
       .Where(group => group.Count() > StepLimit).Select(group => group.Key).ToHashSet();
     rows = rows.GroupBy(x => x.Binding.EngagementId).SelectMany(group => group.Take(StepLimit)).ToList();
+    // Time tasks created without workflow metadata are still mandatory engagement commitments.
+    // Read an independently bounded overflow witness, then share the existing projection cap with bound tasks.
+    var unboundTasks = await db.Engagements.AsNoTracking().Where(e => e.FirmId == f && ids.Contains(e.Id))
+      .SelectMany(e => db.WorkTasks.AsNoTracking().Where(task => task.FirmId == f &&
+          task.ClientId == e.PracticeClientId && task.EngagementId == e.Id &&
+          !db.WorkflowTaskBindings.Any(binding => binding.FirmId == f && binding.WorkTaskId == task.Id))
+        .OrderBy(task => task.CreatedAt).ThenBy(task => task.Id).Take(StepLimit + 1))
+      .ToListAsync(ct);
+    var boundCounts = rows.GroupBy(x => x.Binding.EngagementId).ToDictionary(group => group.Key, group => group.Count());
+    foreach (var group in unboundTasks.GroupBy(x => x.EngagementId!.Value))
+      if (group.Count() + boundCounts.GetValueOrDefault(group.Key) > StepLimit) truncatedEngagements.Add(group.Key);
+    unboundTasks = unboundTasks.GroupBy(x => x.EngagementId!.Value).SelectMany(group =>
+      group.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Take(StepLimit - boundCounts.GetValueOrDefault(group.Key))).ToList();
+    var unboundTaskIds = unboundTasks.Select(x => x.Id).ToHashSet();
     var bindingIds = rows.Select(x => x.Binding.Id).ToArray();
     // Only a current-revision, explicitly reasoned cancellation can waive a conditional required step.
     var currentCancellations = await (from activity in db.WorkflowTaskActivities.AsNoTracking()
@@ -137,7 +151,8 @@ public static class EngagementProgressQuery
         if (currentCompleted.Remove(successorId)) invalidPrerequisites.Enqueue(successorId);
     var unmetByBinding = dependencies.Where(edge => !currentCompleted.Contains(edge.PredecessorBindingId))
       .GroupBy(edge => edge.SuccessorBindingId).ToDictionary(group => group.Key, group => group.Count());
-    var assigneeIds = rows.Where(x => x.AssigneeUserId.HasValue).Select(x => x.AssigneeUserId!.Value).Distinct().ToArray();
+    var assigneeIds = rows.Select(x => x.AssigneeUserId).Concat(unboundTasks.Select(x => x.AssigneeUserId))
+      .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
     var names = await db.Users.AsNoTracking().Where(x => x.FirmId == f && assigneeIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
     var openHoldEngagements = await db.EngagementHolds.AsNoTracking()
@@ -177,6 +192,10 @@ public static class EngagementProgressQuery
         x.Binding.ReviewProcedureResultId.HasValue, x.AssigneeUserId, x.DueDate, x.Condition,
         conditionalProcedureRules.GetValueOrDefault(x.Binding.Id)?.Count(rule =>
           applicability.GetValueOrDefault(rule.SourceId ?? Guid.Empty) != AuditApplicabilityStatuses.NotApplicableApproved) ?? 0)).ToList();
+      facts.AddRange(unboundTasks.Where(x => x.EngagementId == engagement.Id).Select((task, index) =>
+        new EngagementProgressStepFact(task.Id, task.Title, task.Phase, 100001 + index,
+          WorkflowStepRequirements.Mandatory, task.Status, false, 0, 0, false, false,
+          task.AssigneeUserId, task.DueDate)));
 
       var lifecycleRoute = LifecycleRoutes.Contains(engagement.ServiceRoute, StringComparer.Ordinal);
       var truncated = truncatedEngagements.Contains(engagement.Id);
@@ -214,8 +233,11 @@ public static class EngagementProgressQuery
       var phase = lifecycleRoute && stageIndex is { } index ? DisplayPhase(index)
         : next is not null ? PhaseLabel(next.Phase) : figures.ApplicableRequired == 0 ? "No task plan adopted" : "Task plan complete";
       var nextAction = next is not null ? next.Title : gates.FirstOrDefault();
-      var nextLink = next is not null ? $"/app/work?engagementId={engagement.Id:D}&taskId={next.TaskId:D}"
-        : gates.Count > 0 ? gateLink ?? $"/app/engagements/{engagement.Id:D}" : null;
+      string? nextLink = null;
+      if (next is not null)
+        nextLink = unboundTaskIds.Contains(next.TaskId) ? $"/app/practice/time?taskId={next.TaskId:D}"
+          : $"/app/work?engagementId={engagement.Id:D}&taskId={next.TaskId:D}";
+      else if (gates.Count > 0) nextLink = gateLink ?? $"/app/engagements/{engagement.Id:D}";
       views.Add(new EngagementProgressView(engagement.Id, engagement.PracticeClientId,
         clients.GetValueOrDefault(engagement.PracticeClientId, "Client"), engagement.ServiceRoute, engagement.PeriodStart,
         engagement.PeriodEnd, lifecycleRoute, phase, stageLabel, stageIndex, figures.PercentComplete, figures.ApplicableRequired,

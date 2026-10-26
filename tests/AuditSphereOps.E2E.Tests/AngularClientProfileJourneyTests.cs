@@ -1,3 +1,4 @@
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -14,7 +15,20 @@ public sealed class AngularClientProfileJourneyTests
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-CLIENT-PROFILE-E2E");
     var f = host.Fixture;
-    await using (var db = host.CreateDbContext()) { await ClientProfileWorkspaceSeed.PopulateAsync(db, f, count: 51); }
+    Guid manualTaskId;
+    await using (var db = host.CreateDbContext())
+    {
+      await ClientProfileWorkspaceSeed.PopulateAsync(db, f, count: 51);
+      var staff = PbcSeed.Actor(f.Staff, "Staff");
+      var pending = await PracticeTimeService.CreateTaskAsync(db, staff,
+        new("Outstanding manual progress commitment", f.ClientId, f.EngagementId, f.Staff.Id));
+      var done = await PracticeTimeService.CreateTaskAsync(db, staff,
+        new("Completed manual progress commitment", f.ClientId, f.EngagementId, f.Staff.Id));
+      Assert.True(pending.Succeeded, pending.Message);
+      Assert.True(done.Succeeded, done.Message);
+      Assert.True((await PracticeTimeService.CompleteTaskAsync(db, staff, done.Value)).Succeeded);
+      manualTaskId = pending.Value;
+    }
     var prefix = canonical ? "" : "/ui";
     var origin = await host.StartApiForIdentityAsync(f.Staff, new Dictionary<string,string> {
       ["AngularUi__Enabled"]="true", ["AngularUi__CanonicalRoutes"]=canonical.ToString() });
@@ -28,6 +42,21 @@ public sealed class AngularClientProfileJourneyTests
     await Assertions.Expect(page.Locator("audit-client dl")).ToContainTextAsync("SYNTHETIC-REG-001");
     await Assertions.Expect(page.Locator("audit-client dl")).ToContainTextAsync("9007199254740993");
     await Assertions.Expect(page.Locator("audit-client dl")).ToContainTextAsync("2026-01-02 12:30 UTC");
+    await page.GotoAsync(origin + prefix + "/app/engagements/" + f.EngagementId);
+    var tracker = page.Locator("audit-engagement-progress");
+    await Assertions.Expect(tracker.Locator(".tracker-figure strong")).ToHaveTextAsync("50%");
+    await Assertions.Expect(tracker.GetByLabel("Required step counts", new() { Exact = true }))
+      .ToContainTextAsync("1 completed");
+    await tracker.Locator("summary").ClickAsync();
+    await Assertions.Expect(tracker.GetByRole(AriaRole.Table)).ToContainTextAsync("Completed manual progress commitment");
+    // The existing navigation guard refuses leaving while its independent planning read is still pending.
+    await Assertions.Expect(page.Locator("audit-engagement-planning")).ToContainTextAsync("No approved budget is available");
+    var next = tracker.GetByRole(AriaRole.Link, new() { Name = "Outstanding manual progress commitment", Exact = true });
+    await Assertions.Expect(next).ToHaveAttributeAsync("href", prefix + "/app/practice/time?taskId=" + manualTaskId);
+    await next.ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Practice time & task records", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.Locator("select[name='task']")).ToHaveValueAsync(manualTaskId.ToString());
+    await page.GotoAsync(origin + path);
     var progress = page.Locator("audit-client-progress");
     await Assertions.Expect(progress).ToContainTextAsync("51 engagements in scope");
     await Assertions.Expect(progress.Locator("tbody tr")).ToHaveCountAsync(50);

@@ -492,6 +492,74 @@ public sealed class EngagementWorkflowPlanTests
   }
 
   [Fact]
+  public async Task ProgressIncludesUnboundEngagementTasksWithoutDoubleCountingOrCrossingScopeAndReadBounds()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientId = Guid.NewGuid();
+    var engagementId = Guid.NewGuid();
+    var neighbourId = Guid.NewGuid();
+    var admin = User(firmId, "ManualProgressAdmin");
+    var partner = User(firmId, "ManualProgressPartner");
+    var staff = User(firmId, "ManualProgressStaff");
+    var actor = Actor(admin, "Administrator");
+    await SeedAsync(pg.Options, firmId, clientId, engagementId, neighbourId, admin, partner, staff,
+      professionalWorkBlocked: false);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var due = new DateOnly(2026, 12, 15);
+    var pending = await PracticeTimeService.CreateTaskAsync(db, actor,
+      new("Outstanding manual commitment", clientId, engagementId, admin.Id, DueDate: due, Phase: BudgetPhases.Planning));
+    var done = await PracticeTimeService.CreateTaskAsync(db, actor,
+      new("Completed manual commitment", clientId, engagementId, admin.Id));
+    Assert.True(pending.Succeeded, pending.Message);
+    Assert.True(done.Succeeded, done.Message);
+    Assert.True((await PracticeTimeService.CompleteTaskAsync(db, actor, done.Value)).Succeeded);
+    Assert.True((await PracticeTimeService.CreateTaskAsync(db, actor,
+      new("Different engagement commitment", clientId, neighbourId, admin.Id))).Succeeded);
+    Assert.True((await PracticeTimeService.CreateTaskAsync(db, actor,
+      new("Client-only commitment", clientId, AssigneeUserId: admin.Id))).Succeeded);
+
+    var manual = (await EngagementProgressQuery.GetAsync(db, actor, engagementId)).Value!;
+    Assert.Equal((2, 1, 1, 0, 50), (manual.ApplicableRequired, manual.CompletedRequired,
+      manual.PendingRequired, manual.BlockedRequired, manual.PercentComplete));
+    Assert.Equal($"/app/practice/time?taskId={pending.Value:D}", manual.NextActionLink);
+    var next = Assert.Single(manual.Steps, x => x.TaskId == pending.Value);
+    Assert.Equal((WorkflowStepRequirements.Mandatory, admin.Id, admin.DisplayName, due, BudgetPhases.Planning),
+      (next.Requirement, next.AssigneeUserId, next.AssigneeName, next.DueDate, next.Phase));
+
+    var bound = await EngagementWorkflowTaskService.CreateAsync(db, actor, engagementId,
+      new("Bound commitment counted once", WorkflowTaskPhases.AuditPlanning, 1, IdempotencyKey: Guid.NewGuid()));
+    Assert.True(bound.Succeeded, bound.Message);
+    var mixed = (await EngagementProgressQuery.GetAsync(db, actor, engagementId)).Value!;
+    Assert.Equal((3, 1, 2, 0, 33), (mixed.ApplicableRequired, mixed.CompletedRequired,
+      mixed.PendingRequired, mixed.BlockedRequired, mixed.PercentComplete));
+    Assert.Equal(3, mixed.Steps.Select(x => x.TaskId).Distinct().Count());
+    foreach (var summaries in new[] { (await EngagementProgressQuery.ForClientAsync(db, actor, clientId)).Value!.Items,
+      (await PortfolioQuery.ProgressAsync(db, actor)).Value!.Items })
+    {
+      Assert.Equal(3, summaries.Single(x => x.EngagementId == engagementId).ApplicableRequired);
+      Assert.Equal(1, summaries.Single(x => x.EngagementId == neighbourId).ApplicableRequired);
+    }
+
+    // Unbound tasks share the existing per-engagement projection cap with bound tasks.
+    db.WorkTasks.AddRange(Enumerable.Range(1, 499).Select(i => new WorkTask
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+      Title = $"Additional manual commitment {i}", CreatedAt = DateTimeOffset.UtcNow
+    }));
+    await db.SaveChangesAsync();
+    var limited = (await EngagementProgressQuery.GetAsync(db, actor, engagementId)).Value!;
+    Assert.Equal(500, limited.Steps.Count);
+    Assert.Equal(500, limited.ApplicableRequired);
+    Assert.Contains(limited.Gates, x => x.StartsWith("More than 500", StringComparison.Ordinal));
+    var client = (await EngagementProgressQuery.ForClientAsync(db, actor, clientId)).Value!;
+    Assert.Equal(limited.ApplicableRequired, client.Items.Single(x => x.EngagementId == engagementId).ApplicableRequired);
+    Assert.DoesNotContain(client.Items.Single(x => x.EngagementId == neighbourId).Gates,
+      x => x.StartsWith("More than 500", StringComparison.Ordinal));
+    Assert.Equal(1, await db.WorkflowTaskBindings.CountAsync(x => x.EngagementId == engagementId));
+  }
+
+  [Fact]
   public async Task ProgressCountsApplicableCompletedStepsAndStaysBelowCompletionWhileGatesAreOpen()
   {
     await using var pg = await PgTestSchema.CreateAsync();
