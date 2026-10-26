@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Progress scope, professional applicability and paging (2026-10-26)
+
+Client and portfolio progress now apply the exact progress-reading scope before totals and page bounds. The client tracker exposes continuation across permitted periods and keeps keyboard focus on its persistent heading while changing pages. A cancelled conditional task with required procedure evidence also needs current independent not-applicable approval for every exact source; pending, returned, unrelated or stale decisions leave the task blocked. Upstream explicit cancellation markers, open holds, PBC currentness and revocation fences remain intact.
+
+Focused PostgreSQL, Angular and API checks, fresh contract emission and production compilation passed. An actual built-in browser journey exercised both client page directions, boundary controls and retained heading focus; an earlier expired fixture is excluded. The existing PBC source-currentness regression passed independently. Exact results, source identities and CI are in `targetedVerification.practiceProgressScopeWaiver20261026` in [status.json](status.json). The [existing criterion register](auditsphere-execution-report-practice-management-criterion-audit-current.md) remains the completion backlog; WF-02/WF-03, unbound manual task coverage, connected acceptance, D03 and professional/live gates remain open. No full local suite, latest-source deployment or professional acceptance is claimed.
+
 ## User roles and privileges guide (2026-10-26)
 
 The [user types and privileges guide](../architecture/auditsphere-architecture-user-roles-and-privileges-current.md) describes the standard assignment catalogue, selected backend-only role codes, engagement staffing hierarchy and exact grant scopes. It separates Microsoft directory authority from local application access and preserves independent professional and finance approval. It documents existing behavior; this documentation slice changes no role assignments, authorization code or release status. Verification is recorded in `targetedVerification.userRolePrivilegesGuide20261026` in [status.json](status.json).

@@ -12,6 +12,8 @@
 
 ## Reading this matrix
 
+**Progress follow-up (2026-10-26):** The published explicit current-revision N/A, open-hold and PBC-currentness corrections are retained. A further focused slice verifies scope-before-count client/portfolio paging, current independent N/A approval for every required exact procedure source, and keyboard focus across client progress pages. PostgreSQL and API regressions, affected Angular checks, fresh production compilation and contract emission, and an actual owned built-in browser journey passed. Exact source/results are in `targetedVerification.practiceProgressScopeWaiver20261026` in [status.json](status.json). This adds evidence to ASPM-WF-02/WF-03; both remain PARTIAL. Unbound task coverage, whole connected-workflow acceptance, D03 and current-source full CI/live acceptance remain open. The original inventory and its test-body-only boundary below are unchanged.
+
 - `ASPM-<family>-<number>` is the unique key for each criterion in the complete-practice-management specification. The source specification uses shorter IDs such as `ACC-05`; these collide with older PM crosswalk IDs that mean different things. The source specification is preserved unchanged.
 - `PARTIAL` means code and a relevant test body exist, but at least one stated behavior remains unsupported or unverified. `BLOCKED_DECISION` and `BLOCKED_EXTERNAL` identify gates that code cannot supply. `NOT_VERIFIED` means no integrated acceptance was established; it does not mean the capability is absent.
 - “Test body inspected” means the test source was read. **No tests were executed as part of this inventory.** Historical pass results remain tied to their recorded commits in `status.json` and are not current-SHA results.

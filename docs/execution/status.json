@@ -937,14 +937,8 @@
       "evidence": ".local/autonomous/evidence/wu004-composite-budget-receipts-20261025/review.json"
     },
     "findingReceiptRefresh20261025": {
-      "status": "FOCUSED_PASS_EXACT_CI_PENDING",
-      "sourceCommit": "fc0ec97863ddf710d44052379ab50959c794dae1",
-      "implementation": "The exact actor-owned receipt remains visible while the finding resource refreshes; if the refresh finishes without authorized data, the review component is hidden.",
-      "localChecks": "Angular production build PASS; focused lost-committed Playwright recovery PASS 1/1 after holding the exact finding GET; isolated cold/warm/router/dataset budget case PASS 1/1. Full local suites NOT_RUN. Existing commercial/settings.scss style-budget warning remains.",
-      "previousFullRun": "40164830806 on f7e1b940: E2E 337/339; receipt visibility defect fixed on fc0ec978. Cold first paint measured 13,326ms against 12,000ms; isolated local performance check passed, cause remains unproven. API job remains in progress.",
-      "currentFastCi": "Code run 40173305587 was cancelled by the docs-only push after Angular and Docs Health passed; .NET Release build was cancelled, so this is not a failure. Docs-only run 40173820833 completed all jobs successfully on workflow head 3fc30199; source resolution is UNRESOLVED, so FAST_CI_PASS is not asserted.",
-      "currentReleaseVerification": "40173365579: release-source artifact MATCH fc0ec978; Angular/full specs, Build/contracts/publication Verify, and unfiltered Domain passed. Unfiltered API and Playwright E2E remain in progress at 2026-10-25T08:00:40Z.",
-      "evidence": ".local/autonomous/evidence/finding-receipt-refresh-20261025/review.json"
+      "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.findingReceiptRefresh20261025"
     },
     "wu024DeploymentBindings20261025": {
       "sourceCommit": "02d8b914b780c7c99d672e6024c874cba70c30e0",
@@ -1076,6 +1070,14 @@
       "scope": "Staff/client identities; standard assignment roles; backend-only accepted codes; explicit staffing ranks; per-role capabilities/scopes and independence boundaries. Linked from README and docs index.",
       "boundary": "Describes current source; no runtime or role/grant changes, full tests not applicable.",
       "verification": "Source catalogue/guard/staffing review, complete standard-role row coverage, Markdown health/filenames/narrative/task-board and diff checks PASS. No runtime tests required or run for this documentation slice."
+    },
+    "practiceProgressScopeWaiver20261026": {
+      "status": "FOCUSED_AND_BUILTIN_PASS_CURRENT_FULL_PENDING",
+      "implementationCommit": "d1ef321fcafaed85ec6aedbb46b821c8211dea9d",
+      "behavior": "Exact progress scope precedes totals/client50+portfolio10 paging; conditional required procedure sources each need current independent N/A; client page transitions retain heading focus. Existing explicit cancellation, holds, PBC and revocation gates retained.",
+      "verification": "Scope RED1; published professional N/A RED1; integrated Domain6/API1/PBC1PASS; keyboard focus RED1 then Angular10PASS; fresh pinned production build, runtime ESLint and OpenAPI emission PASS. Existing E2E2PASS plus canonical repeat1PASS; actual builtin51 engagement50-to1-to50, disabled page boundaries/heading focus/console[] before expiry; expired attempt excluded. No full local suites.",
+      "boundary": "Peer admin-history presentation/harness preserved, not independently accepted by progress checks. Existing87-criterion WF-02/WF-03 remainPARTIAL; unbound tasks/connected/D03/fullCI/live/professional acceptance open. No deployment.",
+      "evidence": ".local/autonomous/evidence/practice-completion-20261026/progress-scope-waiver-review.json"
     }
   },
   "externalGates": [
@@ -1572,13 +1574,26 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "e22223b2dfe44e7078d767986911b0147ffa5514",
-    "sourceRole": "CURRENT_PROGRESS_REFRESH_AND_PREREQUISITE_FIX_WITH_PEER_PROFILE_FEATURE",
-    "fastCi": "40371672786 pending at latest observation; no all-job checkout proof yet",
-    "releaseVerification": "Current full dispatch pending coherent next slice; preceding e6ad40367423272 MATCH with Angular/Domain/VerifyPASS, API/E2E stillrunning17:46UTC. No current FULL_CI_PASS.",
-    "imagePublication": "e50440371444858 running; not accepted as exact e222source evidence",
-    "cutoverStatus": "Peer e6ad deployment retained in hostingerAcceptance; no currentness/profile cutover by this agent",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeCurrentnessMilestone20261026"
+    "sourceCommit": "d1ef321fcafaed85ec6aedbb46b821c8211dea9d",
+    "sourceRole": "CURRENT_PROGRESS_SCOPE_PROFESSIONAL_NA_PAGING_WITH_PEER_ACCESS_PRESENTATION",
+    "fastCi": {
+      "runId": 40383096357,
+      "status": "RUNNING",
+      "checkoutProof": "PENDING"
+    },
+    "releaseVerification": {
+      "runId": 40383293201,
+      "status": "RUNNING",
+      "sourceMatch": "MATCH",
+      "fullPassForExpected": false
+    },
+    "imagePublication": {
+      "runId": 40383096358,
+      "status": "RUNNING",
+      "digests": "PENDING"
+    },
+    "cutoverStatus": "NOT_PERFORMED; new exact-image rehearsal/current baseline-specific plan and all mandatory gates required",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeProgressScopeWaiver20261026"
   },
-  "updatedAtUtc": "2026-10-26T18:18:30.746042+00:00"
+  "updatedAtUtc": "2026-10-26T19:04:24.658979+00:00"
 }
