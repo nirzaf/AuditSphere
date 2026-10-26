@@ -73,6 +73,8 @@ public static class EngagementProgressCalculator
     {
       PracticeTimeStates.TaskCompleted when fact.UnmetEvidence > 0 =>
         (EngagementProgressStepStates.Blocked, "Completed, but its required evidence is no longer current"),
+      PracticeTimeStates.TaskCompleted when fact.UnmetDependencies > 0 =>
+        (EngagementProgressStepStates.Blocked, "Completed, but a required prerequisite is no longer current"),
       PracticeTimeStates.TaskCompleted => (EngagementProgressStepStates.Completed, (string?)null),
       PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Optional =>
         (EngagementProgressStepStates.NotApplicable, "Optional step cancelled"),

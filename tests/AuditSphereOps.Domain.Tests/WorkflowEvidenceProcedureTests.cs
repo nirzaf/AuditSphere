@@ -82,5 +82,33 @@ public sealed class WorkflowEvidenceProcedureTests
     Assert.Equal(ErrorCodes.GateBlocked, (await EngagementWorkflowTaskService.CompleteAsync(db, manager, task.Value, 2)).ErrorCode);
     Assert.True((await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, partner, replacement.Value!.AssessmentId)).Succeeded);
     Assert.True((await EngagementWorkflowTaskService.CompleteAsync(db, manager, task.Value, 2)).Succeeded);
+
+    var completedTasks = new List<Guid> { task.Value };
+    for (var ordinal = 2; ordinal <= 3; ordinal++)
+    {
+      var dependent = await EngagementWorkflowTaskService.CreateAsync(db, manager, f.EngagementId,
+        new($"Use the prior reviewed commitment {ordinal}", WorkflowTaskPhases.AuditPlanning, ordinal,
+          IdempotencyKey: Guid.NewGuid()));
+      Assert.True(dependent.Succeeded, dependent.Message);
+      var predecessor = completedTasks[^1];
+      var predecessorRevision = await db.WorkflowTaskBindings.AsNoTracking().Where(x => x.WorkTaskId == predecessor)
+        .Select(x => x.Revision).SingleAsync();
+      var edge = await PracticeTimeService.ChangeWorkflowDependencyAsync(db, manager, f.EngagementId, dependent.Value,
+        new(predecessor, true, 1, predecessorRevision, "The next commitment relies on this current prerequisite.", Guid.NewGuid()));
+      Assert.True(edge.Succeeded, edge.Message);
+      Assert.True((await EngagementWorkflowTaskService.CompleteAsync(db, manager, dependent.Value, edge.Value!.TaskRevision)).Succeeded);
+      completedTasks.Add(dependent.Value);
+    }
+    var before = (await EngagementProgressQuery.GetAsync(db, manager, f.EngagementId)).Value!;
+    Assert.Equal((3, 0), (before.CompletedRequired, before.BlockedRequired));
+    var latest = await MaterialityEngineService.CalculateAsync(db, manager,
+      new(f.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Reassess current inputs after downstream work"));
+    Assert.True(latest.Succeeded, latest.Message);
+    Assert.False(Assert.Single((await WorkflowTaskEvidenceQuery.GetAsync(db, manager, f.EngagementId, task.Value)).Value!.Rules).Satisfied);
+    var after = (await EngagementProgressQuery.GetAsync(db, manager, f.EngagementId)).Value!;
+    Assert.Equal((0, 3, 0), (after.CompletedRequired, after.BlockedRequired, after.PercentComplete));
+    // Current readiness changes; the retained operational completion history is not rewritten.
+    Assert.Equal(3, await db.WorkTasks.AsNoTracking().CountAsync(x => completedTasks.Contains(x.Id) &&
+      x.Status == PracticeTimeStates.TaskCompleted));
   }
 }

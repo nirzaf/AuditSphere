@@ -1,9 +1,11 @@
-import { Component, inject, input, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { Component, DestroyRef, computed, effect, inject, input, linkedSignal, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { Api } from '../../core/api';
-import { arr, bool, date, DecodeError, guid, instant, int, nat, nullable, obj, oneOf, str, text } from '../../core/decode';
+import { Api, Resource } from '../../core/api';
+import { arr, bool, date, DecodeError, Decoder, guid, instant, int, nat, nullable, obj, oneOf, str, text } from '../../core/decode';
+import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 
 const REQUIREMENTS = ['MANDATORY', 'CONDITIONAL', 'OPTIONAL'] as const;
@@ -51,6 +53,55 @@ export function appLink(link: string | null): { path: string; query: Record<stri
 }
 
 const REQUIREMENT_LABELS: Record<string, string> = { MANDATORY: 'Mandatory', CONDITIONAL: 'Conditional', OPTIONAL: 'Optional' };
+
+/** Keep mounted trackers current without replacing focused/expanded content during a background read. */
+function progressResource<T>(url: () => string | null, decoder: Decoder<T>, unavailable: string): Resource<T> {
+  const document = inject(DOCUMENT);
+  const session = inject(SessionService);
+  const visible = signal(document.visibilityState !== 'hidden');
+  const context = computed(() => {
+    const target = url(), actor = session.current();
+    return target && actor?.staff
+      ? JSON.stringify([target, actor.userId, actor.firmId, actor.generation, session.invalidation()]) : null;
+  });
+  let requestedContext: string | null = null;
+  const source = inject(Api).resource(() => {
+    requestedContext = context();
+    // A hidden page also cancels any in-flight read through the existing resource lifecycle.
+    return visible() && requestedContext ? url() : null;
+  }, decoder, unavailable);
+  const data = linkedSignal<{ key: string | null; value: T | null; error: string }, T | null>({
+    source: () => ({ key: context(), value: source.data(), error: source.error() }),
+    computation: ({ key, value, error }, previous) => {
+      if (!key || error) return null;
+      if (value !== null && key === requestedContext) return value;
+      // Never retain a result across records, pages, actors, firms or session generations.
+      return previous?.source.key === key ? previous.value : null;
+    },
+  });
+  const refresh = () => {
+    if (visible() && document.visibilityState !== 'hidden' && context() &&
+        context() === requestedContext && !source.loading()) source.reload();
+  };
+  effect(onCleanup => {
+    if (!visible() || !context()) return;
+    const timer = setInterval(refresh, 30_000);
+    onCleanup(() => clearInterval(timer));
+  });
+  const returned = () => {
+    const wasVisible = visible();
+    visible.set(document.visibilityState !== 'hidden');
+    // Hidden -> visible changes the resource URL; focus on an already visible page needs a reload.
+    if (wasVisible && visible()) refresh();
+  };
+  document.addEventListener('visibilitychange', returned);
+  document.defaultView?.addEventListener('focus', returned);
+  inject(DestroyRef).onDestroy(() => {
+    document.removeEventListener('visibilitychange', returned);
+    document.defaultView?.removeEventListener('focus', returned);
+  });
+  return { data, error: source.error, loading: source.loading, reload: refresh };
+}
 
 /** Shared row presentation for client and portfolio progress summaries. */
 @Component({
@@ -172,9 +223,8 @@ export class ProgressSummary {
   `,
 })
 export class EngagementProgressTracker {
-  private readonly api = inject(Api);
   readonly engagementId = input.required<string>();
-  readonly view = this.api.resource(() => this.engagementId() ? `/api/ui/engagements/${this.engagementId()}/progress` : null,
+  readonly view = progressResource(() => this.engagementId() ? `/api/ui/engagements/${this.engagementId()}/progress` : null,
     decodeEngagementProgress, 'Engagement progress is not available in your current scope.');
   readonly link = appLink;
   requirementLabel(value: string): string { return REQUIREMENT_LABELS[value] ?? value; }
@@ -194,9 +244,8 @@ export class EngagementProgressTracker {
   `,
 })
 export class ClientProgress {
-  private readonly api = inject(Api);
   readonly clientId = input.required<string>();
-  readonly view = this.api.resource(() => this.clientId() ? `/api/ui/clients/${this.clientId()}/progress` : null,
+  readonly view = progressResource(() => this.clientId() ? `/api/ui/clients/${this.clientId()}/progress` : null,
     decodeProgressList, 'Client progress is not available in your current scope.');
 }
 
@@ -221,8 +270,7 @@ export class ClientProgress {
   `,
 })
 export class PortfolioProgress {
-  private readonly api = inject(Api);
   readonly page = signal(0);
-  readonly view = this.api.resource(() => `/api/ui/portfolio/progress${this.page() > 0 ? '?page=' + this.page() : ''}`,
+  readonly view = progressResource(() => `/api/ui/portfolio/progress${this.page() > 0 ? '?page=' + this.page() : ''}`,
     decodeProgressList, 'Portfolio progress is not available in your current scope.');
 }

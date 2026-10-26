@@ -115,20 +115,26 @@ public static class EngagementProgressQuery
     var cancelled = await db.WorkflowTaskActivities.AsNoTracking()
       .Where(x => x.FirmId == f && taskIds.Contains(x.WorkTaskId) && x.Kind == WorkflowTaskActivityKinds.Cancelled)
       .Select(x => x.WorkTaskId).Distinct().ToListAsync(ct);
-    var unmet = await (from dependency in WorkflowTaskDependencyQuery.Effective(db, f)
+    var dependencies = await (from dependency in WorkflowTaskDependencyQuery.Effective(db, f)
       join predecessor in db.WorkflowTaskBindings.AsNoTracking()
         on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.PredecessorBindingId }
         equals new { predecessor.FirmId, predecessor.ClientId, predecessor.EngagementId, predecessor.Id }
-      join predecessorTask in db.WorkTasks.AsNoTracking()
-        on new { predecessor.FirmId, WorkTaskId = predecessor.WorkTaskId } equals new { predecessorTask.FirmId, WorkTaskId = predecessorTask.Id }
-      where dependency.FirmId == f && bindingIds.Contains(dependency.SuccessorBindingId) &&
-        predecessorTask.Status != PracticeTimeStates.TaskCompleted
-      select dependency.SuccessorBindingId).ToListAsync(ct);
-    var unmetByBinding = unmet.GroupBy(x => x).ToDictionary(x => x.Key, x => x.Count());
+      where dependency.FirmId == f && bindingIds.Contains(dependency.SuccessorBindingId)
+      select new { dependency.PredecessorBindingId, dependency.SuccessorBindingId }).ToListAsync(ct);
     var evidence = new Dictionary<Guid, IReadOnlyList<WorkflowEvidenceRuleView>>();
     foreach (var page in rows.Select(x => x.Binding).Chunk(WorkflowTaskEvidenceQuery.MaximumBindings))
       foreach (var (bindingId, rules) in await WorkflowTaskEvidenceQuery.EvaluateManyAsync(db, f, page, ct))
         evidence.Add(bindingId, rules);
+    var currentCompleted = rows.Where(x => x.Status == PracticeTimeStates.TaskCompleted &&
+        !evidence[x.Binding.Id].Any(rule => rule.State == WorkflowEvidenceRuleStates.Required && !rule.Satisfied))
+      .Select(x => x.Binding.Id).ToHashSet();
+    var dependents = dependencies.ToLookup(edge => edge.PredecessorBindingId, edge => edge.SuccessorBindingId);
+    var invalidPrerequisites = new Queue<Guid>(dependents.Select(group => group.Key).Where(id => !currentCompleted.Contains(id)));
+    while (invalidPrerequisites.TryDequeue(out var predecessorId))
+      foreach (var successorId in dependents[predecessorId])
+        if (currentCompleted.Remove(successorId)) invalidPrerequisites.Enqueue(successorId);
+    var unmetByBinding = dependencies.Where(edge => !currentCompleted.Contains(edge.PredecessorBindingId))
+      .GroupBy(edge => edge.SuccessorBindingId).ToDictionary(group => group.Key, group => group.Count());
     var assigneeIds = rows.Where(x => x.AssigneeUserId.HasValue).Select(x => x.AssigneeUserId!.Value).Distinct().ToArray();
     var names = await db.Users.AsNoTracking().Where(x => x.FirmId == f && assigneeIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
