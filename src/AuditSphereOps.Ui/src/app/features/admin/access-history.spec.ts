@@ -63,20 +63,20 @@ describe('access history view', () => {
 
   it('searches across people, roles and reasons, filters by activity and reveals full details on request', () => {
     const { fixture, page, root } = render(rows);
-    expect(root.querySelectorAll('tbody tr')).toHaveLength(5);
+    expect(root.querySelectorAll('.history-item')).toHaveLength(5);
     page.update(page.query, 'relationship manager');
     fixture.detectChanges();
-    expect(root.querySelectorAll('tbody tr')).toHaveLength(1);
+    expect(root.querySelectorAll('.history-item')).toHaveLength(1);
     expect(root.querySelector('[role="status"]')?.textContent).toContain('Showing 1 of 5 events.');
     page.clear();
     page.update(page.category, 'SITES');
     fixture.detectChanges();
-    expect([...root.querySelectorAll('tbody tr .event')].map(e => e.textContent)).toEqual(['Site boundary verified', 'Folder template saved']);
-    const details = root.querySelector<HTMLButtonElement>('tbody button')!;
+    expect([...root.querySelectorAll('.history-item .event')].map(e => e.textContent)).toEqual(['Site boundary verified', 'Folder template saved']);
+    const details = root.querySelector<HTMLButtonElement>('.history-item button')!;
     details.click();
     fixture.detectChanges();
     expect(details.getAttribute('aria-expanded')).toBe('true');
-    expect(root.querySelector('.detail-row')?.textContent).toContain(tenant);
+    expect(root.querySelector('.details')?.textContent).toContain(tenant);
     page.update(page.query, 'no such entry');
     fixture.detectChanges();
     expect(root.textContent).toContain('No events match these filters.');
@@ -86,9 +86,9 @@ describe('access history view', () => {
     const many = Array.from({ length: 30 }, (_, i) => row({ at: `2026-10-${String(30 - Math.floor(i / 2)).padStart(2, '0')}T0${i % 2}:00:00Z`,
       operation: 'CAPABILITIES_VERIFIED', target: tenant, change: `- → STEP_${i}`, result: 'RECORDED' }));
     const { fixture, root } = render(many);
-    expect(root.querySelectorAll('tbody tr')).toHaveLength(25);
+    expect(root.querySelectorAll('.history-item')).toHaveLength(25);
     [...root.querySelectorAll('button')].find(b => b.textContent?.includes('Show 25 more'))!.click();
     fixture.detectChanges();
-    expect(root.querySelectorAll('tbody tr')).toHaveLength(30);
+    expect(root.querySelectorAll('.history-item')).toHaveLength(30);
   });
 });

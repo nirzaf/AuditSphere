@@ -167,24 +167,32 @@ const PERIODS = [['ALL', 'All time'], ['7', 'Last 7 days'], ['30', 'Last 30 days
   styles: [`
     .history-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .25rem 1rem; }
     .history-head h2 { margin: 0; }
-    .history-filters { display: grid; grid-template-columns: minmax(14rem, 2fr) repeat(2, minmax(10rem, 1fr)) auto; gap: .75rem;
-      align-items: center; margin: 1rem 0 .5rem; }
-    .history-filters button { white-space: nowrap; }
-    @media (max-width: 760px) { .history-filters { grid-template-columns: 1fr; } .history-filters button { justify-self: start; } }
-    /* Narrow screens scroll the table inside its card rather than squeezing the change text into a sliver. */
-    table { width: 100%; min-width: 54rem; }
-    th:nth-child(4) { min-width: 16rem; }
-    td { vertical-align: top; }
-    .event { display: block; font-weight: 600; color: var(--as-ink, #12385d); }
-    .meta { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .25rem; }
+    .history-filters { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: 1rem 0 .5rem; }
+    .history-filters > mat-form-field { flex: 1 1 10rem; min-width: 0; }
+    .history-filters > mat-form-field:first-child { flex: 2 1 16rem; }
+    .history-filters > button { flex: none; white-space: nowrap; }
+    .history-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--as-line, #dfe6ee); }
+    .history-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .25rem 1rem; padding: .75rem 0;
+      border-bottom: 1px solid var(--as-line, #dfe6ee); }
+    .title { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; }
+    .event { font-weight: 600; color: var(--as-ink, #12385d); }
     .tag { padding: .05rem .45rem; border-radius: 999px; background: var(--as-surface-sunken, #f6f8fb);
       border: 1px solid var(--as-line, #dfe6ee); font-size: .75rem; color: var(--as-ink-soft, #33506e); white-space: nowrap; }
     .category { font-size: .75rem; color: var(--as-text-muted, #52667a); }
+    .change { margin: .25rem 0 0; overflow-wrap: anywhere; }
+    .subject { font-weight: 600; }
     .reason { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
-      margin-top: .2rem; color: var(--as-text-muted, #52667a); font-size: .8125rem; }
-    .subject { min-width: 7rem; }
-    .detail-row td { background: var(--as-surface-sunken, #f6f8fb); }
-    .detail-row dd { overflow-wrap: anywhere; }
+      margin: .125rem 0 0; color: var(--as-text-muted, #52667a); font-size: .8125rem; }
+    .side { display: flex; flex-direction: column; align-items: flex-end; gap: .125rem; text-align: end; }
+    .side time { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .side small { color: var(--as-text-muted, #52667a); }
+    .details { grid-column: 1 / -1; margin: .5rem 0 0; padding: .75rem 1rem; border-radius: var(--as-radius-sm, 6px);
+      background: var(--as-surface-sunken, #f6f8fb); }
+    .details dd { overflow-wrap: anywhere; }
+    @media (max-width: 560px) {
+      .history-item { grid-template-columns: 1fr; }
+      .side { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; text-align: start; }
+    }
   `],
   template: `
     <section class="panel" aria-labelledby="access-history-heading">
@@ -215,32 +223,31 @@ const PERIODS = [['ALL', 'All time'], ['7', 'Last 7 days'], ['30', 'Last 30 days
       </div>
       <p class="hint" role="status">{{ filtering() ? 'Showing ' + matches().length + ' of ' + entries().length + ' events.' : '' }}</p>
       @if (shown().length) {
-        <div class="table-scroll"><table>
-          <caption class="sr-only">Access history events, newest first</caption>
-          <thead><tr><th scope="col">When (UTC)</th><th scope="col">Event</th><th scope="col">Subject</th>
-            <th scope="col">Change</th><th scope="col">By</th><th scope="col"><span class="sr-only">Details</span></th></tr></thead>
-          <tbody>
-            @for (e of shown(); track e.key) {
-              <tr>
-                <td class="nowrap">{{ e.when }}</td>
-                <td><span class="event">{{ e.event }}</span>
-                  <span class="meta"><span class="category">{{ categoryLabels[e.category] }}</span>
-                    @for (t of e.tags; track t) { <span class="tag">{{ t }}</span> }</span></td>
-                <td class="subject" [attr.title]="e.subjectFull">{{ e.subject }}</td>
-                <td>{{ e.summary }}<span class="reason" [attr.title]="e.reason">{{ e.reason }}</span></td>
-                <td>{{ e.actor }}</td>
-                <td><button matButton type="button" (click)="toggle(e.key)" [attr.aria-expanded]="open() === e.key"
+        <ol class="history-list" aria-label="Access history events, newest first">
+          @for (e of shown(); track e.key) {
+            <li class="history-item">
+              <div>
+                <div class="title"><span class="event">{{ e.event }}</span>
+                  @for (t of e.tags; track t) { <span class="tag">{{ t }}</span> }
+                  <span class="category">{{ categoryLabels[e.category] }}</span></div>
+                <p class="change">@if (e.subject !== '—') { <span class="subject" [attr.title]="e.subjectFull">{{ e.subject }}</span> · }{{ e.summary }}</p>
+                <p class="reason" [attr.title]="e.reason">{{ e.reason }}</p>
+              </div>
+              <div class="side">
+                <time [attr.datetime]="e.at">{{ e.when }} UTC</time>
+                <small>by {{ e.actor }}</small>
+                <button matButton type="button" (click)="toggle(e.key)" [attr.aria-expanded]="open() === e.key"
                   [attr.aria-controls]="'access-history-detail-' + $index"
-                  [attr.aria-label]="(open() === e.key ? 'Hide details for ' : 'Show details for ') + e.event + ', ' + e.when">Details</button></td>
-              </tr>
+                  [attr.aria-label]="(open() === e.key ? 'Hide details for ' : 'Show details for ') + e.event + ', ' + e.when">Details</button>
+              </div>
               @if (open() === e.key) {
-                <tr class="detail-row" [id]="'access-history-detail-' + $index"><td colspan="6"><dl class="facts">
+                <dl class="facts details" [id]="'access-history-detail-' + $index">
                   @for (d of e.details; track d.label) { <dt>{{ d.label }}</dt><dd>{{ d.value }}</dd> }
-                </dl></td></tr>
+                </dl>
               }
-            }
-          </tbody>
-        </table></div>
+            </li>
+          }
+        </ol>
         @if (matches().length > shown().length) {
           <button matButton type="button" (click)="limit.set(limit() + page)">Show {{ page }} more</button>
         }
