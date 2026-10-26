@@ -22,7 +22,8 @@ public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string Cli
   bool CanChangeDueDate, bool CanAssign, long Revision,
   Guid? PbcRequestId, string? PbcState, string? ReviewState, string? ReviewComment,
   int UnmetEvidencePrerequisites = 0, string SourceKey = "", Guid? TemplateRevisionId = null, Guid? TemplateStepId = null,
-  bool? RequiredTask = null, bool CanCancel = false, bool CanReopen = false, string? TaskGroupName = null);
+  bool? RequiredTask = null, bool CanCancel = false, bool CanReopen = false, string? TaskGroupName = null,
+  string? ApplicabilityCondition = null);
 public sealed record WorkflowTaskQueue(string View, IReadOnlyList<WorkflowTaskQueueRow> Tasks,
   bool HasMore, WorkflowTaskQueueCursor? NextCursor, WorkflowTaskQueueSummary? Summary = null);
 public sealed record WorkflowTaskQueueCount(string View, string Count);
@@ -157,6 +158,7 @@ public static class WorkflowTaskQueueQuery
         binding.SourceKey, binding.TemplateRevisionId, binding.TemplateStepId,
         RequiredTask = templateStep == null ? (bool?)null : templateStep.RequiredTask,
         TaskGroupName = templateStep == null ? null : templateStep.TaskGroupName,
+        ApplicabilityCondition = templateStep == null ? null : templateStep.ApplicabilityCondition,
         task.Id, ClientId = binding.ClientId, ClientName = client.LegalName, EngagementId = binding.EngagementId,
         EngagementServiceRoute = engagement.ServiceRoute,
         EngagementPeriod = engagement.PeriodStart + " – " + engagement.PeriodEnd,
@@ -284,7 +286,7 @@ public static class WorkflowTaskQueueQuery
         x.PbcRequestId, x.PbcState, x.ReviewState, x.ReviewComment, unmetEvidence,
         x.SourceKey, x.TemplateRevisionId, x.TemplateStepId, x.RequiredTask, canCancel,
         x.Status == PracticeTimeStates.TaskCancelled && !x.CompletedAt.HasValue && x.Revision < long.MaxValue &&
-          CanElevatedManage(x.ClientId, x.EngagementId), x.TaskGroupName);
+          CanElevatedManage(x.ClientId, x.EngagementId), x.TaskGroupName, x.ApplicabilityCondition);
     }).ToArray();
     var last = page[^1];
     return CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, rows, hasMore,

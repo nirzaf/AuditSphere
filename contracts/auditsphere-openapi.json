@@ -159472,6 +159472,12 @@
               "null",
               "boolean"
             ]
+          },
+          "applicabilityCondition": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -160789,6 +160795,12 @@
             "default": false
           },
           "taskGroupName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "applicabilityCondition": {
             "type": [
               "null",
               "string"

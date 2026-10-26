@@ -46,7 +46,7 @@ public sealed record WorkflowPlanStepPreview(string StepKey, Guid TemplateStepId
   IReadOnlyList<string> DependsOnStepKeys, bool MissingEligibleAssignee, Guid? ExistingTaskId,
   WorkflowPlanPbcPreview? Pbc = null,
   IReadOnlyList<WorkflowPlanEvidenceRequirementPreview>? EvidenceRequirements = null,
-  string? TaskGroupName = null, bool? RequiredTask = null);
+  string? TaskGroupName = null, bool? RequiredTask = null, string? ApplicabilityCondition = null);
 public sealed record EngagementWorkflowPlanPreview(Guid EngagementId, long EngagementGeneration, Guid TemplateId,
   Guid TemplateRevisionId, int TemplateVersion, string TemplateName, string TemplateContentDigest,
   Guid? MilestonePlanId, long? MilestonePlanRevision, DateOnly? ScheduleBasisDate, string PreviewDigest,
@@ -753,7 +753,8 @@ public static class EngagementWorkflowPlanService
         step.SortOrder, dueDate, step.EstimatedEffortMinutes, step.SuggestedStaffingLevel, selected,
         eligible, stepDependencies ?? [], step.SuggestedStaffingLevel is not null && eligible.Length == 0,
         existingTaskId == Guid.Empty ? null : existingTaskId, pbc,
-        stepEvidenceViews.Count == 0 ? null : stepEvidenceViews, step.TaskGroupName, step.RequiredTask));
+        stepEvidenceViews.Count == 0 ? null : stepEvidenceViews, step.TaskGroupName, step.RequiredTask,
+        step.ApplicabilityCondition));
     }
 
     var latestPublishedVersion = await db.WorkflowTemplateRevisions.AsNoTracking().Where(x =>

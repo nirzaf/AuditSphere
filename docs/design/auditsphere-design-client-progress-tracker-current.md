@@ -46,7 +46,7 @@ The query recalculates on every read, so there is no stored figure to go stale. 
 - `audit-client-progress` is the per-engagement summary on the client workspace.
 - `audit-portfolio-progress` is the paged portfolio summary.
 
-The decoder refuses figures that do not add up, a percentage above what the counts allow, 100% with an open gate, and a next-action link outside the application. The "Applies when" field is in the template editor (`workflow-templates.ts`).
+The decoder refuses figures that do not add up, a percentage above what the counts allow, 100% with an open gate, and a next-action link outside the application. The "Applies when" field is in the template editor (`workflow-templates.ts`). The plan preview (`engagement-task-plan.ts`) and the work queue (`work-queue.ts`) label each template task Required, Conditional or Optional and show its condition, so the person recording a step as not applicable sees why it may not apply.
 
 ## Endpoints
 

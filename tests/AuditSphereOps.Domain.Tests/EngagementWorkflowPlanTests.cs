@@ -526,8 +526,15 @@ public sealed class EngagementWorkflowPlanTests
     var preview = await EngagementWorkflowPlanService.PreviewAsync(db, adminActor, engagementId,
       new PreviewEngagementWorkflowPlanRequest(revision.Id));
     Assert.True(preview.Succeeded, preview.Message);
+    Assert.Equal("Only where the entity holds inventory",
+      preview.Value!.Steps.Single(x => x.StepKey == "INVENTORY").ApplicabilityCondition);
+    Assert.Null(preview.Value.Steps.Single(x => x.StepKey == "SCOPE").ApplicabilityCondition);
     Assert.True((await EngagementWorkflowPlanService.ExecuteAsync(db, adminActor, engagementId,
       new ExecuteEngagementWorkflowPlanRequest(revision.Id, preview.Value!.PreviewDigest, Guid.NewGuid()))).Succeeded);
+    var team = await WorkflowTaskQueueQuery.GetAsync(db, adminActor, new WorkflowTaskQueueRequest("TEAM"));
+    Assert.True(team.Succeeded, team.Message);
+    Assert.Equal("Only where the entity holds inventory",
+      team.Value!.Tasks.Single(x => x.Title == "Prepare inventory work").ApplicabilityCondition);
 
     var initial = (await EngagementProgressQuery.GetAsync(db, adminActor, engagementId)).Value!;
     Assert.True(initial.LifecycleRoute);

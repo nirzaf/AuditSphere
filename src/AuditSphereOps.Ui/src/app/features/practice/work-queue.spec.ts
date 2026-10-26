@@ -187,7 +187,7 @@ describe('workflow queue assignment filters', () => {
     taskId: '22222222-2222-4222-8222-222222222222', clientId: '33333333-3333-4333-8333-333333333333', clientName: 'Client A',
     engagementId: '44444444-4444-4444-8444-444444444444', engagementServiceRoute: 'AUDIT', engagementPeriod: 'FY2026',
     sourceKey: 'MANUAL:fixture', templateRevisionId: null, templateStepId: null, requiredTask: null,
-    taskGroupName: 'Audit planning',
+    taskGroupName: 'Audit planning', applicabilityCondition: null,
     title: 'Prepare lead schedule', phase: 'FIELDWORK', ordinal: 1, taskStatus: 'OPEN',
     assigneeUserId: '11111111-1111-4111-8111-111111111111', assigneeDisplayName: 'Audit staff', dueDate: '2026-10-15',
     mappingVersionId: null, fsliCode: null, unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0,
@@ -267,6 +267,7 @@ describe('workflow queue assignment filters', () => {
           { ...cancelableTask, requiredTask: true, unmetTaskDependencies: 1, templateRevisionId: task.taskId, templateStepId: task.clientId, mappingVersionId: task.engagementId, fsliCode: 'CASH', pbcRequestId: task.taskId, pbcState: 'SENT', reviewState: 'CHANGES_REQUIRED', reviewComment: 'Reconcile the retained cash evidence' },
           { ...task, taskId: '77777777-7777-4777-8777-777777777777', title: 'Resubmitted procedure work', reviewState: 'UNDER_REVIEW', reviewComment: 'Resubmitted for independent review' },
           { ...task, taskId: '55555555-5555-4555-8555-555555555555', title: 'Optional evidence check', requiredTask: false },
+          { ...task, taskId: '88888888-8888-4888-8888-888888888888', title: 'Inventory count', requiredTask: true, applicabilityCondition: 'Only where inventory exists' },
           { ...task, taskId: '66666666-6666-4666-8666-666666666666', title: 'Manual follow-up', requiredTask: null },
         ], hasMore: false, nextCursor: null, summary: summary() });
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
@@ -289,6 +290,8 @@ describe('workflow queue assignment filters', () => {
         expect(host.textContent).toContain('Source: MANUAL:fixture');
         expect(host.textContent).toContain('Template task designation: Required');
         expect(host.textContent).toContain('Template task designation: Optional');
+        expect(host.textContent).toContain('Template task designation: Conditional');
+        expect(host.textContent).toContain('Applies when: Only where inventory exists');
         expect(host.textContent).toContain('Task group: Audit planning');
         expect(host.textContent).toContain('template revision ' + task.taskId);
         expect(host.textContent).toContain('step ' + task.clientId);
