@@ -26605,6 +26605,15 @@
       "boundary": "Responsive builtin viewport request refused by browser security policy; no workaround attempted. Microsoft external profile changes were not performed. Full current CI/images/rehearsal and Acceptance deployment not yet run for this source.",
       "evidence": ".local/autonomous/evidence/user-account-profile-20261026/review.json",
       "peerBoundary": "Concurrent portfolio/progress/workflow/migration/design harness changes preserved separately; do not stage blindly."
+    },
+    "practiceProgressBoundedEvidenceBeforePerEngagementCap20261026": {
+      "status": "FOCUSED_RED_GREEN_PASS_CURRENT_CI_PENDING",
+      "sourceBase": "0318b549",
+      "defect": "Valid101task plan exceeded the evidence-reader100binding guard; exactInvalidOperationException reproduced.",
+      "fix": "Batch progress evidence reads using unchanged100binding/8rules-per-task bounds; collect every original rule result across engagement/client/portfolio summaries. No schema/API/permission/money changes.",
+      "verification": "Existing progress workflow test RED1 thenGREEN1:101persisted tasks,99applicable required,2complete,97pending,2percent; originalNA/optional/gate/role/client assertions retained. No full local suite.",
+      "evidence": ".local/autonomous/evidence/practice-completion-20261026/large-plan-review.json",
+      "remaining": "Current exact-source fullCI; client scope/paging, currentness and broader connected-workflow completion. Prior Acceptance deployment is not current-fix acceptance."
     }
   },
   "lastUpdatedOn": "2026-10-26"

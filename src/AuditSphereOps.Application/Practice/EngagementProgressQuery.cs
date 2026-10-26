@@ -89,7 +89,7 @@ public static class EngagementProgressQuery
     var clientIds = engagements.Select(x => x.PracticeClientId).Distinct().ToArray();
     var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == f && clientIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.CommercialName ?? x.LegalName, ct);
-    var rows = await (from binding in db.WorkflowTaskBindings.AsNoTracking()
+    var taskRows = from binding in db.WorkflowTaskBindings.AsNoTracking()
       join task in db.WorkTasks.AsNoTracking() on new { binding.FirmId, Id = binding.WorkTaskId } equals new { task.FirmId, task.Id }
       join step in db.WorkflowTemplateSteps.AsNoTracking() on binding.TemplateStepId equals (Guid?)step.Id into steps
       from step in steps.DefaultIfEmpty()
@@ -101,10 +101,15 @@ public static class EngagementProgressQuery
         Binding = binding, task.Title, task.Status, task.AssigneeUserId, task.DueDate,
         RequiredTask = step == null ? (bool?)null : step.RequiredTask, Condition = step == null ? null : step.ApplicabilityCondition,
         PbcState = pbc == null ? null : pbc.State
-      }).Take(StepLimit * engagements.Count + 1).ToListAsync(ct);
-    // Past the read bound the plan cannot be evaluated completely, so every engagement in this read keeps a gate open.
-    var truncated = rows.Count > StepLimit * engagements.Count;
-    if (truncated) rows.RemoveAt(rows.Count - 1);
+      };
+    // Bound each plan independently so an oversized plan cannot consume another engagement's read window.
+    var rows = await db.Engagements.AsNoTracking().Where(e => e.FirmId == f && ids.Contains(e.Id))
+      .SelectMany(e => taskRows.Where(row => row.Binding.EngagementId == e.Id)
+        .OrderBy(row => row.Binding.Ordinal).ThenBy(row => row.Binding.Id).Take(StepLimit + 1))
+      .ToListAsync(ct);
+    var truncatedEngagements = rows.GroupBy(x => x.Binding.EngagementId)
+      .Where(group => group.Count() > StepLimit).Select(group => group.Key).ToHashSet();
+    rows = rows.GroupBy(x => x.Binding.EngagementId).SelectMany(group => group.Take(StepLimit)).ToList();
     var taskIds = rows.Select(x => x.Binding.WorkTaskId).ToArray();
     var bindingIds = rows.Select(x => x.Binding.Id).ToArray();
     var cancelled = await db.WorkflowTaskActivities.AsNoTracking()
@@ -146,6 +151,7 @@ public static class EngagementProgressQuery
         x.Binding.ReviewProcedureResultId.HasValue, x.AssigneeUserId, x.DueDate, x.Condition)).ToList();
 
       var lifecycleRoute = LifecycleRoutes.Contains(engagement.ServiceRoute, StringComparer.Ordinal);
+      var truncated = truncatedEngagements.Contains(engagement.Id);
       var gates = holds.Where(h => h.EngagementId == engagement.Id).Select(h => $"Open {h.HoldKind} hold: {h.Reason}").ToList();
       if (truncated) gates.Add($"More than {StepLimit} tasks are recorded, so progress cannot be fully evaluated here.");
       string? stageLabel = null, responsibleRole = null, gateLink = null, disclosure = null;

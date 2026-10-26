@@ -589,6 +589,38 @@ public sealed class EngagementWorkflowPlanTests
     Assert.Equal(2, client.Total);
     Assert.Null(client.Items.Single(x => x.EngagementId == secondEngagementId).PercentComplete);
     Assert.All(client.Items, x => Assert.Empty(x.Steps));
+
+    // One oversized plan must have the same read bound in every surface, without gating its neighbour.
+    var now = DateTimeOffset.UtcNow;
+    var overflowTasks = Enumerable.Range(102, 900).Select(ordinal => new WorkTask
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+      Title = $"Oversized plan commitment {ordinal}", Status = PracticeTimeStates.TaskOpen,
+      Phase = BudgetPhases.Unassigned, CreatedAt = now
+    }).ToArray();
+    db.WorkTasks.AddRange(overflowTasks);
+    db.WorkflowTaskBindings.AddRange(overflowTasks.Select((task, index) => new WorkflowTaskBinding
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+      WorkTaskId = task.Id, Phase = WorkflowTaskPhases.AuditPlanning, Ordinal = index + 102,
+      SourceKey = $"TEST-PROGRESS-OVERFLOW:{index + 102}", CreationRequestDigest = new string('a', 64),
+      CreatedAt = now, CreatedByUserId = admin.Id
+    }));
+    await db.SaveChangesAsync();
+    var boundedDetail = (await EngagementProgressQuery.GetAsync(db, adminActor, engagementId)).Value!;
+    Assert.Equal(500, boundedDetail.Steps.Count);
+    Assert.Contains(boundedDetail.Gates, x => x.StartsWith("More than 500", StringComparison.Ordinal));
+    var boundedClient = (await EngagementProgressQuery.ForClientAsync(db, adminActor, clientId)).Value!;
+    var boundedPortfolio = (await PortfolioQuery.ProgressAsync(db, adminActor)).Value!;
+    foreach (var summaries in new[] { boundedClient.Items, boundedPortfolio.Items })
+    {
+      var oversized = summaries.Single(x => x.EngagementId == engagementId);
+      Assert.Equal(boundedDetail.ApplicableRequired, oversized.ApplicableRequired);
+      Assert.Equal(boundedDetail.CompletedRequired, oversized.CompletedRequired);
+      Assert.Contains(oversized.Gates, x => x.StartsWith("More than 500", StringComparison.Ordinal));
+      Assert.DoesNotContain(summaries.Single(x => x.EngagementId == secondEngagementId).Gates,
+        x => x.StartsWith("More than 500", StringComparison.Ordinal));
+    }
     var outsider = User(firmId, "ProgressOutsider");
     db.Users.Add(outsider);
     await db.SaveChangesAsync();

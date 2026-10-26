@@ -1051,13 +1051,10 @@
       "evidence": ".local/autonomous/evidence/user-account-profile-20261026/review.json"
     },
     "practiceProgressBoundedEvidence20261026": {
-      "status": "FOCUSED_RED_GREEN_PASS_CURRENT_CI_PENDING",
-      "sourceBase": "0318b549",
-      "defect": "Valid101task plan exceeded the evidence-reader100binding guard; exactInvalidOperationException reproduced.",
-      "fix": "Batch progress evidence reads using unchanged100binding/8rules-per-task bounds; collect every original rule result across engagement/client/portfolio summaries. No schema/API/permission/money changes.",
-      "verification": "Existing progress workflow test RED1 thenGREEN1:101persisted tasks,99applicable required,2complete,97pending,2percent; originalNA/optional/gate/role/client assertions retained. No full local suite.",
+      "status": "FOCUSED_RED1_GREEN1_PUBLISHED688D_CURRENT_FULL_OPEN",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.practiceProgressBoundedEvidenceBeforePerEngagementCap20261026",
       "evidence": ".local/autonomous/evidence/practice-completion-20261026/large-plan-review.json",
-      "remaining": "Current exact-source fullCI; client scope/paging, currentness and broader connected-workflow completion. Prior Acceptance deployment is not current-fix acceptance."
+      "scope": "Valid101task evidence-reader batching repaired; current full CI remains required."
     },
     "practiceProgressReadAuthority20261026": {
       "status": "FOCUSED_RED1_GREEN3_CURRENT_FULL_PENDING",
@@ -1066,6 +1063,14 @@
       "fix": "Recheck each returned engagement with existing progress roles before final broader portfolio fence; no grants or permissions widened.",
       "verification": "Deterministic actual PostgreSQL revocation boundary RED1, then GREEN3 including both existing mixed-scope read/export races; no full local suite.",
       "evidence": ".local/autonomous/evidence/practice-completion-20261026/progress-revocation-review.json"
+    },
+    "practiceProgressPerEngagementBound20261026": {
+      "status": "FOCUSED_RED1_GREEN1_CURRENT_FULL_PENDING",
+      "sourceBase": "68efb89e4ea3a58838f2e12910ca443c4df26ec3",
+      "defect": "Same plan had498required in detail versus998in summary; shared overflow gate affected unrelated engagement.",
+      "fix": "Server reads at most501stable-ordered bindings per engagement, trims to500, and gates only that oversized plan. Detail/client/portfolio use identical bounds; existing evidence/scope limits retained.",
+      "verification": "Actual PostgreSQL regression with1001task plan and separate engagement RED1/GREEN1; matched bounded counts and no neighbouring overflow gate. Existing101task/NA/optional/gate/denial assertions retained. No full local suite.",
+      "evidence": ".local/autonomous/evidence/practice-completion-20261026/per-engagement-bound-review.json"
     }
   },
   "externalGates": [
