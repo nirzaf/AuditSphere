@@ -570,6 +570,21 @@ public sealed class EngagementWorkflowPlanTests
     Assert.Equal("Client onboarding", planDone.Phase);
     Assert.Equal((1, 0), (planDone.OptionalApplicable, planDone.OptionalCompleted));
 
+    // A valid engagement plan may span multiple bounded evidence-reader pages.
+    for (var ordinal = 5; ordinal <= 101; ordinal++)
+    {
+      var added = await EngagementWorkflowTaskService.CreateAsync(db, adminActor, engagementId,
+        new($"Additional required commitment {ordinal}", WorkflowTaskPhases.AuditPlanning, ordinal,
+          IdempotencyKey: Guid.NewGuid()));
+      Assert.True(added.Succeeded, added.Message);
+    }
+    var largerPlan = await EngagementProgressQuery.GetAsync(db, adminActor, engagementId);
+    Assert.True(largerPlan.Succeeded, largerPlan.Message);
+    Assert.Equal(101, largerPlan.Value!.Steps.Count);
+    Assert.Equal((99, 2, 97, 0), (largerPlan.Value.ApplicableRequired, largerPlan.Value.CompletedRequired,
+      largerPlan.Value.PendingRequired, largerPlan.Value.BlockedRequired));
+    Assert.Equal(2, largerPlan.Value.PercentComplete);
+
     var client = (await EngagementProgressQuery.ForClientAsync(db, adminActor, clientId)).Value!;
     Assert.Equal(2, client.Total);
     Assert.Null(client.Items.Single(x => x.EngagementId == secondEngagementId).PercentComplete);

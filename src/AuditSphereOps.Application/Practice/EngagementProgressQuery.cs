@@ -120,7 +120,10 @@ public static class EngagementProgressQuery
         predecessorTask.Status != PracticeTimeStates.TaskCompleted
       select dependency.SuccessorBindingId).ToListAsync(ct);
     var unmetByBinding = unmet.GroupBy(x => x).ToDictionary(x => x.Key, x => x.Count());
-    var evidence = await WorkflowTaskEvidenceQuery.EvaluateManyAsync(db, f, rows.Select(x => x.Binding).ToList(), ct);
+    var evidence = new Dictionary<Guid, IReadOnlyList<WorkflowEvidenceRuleView>>();
+    foreach (var page in rows.Select(x => x.Binding).Chunk(WorkflowTaskEvidenceQuery.MaximumBindings))
+      foreach (var (bindingId, rules) in await WorkflowTaskEvidenceQuery.EvaluateManyAsync(db, f, page, ct))
+        evidence.Add(bindingId, rules);
     var assigneeIds = rows.Where(x => x.AssigneeUserId.HasValue).Select(x => x.AssigneeUserId!.Value).Distinct().ToArray();
     var names = await db.Users.AsNoTracking().Where(x => x.FirmId == f && assigneeIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);

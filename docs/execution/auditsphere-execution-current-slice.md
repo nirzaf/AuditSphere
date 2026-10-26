@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Practice management completion and tracker bounds (2026-10-26)
+
+The owner requested continued autonomous completion across the existing commercial-to-archive workflow, with a mandatory per-engagement and reporting-period progress tracker. Preserve the derived lifecycle, independent review, current source evidence and external acceptance gates. A focused regression reproduces the supported large-plan tracker failure: the progress query exceeded the existing evidence reader's task-page bound. The correction batches that read without relaxing evidence limits. Exact red/green results and current CI belong in `targetedVerification.practiceProgressBoundedEvidence20261026` in [status.json](status.json).
+
+Concurrent work published the profile and progress tracker and recorded an owner-authorized Acceptance deployment. Its recorded full CI status is not run; independently observed server checkout and readiness do not establish whole-project acceptance. The resumable backlog continues with tracker paging, current-evidence/dependency semantics, automatic refresh and the existing connected-workflow gaps. No professional or provider approval is inferred.
+
 ## Axelor UX final scoped verification (2026-10-25)
 
 The owner reiterated completion of every applicable story in the attached UX specification. Static prior-action/deep-link parity is recorded separately from executed behavior. Existing journeys now cover ordinary commercial pipeline filtering/refresh, scoped lead/pipeline/invoice denial and unchanged provider/posting intentions. Built-in browser review exercised commercial, denied and independent finance roles; negative monthly P&L, report detail and missing comparator matched the existing accounting basis. No financial, tenant, provider or professional rules changed. Focused results and candidate identities are in `targetedVerification.axelorFinal20261025`; exact final-candidate full CI remains required. Broader human/provider/professional acceptance is not fabricated or silently folded into this bounded UX change.

@@ -25582,6 +25582,16 @@
       },
       "backupPreparation": "Use observed project-owned Docker volume mounts, protected .env/overlay/config, and a fresh catalog-validated quiesced DB dump before live mutation. Preserve rollback evidence; no automatic destructive DB restore.",
       "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-b94.json"
+    },
+    "currentSourceCiBeforePracticeCompletionAudit20261026": {
+      "sourceCommit": "a948479b4a2bc688a47018fab06536cdc2268ca9",
+      "sourceRole": "CURRENT_IMPLEMENTATION_AND_TEST_CANDIDATE; docs-only followups do not create a new code candidate",
+      "fastCi": "PASS40256796104 actualcheckout all3jobs",
+      "releaseVerification": "40257054714 MATCHa948: Angular182files1664PASS, Verify/build/contractsPASS, Domain1748executed/allPASS/0skip; API/E2E RUNNING. No FULL_CI_PASS.",
+      "imagePublication": "PASS40257057938 all3actualcheckout and immutablemanifestpushes",
+      "runtimeRehearsal": "PASS exacta948 restoredcopy schema286/0migrations/379original projectionsunchanged; health+bothuncachedAngularroots200; independentownedDB/container/privateenvcleanup verified, livesource/image/privateenv/overlay unchanged",
+      "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
+      "updatedAtUtc": "2026-10-26T02:35:24.842028+00:00"
     }
   },
   "archivedTargetedVerification": {
@@ -26569,6 +26579,24 @@
       "rehearsal": "PASS schema286/zero migrations/379originalprojections unchanged/health+bothUIroots200; independentcleanup/livepreservation verified",
       "clientInvoiceExclusion": "Existing nativepostingcase1PASS: independentlyposted125QARclientinvoice excluded from authorizedfirmreceivables rows/subtotals. OriginalGL/noFirmPostings assertions retained; temporaryprobe removedbyteexact.",
       "supplementalEvidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/client-invoice-exclusion-probe/review.json"
+    },
+    "accountingProfileRefreshBeforePracticeCompletionAudit20261026": {
+      "status": "PRECEDING_FULL_FAIL_API_CANCELLATIONS_E2E339_PASS",
+      "base": "fa9d95be33508ec3a5807c3ba6e0791d1d8d50a5",
+      "failure": "Precedingb4fe full40281043148 E2E338PASS1FAIL: profile revision2 checkbox absent while workspace loading after200POST. Runtime/E2E source unchanged63c9; historical latency cause unproven.",
+      "fix": "Capture POST plus exact workspaceGET/200/clientId/revision before original assent/currency/reason/history checks. Initial profile creation uses same handoff. No original assertion, runtime, permission or timeout changed.",
+      "verification": "Original1PASS; same6.5sGET underexisting15s budget causalRED1/GREEN1; probe removedbyteexact/final1PASS. Originalassertions/timeouts/runtime unchanged.",
+      "evidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/review.json",
+      "remaining": "New account-profile source requires its own exact fast/full/images/rehearsal and release checks; no cutover.",
+      "sourceSha": "b9695b7b70515d30cad2d19ee7813978e1162893",
+      "fastCi": "40298056536 PASS all3actualcheckoutMATCH",
+      "images": "40298238984 PASS all3actualcheckout/pinned digests; exactpull verified",
+      "fullCi": "40298202290 MATCH; Angular1664/Domain1749/Verify/E2E339(no skips)PASS; API402executed400PASS2FAIL, request cancellation before relevant assertions.",
+      "rehearsal": "PASS schema286/zero migrations/379originalprojections unchanged/health+bothUIroots200; independentcleanup/livepreservation verified",
+      "clientInvoiceExclusion": "Existing nativepostingcase1PASS: independentlyposted125QARclientinvoice excluded from authorizedfirmreceivables rows/subtotals. OriginalGL/noFirmPostings assertions retained; temporaryprobe removedbyteexact.",
+      "supplementalEvidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/client-invoice-exclusion-probe/review.json",
+      "terminalEvidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/api-terminal-b969-review.json",
+      "baseline": "Two exact failed API methods PASS unchanged locally; underlying CI execution/output stall mechanism unproven, no timeout/assertion change."
     }
   },
   "lastUpdatedOn": "2026-10-26"

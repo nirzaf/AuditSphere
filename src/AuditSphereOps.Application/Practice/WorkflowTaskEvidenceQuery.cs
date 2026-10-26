@@ -22,6 +22,7 @@ internal sealed record WorkflowEvidenceEvaluation(bool Satisfied, string State, 
 public static class WorkflowTaskEvidenceQuery
 {
   internal const int MaximumRules = 8;
+  internal const int MaximumBindings = 100;
   internal static readonly string[] ReadRoles = ["Staff", "Senior", "Manager", "Partner", "Administrator"];
   internal static readonly string[] ManageRoles = ["Manager", "Partner", "Administrator"];
 
@@ -76,7 +77,7 @@ public static class WorkflowTaskEvidenceQuery
     IAuditSphereDbContext db, Guid firmId, IReadOnlyList<WorkflowTaskBinding> bindings, CancellationToken ct)
   {
     if (bindings.Count == 0) return new Dictionary<Guid, IReadOnlyList<WorkflowEvidenceRuleView>>();
-    if (bindings.Count > 100) throw new InvalidOperationException("Evidence evaluation requires a bounded task page.");
+    if (bindings.Count > MaximumBindings) throw new InvalidOperationException("Evidence evaluation requires a bounded task page.");
     var ids = bindings.Select(x => x.Id).ToArray();
     var heads = await Heads(db, firmId).Where(x => ids.Contains(x.WorkflowTaskBindingId))
       .OrderBy(x => x.Kind).ThenBy(x => x.SourceId).Take(801).ToListAsync(ct);
