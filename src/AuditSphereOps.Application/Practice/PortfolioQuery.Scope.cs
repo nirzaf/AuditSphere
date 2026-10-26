@@ -11,15 +11,17 @@ public static partial class PortfolioQuery
 {
   private sealed record Scope(bool FirmWide, Guid[] Clients, Guid[] Engagements, List<AuthorizationRequest> Requests);
 
-  private static async Task<Scope?> ScopeAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
+  private static async Task<Scope?> ScopeAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct,
+    string[]? requiredRoles = null)
   {
+    var roles = requiredRoles ?? Roles;
     var grants = await db.RoleGrants.AsNoTracking().Where(g => g.FirmId == actor.FirmId &&
-      g.UserId == actor.UserId && g.RevokedAt == null && Roles.Contains(g.Role))
+      g.UserId == actor.UserId && g.RevokedAt == null && roles.Contains(g.Role))
       .Select(g => new { g.ClientId, g.EngagementId }).Distinct().ToListAsync(ct);
     var requests = new List<AuthorizationRequest>();
     foreach (var grant in grants)
     {
-      var request = new AuthorizationRequest(actor.FirmId, grant.ClientId, grant.EngagementId, Roles,
+      var request = new AuthorizationRequest(actor.FirmId, grant.ClientId, grant.EngagementId, roles,
         InternalOnly: true, RequireFirmWide: grant.ClientId is null && grant.EngagementId is null);
       if ((await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded) requests.Add(request);
     }

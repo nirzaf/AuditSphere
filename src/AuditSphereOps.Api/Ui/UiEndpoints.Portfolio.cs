@@ -21,8 +21,8 @@ public static partial class UiEndpoints
     group.MapGet("/portfolio/progress", (int? page, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => PortfolioQuery.ProgressAsync(db, actor, page ?? 0, ct)))
       .WithT046Response<EngagementProgressList>();
-    group.MapGet("/clients/{id:guid}/progress", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => EngagementProgressQuery.ForClientAsync(db, actor, id, ct)))
+    group.MapGet("/clients/{id:guid}/progress", (Guid id, int? page, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => EngagementProgressQuery.ForClientPageAsync(db, actor, id, page ?? 0, ct)))
       .WithT046Response<EngagementProgressList>();
     group.MapGet("/engagements/{id:guid}/progress", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => EngagementProgressQuery.GetAsync(db, actor, id, ct)))

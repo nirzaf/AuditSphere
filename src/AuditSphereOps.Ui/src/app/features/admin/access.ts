@@ -8,13 +8,14 @@ import { SHARED } from '../../core/ui';
 import { accessWorkspace, accessUser, accessLine, accessGrantEvidence, copyableInvitation } from './access-contracts';
 import { RoleAssignmentDialog, AccessRevocationDialog } from './roles';
 import { MicrosoftDirectory } from './directory';
+import { AccessHistory } from './access-history';
 import { tenantWorkspace } from './tenant-contracts';
 import { TenantProvisioningDialog } from './provisioning';
 import { ManagedGroupsDialog } from './groups';
 import { TenantOperationRecoveryDialog } from './operation-recovery';
 import { capabilityAvailable, recoverableOperation } from './operations-contracts';
 
-@Component({ selector: 'audit-user-access', imports: [ReactiveFormsModule, MatButtonModule, MicrosoftDirectory, ...SHARED], template: `
+@Component({ selector: 'audit-user-access', imports: [ReactiveFormsModule, MatButtonModule, MicrosoftDirectory, AccessHistory, ...SHARED], template: `
   <audit-page-header title="Users & Access" eyebrow="Firm administration" description="Local AuditSphere roles and scope are separate from Microsoft directory authority." />
   <button matButton (click)="ws.reload()">Refresh access</button>
   <audit-state [loading]="ws.loading()" [error]="ws.error()" label="firm user access" />
@@ -65,7 +66,7 @@ import { capabilityAvailable, recoverableOperation } from './operations-contract
       </form>
       <audit-command-message [message]="rosterMessage()" [failed]="rosterFailed()" />
     </section>
-    <section class="panel"><h2>Access history</h2><ul>@for(h of w.history; track $index) { <li>{{ h.at }} · {{ h.operation }} · {{ h.target }} · {{ h.change }} · {{ h.reason }} · {{ h.actor }} · {{ h.result }}</li> } @empty { <li>No access changes recorded.</li> }</ul></section>
+    <audit-access-history [rows]="w.history" />
   }
   <audit-microsoft-directory [parentAccess]="ws.data()" (changed)="ws.reload()" />
 ` })

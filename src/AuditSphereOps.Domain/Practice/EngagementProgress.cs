@@ -3,7 +3,8 @@ namespace AuditSphereOps.Domain.Practice;
 /// <summary>
 /// How a template step counts toward engagement progress. A required step with no stated applicability condition is
 /// mandatory; a required step with a condition is conditional (it applies unless an authorized user records it as not
-/// applicable, using the existing reasoned task cancellation); a step that is not required is optional.
+/// applicable, using the existing reasoned task cancellation and current N/A decisions for required professional sources);
+/// a step that is not required is optional.
 /// </summary>
 public static class WorkflowStepRequirements
 {
@@ -37,7 +38,7 @@ public static class EngagementProgressStepStates
 public sealed record EngagementProgressStepFact(
   Guid TaskId, string Title, string Phase, int Ordinal, string Requirement, string TaskStatus,
   bool NotApplicableRecorded, int UnmetDependencies, int UnmetEvidence, bool WaitingForClient, bool Rework,
-  Guid? AssigneeUserId, DateOnly? DueDate, string? ApplicabilityCondition = null);
+  Guid? AssigneeUserId, DateOnly? DueDate, string? ApplicabilityCondition = null, int UnmetNotApplicableApprovals = 0);
 
 public sealed record EngagementProgressStep(
   Guid TaskId, string Title, string Phase, int Ordinal, string Requirement, string State, string? Condition,
@@ -88,7 +89,10 @@ public static class EngagementProgressCalculator
       PracticeTimeStates.TaskCompleted => (EngagementProgressStepStates.Completed, (string?)null),
       PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Optional =>
         (EngagementProgressStepStates.NotApplicable, "Optional step cancelled"),
-      PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Conditional && fact.NotApplicableRecorded =>
+      PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Conditional && fact.UnmetNotApplicableApprovals > 0 =>
+        (EngagementProgressStepStates.Blocked, "Cancelled, but required procedure N/A approval is missing or no longer current"),
+      PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Conditional && fact.NotApplicableRecorded &&
+        fact.UnmetNotApplicableApprovals == 0 =>
         (EngagementProgressStepStates.NotApplicable, "Recorded as not applicable"),
       // A mandatory step cannot be waived by cancelling it: it stays outstanding until it is reopened and completed.
       PracticeTimeStates.TaskCancelled => (EngagementProgressStepStates.Blocked, "Cancelled; a required step must be reopened"),

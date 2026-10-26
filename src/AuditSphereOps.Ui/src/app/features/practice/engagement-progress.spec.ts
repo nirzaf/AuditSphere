@@ -117,7 +117,8 @@ describe('engagement progress tracker', () => {
     const { http, fixture } = setup<ClientProgress | PortfolioProgress>(component);
     if (component === ClientProgress) fixture.componentRef.setInput('clientId', clientId);
     fixture.detectChanges();
-    const page = (extra: object = {}) => ({ items: [progress(extra)], total: 11, page: 0, pageSize: 10 });
+    const pageSize = component === ClientProgress ? 50 : 10;
+    const page = (extra: object = {}) => ({ items: [progress(extra)], total: pageSize + 1, page: 0, pageSize });
     http.expectOne(url).flush(page({ percentComplete: 100, completedRequired: 2, pendingRequired: 0, gateOpen: false, gates: [] }));
     fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
@@ -254,6 +255,71 @@ describe('engagement progress tracker', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.view.data()).toBeNull();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Unsupported response');
+  });
+
+  it('pages client progress with authorized totals and resets to the unpaged URL when the client changes', () => {
+    const { http, fixture } = setup(ClientProgress);
+    const url = `/api/ui/clients/${clientId}/progress`;
+    fixture.componentRef.setInput('clientId', clientId);
+    fixture.detectChanges();
+    const first = { items: Array.from({ length: 50 }, (_, index) => progress({
+      engagementId: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+    })), total: 51, page: 0, pageSize: 50 };
+    const last = { items: [progress()], total: 51, page: 1, pageSize: 50 };
+    http.expectOne(url).flush(first);
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+    const nav = () => element.querySelector<HTMLElement>('nav[aria-label="Client engagement progress pages"]')!;
+    const buttons = () => [...nav().querySelectorAll<HTMLButtonElement>('button')];
+    expect(element.querySelectorAll('tbody tr')).toHaveLength(50);
+    expect(nav().textContent).toContain('Page 1 · 51 engagements in scope');
+    expect(buttons().map(button => button.disabled)).toEqual([true, false]);
+    const heading = element.querySelector<HTMLElement>('h2')!;
+    buttons()[1].focus();
+    expect(document.activeElement).toBe(buttons()[1]);
+    buttons()[1].click();
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(heading);
+    expect(element.textContent).not.toContain('Harbour Traders');
+    const next = http.expectOne(url + '?page=1');
+    window.dispatchEvent(new Event('focus'));
+    http.expectNone(url + '?page=1');
+    expect(next.cancelled).toBe(false);
+    next.flush(last);
+    fixture.detectChanges();
+    expect(element.querySelectorAll('tbody tr')).toHaveLength(1);
+    expect(nav().textContent).toContain('Page 2 · 51 engagements in scope');
+    expect(buttons().map(button => button.disabled)).toEqual([false, true]);
+    expect(document.activeElement).toBe(heading);
+    buttons()[0].focus();
+    buttons()[0].click();
+    fixture.detectChanges();
+    http.expectOne(url).flush(first);
+    fixture.detectChanges();
+    expect(nav().textContent).toContain('Page 1 · 51 engagements in scope');
+    expect(buttons().map(button => button.disabled)).toEqual([true, false]);
+    expect(document.activeElement).toBe(heading);
+    buttons()[1].click();
+    fixture.detectChanges();
+    http.expectOne(url + '?page=1').flush(last);
+    fixture.detectChanges();
+    window.dispatchEvent(new Event('focus'));
+    const oldClient = http.expectOne(url + '?page=1');
+    fixture.componentRef.setInput('clientId', taskId);
+    expect(fixture.componentInstance.page()).toBe(0);
+    expect(fixture.componentInstance.view.data()).toBeNull();
+    fixture.detectChanges();
+    expect(oldClient.cancelled).toBe(true);
+    expect(element.textContent).not.toContain('Harbour Traders');
+    http.expectOne(`/api/ui/clients/${taskId}/progress`).flush({
+      items: [progress({ clientId: taskId, clientName: 'New client' })], total: 1, page: 0, pageSize: 50,
+    });
+    fixture.detectChanges();
+    expect(nav().textContent).toContain('Page 1 · 1 engagement in scope');
+    expect(buttons().map(button => button.disabled)).toEqual([true, true]);
+    expect(element.textContent).toContain('New client');
+    http.expectNone(url + '?page=0');
+    http.expectNone(`/api/ui/clients/${taskId}/progress?page=1`);
   });
 
   it('pages the portfolio summary without averaging engagements together', () => {

@@ -3096,6 +3096,18 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
           }
         ],
         "responses": {

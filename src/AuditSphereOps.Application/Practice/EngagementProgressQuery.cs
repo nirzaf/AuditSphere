@@ -1,7 +1,9 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
@@ -35,7 +37,6 @@ public static class EngagementProgressQuery
   internal static readonly string[] ReadRoles = WorkflowTaskEvidenceQuery.ReadRoles;
   /// <summary>Routes governed by the eleven-state derived audit lifecycle; other routes use task-plan and release gates.</summary>
   internal static readonly string[] LifecycleRoutes = ["FinancialStatementAudit"];
-  private const int ClientLimit = 50;
   private const int StepLimit = 500;
 
   public static async Task<CommandResult<EngagementProgressView>> GetAsync(IAuditSphereDbContext db, ActorContext actor,
@@ -52,22 +53,14 @@ public static class EngagementProgressQuery
       : CommandResult<EngagementProgressView>.Fail(auth.ErrorCode!, "Engagement progress unavailable.");
   }
 
-  /// <summary>One summary per engagement of the client that the actor may read; engagements outside scope are omitted.</summary>
-  public static async Task<CommandResult<EngagementProgressList>> ForClientAsync(IAuditSphereDbContext db, ActorContext actor,
-    Guid clientId, CancellationToken ct = default)
-  {
-    var client = await db.PracticeClients.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.Id == clientId, ct);
-    if (!client) return CommandResult<EngagementProgressList>.Fail(ErrorCodes.ScopeDenied, "Client progress unavailable.");
-    var candidates = await db.Engagements.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId)
-      .OrderByDescending(x => x.PeriodEnd).ThenBy(x => x.Id).Take(ClientLimit + 1).ToListAsync(ct);
-    var permitted = await PermittedAsync(db, actor, candidates.Take(ClientLimit), ct);
-    if (permitted.Count == 0 && candidates.Count > 0)
-      return CommandResult<EngagementProgressList>.Fail(ErrorCodes.ScopeDenied, "Client progress unavailable.");
-    var views = await BuildAsync(db, actor, permitted, includeSteps: false, ct);
-    if ((await PermittedAsync(db, actor, permitted, ct)).Count != permitted.Count)
-      return CommandResult<EngagementProgressList>.Fail(ErrorCodes.ScopeDenied, "Client progress unavailable.");
-    return CommandResult<EngagementProgressList>.Ok(new(views, views.Count, 0, ClientLimit));
-  }
+  /// <summary>The first bounded page of summaries for the client's currently authorized engagements.</summary>
+  public static Task<CommandResult<EngagementProgressList>> ForClientAsync(IAuditSphereDbContext db, ActorContext actor,
+    Guid clientId, CancellationToken ct = default) => ForClientPageAsync(db, actor, clientId, 0, ct);
+
+  /// <summary>Scope is applied before count and paging; the total is never the length of a truncated first page.</summary>
+  public static Task<CommandResult<EngagementProgressList>> ForClientPageAsync(IAuditSphereDbContext db, ActorContext actor,
+    Guid clientId, int page = 0, CancellationToken ct = default) =>
+    PortfolioQuery.ProgressForClientAsync(db, actor, clientId, page, ct);
 
   internal static async Task<List<Engagement>> PermittedAsync(IAuditSphereDbContext db, ActorContext actor,
     IEnumerable<Engagement> engagements, CancellationToken ct)
@@ -157,6 +150,22 @@ public static class EngagementProgressQuery
     var views = new List<EngagementProgressView>();
     foreach (var engagement in engagements)
     {
+      // Operational cancellation cannot supply a professional N/A decision for any required exact procedure source.
+      var conditionalProcedureRules = rows.Where(x => x.Binding.EngagementId == engagement.Id &&
+          x.Status == PracticeTimeStates.TaskCancelled && x.RequiredTask == true && !string.IsNullOrWhiteSpace(x.Condition))
+        .ToDictionary(x => x.Binding.Id, x => evidence[x.Binding.Id].Where(rule =>
+          rule.State == WorkflowEvidenceRuleStates.Required && rule.Kind == WorkflowEvidenceKinds.ReviewedProcedure).ToArray());
+      var procedureIds = conditionalProcedureRules.Values.SelectMany(rules => rules)
+        .Select(rule => rule.SourceId ?? Guid.Empty).Distinct().ToArray();
+      Dictionary<Guid, string> applicability = [];
+      if (procedureIds.Length > 0)
+      {
+        var procedures = await db.AuditProcedures.AsNoTracking().Where(x => x.FirmId == f &&
+          x.ClientId == engagement.PracticeClientId && x.EngagementId == engagement.Id && procedureIds.Contains(x.Id))
+          .ToListAsync(ct);
+        applicability = await AuditProgramService.EffectiveApplicabilityStatusesAsync(db, f,
+          engagement.PracticeClientId, engagement.Id, procedures, ct);
+      }
       var facts = rows.Where(x => x.Binding.EngagementId == engagement.Id).Select(x => new EngagementProgressStepFact(
         x.Binding.WorkTaskId, x.Title, x.Binding.Phase, x.Binding.Ordinal,
         // Rework and other non-template engagement tasks are commitments the engagement must still discharge.
@@ -165,7 +174,9 @@ public static class EngagementProgressQuery
         (evidence.GetValueOrDefault(x.Binding.Id)?.Count(r => r.State == WorkflowEvidenceRuleStates.Required && !r.Satisfied) ?? 0) +
           (x.Binding.PbcRequestId.HasValue && x.PbcState is not (PbcStates.Accepted or PbcStates.Closed) ? 1 : 0),
         x.Binding.PbcRequestId.HasValue && x.PbcState is not (PbcStates.Accepted or PbcStates.Closed),
-        x.Binding.ReviewProcedureResultId.HasValue, x.AssigneeUserId, x.DueDate, x.Condition)).ToList();
+        x.Binding.ReviewProcedureResultId.HasValue, x.AssigneeUserId, x.DueDate, x.Condition,
+        conditionalProcedureRules.GetValueOrDefault(x.Binding.Id)?.Count(rule =>
+          applicability.GetValueOrDefault(rule.SourceId ?? Guid.Empty) != AuditApplicabilityStatuses.NotApplicableApproved) ?? 0)).ToList();
 
       var lifecycleRoute = LifecycleRoutes.Contains(engagement.ServiceRoute, StringComparer.Ordinal);
       var truncated = truncatedEngagements.Contains(engagement.Id);

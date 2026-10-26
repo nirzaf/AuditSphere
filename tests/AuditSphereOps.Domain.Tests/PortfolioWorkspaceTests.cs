@@ -67,6 +67,43 @@ public sealed class PortfolioWorkspaceTests
     Assert.True((await PortfolioQuery.ListAsync(db, actor)).Succeeded);
   }
 
+  [Fact]
+  public async Task ProgressScopeIsAppliedBeforeBoundsAndTotalsStayHonest()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var hidden = Enumerable.Range(1, 50).Select(index => new Engagement
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId,
+      PeriodEnd = $"2026-{index / 12 + 1:00}-{index % 12 + 1:00}",
+      Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+    }).ToArray();
+    db.Engagements.AddRange(hidden);
+    // Reviewer can read the ordinary portfolio, but cannot read its progress projection.
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Reviewer", f.ClientId, hidden[0].Id));
+    await db.SaveChangesAsync();
+    var staff = PbcSeed.Actor(f.Staff, "Staff");
+    var client = await EngagementProgressQuery.ForClientAsync(db, staff, f.ClientId);
+    var portfolio = await PortfolioQuery.ProgressAsync(db, staff);
+    var all = await EngagementProgressQuery.ForClientAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
+    Assert.Equal((true, 1, true, 1, true, 51),
+      (client.Succeeded, client.Value?.Total ?? 0, portfolio.Succeeded, portfolio.Value?.Total ?? 0,
+        all.Succeeded, all.Value?.Total ?? 0));
+    Assert.Equal(f.EngagementId, Assert.Single(client.Value!.Items).EngagementId);
+    Assert.Equal(f.EngagementId, Assert.Single(portfolio.Value!.Items).EngagementId);
+    Assert.Equal(50, all.Value!.Items.Count);
+    Assert.DoesNotContain(client.Value.Items, x => hidden.Any(h => h.Id == x.EngagementId));
+    var next = await EngagementProgressQuery.ForClientPageAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId, 1);
+    Assert.True(next.Succeeded, next.Message);
+    Assert.Equal((51, 1, 50), (next.Value!.Total, next.Value.Page, next.Value.PageSize));
+    Assert.Equal(f.EngagementId, Assert.Single(next.Value.Items).EngagementId);
+    Assert.Empty(all.Value.Items.Select(x => x.EngagementId).Intersect(next.Value.Items.Select(x => x.EngagementId)));
+    var staffNext = await EngagementProgressQuery.ForClientPageAsync(db, staff, f.ClientId, 1);
+    Assert.True(staffNext.Succeeded, staffNext.Message);
+    Assert.Equal(1, staffNext.Value!.Total); Assert.Empty(staffNext.Value.Items);
+    Assert.Equal("request.invalid", (await EngagementProgressQuery.ForClientPageAsync(db, staff, f.ClientId, -1)).ErrorCode);
+  }
+
   private sealed class RevokeDuringRead(Func<Task> revoke, string marker = "FROM release_candidates") : DbCommandInterceptor
   {
     public bool Fired { get; private set; }

@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { Component, DestroyRef, computed, effect, inject, input, linkedSignal, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, computed, effect, inject, input, linkedSignal, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -233,20 +233,38 @@ export class EngagementProgressTracker {
 /** Progress for each engagement of one client, shown at the top of the client workspace. */
 @Component({
   selector: 'audit-client-progress',
-  imports: [ProgressSummary, ...SHARED],
+  imports: [MatButtonModule, ProgressSummary, ...SHARED],
   template: `
     <section class="panel" aria-labelledby="client-progress-heading">
-      <h2 id="client-progress-heading">Progress by engagement</h2>
+      <h2 #progressHeading id="client-progress-heading" tabindex="-1">Progress by engagement</h2>
       <p class="hint">Each engagement and reporting period is tracked separately from its own task plan and gates.</p>
       <audit-state [loading]="view.loading()" [error]="view.error()" label="client progress" />
-      @if (view.data(); as v) { <audit-progress-summary [items]="v.items" caption="Engagement progress for this client" /> }
+      @if (view.data(); as v) {
+        <audit-progress-summary [items]="v.items" caption="Engagement progress for this client" />
+        <nav aria-label="Client engagement progress pages">
+          <button matButton type="button" [disabled]="v.page === 0 || view.loading()" (click)="changePage(-1)">Previous progress page</button>
+          <span>Page {{ v.page + 1 }} · {{ v.total }} {{ v.total === 1 ? 'engagement' : 'engagements' }} in scope</span>
+          <button matButton type="button" [disabled]="(v.page + 1) * v.pageSize >= v.total || view.loading()" (click)="changePage(1)">Next progress page</button>
+        </nav>
+      }
     </section>
   `,
 })
 export class ClientProgress {
+  private readonly heading = viewChild.required<ElementRef<HTMLElement>>('progressHeading');
   readonly clientId = input.required<string>();
-  readonly view = progressResource(() => this.clientId() ? `/api/ui/clients/${this.clientId()}/progress` : null,
+  readonly page = linkedSignal({ source: this.clientId, computation: () => 0 });
+  readonly view = progressResource(() => this.clientId()
+    ? `/api/ui/clients/${this.clientId()}/progress${this.page() > 0 ? '?page=' + this.page() : ''}` : null,
     decodeProgressList, 'Client progress is not available in your current scope.');
+
+  changePage(direction: number) {
+    const current = this.view.data(), next = current ? current.page + direction : -1;
+    if (!current || this.view.loading() || next < 0 || next * current.pageSize >= current.total) return;
+    // The old page's buttons are removed while the next authorized page loads.
+    this.heading().nativeElement.focus();
+    this.page.set(next);
+  }
 }
 
 /** A bounded, paged summary of engagement progress across the portfolio. */

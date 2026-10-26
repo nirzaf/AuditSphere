@@ -14,7 +14,7 @@ public sealed class AngularClientProfileJourneyTests
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-CLIENT-PROFILE-E2E");
     var f = host.Fixture;
-    await using (var db = host.CreateDbContext()) { await ClientProfileWorkspaceSeed.PopulateAsync(db, f); }
+    await using (var db = host.CreateDbContext()) { await ClientProfileWorkspaceSeed.PopulateAsync(db, f, count: 51); }
     var prefix = canonical ? "" : "/ui";
     var origin = await host.StartApiForIdentityAsync(f.Staff, new Dictionary<string,string> {
       ["AngularUi__Enabled"]="true", ["AngularUi__CanonicalRoutes"]=canonical.ToString() });
@@ -28,6 +28,19 @@ public sealed class AngularClientProfileJourneyTests
     await Assertions.Expect(page.Locator("audit-client dl")).ToContainTextAsync("SYNTHETIC-REG-001");
     await Assertions.Expect(page.Locator("audit-client dl")).ToContainTextAsync("9007199254740993");
     await Assertions.Expect(page.Locator("audit-client dl")).ToContainTextAsync("2026-01-02 12:30 UTC");
+    var progress = page.Locator("audit-client-progress");
+    await Assertions.Expect(progress).ToContainTextAsync("51 engagements in scope");
+    await Assertions.Expect(progress.Locator("tbody tr")).ToHaveCountAsync(50);
+    await progress.GetByRole(AriaRole.Button, new() { Name = "Next progress page", Exact = true }).ClickAsync();
+    await Assertions.Expect(progress).ToContainTextAsync("Page 2");
+    await Assertions.Expect(progress.Locator("tbody tr")).ToHaveCountAsync(1);
+    await Assertions.Expect(progress.GetByRole(AriaRole.Heading, new() { Name = "Progress by engagement", Exact = true })).ToBeFocusedAsync();
+    await Assertions.Expect(progress.GetByRole(AriaRole.Button, new() { Name = "Next progress page", Exact = true })).ToBeDisabledAsync();
+    await progress.GetByRole(AriaRole.Button, new() { Name = "Previous progress page", Exact = true }).ClickAsync();
+    await Assertions.Expect(progress).ToContainTextAsync("Page 1");
+    await Assertions.Expect(progress.Locator("tbody tr")).ToHaveCountAsync(50);
+    await Assertions.Expect(progress.GetByRole(AriaRole.Heading, new() { Name = "Progress by engagement", Exact = true })).ToBeFocusedAsync();
+    if (canonical) await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "client-progress-paging");
     var engagements = page.GetByRole(AriaRole.Region, new() { Name = "Associated engagements", Exact = true });
     var contacts = page.GetByRole(AriaRole.Region, new() { Name = "Client contacts", Exact = true });
     await Assertions.Expect(engagements.Locator("tbody tr")).ToHaveCountAsync(10);

@@ -61,6 +61,8 @@ public sealed class PortfolioWorkspaceApiTests
       ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false" });
     using var c = factory.CreateClient(new() { AllowAutoRedirect = false });
     Assert.Equal(HttpStatusCode.Unauthorized, (await c.GetAsync("/api/ui/portfolio/workspace")).StatusCode);
+    var progressPath = $"/api/ui/clients/{f.ClientId}/progress";
+    Assert.Equal(HttpStatusCode.Unauthorized, (await c.GetAsync(progressPath)).StatusCode);
     await c.GetAsync("/auth/sign-in");
     using var session = await c.GetAsync("/api/ui/session");
     var csrf = session.Headers.GetValues("Set-Cookie").Single(v => v.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..];
@@ -68,6 +70,14 @@ public sealed class PortfolioWorkspaceApiTests
     Assert.Equal(new PortfolioMetrics(1, 1, 1, 1, 2, 1), v!.Metrics);
     Assert.Equal(3, v.Candidates.Count); Assert.False(v.HasActiveMicrosoftConfiguration);
     Assert.All(v.Candidates, r => Assert.Equal("9007199254740993", r.TargetRevision));
+    var firstProgress = await c.GetFromJsonAsync<EngagementProgressList>(progressPath);
+    Assert.Equal((1, 0, 50), (firstProgress!.Total, firstProgress.Page, firstProgress.PageSize));
+    Assert.Equal(f.EngagementId, Assert.Single(firstProgress.Items).EngagementId);
+    var nextProgress = await c.GetFromJsonAsync<EngagementProgressList>(progressPath + "?page=1");
+    Assert.Equal((1, 1, 50), (nextProgress!.Total, nextProgress.Page, nextProgress.PageSize));
+    Assert.Empty(nextProgress.Items);
+    Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync(progressPath + "?page=-1")).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync($"/api/ui/clients/{foreign.ClientId}/progress")).StatusCode);
     Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync("/api/ui/portfolio/workspace?pageSize=101")).StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await c.PostAsJsonAsync("/api/ui/portfolio/export", new { search = "" })).StatusCode);
     c.DefaultRequestHeaders.Add("X-XSRF-TOKEN", Uri.UnescapeDataString(csrf));
@@ -85,10 +95,12 @@ public sealed class PortfolioWorkspaceApiTests
       await db.SaveChangesAsync();
     }
     Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync("/api/ui/portfolio/workspace")).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync(progressPath + "?page=1")).StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await c.PostAsJsonAsync("/api/ui/portfolio/export", new { search = "" })).StatusCode);
     await using (var db = new AuditSphereDbContext(pg.Options))
     { var user = await db.Users.SingleAsync(u => u.Id == f.Staff.Id); user.SessionEpoch++; await db.SaveChangesAsync(); }
     Assert.Equal(HttpStatusCode.Unauthorized, (await c.GetAsync("/api/ui/portfolio/workspace")).StatusCode);
+    Assert.Equal(HttpStatusCode.Unauthorized, (await c.GetAsync(progressPath)).StatusCode);
     Assert.Equal(HttpStatusCode.Unauthorized, (await c.PostAsJsonAsync("/api/ui/portfolio/export", new { search = "" })).StatusCode);
   }
 }

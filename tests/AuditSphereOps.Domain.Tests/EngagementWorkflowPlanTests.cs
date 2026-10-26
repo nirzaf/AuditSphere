@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Audit;
@@ -659,13 +660,136 @@ public sealed class EngagementWorkflowPlanTests
     Assert.Contains(held.Gates, g => g.Contains("hold", StringComparison.OrdinalIgnoreCase));
   }
 
+  [Fact]
+  public async Task ConditionalCancellationRequiresCurrentIndependentNotApplicableForEveryRequiredProcedure()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientId = Guid.NewGuid();
+    var engagementId = Guid.NewGuid();
+    var admin = User(firmId, "ConditionalAdmin");
+    var partner = User(firmId, "ConditionalPartner");
+    var staff = User(firmId, "ConditionalStaff");
+    var adminActor = Actor(admin, "Administrator");
+    var partnerActor = Actor(partner, "Partner");
+    await SeedAsync(pg.Options, firmId, clientId, engagementId, Guid.NewGuid(), admin, partner, staff,
+      professionalWorkBlocked: false);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var program = await AuditProgramTestHelpers.PublishAsync(db, adminActor,
+      new("conditional-progress", AuditProgramCatalog.SourceHash));
+    Assert.True(program.Succeeded, program.Message);
+    var adopted = await AuditProgramService.AdoptAsync(db, adminActor, new(engagementId, program.Value!.ProgramVersionId));
+    Assert.True(adopted.Succeeded, adopted.Message);
+    var procedures = await db.AuditProcedures.Where(x => x.FirmId == firmId && x.ClientId == clientId &&
+      x.EngagementId == engagementId && (x.SourceProcedureId == "AWP-08-01" || x.SourceProcedureId == "AWP-08-02"))
+      .OrderBy(x => x.SourceProcedureId).ToListAsync();
+    Assert.Equal(2, procedures.Count);
+    var procedure = procedures[0];
+    Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, adminActor, procedure.Id)).Succeeded);
+
+    async Task<ProcedureApplicabilityResult> DecideAsync(AuditProcedure source, ActorContext actor, string action,
+      string? reason, Guid? proposalId = null)
+    {
+      var current = await db.AuditProcedures.AsNoTracking().SingleAsync(x => x.Id == source.Id);
+      var result = await AuditProgramService.DecideApplicabilityAsync(db, actor,
+        new(source.Id, action, reason, current.CurrentApplicabilityRevision, current.CurrentDefinitionRevision,
+          Guid.NewGuid(), proposalId));
+      Assert.True(result.Succeeded, result.Message);
+      return result.Value!;
+    }
+
+    // A different required source already has valid N/A: it must not waive this exact source.
+    var otherProposal = await DecideAsync(procedures[1], adminActor, AuditApplicabilityActions.ProposeNotApplicable,
+      "Synthetic fixture: the second procedure does not apply to the retained inventory scope.");
+    await DecideAsync(procedures[1], partnerActor, AuditApplicabilityActions.ApproveNotApplicable, null, otherProposal.DecisionId);
+
+    var draft = await WorkflowTemplateService.CreateDraftAsync(db, adminActor,
+      new(null, "Conditional professional progress", "FinancialStatementAudit", null,
+      [
+        Step("SCOPE", 1, -20),
+        Step("INVENTORY", 2, -15) with
+        {
+          ApplicabilityCondition = "Only where the entity holds inventory",
+          EvidenceRequirements =
+          [
+            new("COUNT", WorkflowEvidenceKinds.ReviewedProcedure),
+            new("VALUATION", WorkflowEvidenceKinds.ReviewedProcedure)
+          ]
+        },
+        Step("UNLINKED", 3, -10) with { ApplicabilityCondition = "Only where an operational follow-up is needed" }
+      ]));
+    Assert.True(draft.Succeeded, draft.Message);
+    var revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == draft.Value);
+    Assert.True((await WorkflowTemplateService.ReviewAsync(db, partnerActor, revision.TemplateId, revision.Id,
+      revision.Revision, "Review the synthetic conditional plan.")).Succeeded);
+    Assert.True((await WorkflowTemplateService.PublishAsync(db, partnerActor, revision.TemplateId, revision.Id,
+      revision.Revision, "Publish the independently reviewed synthetic plan.")).Succeeded);
+    Assert.True((await StatutoryMilestoneService.SaveMilestonesAsync(db, adminActor,
+      new(engagementId, new DateOnly(2027, 4, 30)))).Succeeded);
+    WorkflowPlanEvidenceSelection[] selections =
+    [
+      new("INVENTORY", "COUNT", procedure.Id),
+      new("INVENTORY", "VALUATION", procedures[1].Id)
+    ];
+    var preview = await EngagementWorkflowPlanService.PreviewAsync(db, adminActor, engagementId,
+      new(revision.Id, EvidenceSelections: selections));
+    Assert.True(preview.Succeeded, preview.Message);
+    Assert.True((await EngagementWorkflowPlanService.ExecuteAsync(db, adminActor, engagementId,
+      new(revision.Id, preview.Value!.PreviewDigest, Guid.NewGuid(), EvidenceSelections: selections))).Succeeded);
+    var bindings = await db.WorkflowTaskBindings.AsNoTracking().Where(x => x.EngagementId == engagementId)
+      .OrderBy(x => x.Ordinal).ToListAsync();
+    Assert.Equal(3, bindings.Count);
+    Assert.True((await EngagementWorkflowTaskService.CompleteAsync(db, adminActor,
+      bindings[0].WorkTaskId, bindings[0].Revision)).Succeeded);
+    foreach (var binding in bindings.Skip(1))
+      Assert.True((await EngagementWorkflowTaskService.CancelAsync(db, adminActor, binding.WorkTaskId,
+        WorkflowStepApplicability.NotApplicableReasonPrefix +
+        "Synthetic operational exclusion; this is not a professional applicability decision.", binding.Revision)).Succeeded);
+
+    async Task AssertProgressAsync(bool excluded)
+    {
+      var result = await EngagementProgressQuery.GetAsync(db, adminActor, engagementId);
+      Assert.True(result.Succeeded, result.Message);
+      var progress = result.Value!;
+      Assert.Equal(excluded ? EngagementProgressStepStates.NotApplicable : EngagementProgressStepStates.Blocked,
+        progress.Steps.Single(x => x.TaskId == bindings[1].WorkTaskId).State);
+      Assert.Equal(EngagementProgressStepStates.NotApplicable,
+        progress.Steps.Single(x => x.TaskId == bindings[2].WorkTaskId).State);
+      Assert.Equal(excluded ? (1, 1, 0, 2) : (2, 1, 1, 1),
+        (progress.ApplicableRequired, progress.CompletedRequired, progress.BlockedRequired, progress.NotApplicable));
+      Assert.Equal(excluded ? 99 : 50, progress.PercentComplete);
+    }
+
+    await AssertProgressAsync(excluded: false); // The exact required procedure is still applicable.
+    var proposal = await DecideAsync(procedure, adminActor, AuditApplicabilityActions.ProposeNotApplicable,
+      "Synthetic fixture: propose the inventory exclusion for independent review.");
+    await AssertProgressAsync(excluded: false);
+    await DecideAsync(procedure, partnerActor, AuditApplicabilityActions.ReturnNotApplicable,
+      "Synthetic fixture: current inventory evidence is still required.", proposal.DecisionId);
+    await AssertProgressAsync(excluded: false);
+    proposal = await DecideAsync(procedure, adminActor, AuditApplicabilityActions.ProposeNotApplicable,
+      "Synthetic fixture: current evidence now supports the inventory exclusion.");
+    await DecideAsync(procedure, partnerActor, AuditApplicabilityActions.ApproveNotApplicable, null, proposal.DecisionId);
+    await AssertProgressAsync(excluded: true);
+
+    // Changed inputs invalidate retained professional N/A decisions, but not an unlinked operational cancellation.
+    await db.ClientSafetyStates.Where(x => x.FirmId == firmId && x.Id == clientId)
+      .ExecuteUpdateAsync(x => x.SetProperty(s => s.InputGeneration, s => s.InputGeneration + 1));
+    await AssertProgressAsync(excluded: false);
+    Assert.Equal(2, await db.WorkTasks.AsNoTracking().CountAsync(x => x.EngagementId == engagementId &&
+      x.Status == PracticeTimeStates.TaskCancelled));
+    Assert.Equal(2, await db.WorkflowTaskActivities.CountAsync(x => x.EngagementId == engagementId &&
+      x.Kind == WorkflowTaskActivityKinds.Cancelled));
+  }
+
   private static WorkflowTemplateStepDraft Step(string key, int order, int dueOffset, IReadOnlyList<string>? dependsOn = null,
     bool requiredTask = true) =>
     new(key, WorkflowTaskPhases.AuditPlanning, $"Prepare {key.ToLowerInvariant()} work", $"Complete the {key.ToLowerInvariant()} task.",
       null, 60, dueOffset, null, requiredTask, order, dependsOn);
 
   private static async Task SeedAsync(DbContextOptions<AuditSphereDbContext> options, Guid firmId,
-    Guid clientId, Guid engagementId, Guid secondEngagementId, AppUser admin, AppUser partner, AppUser staff)
+    Guid clientId, Guid engagementId, Guid secondEngagementId, AppUser admin, AppUser partner, AppUser staff,
+    bool professionalWorkBlocked = true)
   {
     await using var db = new AuditSphereDbContext(options);
     db.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
@@ -676,7 +800,7 @@ public sealed class EngagementWorkflowPlanTests
     {
       Id = engagementId, FirmId = firmId, PracticeClientId = clientId,
       ServiceRoute = "FinancialStatementAudit", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
-      ServiceProfileId = "test", CreatedAt = DateTimeOffset.UtcNow
+      ServiceProfileId = "test", CreatedAt = DateTimeOffset.UtcNow, ProfessionalWorkBlocked = professionalWorkBlocked
     });
     db.Engagements.Add(new Engagement
     {
