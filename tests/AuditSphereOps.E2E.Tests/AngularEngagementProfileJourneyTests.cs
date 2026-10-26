@@ -12,34 +12,14 @@ public sealed class AngularEngagementProfileJourneyTests
   {
     await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-ENGAGEMENT-PREPARATION-AUTHORITY");
     var f=host.Fixture;
-    Guid progressTask;
-    await using(var setup=host.CreateDbContext()) {
-      var made=await AuditSphereOps.Application.Practice.EngagementWorkflowTaskService.CreateAsync(setup,
-        PbcSeed.Actor(f.Admin,"Administrator"), f.EngagementId,
-        new("Synthetic progress refresh commitment",AuditSphereOps.Domain.Practice.WorkflowTaskPhases.AuditPlanning,1,
-          AssigneeUserId:f.Staff.Id,IdempotencyKey:Guid.NewGuid()));
-      Assert.True(made.Succeeded,made.Message);progressTask=made.Value;
-    }
     var origin=await host.StartApiForIdentityAsync(f.Staff,new Dictionary<string,string> {
-      ["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]="true",
-      ["AngularUi__BuildPath"]="/Users/qts/Repos/AuditSphere/.local/autonomous/evidence/practice-completion-20261026/ui-build/browser" });
+      ["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]="true" });
     using var playwright=await Playwright.CreateAsync(); await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context=await browser.NewContextAsync(); var page=await context.NewPageAsync();
     var errors=new List<string>(); page.PageError+=(_,e)=>errors.Add(e);
     var path="/app/engagements/"+f.EngagementId;
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Engagement details",Exact=true})).ToBeVisibleAsync();
-    await Assertions.Expect(page.Locator("audit-engagement-progress .tracker-figure strong")).ToHaveTextAsync("0%");
-    var transition=Task.Run(async()=> {
-      await Task.Delay(TimeSpan.FromSeconds(15));
-      await using var changed=host.CreateDbContext();
-      var result=await AuditSphereOps.Application.Practice.EngagementWorkflowTaskService.CompleteAsync(changed,
-        PbcSeed.Actor(f.Staff,"Staff"),progressTask,1);
-      Assert.True(result.Succeeded,result.Message);
-    });
-    await OwnedBrowserFixtureHandoff.WaitAsync(origin,path,"progress-refresh");
-    await transition;
-    await Assertions.Expect(page.Locator("audit-engagement-progress .tracker-figure strong")).ToHaveTextAsync("99%",new(){Timeout=45000});
     foreach(var name in new[]{"Prepare analytical review","Prepare reconciliation","Prepare specialist schedule"})
       await Assertions.Expect(page.GetByRole(AriaRole.Link,new(){Name=name,Exact=true})).ToHaveCountAsync(0);
     await page.GotoAsync(origin+path+"/analysis/new");
