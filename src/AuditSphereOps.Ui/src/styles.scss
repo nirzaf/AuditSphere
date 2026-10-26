@@ -374,6 +374,14 @@ dl.facts dd {
   margin: 0;
   overflow-wrap: anywhere;
 }
+@media (max-width: 40rem) {
+  dl.facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  dl.facts dd:not(:last-child) {
+    margin-block-end: 0.5rem;
+  }
+}
 code {
   overflow-wrap: anywhere;
 }

@@ -26384,6 +26384,35 @@
         "proof": ".local/autonomous/evidence/axelor-final-20261025/full-e2e-source-proof-a948.json"
       },
       "runtimeDefaultPreparation": "Prepared exact-image metadata guard: real read-only validation PASS and wrong-version counterexample REFUSED; offline comparison retains unrelated-config refusal. No cutover. Proof: .local/autonomous/evidence/axelor-final-20261025/runtime-default-review-a948.json"
+    },
+    "axelorFinalApiRetryBeforeResponsiveFacts20261026": {
+      "status": "CURRENT_API_TIMEOUT_RETRY_RUNNING_FULL_RELEASE_PENDING",
+      "finalSource": "a948479b4a2bc688a47018fab06536cdc2268ca9",
+      "result": "Exact current E2E339PASS/0FAIL/0SKIP; checkout and artifact digests verified. Focused/source/builtin proofs remain separately scoped in history. No full local suites.",
+      "evidence": ".local/autonomous/evidence/axelor-final-20261025/acceptance-audit.json",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.axelorFinalAfterCurrentE2eBeforeApiTimeout20261026",
+      "remaining": "Current-source API and aggregate full contract, then authorized Acceptance cutover; no broader professional/provider/humanAT/nativezoom certification claimed.",
+      "rollbackInstructions": {
+        "path": "docs/execution/auditsphere-execution-tracker-axelor-practice-ux-current.md#ui-rollback-procedure-and-compatibility-boundary",
+        "status": "DOCUMENTED_NOT_EXECUTED",
+        "scope": "Forward presentation repair with additive API and exact request recovery preserved; fresh candidate gates required. No older backend/schema compatibility, live rollback, DB restore or schema reversal claimed."
+      },
+      "currentE2e": {
+        "runId": 40257054714,
+        "jobId": 121361592447,
+        "trxArtifactId": 12627550179,
+        "zipSha256": "6175481f43628da3b9cb92cae0e4e2d623b81e159fe1433f3674f8db5afcabc0",
+        "proof": ".local/autonomous/evidence/axelor-final-20261025/full-e2e-source-proof-a948.json"
+      },
+      "runtimeDefaultPreparation": "Prepared exact-image metadata guard: real read-only validation PASS and wrong-version counterexample REFUSED; offline comparison retains unrelated-config refusal. No cutover. Proof: .local/autonomous/evidence/axelor-final-20261025/runtime-default-review-a948.json",
+      "currentApi": {
+        "runId": 40257054714,
+        "attempt": 2,
+        "jobId": 121409903141,
+        "status": "RUNNING",
+        "precedingOutcome": "Attempt1 exceeded3h; no final API TRX or observed failed assertion. Root cause unproven.",
+        "proof": ".local/autonomous/evidence/axelor-final-20261025/a948-api-attempt1-terminal-review.json"
+      }
     }
   },
   "lastUpdatedOn": "2026-10-26"
