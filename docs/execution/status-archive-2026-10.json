@@ -26472,6 +26472,87 @@
       "verification": "Original namedcase1PASS; controlled firstGET6.5s underexisting15s read budget RED1 sameCIshape; corrected withsameprobeGREEN1; probe removedbyteexact/final1PASS. No full local suite.",
       "evidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/review.json",
       "remaining": "New exact-source fast/full/images/rehearsal and authorized Acceptancecutover; no fullpass or deployment claimed."
+    },
+    "accountingProfileRefreshBeforeCurrentDomainAndExclusionProof20261026": {
+      "status": "TEST_ONLY_FOCUSED_PASS_FAST_IMAGES_REHEARSAL_PASS_FULL_RUNNING",
+      "base": "fa9d95be33508ec3a5807c3ba6e0791d1d8d50a5",
+      "failure": "Precedingb4fe full40281043148 E2E338PASS1FAIL: profile revision2 checkbox absent while workspace loading after200POST. Runtime/E2E source unchanged63c9; historical latency cause unproven.",
+      "fix": "Capture POST plus exact workspaceGET/200/clientId/revision before original assent/currency/reason/history checks. Initial profile creation uses same handoff. No original assertion, runtime, permission or timeout changed.",
+      "verification": "Original namedcase1PASS; controlled firstGET6.5s underexisting15s read budget RED1 sameCIshape; corrected withsameprobeGREEN1; probe removedbyteexact/final1PASS. No full local suite.",
+      "evidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/review.json",
+      "remaining": "Current exact full Domain/API/E2E; fresh allPASSreceipt/livepreflight/quiescedbackup, authorizedcutover and actualbuiltinpostrelease verification. No deployment or wholeassignmentcompletion claimed.",
+      "sourceSha": "b9695b7b70515d30cad2d19ee7813978e1162893",
+      "fastCi": "40298056536 PASS all3actualcheckoutMATCH",
+      "images": "40298238984 PASS all3actualcheckout/pinned digests; exactpull verified",
+      "fullCi": "40298202290 sourceMATCH; Angular182files1664PASS/VerifyPASS; Domain/API/E2E running09:37UTC",
+      "rehearsal": "PASS schema286/zero migrations/379originalprojections unchanged/health+bothUIroots200; independentcleanup/livepreservation verified"
+    },
+    "scheduleSourceIndependentReviewDetailsBeforeCurrentReleaseMilestone20261026": {
+      "status": "FOCUSED_PASS_API_ANGULAR_OPENAPI_EXACT_FULL_RUNNING_BROWSER_NOT_RUN",
+      "codeCommit": "8e5b5b170fc24367fae3bd7f24f05afa607034c5",
+      "change": "Independent review preview now carries the exact accepted PBC/TB/period/book context and account tie-outs. A bounded read returns original listing cells for the exact capture hash; reviewer scope is rechecked, preparer self-review is denied, and assent/recording stay blocked until the first exact page loads. Cached rows are hidden while a different page is loading.",
+      "checks": {
+        "domain": {
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AcceptedPbcListingAndSelectedTbCapturePreserveAccountVarianceReceiptsAndOriginalRows'",
+          "result": "2 passed, 0 failed (balanced and unbalanced source cases); exact account tie-outs, original cell values, paging, stale capture hash and preparer self-review denial verified."
+        },
+        "angular": {
+          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/audit/fieldwork.spec.ts'",
+          "result": "37 passed, 0 failed; reviewer preview displays capture-bound source evidence, assent is rejected before rows load, and loaded original cells render."
+        },
+        "api": {
+          "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~ScheduleSourceIntakeApiTests.IndependentReviewerCanReadExactCapturedSourceRowsOverHttp'",
+          "result": "1 passed, 0 failed; a PostgreSQL-backed workflow accepted a synthetic PBC upload through the simulated durable transfer, independently accepted a balanced TB, captured the exact source, verified a preparer receives HTTP 403, and verified the authenticated independent reviewer response returns the capture hash, bounded page metadata, original headers, source line number and original cell values."
+        },
+        "angularBuild": {
+          "command": "npm --prefix src/AuditSphereOps.Ui run build",
+          "result": "PASS; existing commercial/settings.scss style-budget warning (7.53 KB vs 4 KB budget)."
+        },
+        "angularLint": {
+          "command": "npm --prefix src/AuditSphereOps.Ui run lint",
+          "result": "PASS."
+        },
+        "openApi": {
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "result": "PASS; generated contract is current with the retained source rows GET route."
+        },
+        "documentation": {
+          "command": "python3 scripts/docs/validate-markdown-documentation.py",
+          "result": "PASS; 228 Markdown files, canonical references, links, path checks and ledger budgets."
+        },
+        "diffCheck": {
+          "command": "git diff --check",
+          "result": "PASS."
+        }
+      },
+      "integrationCoverage": "Domain service and Angular state/template are focused-tested. The positive PostgreSQL-backed HTTP route is now verified for a current accepted capture and the exact original source row. No Playwright or built-in-browser reviewer journey has been run.",
+      "browserVerification": {
+        "status": "NOT_RUN",
+        "reason": "Built-in browser inventory had no local AuditSphere reviewer workspace or authenticated synthetic reviewer fixture; only the Entra tab was available."
+      },
+      "ci": {
+        "currentFull": {
+          "runId": 40144697389,
+          "sourceCommit": "6063c2211e1c9767e41f3b85915c5f372ce48d16",
+          "sourceMatch": "MATCH",
+          "status": "RUNNING at 2026-10-25T00:00:57Z; Angular/full specs passed; unfiltered Domain/API/E2E and Verify jobs in progress."
+        },
+        "currentFast": {
+          "runId": 40144694030,
+          "headCommit": "6063c2211e1c9767e41f3b85915c5f372ce48d16",
+          "status": "RUNNING at 2026-10-25T00:00:57Z; Docs Health and Angular passed; .NET Release build in progress."
+        },
+        "openApiFailureAndFix": {
+          "failedRunId": 40143495963,
+          "failedSource": "7196913876100f86d19a286ac7f0aa505e6681de",
+          "cause": "OpenAPI drift: the new review/source-rows GET route and response schema were absent from the committed contract.",
+          "evidence": ".local/autonomous/evidence/ci-40143495963-contract/07-openapi-contract-drift.log",
+          "fixCommit": "6063c2211e1c9767e41f3b85915c5f372ce48d16",
+          "fixVerification": "Regenerated contracts/auditsphere-openapi.json with AuditSphereOps.OpenApiEmitter; bash scripts/contracts/verify-openapi.sh passed."
+        }
+      },
+      "remaining": "Exact-source full CI 40144697389 is running after the OpenAPI correction; fast CI 40144694030 is also running. No reviewer browser journey or qualified professional acceptance is verified. TB replacement lifecycle, lock revocation, caller-transaction variants, methodology and provider acceptance remain open.",
+      "contractCommit": "6063c2211e1c9767e41f3b85915c5f372ce48d16"
     }
   },
   "lastUpdatedOn": "2026-10-26"
