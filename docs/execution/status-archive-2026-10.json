@@ -26463,6 +26463,15 @@
       "preflight": "Fresh VPS read-only actual executor preflightPASS08:35UTC; source/image/privateconfig/mountcoverage/safety unchanged, core up/mail paused. Not finalbackup/cutover. API discoveryonly420cases vs395precedingpartialpasses, zero localAPI tests executed; no namedfailure inferred.",
       "evidence": ".local/autonomous/evidence/ux-ac39-20261026/release-preparation-63c9-review.json",
       "remaining": "Current API/E2E/full contractPASS, freshquiescedbackup and authorized Acceptancecutover. All56finalverdicts pending; no full local suites or fabricated approvals."
+    },
+    "accountingProfileRefreshBeforeVerifiedReleasePreparation20261026": {
+      "status": "TEST_ONLY_CONTROLLED_RED1_GREEN1_FINAL1PASS_CURRENT_GATES_REQUIRED",
+      "base": "fa9d95be33508ec3a5807c3ba6e0791d1d8d50a5",
+      "failure": "Precedingb4fe full40281043148 E2E338PASS1FAIL: profile revision2 checkbox absent while workspace loading after200POST. Runtime/E2E source unchanged63c9; historical latency cause unproven.",
+      "fix": "Capture POST plus exact workspaceGET/200/clientId/revision before original assent/currency/reason/history checks. Initial profile creation uses same handoff. No original assertion, runtime, permission or timeout changed.",
+      "verification": "Original namedcase1PASS; controlled firstGET6.5s underexisting15s read budget RED1 sameCIshape; corrected withsameprobeGREEN1; probe removedbyteexact/final1PASS. No full local suite.",
+      "evidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/review.json",
+      "remaining": "New exact-source fast/full/images/rehearsal and authorized Acceptancecutover; no fullpass or deployment claimed."
     }
   },
   "lastUpdatedOn": "2026-10-26"
