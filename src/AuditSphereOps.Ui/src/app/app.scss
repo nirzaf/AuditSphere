@@ -76,6 +76,7 @@
 @media (min-width: 701px) and (max-width: 1100px) {
   .workspace-label { display: none; }
 }
+.sign-out { gap: 0.4rem; }
 .shell-button:hover:not(:disabled) {
   background: color-mix(in srgb, currentColor 14%, transparent);
   border-color: currentColor;
@@ -169,6 +170,12 @@ main:focus {
   .workspace-label,
   .desktop-navigation-toggle { display: none; }
   .navigation-toggle { display: inline-flex; min-height: 44px; }
+  // Icon-only on phones; the visually hidden label keeps the button's accessible name.
+  .sign-out { min-width: 44px; padding-inline: 0.6rem; }
+  .sign-out-label {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
 }
 
 @media (max-width: 380px) {

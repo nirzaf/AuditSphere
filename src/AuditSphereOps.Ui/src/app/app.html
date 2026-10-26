@@ -28,7 +28,9 @@
 
   @if (session.current()) {
     <audit-user-account />
-    <button class="shell-button" (click)="signOut()">Sign out</button>
+    <button class="shell-button sign-out" (click)="signOut()">
+      <audit-nav-icon name="log-out" /><span class="sign-out-label">Sign out</span>
+    </button>
   }
   @if (session.current() && !publicSetup()) {
     <button class="shell-button navigation-toggle" aria-haspopup="dialog"
