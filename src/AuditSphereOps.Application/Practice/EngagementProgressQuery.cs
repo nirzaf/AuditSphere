@@ -110,11 +110,18 @@ public static class EngagementProgressQuery
     var truncatedEngagements = rows.GroupBy(x => x.Binding.EngagementId)
       .Where(group => group.Count() > StepLimit).Select(group => group.Key).ToHashSet();
     rows = rows.GroupBy(x => x.Binding.EngagementId).SelectMany(group => group.Take(StepLimit)).ToList();
-    var taskIds = rows.Select(x => x.Binding.WorkTaskId).ToArray();
     var bindingIds = rows.Select(x => x.Binding.Id).ToArray();
-    var cancelled = await db.WorkflowTaskActivities.AsNoTracking()
-      .Where(x => x.FirmId == f && taskIds.Contains(x.WorkTaskId) && x.Kind == WorkflowTaskActivityKinds.Cancelled)
-      .Select(x => x.WorkTaskId).Distinct().ToListAsync(ct);
+    // Only a current-revision, explicitly reasoned cancellation can waive a conditional required step.
+    var currentCancellations = await (from activity in db.WorkflowTaskActivities.AsNoTracking()
+      join binding in db.WorkflowTaskBindings.AsNoTracking()
+        on new { activity.FirmId, Id = activity.WorkflowTaskBindingId } equals new { binding.FirmId, binding.Id }
+      where activity.FirmId == f && bindingIds.Contains(binding.Id) &&
+        activity.Kind == WorkflowTaskActivityKinds.Cancelled &&
+        activity.WorkTaskId == binding.WorkTaskId && activity.TaskRevision == binding.Revision
+      select new { BindingId = binding.Id, activity.Reason }).ToListAsync(ct);
+    var notApplicableBindings = currentCancellations
+      .Where(x => WorkflowStepApplicability.IsExplicitNotApplicableReason(x.Reason))
+      .Select(x => x.BindingId).ToHashSet();
     var dependencies = await (from dependency in WorkflowTaskDependencyQuery.Effective(db, f)
       join predecessor in db.WorkflowTaskBindings.AsNoTracking()
         on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.PredecessorBindingId }
@@ -138,8 +145,9 @@ public static class EngagementProgressQuery
     var assigneeIds = rows.Where(x => x.AssigneeUserId.HasValue).Select(x => x.AssigneeUserId!.Value).Distinct().ToArray();
     var names = await db.Users.AsNoTracking().Where(x => x.FirmId == f && assigneeIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
-    var holds = await db.EngagementHolds.AsNoTracking().Where(x => x.FirmId == f && ids.Contains(x.EngagementId) && !x.Released)
-      .Select(x => new { x.EngagementId, x.HoldKind, x.Reason }).ToListAsync(ct);
+    var openHoldEngagements = await db.EngagementHolds.AsNoTracking()
+      .Where(x => x.FirmId == f && ids.Contains(x.EngagementId) && !x.Released)
+      .Select(x => x.EngagementId).Distinct().ToListAsync(ct);
     var released = await db.Releases.AsNoTracking().Where(x => x.FirmId == f && ids.Contains(x.EngagementId))
       .Select(x => x.EngagementId).Distinct().ToListAsync(ct);
     var now = DateTimeOffset.UtcNow;
@@ -151,14 +159,14 @@ public static class EngagementProgressQuery
         x.Binding.WorkTaskId, x.Title, x.Binding.Phase, x.Binding.Ordinal,
         // Rework and other non-template engagement tasks are commitments the engagement must still discharge.
         x.RequiredTask is { } required ? WorkflowStepRequirements.Classify(required, x.Condition) : WorkflowStepRequirements.Mandatory,
-        x.Status, cancelled.Contains(x.Binding.WorkTaskId), unmetByBinding.GetValueOrDefault(x.Binding.Id),
+        x.Status, notApplicableBindings.Contains(x.Binding.Id), unmetByBinding.GetValueOrDefault(x.Binding.Id),
         evidence.GetValueOrDefault(x.Binding.Id)?.Count(r => r.State == WorkflowEvidenceRuleStates.Required && !r.Satisfied) ?? 0,
         x.Binding.PbcRequestId.HasValue && x.PbcState is not (PbcStates.Accepted or PbcStates.Closed),
         x.Binding.ReviewProcedureResultId.HasValue, x.AssigneeUserId, x.DueDate, x.Condition)).ToList();
 
       var lifecycleRoute = LifecycleRoutes.Contains(engagement.ServiceRoute, StringComparer.Ordinal);
       var truncated = truncatedEngagements.Contains(engagement.Id);
-      var gates = holds.Where(h => h.EngagementId == engagement.Id).Select(h => $"Open {h.HoldKind} hold: {h.Reason}").ToList();
+      var gates = new List<string>();
       if (truncated) gates.Add($"More than {StepLimit} tasks are recorded, so progress cannot be fully evaluated here.");
       string? stageLabel = null, responsibleRole = null, gateLink = null, disclosure = null;
       int? stageIndex = null;
@@ -172,7 +180,7 @@ public static class EngagementProgressQuery
           var summary = lifecycle.Value.Summary;
           stageLabel = summary.StageLabel; stageIndex = summary.StageIndex;
           responsibleRole = summary.ResponsibleRole; gateLink = summary.DeepLink;
-          gates = [.. summary.BlockedReasons, .. truncated ? gates.Where(g => g.StartsWith("More than", StringComparison.Ordinal)) : []];
+          gates.InsertRange(0, summary.BlockedReasons);
           if (summary.StageIndex < 9 && gates.Count == 0) gates.Add($"{summary.StageLabel} must finish before the report is released.");
         }
       }
@@ -181,6 +189,11 @@ public static class EngagementProgressQuery
         if (!released.Contains(engagement.Id)) gates.Add("No issued release exists for this engagement yet.");
         disclosure = "Route-specific release gates for this service are not yet specified (D03); progress reflects the task plan, holds and release only.";
       }
+
+      // Some derived lifecycle stages omit holds. Keep the gate without disclosing its restricted reason.
+      if (openHoldEngagements.Contains(engagement.Id) &&
+          !gates.Any(g => g.StartsWith("Open hold", StringComparison.OrdinalIgnoreCase)))
+        gates.Add("An engagement hold remains open.");
 
       var figures = EngagementProgressCalculator.Calculate(facts, gates.Count > 0);
       var next = figures.NextStep;

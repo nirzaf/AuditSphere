@@ -19,18 +19,18 @@ Each engagement task comes from its pinned workflow template step, or from a man
 | Not required | Optional | Never; shown separately as "x of y" |
 | Manual task with no template step | Mandatory | Always |
 
-A conditional step is recorded as not applicable only through the existing reasoned task cancellation, which leaves a `TASK_CANCELLED` activity naming the user and reason. A cancelled mandatory step is never waived. It stays blocked until it is reopened and completed. Conditions are only allowed on required steps.
+A conditional step is recorded as not applicable only through an authorized cancellation with an explicit `Not applicable: <reason>` decision in the current binding revision's immutable `TASK_CANCELLED` activity. A generic cancellation, blank decision or historical cancellation does not waive a required step. A cancelled mandatory step is never waived; it stays blocked until reopened and completed. Conditions are only allowed on required steps. Non-applicability does not itself approve professional work or satisfy dependent task prerequisites.
 
 ## Calculation
 
 `Domain/Practice/EngagementProgress.cs` (`EngagementProgressCalculator`) is a pure calculator over facts read by `Application/Practice/EngagementProgressQuery.cs`:
 
 - **Completed:** a completed task whose evidence prerequisites are still current. A completed task with stale or missing evidence is blocked. Currentness propagates through required dependencies, so a completed successor is blocked when any prerequisite in its dependency chain is no longer current. Persisted completion history remains unchanged.
-- **Blocked:** an open task waiting on prerequisite tasks; a cancelled mandatory task; a completed task with stale evidence.
+- **Blocked:** an open task waiting on prerequisite tasks; a cancelled required task without a current explicit non-applicability decision; a completed task with stale evidence.
 - **Pending:** every other open or in-progress task, annotated with rework, waiting-for-client or pending-evidence conditions.
 - **Percent complete:** completed ÷ applicable required steps, rounded down. It is empty when the plan has no applicable required step, and capped at 99% while any gate is open.
 
-Gates come from existing sources only. On the financial statement audit route they are the derived eleven-stage lifecycle's current blockers (including open holds), plus an open gate until the engagement reaches stage 9, Deliverable Release. If the lifecycle cannot be read, the gate is treated as open. On other routes they are open holds, plus an open gate until an issued release exists. Non-audit routes also carry a disclosure that their lifecycle gates are not yet specified (decision D03). A complete task plan therefore never reads as 100% while a professional gate is open, and 100% is never a release approval.
+Gates come from existing sources only. An open hold remains a gate even when the derived lifecycle omits it; the tracker does not disclose restricted hold reasons. On the financial statement audit route they include the derived eleven-stage lifecycle's current blockers, plus an open gate until the engagement reaches stage 9, Deliverable Release. If the lifecycle cannot be read, the gate is treated as open. On other routes they are open holds, plus an open gate until an issued release exists. Non-audit routes also carry a disclosure that their lifecycle gates are not yet specified (decision D03). A complete task plan therefore never reads as 100% while a professional gate is open, and 100% is never a release approval.
 
 The view also gives the current phase, the responsible person or role, the earliest outstanding due date and the next action. The next action is the first pending step, or the first gate's existing deep link.
 

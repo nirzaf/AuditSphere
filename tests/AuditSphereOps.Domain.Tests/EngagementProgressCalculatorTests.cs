@@ -17,6 +17,16 @@ public sealed class EngagementProgressCalculatorTests
   public void Classify_DerivesTheRequirementLevelFromTheTemplateStep(bool required, string? condition, string expected) =>
     Assert.Equal(expected, WorkflowStepRequirements.Classify(required, condition));
 
+  [Theory]
+  [InlineData("Not applicable: No inventory this period.", true)]
+  [InlineData("Not applicable: ", false)]
+  [InlineData("Not applicable:", false)]
+  [InlineData("Work cancelled for other reasons.", false)]
+  [InlineData("not applicable: No inventory this period.", false)]
+  [InlineData(null, false)]
+  public void Waiver_RequiresAnExplicitSubstantiveReason(string? reason, bool expected) =>
+    Assert.Equal(expected, WorkflowStepApplicability.IsExplicitNotApplicableReason(reason));
+
   [Fact]
   public void Progress_CountsOnlyApplicableRequiredStepsAndReportsOptionalSeparately()
   {

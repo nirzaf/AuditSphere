@@ -553,13 +553,32 @@ public sealed class EngagementWorkflowPlanTests
     var scope = await TaskAsync("Prepare scope work");
     Assert.True((await EngagementWorkflowTaskService.CompleteAsync(db, adminActor, scope.Id, scope.Revision)).Succeeded);
     var inventory = await TaskAsync("Prepare inventory work");
+    const string noInventoryReason = "Not applicable: The entity holds no inventory for this period.";
     Assert.True((await EngagementWorkflowTaskService.CancelAsync(db, adminActor, inventory.Id,
-      "The entity holds no inventory for this period.", inventory.Revision)).Succeeded);
+      noInventoryReason, inventory.Revision)).Succeeded);
     var half = (await EngagementProgressQuery.GetAsync(db, adminActor, engagementId)).Value!;
     Assert.Equal((2, 1, 1, 0, 1), (half.ApplicableRequired, half.CompletedRequired, half.PendingRequired,
       half.BlockedRequired, half.NotApplicable));
     Assert.Equal(50, half.PercentComplete);
     Assert.Equal("Prepare close work", half.NextAction);
+
+    // Reopening invalidates the prior waiver; a later generic cancellation cannot inherit it.
+    Assert.True((await EngagementWorkflowTaskService.ReopenAsync(db, adminActor, inventory.Id,
+      "Reassess applicability.", (await TaskAsync("Prepare inventory work")).Revision)).Succeeded);
+    Assert.True((await EngagementWorkflowTaskService.CancelAsync(db, adminActor, inventory.Id,
+      "Work paused pending records.", (await TaskAsync("Prepare inventory work")).Revision)).Succeeded);
+    var genericCancellation = (await EngagementProgressQuery.GetAsync(db, adminActor, engagementId)).Value!;
+    Assert.Equal((3, 1, 1, 1, 0), (genericCancellation.ApplicableRequired, genericCancellation.CompletedRequired,
+      genericCancellation.PendingRequired, genericCancellation.BlockedRequired, genericCancellation.NotApplicable));
+    Assert.Equal(33, genericCancellation.PercentComplete);
+
+    Assert.True((await EngagementWorkflowTaskService.ReopenAsync(db, adminActor, inventory.Id,
+      "Reconsider applicability.", (await TaskAsync("Prepare inventory work")).Revision)).Succeeded);
+    Assert.True((await EngagementWorkflowTaskService.CancelAsync(db, adminActor, inventory.Id,
+      noInventoryReason, (await TaskAsync("Prepare inventory work")).Revision)).Succeeded);
+    var restoredWaiver = (await EngagementProgressQuery.GetAsync(db, adminActor, engagementId)).Value!;
+    Assert.Equal((2, 1, 1, 0, 1), (restoredWaiver.ApplicableRequired, restoredWaiver.CompletedRequired,
+      restoredWaiver.PendingRequired, restoredWaiver.BlockedRequired, restoredWaiver.NotApplicable));
 
     var close = await TaskAsync("Prepare close work");
     Assert.True((await EngagementWorkflowTaskService.CompleteAsync(db, adminActor, close.Id, close.Revision)).Succeeded);
@@ -626,6 +645,18 @@ public sealed class EngagementWorkflowPlanTests
     await db.SaveChangesAsync();
     Assert.False((await EngagementProgressQuery.GetAsync(db, Actor(outsider, "Staff"), engagementId)).Succeeded);
     Assert.False((await EngagementProgressQuery.ForClientAsync(db, Actor(outsider, "Staff"), clientId)).Succeeded);
+
+    // Derived lifecycle stages can omit holds; progress still reports an outstanding hold gate.
+    db.EngagementHolds.Add(new EngagementHold
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, EngagementId = engagementId,
+      HoldKind = "Continuance", Reason = "Confidential continuance review.",
+      CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    var held = (await EngagementProgressQuery.GetAsync(db, adminActor, engagementId)).Value!;
+    Assert.True(held.GateOpen);
+    Assert.Contains(held.Gates, g => g.Contains("hold", StringComparison.OrdinalIgnoreCase));
   }
 
   private static WorkflowTemplateStepDraft Step(string key, int order, int dueOffset, IReadOnlyList<string>? dependsOn = null,

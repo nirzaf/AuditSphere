@@ -15,6 +15,16 @@ public static class WorkflowStepRequirements
     !requiredTask ? Optional : string.IsNullOrWhiteSpace(applicabilityCondition) ? Mandatory : Conditional;
 }
 
+public static class WorkflowStepApplicability
+{
+  // Generic or historical cancellation cannot waive a conditionally required step.
+  public const string NotApplicableReasonPrefix = "Not applicable: ";
+
+  public static bool IsExplicitNotApplicableReason(string? reason) =>
+    reason is not null && reason.StartsWith(NotApplicableReasonPrefix, StringComparison.Ordinal) &&
+    !string.IsNullOrWhiteSpace(reason[NotApplicableReasonPrefix.Length..]);
+}
+
 public static class EngagementProgressStepStates
 {
   public const string Completed = "COMPLETED";
@@ -26,7 +36,7 @@ public static class EngagementProgressStepStates
 /// <summary>Persisted facts about one engagement task, read from current records; nothing here is a UI flag.</summary>
 public sealed record EngagementProgressStepFact(
   Guid TaskId, string Title, string Phase, int Ordinal, string Requirement, string TaskStatus,
-  bool CancellationRecorded, int UnmetDependencies, int UnmetEvidence, bool WaitingForClient, bool Rework,
+  bool NotApplicableRecorded, int UnmetDependencies, int UnmetEvidence, bool WaitingForClient, bool Rework,
   Guid? AssigneeUserId, DateOnly? DueDate, string? ApplicabilityCondition = null);
 
 public sealed record EngagementProgressStep(
@@ -78,7 +88,7 @@ public static class EngagementProgressCalculator
       PracticeTimeStates.TaskCompleted => (EngagementProgressStepStates.Completed, (string?)null),
       PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Optional =>
         (EngagementProgressStepStates.NotApplicable, "Optional step cancelled"),
-      PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Conditional && fact.CancellationRecorded =>
+      PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Conditional && fact.NotApplicableRecorded =>
         (EngagementProgressStepStates.NotApplicable, "Recorded as not applicable"),
       // A mandatory step cannot be waived by cancelling it: it stays outstanding until it is reopened and completed.
       PracticeTimeStates.TaskCancelled => (EngagementProgressStepStates.Blocked, "Cancelled; a required step must be reopened"),
