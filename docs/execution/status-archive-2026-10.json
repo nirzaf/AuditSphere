@@ -26431,6 +26431,29 @@
       "rehearsal": "Exactb4fe restoredcopyPASS schema286/0migrations/379unchangedprojections/health+bothUIroots200; cleanup+live source/image/privateconfig preservation independently verified. Runtime-default guardPASS and wrongversion refused. No live cutover.",
       "evidence": ".local/autonomous/evidence/ux-builtin-20261026/release-preparation-b4fe-review.json",
       "remaining": "Current fullAPI/E2E/allPASS receipt, freshquiescedbackup and authorized Acceptancecutover. All56finalverdicts pending; no full local suites or invented human/provider/professional acceptance."
+    },
+    "axelorReceiptRaceBeforeCurrentDomainPass20261026": {
+      "status": "TEST_ONLY_FOCUSED_GREEN1_RED1_GREEN1_CURRENT_RELEASE_GATES_PENDING",
+      "sourceBase": "22279fc2bb2db1c87d9e4a3b2df35f3b539ed8a7",
+      "requirement": "UX-AC-39: two initially authorized actors contend for one receipt, one grant revoked before publication. Only permitted80of100 allocation/receipt persists; excess30 against20 remains refused, not clamped.",
+      "verification": "Existing BillingTests class: one exactmethod PASS; skipping only post-lock authority recheck RED1; runtime restored byte-exactly and same assertions finalPASS1. No runtime/UI/provider/permission change or full local suite.",
+      "evidence": ".local/autonomous/evidence/ux-ac39-20261026/review.json",
+      "remaining": "Fresh exact-source fast/full/images/rehearsal and authorized Acceptancecutover. All56finalverdicts pending; broader human/provider/professional limits unchanged."
+    },
+    "ciFixtureDeadlineReadinessBeforeReleaseMilestone20261026": {
+      "baseCommit": "a9055ad151f9fa2d6b6a1f2944254ad5c6dd7b57",
+      "testPatchSha256": "5d2d36bc10ff2cbdfcfca5bee00b5b8f83f4b814af47f7d66bb8da942e0f72fc",
+      "sourcePaths": [
+        "tests/AuditSphereOps.Api.Tests/ScheduleSourceIntakeApiTests.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularOperationsCommandJourneyTests.cs"
+      ],
+      "runtimeChanged": false,
+      "apiProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/schedule-read-deadline-review.json",
+      "apiResult": "Existing named case unchanged1PASS; controlled expiredsetup RED1, sameprobe freshreadGREEN1; probe removed/final1PASS. Original role/source assertions unchanged, both setup/read budgets90s. First sandboxattempt compiled butaborted0tests atVSTest socket, not a testfailure.",
+      "e2eProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/operations-dependent-read-review.json",
+      "e2eResult": "Existing acknowledged/lostLIFT2PASS plus LOCAL_ONLY cancellation/active recoverysession2PASS. Initialcapture waits all3GETs andassertsHTTP200/canLift; originalassent/onePOST/history/counters preserved,30stimeouts unchanged. CIinterceptionrace not locallyproven; no runtimefix claimed.",
+      "remaining": "New exact-source fast/full/images/rehearsal required before Acceptance. Precedingb94attempt2 E2E338/1; APIstillrunning with evidenced setup-token cancellation. No full local suite.",
+      "publishedCommit": "a948479b4a2bc688a47018fab06536cdc2268ca9"
     }
   },
   "lastUpdatedOn": "2026-10-26"
