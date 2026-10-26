@@ -57,6 +57,8 @@ This maps every specified acceptance ID to its existing owner or focused evidenc
 
 ## Exact CI findings during the remaining-work pass
 
+The schedule-source HTTP fixture now separates its protected-read deadline from fixture host preparation, while retaining the setup deadline and the same duration for the read budget. An expired-setup-token probe reproduces the cancellation and passes with the independent read deadline; the temporary probe is removed from delivered tests. The Operations fixture retains initial response capture through its dependent command-eligibility read and asserts the current server permission before action review. Original authorization, source-row, assent, receipt and one-command assertions remain. Focused checks passed; these test-only corrections require fresh exact-source CI and do not establish release acceptance.
+
 The preceding full run exposed ambiguous proposal navigation, a summary moved into Operational delivery, and a resource Tab expectation that skipped newly added filters. The smallest cohort reproduced those assumptions. Tests now select the exact Leads destination, explicitly switch analytics views while retaining the whole-period denominator checks, and traverse both filters before asserting grid focus. Recovery, authorization, arithmetic, persistence and approval assertions remain. A task-reopening response timeout passed unchanged in the focused cohort; its cause remains unproven. Exact identities and results are retained in `targetedVerification.axelorRemaining20261025` and its proof packet.
 
 

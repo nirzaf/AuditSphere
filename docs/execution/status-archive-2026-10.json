@@ -25515,6 +25515,73 @@
       },
       "backupPreparation": "Use observed project-owned Docker volume mounts, protected .env/overlay/config, and a fresh catalog-validated quiesced DB dump before live mutation. Preserve rollback evidence; no automatic destructive DB restore.",
       "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-a48.json"
+    },
+    "currentSourceCiBeforeFixtureDeadlineReadiness20261026": {
+      "sourceCommit": "b94e3ddc472827f1604b20f477a1e376597e83dc",
+      "fastCi": "PASS run40236150477; alljobs actualcheckoutMATCH",
+      "releaseVerification": "40236162417 attempt2 MATCHb94 retryAPI121330471327/E2E121330471679 active withdebuglogging; priorAngular/Domain/Verify successes retained. Attempt1 API hostedrunnerlostcommunication/noTRX; E2E336PASS3FAIL, exact3focusedPASS unchanged; no FULL_CI_PASS.",
+      "imagePublication": "PASS run40236150660; exactcheckout and immutablemanifestpushes",
+      "runtimeRehearsal": "PASS exactb94: schema286/0migrations/379original projectionsunchanged; health+bothuncachedAngularroots200; ownedDB/container/privateenvcleanupverified read-only",
+      "cutoverStatus": "HELD_CURRENT_FULL_RETRY",
+      "updatedAtUtc": "2026-10-25T23:57:53.350446+00:00"
+    },
+    "hostingerPreparationBeforeFixtureDeadlineReadiness20261026": {
+      "observedAtUtc": "2026-10-25T23:57:53.350446+00:00",
+      "sourceCommit": "b94e3ddc472827f1604b20f477a1e376597e83dc",
+      "implementationCommit": "a4a832298b3918d57347ada5bd67d684ba06876e",
+      "currentFastRun": 40236150477,
+      "fastStatus": "PASS actualcheckout alljobs",
+      "currentFullRun": 40236162417,
+      "fullStatus": "40236162417 attempt2 MATCHb94 retryAPI121330471327/E2E121330471679 active withdebuglogging; priorAngular/Domain/Verify successes retained. Attempt1 API hostedrunnerlostcommunication/noTRX; E2E336PASS3FAIL, exact3focusedPASS unchanged; no FULL_CI_PASS.",
+      "currentImageBuildRun": 40236150660,
+      "imageStatus": "PASS exactcheckout andimmutablepushes",
+      "imageDigests": {
+        "api": "ghcr.io/nirzaf/auditsphere-acceptance-api:b94e3ddc472827f1604b20f477a1e376597e83dc@sha256:62e40736bb1a67b8e05a5325e6d5d1c654b6bb4ca9ea85bb65d1554a128520b0",
+        "worker": "ghcr.io/nirzaf/auditsphere-acceptance-worker:b94e3ddc472827f1604b20f477a1e376597e83dc@sha256:60a5063d8a7feba74b28491aeaf9e53d2eedef600e7754cbc2cb3fd48ac0d385",
+        "migrations": "ghcr.io/nirzaf/auditsphere-acceptance-migrations:b94e3ddc472827f1604b20f477a1e376597e83dc@sha256:09b192a3a9e6e92760a411be2192f8a1fd765659b569c83747e16ef5985e6228"
+      },
+      "currentSourceRehearsal": {
+        "status": "PASS_RESTORED_COPY_LATEST_SOURCE",
+        "report": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/rehearsal-b94.json",
+        "sourceSha": "b94e3ddc472827f1604b20f477a1e376597e83dc",
+        "migrationCountBefore": 286,
+        "migrationCountAfter": 286,
+        "migrationHead": "20261025144831_PbcStorageCommandReceipts",
+        "migrationsApplied": 0,
+        "originalTableCount": 379,
+        "originalRowsAndValuesUnchanged": true,
+        "apiChecks": {
+          "ready": 200,
+          "live": 200,
+          "ui": 200,
+          "uiAngularShellPresent": true,
+          "uiSlash": 200,
+          "uiSlashAngularShellPresent": true
+        },
+        "disposableDatabaseRemoved": true,
+        "ownedContainerRemoved": true,
+        "temporaryEnvironmentFilesRemoved": true,
+        "liveDatabaseChangedByRehearsal": false,
+        "liveContainersChangedByRehearsal": false
+      },
+      "cutoverStatus": "HELD_CURRENT_FULL_RETRY",
+      "mailBoundary": "Already paused at observed preflight; remains paused without genuine signed sender authorization.",
+      "liveObserved": {
+        "sourceCheckout": "bba5f4b902dac67905bcf3925410cd0a31ec703d",
+        "imageSource": "bba5f4b902dac67905bcf3925410cd0a31ec703d",
+        "schema": "286:20261025144831_PbcStorageCommandReceipts",
+        "coreServices": [
+          "api",
+          "worker-general",
+          "worker-processing",
+          "worker-records"
+        ],
+        "mailRunning": false,
+        "deploymentProvenance": "Observed read-only; no claim this run deployed the earlier source.",
+        "latestSourceDeployed": false
+      },
+      "backupPreparation": "Use observed project-owned Docker volume mounts, protected .env/overlay/config, and a fresh catalog-validated quiesced DB dump before live mutation. Preserve rollback evidence; no automatic destructive DB restore.",
+      "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-b94.json"
     }
   },
   "archivedTargetedVerification": {
@@ -26268,7 +26335,22 @@
       "limits": "No FULL_CI_PASS claimed. Rejected currency fixture violated existing DB integrity; speculative UI change reverted. Initial final-cent fixture reused unique receipt/invoice pair; separate-cent receipt correction passed. No human AT/nativezoom/live-provider/professional certification; original31 active.",
       "finalSource": "a48db01526015e4b5e767620160eff3a699e4a77",
       "ci": "40234333952 RUNNING source MATCH; Angular/fullspecsPASS; Domain/API/E2E/Verifyactive"
+    },
+    "axelorB94CurrentE2eTriageBeforeFixtureRepair20261026": {
+      "sourceSha": "b94e3ddc472827f1604b20f477a1e376597e83dc",
+      "runId": 40236162417,
+      "jobId": 121298606916,
+      "ciResult": "336 passed /3 failed /339 executed /0 skipped",
+      "failures": [
+        "EngagementAndAuditPlanClearOnScopeChangeAndRefuseRevokedWrites navigation retained original view",
+        "ReviewedLocalCommand CANCEL/dropResponseFalse disabledbutton",
+        "ReviewedLocalCommand LIFT_QUARANTINE/dropResponseFalse disabledbutton"
+      ],
+      "localResult": "Exact existing3cases rebuilt andpassedunchanged; nofullsuite; rootcauseUNPROVEN, no runtime/test/timeoutchange",
+      "proof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/b94-new-e2e-failure/focused-review.json",
+      "next": "Attempt2 failedAPI/E2E+aggregate retry on sameb94 withdebuglogging; keep priorpass results. Monitor exactattempt2; onlyNEWfailedlogs/TRX; no cutover beforeFULLPASS",
+      "apiTerminal": "121298606910 hostedrunnerlostcommunication confirmedGitHubannotation; 393passinglines/noassertion observed, noAPI_TRX; CPU/memory/network causeUNPROVEN. LOCAL_ONLY axelor-final-20261025/b94-api-terminal-review.json"
     }
   },
-  "lastUpdatedOn": "2026-10-25"
+  "lastUpdatedOn": "2026-10-26"
 }

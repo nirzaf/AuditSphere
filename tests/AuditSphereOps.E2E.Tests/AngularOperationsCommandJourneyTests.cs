@@ -60,8 +60,16 @@ public sealed class AngularOperationsCommandJourneyTests
     {
       initialResponses = await PlaywrightResponseCapture.RunMultipleAsync(page,
         [request => request.Method == "GET" && request.Url == origin + "/api/ui/session",
-         request => request.Method == "GET" && request.Url == origin + "/api/ui/operations"],
+         request => request.Method == "GET" && request.Url == origin + "/api/ui/operations",
+         // Command eligibility loads after the operations resource. Keep interception until it is fulfilled.
+         request => request.Method == "GET" && request.Url == origin + "/api/ui/operations/commands/state"],
         () => page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fui%2Fapp%2Foperations"));
+      Assert.All(initialResponses, response => Assert.Equal(200, response.Status));
+      if (action == "LIFT_QUARANTINE")
+      {
+        using var state = JsonDocument.Parse(initialResponses[2].Body);
+        Assert.True(state.RootElement.GetProperty("canLiftQuarantine").GetBoolean());
+      }
       await Assertions.Expect(page.GetByRole(AriaRole.Table, new() { Name = "Latest 50 durable operations", Exact = true })).ToBeVisibleAsync();
     }
     catch (Exception exception)
@@ -84,7 +92,8 @@ public sealed class AngularOperationsCommandJourneyTests
       }
       var responses = initialResponses?.Select((response, index) => new
       {
-        Endpoint = index == 0 ? "/api/ui/session" : "/api/ui/operations", response.Status, response.Body
+        Endpoint = index switch { 0 => "/api/ui/session", 1 => "/api/ui/operations", _ => "/api/ui/operations/commands/state" },
+        response.Status, response.Body
       }).ToArray();
       throw new InvalidOperationException(
         $"Initial Operations workspace failed. action={action}; dropResponse={dropResponse}; " +

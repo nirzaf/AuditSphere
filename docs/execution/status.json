@@ -1083,20 +1083,19 @@
       ],
       "superseded": "Owned7a/e53/a48 pending runs canceled after finalb94MATCH and snapshots; knownfailedTRXs retained; no FULL_CI_PASS claimed."
     },
-    "axelorCurrentE2eTriage20261026": {
-      "sourceSha": "b94e3ddc472827f1604b20f477a1e376597e83dc",
-      "runId": 40236162417,
-      "jobId": 121298606916,
-      "ciResult": "336 passed /3 failed /339 executed /0 skipped",
-      "failures": [
-        "EngagementAndAuditPlanClearOnScopeChangeAndRefuseRevokedWrites navigation retained original view",
-        "ReviewedLocalCommand CANCEL/dropResponseFalse disabledbutton",
-        "ReviewedLocalCommand LIFT_QUARANTINE/dropResponseFalse disabledbutton"
+    "ciFixtureDeadlineReadiness20261026": {
+      "baseCommit": "a9055ad151f9fa2d6b6a1f2944254ad5c6dd7b57",
+      "testPatchSha256": "5d2d36bc10ff2cbdfcfca5bee00b5b8f83f4b814af47f7d66bb8da942e0f72fc",
+      "sourcePaths": [
+        "tests/AuditSphereOps.Api.Tests/ScheduleSourceIntakeApiTests.cs",
+        "tests/AuditSphereOps.E2E.Tests/AngularOperationsCommandJourneyTests.cs"
       ],
-      "localResult": "Exact existing3cases rebuilt andpassedunchanged; nofullsuite; rootcauseUNPROVEN, no runtime/test/timeoutchange",
-      "proof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/b94-new-e2e-failure/focused-review.json",
-      "next": "Attempt2 failedAPI/E2E+aggregate retry on sameb94 withdebuglogging; keep priorpass results. Monitor exactattempt2; onlyNEWfailedlogs/TRX; no cutover beforeFULLPASS",
-      "apiTerminal": "121298606910 hostedrunnerlostcommunication confirmedGitHubannotation; 393passinglines/noassertion observed, noAPI_TRX; CPU/memory/network causeUNPROVEN. LOCAL_ONLY axelor-final-20261025/b94-api-terminal-review.json"
+      "runtimeChanged": false,
+      "apiProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/schedule-read-deadline-review.json",
+      "apiResult": "Existing named case unchanged1PASS; controlled expiredsetup RED1, sameprobe freshreadGREEN1; probe removed/final1PASS. Original role/source assertions unchanged, both setup/read budgets90s. First sandboxattempt compiled butaborted0tests atVSTest socket, not a testfailure.",
+      "e2eProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/operations-dependent-read-review.json",
+      "e2eResult": "Existing acknowledged/lostLIFT2PASS plus LOCAL_ONLY cancellation/active recoverysession2PASS. Initialcapture waits all3GETs andassertsHTTP200/canLift; originalassent/onePOST/history/counters preserved,30stimeouts unchanged. CIinterceptionrace not locallyproven; no runtimefix claimed.",
+      "remaining": "New exact-source fast/full/images/rehearsal required before Acceptance. Precedingb94attempt2 E2E338/1; APIstillrunning with evidenced setup-token cancellation. No full local suite."
     }
   },
   "externalGates": [
@@ -1288,45 +1287,16 @@
   "hostingerAcceptance": {
     "archivedLegacy": "status-archive-2026-10.json#keys.hostingerAcceptanceLegacy20261015",
     "latestReleasePreparation": {
-      "observedAtUtc": "2026-10-25T23:57:53.350446+00:00",
       "sourceCommit": "b94e3ddc472827f1604b20f477a1e376597e83dc",
-      "implementationCommit": "a4a832298b3918d57347ada5bd67d684ba06876e",
-      "currentFastRun": 40236150477,
-      "fastStatus": "PASS actualcheckout alljobs",
+      "sourceRole": "PRECEDING_ONLY_NOT_CURRENT_RELEASE_ACCEPTANCE",
       "currentFullRun": 40236162417,
-      "fullStatus": "40236162417 attempt2 MATCHb94 retryAPI121330471327/E2E121330471679 active withdebuglogging; priorAngular/Domain/Verify successes retained. Attempt1 API hostedrunnerlostcommunication/noTRX; E2E336PASS3FAIL, exact3focusedPASS unchanged; no FULL_CI_PASS.",
-      "currentImageBuildRun": 40236150660,
-      "imageStatus": "PASS exactcheckout andimmutablepushes",
-      "imageDigests": {
-        "api": "ghcr.io/nirzaf/auditsphere-acceptance-api:b94e3ddc472827f1604b20f477a1e376597e83dc@sha256:62e40736bb1a67b8e05a5325e6d5d1c654b6bb4ca9ea85bb65d1554a128520b0",
-        "worker": "ghcr.io/nirzaf/auditsphere-acceptance-worker:b94e3ddc472827f1604b20f477a1e376597e83dc@sha256:60a5063d8a7feba74b28491aeaf9e53d2eedef600e7754cbc2cb3fd48ac0d385",
-        "migrations": "ghcr.io/nirzaf/auditsphere-acceptance-migrations:b94e3ddc472827f1604b20f477a1e376597e83dc@sha256:09b192a3a9e6e92760a411be2192f8a1fd765659b569c83747e16ef5985e6228"
+      "fullStatus": "Preceding40236162417 attempt2 E2E338PASS1FAIL; APIrunning withvisibleScheduleSource setup-token cancellation. Attempt1 hostedrunnerloss/noAPI_TRX retained. NoFULLPASS.",
+      "newSourceRequirement": {
+        "basis": "master commit introducing focused fixture deadline/readiness corrections",
+        "testPatchSha256": "5d2d36bc10ff2cbdfcfca5bee00b5b8f83f4b814af47f7d66bb8da942e0f72fc",
+        "status": "NEW_SOURCE_REQUIRES_EXACT_FAST_FULL_IMAGES_REHEARSAL"
       },
-      "currentSourceRehearsal": {
-        "status": "PASS_RESTORED_COPY_LATEST_SOURCE",
-        "report": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/rehearsal-b94.json",
-        "sourceSha": "b94e3ddc472827f1604b20f477a1e376597e83dc",
-        "migrationCountBefore": 286,
-        "migrationCountAfter": 286,
-        "migrationHead": "20261025144831_PbcStorageCommandReceipts",
-        "migrationsApplied": 0,
-        "originalTableCount": 379,
-        "originalRowsAndValuesUnchanged": true,
-        "apiChecks": {
-          "ready": 200,
-          "live": 200,
-          "ui": 200,
-          "uiAngularShellPresent": true,
-          "uiSlash": 200,
-          "uiSlashAngularShellPresent": true
-        },
-        "disposableDatabaseRemoved": true,
-        "ownedContainerRemoved": true,
-        "temporaryEnvironmentFilesRemoved": true,
-        "liveDatabaseChangedByRehearsal": false,
-        "liveContainersChangedByRehearsal": false
-      },
-      "cutoverStatus": "HELD_CURRENT_FULL_RETRY",
+      "cutoverStatus": "HELD_NEW_SOURCE_GATES",
       "mailBoundary": "Already paused at observed preflight; remains paused without genuine signed sender authorization.",
       "liveObserved": {
         "sourceCheckout": "bba5f4b902dac67905bcf3925410cd0a31ec703d",
@@ -1342,8 +1312,7 @@
         "deploymentProvenance": "Observed read-only; no claim this run deployed the earlier source.",
         "latestSourceDeployed": false
       },
-      "backupPreparation": "Use observed project-owned Docker volume mounts, protected .env/overlay/config, and a fresh catalog-validated quiesced DB dump before live mutation. Preserve rollback evidence; no automatic destructive DB restore.",
-      "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-b94.json"
+      "history": "status-archive-2026-10.json#keys.hostingerPreparationBeforeFixtureDeadlineReadiness20261026"
     }
   },
   "apiAngularParity": {
@@ -1547,12 +1516,16 @@
   },
   "currentSourceCi": {
     "sourceCommit": "b94e3ddc472827f1604b20f477a1e376597e83dc",
-    "fastCi": "PASS run40236150477; alljobs actualcheckoutMATCH",
-    "releaseVerification": "40236162417 attempt2 MATCHb94 retryAPI121330471327/E2E121330471679 active withdebuglogging; priorAngular/Domain/Verify successes retained. Attempt1 API hostedrunnerlostcommunication/noTRX; E2E336PASS3FAIL, exact3focusedPASS unchanged; no FULL_CI_PASS.",
-    "imagePublication": "PASS run40236150660; exactcheckout and immutablemanifestpushes",
-    "runtimeRehearsal": "PASS exactb94: schema286/0migrations/379original projectionsunchanged; health+bothuncachedAngularroots200; ownedDB/container/privateenvcleanupverified read-only",
-    "cutoverStatus": "HELD_CURRENT_FULL_RETRY",
-    "updatedAtUtc": "2026-10-25T23:57:53.350446+00:00"
+    "sourceRole": "PRECEDING_CANDIDATE_ONLY; latest master fixture correction requires fresh exact-source evidence",
+    "fastCi": "Preceding40236150477 PASS; not evidence for new test source",
+    "releaseVerification": "Preceding40236162417 attempt2 E2E338PASS1FAIL; APIrunning withvisibleScheduleSource setup-token cancellation. Attempt1 hostedrunnerloss/noAPI_TRX retained. NoFULLPASS.",
+    "nextCandidate": {
+      "basis": "master commit introducing focused fixture deadline/readiness corrections",
+      "testPatchSha256": "5d2d36bc10ff2cbdfcfca5bee00b5b8f83f4b814af47f7d66bb8da942e0f72fc",
+      "status": "NEW_SOURCE_REQUIRES_EXACT_FAST_FULL_IMAGES_REHEARSAL"
+    },
+    "cutoverStatus": "HELD_NEW_SOURCE_GATES",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeFixtureDeadlineReadiness20261026"
   },
-  "updatedAtUtc": "2026-10-25T23:57:53.350446+00:00"
+  "updatedAtUtc": "2026-10-26T01:57:20.452309+00:00"
 }

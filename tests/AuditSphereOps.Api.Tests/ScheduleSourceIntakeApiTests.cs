@@ -196,12 +196,14 @@ public sealed class ScheduleSourceIntakeApiTests
         using var preparerFactory = Factory(pg.ConnectionString, f.Staff);
         using var preparerClient = preparerFactory.CreateClient(new() { AllowAutoRedirect = false });
         await SignIn(preparerClient);
+        // Host startup and sign-in are fixture preparation, not part of the protected-read budget.
+        using var readTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         using var forbidden = await preparerClient.GetAsync(root +
-          $"?captureHash={captured.Value.Receipt.ManifestHash}&offset=0&limit=1", ct);
+          $"?captureHash={captured.Value.Receipt.ManifestHash}&offset=0&limit=1", readTimeout.Token);
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
 
         using var response = await reviewerClient.GetAsync(root +
-          $"?captureHash={captured.Value.Receipt.ManifestHash}&offset=0&limit=1", ct);
+          $"?captureHash={captured.Value.Receipt.ManifestHash}&offset=0&limit=1", readTimeout.Token);
         var page = await ReadValueAsync(response);
         Assert.Equal(captured.Value.Receipt.ManifestHash, page.GetProperty("captureHash").GetString());
         Assert.Equal(0, page.GetProperty("offset").GetInt32());
