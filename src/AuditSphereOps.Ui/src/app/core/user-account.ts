@@ -1,8 +1,10 @@
 import { Component, ElementRef, effect, inject, viewChild } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { SessionService } from './session';
 
 @Component({
   selector: 'audit-user-account',
+  imports: [RouterLink],
   template: `
     @if (session.current(); as account) {
       <details #panel tabindex="-1" (keydown.escape)="close($event)">
@@ -17,6 +19,9 @@ import { SessionService } from './session';
           <p class="account-name">{{ account.displayName || 'Name unavailable' }}</p>
           <p>{{ account.email || 'Email unavailable' }}</p>
           <p>{{ account.staff ? 'Firm workspace' : 'Client portal' }}</p>
+          @if (account.staff) {
+            <a routerLink="/app/profile" (click)="dismiss()">View and update your profile</a>
+          }
           @if (account.microsoftAccount) {
             <p>Your identity is managed by your Microsoft organization. Use the same account shown above.</p>
             <a href="https://myaccount.microsoft.com/personal-info" target="_blank" rel="noopener noreferrer">
@@ -64,6 +69,10 @@ export class UserAccount {
       const panel = this.panel()?.nativeElement;
       if (panel) panel.open = false;
     });
+  }
+  dismiss(): void {
+    const panel = this.panel()?.nativeElement;
+    if (panel) panel.open = false;
   }
   close(event: Event): void {
     const panel = this.panel()?.nativeElement;

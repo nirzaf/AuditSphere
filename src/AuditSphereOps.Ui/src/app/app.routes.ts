@@ -146,6 +146,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/audit/plan').then(m => m.AuditPlan) },
   { path: 'app/practice/time', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Time & work records · AuditSphere',
     loadComponent: () => import('./features/practice/time').then(m => m.PracticeTime) },
+  { path: 'app/profile', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'My profile · AuditSphere',
+    loadComponent: () => import('./features/profile/profile').then(m => m.UserProfilePage) },
   { path: 'app/work', canActivate: [staffGuard], title: 'My work · AuditSphere',
     loadComponent: () => import('./features/practice/work-queue').then(m => m.WorkflowWorkQueue) },
   { path: 'app/practice/workflow-templates', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Workflow templates · AuditSphere',

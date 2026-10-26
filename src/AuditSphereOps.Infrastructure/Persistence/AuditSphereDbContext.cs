@@ -22,6 +22,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   AuditSphereOps.Application.Operations.IRecordsArchiveCopyDbContext
 {
   public DbSet<AppUser> Users => Set<AppUser>();
+  public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
   public DbSet<AssessmentCommandReceipt> AssessmentCommandReceipts => Set<AssessmentCommandReceipt>();
   public DbSet<ResourcePlanningReceipt> ResourcePlanningReceipts => Set<ResourcePlanningReceipt>();
   public DbSet<TimeEntryChangeReceipt> TimeEntryChangeReceipts => Set<TimeEntryChangeReceipt>();
@@ -641,6 +642,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureAssessmentReceipts(b);
     ConfigureResourcePlanningReceipts(b);
     ConfigureTimeEntryChanges(b);
+    ConfigureUserProfiles(b);
     ConfigureEngagementCreations(b);
     ConfigureBudgetPreparations(b);
     ConfigureBudgetApprovals(b);

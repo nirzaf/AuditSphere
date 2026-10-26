@@ -117,8 +117,12 @@ public static partial class ApiHost
               context.Fail("The identity is not assigned or is disabled.");
               return;
             }
-            await db.Users.Where(x => x.Id == user.Id).ExecuteUpdateAsync(x =>
-              x.SetProperty(u => u.LastSignInAt, DateTimeOffset.UtcNow), context.HttpContext.RequestAborted);
+            // The Microsoft display name is the source of the user's full name; a blank claim keeps the stored name.
+            var fullName = AuditSphereOps.Application.Security.UserProfileService.SignInFullName(
+              context.Principal?.FindFirst("name")?.Value);
+            await db.Users.Where(x => x.Id == user.Id).ExecuteUpdateAsync(x => x
+              .SetProperty(u => u.LastSignInAt, DateTimeOffset.UtcNow)
+              .SetProperty(u => u.DisplayName, u => fullName ?? u.DisplayName), context.HttpContext.RequestAborted);
             var claimsIdentity = (ClaimsIdentity)context.Principal!.Identity!;
             foreach (var existing in claimsIdentity.FindAll(TrustedActorResolver.SessionEpochClaimType).ToList())
               claimsIdentity.RemoveClaim(existing);

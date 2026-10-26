@@ -274,6 +274,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<AppUser> Users { get; }
   DbSet<RoleGrant> RoleGrants { get; }
   DbSet<RoleGrantChangeEvidence> RoleGrantChangeEvidences { get; }
+  DbSet<UserProfile> UserProfiles { get; }
   DbSet<Microsoft365SetupSession> Microsoft365SetupSessions { get; }
   DbSet<TenantConsentAttempt> TenantConsentAttempts { get; }
   DbSet<Microsoft365SetupDraft> Microsoft365SetupDrafts { get; }

@@ -32617,6 +32617,57 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Security.UserProfile", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateOnly?>("DateOfBirth")
+                        .HasColumnType("date")
+                        .HasColumnName("date_of_birth");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Gender")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("gender");
+
+                    b.Property<DateOnly?>("JoinedDate")
+                        .HasColumnType("date")
+                        .HasColumnName("joined_date");
+
+                    b.Property<string>("MobileNumber")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("mobile_number");
+
+                    b.Property<string>("Position")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("position");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("FirmId", "UserId");
+
+                    b.ToTable("user_profiles", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_user_profiles", "revision >= 1 AND (gender IS NULL OR gender IN ('FEMALE','MALE','OTHER','PREFER_NOT_TO_SAY')) AND (position IS NULL OR length(position) >= 1) AND (mobile_number IS NULL OR length(mobile_number) >= 7) AND (joined_date IS NULL OR date_of_birth IS NULL OR joined_date > date_of_birth)");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Acceptance.AcceptanceDecision", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
@@ -39844,6 +39895,16 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "TargetUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Security.UserProfile", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "UserId")
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

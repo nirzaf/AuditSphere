@@ -1,12 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
+import { provideRouter } from '@angular/router';
 import { UserAccount } from './user-account';
 import { SessionService } from './session';
 
 describe('signed-in account profile', () => {
   afterEach(() => TestBed.resetTestingModule());
   it('shows the current identity, routes profile management to Microsoft, and clears on identity loss', async () => {
-    TestBed.configureTestingModule({ imports: [UserAccount], providers: [provideHttpClient()] });
+    TestBed.configureTestingModule({ imports: [UserAccount], providers: [provideHttpClient(), provideRouter([{ path: '**', children: [] }])] });
     const session = TestBed.inject(SessionService);
     const account = { userId: '00000000-0000-0000-0000-000000000001', firmId: '00000000-0000-0000-0000-000000000010',
       generation: '1', staff: true, displayName: 'Alex Reviewer', email: 'alex@example.invalid', microsoftAccount: true };
@@ -18,8 +19,15 @@ describe('signed-in account profile', () => {
     const details = root.querySelector('details')!;
     details.open = true;
     expect(root.querySelector('.profile')?.textContent).toContain('alex@example.invalid');
-    expect(root.querySelector('a')?.getAttribute('href')).toBe('https://myaccount.microsoft.com/personal-info');
-    expect(root.querySelector('a')?.getAttribute('rel')).toContain('noreferrer');
+    const microsoft = root.querySelector('a[target="_blank"]');
+    expect(microsoft?.getAttribute('href')).toBe('https://myaccount.microsoft.com/personal-info');
+    expect(microsoft?.getAttribute('rel')).toContain('noreferrer');
+    // Staff open their own AuditSphere profile from the same menu, which then closes.
+    const profile = [...root.querySelectorAll('a')].find(a => a.textContent?.includes('View and update your profile'));
+    expect(profile?.getAttribute('href')).toBe('/app/profile');
+    profile!.click();
+    expect(details.open).toBe(false);
+    details.open = true;
     details.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(details.open).toBe(false);
     expect(document.activeElement).toBe(root.querySelector('summary'));
