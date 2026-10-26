@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { Api, CommandState, queryParam } from '../../core/api';
 import { guidPattern } from '../../core/contracts';
@@ -76,7 +77,10 @@ export function displayUtcInstant(value: string | null): string {
 
 @Component({
   selector: 'audit-consolidation',
-  imports: [FormsModule, RouterLink, ConsolidationGroupMembership, ...SHARED],
+  imports: [FormsModule, MatButtonModule, RouterLink, ConsolidationGroupMembership, ...SHARED],
+  styles: [`
+    .form-submit { justify-self: start; max-width: 100%; min-height: 44px; }
+  `],
   template: `
     <nav aria-label="Consolidation location"><a routerLink="/app/accounting">Accounting</a> / <span>Group consolidation</span></nav>
     <audit-page-header title="Group consolidation" eyebrow="Group accounting" description="Approved group perimeters and component packs. Consolidation never mutates component client books." />
@@ -121,7 +125,7 @@ export function displayUtcInstant(value: string | null): string {
             <label>Group code * <input name="groupCode" [(ngModel)]="groupCode" maxlength="100" required /></label>
             <label>Group name * <input name="groupName" [(ngModel)]="groupName" maxlength="300" required /></label>
             @if (createValidation()) { <p role="alert">{{ createValidation() }}</p> }
-            <button type="submit" [disabled]="createCommand.busy() || createCommand.uncertain()">{{ createCommand.busy() ? 'Creating…' : 'Create accounting group' }}</button>
+            <button matButton="filled" class="form-submit" type="submit" [disabled]="createCommand.busy() || createCommand.uncertain()">{{ createCommand.busy() ? 'Creating…' : 'Create accounting group' }}</button>
           </form>
           @if (createCommand.uncertain()) {
             <section class="recovery" aria-labelledby="group-recovery-heading">
@@ -190,7 +194,7 @@ export function displayUtcInstant(value: string | null): string {
                   </select></label>
                 }
                 @if (scopeValidation()) { <p role="alert">{{ scopeValidation() }}</p> }
-                <button type="submit" [disabled]="scopeCommand.busy() || scopeCommand.uncertain() || !options.canCreateScope || !options.periods.length">
+                <button matButton="filled" class="form-submit" type="submit" [disabled]="scopeCommand.busy() || scopeCommand.uncertain() || !options.canCreateScope || !options.periods.length">
                   {{ scopeCommand.busy() ? 'Creating scope…' : 'Create scope version' }}
                 </button>
               </form>
