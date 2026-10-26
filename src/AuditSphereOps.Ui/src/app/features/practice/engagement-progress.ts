@@ -255,7 +255,7 @@ export class ClientProgress {
   readonly clientId = input.required<string>();
   readonly page = linkedSignal({ source: this.clientId, computation: () => 0 });
   readonly view = progressResource(() => this.clientId()
-    ? `/api/ui/clients/${this.clientId()}/progress${this.page() > 0 ? '?page=' + this.page() : ''}` : null,
+    ? `/api/ui/clients/${this.clientId()}/progress` + (this.page() > 0 ? '?page=' + this.page() : '') : null,
     decodeProgressList, 'Client progress is not available in your current scope.');
 
   changePage(direction: number) {
@@ -289,6 +289,6 @@ export class ClientProgress {
 })
 export class PortfolioProgress {
   readonly page = signal(0);
-  readonly view = progressResource(() => `/api/ui/portfolio/progress${this.page() > 0 ? '?page=' + this.page() : ''}`,
+  readonly view = progressResource(() => '/api/ui/portfolio/progress' + (this.page() > 0 ? '?page=' + this.page() : ''),
     decodeProgressList, 'Portfolio progress is not available in your current scope.');
 }
