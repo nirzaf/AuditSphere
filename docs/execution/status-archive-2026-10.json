@@ -26454,6 +26454,15 @@
       "e2eResult": "Existing acknowledged/lostLIFT2PASS plus LOCAL_ONLY cancellation/active recoverysession2PASS. Initialcapture waits all3GETs andassertsHTTP200/canLift; originalassent/onePOST/history/counters preserved,30stimeouts unchanged. CIinterceptionrace not locallyproven; no runtimefix claimed.",
       "remaining": "New exact-source fast/full/images/rehearsal required before Acceptance. Precedingb94attempt2 E2E338/1; APIstillrunning with evidenced setup-token cancellation. No full local suite.",
       "publishedCommit": "a948479b4a2bc688a47018fab06536cdc2268ca9"
+    },
+    "axelorReceiptRaceBeforeProfileRefreshFixtureCorrection20261026": {
+      "status": "CURRENT_FAST_IMAGES_REHEARSAL_ANGULAR_DOMAIN_VERIFY_PASS_FULL_API_E2E_PENDING",
+      "source": "63c96a085e10a1cd77dd855ef1d77cb6e2b2e085",
+      "change": "Test-only UX-AC39 publication race/no-clamp regression G1/R1/G1; runtime restored byte-exactly. Prior focused record retained verbatim in archive.",
+      "gates": "Fast40290998864/images40291143949 allactualcheckoutPASS; exact restoredcopyPASS286/0migrations/379unchangedprojections/health+bothUIroots200/cleanup. Full40291112402 MATCH: Angular1664/Domain1749noskips/VerifyPASS; API/E2E RUNNING08:42UTC.",
+      "preflight": "Fresh VPS read-only actual executor preflightPASS08:35UTC; source/image/privateconfig/mountcoverage/safety unchanged, core up/mail paused. Not finalbackup/cutover. API discoveryonly420cases vs395precedingpartialpasses, zero localAPI tests executed; no namedfailure inferred.",
+      "evidence": ".local/autonomous/evidence/ux-ac39-20261026/release-preparation-63c9-review.json",
+      "remaining": "Current API/E2E/full contractPASS, freshquiescedbackup and authorized Acceptancecutover. All56finalverdicts pending; no full local suites or fabricated approvals."
     }
   },
   "lastUpdatedOn": "2026-10-26"

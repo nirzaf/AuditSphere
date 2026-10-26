@@ -72,6 +72,8 @@ public sealed class AngularAccountingJourneyTests
     await chartPanel.GetByRole(AriaRole.Button, new() { Name = "Add reviewed account", Exact = true }).ClickAsync();
     await chartPanel.GetByRole(AriaRole.Button, new() { Name = "View accounts · revision 2", Exact = true }).ClickAsync();
     await Assertions.Expect(chartPanel.GetByRole(AriaRole.Cell, new() { Name = "Reviewed next cash", Exact = true })).ToBeVisibleAsync();
+    var workspacePath = $"/api/ui/accounting/clients/{host.Fixture.ClientId}";
+    var profilePath = workspacePath + "/profile";
     var profile = accounting.Locator("form").Filter(new() { Has = page.GetByRole(AriaRole.Heading, new() { Name = "Create accounting profile", Exact = true }) });
     await profile.GetByLabel("Jurisdiction", new() { Exact = true }).FillAsync("QA");
     await profile.GetByLabel("Functional currency", new() { Exact = true }).FillAsync("QAR");
@@ -79,10 +81,19 @@ public sealed class AngularAccountingJourneyTests
     await profile.GetByLabel("Source identifier", new() { Exact = true }).FillAsync("SYNTHETIC");
     await Assertions.Expect(profile.GetByRole(AriaRole.Button, new() { Name = "Save profile" })).ToBeDisabledAsync();
     await profile.GetByRole(AriaRole.Checkbox).CheckAsync();
-    await profile.GetByRole(AriaRole.Button, new() { Name = "Save profile" }).ClickAsync();
+    var created = await PlaywrightResponseCapture.RunMultipleAsync(page,
+      [request => request.Method == "POST" && new Uri(request.Url).AbsolutePath == profilePath,
+       request => request.Method == "GET" && new Uri(request.Url).AbsolutePath == workspacePath],
+      () => profile.GetByRole(AriaRole.Button, new() { Name = "Save profile" }).ClickAsync());
+    Assert.Equal(200, created[0].Status);
+    Assert.Equal(200, created[1].Status);
+    using (var refreshed = JsonDocument.Parse(created[1].Body))
+    {
+      Assert.Equal(host.Fixture.ClientId.ToString(), refreshed.RootElement.GetProperty("clientId").GetString());
+      Assert.Equal("1", refreshed.RootElement.GetProperty("profile").GetProperty("revision").GetString());
+    }
     await Assertions.Expect(accounting.GetByRole(AriaRole.Heading, new() { Name = "Revise accounting profile", Exact = true })).ToBeVisibleAsync();
     var revisionForm = accounting.Locator("form").Filter(new() { Has = page.GetByRole(AriaRole.Heading, new() { Name = "Revise accounting profile", Exact = true }) });
-    var profilePath = $"/api/ui/accounting/clients/{host.Fixture.ClientId}/profile";
     var expectedRevision = 1;
     foreach (var (currency, reason) in new[]
     {
@@ -94,13 +105,21 @@ public sealed class AngularAccountingJourneyTests
       await revisionForm.GetByRole(AriaRole.Checkbox).CheckAsync();
       await Assertions.Expect(revisionForm.GetByRole(AriaRole.Button, new() { Name = "Save profile", Exact = true })).ToBeDisabledAsync();
       await revisionForm.GetByLabel("Reason for accounting basis change", new() { Exact = true }).FillAsync(reason);
-      var saved = await PlaywrightResponseCapture.RunAsync(page,
-        request => request.Method == "POST" && new Uri(request.Url).AbsolutePath == profilePath,
+      var responses = await PlaywrightResponseCapture.RunMultipleAsync(page,
+        [request => request.Method == "POST" && new Uri(request.Url).AbsolutePath == profilePath,
+         request => request.Method == "GET" && new Uri(request.Url).AbsolutePath == workspacePath],
         () => revisionForm.GetByRole(AriaRole.Button, new() { Name = "Save profile", Exact = true }).ClickAsync());
+      var saved = responses[0];
       Assert.Equal(200, saved.Status);
       expectedRevision++;
       using (var response = JsonDocument.Parse(saved.Body))
         Assert.Equal(expectedRevision.ToString(), response.RootElement.GetProperty("revision").GetString());
+      Assert.Equal(200, responses[1].Status);
+      using (var refreshed = JsonDocument.Parse(responses[1].Body))
+      {
+        Assert.Equal(host.Fixture.ClientId.ToString(), refreshed.RootElement.GetProperty("clientId").GetString());
+        Assert.Equal(expectedRevision.ToString(), refreshed.RootElement.GetProperty("profile").GetProperty("revision").GetString());
+      }
       await Assertions.Expect(revisionForm.GetByRole(AriaRole.Checkbox,
         new() { Name = $"I reviewed this client profile and revision {expectedRevision}.", Exact = true })).Not.ToBeCheckedAsync();
       await Assertions.Expect(revisionForm.GetByLabel("Functional currency", new() { Exact = true })).ToHaveValueAsync(currency);
