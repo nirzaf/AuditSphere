@@ -1097,13 +1097,19 @@
       "publishedCommit": "a948479b4a2bc688a47018fab06536cdc2268ca9"
     },
     "axelorResponsiveFacts20261026": {
-      "status": "CURRENT_FAST_IMAGES_REHEARSAL_ANGULAR_DOMAIN_VERIFY_PASS_FULL_API_E2E_PENDING",
+      "status": "PRECEDING_SOURCE_RUNTIME_BROWSER_AND_PARTIAL_RELEASE_GATES_PASSED",
       "source": "b4fe8cf29533d50139724c3c51e8f58ebafc9be9",
-      "change": "Shared facts stack below40rem; actual builtin narrow+wide values/filters/focus verified. Original browser/local record retained verbatim in archive.",
-      "gates": "Fast40280799790 all3actualcheckoutPASS; images40280799868 all3actualcheckout/pinned digestsPASS. Full40281043148 sourceMATCH: Angular182files1664PASS, Domain1748executed/allPASS/0skip, VerifyPASS; API/E2E RUNNING observed2026-10-26T07:12:10Z.",
-      "rehearsal": "Exactb4fe restoredcopyPASS schema286/0migrations/379unchangedprojections/health+bothUIroots200; cleanup+live source/image/privateconfig preservation independently verified. Runtime-default guardPASS and wrongversion refused. No live cutover.",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.axelorResponsiveFactsBeforeReceiptRace20261026",
       "evidence": ".local/autonomous/evidence/ux-builtin-20261026/release-preparation-b4fe-review.json",
-      "remaining": "Current fullAPI/E2E/allPASS receipt, freshquiescedbackup and authorized Acceptancecutover. All56finalverdicts pending; no full local suites or invented human/provider/professional acceptance."
+      "remaining": "Its API/E2E remained running at08:11UTC; newer test-only AC39 candidate requires exact-source gates. Not deployed."
+    },
+    "axelorReceiptRace20261026": {
+      "status": "TEST_ONLY_FOCUSED_GREEN1_RED1_GREEN1_CURRENT_RELEASE_GATES_PENDING",
+      "sourceBase": "22279fc2bb2db1c87d9e4a3b2df35f3b539ed8a7",
+      "requirement": "UX-AC-39: two initially authorized actors contend for one receipt, one grant revoked before publication. Only permitted80of100 allocation/receipt persists; excess30 against20 remains refused, not clamped.",
+      "verification": "Existing BillingTests class: one exactmethod PASS; skipping only post-lock authority recheck RED1; runtime restored byte-exactly and same assertions finalPASS1. No runtime/UI/provider/permission change or full local suite.",
+      "evidence": ".local/autonomous/evidence/ux-ac39-20261026/review.json",
+      "remaining": "Fresh exact-source fast/full/images/rehearsal and authorized Acceptancecutover. All56finalverdicts pending; broader human/provider/professional limits unchanged."
     }
   },
   "externalGates": [

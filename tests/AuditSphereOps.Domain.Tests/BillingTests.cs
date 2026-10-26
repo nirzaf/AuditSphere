@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
@@ -148,6 +149,105 @@ public sealed class BillingTests
         $"UPDATE invoices SET total = 1 WHERE id = {invoiceId} AND firm_id = {fixture.FirmId}"));
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
         $"DELETE FROM receipts WHERE id = {receiptId} AND firm_id = {fixture.FirmId}"));
+    }
+  }
+
+  [Fact]
+  public async Task ConcurrentReceiptAllocations_RecheckRevokedAuthorityAndRefuseExcessWithoutClamping()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    Guid invoiceId, receiptId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var account = await BillingService.CreateBillingAccountAsync(setup, fixture.ManagerActor,
+        new CreateBillingAccountRequest(fixture.ClientId, "QAR"));
+      Assert.True(account.Succeeded, account.Message);
+      var invoice = await BillingService.CreateInvoiceDraftAsync(setup, fixture.ManagerActor,
+        new CreateInvoiceDraftRequest(account.Value, "INV-RECEIPT-RACE",
+          [new InvoiceLineRequest("Synthetic reviewed services", 1m, 200m)]));
+      Assert.True(invoice.Succeeded, invoice.Message);
+      invoiceId = invoice.Value;
+      Assert.True((await BillingService.SubmitInvoiceAsync(setup, fixture.ManagerActor, invoiceId)).Succeeded);
+      Assert.True((await BillingService.ApproveInvoiceAsync(setup, fixture.ReviewerActor, invoiceId)).Succeeded);
+      setup.FirmFinanceProfiles.Add(new FirmFinanceProfile
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, FunctionalCurrency = "QAR",
+        ProfileKind = BillingStates.TestProfile, Approved = true,
+        ApprovedByUserId = fixture.Reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await setup.SaveChangesAsync();
+      Assert.True((await BillingService.PostInvoiceAsync(setup, fixture.ManagerActor, invoiceId)).Succeeded);
+      var receipt = await BillingService.RecordReceiptAsync(setup, fixture.ManagerActor,
+        new RecordReceiptRequest(account.Value, 100m, "BANK-RECEIPT-RACE", RequestId: Guid.NewGuid()));
+      Assert.True(receipt.Succeeded, receipt.Message);
+      receiptId = receipt.Value;
+    }
+
+    // Both permitted actors pass initial authorization before either can publish an allocation.
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await using var transaction = await blocker.Database.BeginTransactionAsync(deadline.Token);
+    await blocker.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {fixture.FirmId} FOR UPDATE")
+      .SingleAsync(deadline.Token);
+    var firstLock = new ObserveBillingFirmLock();
+    var secondLock = new ObserveBillingFirmLock();
+    await using var firstWriter = new AuditSphereDbContext(
+      new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(firstLock).Options);
+    await using var secondWriter = new AuditSphereDbContext(
+      new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(secondLock).Options);
+    var permittedRequest = new AllocateReceiptRequest(receiptId, invoiceId, 80m, Guid.NewGuid());
+    var revokedRequest = permittedRequest with { RequestId = Guid.NewGuid() };
+    var permitted = BillingService.AllocateReceiptCommandAsync(
+      firstWriter, fixture.ManagerActor, permittedRequest, deadline.Token);
+    var revoked = BillingService.AllocateReceiptCommandAsync(
+      secondWriter, fixture.ReviewerActor, revokedRequest, deadline.Token);
+    await Task.WhenAll(firstLock.Reached.Task, secondLock.Reached.Task).WaitAsync(deadline.Token);
+    Assert.False(permitted.IsCompleted);
+    Assert.False(revoked.IsCompleted);
+    Assert.Equal(1, await blocker.RoleGrants.Where(x => x.FirmId == fixture.FirmId &&
+      x.UserId == fixture.Reviewer.Id && x.Role == "FinanceReviewer" && x.RevokedAt == null)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), deadline.Token));
+    await transaction.CommitAsync(deadline.Token);
+
+    var outcomes = await Task.WhenAll(permitted, revoked).WaitAsync(deadline.Token);
+    Assert.True(outcomes[0].Succeeded, outcomes[0].Message);
+    Assert.False(outcomes[1].Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, outcomes[1].ErrorCode);
+    Assert.Null(outcomes[1].Value);
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    var allocation = Assert.Single(await proof.ReceiptAllocations.Where(x => x.ReceiptId == receiptId).ToListAsync());
+    Assert.Equal((invoiceId, 80m), (allocation.InvoiceId, allocation.Amount));
+    var retained = Assert.Single(await proof.BillingCommandReceipts.Where(x => x.Action == "ALLOCATE_RECEIPT").ToListAsync());
+    Assert.Equal((fixture.Manager.Id, permittedRequest.RequestId, allocation.Id),
+      (retained.ActorId, retained.RequestId, retained.ResultId));
+
+    // Only 20 remains: a stale request for 30 must fail, never be clamped to that remainder.
+    var excess = await BillingService.AllocateReceiptCommandAsync(proof, fixture.ManagerActor,
+      permittedRequest with { Amount = 30m, RequestId = Guid.NewGuid() }, deadline.Token);
+    Assert.False(excess.Succeeded);
+    Assert.Equal("billing.over-allocation", excess.ErrorCode);
+    Assert.Single(await proof.ReceiptAllocations.Where(x => x.ReceiptId == receiptId).ToListAsync());
+    Assert.Single(await proof.BillingCommandReceipts.Where(x => x.Action == "ALLOCATE_RECEIPT").ToListAsync());
+    var posted = await proof.Invoices.AsNoTracking().SingleAsync(x => x.Id == invoiceId);
+    Assert.Equal((BillingStates.InvoicePosted, 200m), (posted.Status, posted.Total));
+    var balance = await BillingService.GetInvoiceBalanceAsync(proof, fixture.ManagerActor, invoiceId);
+    Assert.True(balance.Succeeded, balance.Message);
+    Assert.Equal((200m, 80m, 120m), (balance.Value!.Total, balance.Value.Allocated, balance.Value.Outstanding));
+  }
+
+  private sealed class ObserveBillingFirmLock : DbCommandInterceptor
+  {
+    public TaskCompletionSource<bool> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+      CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("firm_safety_states", StringComparison.Ordinal) &&
+          command.CommandText.Contains("FOR UPDATE", StringComparison.Ordinal)) Reached.TrySetResult(true);
+      return ValueTask.FromResult(result);
     }
   }
 
