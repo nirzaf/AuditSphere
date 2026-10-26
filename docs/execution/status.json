@@ -1097,13 +1097,13 @@
       "publishedCommit": "a948479b4a2bc688a47018fab06536cdc2268ca9"
     },
     "axelorResponsiveFacts20261026": {
-      "status": "LOCAL_BUILD_FOCUSED_RESOURCE_BROWSER_VERIFIED_EXACT_CI_PENDING",
-      "sourceBase": "a948479b4a2bc688a47018fab06536cdc2268ca9",
-      "styleSha256": "651b9f2b830b4fc749f32bf2869b92dd027bd50514b4e7d41d3dd38c89d0fa2d",
-      "change": "Shared dl.facts pairs stack below40rem; desktop columns retained. Actual builtin390px exposed cramped value column; no financial, permission or command change.",
-      "verification": "PinnedNode26.8.1 productionbuildPASS; resources component16PASS; focused resourcejourney1PASS afterfix. Actual builtin narrow+wide facts/filters/focus and invoice source/read-first preparation verified; no builtin financial writes. Proposal revision/draft guard verified. No full local suite. Pipeline board/table, QAR/open-stage filters and consoleerror/warn[] verified inbuiltin; existing commercialrole/refusal journey1PASS.",
-      "evidence": ".local/autonomous/evidence/ux-builtin-20261026/review.json",
-      "remaining": "Fresh current-source fast/fullCI, immutableimages, exactrehearsal, freshquiescedbackup and authorizedAcceptancecutover. Whole56 verdicts pending; no broader human/provider/professional certification."
+      "status": "CURRENT_FAST_IMAGES_REHEARSAL_ANGULAR_DOMAIN_VERIFY_PASS_FULL_API_E2E_PENDING",
+      "source": "b4fe8cf29533d50139724c3c51e8f58ebafc9be9",
+      "change": "Shared facts stack below40rem; actual builtin narrow+wide values/filters/focus verified. Original browser/local record retained verbatim in archive.",
+      "gates": "Fast40280799790 all3actualcheckoutPASS; images40280799868 all3actualcheckout/pinned digestsPASS. Full40281043148 sourceMATCH: Angular182files1664PASS, Domain1748executed/allPASS/0skip, VerifyPASS; API/E2E RUNNING observed2026-10-26T07:12:10Z.",
+      "rehearsal": "Exactb4fe restoredcopyPASS schema286/0migrations/379unchangedprojections/health+bothUIroots200; cleanup+live source/image/privateconfig preservation independently verified. Runtime-default guardPASS and wrongversion refused. No live cutover.",
+      "evidence": ".local/autonomous/evidence/ux-builtin-20261026/release-preparation-b4fe-review.json",
+      "remaining": "Current fullAPI/E2E/allPASS receipt, freshquiescedbackup and authorized Acceptancecutover. All56finalverdicts pending; no full local suites or invented human/provider/professional acceptance."
     }
   },
   "externalGates": [

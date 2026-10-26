@@ -26413,6 +26413,15 @@
         "precedingOutcome": "Attempt1 exceeded3h; no final API TRX or observed failed assertion. Root cause unproven.",
         "proof": ".local/autonomous/evidence/axelor-final-20261025/a948-api-attempt1-terminal-review.json"
       }
+    },
+    "axelorResponsiveFactsBeforeExactImageRehearsal20261026": {
+      "status": "LOCAL_BUILD_FOCUSED_RESOURCE_BROWSER_VERIFIED_EXACT_CI_PENDING",
+      "sourceBase": "a948479b4a2bc688a47018fab06536cdc2268ca9",
+      "styleSha256": "651b9f2b830b4fc749f32bf2869b92dd027bd50514b4e7d41d3dd38c89d0fa2d",
+      "change": "Shared dl.facts pairs stack below40rem; desktop columns retained. Actual builtin390px exposed cramped value column; no financial, permission or command change.",
+      "verification": "PinnedNode26.8.1 productionbuildPASS; resources component16PASS; focused resourcejourney1PASS afterfix. Actual builtin narrow+wide facts/filters/focus and invoice source/read-first preparation verified; no builtin financial writes. Proposal revision/draft guard verified. No full local suite. Pipeline board/table, QAR/open-stage filters and consoleerror/warn[] verified inbuiltin; existing commercialrole/refusal journey1PASS.",
+      "evidence": ".local/autonomous/evidence/ux-builtin-20261026/review.json",
+      "remaining": "Fresh current-source fast/fullCI, immutableimages, exactrehearsal, freshquiescedbackup and authorizedAcceptancecutover. Whole56 verdicts pending; no broader human/provider/professional certification."
     }
   },
   "lastUpdatedOn": "2026-10-26"
