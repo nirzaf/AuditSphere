@@ -133,6 +133,8 @@ public static class EngagementProgressQuery
       foreach (var (bindingId, rules) in await WorkflowTaskEvidenceQuery.EvaluateManyAsync(db, f, page, ct))
         evidence.Add(bindingId, rules);
     var currentCompleted = rows.Where(x => x.Status == PracticeTimeStates.TaskCompleted &&
+        // Follow-up task completion requires the linked PBC to be accepted or closed; recheck its current state.
+        (!x.Binding.PbcRequestId.HasValue || x.PbcState is PbcStates.Accepted or PbcStates.Closed) &&
         !evidence[x.Binding.Id].Any(rule => rule.State == WorkflowEvidenceRuleStates.Required && !rule.Satisfied))
       .Select(x => x.Binding.Id).ToHashSet();
     var dependents = dependencies.ToLookup(edge => edge.PredecessorBindingId, edge => edge.SuccessorBindingId);
@@ -160,7 +162,8 @@ public static class EngagementProgressQuery
         // Rework and other non-template engagement tasks are commitments the engagement must still discharge.
         x.RequiredTask is { } required ? WorkflowStepRequirements.Classify(required, x.Condition) : WorkflowStepRequirements.Mandatory,
         x.Status, notApplicableBindings.Contains(x.Binding.Id), unmetByBinding.GetValueOrDefault(x.Binding.Id),
-        evidence.GetValueOrDefault(x.Binding.Id)?.Count(r => r.State == WorkflowEvidenceRuleStates.Required && !r.Satisfied) ?? 0,
+        (evidence.GetValueOrDefault(x.Binding.Id)?.Count(r => r.State == WorkflowEvidenceRuleStates.Required && !r.Satisfied) ?? 0) +
+          (x.Binding.PbcRequestId.HasValue && x.PbcState is not (PbcStates.Accepted or PbcStates.Closed) ? 1 : 0),
         x.Binding.PbcRequestId.HasValue && x.PbcState is not (PbcStates.Accepted or PbcStates.Closed),
         x.Binding.ReviewProcedureResultId.HasValue, x.AssigneeUserId, x.DueDate, x.Condition)).ToList();
 

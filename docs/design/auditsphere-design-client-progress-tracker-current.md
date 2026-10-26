@@ -25,7 +25,7 @@ A conditional step is recorded as not applicable only through an authorized canc
 
 `Domain/Practice/EngagementProgress.cs` (`EngagementProgressCalculator`) is a pure calculator over facts read by `Application/Practice/EngagementProgressQuery.cs`:
 
-- **Completed:** a completed task whose evidence prerequisites are still current. A completed task with stale or missing evidence is blocked. Currentness propagates through required dependencies, so a completed successor is blocked when any prerequisite in its dependency chain is no longer current. Persisted completion history remains unchanged.
+- **Completed:** a completed task whose evidence prerequisites and directly linked PBC request are still current. A completed task with stale, missing or no-longer-accepted evidence is blocked, even if its operational status remains completed. Currentness propagates through required dependencies, so a completed successor is blocked when any prerequisite in its dependency chain is no longer current. Persisted completion history remains unchanged.
 - **Blocked:** an open task waiting on prerequisite tasks; a cancelled required task without a current explicit non-applicability decision; a completed task with stale evidence.
 - **Pending:** every other open or in-progress task, annotated with rework, waiting-for-client or pending-evidence conditions.
 - **Percent complete:** completed ÷ applicable required steps, rounded down. It is empty when the plan has no applicable required step, and capped at 99% while any gate is open.

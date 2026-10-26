@@ -104,6 +104,21 @@ public sealed class PbcWorkflowTaskTests
       Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
       Assert.Equal(PracticeTimeStates.TaskInProgress,
         (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == firstTaskId)).Status);
+
+      // Deliberately seed an inconsistent historical completion, bypassing the command, to verify the read
+      // never trusts the task status after linked source evidence is missing or unaccepted.
+      var task = await db.WorkTasks.SingleAsync(x => x.Id == firstTaskId);
+      task.Status = PracticeTimeStates.TaskCompleted;
+      task.CompletedAt = DateTimeOffset.UtcNow;
+      await db.SaveChangesAsync();
+      var stale = await EngagementProgressQuery.GetAsync(db, staff, fixture.EngagementId);
+      Assert.True(stale.Succeeded, stale.Message);
+      var staleStep = Assert.Single(stale.Value!.Steps, step => step.TaskId == firstTaskId);
+      Assert.Equal(EngagementProgressStepStates.Blocked, staleStep.State);
+      Assert.Contains("evidence", staleStep.Condition!, StringComparison.OrdinalIgnoreCase);
+      task.Status = PracticeTimeStates.TaskInProgress;
+      task.CompletedAt = null;
+      await db.SaveChangesAsync();
     }
 
     // Arrange the accepted source-record state directly to isolate the linked task's server-side completion gate.
