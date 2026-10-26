@@ -1497,7 +1497,24 @@
       },
       "releaseAcceptance": "NOT_VERIFIED"
     },
-    "nextTechnicalSlice": "Select the next slice from CURRENT requirements. Due-PBC reviewer escalation is already configurable; event notifications need approved event/recipient/channel semantics; recurring monthly accounting handover remains PROPOSED."
+    "nextTechnicalSlice": "Select the next slice from CURRENT requirements. Due-PBC reviewer escalation is already configurable; event notifications need approved event/recipient/channel semantics; recurring monthly accounting handover remains PROPOSED.",
+    "clientProgressTracker": {
+      "codeCommits": [
+        "09a59e1f207661890fddf4f6f761717af5bad390",
+        "7433e594af8d38638780c6cff7a890d8d30dd6d6"
+      ],
+      "design": "docs/design/auditsphere-design-client-progress-tracker-current.md",
+      "result": "FOCUSED_PASS_BROWSER_PASS_FAST_CI_PASS",
+      "focusedTests": "EngagementProgressCalculatorTests; EngagementWorkflowPlanTests.ProgressCountsApplicableCompletedStepsAndStaysBelowCompletionWhileGatesAreOpen; WorkflowTemplateTests.StepApplicabilityConditionKeepsLegacyDigestUntilStatedAndOnlyOnRequiredSteps; OpenApiContractTests 11/11; Angular engagement-progress, workflow-templates, work-queue, engagement-task-plan and client/engagement/portfolio workspace specs; E2E AngularClientProfile, AngularPortfolio and AngularEngagementProfile journeys 15/15.",
+      "browserCheck": "Built-in browser at 1440 px and 375 px on a seeded loopback host: engagement tracker, client and portfolio summaries render without page-level horizontal scroll; populated figures covered by specs, not by seeded browser data.",
+      "fastCi": {
+        "run": 40346005659,
+        "headSha": "7433e594af8d38638780c6cff7a890d8d30dd6d6",
+        "result": "FAST_CI_PASS"
+      },
+      "fullCi": "NOT_RUN",
+      "boundary": "Read-only projection over existing tasks, evidence, cancellations, holds, releases and the derived lifecycle; no new workflow state, approval or release decision. Non-audit route gates remain disclosed as unspecified pending D03."
+    }
   },
   "m365ClientTenantGuide": {
     "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",
