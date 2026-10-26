@@ -7,6 +7,8 @@
 
 **AuditSphereOps** is an audit, accounting, and practice-management platform for accounting firms. It connects client onboarding, engagement management, professional audit work, financial-statement preparation, time and billing, controlled deliverable release, records, and group consolidation within a **.NET modular monolith with an Angular frontend**.
 
+See [User types, role hierarchy and privileges](docs/architecture/auditsphere-architecture-user-roles-and-privileges-current.md) for the role charts, each user's capabilities, grant scopes and approval boundaries.
+
 > **Release status: under active development — not verified as 100% complete or production-ready.** Major functionality is implemented, but complete end-to-end acceptance, approved professional policies, live Microsoft 365/SharePoint evidence, operational recovery, and release sign-off remain separate obligations. Do not infer readiness from a route, UI page, green focused test, or documentation checkmark. Use the [current execution evidence](docs/execution/status.json), [active handoff](docs/execution/auditsphere-execution-current-slice.md), and [production-readiness tracker](docs/execution/auditsphere-execution-audit-production-readiness-gap-closure-current.md).
 >
 

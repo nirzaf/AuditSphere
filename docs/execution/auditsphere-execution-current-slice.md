@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## User roles and privileges guide (2026-10-26)
+
+The [user types and privileges guide](../architecture/auditsphere-architecture-user-roles-and-privileges-current.md) describes the standard assignment catalogue, selected backend-only role codes, engagement staffing hierarchy and exact grant scopes. It separates Microsoft directory authority from local application access and preserves independent professional and finance approval. It documents existing behavior; this documentation slice changes no role assignments, authorization code or release status. Verification is recorded in `targetedVerification.userRolePrivilegesGuide20261026` in [status.json](status.json).
+
 ## Practice management completion and tracker bounds (2026-10-26)
 
 The owner requested continued autonomous completion across the existing commercial-to-archive workflow, with a mandatory per-engagement and reporting-period progress tracker. Preserve the derived lifecycle, independent review, current source evidence and external acceptance gates. A focused regression reproduces the supported large-plan tracker failure: the progress query exceeded the existing evidence reader's task-page bound. The correction batches that read without relaxing evidence limits. Exact red/green results and current CI belong in `targetedVerification.practiceProgressBoundedEvidence20261026` in [status.json](status.json).

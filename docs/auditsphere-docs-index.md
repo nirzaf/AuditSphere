@@ -19,6 +19,7 @@ The repository ships Angular as the canonical staff/client presentation. The leg
 | Runtime architecture, boundaries and flows | [Current architecture](architecture/auditsphere-architecture-current-architecture.md) · [Code map](architecture/auditsphere-architecture-code-map.md) · [Enterprise target (PROPOSED)](architecture/auditsphere-architecture-specification-enterprise-target-proposed.md) |
 | Data, schema and HTTP contracts | [Data model](architecture/auditsphere-architecture-contract-data-model-current.md) · [HTTP boundary](architecture/auditsphere-architecture-http-boundary-and-contract-current.md) · [OpenAPI artifact](../contracts/auditsphere-openapi.json) |
 | Approved decisions and deviations | [ADR register](architecture/adr/auditsphere-architecture-index-adr-register-current.md) |
+| User types, roles and privileges | [Role hierarchy, capabilities and access scopes](architecture/auditsphere-architecture-user-roles-and-privileges-current.md) |
 | Product requirements | [STE v2.2 requirements](requirements/auditsphere-accounting-module-requirements-current.md) |
 | Audit programme execution | [Atomic specification](task_breakdown/source/auditsphere-audit-specification-working-process-atomic-proposed.md) · [Extracted 165-procedure source](task_breakdown/source/auditsphere-audit-working-process-procedures-source.md) |
 | Current state and evidence | [status.json](execution/status.json) · [Current-slice handoff](execution/auditsphere-execution-current-slice.md) · [Pending work](execution/auditsphere-execution-pending-tasks.md) |

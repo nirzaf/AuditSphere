@@ -26675,6 +26675,16 @@
       "fix": "Server reads at most501stable-ordered bindings per engagement, trims to500, and gates only that oversized plan. Detail/client/portfolio use identical bounds; existing evidence/scope limits retained.",
       "verification": "Actual PostgreSQL regression with1001task plan and separate engagement RED1/GREEN1; matched bounded counts and no neighbouring overflow gate. Existing101task/NA/optional/gate/denial assertions retained. No full local suite.",
       "evidence": ".local/autonomous/evidence/practice-completion-20261026/per-engagement-bound-review.json"
+    },
+    "accountingProfileRevisionAssent20261025BeforeRolesGuide20261026": {
+      "status": "FOCUSED_BUILD_AND_E2E_PASS_EXACT_FULL_PENDING",
+      "baseCommit": "69264b349b09c94ddac03eab2a3c426d24618519",
+      "change": "Clear assent to the prior immutable accounting-profile revision immediately after an acknowledged save, before asynchronous workspace refresh.",
+      "checks": "Angular production build PASS with the existing commercial/settings.scss 7.53 kB / 4 kB style-budget warning. Existing PostgreSQL-backed Playwright journey ReviewedSetupPersistsProfilePeriodAndBook PASS 1/1 after build; it verifies the next revision checkbox is unchecked and retained revision data is exact.",
+      "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularAccountingJourneyTests.ReviewedSetupPersistsProfilePeriodAndBook' --logger 'trx;LogFileName=accounting-profile-assent-built.trx' --results-directory .local/autonomous/evidence/accounting-profile-assent-built-20261025",
+      "evidence": ".local/autonomous/evidence/accounting-profile-assent-built-20261025/review.json",
+      "ci": "Predecessor 69264b349b09 passed Angular, Domain, and build/contracts/publication but its E2E failed. Corrected exact full run 40157541524 now resolves to 7703f3f868c232f857f0ca4c6109b99b93bc9f58 (MATCH) and is running; fast run 40157502647 is also running.",
+      "limits": "The focused E2E verifies profile revision assent behavior only. It does not establish full-suite, human screen-reader, native zoom, professional policy, or live-provider acceptance."
     }
   },
   "lastUpdatedOn": "2026-10-26"
