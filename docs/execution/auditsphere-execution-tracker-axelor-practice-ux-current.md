@@ -71,6 +71,19 @@ The existing published-template journey now follows its exact required task thro
 A retained previous-UI artifact was served against the additive current APIs on an owned disposable database. Existing lead-create recovery and client-scoped invoice read/revocation journeys passed. This rehearses the selected UI compatibility boundary without reversing schema or business records; it does not establish complete live rollback or provider acceptance. Source/artifact digests, exact commands and verdicts are in the proof packet referenced by the execution ledger. Full suites remain CI/CD-only.
 
 
+## UI rollback procedure and compatibility boundary
+
+The retained previous Angular bundle was exercised against the additive API on a disposable database. That selected-client rehearsal does not establish that an older API or worker image can run against the current schema. Use the existing release process for a forward repair; do not reverse business data to restore a layout.
+
+1. Retain the current source, immutable image digests, configuration and previous supported Angular bundle identity from the execution evidence. Identify the affected presentation paths and the exact prior behavior to restore.
+2. Prepare a reviewed forward commit restoring only the necessary presentation behavior. Keep existing URLs, additive API routes/fields, authorization owners, financial rules and pending-request/receipt contracts compatible. Do not blindly revert a combined feature commit that also contains server contracts or unrelated work.
+3. Rehearse the affected prior-client journey against the candidate API on an owned disposable fixture. Check direct links and refresh, scoped denial, preserved input and exact-request recovery; confirm that recovery observes the original outcome without sending a substitute command. Retain artifact identities and actual results. The earlier selected-client rehearsal is supporting evidence, not a pass for this new candidate.
+4. Run the affected focused checks locally and the required exact-source full verification in CI. Publish and rehearse the new immutable images through the existing release gates. Do not substitute a previously passing source or image for the repaired candidate.
+5. Apply an authorized Acceptance cutover only after those gates pass, with the required fresh quiesced backup and preserved configuration. Keep the database, approved/posted records, request identities, deployment safety fences and paused optional workers intact. A UI rollback does not authorize a database restore, schema reversal, provider reset or tenant permission change.
+6. Verify the deployed shell, assets, affected routes, sign-in and preserved recovery behavior; record the repaired source and scoped result in the execution ledger. If compatibility cannot be demonstrated, hold the cutover and diagnose the failed boundary instead of restoring business data automatically.
+
+This procedure is an engineering recovery path, not evidence that a live rollback has been performed. The operator deployment guide and its existing release controls remain authoritative.
+
 ## Final scoped acceptance rule
 
 The owner assigned completion of this entire UX specification. Applicable acceptance includes the existing action/route inventory, role and scope refusals, exact financial/source invariants, keyboard/responsive behavior, connected synthetic journeys, integration non-effects, previous-client compatibility and final exact-candidate full CI. The acceptance trace above covers every specified scenario; it does not turn a pending CI gate into a pass.

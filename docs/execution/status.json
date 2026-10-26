@@ -1046,7 +1046,12 @@
       "result": "Existing final role/report cohort2PASS, exactadvance1PASS, selected builtin commercial/scoped/financepair and source/actionparity reviewed. Direct final reminder1/calculator1/resourceAngular16PASS recorded separately. No full local suites.",
       "evidence": ".local/autonomous/evidence/axelor-final-20261025/acceptance-audit.json",
       "history": "status-archive-2026-10.json#archivedTargetedVerification.axelorFinalBeforeAcceptanceGapProof20261026",
-      "remaining": "Final current-source fullCI and authorized Acceptance cutover; no broader professional/provider/humanAT/nativezoom certification claimed."
+      "remaining": "Final current-source fullCI and authorized Acceptance cutover; no broader professional/provider/humanAT/nativezoom certification claimed.",
+      "rollbackInstructions": {
+        "path": "docs/execution/auditsphere-execution-tracker-axelor-practice-ux-current.md#ui-rollback-procedure-and-compatibility-boundary",
+        "status": "DOCUMENTED_NOT_EXECUTED",
+        "scope": "Forward presentation repair with additive API and exact request recovery preserved; fresh candidate gates required. No older backend/schema compatibility, live rollback, DB restore or schema reversal claimed."
+      }
     },
     "axelorInvoiceDescription20261026": {
       "status": "FOCUSED_FAST_IMAGES_REHEARSAL_PASS_FULL_PENDING",
