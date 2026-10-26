@@ -96,7 +96,7 @@ export const decodeTime = (value: unknown, path: string) => {
     <audit-state [loading]="view.loading()" [error]="view.error()" label="time records" />
     @if (view.error()) { <button matButton type="button" (click)="reloadTimeWorkspace()" [disabled]="view.loading() || cmd.busy() || !!activeTimeChange()">Reload time workspace from start</button> }
     @if (view.data(); as v) {
-      <p role="status">{{ v.openTasks.length }} open tasks in scope · {{ v.myEntries.length }} of my time entries shown{{ v.isApprover ? ' · ' + v.awaitingApproval.length + ' awaiting my review shown' : '' }}</p>
+      <p role="status" class="hint">{{ v.openTasks.length }} open tasks in scope · {{ v.myEntries.length }} of my time entries shown{{ v.isApprover ? ' · ' + v.awaitingApproval.length + ' awaiting my review shown' : '' }}</p>
       @if (timeChangeNotice()) { <p role="status" aria-live="polite">{{ timeChangeNotice() }}</p> }
       <section class="panel" aria-labelledby="task-heading">
         <h2 id="task-heading">Create work task</h2>

@@ -3,7 +3,7 @@
   eyebrow="Practice"
   description="Team availability, skills, certifications and planned allocation by week. Planned and approved-actual utilization are shown separately; over-allocation is flagged, never hidden. Weeks start on Sunday; the working week is Sunday to Thursday."
 />
-<form class="inline-form" [formRoot]="rangeFields" aria-label="Grid range">
+<form class="inline-form filter-bar" [formRoot]="rangeFields" aria-label="Grid range">
   <label>First week <input type="date" [formField]="rangeFields.start" /></label>
   <label>Weeks <input type="number" [formField]="rangeFields.weeks" /></label>
   <button
@@ -54,11 +54,13 @@
 <audit-state [loading]="view.loading()" [error]="view.error()" label="the resource grid" />
 <div [hidden]="!!pending() || cmd.uncertain()">
   @if (view.data(); as v) {
-    <label class="resource-filter"
-      >Filter team members by name, department, skill or recorded certificate
-      <input type="search" maxlength="100" [value]="teamFilter()" (input)="teamFilter.set($any($event.target).value)"
-    /></label>
-    <label><input type="checkbox" [checked]="overAllocatedOnly()" (change)="overAllocatedOnly.set($any($event.target).checked)" /> Only staff with an over-allocated week</label>
+    <div class="filter-bar">
+      <label class="resource-filter"
+        >Filter team members by name, department, skill or recorded certificate
+        <input type="search" maxlength="100" [value]="teamFilter()" (input)="teamFilter.set($any($event.target).value)"
+      /></label>
+      <label class="resource-filter-check"><input type="checkbox" [checked]="overAllocatedOnly()" (change)="overAllocatedOnly.set($any($event.target).checked)" /> Only staff with an over-allocated week</label>
+    </div>
     <p class="resource-filter-scope">
       Showing {{ visibleRows().length }} of {{ v.grid.rows.length }} team members. Filtering and cell details only change
       this view; they never save planning data.

@@ -335,7 +335,7 @@ export function isLeadChannel(value: string): boolean {
                 <td>{{ lead.source }}</td>
                 <td>{{ lead.primaryContactName }} · {{ lead.primaryContactEmail }}</td>
                 <td>{{ ownerLabel(lead) }}</td>
-                <td>{{ lead.createdAt.slice(0, 10) }}</td>
+                <td class="nowrap">{{ lead.createdAt.slice(0, 10) }}</td>
                 <td>{{ statusLabel(lead.status) }}</td>
                 <td>{{ lead.lifecycleStage === 'LEAD_INGESTION' ? 'Stage 1 · Lead ingestion' : lead.lifecycleStage === 'PROPOSAL_OR_LATER' ? 'Proposal and later stages' : '—' }}</td>
                 <td>
