@@ -1296,9 +1296,9 @@
       "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
       "mailBoundary": "Already paused at observed preflight; remains paused without genuine signed sender authorization.",
       "liveObserved": {
-        "sourceCheckout": "bba5f4b902dac67905bcf3925410cd0a31ec703d",
-        "imageSource": "bba5f4b902dac67905bcf3925410cd0a31ec703d",
-        "schema": "286:20261025144831_PbcStorageCommandReceipts",
+        "sourceCheckout": "7433e594af8d38638780c6cff7a890d8d30dd6d6",
+        "imageSource": "7433e594af8d38638780c6cff7a890d8d30dd6d6",
+        "schema": "287:20261026143529_WorkflowStepApplicabilityCondition",
         "coreServices": [
           "api",
           "worker-general",
@@ -1306,12 +1306,49 @@
           "worker-records"
         ],
         "mailRunning": false,
-        "deploymentProvenance": "Observed read-only; no claim this run deployed the earlier source.",
-        "latestSourceDeployed": false
+        "deploymentProvenance": "Owner-authorized deployment 2026-10-26 (hostingerAcceptance.ownerAuthorizedDeployment20261026).",
+        "latestSourceDeployed": false,
+        "latestSourceNote": "Later master commits change only docs/execution/status.json."
       },
       "backupPreparation": "Fresh quiesced private DB dump/catalog, actualDocker-volume storage andprotectedconfig backup required beforelive mutation; rehearsal snapshot is not finalbackup. Preserveoverlay/privateenv androllbackboundaries, no destructiveDBrestore.",
       "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-a948.json",
       "history": "status-archive-2026-10.json#keys.hostingerPreparationBeforeFixtureDeadlineReadiness20261026"
+    },
+    "ownerAuthorizedDeployment20261026": {
+      "observedAtUtc": "2026-10-26T15:30:00Z",
+      "authorization": "Owner chat instruction: deploy master to the VPS, apply the new migration, keep the mail worker paused.",
+      "previousRelease": "bba5f4b902dac67905bcf3925410cd0a31ec703d",
+      "release": "7433e594af8d38638780c6cff7a890d8d30dd6d6",
+      "imageWorkflowRun": 40346005738,
+      "fastCi": {
+        "run": 40346005659,
+        "result": "FAST_CI_PASS"
+      },
+      "fullCi": "NOT_RUN",
+      "backup": {
+        "file": "/opt/auditsphere/release-preparation/pre-7433e594-20261026T152606Z.dump",
+        "bytes": 2737867,
+        "catalogEntries": 4110,
+        "sha256": "d7ea54c7c3e1ba01f2c534d487feeed803c1d027551be907515ff6a17aaf4b28",
+        "quiesced": "api and workers stopped before pg_dump"
+      },
+      "migration": {
+        "applied": [
+          "20261026143529_WorkflowStepApplicabilityCondition"
+        ],
+        "result": "287 applied; workflow_template_steps.applicability_condition varchar(500) nullable"
+      },
+      "checks": {
+        "healthLive": 200,
+        "healthReady": 200,
+        "app": 200,
+        "progressEndpointsSignedOut": 401,
+        "unknownApiRoute": 404,
+        "liveBundleContainsTracker": true,
+        "errorLogLines": 0
+      },
+      "mailWorker": "Stopped before and after; not started.",
+      "notVerified": "Signed-in live browser review of the tracker; populated live data."
     }
   },
   "apiAngularParity": {
