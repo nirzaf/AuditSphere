@@ -1329,35 +1329,8 @@
       },
       "backupPreparation": "Fresh quiesced private DB dump/catalog, actualDocker-volume storage andprotectedconfig backup required beforelive mutation; rehearsal snapshot is not finalbackup. Preserveoverlay/privateenv androllbackboundaries, no destructiveDBrestore.",
       "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-a948.json",
-      "history": "status-archive-2026-10.json#keys.hostingerPreparationBeforeFixtureDeadlineReadiness20261026"
-    },
-    "ownerAuthorizedDeploymentE6ad2e59": {
-      "observedAtUtc": "2026-10-26T17:33:00Z",
-      "authorization": "Owner chat: redeploy the evidence-batching fix after fast CI passes, with a fresh backup and the mail worker paused.",
-      "previousRelease": "7433e594af8d38638780c6cff7a890d8d30dd6d6",
-      "previousRecord": "status-archive-2026-10.json#keys.hostingerOwnerAuthorizedDeployment7433e594_20261026",
-      "release": "e6ad2e59bd4ac600b056d557f3a29d9b7901e303",
-      "includes": [
-        "688d8efe",
-        "68efb89e",
-        "e6ad2e59"
-      ],
-      "fastCi": {
-        "run": 40367412449,
-        "result": "FAST_CI_PASS"
-      },
-      "imageRun": 40367412474,
-      "fullCi": "NOT_VERIFIED",
-      "backup": {
-        "file": "/opt/auditsphere/release-preparation/pre-e6ad2e59-20261026T173143Z.dump",
-        "bytes": 2737962,
-        "catalogEntries": 4110,
-        "sha256": "64f4351f217a69aef7704dad06eb5955f4c459b755b51728901b1c2efb892d71"
-      },
-      "migration": "None pending; schema unchanged at 287.",
-      "checks": "health live/ready and /app 200; progress endpoints 401 signed out vs unknown route 404; 0 ERR/FTL lines.",
-      "mailWorker": "Stopped before and after.",
-      "notVerified": "Signed-in live browser review."
+      "history": "status-archive-2026-10.json#keys.hostingerPreparationBeforeFixtureDeadlineReadiness20261026",
+      "previousDeploymentEvidence": "status-archive-2026-10.json#keys.hostingerAcceptance.ownerAuthorizedDeploymentE6ad2e59"
     },
     "ownerAuthorizedDeploymentFb02fc33": {
       "observedAtUtc": "2026-10-26T20:08:00Z",
@@ -1581,21 +1554,8 @@
     },
     "nextTechnicalSlice": "Select the next slice from CURRENT requirements. Due-PBC reviewer escalation is already configurable; event notifications need approved event/recipient/channel semantics; recurring monthly accounting handover remains PROPOSED.",
     "clientProgressTracker": {
-      "codeCommits": [
-        "09a59e1f207661890fddf4f6f761717af5bad390",
-        "7433e594af8d38638780c6cff7a890d8d30dd6d6"
-      ],
-      "design": "docs/design/auditsphere-design-client-progress-tracker-current.md",
       "result": "FOCUSED_PASS_BROWSER_PASS_FAST_CI_PASS",
-      "focusedTests": "EngagementProgressCalculatorTests; EngagementWorkflowPlanTests.ProgressCountsApplicableCompletedStepsAndStaysBelowCompletionWhileGatesAreOpen; WorkflowTemplateTests.StepApplicabilityConditionKeepsLegacyDigestUntilStatedAndOnlyOnRequiredSteps; OpenApiContractTests 11/11; Angular engagement-progress, workflow-templates, work-queue, engagement-task-plan and client/engagement/portfolio workspace specs; E2E AngularClientProfile, AngularPortfolio and AngularEngagementProfile journeys 15/15.",
-      "browserCheck": "Built-in browser at 1440 px and 375 px on a seeded loopback host: engagement tracker, client and portfolio summaries render without page-level horizontal scroll; populated figures covered by specs, not by seeded browser data.",
-      "fastCi": {
-        "run": 40346005659,
-        "headSha": "7433e594af8d38638780c6cff7a890d8d30dd6d6",
-        "result": "FAST_CI_PASS"
-      },
-      "fullCi": "NOT_RUN",
-      "boundary": "Read-only projection over existing tasks, evidence, cancellations, holds, releases and the derived lifecycle; no new workflow state, approval or release decision. Non-audit route gates remain disclosed as unspecified pending D03."
+      "archivedEvidence": "status-archive-2026-10.json#keys.completePracticeManagement.clientProgressTracker20261026"
     }
   },
   "m365ClientTenantGuide": {
