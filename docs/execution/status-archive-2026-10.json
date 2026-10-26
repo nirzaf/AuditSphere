@@ -25592,6 +25592,42 @@
       "runtimeRehearsal": "PASS exacta948 restoredcopy schema286/0migrations/379original projectionsunchanged; health+bothuncachedAngularroots200; independentownedDB/container/privateenvcleanup verified, livesource/image/privateenv/overlay unchanged",
       "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
       "updatedAtUtc": "2026-10-26T02:35:24.842028+00:00"
+    },
+    "hostingerOwnerAuthorizedDeployment7433e594_20261026": {
+      "observedAtUtc": "2026-10-26T15:30:00Z",
+      "authorization": "Owner chat instruction: deploy master to the VPS, apply the new migration, keep the mail worker paused.",
+      "previousRelease": "bba5f4b902dac67905bcf3925410cd0a31ec703d",
+      "release": "7433e594af8d38638780c6cff7a890d8d30dd6d6",
+      "imageWorkflowRun": 40346005738,
+      "fastCi": {
+        "run": 40346005659,
+        "result": "FAST_CI_PASS"
+      },
+      "fullCi": "NOT_RUN",
+      "backup": {
+        "file": "/opt/auditsphere/release-preparation/pre-7433e594-20261026T152606Z.dump",
+        "bytes": 2737867,
+        "catalogEntries": 4110,
+        "sha256": "d7ea54c7c3e1ba01f2c534d487feeed803c1d027551be907515ff6a17aaf4b28",
+        "quiesced": "api and workers stopped before pg_dump"
+      },
+      "migration": {
+        "applied": [
+          "20261026143529_WorkflowStepApplicabilityCondition"
+        ],
+        "result": "287 applied; workflow_template_steps.applicability_condition varchar(500) nullable"
+      },
+      "checks": {
+        "healthLive": 200,
+        "healthReady": 200,
+        "app": 200,
+        "progressEndpointsSignedOut": 401,
+        "unknownApiRoute": 404,
+        "liveBundleContainsTracker": true,
+        "errorLogLines": 0
+      },
+      "mailWorker": "Stopped before and after; not started.",
+      "notVerified": "Signed-in live browser review of the tracker; populated live data."
     }
   },
   "archivedTargetedVerification": {
