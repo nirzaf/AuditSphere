@@ -81,6 +81,7 @@ public sealed partial class AuditSphereDbContext
     b.Entity<WorkflowTemplateStep>().HasIndex(x => new { x.FirmId, x.TemplateRevisionId, x.SortOrder });
     b.Entity<WorkflowTemplateStep>().Property(x => x.StableKey).HasMaxLength(80);
     b.Entity<WorkflowTemplateStep>().Property(x => x.Phase).HasMaxLength(40);
+    b.Entity<WorkflowTemplateStep>().Property(x => x.ApplicabilityCondition).HasMaxLength(500);
     b.Entity<WorkflowTemplateStep>().Property(x => x.TaskGroupName).HasMaxLength(120);
     b.Entity<WorkflowTemplateStep>().Property(x => x.Title).HasMaxLength(200);
     b.Entity<WorkflowTemplateStep>().Property(x => x.Instructions).HasMaxLength(4000);

@@ -46,7 +46,13 @@ describe('Native portfolio reads and export fences', () => {
       { provide: ActivatedRoute, useValue: { queryParamMap: params, snapshot: { queryParamMap: params.value } } }] });
     TestBed.inject(SessionService).current.set({ userId: id, firmId: id, generation: '1', staff: true });
   });
-  afterEach(() => { TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); });
+  afterEach(() => {
+    const http = TestBed.inject(HttpTestingController);
+    // The progress panel loads its own projection (covered by engagement-progress.spec); this spec owns the workspace read.
+    for (const panel of http.match(r => r.url.startsWith('/api/ui/portfolio/progress'))) expect(panel.request.method).toBe('GET');
+    http.verify({ ignoreCancelled: true });
+    TestBed.resetTestingModule();
+  });
   function open() {
     const f = TestBed.createComponent(Portfolio); f.detectChanges(); TestBed.tick();
     return f;

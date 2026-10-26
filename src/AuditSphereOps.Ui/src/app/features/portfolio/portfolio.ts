@@ -8,13 +8,14 @@ import { MatInputModule } from '@angular/material/input';
 import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
+import { PortfolioProgress } from '../practice/engagement-progress';
 import { PortfolioNavigation, decodePortfolioWorkspace, portfolioLocation, portfolioWindow } from './portfolio-contracts';
 export { decodePortfolio } from './portfolio-contracts';
 export type { ClientRow, PortfolioPage } from './portfolio-contracts';
 
 @Component({
   selector: 'audit-portfolio',
-  imports: [RouterLink, FormField, MatButtonModule, MatFormFieldModule, MatInputModule, ...SHARED],
+  imports: [RouterLink, FormField, MatButtonModule, MatFormFieldModule, MatInputModule, PortfolioProgress, ...SHARED],
   templateUrl: './portfolio.html',
   styleUrl: './portfolio.scss',
 })

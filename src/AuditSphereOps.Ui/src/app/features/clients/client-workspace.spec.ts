@@ -47,10 +47,16 @@ describe('Client profile request and command ownership', () => {
       { provide: ActivatedRoute, useValue: { paramMap: ids, queryParamMap: queries, snapshot: { queryParamMap: queries.value } } }] });
     TestBed.inject(SessionService).current.set({ userId: id, firmId: id, generation: '1', staff: true });
   });
-  afterEach(() => { TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); });
+  afterEach(() => {
+    const http = TestBed.inject(HttpTestingController);
+    // The progress panel loads its own projection (covered by engagement-progress.spec); this spec owns the client read.
+    for (const panel of http.match(r => r.url.startsWith('/api/ui/clients/') && r.url.endsWith('/progress'))) expect(panel.request.method).toBe('GET');
+    http.verify({ ignoreCancelled: true });
+    TestBed.resetTestingModule();
+  });
   function open() { const f = TestBed.createComponent(ClientDetail); f.detectChanges(); TestBed.tick(); return f; }
   function read() {
-    const active = TestBed.inject(HttpTestingController).match(r => r.method === 'GET' && r.url.startsWith('/api/ui/clients/')).filter(r => !r.cancelled);
+    const active = TestBed.inject(HttpTestingController).match(r => r.method === 'GET' && r.url.startsWith('/api/ui/clients/') && !r.url.endsWith('/progress')).filter(r => !r.cancelled);
     expect(active).toHaveLength(1); return active[0];
   }
   it('renders source metadata, summaries, UTC date and separate bounded tables', () => {

@@ -124,6 +124,33 @@ public sealed class WorkflowTemplateTests
   }
 
   [Fact]
+  public async Task StepApplicabilityConditionKeepsLegacyDigestUntilStatedAndOnlyOnRequiredSteps()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var author = User(firmId, "ConditionAuthor");
+    var reviewer = User(firmId, "ConditionReviewer");
+    var actor = Actor(author, "Administrator");
+    await SeedAsync(pg.Options, firmId, author, reviewer);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    const string legacyDigest = "3a3fd4ad5a4218e85b36884a3d9406c603653cea8b5ffae78f516e26c4b2d42e";
+    // A step without an applicability condition keeps the pre-feature digest; a stated condition changes it.
+    var unconditioned = await WorkflowTemplateService.CreateDraftAsync(db, actor,
+      Request(null, [Step("A", 1) with { ApplicabilityCondition = "   " }]));
+    Assert.Equal(legacyDigest,
+      (await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == unconditioned.Value)).ContentDigest);
+    var conditional = await WorkflowTemplateService.CreateDraftAsync(db, actor,
+      Request(null, [Step("A", 1) with { ApplicabilityCondition = "Only where inventory exists" }]));
+    Assert.True(conditional.Succeeded, conditional.Message);
+    Assert.NotEqual(legacyDigest,
+      (await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == conditional.Value)).ContentDigest);
+    Assert.False((await WorkflowTemplateService.CreateDraftAsync(db, actor,
+      Request(null, [Step("A", 1) with { RequiredTask = false, ApplicabilityCondition = "Only where inventory exists" }]))).Succeeded);
+    Assert.False((await WorkflowTemplateService.CreateDraftAsync(db, actor,
+      Request(null, [Step("A", 1) with { ApplicabilityCondition = new string('x', 501) }]))).Succeeded);
+  }
+
+  [Fact]
   public async Task TemplateDeclaredEvidenceRequirementsKeepLegacyDigestAndValidateBounds()
   {
     await using var pg = await PgTestSchema.CreateAsync();

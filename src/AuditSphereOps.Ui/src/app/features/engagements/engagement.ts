@@ -11,6 +11,7 @@ import { EngagementPlanning } from './planning';
 import { EngagementTaskPlan } from './engagement-task-plan';
 import { EngagementCommunicationsPanel } from './engagement-communications';
 import { EngagementActivity } from './engagement-activity';
+import { EngagementProgressTracker } from '../practice/engagement-progress';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { guidPattern } from '../../core/contracts';
@@ -36,6 +37,7 @@ export function engagementWorkflowAvailable(requiresAccountingPreparation: boole
 @Component({
   selector: 'audit-engagement',
   imports: [
+    EngagementProgressTracker,
     EngagementLifecycle,
     EngagementWorkflow,
     EngagementOnboardingReadiness,

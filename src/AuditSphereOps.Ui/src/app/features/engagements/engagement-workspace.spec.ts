@@ -123,7 +123,8 @@ describe('Engagement read and command lifetime', () => {
     TestBed.resetTestingModule();
   });
   function isOwnedPanelRead(url: string): boolean {
-    return url.endsWith('/workflow') || url.endsWith('/onboarding-readiness') || url.endsWith('/workflow/tasks') || url.endsWith('/milestones');
+    return url.endsWith('/workflow') || url.endsWith('/onboarding-readiness') || url.endsWith('/workflow/tasks') || url.endsWith('/milestones') ||
+      url.endsWith('/progress');
   }
   function open() {
     const f = TestBed.createComponent(EngagementDetail);

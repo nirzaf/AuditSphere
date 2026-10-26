@@ -17,6 +17,16 @@ public static partial class UiEndpoints
     group.MapGet("/portfolio/workspace", (string? search, int? page, int? pageSize, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => PortfolioQuery.WorkspaceAsync(db, actor, search, page ?? 0, pageSize ?? 25, ct)))
       .WithT046Response<PortfolioWorkspace>();
+    // Client progress tracker: read-only summaries computed from current task, evidence and gate records.
+    group.MapGet("/portfolio/progress", (int? page, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => PortfolioQuery.ProgressAsync(db, actor, page ?? 0, ct)))
+      .WithT046Response<EngagementProgressList>();
+    group.MapGet("/clients/{id:guid}/progress", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => EngagementProgressQuery.ForClientAsync(db, actor, id, ct)))
+      .WithT046Response<EngagementProgressList>();
+    group.MapGet("/engagements/{id:guid}/progress", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => EngagementProgressQuery.GetAsync(db, actor, id, ct)))
+      .WithT046Response<EngagementProgressView>();
     group.MapPost("/portfolio/export", async (PortfolioExportInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {

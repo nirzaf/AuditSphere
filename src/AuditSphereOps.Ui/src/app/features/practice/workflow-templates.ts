@@ -36,7 +36,7 @@ const templateStep = obj({
   id: guid, stableKey: str(80), phase: str(40), title: str(200), instructions: str(4000),
   suggestedStaffingLevel: nullable(str(32)), estimatedEffortMinutes: nullable(int), dueDateOffsetDays: nullable(int),
   pbcRequestReference: nullable(str(120)), requiredTask: bool, sortOrder: int, dependsOnStepKeys: arr(str(80), 100),
-  taskGroupName: optionalNullable(str(120)), evidenceRequirements,
+  taskGroupName: optionalNullable(str(120)), evidenceRequirements, applicabilityCondition: optionalNullable(str(500)),
   pbcDefinition: nullable(obj({ objective: str(2000), entityScope: str(500), area: str(200), requestedFormat: str(200),
     controlTotals: nullable(str(2000)), confidentiality: str(100), acceptanceCriteria: str(4000) })),
 });
@@ -51,7 +51,7 @@ export const decodeTemplateRevision = obj({
 type TemplateStepDraft = {
   stableKey: string; phase: string; title: string; instructions: string; taskGroupName: string; suggestedStaffingLevel: string;
   estimatedEffortMinutes: number | null; dueDateOffsetDays: number | null; pbcRequestReference: string;
-  requiredTask: boolean; sortOrder: number; dependsOnText: string;
+  requiredTask: boolean; applicabilityCondition: string; sortOrder: number; dependsOnText: string;
   evidenceRequirements: { requirementKey: string; kind: string }[];
   pbcDefinition: { objective: string; entityScope: string; area: string; requestedFormat: string;
     controlTotals: string; confidentiality: string; acceptanceCriteria: string } | null;
@@ -75,7 +75,8 @@ const STAFFING_LEVELS = [
 function emptyStep(sortOrder = 1): TemplateStepDraft {
   return { stableKey: `step-${sortOrder}`, phase: 'AUDIT_FIELDWORK', title: '', instructions: '',
     taskGroupName: '', suggestedStaffingLevel: '', estimatedEffortMinutes: null, dueDateOffsetDays: null,
-    pbcRequestReference: '', requiredTask: true, sortOrder, dependsOnText: '', evidenceRequirements: [], pbcDefinition: null };
+    pbcRequestReference: '', requiredTask: true, applicabilityCondition: '', sortOrder, dependsOnText: '', evidenceRequirements: [],
+    pbcDefinition: null };
 }
 function emptyDraft(templateId: string | null = null): TemplateDraft {
   return { templateId, revisionId: null, expectedRevision: null, name: '', serviceRoute: '', industryKey: '', steps: [emptyStep()] };
@@ -169,6 +170,10 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
                     </fieldset>
                   }
                   <label><span>Required task</span><input type="checkbox" [name]="'step-required-' + i" [(ngModel)]="step.requiredTask" /></label>
+                  @if (step.requiredTask) {
+                    <label>Applies when (optional) <input [name]="'step-condition-' + i" [(ngModel)]="step.applicabilityCondition" maxlength="500" /></label>
+                    <small class="hint">Leave blank for a mandatory step. A conditional step counts toward progress unless it is cancelled with a reason as not applicable.</small>
+                  }
                 </div>
                 <button matButton type="button" (click)="removeStep(i)" [disabled]="draft.steps.length <= 1">Remove step</button>
               </fieldset>
@@ -196,7 +201,8 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
           }
           <h3>Revision steps</h3>
           <ol>@for (step of r.steps; track step.id) {
-            <li><strong>{{ step.sortOrder }}. {{ step.title }}</strong> · {{ step.phase }} <audit-status [value]="step.requiredTask ? 'REQUIRED' : 'OPTIONAL'" />
+            <li><strong>{{ step.sortOrder }}. {{ step.title }}</strong> · {{ step.phase }} <audit-status [value]="!step.requiredTask ? 'OPTIONAL' : step.applicabilityCondition ? 'CONDITIONAL' : 'REQUIRED'" />
+              @if (step.applicabilityCondition) { <small>Applies when: {{ step.applicabilityCondition }}</small> }
               @if (step.taskGroupName) { <small>Task group: {{ step.taskGroupName }}</small> }
               @if (step.instructions) { <p>{{ step.instructions }}</p> }
               <small>Key {{ step.stableKey }} · {{ step.suggestedStaffingLevel ?? 'No suggested owner' }} · {{ step.estimatedEffortMinutes ?? 'No effort estimate' }} min · {{ step.dueDateOffsetDays ?? 'No due-date offset' }} days</small>
@@ -346,6 +352,7 @@ export class WorkflowTemplates {
         suggestedStaffingLevel: step.suggestedStaffingLevel || null,
         estimatedEffortMinutes: step.estimatedEffortMinutes, dueDateOffsetDays: step.dueDateOffsetDays,
         pbcRequestReference: step.pbcRequestReference.trim() || null, requiredTask: step.requiredTask,
+        applicabilityCondition: step.requiredTask ? step.applicabilityCondition.trim() || null : null,
         taskGroupName: step.taskGroupName.trim() || null,
         evidenceRequirements: step.evidenceRequirements.map(requirement => ({ requirementKey: requirement.requirementKey.trim(), kind: requirement.kind })),
         sortOrder: step.sortOrder, dependsOnStepKeys: step.dependsOnText.split(',').map(x => x.trim()).filter(Boolean),
@@ -447,7 +454,8 @@ export class WorkflowTemplates {
         suggestedStaffingLevel: step.suggestedStaffingLevel ?? '', estimatedEffortMinutes: step.estimatedEffortMinutes,
         dueDateOffsetDays: step.dueDateOffsetDays, pbcRequestReference: step.pbcRequestReference ?? '',
         evidenceRequirements: step.evidenceRequirements.map(requirement => ({ ...requirement })),
-        requiredTask: step.requiredTask, sortOrder: step.sortOrder, dependsOnText: step.dependsOnStepKeys.join(', '),
+        requiredTask: step.requiredTask, applicabilityCondition: step.applicabilityCondition ?? '',
+        sortOrder: step.sortOrder, dependsOnText: step.dependsOnStepKeys.join(', '),
         pbcDefinition: step.pbcDefinition ? { ...step.pbcDefinition, controlTotals: step.pbcDefinition.controlTotals ?? '' } : null,
       })),
     };

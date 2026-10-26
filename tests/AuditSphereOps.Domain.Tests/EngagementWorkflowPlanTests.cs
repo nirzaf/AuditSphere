@@ -490,6 +490,90 @@ public sealed class EngagementWorkflowPlanTests
     }
   }
 
+  [Fact]
+  public async Task ProgressCountsApplicableCompletedStepsAndStaysBelowCompletionWhileGatesAreOpen()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientId = Guid.NewGuid();
+    var engagementId = Guid.NewGuid();
+    var secondEngagementId = Guid.NewGuid();
+    var admin = User(firmId, "ProgressAdmin");
+    var partner = User(firmId, "ProgressPartner");
+    var staff = User(firmId, "ProgressStaff");
+    var adminActor = Actor(admin, "Administrator");
+    var partnerActor = Actor(partner, "Partner");
+    await SeedAsync(pg.Options, firmId, clientId, engagementId, secondEngagementId, admin, partner, staff);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    var draft = await WorkflowTemplateService.CreateDraftAsync(db, adminActor,
+      new SaveWorkflowTemplateDraftRequest(null, "Progress audit plan", "FinancialStatementAudit", null,
+      [
+        Step("SCOPE", 1, -20),
+        Step("INVENTORY", 2, -15) with { ApplicabilityCondition = "Only where the entity holds inventory" },
+        Step("EXTRA", 3, -12, requiredTask: false),
+        Step("CLOSE", 4, -10, ["SCOPE"])
+      ]));
+    Assert.True(draft.Succeeded, draft.Message);
+    var revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == draft.Value);
+    Assert.True((await WorkflowTemplateService.ReviewAsync(db, partnerActor, revision.TemplateId, revision.Id,
+      revision.Revision, "Review the progress plan.")).Succeeded);
+    revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == draft.Value);
+    Assert.True((await WorkflowTemplateService.PublishAsync(db, partnerActor, revision.TemplateId, revision.Id,
+      revision.Revision, "Publish the progress plan.")).Succeeded);
+    Assert.True((await StatutoryMilestoneService.SaveMilestonesAsync(db, adminActor,
+      new SaveMilestonesRequest(engagementId, new DateOnly(2027, 4, 30)))).Succeeded);
+    var preview = await EngagementWorkflowPlanService.PreviewAsync(db, adminActor, engagementId,
+      new PreviewEngagementWorkflowPlanRequest(revision.Id));
+    Assert.True(preview.Succeeded, preview.Message);
+    Assert.True((await EngagementWorkflowPlanService.ExecuteAsync(db, adminActor, engagementId,
+      new ExecuteEngagementWorkflowPlanRequest(revision.Id, preview.Value!.PreviewDigest, Guid.NewGuid()))).Succeeded);
+
+    var initial = (await EngagementProgressQuery.GetAsync(db, adminActor, engagementId)).Value!;
+    Assert.True(initial.LifecycleRoute);
+    Assert.Equal((3, 0, 2, 1, 0, 1, 0), (initial.ApplicableRequired, initial.CompletedRequired, initial.PendingRequired,
+      initial.BlockedRequired, initial.NotApplicable, initial.OptionalApplicable, initial.OptionalCompleted));
+    Assert.Equal(0, initial.PercentComplete);
+    Assert.Equal("Prepare scope work", initial.NextAction);
+    Assert.Equal(WorkflowStepRequirements.Conditional, initial.Steps.Single(s => s.Title == "Prepare inventory work").Requirement);
+
+    async Task<(Guid Id, long Revision)> TaskAsync(string title)
+    {
+      var task = await db.WorkTasks.AsNoTracking().SingleAsync(x => x.EngagementId == engagementId && x.Title == title);
+      var binding = await db.WorkflowTaskBindings.AsNoTracking().SingleAsync(x => x.WorkTaskId == task.Id);
+      return (task.Id, binding.Revision);
+    }
+    var scope = await TaskAsync("Prepare scope work");
+    Assert.True((await EngagementWorkflowTaskService.CompleteAsync(db, adminActor, scope.Id, scope.Revision)).Succeeded);
+    var inventory = await TaskAsync("Prepare inventory work");
+    Assert.True((await EngagementWorkflowTaskService.CancelAsync(db, adminActor, inventory.Id,
+      "The entity holds no inventory for this period.", inventory.Revision)).Succeeded);
+    var half = (await EngagementProgressQuery.GetAsync(db, adminActor, engagementId)).Value!;
+    Assert.Equal((2, 1, 1, 0, 1), (half.ApplicableRequired, half.CompletedRequired, half.PendingRequired,
+      half.BlockedRequired, half.NotApplicable));
+    Assert.Equal(50, half.PercentComplete);
+    Assert.Equal("Prepare close work", half.NextAction);
+
+    var close = await TaskAsync("Prepare close work");
+    Assert.True((await EngagementWorkflowTaskService.CompleteAsync(db, adminActor, close.Id, close.Revision)).Succeeded);
+    var planDone = (await EngagementProgressQuery.GetAsync(db, adminActor, engagementId)).Value!;
+    // Every applicable step is complete, but the derived audit lifecycle has not reached release.
+    Assert.Equal((99, true), (planDone.PercentComplete, planDone.GateOpen));
+    Assert.NotEmpty(planDone.Gates);
+    Assert.Equal("Client onboarding", planDone.Phase);
+    Assert.Equal((1, 0), (planDone.OptionalApplicable, planDone.OptionalCompleted));
+
+    var client = (await EngagementProgressQuery.ForClientAsync(db, adminActor, clientId)).Value!;
+    Assert.Equal(2, client.Total);
+    Assert.Null(client.Items.Single(x => x.EngagementId == secondEngagementId).PercentComplete);
+    Assert.All(client.Items, x => Assert.Empty(x.Steps));
+    var outsider = User(firmId, "ProgressOutsider");
+    db.Users.Add(outsider);
+    await db.SaveChangesAsync();
+    Assert.False((await EngagementProgressQuery.GetAsync(db, Actor(outsider, "Staff"), engagementId)).Succeeded);
+    Assert.False((await EngagementProgressQuery.ForClientAsync(db, Actor(outsider, "Staff"), clientId)).Succeeded);
+  }
+
   private static WorkflowTemplateStepDraft Step(string key, int order, int dueOffset, IReadOnlyList<string>? dependsOn = null,
     bool requiredTask = true) =>
     new(key, WorkflowTaskPhases.AuditPlanning, $"Prepare {key.ToLowerInvariant()} work", $"Complete the {key.ToLowerInvariant()} task.",

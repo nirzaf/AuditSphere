@@ -29,6 +29,7 @@
   <p class="hint">Summary counts cover your current scope and are unaffected by search.</p>
   <button matButton="outlined" (click)="download()" [disabled]="exporting()">{{ exporting() ? 'Preparing CSV…' : 'Download scoped CSV' }}</button>
   <p class="hint">Export includes matching clients (up to 1,000) and matching records from the latest {{ result.recentLimit }} candidates and packages in your scope.</p>
+  <audit-portfolio-progress />
   <h2>Clients in this search</h2>
   <p class="hint">Search includes archived clients; their existing history remains available within your current authorization.</p>
   <p role="status">{{ result.clients.total }} clients in this search</p>

@@ -30231,6 +30231,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("ApplicabilityCondition")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("applicability_condition");
+
                     b.Property<int?>("DueDateOffsetDays")
                         .HasColumnType("integer")
                         .HasColumnName("due_date_offset_days");

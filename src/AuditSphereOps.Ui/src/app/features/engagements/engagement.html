@@ -24,6 +24,7 @@
       <audit-status [value]="engagement.status" /> · {{ engagement.periodStart }} to
       {{ engagement.periodEnd }}
     </p>
+    <audit-engagement-progress [engagementId]="engagement.id" />
     <section aria-label="Engagement summary" class="engagement-metrics">
       <article>
         <h3>Professional work</h3>

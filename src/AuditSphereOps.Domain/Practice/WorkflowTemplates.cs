@@ -92,6 +92,11 @@ public sealed class WorkflowTemplateStep
   /// <summary>Retained descriptive text. It is not an executable PBC definition and is never inferred into one.</summary>
   public string? PbcRequestReference { get; set; }
   public bool RequiredTask { get; set; } = true;
+  /// <summary>
+  /// When set on a required step, the step is conditional: it applies unless an authorized user records it as not
+  /// applicable for an engagement. Pinned by this immutable revision and covered by its content digest only when present.
+  /// </summary>
+  public string? ApplicabilityCondition { get; set; }
   public int SortOrder { get; set; }
   // Optional typed PBC instruction (the reusable CreatePbcRequestRequest fields). It is versioned by the immutable
   // template revision and covered by its content digest; engagement, period, owners and due date are resolved per plan.

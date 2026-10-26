@@ -40,7 +40,8 @@ public sealed record WorkflowTemplateStepDraft(
   IReadOnlyList<string>? DependsOnStepKeys = null,
   WorkflowTemplatePbcDefinition? PbcDefinition = null,
   string? TaskGroupName = null,
-  IReadOnlyList<WorkflowTemplateEvidenceRequirementDraft>? EvidenceRequirements = null);
+  IReadOnlyList<WorkflowTemplateEvidenceRequirementDraft>? EvidenceRequirements = null,
+  string? ApplicabilityCondition = null);
 
 public sealed record SaveWorkflowTemplateDraftRequest(
   Guid? TemplateId,
@@ -65,7 +66,8 @@ public sealed record WorkflowTemplateStepView(
   IReadOnlyList<string> DependsOnStepKeys,
   WorkflowTemplatePbcDefinition? PbcDefinition = null,
   string? TaskGroupName = null,
-  IReadOnlyList<WorkflowTemplateEvidenceRequirementView>? EvidenceRequirements = null);
+  IReadOnlyList<WorkflowTemplateEvidenceRequirementView>? EvidenceRequirements = null,
+  string? ApplicabilityCondition = null);
 
 public sealed record WorkflowTemplateRevisionView(
   Guid TemplateId,
@@ -392,7 +394,8 @@ public static class WorkflowTemplateService
       NormalizePbcDefinition(s.PbcDefinition),
       string.IsNullOrWhiteSpace(s.TaskGroupName) ? null : s.TaskGroupName.Trim(),
       (s.EvidenceRequirements ?? []).Select(requirement => new WorkflowTemplateEvidenceRequirementDraft(
-        (requirement.RequirementKey ?? string.Empty).Trim(), (requirement.Kind ?? string.Empty).Trim())).ToArray())).ToArray();
+        (requirement.RequirementKey ?? string.Empty).Trim(), (requirement.Kind ?? string.Empty).Trim())).ToArray(),
+      string.IsNullOrWhiteSpace(s.ApplicabilityCondition) ? null : s.ApplicabilityCondition.Trim())).ToArray();
     var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     foreach (var step in steps)
     {
@@ -403,6 +406,8 @@ public static class WorkflowTemplateService
           step.EstimatedEffortMinutes is < 1 or > 1000000 || step.DueDateOffsetDays is < -3650 or > 3650 ||
           step.PbcRequestReference?.Length > 120 || step.TaskGroupName?.Length > 120 || step.SortOrder is < 1 or > 100000)
         return (null, $"Step '{step.StableKey}' has an unknown phase or a field outside its allowed range.");
+      if (step.ApplicabilityCondition is { Length: > 500 } || (step.ApplicabilityCondition is not null && !step.RequiredTask))
+        return (null, $"Step '{step.StableKey}' may state an applicability condition of at most 500 characters, and only when it is required.");
       if (step.DependsOnStepKeys!.Count > 100 || step.DependsOnStepKeys.Distinct(StringComparer.OrdinalIgnoreCase).Count() != step.DependsOnStepKeys.Count)
         return (null, $"Step '{step.StableKey}' has duplicate or excessive dependencies.");
       var evidenceRequirements = step.EvidenceRequirements ?? [];
@@ -523,7 +528,9 @@ public static class WorkflowTemplateService
     {
       definition.Name, definition.ServiceRoute, definition.IndustryKey,
       // Empty/missing declarations retain the exact pre-feature anonymous-object digest shape.
-      steps = definition.Steps.OrderBy(x => x.SortOrder).Select(StepDigest).ToArray()
+      // A condition-free step keeps its pre-feature shape; a conditional step wraps that shape with its condition.
+      steps = definition.Steps.OrderBy(x => x.SortOrder).Select(step => step.ApplicabilityCondition is null
+        ? StepDigest(step) : new { step = StepDigest(step), applicabilityCondition = step.ApplicabilityCondition }).ToArray()
     }, Json);
     return Convert.ToHexStringLower(SHA256.HashData(bytes));
   }
@@ -539,7 +546,7 @@ public static class WorkflowTemplateService
         Phase = step.Phase, TaskGroupName = step.TaskGroupName, Title = step.Title, Instructions = step.Instructions,
         SuggestedStaffingLevel = step.SuggestedStaffingLevel, EstimatedEffortMinutes = step.EstimatedEffortMinutes,
         DueDateOffsetDays = step.DueDateOffsetDays, PbcRequestReference = step.PbcRequestReference,
-        RequiredTask = step.RequiredTask, SortOrder = step.SortOrder,
+        RequiredTask = step.RequiredTask, ApplicabilityCondition = step.ApplicabilityCondition, SortOrder = step.SortOrder,
         PbcObjective = step.PbcDefinition?.Objective, PbcEntityScope = step.PbcDefinition?.EntityScope,
         PbcArea = step.PbcDefinition?.Area, PbcRequestedFormat = step.PbcDefinition?.RequestedFormat,
         PbcControlTotals = step.PbcDefinition?.ControlTotals, PbcConfidentiality = step.PbcDefinition?.Confidentiality,
@@ -590,7 +597,7 @@ public static class WorkflowTemplateService
       steps.Select(s => new WorkflowTemplateStepView(s.Id, s.StableKey, s.Phase, s.Title, s.Instructions,
         s.SuggestedStaffingLevel, s.EstimatedEffortMinutes, s.DueDateOffsetDays, s.PbcRequestReference,
         s.RequiredTask, s.SortOrder, byStep.GetValueOrDefault(s.Id, []), PbcDefinitionOf(s), s.TaskGroupName,
-        requirementsByStep.GetValueOrDefault(s.Id, []))).ToArray());
+        requirementsByStep.GetValueOrDefault(s.Id, []), s.ApplicabilityCondition)).ToArray());
   }
 
   private static async Task<WorkflowTemplateDefinition> LoadDefinitionAsync(
@@ -616,7 +623,7 @@ public static class WorkflowTemplateService
       steps.Select(s => new WorkflowTemplateStepDraft(s.StableKey, s.Phase, s.Title, s.Instructions,
         s.SuggestedStaffingLevel, s.EstimatedEffortMinutes, s.DueDateOffsetDays, s.PbcRequestReference,
         s.RequiredTask, s.SortOrder, dependencies.GetValueOrDefault(s.Id, []), PbcDefinitionOf(s), s.TaskGroupName,
-        evidenceByStep.GetValueOrDefault(s.Id, []))).ToArray());
+        evidenceByStep.GetValueOrDefault(s.Id, []), s.ApplicabilityCondition)).ToArray());
   }
 
   private static WorkflowTemplateDecision Decision(ActorContext actor, Guid templateId, Guid revisionId, string kind,

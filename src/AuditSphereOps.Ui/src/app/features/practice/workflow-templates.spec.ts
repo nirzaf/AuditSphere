@@ -106,6 +106,7 @@ describe('workflow template authoring screen', () => {
     component.draft.serviceRoute = 'FinancialStatementAudit';
     component.draft.steps[0].title = 'Approve the plan';
     component.draft.steps[0].taskGroupName = '  Planning  ';
+    component.draft.steps[0].applicabilityCondition = '  Only where inventory exists  ';
     component.draft.steps[0].evidenceRequirements = [{ requirementKey: ' materiality ', kind: 'CURRENT_MATERIALITY_APPROVED' }];
     const saving = component.saveDraft();
     const request = http.expectOne('/api/ui/practice/workflow-templates/drafts');
@@ -115,6 +116,7 @@ describe('workflow template authoring screen', () => {
       stableKey: 'step-1', phase: 'AUDIT_FIELDWORK', title: 'Approve the plan',
       requiredTask: true, sortOrder: 1, dependsOnStepKeys: [],
       taskGroupName: 'Planning', evidenceRequirements: [{ requirementKey: 'materiality', kind: 'CURRENT_MATERIALITY_APPROVED' }],
+      applicabilityCondition: 'Only where inventory exists',
     });
     request.flush({ value: revisionId });
     await saving;

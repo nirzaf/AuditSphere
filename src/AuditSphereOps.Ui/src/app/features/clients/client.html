@@ -28,6 +28,7 @@
     <article><h2>Work blocked</h2><strong>{{ client.metrics.workBlocked }}</strong></article>
     <article><h2>Client contacts</h2><strong>{{ client.metrics.contacts }}</strong></article>
   </section>
+  @if (client.metrics.engagements > 0) { <audit-client-progress [clientId]="client.id" /> }
   <section aria-labelledby="client-name" class="client-profile">
     <h2 id="client-name">{{ client.name }}</h2>
     @if (client.commercialName) { <p>Trading as: {{ client.commercialName }}</p> }

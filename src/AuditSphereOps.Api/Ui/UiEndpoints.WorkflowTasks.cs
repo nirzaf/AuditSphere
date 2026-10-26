@@ -32,7 +32,8 @@ public static partial class UiEndpoints
     string StableKey, string Phase, string Title, string Instructions, string? SuggestedStaffingLevel,
     int? EstimatedEffortMinutes, int? DueDateOffsetDays, string? PbcRequestReference, bool RequiredTask,
     int SortOrder, IReadOnlyList<string>? DependsOnStepKeys, WorkflowTemplatePbcDefinitionInput? PbcDefinition = null,
-    string? TaskGroupName = null, IReadOnlyList<WorkflowTemplateEvidenceRequirementInput>? EvidenceRequirements = null);
+    string? TaskGroupName = null, IReadOnlyList<WorkflowTemplateEvidenceRequirementInput>? EvidenceRequirements = null,
+    string? ApplicabilityCondition = null);
   public sealed record WorkflowTemplateEvidenceRequirementInput(string RequirementKey, string Kind);
   public sealed record WorkflowTemplatePbcDefinitionInput(string Objective, string EntityScope, string Area,
     string RequestedFormat, string? ControlTotals, string Confidentiality, string AcceptanceCriteria);
@@ -354,5 +355,6 @@ public static partial class UiEndpoints
             x.PbcDefinition.AcceptanceCriteria), x.TaskGroupName,
         (x.EvidenceRequirements ?? []).Select(requirement => requirement is null
           ? new WorkflowTemplateEvidenceRequirementDraft(string.Empty, string.Empty)
-          : new WorkflowTemplateEvidenceRequirementDraft(requirement.RequirementKey, requirement.Kind)).ToArray())).ToArray(), input.ExpectedRevision);
+          : new WorkflowTemplateEvidenceRequirementDraft(requirement.RequirementKey, requirement.Kind)).ToArray(),
+        x.ApplicabilityCondition)).ToArray(), input.ExpectedRevision);
 }
