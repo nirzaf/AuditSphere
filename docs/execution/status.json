@@ -1058,19 +1058,22 @@
     },
     "practiceProgressReadAuthority20261026": {
       "status": "FOCUSED_RED1_GREEN3_CURRENT_FULL_PENDING",
-      "sourceBase": "688d8efe46baa1086298bde89e741656d5124051",
-      "defect": "Revoking narrower progress-reading Staff grant during projection while Reviewer remains previously returned progress payload.",
-      "fix": "Recheck each returned engagement with existing progress roles before final broader portfolio fence; no grants or permissions widened.",
-      "verification": "Deterministic actual PostgreSQL revocation boundary RED1, then GREEN3 including both existing mixed-scope read/export races; no full local suite.",
-      "evidence": ".local/autonomous/evidence/practice-completion-20261026/progress-revocation-review.json"
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.practiceProgressReadAuthority20261026BeforeCurrentnessMilestone",
+      "evidence": ".local/autonomous/evidence/practice-completion-20261026/progress-revocation-review.json",
+      "boundary": "Focused source-specific proof; current full acceptance remains open."
     },
     "practiceProgressPerEngagementBound20261026": {
       "status": "FOCUSED_RED1_GREEN1_CURRENT_FULL_PENDING",
-      "sourceBase": "68efb89e4ea3a58838f2e12910ca443c4df26ec3",
-      "defect": "Same plan had498required in detail versus998in summary; shared overflow gate affected unrelated engagement.",
-      "fix": "Server reads at most501stable-ordered bindings per engagement, trims to500, and gates only that oversized plan. Detail/client/portfolio use identical bounds; existing evidence/scope limits retained.",
-      "verification": "Actual PostgreSQL regression with1001task plan and separate engagement RED1/GREEN1; matched bounded counts and no neighbouring overflow gate. Existing101task/NA/optional/gate/denial assertions retained. No full local suite.",
-      "evidence": ".local/autonomous/evidence/practice-completion-20261026/per-engagement-bound-review.json"
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.practiceProgressPerEngagementBound20261026BeforeCurrentnessMilestone",
+      "evidence": ".local/autonomous/evidence/practice-completion-20261026/per-engagement-bound-review.json",
+      "boundary": "Focused source-specific proof; current full acceptance remains open."
+    },
+    "practiceProgressCurrentness20261026": {
+      "status": "FOCUSED_PASS_BUILTIN_PASS_CURRENT_FULL_OPEN",
+      "implementationCommit": "e50426943b6f3572af2a6df44d481ca1ad1a2de8",
+      "inspectionCleanupCommit": "e22223b2dfe44e7078d767986911b0147ffa5514",
+      "verification": "Stale materiality dependency chain RED1/GREEN2; Angular affected spec9PASS, scoped lint/production buildPASS; owned E2E1PASS and actual built-in0to99 refresh with open release gate/details/focus preserved. No full local suite or live/professional approval.",
+      "evidence": ".local/autonomous/evidence/practice-completion-20261026/progress-currentness-review.json"
     }
   },
   "externalGates": [
@@ -1567,13 +1570,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "688d8efe46baa1086298bde89e741656d5124051",
-    "sourceRole": "PRECEDING_BOUNDED_PROGRESS_FIX; newer progress-authority correction requires its own gates",
-    "fastCi": "40364643793 Docs/AngularPASS .NETrunning; not full gate",
-    "releaseVerification": "40364714445 MATCH688d RUNNING; no FULL_CI_PASS",
-    "imagePublication": "40364643351 RUNNING; immutable digest proof pending",
-    "cutoverStatus": "Existing Acceptance7433 independently confirmed by readonlySSH; publicready200; no new deployment this run",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforePracticeCompletionAudit20261026"
+    "sourceCommit": "e22223b2dfe44e7078d767986911b0147ffa5514",
+    "sourceRole": "CURRENT_PROGRESS_REFRESH_AND_PREREQUISITE_FIX_WITH_PEER_PROFILE_FEATURE",
+    "fastCi": "40371672786 pending at latest observation; no all-job checkout proof yet",
+    "releaseVerification": "Current full dispatch pending coherent next slice; preceding e6ad40367423272 MATCH with Angular/Domain/VerifyPASS, API/E2E stillrunning17:46UTC. No current FULL_CI_PASS.",
+    "imagePublication": "e50440371444858 running; not accepted as exact e222source evidence",
+    "cutoverStatus": "Peer e6ad deployment retained in hostingerAcceptance; no currentness/profile cutover by this agent",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeCurrentnessMilestone20261026"
   },
-  "updatedAtUtc": "2026-10-26T16:59:49.947682+00:00"
+  "updatedAtUtc": "2026-10-26T17:54:10.701447+00:00"
 }
