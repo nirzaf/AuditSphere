@@ -26597,6 +26597,14 @@
       "supplementalEvidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/client-invoice-exclusion-probe/review.json",
       "terminalEvidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/api-terminal-b969-review.json",
       "baseline": "Two exact failed API methods PASS unchanged locally; underlying CI execution/output stall mechanism unproven, no timeout/assertion change."
+    },
+    "currentAccountProfileBeforeProgressAuthorizationFix20261026": {
+      "status": "FOCUSED_API_ANGULAR_BUILD_AND_DESKTOP_BUILTIN_PASS_CURRENT_CI_RELEASE_PENDING",
+      "scope": "Server-bound current-user name/email/provider in no-store authenticated session; top-right native account/profile disclosure, Microsoft MyAccount management link for configured Microsoft identities, administrator guidance for synthetic accounts. No identity keys, credentials, grants or business data edits.",
+      "verification": "Angular affected3spec7PASS; focused sessionAPI1PASS including current persisted name after sign-in and revoked-session denial; pinnedNode26.8.1 productionbuildPASS; scopedlintPASS after keyboard focusability correction. Desktop builtin Enter/open/same identity/Escape/focus/sign-out clearing observed; consoleerrors/warnings empty.",
+      "boundary": "Responsive builtin viewport request refused by browser security policy; no workaround attempted. Microsoft external profile changes were not performed. Full current CI/images/rehearsal and Acceptance deployment not yet run for this source.",
+      "evidence": ".local/autonomous/evidence/user-account-profile-20261026/review.json",
+      "peerBoundary": "Concurrent portfolio/progress/workflow/migration/design harness changes preserved separately; do not stage blindly."
     }
   },
   "lastUpdatedOn": "2026-10-26"

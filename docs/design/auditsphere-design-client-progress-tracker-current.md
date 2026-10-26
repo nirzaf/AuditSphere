@@ -36,7 +36,7 @@ The view also gives the current phase, the responsible person or role, the earli
 
 ## Access and freshness
 
-The query recalculates on every read, so there is no stored figure to go stale. Reads use the workflow-task evidence read roles and rechecked engagement authorization (`InternalOnly`). The client view returns at most 50 engagements, newest period first, and refuses when the client has engagements but none is permitted. The portfolio view pages 10 engagements at a time over the actor's current portfolio scope. A plan beyond 500 steps fails closed as an open gate rather than reporting a partial figure. Within that plan bound, evidence is evaluated in pages of at most 100 bindings, retaining the existing per-task evidence-rule bound. Client and portfolio summaries use the same batching across engagements.
+The query recalculates on every read, so there is no stored figure to go stale. Reads use the workflow-task evidence read roles and rechecked engagement authorization (`InternalOnly`). The client view returns at most 50 engagements, newest period first, and refuses when the client has engagements but none is permitted. The portfolio view pages 10 engagements at a time over the actor's current portfolio scope. Before returning a progress summary, it rechecks every returned engagement against the narrower progress-reading roles; retaining a broader portfolio role cannot preserve revoked progress access. A plan beyond 500 steps fails closed as an open gate rather than reporting a partial figure. Within that plan bound, evidence is evaluated in pages of at most 100 bindings, retaining the existing per-task evidence-rule bound. Client and portfolio summaries use the same batching across engagements.
 
 ## Presentation
 

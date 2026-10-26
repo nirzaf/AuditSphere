@@ -37,13 +37,43 @@ public sealed class PortfolioWorkspaceTests
     Assert.True((await PortfolioQuery.ListAsync(db, actor)).Succeeded);
   }
 
-  private sealed class RevokeDuringRead(Func<Task> revoke) : DbCommandInterceptor
+  [Fact]
+  public async Task ProgressRefusesRevokedProgressAuthorityEvenWhenPortfolioAuthorityRemains()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var actor = PbcSeed.Actor(f.Staff, "Staff");
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Reviewer", f.ClientId, f.EngagementId));
+      await setup.SaveChangesAsync();
+      var before = await PortfolioQuery.ProgressAsync(setup, actor);
+      Assert.True(before.Succeeded, before.Message);
+      Assert.Equal(f.EngagementId, Assert.Single(before.Value!.Items).EngagementId);
+    }
+    var interceptor = new RevokeDuringRead(async () =>
+    {
+      await using var mutation = new AuditSphereDbContext(pg.Options);
+      await mutation.RoleGrants.Where(g => g.UserId == f.Staff.Id && g.Role == "Staff")
+        .ExecuteUpdateAsync(update => update.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow));
+    }, "FROM releases");
+    await using var db = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(interceptor).Options);
+    var result = await PortfolioQuery.ProgressAsync(db, actor);
+    Assert.True(interceptor.Fired);
+    Assert.False(result.Succeeded);
+    Assert.Equal("scope.denied", result.ErrorCode);
+    Assert.Null(result.Value);
+    Assert.True((await PortfolioQuery.ListAsync(db, actor)).Succeeded);
+  }
+
+  private sealed class RevokeDuringRead(Func<Task> revoke, string marker = "FROM release_candidates") : DbCommandInterceptor
   {
     public bool Fired { get; private set; }
     public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
       CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
     {
-      if (!Fired && command.CommandText.Contains("FROM release_candidates", StringComparison.Ordinal))
+      if (!Fired && command.CommandText.Contains(marker, StringComparison.Ordinal))
       { Fired = true; await revoke(); }
       return result;
     }

@@ -25,7 +25,8 @@ public static partial class PortfolioQuery
       .Skip(page * ProgressPageSize).Take(ProgressPageSize).ToListAsync(ct);
     var permitted = await EngagementProgressQuery.PermittedAsync(db, actor, candidates, ct);
     var views = await EngagementProgressQuery.BuildAsync(db, actor, permitted, includeSteps: false, ct);
-    if (!await CurrentAsync(db, actor, scope, ct))
+    if ((await EngagementProgressQuery.PermittedAsync(db, actor, permitted, ct)).Count != permitted.Count ||
+        !await CurrentAsync(db, actor, scope, ct))
       return CommandResult<EngagementProgressList>.Fail(ErrorCodes.ScopeDenied, "Portfolio progress unavailable.");
     return CommandResult<EngagementProgressList>.Ok(new(views, total, page, ProgressPageSize));
   }
