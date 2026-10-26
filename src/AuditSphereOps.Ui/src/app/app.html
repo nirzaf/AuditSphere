@@ -26,15 +26,16 @@
     @else { Workspace }
   </span>
 
+  @if (session.current()) {
+    <audit-user-account />
+    <button class="shell-button" (click)="signOut()">Sign out</button>
+  }
   @if (session.current() && !publicSetup()) {
     <button class="shell-button navigation-toggle" aria-haspopup="dialog"
       [attr.aria-expanded]="navigationOpen()" [attr.aria-busy]="navigationLoading()"
       [attr.aria-disabled]="navigationLoading()" (click)="openNavigation()">
       {{ navigationLoading() ? 'Opening navigation…' : 'Open navigation' }}
     </button>
-  }
-  @if (session.current()) {
-    <button class="shell-button" (click)="signOut()">Sign out</button>
   }
 </header>
 <audit-pending-outcomes />

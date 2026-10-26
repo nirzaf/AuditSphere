@@ -53,6 +53,22 @@ describe('session invalidation', () => {
     expect(await request).toBe(false);
     expect(session.current()).toBeNull();
   });
+  it('refreshes account presentation without changing authority and refuses malformed identity details', async () => {
+    const session = TestBed.inject(SessionService), http = TestBed.inject(HttpTestingController);
+    let read = session.refresh();
+    http.expectOne('/api/ui/session').flush({ ...first, displayName: 'Alex Reviewer', email: 'alex@example.invalid', microsoftAccount: true });
+    expect(await read).toBe(true);
+    expect(session.current()?.displayName).toBe('Alex Reviewer');
+    read = session.refresh();
+    http.expectOne('/api/ui/session').flush({ ...first, displayName: 'Alex Updated', email: 'alex@example.invalid', microsoftAccount: true });
+    expect(await read).toBe(true);
+    expect(session.current()?.displayName).toBe('Alex Updated');
+    expect(session.invalidation()).toBe(0);
+    read = session.refresh();
+    http.expectOne('/api/ui/session').flush({ ...first, displayName: { untrusted: 'name' } });
+    expect(await read).toBe(false);
+    expect(session.current()).toBeNull();
+  });
 });
 
 describe('sign-out outcome', () => {

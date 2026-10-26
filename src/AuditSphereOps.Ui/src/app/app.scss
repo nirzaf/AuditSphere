@@ -1,5 +1,6 @@
 .spacer {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
 }
 .app-header {
   position: sticky;
@@ -21,6 +22,7 @@
   outline-color: #fff;
 }
 .app-header > strong {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
@@ -43,6 +45,7 @@
   letter-spacing: 0.02em;
 }
 .workspace-label {
+  flex: none;
   padding: 0.125rem 0.65rem;
   border-inline-start: 1px solid var(--as-shell-border, #475569);
   color: var(--as-shell-muted, #cbd5e1);
@@ -51,6 +54,7 @@
   letter-spacing: 0.02em;
 }
 .shell-button {
+  flex-shrink: 0;
   display: inline-flex;
   min-height: 44px;
   align-items: center;
@@ -68,6 +72,9 @@
     background-color 0.15s var(--as-ease, ease),
     border-color 0.15s var(--as-ease, ease),
     transform 0.1s var(--as-ease, ease);
+}
+@media (min-width: 701px) and (max-width: 1100px) {
+  .workspace-label { display: none; }
 }
 .shell-button:hover:not(:disabled) {
   background: color-mix(in srgb, currentColor 14%, transparent);

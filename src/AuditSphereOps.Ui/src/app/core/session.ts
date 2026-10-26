@@ -7,6 +7,9 @@ export interface Session {
   firmId: string;
   generation: string;
   staff: boolean;
+  displayName?: string;
+  email?: string;
+  microsoftAccount?: boolean;
 }
 @Injectable({ providedIn: 'root' })
 export class SessionService {
@@ -39,6 +42,13 @@ export class SessionService {
         throw new Error('Invalid session');
       const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuid.test(String(s['userId'])) || !uuid.test(String(s['firmId'])) || !/^[0-9]{1,19}$/.test(String(s['generation']))) throw new Error('Invalid session identity');
+      // Older API deployments omit these additive presentation fields.
+      for (const key of ['displayName', 'email']) {
+        if (s[key] !== undefined && (typeof s[key] !== 'string' || (s[key] as string).length > 2000))
+          throw new Error('Invalid account details');
+      }
+      if (s['microsoftAccount'] !== undefined && typeof s['microsoftAccount'] !== 'boolean')
+        throw new Error('Invalid account provider');
       if (started !== this.invalidation()) return false;
       const next = s as unknown as Session;
       const old = this.current();
@@ -54,7 +64,9 @@ export class SessionService {
         old.userId !== next.userId ||
         old.firmId !== next.firmId ||
         old.generation !== next.generation ||
-        old.staff !== next.staff
+        old.staff !== next.staff ||
+        old.displayName !== next.displayName || old.email !== next.email ||
+        old.microsoftAccount !== next.microsoftAccount
       )
         this.current.set(next);
       return true;

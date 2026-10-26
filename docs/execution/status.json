@@ -1038,20 +1038,30 @@
       "scope": "Receipt contention/revocation/no-clamp assertions passed locally and in exact1749Domain suite; later E2E fixture correction requires new release gates."
     },
     "accountingProfileRefreshCapture20261026": {
-      "status": "FOCUSED_FAST_IMAGES_REHEARSAL_ANGULAR_DOMAIN_VERIFY_PASS_API_E2E_RUNNING",
+      "status": "PRECEDING_FULL_FAIL_API_CANCELLATIONS_E2E339_PASS",
       "base": "fa9d95be33508ec3a5807c3ba6e0791d1d8d50a5",
       "failure": "Precedingb4fe full40281043148 E2E338PASS1FAIL: profile revision2 checkbox absent while workspace loading after200POST. Runtime/E2E source unchanged63c9; historical latency cause unproven.",
       "fix": "Capture POST plus exact workspaceGET/200/clientId/revision before original assent/currency/reason/history checks. Initial profile creation uses same handoff. No original assertion, runtime, permission or timeout changed.",
       "verification": "Original1PASS; same6.5sGET underexisting15s budget causalRED1/GREEN1; probe removedbyteexact/final1PASS. Originalassertions/timeouts/runtime unchanged.",
       "evidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/review.json",
-      "remaining": "CurrentAPI/E2E/fullcontract; freshallPASS/preflight/quiescedbackup/cutover and actualbuiltinpostrelease checks. No deployment/completion.",
+      "remaining": "New account-profile source requires its own exact fast/full/images/rehearsal and release checks; no cutover.",
       "sourceSha": "b9695b7b70515d30cad2d19ee7813978e1162893",
       "fastCi": "40298056536 PASS all3actualcheckoutMATCH",
       "images": "40298238984 PASS all3actualcheckout/pinned digests; exactpull verified",
-      "fullCi": "40298202290 MATCH; Angular1664/Domain1749(no skips)/VerifyPASS; API/E2E running10:00UTC",
+      "fullCi": "40298202290 MATCH; Angular1664/Domain1749/Verify/E2E339(no skips)PASS; API402executed400PASS2FAIL, request cancellation before relevant assertions.",
       "rehearsal": "PASS schema286/zero migrations/379originalprojections unchanged/health+bothUIroots200; independentcleanup/livepreservation verified",
       "clientInvoiceExclusion": "Existing nativepostingcase1PASS: independentlyposted125QARclientinvoice excluded from authorizedfirmreceivables rows/subtotals. OriginalGL/noFirmPostings assertions retained; temporaryprobe removedbyteexact.",
-      "supplementalEvidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/client-invoice-exclusion-probe/review.json"
+      "supplementalEvidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/client-invoice-exclusion-probe/review.json",
+      "terminalEvidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/api-terminal-b969-review.json",
+      "baseline": "Two exact failed API methods PASS unchanged locally; underlying CI execution/output stall mechanism unproven, no timeout/assertion change."
+    },
+    "currentAccountProfile20261026": {
+      "status": "FOCUSED_API_ANGULAR_BUILD_AND_DESKTOP_BUILTIN_PASS_CURRENT_CI_RELEASE_PENDING",
+      "scope": "Server-bound current-user name/email/provider in no-store authenticated session; top-right native account/profile disclosure, Microsoft MyAccount management link for configured Microsoft identities, administrator guidance for synthetic accounts. No identity keys, credentials, grants or business data edits.",
+      "verification": "Angular affected3spec7PASS; focused sessionAPI1PASS including current persisted name after sign-in and revoked-session denial; pinnedNode26.8.1 productionbuildPASS; scopedlintPASS after keyboard focusability correction. Desktop builtin Enter/open/same identity/Escape/focus/sign-out clearing observed; consoleerrors/warnings empty.",
+      "boundary": "Responsive builtin viewport request refused by browser security policy; no workaround attempted. Microsoft external profile changes were not performed. Full current CI/images/rehearsal and Acceptance deployment not yet run for this source.",
+      "evidence": ".local/autonomous/evidence/user-account-profile-20261026/review.json",
+      "peerBoundary": "Concurrent portfolio/progress/workflow/migration/design harness changes preserved separately; do not stage blindly."
     }
   },
   "externalGates": [

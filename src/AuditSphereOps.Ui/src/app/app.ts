@@ -7,6 +7,7 @@ import { map } from 'rxjs';
 import { GlobalSearch } from './features/search/search';
 import { PendingOutcomesBanner } from './core/pending-outcomes';
 import { SessionService } from './core/session';
+import { UserAccount } from './core/user-account';
 import { Drafts } from './core/drafts';
 import { TabDrafts } from './core/tab-drafts';
 import { presentationBase, workspaceSignInHref } from './core/navigation';
@@ -15,7 +16,7 @@ import { WorkspaceNavigationIcon } from './core/workspace-navigation-icon';
 import type { WorkspaceNavigationDialog } from './core/workspace-navigation-dialog';
 @Component({
   selector: 'app-root',
-  imports: [GlobalSearch, WorkspaceNavigation, WorkspaceNavigationIcon, RouterOutlet, PendingOutcomesBanner],
+  imports: [GlobalSearch, WorkspaceNavigation, WorkspaceNavigationIcon, RouterOutlet, PendingOutcomesBanner, UserAccount],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

@@ -149981,7 +149981,10 @@
           "userId",
           "firmId",
           "generation",
-          "staff"
+          "staff",
+          "displayName",
+          "email",
+          "microsoftAccount"
         ],
         "type": "object",
         "properties": {
@@ -149997,6 +150000,15 @@
             "type": "string"
           },
           "staff": {
+            "type": "boolean"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "microsoftAccount": {
             "type": "boolean"
           }
         }

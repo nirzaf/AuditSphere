@@ -13,7 +13,8 @@ namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
-  public sealed record SessionHttpResponse(Guid UserId, Guid FirmId, string Generation, bool Staff);
+  public sealed record SessionHttpResponse(Guid UserId, Guid FirmId, string Generation, bool Staff,
+    string DisplayName, string Email, bool MicrosoftAccount);
   public sealed record ContactInput(string Name, string Email, string Role, bool Primary, string SafetyGeneration);
   public sealed record StaffingInput(Guid UserId, string Level, bool ReviewedClientSiteAccess);
   public sealed record BudgetInput(string Currency, string ExpectedVersion, IReadOnlyList<BudgetLineRequest> Lines);
@@ -418,15 +419,20 @@ public static partial class UiEndpoints
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var isStaff = await db.Users.AsNoTracking().AnyAsync(u => u.Id == actor.UserId && u.FirmId == actor.FirmId &&
-        u.UserKind == "Staff" && !u.Disabled, http.RequestAborted);
+      var user = await db.Users.AsNoTracking().Where(u => u.Id == actor.UserId && u.FirmId == actor.FirmId &&
+        u.SessionEpoch == actor.SessionEpoch && !u.Disabled)
+        .Select(u => new { u.UserKind, u.DisplayName, u.Email }).SingleOrDefaultAsync(http.RequestAborted);
+      if (user is null || await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       var tokens = csrf.GetAndStoreTokens(http);
       http.Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!, new CookieOptions
       { HttpOnly = false, Secure = http.Request.IsHttps ||
           !(app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Test")), SameSite = SameSiteMode.Strict, Path = "/" });
-      return Results.Ok(new { userId = actor.UserId, firmId = actor.FirmId,
-        generation = actor.SessionEpoch.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        staff = isStaff && actor.Roles.Any() && !actor.Roles.Contains("ClientUser") });
+      return Results.Ok(new SessionHttpResponse(actor.UserId, actor.FirmId,
+        actor.SessionEpoch.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        user.UserKind == "Staff" && actor.Roles.Any() && !actor.Roles.Contains("ClientUser"),
+        user.DisplayName, user.Email, !app.Configuration.GetValue<bool>("DevelopmentIdentity:Enabled") &&
+          !string.IsNullOrWhiteSpace(app.Configuration["Identity:TenantId"])));
     }).Produces<SessionHttpResponse>();
     group.MapPost("/sign-out", async (HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf) =>
     {

@@ -26553,6 +26553,22 @@
       },
       "remaining": "Exact-source full CI 40144697389 is running after the OpenAPI correction; fast CI 40144694030 is also running. No reviewer browser journey or qualified professional acceptance is verified. TB replacement lifecycle, lock revocation, caller-transaction variants, methodology and provider acceptance remain open.",
       "contractCommit": "6063c2211e1c9767e41f3b85915c5f372ce48d16"
+    },
+    "accountingProfileRefreshBeforeTerminalApiCancellationReview20261026": {
+      "status": "FOCUSED_FAST_IMAGES_REHEARSAL_ANGULAR_DOMAIN_VERIFY_PASS_API_E2E_RUNNING",
+      "base": "fa9d95be33508ec3a5807c3ba6e0791d1d8d50a5",
+      "failure": "Precedingb4fe full40281043148 E2E338PASS1FAIL: profile revision2 checkbox absent while workspace loading after200POST. Runtime/E2E source unchanged63c9; historical latency cause unproven.",
+      "fix": "Capture POST plus exact workspaceGET/200/clientId/revision before original assent/currency/reason/history checks. Initial profile creation uses same handoff. No original assertion, runtime, permission or timeout changed.",
+      "verification": "Original1PASS; same6.5sGET underexisting15s budget causalRED1/GREEN1; probe removedbyteexact/final1PASS. Originalassertions/timeouts/runtime unchanged.",
+      "evidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/review.json",
+      "remaining": "CurrentAPI/E2E/fullcontract; freshallPASS/preflight/quiescedbackup/cutover and actualbuiltinpostrelease checks. No deployment/completion.",
+      "sourceSha": "b9695b7b70515d30cad2d19ee7813978e1162893",
+      "fastCi": "40298056536 PASS all3actualcheckoutMATCH",
+      "images": "40298238984 PASS all3actualcheckout/pinned digests; exactpull verified",
+      "fullCi": "40298202290 MATCH; Angular1664/Domain1749(no skips)/VerifyPASS; API/E2E running10:00UTC",
+      "rehearsal": "PASS schema286/zero migrations/379originalprojections unchanged/health+bothUIroots200; independentcleanup/livepreservation verified",
+      "clientInvoiceExclusion": "Existing nativepostingcase1PASS: independentlyposted125QARclientinvoice excluded from authorizedfirmreceivables rows/subtotals. OriginalGL/noFirmPostings assertions retained; temporaryprobe removedbyteexact.",
+      "supplementalEvidence": ".local/autonomous/evidence/accounting-profile-refresh-ci-20261026/client-invoice-exclusion-probe/review.json"
     }
   },
   "lastUpdatedOn": "2026-10-26"

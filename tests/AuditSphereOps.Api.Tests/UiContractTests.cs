@@ -119,10 +119,23 @@ public sealed class UiContractTests
     Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync($"/api/ui/accounting/clients/{seed.ClientId}/open-item-allocations/history")).StatusCode);
     using var login = await client.GetAsync("/auth/sign-in?returnUrl=%2Fui%2Fapp");
     Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
+    await using (var identityDb = new AuditSphereDbContext(pg.Options))
+      await identityDb.Users.Where(x => x.Id == seed.Staff.Id)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.DisplayName, "Current synthetic profile name"));
     using var session = await client.GetAsync("/api/ui/session");
     Assert.Equal(HttpStatusCode.OK, session.StatusCode);
     Assert.Contains(session.Headers.GetValues("Set-Cookie"), h => h.StartsWith("XSRF-TOKEN="));
     Assert.True(session.Headers.CacheControl!.NoStore);
+    using (var identity = JsonDocument.Parse(await session.Content.ReadAsStringAsync()))
+    {
+      var account = identity.RootElement;
+      Assert.Equal(seed.Staff.Id, account.GetProperty("userId").GetGuid());
+      Assert.Equal(seed.Staff.Email, account.GetProperty("email").GetString());
+      await using var identityDb = new AuditSphereDbContext(pg.Options);
+      var retainedUser = await identityDb.Users.SingleAsync(x => x.Id == seed.Staff.Id);
+      Assert.Equal(retainedUser.DisplayName, account.GetProperty("displayName").GetString());
+      Assert.False(account.GetProperty("microsoftAccount").GetBoolean());
+    }
     var page = await client.GetFromJsonAsync<PortfolioPage>("/api/ui/portfolio");
     Assert.Equal(seed.ClientId, Assert.Single(page!.Items).Id);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/accounting/clients")).StatusCode);
