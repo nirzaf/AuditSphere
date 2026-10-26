@@ -54,14 +54,12 @@ export function hours(minutes: number, places = 1): string {
   selector: 'audit-practice-analytics',
   imports: [FormsModule, MatButtonModule, ...SHARED],
   styles: [`
-    .analytics-views { display: flex; flex-wrap: wrap; gap: 4px; margin-block: 12px; }
-    .analytics-views button[aria-pressed="true"] { font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
     .analytics-basis, .analytics-scope { color: var(--as-text-muted); max-width: 72ch; }
   `],
   template: `
     <audit-page-header title="Practice analytics" eyebrow="Economics"
       description="Engagement economics, billing realization, budget hours, utilization and operational delivery from approved records, with every formula stated." />
-    <form class="inline-form" aria-label="Reporting period" (submit)="$event.preventDefault(); apply()">
+    <form class="inline-form filter-bar" aria-label="Reporting period" (submit)="$event.preventDefault(); apply()">
       <label>From <input type="date" name="from" [(ngModel)]="from" /></label>
       <label>To <input type="date" name="to" [(ngModel)]="to" /></label>
       <button matButton="outlined" type="submit">Show</button>

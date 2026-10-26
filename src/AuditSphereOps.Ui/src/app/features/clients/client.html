@@ -57,7 +57,7 @@
       </table></div>
     }
     <nav aria-label="Client engagement pages">
-      <mat-form-field><mat-label>Engagements per page</mat-label><select matNativeControl #engagementSize [value]="client.paging.engagementPageSize"  (change)="size('engagement', engagementSize.value)"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Engagements per page</mat-label><select matNativeControl #engagementSize [value]="client.paging.engagementPageSize"  (change)="size('engagement', engagementSize.value)"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></mat-form-field>
       @if (client.paging.engagementPage > 0) { <button matButton  (click)="page('engagement', 0)">First engagements</button> }
       <button matButton [disabled]="client.paging.engagementPage === 0" (click)="page('engagement', client.paging.engagementPage - 1)">Previous engagements</button>
       <span>Page {{ client.paging.engagementPage + 1 }} · {{ client.metrics.engagements }} authorized engagements</span>
@@ -94,7 +94,7 @@
       </table></div>
     }
     <nav aria-label="Client contact pages">
-      <mat-form-field><mat-label>Contacts per page</mat-label><select matNativeControl #contactSize [value]="client.paging.contactPageSize"  (change)="size('contact', contactSize.value)"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Contacts per page</mat-label><select matNativeControl #contactSize [value]="client.paging.contactPageSize"  (change)="size('contact', contactSize.value)"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></mat-form-field>
       @if (client.paging.contactPage > 0) { <button matButton  (click)="page('contact', 0)">First contacts</button> }
       <button matButton [disabled]="client.paging.contactPage === 0" (click)="page('contact', client.paging.contactPage - 1)">Previous contacts</button>
       <span>Page {{ client.paging.contactPage + 1 }} · {{ client.metrics.contacts }} authorized contacts</span>

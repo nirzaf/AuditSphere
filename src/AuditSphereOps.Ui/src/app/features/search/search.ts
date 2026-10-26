@@ -66,7 +66,7 @@ export function decodeSearch(value: unknown): SearchResult {
   template: `
     <section aria-label="Global search">
       <form (submit)="search($event, term.value)">
-        <mat-form-field
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"
           ><mat-label>Search your workspace</mat-label
           ><input
             matInput

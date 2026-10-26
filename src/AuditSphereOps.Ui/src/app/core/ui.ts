@@ -20,10 +20,12 @@ export class PercentPipe implements PipeTransform {
 @Component({
   selector: 'audit-page-header',
   template: `<header>
-    @if (eyebrow()) { <p class="eyebrow">{{ eyebrow() }}</p> }
-    <h1>{{ title() }}</h1>
-    @if (description()) { <p>{{ description() }}</p> }
-    <ng-content />
+    <div class="page-header-text">
+      @if (eyebrow()) { <p class="eyebrow">{{ eyebrow() }}</p> }
+      <h1>{{ title() }}</h1>
+      @if (description()) { <p>{{ description() }}</p> }
+    </div>
+    <div class="page-header-actions"><ng-content /></div>
   </header>`,
 })
 export class PageHeader {

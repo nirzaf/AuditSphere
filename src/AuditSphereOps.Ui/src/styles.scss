@@ -21,6 +21,8 @@ html {
       density: 0,
     )
   );
+  // Form fields are the densest repeated control in practice workspaces; buttons keep full-size touch targets.
+  @include mat.form-field-density(-3);
 }
 
 // Design tokens shared by the shell and every page. Component styles reference these with a
@@ -36,7 +38,7 @@ html {
   --as-shell-text: #f8fafc;
   --as-shell-muted: #cbd5e1;
   --as-shell-active: #1d4ed8;
-  --as-canvas: #f1f5f9;
+  --as-canvas: #f3f6f9;
   --as-sidebar-expanded-width: 16rem;
   --as-sidebar-compact-width: 5rem;
   --as-shell-header-height: 4rem;
@@ -46,19 +48,23 @@ html {
   --as-link: #0b5cab;
   --as-link-hover: #083f78;
   --as-focus: #075a9c;
-  --as-line: #d8e1eb;
+  --as-line: #dfe6ee;
+  --as-line-strong: #c7d2de;
   --as-control-border: #6f8299;
   --as-surface-raised: #ffffff;
-  --as-surface-sunken: #f4f7fa;
+  --as-surface-sunken: #f6f8fb;
   --as-surface-nav: #edf3f8;
-  --as-row-hover: #f1f6fb;
+  --as-row-hover: #f3f7fc;
+  --as-accent-ink: #1e4fa8;
+  --as-content-max: 96rem;
   --as-danger: #a1260d;
   --as-danger-fill: #fdecea;
   --as-warning-ink: #7a3b00;
   --as-warning-accent: #b36b00;
   --as-radius-sm: 6px;
   --as-radius-md: 10px;
-  --as-shadow-1: 0 1px 2px rgb(16 42 67 / 6%), 0 1px 3px rgb(16 42 67 / 8%);
+  --as-radius-lg: 14px;
+  --as-shadow-1: 0 1px 2px rgb(15 39 66 / 5%), 0 1px 1px rgb(15 39 66 / 4%);
   --as-shadow-2: 0 2px 4px rgb(16 42 67 / 8%), 0 6px 16px rgb(16 42 67 / 10%);
   --as-ease: cubic-bezier(0.2, 0, 0, 1);
 }
@@ -110,12 +116,18 @@ h3 {
   text-wrap: balance;
 }
 h1 {
-  font-size: clamp(1.8rem, 3vw, 2.5rem);
-  letter-spacing: -0.015em;
+  font-size: clamp(1.5rem, 2.2vw, 1.875rem);
+  letter-spacing: -0.02em;
   font-weight: 650;
 }
+h2 {
+  font-size: 1.125rem;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+}
 h3 {
-  font-size: 1.0625rem;
+  font-size: 1rem;
+  font-weight: 650;
 }
 
 // Links: the browser default blue is replaced by an accessible token; Material buttons and the
@@ -132,26 +144,46 @@ a:hover {
 
 .eyebrow {
   margin: 0;
-  color: var(--as-ink-soft);
+  color: var(--as-accent-ink);
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-// Page header: every migrated page opens with <audit-page-header>.
+// Page header: every migrated page opens with <audit-page-header>. Title text sits left; any projected page
+// actions sit right on wide screens and wrap beneath on narrow ones.
 audit-page-header > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
   margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
+  padding-bottom: 1.25rem;
   border-bottom: 1px solid var(--as-line);
 }
+audit-page-header .page-header-text {
+  flex: 1 1 32rem;
+  min-width: 0;
+}
+audit-page-header .page-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+audit-page-header .page-header-actions:empty {
+  display: none;
+}
 audit-page-header h1 {
-  margin: 0.25rem 0 0.5rem;
+  margin: 0.375rem 0 0.375rem;
 }
 audit-page-header p:not(.eyebrow) {
-  max-width: 70ch;
+  max-width: 75ch;
   margin: 0;
   color: var(--as-text-muted);
+  font-size: 0.9375rem;
 }
 
 form {
@@ -167,25 +199,30 @@ table {
 }
 caption {
   text-align: left;
-  padding: 1rem 0;
-  font-weight: 600;
+  padding: 0.875rem 0;
+  font-size: 0.9375rem;
+  font-weight: 650;
   color: var(--as-ink);
 }
 th,
 td {
-  padding: 0.75rem 1rem;
+  padding: 0.625rem 0.875rem;
   border-bottom: 1px solid var(--as-line);
   text-align: left;
   vertical-align: top;
 }
 thead th {
   background: var(--as-surface-sunken);
-  border-bottom: 2px solid var(--as-line);
+  border-bottom: 1px solid var(--as-line-strong);
   color: var(--as-ink-soft);
-  font-size: 0.8125rem;
+  font-size: 0.78125rem;
   font-weight: 650;
   letter-spacing: 0.02em;
   white-space: nowrap;
+}
+tbody th {
+  font-weight: 600;
+  color: var(--as-ink);
 }
 tbody tr {
   transition: background-color 0.12s var(--as-ease);
@@ -213,6 +250,13 @@ small {
   border: 1px solid var(--as-line);
   border-radius: var(--as-radius-md);
   background: var(--as-surface-raised);
+  box-shadow: var(--as-shadow-1);
+}
+.table-scroll caption {
+  padding-inline: 0.875rem;
+}
+.panel .table-scroll {
+  box-shadow: none;
 }
 .table-scroll tbody tr:last-child td {
   border-bottom: 0;
@@ -225,12 +269,23 @@ nav {
 }
 nav[aria-label='Breadcrumb'] {
   flex-wrap: wrap;
+  gap: 0.375rem;
+  margin: 0 0 0.75rem;
+  color: var(--as-text-muted);
+  font-size: 0.8125rem;
+}
+nav[aria-label='Breadcrumb'] a {
+  color: var(--as-link);
+  text-decoration: none;
+}
+nav[aria-label='Breadcrumb'] a:hover {
+  text-decoration: underline;
 }
 .panel {
   border: 1px solid var(--as-line);
-  border-radius: var(--as-radius-md);
+  border-radius: var(--as-radius-lg);
   padding: 1.25rem 1.5rem;
-  margin: 1.5rem 0;
+  margin: 1.25rem 0;
   background: var(--as-surface-raised);
   box-shadow: var(--as-shadow-1);
 }
@@ -239,7 +294,103 @@ nav[aria-label='Breadcrumb'] {
 }
 .panel h2 {
   margin-top: 0;
-  font-size: 1.25rem;
+  font-size: 1.0625rem;
+}
+
+// Key figures: a row of quiet tiles, each a short label above one tabular value.
+.portfolio-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+.portfolio-metrics > article {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--as-line);
+  border-radius: var(--as-radius-md);
+  background: var(--as-surface-raised);
+  box-shadow: var(--as-shadow-1);
+}
+.portfolio-metrics > article > :is(h2, h3) {
+  margin: 0;
+  color: var(--as-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.portfolio-metrics > article > strong {
+  color: var(--as-ink);
+  font-size: 1.625rem;
+  font-weight: 650;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+// Filter bars: one raised strip of stacked label-over-control fields with their actions aligned to the controls.
+.filter-bar,
+.lead-filters,
+.invoice-filters,
+.pipeline-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+  margin-block: 0 1.25rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--as-line);
+  border-radius: var(--as-radius-md);
+  background: var(--as-surface-raised);
+  box-shadow: var(--as-shadow-1);
+}
+:is(.filter-bar, .lead-filters, .invoice-filters, .pipeline-filters) > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  color: var(--as-ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+// View switches (aria-pressed buttons in a nav) read as one segmented control.
+nav:is(.analytics-views, .queue-views, .invoice-sections, .proposal-sections) {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-block: 0.75rem;
+  padding: 3px;
+  border: 1px solid var(--as-line);
+  border-radius: var(--as-radius-md);
+  background: var(--as-surface-sunken);
+}
+nav:is(.analytics-views, .queue-views) button[aria-pressed='true'] {
+  background: var(--as-surface-raised);
+  box-shadow: var(--as-shadow-1);
+  color: var(--as-ink);
+  font-weight: 650;
+}
+.hint {
+  color: var(--as-text-muted);
+  font-size: 0.875rem;
+}
+// A record's headline amounts, kept together in one quiet strip above its sections.
+.amount-strip {
+  display: inline-block;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-block: 0 0.5rem;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--as-line);
+  border-radius: var(--as-radius-md);
+  background: var(--as-surface-raised);
+  color: var(--as-ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .inline-form {
   display: flex;
@@ -375,6 +526,9 @@ dl.facts dd {
   overflow-wrap: anywhere;
 }
 @media (max-width: 40rem) {
+  .panel {
+    padding: 1rem;
+  }
   dl.facts {
     grid-template-columns: minmax(0, 1fr);
   }

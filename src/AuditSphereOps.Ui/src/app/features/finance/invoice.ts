@@ -63,7 +63,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
     <audit-page-header title="Practice invoice" eyebrow="Practice billing" description="Client invoice record, line items, receipts and credit notes under firm finance controls." />
     <audit-state [loading]="invoice.loading()" [error]="invoice.error()" label="invoice" />
     @if (invoice.data(); as i) {
-      <p role="status">{{ i.currency ?? 'Billing account currency' }} · Invoice total {{ i.total | money }} · credited {{ i.credited | money }} · allocated {{ i.allocated | money }} · balance outstanding {{ i.outstanding | money }}</p>
+      <p role="status" class="amount-strip">{{ i.currency ?? 'Billing account currency' }} · Invoice total {{ i.total | money }} · credited {{ i.credited | money }} · allocated {{ i.allocated | money }} · balance outstanding {{ i.outstanding | money }}</p>
       <nav class="invoice-sections" aria-label="Invoice sections">
         @for (section of sections(i.canAct); track section.id) {
           <button matButton type="button" (click)="jump(section.id)">{{ section.label }}</button>

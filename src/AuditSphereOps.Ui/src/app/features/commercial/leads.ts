@@ -122,12 +122,6 @@ export function isLeadChannel(value: string): boolean {
     '(document:keydown)': 'recordFocusInteraction()',
   },
   styles: `
-    .lead-filters {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0 1rem;
-      align-items: center;
-    }
     .lead-create {
       margin: 0.5rem 0 1rem;
       border: 1px solid var(--as-control-border);
@@ -138,11 +132,6 @@ export function isLeadChannel(value: string): boolean {
       cursor: pointer;
       font-weight: 600;
     }
-    .portfolio-metrics {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
     .lead-summary-scope {
       color: var(--as-text-muted);
     }
@@ -152,10 +141,10 @@ export function isLeadChannel(value: string): boolean {
     <a routerLink="/app/practice/commercial-settings">Commercial settings</a>
     <p>Commercial qualification remains separate from client acceptance and credit decisions.</p>
     <form class="lead-filters" (ngSubmit)="load()" aria-label="Lead search and filters">
-      <mat-form-field
+      <mat-form-field appearance="outline" subscriptSizing="dynamic"
         ><mat-label>Search lead name</mat-label
         ><input matInput name="search" [(ngModel)]="search" maxlength="100" /></mat-form-field
-      ><mat-form-field
+      ><mat-form-field appearance="outline" subscriptSizing="dynamic"
         ><mat-label>Status</mat-label
         ><select
           matNativeControl
@@ -169,7 +158,7 @@ export function isLeadChannel(value: string): boolean {
             <option [value]="status">{{ statusLabel(status) }}</option>
           }
         </select></mat-form-field
-      ><mat-form-field
+      ><mat-form-field appearance="outline" subscriptSizing="dynamic"
         ><mat-label>Channel</mat-label
         ><select
           matNativeControl
@@ -183,7 +172,7 @@ export function isLeadChannel(value: string): boolean {
             <option [value]="channel">{{ channel }}</option>
           }
         </select></mat-form-field
-      ><mat-form-field
+      ><mat-form-field appearance="outline" subscriptSizing="dynamic"
         ><mat-label>Owner</mat-label
         ><select
           matNativeControl
@@ -212,7 +201,7 @@ export function isLeadChannel(value: string): boolean {
       <details class="lead-create" [open]="createOpen() || createPending()" (toggle)="onCreateToggle($event)">
         <summary>Record a new lead</summary>
         <form (ngSubmit)="create()">
-          <mat-form-field
+          <mat-form-field appearance="outline" subscriptSizing="dynamic"
             ><mat-label>Lead name</mat-label
             ><input
               matInput
@@ -223,7 +212,7 @@ export function isLeadChannel(value: string): boolean {
               maxlength="200"
               [disabled]="busy() || createPending()"
           /></mat-form-field>
-          <mat-form-field
+          <mat-form-field appearance="outline" subscriptSizing="dynamic"
             ><mat-label>Channel</mat-label
             ><select
               matNativeControl
@@ -240,7 +229,7 @@ export function isLeadChannel(value: string): boolean {
               }
             </select></mat-form-field
           >
-          <mat-form-field
+          <mat-form-field appearance="outline" subscriptSizing="dynamic"
             ><mat-label>Contact name</mat-label
             ><input
               matInput
@@ -250,7 +239,7 @@ export function isLeadChannel(value: string): boolean {
               maxlength="200"
               [disabled]="busy() || createPending()"
           /></mat-form-field>
-          <mat-form-field
+          <mat-form-field appearance="outline" subscriptSizing="dynamic"
             ><mat-label>Contact email</mat-label
             ><input
               matInput

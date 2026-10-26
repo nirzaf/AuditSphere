@@ -1,12 +1,13 @@
 :host { display: block; }
 form, nav { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 form mat-form-field { flex: 1 1 16rem; max-width: 32rem; }
-.portfolio-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .75rem; }
-.portfolio-metrics article { padding: 1rem; border: 1px solid var(--mat-sys-outline-variant); border-radius: .75rem; }
-.portfolio-metrics h2 { font-size: .9rem; margin: 0 0 .75rem; }
-.portfolio-metrics strong { font-size: 1.8rem; }
 .configuration-note { padding: 1rem; border-inline-start: .25rem solid var(--mat-sys-primary); margin-bottom: 1rem; }
 section { margin-block: 1.5rem; }
 small { display: block; overflow-wrap: anywhere; }
 .selected { background: var(--mat-sys-surface-container-high); }
 table { min-width: 30rem; }
+.shortcut-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .5rem; }
+.shortcut-grid a { justify-content: flex-start; height: auto; min-height: 2.75rem; padding: .625rem .875rem;
+  border: 1px solid var(--as-line); border-radius: var(--as-radius-md); background: var(--as-surface-sunken); }
+.shortcut-grid a:hover { border-color: var(--as-line-strong); background: var(--as-row-hover); }
+.panel > .hint:first-of-type { margin-top: -.25rem; }

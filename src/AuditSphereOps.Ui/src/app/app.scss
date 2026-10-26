@@ -117,8 +117,8 @@ aside {
 .desktop-navigation-toggle { display: inline-flex; width: 44px; height: 44px; padding: 0; flex: none; --nav-icon-size: 1.375rem; }
 main {
   min-width: 0;
-  padding: clamp(1rem, 4vw, 3rem);
-  max-width: 80rem;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  max-width: var(--as-content-max, 96rem);
   // Keeps focus targets and in-page anchors clear of the sticky header.
   scroll-margin-top: 5rem;
 }
