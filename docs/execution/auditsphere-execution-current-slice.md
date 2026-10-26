@@ -14,15 +14,19 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Shared form layout and ordinary-task progress (2026-10-26)
+
+The owner requested improvements to the ledger screenshot and similarly affected pages. Shared native forms now stack structural sections and use responsive field grids, with defined workspace/journal layouts and horizontal checkbox labels. Intentional filter/tool bars and page-specific grids remain intact. Ledger rows use the full form width, with paired or stacked fields at narrower sizes. An actual built-in browser check exercised adding/removing a draft line, report navigation and the Firm books expense form without financial writes; focused browser checks also covered narrow rendering and unchanged setup recovery and role denial. Production compilation and scoped lint passed. Exact evidence is in `targetedVerification.sharedFormLayout20261026` in [status.json](status.json).
+
+The next progress audit also reproduced omitted ordinary engagement tasks. Those records now contribute mandatory commitments without creating workflow bindings or double counting, share the existing projection cap and retain their exact time-task handoff. Focused PostgreSQL and canonical/previous-UI browser journeys passed. The test waits for the existing independent planning read before requesting navigation; its protection was not weakened. Results and the excluded environment/expiry attempts are recorded in `targetedVerification.manualTaskProgress20261026`. Current-source full CI, connected workflow, D03 and professional/live acceptance remain open; neither this UI slice nor a passing focused check completes the assignment.
+
 ## Progress scope, professional applicability and paging (2026-10-26)
 
 Client and portfolio progress now apply the exact progress-reading scope before totals and page bounds. The client tracker exposes continuation across permitted periods and keeps keyboard focus on its persistent heading while changing pages. A cancelled conditional task with required procedure evidence also needs current independent not-applicable approval for every exact source; pending, returned, unrelated or stale decisions leave the task blocked. Upstream explicit cancellation markers, open holds, PBC currentness and revocation fences remain intact.
 
 Focused PostgreSQL, Angular and API checks, fresh contract emission and production compilation passed. An actual built-in browser journey exercised both client page directions, boundary controls and retained heading focus; an earlier expired fixture is excluded. The existing PBC source-currentness regression passed independently. Exact results, source identities and CI are in `targetedVerification.practiceProgressScopeWaiver20261026` in [status.json](status.json). The [existing criterion register](auditsphere-execution-report-practice-management-criterion-audit-current.md) remains the completion backlog; WF-02/WF-03, unbound manual task coverage, connected acceptance, D03 and professional/live gates remain open. No full local suite, latest-source deployment or professional acceptance is claimed.
 
-## User roles and privileges guide (2026-10-26)
-
-The [user types and privileges guide](../architecture/auditsphere-architecture-user-roles-and-privileges-current.md) describes the standard assignment catalogue, selected backend-only role codes, engagement staffing hierarchy and exact grant scopes. It separates Microsoft directory authority from local application access and preserves independent professional and finance approval. It documents existing behavior; this documentation slice changes no role assignments, authorization code or release status. Verification is recorded in `targetedVerification.userRolePrivilegesGuide20261026` in [status.json](status.json).
+The completed roles-guide milestone is retained in the [handoff archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#user-roles-and-privileges-guide-2026-10-26).
 
 ## Practice management completion and tracker bounds (2026-10-26)
 

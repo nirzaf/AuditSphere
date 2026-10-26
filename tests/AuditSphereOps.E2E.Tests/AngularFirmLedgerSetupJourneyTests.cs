@@ -41,6 +41,19 @@ public sealed class AngularFirmLedgerSetupJourneyTests
       new() { Name = "Firm ledger & financial operations", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Heading,
       new() { Name = "Set up firm ledger", Exact = true })).ToBeVisibleAsync();
+    await OwnedBrowserFixtureHandoff.WaitAsync(managerOrigin, "/app/finance", "firm-ledger-layout");
+    var journalLines = managerPage.GetByRole(AriaRole.Group, new() { Name = "Journal lines", Exact = true });
+    var linesBox = await journalLines.BoundingBoxAsync();
+    var journalFormBox = await managerPage.Locator("form").Filter(new() { Has = journalLines }).BoundingBoxAsync();
+    Assert.NotNull(linesBox);
+    Assert.NotNull(journalFormBox);
+    Assert.True(linesBox.Width >= journalFormBox.Width * 0.9,
+      "Journal lines must use the form width rather than squeeze beside its metadata fields.");
+    await managerPage.SetViewportSizeAsync(390, 844);
+    Assert.True(await managerPage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+    await Assertions.Expect(managerPage.GetByLabel("Account code", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(managerPage.Locator("input[name='journalDescription0']")).ToBeVisibleAsync();
+    await managerPage.SetViewportSizeAsync(1280, 900);
 
     const string accountCode = "UI-SETUP-1000";
     var accountAttempts = 0;

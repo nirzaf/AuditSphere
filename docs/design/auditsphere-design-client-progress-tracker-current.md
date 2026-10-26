@@ -12,6 +12,8 @@ Progress is calculated per engagement. An engagement is one client, service rout
 
 Each engagement task comes from its pinned workflow template step, or from a manual task. Templates are versioned and independently reviewed through the existing template workflow; adding or changing a condition creates a new revision with a new digest.
 
+Ordinary Time tasks with the exact firm, client and engagement are included even when they have no workflow binding. They count as mandatory commitments, retain their own status, assignee, due date and budget phase, and are never copied into invented bindings. Client-only tasks and another engagement's tasks do not enter that engagement's figure. Workflow-bound tasks appear once; unbound tasks follow them in stable creation order. An outstanding unbound task links to the existing time workspace with its exact task ID.
+
 | Template step | Classification | Counts toward percentage |
 | --- | --- | --- |
 | Required, no applicability condition | Mandatory | Always |
@@ -39,6 +41,8 @@ The view also gives the current phase, the responsible person or role, the earli
 ## Access and freshness
 
 The query recalculates on every read, so there is no stored figure to go stale. Mounted visible trackers refresh every 30 seconds and on window focus return; hidden or destroyed widgets stop reads. A background refresh keeps expanded step details and focus while displaying its loading state. Cached figures clear on a changed record, actor, firm, session generation, denied access or unsupported response. Reads use the workflow-task evidence read roles and rechecked engagement authorization (`InternalOnly`). Client pages contain at most 50 engagements, newest period first; portfolio pages contain at most 10. Both apply the narrower progress-reading scope before counting or paging, so inaccessible engagements cannot inflate totals or displace permitted periods. A client read requires current client coverage or a permitted engagement; a cursor grants no authority. The client UI exposes previous/next navigation and moves keyboard focus to its persistent progress heading before loading another page. Before returning a progress summary, the query rechecks every returned engagement against the progress-reading roles; retaining a broader portfolio role cannot preserve revoked progress access. Each engagement is read in stable ordinal/binding order with at most 501 rows as an overflow witness, then limited to 500 projected steps. Only an oversized engagement receives the open read-bound gate; another engagement cannot consume its window or inherit that gate. Detail, client and portfolio views use the same per-engagement cap, so an oversized plan remains visibly incomplete everywhere. Within that plan bound, evidence is evaluated in pages of at most 100 bindings, retaining the existing per-task evidence-rule bound. Client and portfolio summaries use the same batching across engagements.
+
+Bound and unbound task sources each use a bounded overflow witness. Their combined projection is still limited to 500 steps per engagement; adding ordinary tasks cannot silently exceed that cap or put an oversized plan's gate on its neighbour.
 
 ## Presentation
 

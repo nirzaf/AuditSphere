@@ -187,10 +187,16 @@ audit-page-header p:not(.eyebrow) {
 }
 
 form {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  min-width: 0;
   gap: 1rem;
+}
+fieldset {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 table {
   width: 100%;
@@ -402,6 +408,27 @@ nav:is(.analytics-views, .queue-views) button[aria-pressed='true'] {
   gap: 0.75rem 1rem;
   margin: 1rem 0;
 }
+// Entry forms own responsive fields; filter bars and div-based toolbars retain their flex layout.
+form.inline-form:not(:where(.filter-bar, .lead-filters, .invoice-filters, .pipeline-filters)) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  align-items: start;
+
+  > :is(h1, h2, h3, h4, p, section, fieldset, details, nav, .table-scroll, .actions, .workspace-grid) {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  > :is(h1, h2, h3, h4) {
+    margin: 0;
+  }
+
+  > button {
+    justify-self: start;
+    align-self: end;
+  }
+}
+form label,
 .inline-form label {
   display: flex;
   flex-direction: column;
@@ -411,6 +438,52 @@ nav:is(.analytics-views, .queue-views) button[aria-pressed='true'] {
   color: var(--as-ink);
   max-width: 100%;
   min-width: 0;
+}
+form label > :is(input:not([type='checkbox']):not([type='radio']), select, textarea):not([class*='mat-']),
+.inline-form label > :is(input:not([type='checkbox']):not([type='radio']), select, textarea):not([class*='mat-']) {
+  width: 100%;
+  min-width: 0;
+}
+label.checkbox-label,
+form label:has(> input:is([type='checkbox'], [type='radio'])) {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.5rem;
+
+  > input {
+    flex: none;
+    margin-block-start: 0.2rem;
+  }
+}
+.workspace-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  align-items: start;
+  gap: 1rem;
+  min-width: 0;
+}
+.workspace-grid > * {
+  min-width: 0;
+}
+.journal-lines {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--as-line);
+  border-radius: var(--as-radius-md);
+
+  > legend {
+    padding-inline: 0.375rem;
+    color: var(--as-ink);
+    font-weight: 600;
+  }
+
+  > button {
+    justify-self: start;
+  }
 }
 
 // Native controls. Material form fields (class names beginning mat-) keep Material's own styling.

@@ -1040,29 +1040,20 @@
       "evidence": ".local/autonomous/evidence/user-account-profile-20261026/review.json"
     },
     "practiceProgressBoundedEvidence20261026": {
-      "status": "FOCUSED_RED1_GREEN1_PUBLISHED688D_CURRENT_FULL_OPEN",
-      "history": "status-archive-2026-10.json#archivedTargetedVerification.practiceProgressBoundedEvidenceBeforePerEngagementCap20261026",
-      "evidence": ".local/autonomous/evidence/practice-completion-20261026/large-plan-review.json",
-      "scope": "Valid101task evidence-reader batching repaired; current full CI remains required."
+      "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.practiceProgressBoundedEvidence20261026"
     },
     "practiceProgressReadAuthority20261026": {
-      "status": "FOCUSED_RED1_GREEN3_CURRENT_FULL_PENDING",
-      "history": "status-archive-2026-10.json#archivedTargetedVerification.practiceProgressReadAuthority20261026BeforeCurrentnessMilestone",
-      "evidence": ".local/autonomous/evidence/practice-completion-20261026/progress-revocation-review.json",
-      "boundary": "Focused source-specific proof; current full acceptance remains open."
+      "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.practiceProgressReadAuthority20261026"
     },
     "practiceProgressPerEngagementBound20261026": {
-      "status": "FOCUSED_RED1_GREEN1_CURRENT_FULL_PENDING",
-      "history": "status-archive-2026-10.json#archivedTargetedVerification.practiceProgressPerEngagementBound20261026BeforeCurrentnessMilestone",
-      "evidence": ".local/autonomous/evidence/practice-completion-20261026/per-engagement-bound-review.json",
-      "boundary": "Focused source-specific proof; current full acceptance remains open."
+      "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.practiceProgressPerEngagementBound20261026"
     },
     "practiceProgressCurrentness20261026": {
-      "status": "FOCUSED_PASS_BUILTIN_PASS_CURRENT_FULL_OPEN",
-      "implementationCommit": "e50426943b6f3572af2a6df44d481ca1ad1a2de8",
-      "inspectionCleanupCommit": "e22223b2dfe44e7078d767986911b0147ffa5514",
-      "verification": "Stale materiality dependency chain RED1/GREEN2; Angular affected spec9PASS, scoped lint/production buildPASS; owned E2E1PASS and actual built-in0to99 refresh with open release gate/details/focus preserved. No full local suite or live/professional approval.",
-      "evidence": ".local/autonomous/evidence/practice-completion-20261026/progress-currentness-review.json"
+      "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.practiceProgressCurrentness20261026"
     },
     "userRolePrivilegesGuide20261026": {
       "status": "VERIFIED_DOCUMENTATION_ONLY",
@@ -1072,12 +1063,24 @@
       "verification": "Source catalogue/guard/staffing review, complete standard-role row coverage, Markdown health/filenames/narrative/task-board and diff checks PASS. No runtime tests required or run for this documentation slice."
     },
     "practiceProgressScopeWaiver20261026": {
-      "status": "FOCUSED_AND_BUILTIN_PASS_CURRENT_FULL_PENDING",
-      "implementationCommit": "d1ef321fcafaed85ec6aedbb46b821c8211dea9d",
-      "behavior": "Exact progress scope precedes totals/client50+portfolio10 paging; conditional required procedure sources each need current independent N/A; client page transitions retain heading focus. Existing explicit cancellation, holds, PBC and revocation gates retained.",
-      "verification": "Scope RED1; published professional N/A RED1; integrated Domain6/API1/PBC1PASS; keyboard focus RED1 then Angular10PASS; fresh pinned production build, runtime ESLint and OpenAPI emission PASS. Existing E2E2PASS plus canonical repeat1PASS; actual builtin51 engagement50-to1-to50, disabled page boundaries/heading focus/console[] before expiry; expired attempt excluded. No full local suites.",
-      "boundary": "Peer admin-history presentation/harness preserved, not independently accepted by progress checks. Existing87-criterion WF-02/WF-03 remainPARTIAL; unbound tasks/connected/D03/fullCI/live/professional acceptance open. No deployment.",
-      "evidence": ".local/autonomous/evidence/practice-completion-20261026/progress-scope-waiver-review.json"
+      "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.practiceProgressScopeWaiver20261026"
+    },
+    "manualTaskProgress20261026": {
+      "status": "FOCUSED_AND_BUILTIN_VERIFIED_CURRENT_FULL_PENDING",
+      "implementationCommit": "bedb020e800f8f66bceabcfc5dc3bb77052a2f08",
+      "behavior": "Exact unbound engagement tasks count as mandatory with retained status/assignee/phase/due date; no invented/duplicate bindings; combined500-step cap and per-engagement overflow; exact existing time link.",
+      "verification": "Missing-task RED1/GREEN2; corrected time route Domain1PASS. Final selected E2E3PASS includes canonical/previous-UI task handoffs and unchanged metadata/revocation assertions. Existing planning-read guard preserved; fixture awaits loaded planning before navigation. Actual builtin50% and exact selected task observed before expiry on preceding UI build. Later expired capture and omitted-host-env startup failure excluded; no console claim for that earlier manual inspection.",
+      "boundary": "No full local suites, deployment or professional approval. New shared UI bundle covered by final E2E; connected/D03/current full acceptance open.",
+      "evidence": ".local/autonomous/evidence/practice-completion-20261026/manual-task-progress-review.json"
+    },
+    "sharedFormLayout20261026": {
+      "status": "LOCAL_AND_BUILTIN_VERIFIED_CURRENT_FULL_PENDING",
+      "sourceBaseCommit": "bedb020e800f8f66bceabcfc5dc3bb77052a2f08",
+      "behavior": "Shared form sections stack; responsive native fields/fieldsets/workspace grids and horizontal checkboxes. Ledger report links and full-width responsive journal rows; filter bars/toolbars/custom grids preserved.",
+      "verification": "Actual old-bundle layout RED1; new selected E2E3PASS including390px fit, setup unknown-outcome recovery and finance-role denial. PinnedNode26.8.1 production build/scoped ledger ESLint/diffPASS. Actual builtin ledger form/fieldset both883.125px, row82px, draft2-to3-to2; report link to Firm books and readable expense fields; console[]. All observations before fixture expiry; owned tab9 closed/released; no financial writes.",
+      "boundary": "Source survey also covered native journals/opening/consolidation/custom grids; only Ledger/Books were interactively inspected. Existing settings/app style-budget warnings remain. No human AT/nativezoom/full-suite/live-release claim.",
+      "evidence": ".local/autonomous/evidence/ledger-ui-20261026/review.json"
     }
   },
   "externalGates": [
@@ -1574,26 +1577,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceCommit": "d1ef321fcafaed85ec6aedbb46b821c8211dea9d",
-    "sourceRole": "CURRENT_PROGRESS_SCOPE_PROFESSIONAL_NA_PAGING_WITH_PEER_ACCESS_PRESENTATION",
-    "fastCi": {
-      "runId": 40383096357,
-      "status": "RUNNING",
-      "checkoutProof": "PENDING"
-    },
-    "releaseVerification": {
-      "runId": 40383293201,
-      "status": "RUNNING",
-      "sourceMatch": "MATCH",
-      "fullPassForExpected": false
-    },
-    "imagePublication": {
-      "runId": 40383096358,
-      "status": "RUNNING",
-      "digests": "PENDING"
-    },
-    "cutoverStatus": "NOT_PERFORMED; new exact-image rehearsal/current baseline-specific plan and all mandatory gates required",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeProgressScopeWaiver20261026"
+    "sourceBaseCommit": "bedb020e800f8f66bceabcfc5dc3bb77052a2f08",
+    "sourceRole": "SHARED_FORM_LAYOUT_AND_MANUAL_TASK_PROGRESS_PUBLICATION_CANDIDATE",
+    "fastCi": "New exact-source gate required after publication; d1 fast40383096357 PASS all3 actualcheckoutMATCH is preceding evidence only.",
+    "releaseVerification": "New exact-source full dispatch required; d1 full40383293201 is preceding only, not acceptance of these UI/manual changes.",
+    "imagePublication": "New automatic exact-source images and restored-copy rehearsal required.",
+    "cutoverStatus": "NOT_PERFORMED; preserve existing authorized Acceptance and current live baseline until mandatory exact gates/backup/plan pass.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeSharedFormsAndManualTasks20261026"
   },
-  "updatedAtUtc": "2026-10-26T19:04:24.658979+00:00"
+  "updatedAtUtc": "2026-10-26T19:44:40.494212+00:00"
 }

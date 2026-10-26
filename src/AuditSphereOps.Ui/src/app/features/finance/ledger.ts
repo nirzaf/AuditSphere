@@ -43,11 +43,12 @@ interface PendingClose {
 @Component({
   selector: 'audit-firm-ledger',
   imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED],
+  styleUrl: './ledger.scss',
   template: `
     <a routerLink="/app">← Back to portfolio</a>
     <audit-page-header title="Firm ledger & financial operations" eyebrow="Firm economics"
       description="Restricted firm-ledger operations (§41.3). Firm accounts, balanced postings, and period close decisions enforce exact monetary balance and strict immutability." />
-    <nav class="actions" aria-label="Firm finance reports"><a routerLink="/app/finance/books">Firm books</a><a routerLink="/app/finance/invoices">Firm invoices</a><a routerLink="/app/finance/fee-agreements">Fee settlements</a><a routerLink="/app/finance/receivables-aging">Receivables ageing</a><a routerLink="/app/finance/end-of-service">End-of-service provision</a></nav>
+    <nav class="actions ledger-report-links" aria-label="Firm finance reports"><a routerLink="/app/finance/books">Firm books</a><a routerLink="/app/finance/invoices">Firm invoices</a><a routerLink="/app/finance/fee-agreements">Fee settlements</a><a routerLink="/app/finance/receivables-aging">Receivables ageing</a><a routerLink="/app/finance/end-of-service">End-of-service provision</a></nav>
     <p class="hint">This page holds firm-ledger setup, journals and period controls. Reports open separately and only read posted firm records; engagement economics in Practice analytics is an operational measure, not ledger profit.</p>
     <p class="actions"><button matButton="outlined" (click)="ledger.reload()">Refresh firm ledger</button></p>
     <audit-state [loading]="ledger.loading()" [error]="ledger.error()" label="firm finance records" />
@@ -105,7 +106,7 @@ interface PendingClose {
         <section class="panel" aria-labelledby="ledger-setup-heading">
           <h2 id="ledger-setup-heading">Set up firm ledger</h2>
           <p>Finance Managers can add firm accounts and open fiscal months. Account codes and period codes are unique within this firm.</p>
-          <div class="workspace-grid">
+          <div class="workspace-grid ledger-setup">
             <form class="inline-form" (submit)="$event.preventDefault(); createAccount()">
               <h3>New account</h3>
               <label>Account code <input name="accountCode" [(ngModel)]="accountDraft.code" maxlength="32" [disabled]="setupLocked()" required /></label>
@@ -190,7 +191,7 @@ interface PendingClose {
             <fieldset class="journal-lines">
               <legend>Journal lines</legend>
               @for (line of journalDraft.lines; track $index; let row = $index) {
-                <div class="workspace-grid">
+                <div class="workspace-grid journal-line">
                   <label>Line {{ row + 1 }} account <select [name]="'journalAccount' + row" [attr.name]="'journalAccount' + row" [(ngModel)]="line.firmAccountId" [disabled]="journalCreateLocked()" required>
                     <option value="">Select account</option>
                     @for (a of l.accounts; track a.id) { @if (a.postingAllowed) { <option [value]="a.id">{{ a.code }} · {{ a.name }} ({{ a.accountType }})</option> } }

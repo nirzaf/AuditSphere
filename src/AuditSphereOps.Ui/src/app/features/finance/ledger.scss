@@ -1,0 +1,64 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.ledger-report-links {
+  gap: 0.5rem;
+  margin-block: 1rem;
+
+  a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.5rem;
+    box-sizing: border-box;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--as-line);
+    border-radius: var(--as-radius-sm);
+    background: var(--as-surface-raised);
+  }
+
+  a:hover {
+    background: var(--as-surface-sunken);
+  }
+}
+
+.ledger-setup > form {
+  margin: 0;
+}
+
+.journal-lines {
+  container-type: inline-size;
+}
+
+.journal-line {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: end;
+  gap: 0.75rem;
+  padding-block-end: 1rem;
+  border-block-end: 1px solid var(--as-line);
+
+  > button {
+    justify-self: start;
+  }
+}
+
+@container (min-width: 30rem) {
+  .journal-line {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .journal-line > label:nth-of-type(-n + 2) {
+    grid-column: 1 / -1;
+  }
+}
+
+@container (min-width: 48rem) {
+  .journal-line {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(5.5rem, 1fr) minmax(5.5rem, 1fr) auto;
+  }
+
+  .journal-line > label:nth-of-type(-n + 2) {
+    grid-column: auto;
+  }
+}

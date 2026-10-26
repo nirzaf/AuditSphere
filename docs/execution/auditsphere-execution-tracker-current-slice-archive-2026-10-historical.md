@@ -8198,3 +8198,9 @@ Earlier resource-allocation evidence is retained in the [historical handoff](aud
 ## Practice-management and workflow bounds (2026-10-18)
 
 Resource allocation eligibility, time-source billing reservation guards against reserved revision edits, and workflow dependency graph bounds (500-task / 4,000-edge limit) were verified with focused PostgreSQL regressions on commits `5996f36d` and `5e9a1eb5`. Exact test evidence is preserved in `status.json` (`targetedVerification.practiceResourceEligibility20261018`, `practiceResourcePhaseRisk20261018`, `workflowDependencyGraphLimit20261018`).
+
+## User roles and privileges guide (2026-10-26)
+
+The [user types and privileges guide](../architecture/auditsphere-architecture-user-roles-and-privileges-current.md) describes the standard assignment catalogue, selected backend-only role codes, engagement staffing hierarchy and exact grant scopes. It separates Microsoft directory authority from local application access and preserves independent professional and finance approval. It documents existing behavior; this documentation slice changes no role assignments, authorization code or release status. Verification is recorded in `targetedVerification.userRolePrivilegesGuide20261026` in [status.json](status.json).
+
+<!-- End of roles-guide milestone archived on 2026-10-26. -->
