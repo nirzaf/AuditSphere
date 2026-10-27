@@ -25813,6 +25813,26 @@
       },
       "migration": "None pending; 288 applied.",
       "checks": "health, /app, users and profile pages 200; profile API 401 signed out vs 404 unknown; live bundle has the new user cards; 0 ERR/FTL; mail worker stopped."
+    },
+    "hostingerAcceptance.ownerAuthorizedDeploymentE603fadf": {
+      "observedAtUtc": "2026-10-27T05:23:00Z",
+      "authorization": "Owner chat instruction: \"Yes release it\" (ERP-style redesign and UI/backend compatibility fixes).",
+      "previousRelease": "734b6b81172c448313d723d4c8b4bf2ff9c0f48e",
+      "release": "e603fadf7230aa64ec2034b4470595d3f3f633d8",
+      "fastCi": {
+        "run": 40452896897,
+        "result": "FAST_CI_PASS"
+      },
+      "imageWorkflowRun": 40452896914,
+      "fullCi": "NOT_PASSING: release verification API job fails on test-database crashes (57P03) in CI; unrelated to this change, unresolved.",
+      "backup": {
+        "file": "/opt/auditsphere/release-preparation/pre-e603fadf-20261027T052114Z.dump",
+        "bytes": 2741981,
+        "catalogEntries": 4115,
+        "sha256": "72e3c4f0a169f810aff951dd5ba76259c470935bc1b5e2af7ee68151c62086c2"
+      },
+      "migration": "None pending; 288 applied.",
+      "checks": "health, /app, users, profile and invoices pages 200; profile API 401 signed out vs 404 unknown; live bundle has the page-header icon, section tabs and native-bookkeeping message; 0 ERR/FTL; mail worker stopped."
     }
   },
   "archivedTargetedVerification": {
