@@ -8,6 +8,39 @@ import { SessionService } from './session';
 describe('API session and unknown outcome fences', () => {
   beforeEach(() => TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] }));
   afterEach(() => { TestBed.inject(HttpTestingController).verify(); TestBed.resetTestingModule(); });
+  // The shared response matrix every page inherits: a command is confirmed, refused (safe to correct and resend) or
+  // unknown (never resent until its persisted state is checked); a 401 also refreshes the session.
+  it.each([
+    [200, 'confirmed', false], [400, 'refused', false], [403, 'refused', false], [404, 'refused', false],
+    [409, 'refused', false], [422, 'refused', false], [401, 'refused', true], [500, 'unknown', false],
+    [503, 'unknown', false], [0, 'unknown', false],
+  ] as const)('classifies a command answered with status %i as %s', async (status, expected, refreshes) => {
+    const api = TestBed.inject(Api), http = TestBed.inject(HttpTestingController), session = TestBed.inject(SessionService);
+    const refresh = vi.spyOn(session, 'refresh').mockResolvedValue(true as never);
+    const request = api.command('/api/ui/example', { reviewed: true });
+    const pending = http.expectOne('/api/ui/example');
+    if (status === 200) pending.flush({ value: 'accepted' });
+    else if (status === 0) pending.error(new ProgressEvent('error'));
+    else pending.flush({ code: 'synthetic.code', message: 'Synthetic refusal.' }, { status, statusText: 'Synthetic' });
+    const result = await request;
+    expect(result.ok ? 'confirmed' : result.unknown ? 'unknown' : 'refused').toBe(expected);
+    expect(refresh).toHaveBeenCalledTimes(refreshes ? 1 : 0);
+    http.expectNone('/api/ui/example');
+  });
+  it.each([
+    [401, 'Your session ended. Sign in again.', true], [404, 'Synthetic refusal.', false], [403, 'Synthetic refusal.', false],
+    [500, 'Temporarily unavailable. Retry shortly.', false], [0, 'Temporarily unavailable. Retry shortly.', false],
+  ] as const)('explains an on-demand read answered with status %i', async (status, message, refreshes) => {
+    const api = TestBed.inject(Api), http = TestBed.inject(HttpTestingController), session = TestBed.inject(SessionService);
+    const refresh = vi.spyOn(session, 'refresh').mockResolvedValue(true as never);
+    const request = api.get('/api/ui/example', obj({ name: text }));
+    const refused = expect(request).rejects.toThrow(message);
+    const pending = http.expectOne('/api/ui/example');
+    if (status === 0) pending.error(new ProgressEvent('error'));
+    else pending.flush({ code: 'synthetic.code', message: 'Synthetic refusal.' }, { status, statusText: 'Synthetic' });
+    await refused;
+    expect(refresh).toHaveBeenCalledTimes(refreshes ? 1 : 0);
+  });
   it('cannot return an on-demand read after session invalidation', async () => {
     const api = TestBed.inject(Api), http = TestBed.inject(HttpTestingController), session = TestBed.inject(SessionService);
     const request = api.get('/api/ui/example', obj({ name: text }));

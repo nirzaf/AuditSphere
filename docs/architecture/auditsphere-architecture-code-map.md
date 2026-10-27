@@ -625,6 +625,19 @@ For the complete documentation index, authority hierarchy, current requirements,
 - `NativeMappingCreationReceipts` migration: nullable legacy-compatible metadata, scoped parent FK, unique actor/request identity, append-only receipt and allocation guards; rollback refuses retained receipt deletion.
 - `MappingDraftApiTests`, `AngularMappingDraftJourneyTests`, `mapping-draft.spec.ts` and `mapping-draft-contracts.spec.ts`: immutable history, exact fractions, idempotency, rollback, keyboard/paste, stale context and native recovery. Observed results live in `status.json`.
 
+## Shared page behaviour matrix (ASPM-UX-02)
+
+Every Angular page inherits these behaviours from `core/`; page code adds only its own dirty state.
+
+| Situation | Mechanism | Evidence |
+| --- | --- | --- |
+| Session ends or changes during a read | `Api.get` refuses results whose session generation changed; a 401 refreshes the session and shows "Your session ended" | `api.spec.ts` read matrix and session-fence cases |
+| Session ends or changes during a command | `Api.command` reports a late or 5xx/network answer as **unknown**, never as success; 4xx is a **refusal** safe to correct; 401 also refreshes the session | `api.spec.ts` command matrix (200/400/401/403/404/409/422/500/503/network) |
+| Lost response | `CommandState` blocks a second command until the outcome is checked; pages recover through their scoped read or `core/pending-outcomes.ts` | `api.spec.ts`, `pending-outcomes.spec.ts`, per-page recovery specs |
+| In-app navigation or browser back/forward with unsaved edits | `unsavedChangesGuard` calls the page's `confirmNavigation()` (keep, save tab draft or discard) | route `canDeactivate` entries in `app.routes.ts` |
+| Refresh or closing the tab with unsaved edits or an unresolved command | each guarded page's `window:beforeunload` handler asks the browser to confirm; container pages delegate to the editor they host | per-page handlers (proposal, fee agreement, SharePoint and profile added 2026-10-27) |
+| Returning after refresh | `core/tab-drafts.ts` restores identity-, epoch- and revision-bound drafts for fresh review | `tab-drafts.spec.ts` |
+
 ## Native statement contribution review
 
 - Application: `Accounting/Intake/StatementReviewWorkspace.cs` owns scoped, revision-bound

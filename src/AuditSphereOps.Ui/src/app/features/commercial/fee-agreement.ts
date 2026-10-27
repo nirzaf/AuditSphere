@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, HostListener, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -573,6 +573,13 @@ export class FeeAgreement implements NavigationProtected {
   feeAssentChanged(): void {
     if (this.navigationDialogOwner()) this.closeNavigationDialog();
   }
+  @HostListener('window:beforeunload', ['$event'])
+  beforeUnload(event: BeforeUnloadEvent): void {
+    if (this.financeMode() && (this.busy() || this.uncertain() || this.financeTabDraft.dirty())) {
+      event.preventDefault(); event.returnValue = '';
+    }
+  }
+
   async confirmNavigation(): Promise<boolean> {
     if (!this.financeMode()) return true;
     if (this.navigationDialog) return false;

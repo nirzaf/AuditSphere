@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, HostListener, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -154,6 +154,11 @@ export class UserProfilePage implements NavigationProtected {
     this.cmd.uncertain.set(false);
     this.cmd.message.set('');
     this.view.reload();
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  beforeUnload(event: BeforeUnloadEvent): void {
+    if (this.cmd.busy() || this.cmd.uncertain() || this.dirty()) { event.preventDefault(); event.returnValue = ''; }
   }
 
   confirmNavigation(): boolean {

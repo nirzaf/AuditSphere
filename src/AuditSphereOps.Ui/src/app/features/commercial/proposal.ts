@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -784,6 +784,13 @@ export class ProposalDetail {
       );
     } else this.commandStatus.set('No compatible proposal tab draft is available.');
   }
+  @HostListener('window:beforeunload', ['$event'])
+  beforeUnload(event: BeforeUnloadEvent): void {
+    const editors = this.editors();
+    if (this.busy() || this.uncertain() || this.tabDraft.dirty() ||
+        editors.some((e) => e.busy() || e.uncertain() || e.tabDraft.dirty())) { event.preventDefault(); event.returnValue = ''; }
+  }
+
   async confirmNavigation(): Promise<boolean> {
     const editors = this.editors();
     if (this.busy() || this.uncertain() || editors.some((e) => e.busy() || e.uncertain()))

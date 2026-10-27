@@ -1,4 +1,4 @@
-import { Component, DestroyRef, effect, inject, output, signal } from '@angular/core';
+import { Component, DestroyRef, HostListener, effect, inject, output, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -149,6 +149,11 @@ export class SharePointAdministration {
   recoverTemplateDraft():void { const scope=this.templateScope(); if(!scope||this.busy()||this.uncertain()) return;
     const r=this.drafts.read(scope,v=>this.templateDraft(v)); if(r.state==='ready'&&!r.draft.submissionPending){this.templateForm.patchValue({...r.draft.value,reviewed:false});this.message.set('Folder-template fields recovered. Review the exact manifest before saving.');}
     else this.message.set('No compatible folder-template tab draft is available.'); }
+  @HostListener('window:beforeunload', ['$event'])
+  beforeUnload(event: BeforeUnloadEvent): void {
+    if (this.busy() || this.uncertain() || this.isResourceDirty() || this.isTemplateDirty()) { event.preventDefault(); event.returnValue = ''; }
+  }
+
   async confirmNavigation(ignore:'resource'|'template'|null=null):Promise<boolean> {
     if(this.busy()) return false; const resourceDirty=ignore!=='resource'&&this.isResourceDirty(), templateDirty=ignore!=='template'&&this.isTemplateDirty();
     if(!resourceDirty&&!templateDirty) return true;
