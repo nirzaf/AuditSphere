@@ -40,6 +40,9 @@ flowchart TB
     INTERNAL --> FINANCE["Firm finance"]
     FINANCE --> FM["FinanceManager: preparation and management"]
     FINANCE --> FR["FinanceReviewer: independent finance review"]
+    INTERNAL --> CLIENTBOOKS["Client and group accounting"]
+    CLIENTBOOKS --> AP["AccountingPreparer"]
+    CLIENTBOOKS --> AR["AccountingReviewer"]
     EXTERNAL --> CU["ClientUser: scoped client portal"]
 ```
 
@@ -59,6 +62,8 @@ The table gives implemented capability families. Individual commands can require
 | `RelationshipManager` | Manage authorized leads, client relationships/contacts, commercial pipeline, proposals and fee-agreement context; read permitted onboarding/acceptance status. | Commercial preparation is not professional risk approval, finance posting or client-portal access. Some commercial configuration and operations require firm-wide scope. |
 | `FinanceManager` | Prepare/manage firm billing, invoices, credits, receipts/allocations and ledger operations where permitted; access finance reports and fee settlements. | Firm ledger/books/list capabilities require current firm-wide finance authority. Finance review, exact monetary controls and independent approval remain separate; this role does not grant client-bookkeeping or audit sign-off authority. |
 | `FinanceReviewer` | Read firm finance and independently review/approve permitted invoices, postings, reversals and finance period controls. | Cannot approve their own preparation where the workflow requires another person. Holding both finance roles does not satisfy that requirement. It does not grant general firm administration or Partner authority. |
+| `AccountingPreparer` | Client accounting intake, mapping drafts, financial-statement preparation and selected consolidation preparation. | [Financial statements](../../src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Authorization.cs) and [consolidation authorization](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationService.Authorization.cs). Does not grant firm-ledger finance review. |
+| `AccountingReviewer` | Permitted independent client-accounting, mapping, package and consolidation reviews; selected preparation/read capabilities. | [Mapping approval](../../src/AuditSphereOps.Application/Accounting/MappingApprovalWorkspace.cs), [package review](../../src/AuditSphereOps.Application/Accounting/FinancialPackageReviewService.cs) and [consolidation authorization](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationService.Authorization.cs). Independent-person and Partner-only gates remain. |
 | `ClientUser` | View assigned client-portal requests and released/shared material; upload permitted evidence, answer PBC requests and use explicitly authorized request delegation. | Client or engagement scope only. Onboarding, owner/delegate, upload/reply permissions and release restrictions still apply. No internal ledger, audit preparation, firm-wide administration or automatic access to another client. |
 
 Representative enforced boundaries are visible in [fieldwork authorization](../../src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Authorization.cs), [practice time](../../src/AuditSphereOps.Application/Practice/PracticeTimeService.cs), [fee agreements](../../src/AuditSphereOps.Application/Practice/FeeAgreementService.cs), [firm finance](../../src/AuditSphereOps.Application/Practice/FirmFinanceQuery.cs), [billing](../../src/AuditSphereOps.Application/Practice/BillingService.cs), [financial statements](../../src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Authorization.cs) and the [client portal](../../src/AuditSphereOps.Application/Documents/ClientPortalService.cs).
@@ -89,8 +94,6 @@ Existing command/query guards also recognize the following codes. **They are not
 | `EngagementLeader` | Selected assessment, planning, audit-record and finding capabilities. | [Assessment commands](../../src/AuditSphereOps.Application/Acceptance/AssessmentCommandWorkspace.cs) and [audit records](../../src/AuditSphereOps.Application/Audit/AuditRecordQueries.cs). Limited to explicitly accepting guards. |
 | `Auditor` | Selected assessment, fieldwork preparation, audit records and PBC work. | [Fieldwork authorization](../../src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.Authorization.cs) and [PBC service](../../src/AuditSphereOps.Application/Documents/PbcService.cs). No implicit review/Partner authority. |
 | `Accountant` | PBC/inbox work and corresponding scoped search. | [PBC service](../../src/AuditSphereOps.Application/Documents/PbcService.cs) and [global search](../../src/AuditSphereOps.Application/Search/GlobalSearchQuery.cs). The name alone does not grant accounting preparation or finance authority. |
-| `AccountingPreparer` | Client accounting intake, mapping drafts, financial-statement preparation and selected consolidation preparation. | [Financial statements](../../src/AuditSphereOps.Application/Accounting/FinancialStatements/FinancialStatementService.Authorization.cs) and [consolidation authorization](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationService.Authorization.cs). Does not grant firm-ledger finance review. |
-| `AccountingReviewer` | Permitted independent client-accounting, mapping, package and consolidation reviews; selected preparation/read capabilities. | [Mapping approval](../../src/AuditSphereOps.Application/Accounting/MappingApprovalWorkspace.cs), [package review](../../src/AuditSphereOps.Application/Accounting/FinancialPackageReviewService.cs) and [consolidation authorization](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationService.Authorization.cs). Independent-person and Partner-only gates remain. |
 | `CommercialManager` | Selected client workspace/search and lifecycle reads; also a displayed commercial responsibility. | [Workspace query](../../src/AuditSphereOps.Application/Practice/WorkspaceQuery.cs) and [lifecycle query](../../src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs). Not an automatic `RelationshipManager` grant or permission to approve every commercial action. |
 | `RecordsCustodian` | Protected archive and archive-copy operations and permitted audit-record reads. | [Records archive](../../src/AuditSphereOps.Application/Records/RecordsArchiveService.cs) and [archive copy](../../src/AuditSphereOps.Application/Records/ArchiveCopyService.cs). Custody does not create a professional release decision or waive retained evidence. |
 
@@ -103,7 +106,7 @@ Existing command/query guards also recognize the following codes. **They are not
 | `ENGAGEMENT` | One engagement and its stored client linkage. | No other engagement of the same client and no automatic client-wide access. |
 | `GROUP` | One consolidation group through a separate `GroupAccessGrant`, subject to the command's required group role. | No automatic component-client books, other group or ordinary client/engagement access. |
 
-The reviewed group-assignment path accepts `Partner`, `Manager`, `Staff`, `FinanceManager` and `FinanceReviewer` for staff identities. That assignment catalogue is distinct from each consolidation command's allowed role list. Group grants do not currently support expiry through this path; they require explicit revocation. See [RoleAssignmentService](../../src/AuditSphereOps.Application/Security/RoleAssignmentService.cs) and [AuthorizationDecision](../../src/AuditSphereOps.Application/Security/AuthorizationDecision.cs).
+The reviewed group-assignment path accepts `Partner`, `Manager`, `Staff`, `FinanceManager`, `FinanceReviewer`, `AccountingPreparer` and `AccountingReviewer` for staff identities. That assignment catalogue is distinct from each consolidation command's allowed role list. Group grants do not currently support expiry through this path; they require explicit revocation. See [RoleAssignmentService](../../src/AuditSphereOps.Application/Security/RoleAssignmentService.cs) and [AuthorizationDecision](../../src/AuditSphereOps.Application/Security/AuthorizationDecision.cs).
 
 ## Microsoft Global Administrator versus AuditSphere Administrator
 
@@ -113,6 +116,14 @@ The reviewed group-assignment path accepts `Partner`, `Manager`, `Staff`, `Finan
 - Microsoft 365 service identities have separately verified, capability-specific provider permissions. A user's local role does not supply tenant consent, selected-site access, a mail-sender authorization or permission to enable an external worker.
 
 For provider boundaries, use the [Microsoft 365 tenant permissions guide](auditsphere-m365-tenant-administration-permissions.md).
+
+## Explicit Administrator read-only oversight
+
+An enabled Staff identity with current, unexpired `Administrator@FIRM_WIDE` application access may use the explicitly audited ledger, accounting-group overview and legal-entity membership projections without a specialist operational grant. Client/engagement-scoped Administrator grants and Entra administrator status do not qualify. The server checks the session and grant again before returning these projections.
+
+The ledger and group membership views show **Read-only — Administrator oversight** when using that fallback. Ledger mutation flags still require their existing finance roles. Group membership changes still require explicit group authority, and nonmanaging readers receive no eligible-client choices. Raw supporting-document downloads retain their separate finance authorization. Existing firm-wide Administrator group-creation authority remains unchanged; oversight does not create a group grant. The overview refuses an over-limit group cohort explicitly rather than returning a silently truncated list.
+
+This is a staged rollout. Other finance reports, protected scope/detail projections, search and navigation require their own source audit and verification; this policy does not silently enable every query. Existing Administrator command allowlists remain unchanged pending their separate policy census. Private work, client-portal authority, confidential raw documents, professional approvals and provider consent are not inherited. EQR policy and retirement of historical role codes remain separate decisions.
 
 ## Managing access
 

@@ -62,6 +62,20 @@ describe('consolidation group membership', () => {
     return { fixture, component: fixture.componentInstance };
   }
 
+  it('explains Administrator oversight while hiding membership changes and refusing a direct UI submission', async () => {
+    const fixture = TestBed.createComponent(ConsolidationGroupMembership);
+    fixture.componentRef.setInput('groupId', groupId);
+    fixture.detectChanges();
+    http.expectOne(`${baseUrl}?page=0&pageSize=25`).flush({ ...workspace([member()]),
+      accessMode: 'READ_ONLY', canAddMember: false, eligibleClients: [] });
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Read-only — Administrator oversight');
+    expect(fixture.nativeElement.textContent).toContain('Synthetic Legal Entity');
+    expect(fixture.nativeElement.querySelector('form')).toBeNull();
+    await fixture.componentInstance.addMember();
+    http.expectNone({ method: 'POST', url: baseUrl });
+  });
+
   it('posts the exact decimal strings once and reloads the retained perimeter after success', async () => {
     const { fixture, component } = await open();
     component.clientId = clientId;

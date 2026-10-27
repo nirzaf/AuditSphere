@@ -18,10 +18,10 @@ public sealed record ConsolidationGroupMembershipWorkspace(
   int Page, int PageSize, int Total,
   IReadOnlyList<ConsolidationGroupMemberRow> Members,
   IReadOnlyList<ConsolidationEligibleClient> EligibleClients,
-  bool CanAddMember);
+  bool CanAddMember, string AccessMode = "OPERATIONAL", string? AccessReason = null);
 
 /// <summary>
-/// Reads the effective-dated legal-entity perimeter only for an explicitly granted accounting group.
+/// Reads the effective-dated legal-entity perimeter through explicit group access or audited Administrator oversight.
 /// It never resolves Microsoft groups or includes clients from another firm.
 /// </summary>
 public static class ConsolidationGroupWorkspaceQuery
@@ -40,6 +40,8 @@ public static class ConsolidationGroupWorkspaceQuery
         ErrorCodes.Accounting.MappingInvalid, "Membership page or reconciliation filter is invalid.");
 
     var access = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId, ReadRoles, ct);
+    if (!access.Succeeded)
+      access = await AdministratorOversightReadAuthorization.AuthorizeGroupAsync(db, actor, groupId, ct);
     if (!access.Succeeded)
       return CommandResult<ConsolidationGroupMembershipWorkspace>.Fail(access.ErrorCode!, access.Message!);
 
@@ -74,14 +76,23 @@ public static class ConsolidationGroupWorkspaceQuery
         x.Membership.Status, x.Membership.Revision))
       .ToListAsync(ct);
 
-    var clients = await db.PracticeClients.AsNoTracking()
+    var manageAccess = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId, ManageRoles, ct);
+    List<ConsolidationEligibleClient> clients = !manageAccess.Succeeded ? [] : await db.PracticeClients.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId)
       .OrderBy(x => x.LegalName).ThenBy(x => x.Id)
       .Select(x => new ConsolidationEligibleClient(x.Id, x.LegalName))
       .ToListAsync(ct);
 
-    var manageAccess = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId, ManageRoles, ct);
+    var operationalRead = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId, ReadRoles, ct);
+    access = operationalRead.Succeeded ? operationalRead :
+      await AdministratorOversightReadAuthorization.AuthorizeGroupAsync(db, actor, groupId, ct);
+    if (!access.Succeeded)
+      return CommandResult<ConsolidationGroupMembershipWorkspace>.Fail(access.ErrorCode!, access.Message!);
+    manageAccess = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId, ManageRoles, ct);
+    if (!manageAccess.Succeeded) clients.Clear();
     return CommandResult<ConsolidationGroupMembershipWorkspace>.Ok(new ConsolidationGroupMembershipWorkspace(
-      group.Id, group.Code, group.Name, group.Revision, page, pageSize, total, members, clients, manageAccess.Succeeded));
+      group.Id, group.Code, group.Name, group.Revision, page, pageSize, total, members, clients, manageAccess.Succeeded,
+      operationalRead.Succeeded ? "OPERATIONAL" : AdministratorOversightReadAuthorization.ReadOnly,
+      operationalRead.Succeeded ? null : AdministratorOversightReadAuthorization.Reason));
   }
 }

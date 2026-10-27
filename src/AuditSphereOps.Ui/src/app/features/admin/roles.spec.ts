@@ -20,7 +20,10 @@ describe('Role assignment identity choices', () => {
     expect(choices.initialRole).toBe('ClientUser');
   });
   it('keeps staff roles separate from client identities', () => {
-    expect(roleChoices('Staff (Member)', ['Administrator', 'Staff', 'ClientUser']).roles).toEqual(['Administrator', 'Staff']);
+    const catalogue = ['Administrator', 'Senior', 'Staff', 'AccountingPreparer', 'AccountingReviewer', 'ClientUser'];
+    expect(roleChoices('Staff (Member)', catalogue).roles).toEqual(catalogue.filter(r => r !== 'ClientUser'));
+    expect(roleChoices('Client (Guest)', catalogue).roles).toEqual(['ClientUser']);
+    expect(roleChoices('Unclassified', catalogue)).toEqual({ roles: [], scopes: [], initialRole: '' });
   });
 });
 

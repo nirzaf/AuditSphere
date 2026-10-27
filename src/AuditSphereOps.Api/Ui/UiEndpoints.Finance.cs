@@ -33,7 +33,8 @@ public static partial class UiEndpoints
     bool CanCreateSetup, bool CanClosePeriod, bool CanReviewJournals, bool CanPostJournals,
     bool CanCreateJournals, bool CanReversePostings, bool CanReopenPeriod,
     IReadOnlyList<FinanceWorkspacePeriod> Periods, IReadOnlyList<FinanceWorkspaceAccount> Accounts,
-    IReadOnlyList<FinanceWorkspacePosting> Postings, IReadOnlyList<FinanceWorkspaceJournal> Journals);
+    IReadOnlyList<FinanceWorkspacePosting> Postings, IReadOnlyList<FinanceWorkspaceJournal> Journals,
+    string AccessMode = "OPERATIONAL", string? AccessReason = null);
   public sealed record FinanceWorkspacePeriod(Guid Id, string PeriodCode, string Status, long Revision, DateTimeOffset? ClosedAt);
   public sealed record FinanceWorkspaceAccount(Guid Id, string Code, string Name, string AccountType, string NormalSide, bool PostingAllowed);
   public sealed record FinanceWorkspacePosting(Guid Id, Guid PeriodId, Guid JournalId, DateTimeOffset PostedAt,
@@ -122,6 +123,8 @@ public static partial class UiEndpoints
           CanCreateJournals = r.Value.CanCreateJournals,
           r.Value.CanReversePostings,
           r.Value.CanReopenPeriod,
+          r.Value.AccessMode,
+          r.Value.AccessReason,
             Periods = r.Value.Periods.Select(p => new { p.Id, p.PeriodCode, p.Status, p.Revision, p.ClosedAt }),
             Accounts = r.Value.Accounts.Select(a => new { a.Id, a.Code, a.Name, a.AccountType, a.NormalSide, a.PostingAllowed }),
             Postings = r.Value.RecentPostings.Select(p => new { p.Id, p.PeriodId, p.JournalId, p.PostedAt, p.Currency, p.PostedByUserId, p.ReversalOfPostingId }),

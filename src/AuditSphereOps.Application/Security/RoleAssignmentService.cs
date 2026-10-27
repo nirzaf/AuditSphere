@@ -47,7 +47,7 @@ public sealed record RoleAssignmentResult(Guid GrantId, bool GroupGrant, bool Re
 /// </summary>
 public static class RoleAssignmentService
 {
-  private static readonly string[] GroupRoles = ["Partner", "Manager", "Staff", "FinanceManager", "FinanceReviewer"];
+  private static readonly string[] GroupRoles = ["Partner", "Manager", "Staff", "FinanceManager", "FinanceReviewer", "AccountingPreparer", "AccountingReviewer"];
 
   /// <summary>Human-readable capability catalogue used for the before/after comparison.</summary>
   public static readonly IReadOnlyDictionary<string, string[]> RoleCapabilities = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
@@ -55,10 +55,13 @@ public static class RoleAssignmentService
     ["Administrator"] = ["Administer firm users, roles and scope", "Configure Microsoft 365 connection", "View firm administration and audit history"],
     ["Partner"] = ["Sign off engagement work", "Approve financial packages and releases", "Review and close review points"],
     ["Manager"] = ["Review engagement work", "Manage planning and fieldwork", "Prepare financial packages"],
+    ["Senior"] = ["Coordinate assigned audit work", "Prepare working papers and operational tasks", "Use explicitly permitted planning and intake workflows"],
     ["Staff"] = ["Prepare working papers", "Import and map source data", "Respond to review points"],
     ["RelationshipManager"] = ["Manage client relationship records", "View client acceptance status"],
     ["FinanceManager"] = ["Manage firm billing and ledger", "Prepare invoices"],
     ["FinanceReviewer"] = ["Review and approve firm finance postings"],
+    ["AccountingPreparer"] = ["Prepare scoped client accounting and consolidation work where explicitly permitted", "Partner approvals and independent review remain separate"],
+    ["AccountingReviewer"] = ["Independently review scoped client accounting and consolidation work where explicitly permitted", "Self-review and Partner-only approvals remain prohibited"],
     ["ClientUser"] = ["Use the client portal for assigned client/engagement", "Respond to PBC requests"],
   };
 
@@ -315,7 +318,7 @@ public static class RoleAssignmentService
         RoleAdministrationService.ValidateRoleForUser(target, role, scopeKind) is { } roleError)
       blocking.Add(roleError);
     if (role is not null && scopeKind == "GROUP" && (!GroupRoles.Contains(role) || target.UserKind != "Staff"))
-      blocking.Add("Group scope accepts staff roles Partner, Manager, Staff, FinanceManager or FinanceReviewer only.");
+      blocking.Add("Group scope accepts Staff identities with Partner, Manager, Staff, FinanceManager, FinanceReviewer, AccountingPreparer or AccountingReviewer only.");
     if (request.EffectiveFrom is { } from && from > now.AddMinutes(1))
       blocking.Add("Future-dated access is not supported; access starts when the change is approved.");
     if (request.ExpiresAt is { } expiry && expiry <= now.AddMinutes(5))
@@ -383,6 +386,9 @@ public static class RoleAssignmentService
     if (role is "FinanceReviewer" && remaining.Any(x => x.Role == "FinanceManager") ||
         role is "FinanceManager" && remaining.Any(x => x.Role == "FinanceReviewer"))
       independence.Add("Segregation of duties: this user would both prepare and review firm finance postings.");
+    if (role is "AccountingReviewer" && remaining.Any(x => x.Role == "AccountingPreparer") ||
+        role is "AccountingPreparer" && remaining.Any(x => x.Role == "AccountingReviewer"))
+      independence.Add("Segregation of duties: holding both accounting roles never permits review of this user's own preparation or Partner-only approval.");
     if (role == "Administrator")
       warnings.Add("AuditSphere Administrator is an application role only. It grants no Microsoft Entra administrator role.");
     if (target.UserKind == "Client")

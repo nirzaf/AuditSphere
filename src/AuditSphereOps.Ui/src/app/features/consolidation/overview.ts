@@ -4,7 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { Api, CommandState, queryParam } from '../../core/api';
 import { guidPattern } from '../../core/contracts';
-import { arr, bool, dec, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, dec, guid, instant, int, nat, nullable, obj, oneOf, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { ConsolidationGroupMembership } from './group-membership';
 
@@ -14,7 +14,7 @@ const scope = obj({ id: guid, groupName: text, version: int, method: text, curre
   componentCount: nat, approvedComponentCount: nat, externalPackCount: nat, approvedExternalPackCount: nat, advancedScheduleCount: nat, approvedAdvancedScheduleCount: nat,
   advancedExecutionCount: nat, approvedAdvancedExecutionCount: nat, advancedScheduleStatus: text, advancedScheduleGuidance: text, rateSetStatus: text,
   translationPolicyStatus: text, eliminationJournalCount: nat, approvedEliminationJournalCount: nat, status: text, runStatus: text, isAdvanced: bool, report: nullable(report) });
-export const decodeConsolidation = obj({ canCreateGroup: bool, groups: arr(obj({ id: guid, code: text, name: text, scopes: arr(scope, 1000) }), 500) });
+export const decodeConsolidation = obj({ canCreateGroup: bool, groups: arr(obj({ id: guid, code: text, name: text, scopes: arr(scope, 1000), accessMode: nullable(oneOf('READ_ONLY', 'OPERATIONAL')) }), 500) });
 const periodOption = obj({ id: guid, clientName: text, code: text, startDate: text, endDate: text, basis: text, currency: text, status: text });
 const methodOption = obj({ code: text, label: text, enabled: bool, guidance: text });
 const rateSetOption = obj({ id: guid, code: text, version: int, effectiveFrom: nullable(text), effectiveTo: nullable(text) });
@@ -34,7 +34,7 @@ type ScopeIntent = { groupId: string; groupRevision: number; periodId: string; r
   openingBasis: string; exchangeRateSetVersionId: string | null; translationPolicyVersionId: string | null;
   translationRateDate: string | null; translationRateType: string | null; priorScopeVersionId: string | null;
   supersedesScopeVersionId: string | null; supersedesComponentId: string | null };
-type Group = ReturnType<typeof decodeConsolidation>['groups'][number];
+type Group = Pick<ReturnType<typeof decodeConsolidation>['groups'][number], 'id' | 'code' | 'name' | 'scopes'>;
 type ScopeVersion = Group['scopes'][number];
 type CorrectionContext =
   | { state: 'none' | 'pending' | 'invalid' | 'unavailable' | 'wrong-group' }
@@ -84,7 +84,7 @@ export function displayUtcInstant(value: string | null): string {
   template: `
     <nav aria-label="Consolidation location"><a routerLink="/app/accounting">Accounting</a> / <span>Group consolidation</span></nav>
     <audit-page-header title="Group consolidation" eyebrow="Group accounting" description="Approved group perimeters and component packs. Consolidation never mutates component client books." />
-    <p><small>Only explicitly granted group scopes appear here. The enabled first profile is same-currency, fully-owned consolidation; configured foreign-operation translation is shown separately, while advanced methods remain fail-closed until approved source-bound schedules and execution verification are complete.</small></p>
+    <p><small>Explicitly granted groups and firm-wide Administrator oversight appear here. Group operations still require their own current authority. The enabled first profile is same-currency, fully-owned consolidation; advanced methods remain fail-closed until approved source-bound schedules and execution verification are complete.</small></p>
     @let correction = correctionContext();
     @switch (correction.state) {
       @case ('pending') {
@@ -138,13 +138,13 @@ export function displayUtcInstant(value: string | null): string {
           @if (!createCommand.uncertain()) { <audit-command-message [message]="createCommand.message()" [failed]="createCommand.failed()" /> }
         </section>
       }
-      @if (g.groups.length) {
+      @if (operationalGroups().length) {
         <section class="panel" aria-labelledby="create-scope-heading">
           <h2 id="create-scope-heading">Start or roll forward a consolidation scope</h2>
           <p><small>Select only from this identity’s explicitly granted groups and the periods, methods and approved FX inputs returned for that group. The saved scope records the group revision and, for a roll-forward, the approved prior scope and run basis. Creating a scope does not change component books or approve the perimeter.</small></p>
           <label>Accounting group * <select name="scopeGroup" [ngModel]="scopeGroupId()" (ngModelChange)="selectScopeGroup($event)" [disabled]="scopeCommand.busy() || scopeCommand.uncertain() || correctionContext().state === 'valid'">
             <option value="">Choose an authorized group</option>
-            @for (grp of g.groups; track grp.id) { <option [value]="grp.id">{{ grp.name }} · {{ grp.code }}</option> }
+            @for (grp of operationalGroups(); track grp.id) { <option [value]="grp.id">{{ grp.name }} · {{ grp.code }}</option> }
           </select></label>
           @if (scopeOptions.loading()) { <p role="status">Loading permitted scope options…</p> }
           @if (scopeOptions.error()) { <p role="alert">{{ scopeOptions.error() }}</p> }
@@ -218,7 +218,8 @@ export function displayUtcInstant(value: string | null): string {
         <section class="panel" id="perimeter" aria-labelledby="perimeter-heading"><h2 id="perimeter-heading">Perimeter</h2>
           @for (grp of g.groups; track grp.id) {
             <h3 [id]="'group-' + grp.id">{{ grp.name }} <code>{{ grp.code }}</code></h3>
-            <p><button type="button" (click)="openGroup(grp.id)" [attr.aria-expanded]="selectedGroupId() === grp.id" aria-controls="group-membership-panel">{{ selectedGroupId() === grp.id ? 'Perimeter open' : 'Manage legal-entity perimeter' }}</button></p>
+            @if (grp.accessMode === 'READ_ONLY') { <p role="status">Read-only — Administrator oversight. Explicit group grants continue to control operational actions.</p> }
+            <p><button type="button" (click)="openGroup(grp.id)" [attr.aria-expanded]="selectedGroupId() === grp.id" aria-controls="group-membership-panel">{{ selectedGroupId() === grp.id ? 'Perimeter open' : grp.accessMode === 'READ_ONLY' ? 'View legal-entity perimeter' : 'Manage legal-entity perimeter' }}</button></p>
             <div class="table-scroll"><table><thead><tr><th>Version</th><th>Method</th><th>Currency</th><th>Ownership edges</th><th>Grouped matches</th><th>Outside reviews</th><th>Perimeter</th><th>Latest run</th><th><span class="sr-only">Workflow</span></th></tr></thead>
               <tbody>@for (s of grp.scopes; track s.id) { <tr><td>v{{ s.version }}</td><td><code>{{ s.method }}</code></td><td>{{ s.currency }}</td><td>{{ s.ownershipEdges }}</td><td>{{ s.groupedMatches }}</td><td>{{ s.outsideReviews }}</td>
                 <td><audit-status [value]="s.status" /></td><td><audit-status [value]="s.runStatus" /></td>
@@ -276,6 +277,7 @@ export class ConsolidationOverview {
   private readonly api = inject(Api);
   private readonly router = inject(Router);
   readonly groups = this.api.resource(() => '/api/ui/consolidation', decodeConsolidation, 'No explicit accounting-group grant is available for the current identity.');
+  readonly operationalGroups = computed(() => this.groups.data()?.groups.filter(x => x.accessMode !== 'READ_ONLY') ?? []);
   private readonly correctionScopeParam = queryParam('correctionScopeId');
   private readonly correctionGroupParam = queryParam('correctionGroupId');
   private readonly correctionComponentParam = queryParam('correctionComponentId');

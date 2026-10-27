@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Primary Administrator oversight and accounting roles
+
+The standard assignment catalogue now offers the existing accounting preparation/review roles to Staff, with explicit scopes and honest independence descriptions. Ledger and accounting-group overview/membership reads opt into current firm-wide Staff Administrator oversight; original finance and group command flags remain separate. Nonmanaging membership readers receive no client choices. Focused and isolated built-in desktop/mobile verification passed; other read owners, search, command census, EQR and complete specification/release acceptance remain open. No live grants or deployment changed. See [status.json](status.json).
+
 ## Administrator replacement safety
 
 Administrator revocation and reviewed replacement count only enabled Staff identities with active, unexpired firm-wide application Administrator access, under the existing firm fence. A named replacement must itself qualify. Planned Administrator expiry requires a separate viable administrator beyond that expiry and displays the provisioning prerequisite. Focused negative, concurrent and successful rotation checks passed; oversight, role-catalogue and recovery acceptance remain separate. No live grants or deployment changed. See [status.json](status.json).

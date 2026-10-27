@@ -46,7 +46,7 @@ public sealed record UserAccessAssignmentResult(Guid UserId, Guid RoleGrantId, G
 public static class RoleAdministrationService
 {
   private static readonly string[] AllowedRoles =
-    ["Administrator", "Partner", "Manager", "Senior", "Staff", "RelationshipManager", "FinanceManager", "FinanceReviewer", "ClientUser"];
+    ["Administrator", "Partner", "Manager", "Senior", "Staff", "RelationshipManager", "FinanceManager", "FinanceReviewer", "AccountingPreparer", "AccountingReviewer", "ClientUser"];
 
   public static IReadOnlyList<string> RoleCodes => AllowedRoles;
 
@@ -433,6 +433,8 @@ public static class RoleAdministrationService
     var clientRole = role.Equals("ClientUser", StringComparison.OrdinalIgnoreCase);
     if (clientRole != target.UserKind.Equals("Client", StringComparison.OrdinalIgnoreCase))
       return clientRole ? "ClientUser must be assigned to a client identity." : "Staff roles must be assigned to a staff identity.";
+    if (!clientRole && target.UserKind != "Staff")
+      return "Staff roles must be assigned to a staff identity.";
     if (clientRole && scopeKind == "FIRM_WIDE")
       return "Client access must be scoped to a client or engagement.";
     return null;

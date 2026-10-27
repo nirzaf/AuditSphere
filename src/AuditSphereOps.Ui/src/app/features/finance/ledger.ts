@@ -3,11 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState } from '../../core/api';
-import { arr, bool, guid, instant, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, guid, instant, nat, nullable, obj, oneOf, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 
 export const decodeLedger = obj({ canCreateSetup: bool, canClosePeriod: bool, canReviewJournals: bool,
+  accessMode: nullable(oneOf('READ_ONLY', 'OPERATIONAL')),
   canPostJournals: bool, canCreateJournals: bool, canReversePostings: bool, canReopenPeriod: bool,
   periods: arr(obj({ id: guid, periodCode: text, status: text, revision: nat, closedAt: nullable(instant) }), 5000),
   accounts: arr(obj({ id: guid, code: text, name: text, accountType: text, normalSide: text, postingAllowed: bool }), 5000),
@@ -53,6 +54,7 @@ interface PendingClose {
     <p class="actions"><button matButton="outlined" (click)="ledger.reload()">Refresh firm ledger</button></p>
     <audit-state [loading]="ledger.loading()" [error]="ledger.error()" label="firm finance records" />
     @if (ledger.data(); as l) {
+      @if (l.accessMode === 'READ_ONLY') { <p role="status" class="hint">Read-only — Administrator oversight. Operational actions require their own current role and scope. Supporting document downloads remain separately restricted.</p> }
       <p role="status">{{ l.periods.length }} fiscal periods · {{ l.accounts.length }} firm accounts · {{ l.postings.length }} recent postings shown</p>
       <section class="panel" aria-labelledby="periods-heading">
         <h2 id="periods-heading">Fiscal periods</h2>
@@ -250,7 +252,7 @@ interface PendingClose {
           <thead><tr><th scope="col">Journal</th><th scope="col">Period</th><th scope="col">Source / type</th><th scope="col">Currency</th><th scope="col">Status</th><th scope="col">Lines</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
           <tbody>@for (j of l.journals; track j.id) {
             <tr><th scope="row">{{ j.journalNumber }}</th><td>{{ j.periodCode }}</td><td>{{ j.sourceKind }} · {{ j.postingPurpose }}<small>{{ j.sourceKey }}</small>
-              @if (j.supportingEvidenceSha256) { <button matButton type="button" (click)="downloadJournalEvidence(j.id, j.supportingEvidenceSha256!)">Download source: {{ j.supportingEvidenceFileName }}</button> }
+              @if (j.supportingEvidenceSha256 && (l.canCreateJournals || l.canReviewJournals)) { <button matButton type="button" (click)="downloadJournalEvidence(j.id, j.supportingEvidenceSha256!)">Download source: {{ j.supportingEvidenceFileName }}</button> }
             </td>
               <td>{{ j.currency }}</td><td><audit-status [value]="j.status" /></td><td>{{ j.lines.length }}</td>
               <td class="actions">

@@ -1,7 +1,7 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Api, CommandState } from '../../core/api';
-import { arr, bool, date, dec, guid, int, nat, nullable, obj, text, decimalInput } from '../../core/decode';
+import { arr, bool, date, dec, guid, int, nat, nullable, obj, oneOf, text, decimalInput } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
 export const decodeConsolidationGroupMembership = obj({
@@ -11,6 +11,7 @@ export const decodeConsolidationGroupMembership = obj({
     controlMethod: text, ownershipPercent: dec, economicInterestPercent: dec, evidenceReference: text, status: text, revision: int }), 100),
   eligibleClients: arr(obj({ id: guid, legalName: text }), 10000),
   canAddMember: bool,
+  accessMode: nullable(oneOf('READ_ONLY', 'OPERATIONAL')),
 });
 
 type MembershipWorkspace = ReturnType<typeof decodeConsolidationGroupMembership>;
@@ -59,6 +60,7 @@ function sameIntent(row: MembershipRow, intent: MembershipIntent): boolean {
       <h2 id="membership-heading">Legal-entity perimeter</h2>
       <audit-state [loading]="workspace.loading()" [error]="workspace.error()" label="the authorized group membership history" />
       @if (workspace.data(); as w) {
+        @if (w.accessMode === 'READ_ONLY') { <p role="status" class="hint">Read-only — Administrator oversight. Membership changes require explicit group authority.</p> }
         <p><strong>{{ w.groupName }} <code>{{ w.groupCode }}</code></strong></p>
         <p role="status">Group revision {{ w.groupRevision }} · {{ w.total }} membership records. Effective dates and approvals remain visible as history.</p>
         <p><small>Adding a membership increments the group revision. Scope versions pin the revision they were created against; stale scopes refuse perimeter-dependent preparation, calculation and approval until a current version is created.</small></p>

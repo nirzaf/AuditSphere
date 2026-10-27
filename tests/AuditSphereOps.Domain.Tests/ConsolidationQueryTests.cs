@@ -20,6 +20,58 @@ namespace AuditSphereOps.Domain.Tests;
 /// exceptions and component readiness are group-scoped paged projections.</summary>
 public sealed class ConsolidationQueryTests
 {
+  [Fact]
+  public async Task AdministratorOversight_ViewsSameFirmGroupsWithoutMembershipAuthorityOrEligibleClients()
+  {
+    await using var f = await TenantAdministrationFixture.CreateAsync();
+    await using var db = f.Db();
+    var now = DateTimeOffset.UtcNow;
+    var group = new ClientGroup { Id = Guid.NewGuid(), FirmId = f.FirmId, Code = "OS-GROUP", Name = "Oversight group",
+      CreatedByUserId = f.Admin.Id, CreatedAt = now };
+    var other = new ClientGroup { Id = Guid.NewGuid(), FirmId = f.FirmId, Code = "OS-SIBLING", Name = "Sibling group",
+      CreatedByUserId = f.Admin.Id, CreatedAt = now };
+    var foreignId = Guid.NewGuid();
+    var foreignUser = TenantAdministrationFixture.User(foreignId, "foreign-tenant", "foreign@example.test", "Foreign administrator");
+    var foreign = new ClientGroup { Id = Guid.NewGuid(), FirmId = foreignId, Code = "FOREIGN", Name = "Foreign group",
+      CreatedByUserId = foreignUser.Id, CreatedAt = now };
+    var reader = TenantAdministrationFixture.User(f.FirmId, f.TenantId, "group-only@example.test", "Group-only preparer");
+    db.FirmSafetyStates.Add(new FirmSafetyState { Id = foreignId });
+    db.Users.AddRange(foreignUser, reader);
+    db.ClientGroups.AddRange(group, other, foreign);
+    db.GroupAccessGrants.Add(new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = f.FirmId, GroupId = group.Id,
+      UserId = reader.Id, Role = "AccountingPreparer", GrantedByUserId = f.Admin.Id, GrantedAt = now });
+    await db.SaveChangesAsync();
+    var view = await ConsolidationGroupWorkspaceQuery.GetAsync(db, f.AdminActor, group.Id);
+    Assert.True(view.Succeeded, view.Message);
+    Assert.Equal("READ_ONLY", view.Value!.AccessMode);
+    Assert.False(view.Value.CanAddMember);
+    Assert.Empty(view.Value.EligibleClients);
+    var add = await ConsolidationService.AddMembershipAsync(db, f.AdminActor,
+      new(group.Id, f.ClientId, new(2026, 1, 1), null, "CONTROLLED", 100m, 100m, "Oversight is not a command grant"));
+    Assert.Equal(ErrorCodes.ScopeDenied, add.ErrorCode);
+    Assert.Empty(await db.ClientGroupMemberships.ToListAsync());
+    var overview = await ConsolidationOverviewQuery.GetAsync(db, f.AdminActor);
+    Assert.True(overview.Value!.CanCreateGroup); // Existing application authority remains intact.
+    Assert.Equal(2, overview.Value.Groups.Count);
+    Assert.All(overview.Value.Groups, x => Assert.Equal("READ_ONLY", x.AccessMode));
+    Assert.Equal(ErrorCodes.ScopeDenied, (await ConsolidationGroupWorkspaceQuery.GetAsync(db, f.AdminActor, foreign.Id)).ErrorCode);
+    var readerActor = new ActorContext(reader.Id, f.FirmId, reader.SessionEpoch, ["AccountingPreparer"]);
+    var preparer = (await ConsolidationGroupWorkspaceQuery.GetAsync(db, readerActor, group.Id)).Value!;
+    Assert.Equal("OPERATIONAL", preparer.AccessMode);
+    Assert.Empty(preparer.EligibleClients);
+    Assert.False(preparer.CanAddMember);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await ConsolidationGroupWorkspaceQuery.GetAsync(db, readerActor, other.Id)).ErrorCode);
+    Assert.Single((await ConsolidationOverviewQuery.GetAsync(db, readerActor)).Value!.Groups);
+    var explicitGrant = await db.GroupAccessGrants.SingleAsync(x => x.GroupId == group.Id);
+    explicitGrant.RevokedAt = now;
+    db.GroupAccessGrants.Add(new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = f.FirmId, GroupId = group.Id,
+      UserId = reader.Id, Role = "Manager", GrantedByUserId = f.Admin.Id, GrantedAt = now });
+    await db.SaveChangesAsync();
+    var managing = (await ConsolidationGroupWorkspaceQuery.GetAsync(db, readerActor, group.Id)).Value!;
+    Assert.True(managing.CanAddMember);
+    Assert.Contains(managing.EligibleClients, x => x.Id == f.ClientId);
+  }
+
   private sealed record Fixture(
     Guid FirmId, Guid ClientA, Guid ClientB, Guid EngagementA, Guid EngagementB,
     AppUser Manager, AppUser GroupReviewer, AppUser Outsider, Guid GroupId, Guid ScopeId);

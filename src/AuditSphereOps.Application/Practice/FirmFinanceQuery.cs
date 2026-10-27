@@ -11,7 +11,8 @@ public sealed record FirmFinanceSnapshot(
   bool CanCreateSetup, bool CanCreateJournals, bool CanClosePeriod, bool CanReviewJournals, bool CanPostJournals,
   List<FirmPeriod> Periods, List<FirmAccount> Accounts, List<FirmPosting> RecentPostings,
   List<FirmFinanceJournalSnapshot> RecentJournals,
-  bool CanReversePostings = false, bool CanReopenPeriod = false);
+  bool CanReversePostings = false, bool CanReopenPeriod = false,
+  string AccessMode = "OPERATIONAL", string? AccessReason = null);
 
 public sealed record FirmFinanceJournalLineSnapshot(
   Guid JournalId, Guid FirmAccountId, string AccountCode, string AccountName, string Description, decimal Debit, decimal Credit);
@@ -25,7 +26,7 @@ public sealed record FirmFinanceJournalSnapshot(
 
 public sealed record FirmJournalEvidenceDownload(string FileName, string Sha256, byte[] Content);
 
-/// <summary>Firm-ledger projection for a currently authorized finance user.</summary>
+/// <summary>Firm-ledger projection with explicit read-only oversight; operational finance authority stays separate.</summary>
 public static class FirmFinanceQuery
 {
   private static readonly string[] FinanceRoles = ["FinanceManager", "FinanceReviewer"];
@@ -37,6 +38,8 @@ public static class FirmFinanceQuery
     var request = new AuthorizationRequest(actor.FirmId, RequiredRoles: FinanceRoles,
       InternalOnly: true, RequireFirmWide: true);
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    if (!auth.Succeeded && auth.ErrorCode == ErrorCodes.ScopeDenied)
+      auth = await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded)
       return CommandResult<FirmFinanceSnapshot>.Fail(auth.ErrorCode!, auth.Message!);
 
@@ -90,7 +93,10 @@ public static class FirmFinanceQuery
         linesByJournal.GetValueOrDefault(x.Id, [])))
       .ToList();
 
-    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    var operationalRead = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    auth = operationalRead;
+    if (!auth.Succeeded && auth.ErrorCode == ErrorCodes.ScopeDenied)
+      auth = await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct);
     if (auth.Succeeded)
     {
       managerAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
@@ -108,7 +114,9 @@ public static class FirmFinanceQuery
       ? CommandResult<FirmFinanceSnapshot>.Ok(new FirmFinanceSnapshot(
           canCreateSetup, canCreateSetup, canClosePeriod, reviewerAuth.Succeeded, managerAuth.Succeeded,
           periods, accounts, recentPostings, recentJournals,
-          canReversePostings, canReopenPeriod))
+          canReversePostings, canReopenPeriod,
+          operationalRead.Succeeded ? "OPERATIONAL" : AdministratorOversightReadAuthorization.ReadOnly,
+          operationalRead.Succeeded ? null : AdministratorOversightReadAuthorization.Reason))
       : CommandResult<FirmFinanceSnapshot>.Fail(auth.ErrorCode!, auth.Message!);
   }
 

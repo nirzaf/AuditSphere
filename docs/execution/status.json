@@ -1094,15 +1094,10 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.periodOpeningReadiness20261027BeforePriorCloseReview20261027"
     },
     "lifecycleNavigation20261027": {
-      "status": "FOCUSED_AND_BUILTIN_VERIFIED_CURRENT_CI_REQUIRED",
-      "verification": "Existing destination catalogue preserved; four focused navigation/icon/shell specs passed, plus targeted reruns; production build and scoped lint passed. Built-in synthetic browser checked firm-books and PBC owners, mobile menu keyboard/escape/focus and narrow width.",
-      "boundary": "Static navigation does not grant access; contextual authorization and full application acceptance remain separate."
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.lifecycleNavigation20261027BeforeRolesOversight20261027"
     },
     "heldTaskProgress20261027": {
-      "status": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
-      "verification": "Active held tasks appear blocked; focused hold/resume test and isolated built-in browser passed. Held-only next action names qualified roles without an unavailable link.",
-      "boundary": "No business write or full Task 02 acceptance; scope and remaining requirements remain open.",
-      "evidence": ".local/autonomous/evidence/claude-completion-20261027/held-progress-review.json"
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.heldTaskProgress20261027BeforeRolesOversight20261027"
     },
     "priorCloseReview20261027": {
       "status": "FOCUSED_AND_BUILTIN_VERIFIED_FOLLOWUP_FULL_CI_REQUIRED",
@@ -1117,6 +1112,13 @@
       "verification": "Replacement Client/disabled regression RED2; initial expired setup failure excluded. Corrected focused GREEN8: ineffective replacements, safe planned expiry with actual replacement, concurrent revocation, genuine second administrator and unchanged expiry worker.",
       "evidence": ".local/autonomous/evidence/roles-admin-oversight-20261027/admin-safety-review.json",
       "boundary": "AS-RBAC-04 safety slice only. No UI/oversight or all-admin-loss recovery acceptance, live role mutation or deployment. Original31/Axelor56/practice87 and other roles work remain separate."
+    },
+    "rolesPrimaryOversight20261027": {
+      "status": "FOCUSED_API_BUILTIN_PASS_CURRENT_CI_REQUIRED",
+      "sourceBaseCommit": "cf0b083ab1f34a0700f09d1252298516afee0919",
+      "verification": "Catalogue Domain4PASS, ledger/group reads2PASS, fresh revocation and finance roles3PASS, cookie/forged-command API1PASS; roles Angular14PASS, finance/member9PASS, corrected additive-field overview10PASS; pinned Node build/lint/OpenAPI PASS. Built-in synthetic desktop/390px ledger read-only, expanded perimeter, exact accounting-review preview and restricted Client choices; console empty.",
+      "evidence": ".local/autonomous/evidence/roles-admin-oversight-20261027/primary-oversight-review.json",
+      "boundary": "Primary projections/catalogue only; other read owners, search/census, professional EQR and recovery remain open. No browser grant/finance writes or deployment. Owned fixture stopped; launcher restored. Peer README and Task03 drafts preserved."
     }
   },
   "externalGates": [
@@ -1601,13 +1603,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "06058e9a1ea1379be376cc79544c9cd6ab10ce2f",
-    "sourceRole": "PERIOD_LIFECYCLE_AUTHORIZATION_ASSERTION_CORRECTION",
-    "fastCi": "NOT_DISPATCHED for follow-up.",
-    "releaseVerification": "Preceding40554419720 MATCH: Angular/Verify PASS, Domain1803/1; API/E2E pending. Follow-up full required.",
-    "imagePublication": "NOT_DISPATCHED for follow-up; 0605 rehearsal is preceding evidence.",
-    "cutoverStatus": "NOT_PERFORMED. Origin/browser baseline200; exact BIC event matched Python403. No exception approved or applied.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeLifecycleCiCorrection20261027"
+    "sourceBaseCommit": "cf0b083ab1f34a0700f09d1252298516afee0919",
+    "sourceRole": "ROLES_PRIMARY_OVERSIGHT_AND_ACCOUNTING_CATALOGUE",
+    "fastCi": "Current follow-up requires exact checkout proof after publication.",
+    "releaseVerification": "Preceding fa30 full40561910700 source MATCH; Angular/Verify/Domain metadata success, API/E2E pending at last observation; not current acceptance.",
+    "imagePublication": "Current follow-up images/rehearsal required; fa30 images/rehearsal are predecessor only.",
+    "cutoverStatus": "NOT_PERFORMED; existing live baseline and public browser/source gates must be refreshed.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeRolesOversight20261027"
   },
-  "updatedAtUtc": "2026-10-27T19:22:22.929007+00:00"
+  "updatedAtUtc": "2026-10-27T19:42:04.029454+00:00"
 }

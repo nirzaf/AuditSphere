@@ -49,9 +49,13 @@ describe('Finance & Firm Ledger Contracts', () => {
         },
       ],
       journals: [],
+      accessMode: 'OPERATIONAL',
     };
 
     const decoded = decodeLedger(raw, 'ledger');
+    expect(decoded.accessMode).toBe('OPERATIONAL');
+    expect(decodeLedger({ ...raw, accessMode: 'READ_ONLY' }, 'ledger').accessMode).toBe('READ_ONLY');
+    expect(() => decodeLedger({ ...raw, accessMode: 'ADMIN_WRITE' }, 'ledger')).toThrow();
     expect(decoded.canClosePeriod).toBe(true);
     expect(decoded.canCreateJournals).toBe(true);
     expect(decoded.canReversePostings).toBe(true);

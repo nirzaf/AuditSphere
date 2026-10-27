@@ -115626,6 +115626,16 @@
           },
           "canAddMember": {
             "type": "boolean"
+          },
+          "accessMode": {
+            "type": "string",
+            "default": "OPERATIONAL"
+          },
+          "accessReason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -115653,6 +115663,10 @@
             "items": {
               "$ref": "#/components/schemas/ConsolidationScopeRow"
             }
+          },
+          "accessMode": {
+            "type": "string",
+            "default": "OPERATIONAL"
           }
         }
       },
@@ -124719,6 +124733,16 @@
             "items": {
               "$ref": "#/components/schemas/FinanceWorkspaceJournal"
             }
+          },
+          "accessMode": {
+            "type": "string",
+            "default": "OPERATIONAL"
+          },
+          "accessReason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

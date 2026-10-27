@@ -1,11 +1,14 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Data.Common;
 using Npgsql;
 using System.Text;
 
@@ -14,6 +17,97 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class LedgerTests
 {
+  private sealed class RevokeAfterLedgerRead(Func<Task> revoke) : DbCommandInterceptor
+  {
+    private int invoked;
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,
+      CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("FROM firm_accounts", StringComparison.Ordinal) &&
+          Interlocked.Exchange(ref invoked, 1) == 0) await revoke();
+      return result;
+    }
+  }
+
+  [Fact]
+  public async Task AdministratorOversight_RechecksRevocationBeforeReturningLedger()
+  {
+    await using var f = await TenantAdministrationFixture.CreateAsync();
+    Guid grantId;
+    await using (var setup = f.Db())
+      grantId = await setup.RoleGrants.Where(x => x.UserId == f.SecondAdmin.Id).Select(x => x.Id).SingleAsync();
+    var revoked = false;
+    var interceptor = new RevokeAfterLedgerRead(async () =>
+    {
+      await using var writer = f.Db();
+      var result = await RoleAdministrationService.RevokeRoleGrantAsync(writer, f.AdminActor, new(grantId));
+      Assert.True(result.Succeeded, result.Message);
+      revoked = true;
+    });
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(f.Pg.Options).AddInterceptors(interceptor).Options;
+    await using var db = new AuditSphereDbContext(options);
+    var actor = f.SecondAdminActor;
+    var result = await FirmFinanceQuery.GetAsync(db, actor);
+    Assert.True(revoked);
+    Assert.False(result.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, result.ErrorCode);
+    Assert.Null(result.Value);
+  }
+
+  [Fact]
+  public async Task AdministratorOversight_ReadsFirmLedgerWithoutFinanceCommandsOrRawEvidence()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var cash = (await LedgerService.CreateFirmAccountAsync(db, f.ManagerActor,
+      new CreateFirmAccountRequest("OS-CASH", "Oversight cash", LedgerStates.AccountAsset, LedgerStates.Debit))).Value;
+    var equity = (await LedgerService.CreateFirmAccountAsync(db, f.ManagerActor,
+      new CreateFirmAccountRequest("OS-EQUITY", "Oversight equity", LedgerStates.AccountEquity, LedgerStates.Credit))).Value;
+    var period = (await LedgerService.CreateFirmPeriodAsync(db, f.ManagerActor, new CreateFirmPeriodRequest("2026-10"))).Value;
+    var journal = await LedgerService.CreateFirmJournalDraftAsync(db, f.ManagerActor,
+      new(period, "OS-JOURNAL", "MANUAL", "OS-SOURCE", 1, "OPENING_BALANCE", "QAR",
+        [new(cash, "Cash", 100.12m, 0), new(equity, "Equity", 0, 100.12m)],
+        "oversight-source.txt", "text/plain", "private supporting evidence"u8.ToArray()));
+    Assert.True(journal.Succeeded, journal.Message);
+    var admin = User(f.FirmId, "Administrator");
+    db.Users.Add(admin);
+    db.RoleGrants.Add(Grant(f.FirmId, admin, "Administrator"));
+    await db.SaveChangesAsync();
+    var actor = Actor(admin, "Administrator");
+    var view = await FirmFinanceQuery.GetAsync(db, actor);
+    Assert.True(view.Succeeded, view.Message);
+    Assert.Equal("READ_ONLY", view.Value!.AccessMode);
+    Assert.Contains(view.Value.RecentJournals, x => x.Id == journal.Value && x.Lines.Any(l => l.Debit == 100.12m));
+    Assert.False(view.Value.CanCreateSetup || view.Value.CanCreateJournals || view.Value.CanClosePeriod ||
+      view.Value.CanReviewJournals || view.Value.CanPostJournals || view.Value.CanReversePostings || view.Value.CanReopenPeriod);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await LedgerService.CreateFirmPeriodAsync(db, actor,
+      new("2026-11"))).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await FirmFinanceQuery.GetJournalEvidenceAsync(db, actor, journal.Value)).ErrorCode);
+    Assert.True((await FirmFinanceQuery.GetJournalEvidenceAsync(db, f.ManagerActor, journal.Value)).Succeeded);
+    Assert.Single(await db.FirmPeriods.ToListAsync());
+    Assert.Empty(await db.FrozenAccessAttempts.ToListAsync());
+    foreach (var condition in new[] { "scoped", "expired", "revoked", "disabled", "client", "claims-only", "stale", "foreign" })
+    {
+      var user = User(f.FirmId, "Denied-" + condition);
+      user.Disabled = condition == "disabled";
+      user.UserKind = condition == "client" ? "Client" : "Staff";
+      db.Users.Add(user);
+      var grant = Grant(f.FirmId, user, "Administrator", condition == "scoped" ? f.ClientId : null);
+      grant.GrantedAt = DateTimeOffset.UtcNow.AddHours(-2);
+      if (condition == "expired") grant.ExpiresAt = DateTimeOffset.UtcNow.AddHours(-1);
+      if (condition == "revoked") grant.RevokedAt = DateTimeOffset.UtcNow;
+      if (condition != "claims-only") db.RoleGrants.Add(grant);
+      if (condition == "scoped") db.RoleGrants.Add(Grant(f.FirmId, user, "Staff"));
+      await db.SaveChangesAsync();
+      var deniedActor = Actor(user, "Administrator", "Global Administrator");
+      if (condition == "stale") deniedActor = deniedActor with { SessionEpoch = user.SessionEpoch + 1 };
+      if (condition == "foreign") deniedActor = deniedActor with { FirmId = Guid.NewGuid() };
+      Assert.False((await FirmFinanceQuery.GetAsync(db, deniedActor)).Succeeded, condition);
+    }
+    Assert.Equal("OPERATIONAL", (await FirmFinanceQuery.GetAsync(db, f.ManagerActor)).Value!.AccessMode);
+  }
+
   private sealed record Fixture(
     Guid FirmId,
     Guid ClientId,

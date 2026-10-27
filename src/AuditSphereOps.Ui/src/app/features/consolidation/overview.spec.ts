@@ -15,7 +15,7 @@ const optionsUrl = `${groupsUrl}/groups/${groupId}/scope-options`;
 const scopeId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const componentId = '12121212-1212-4212-8212-121212121212';
 const otherGroupId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
-const createdGroup = { id: groupId, code: 'HOLDCO-01', name: 'Holding Company Group', scopes: [] };
+const createdGroup = { id: groupId, code: 'HOLDCO-01', name: 'Holding Company Group', scopes: [], accessMode: null };
 const correctionScope = {
   id: scopeId, groupName: createdGroup.name, version: 3, method: 'FULLY_OWNED_SAME_CURRENCY', currency: 'QAR',
   ownershipEdges: 1, groupedMatches: 0, outsideReviews: 0, openMatchCount: 0, componentCount: 1,
@@ -85,6 +85,16 @@ describe('accounting group creation', () => {
     fixture.detectChanges();
     return { fixture, component: fixture.componentInstance };
   }
+
+  it('exposes oversight perimeter reading without offering scope creation, while preserving existing group creation authority', async () => {
+    const { fixture } = await open(overview([{ ...createdGroup, accessMode: 'READ_ONLY' }], true));
+    expect(fixture.nativeElement.textContent).toContain('Read-only — Administrator oversight');
+    expect(fixture.nativeElement.textContent).toContain('View legal-entity perimeter');
+    expect(fixture.nativeElement.querySelector('#create-scope-heading')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#create-group-heading')).not.toBeNull();
+    http.expectNone(optionsUrl);
+    http.expectNone({ method: 'POST', url: groupsUrl });
+  });
 
   it('posts the exact group intent, refreshes permitted groups and navigates to its perimeter', async () => {
     const { fixture, component } = await open();

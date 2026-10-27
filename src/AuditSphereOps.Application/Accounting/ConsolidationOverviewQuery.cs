@@ -37,7 +37,8 @@ public sealed record ConsolidationScopeRow
   public bool IsAdvanced { get; init; }
   public ConsolidationReport? Report { get; init; }
 }
-public sealed record ConsolidationGroupRow(Guid Id, string Code, string Name, IReadOnlyList<ConsolidationScopeRow> Scopes);
+public sealed record ConsolidationGroupRow(Guid Id, string Code, string Name, IReadOnlyList<ConsolidationScopeRow> Scopes,
+  string AccessMode = "OPERATIONAL");
 public sealed record ConsolidationOverview(bool CanCreateGroup, IReadOnlyList<ConsolidationGroupRow> Groups);
 
 /// <summary>
@@ -54,14 +55,25 @@ public static class ConsolidationOverviewQuery
       new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Manager", "Partner", "Administrator"],
         InternalOnly: true, RequireFirmWide: true), ct);
 
-    var candidateGroupIds = await db.GroupAccessGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
-      .Select(x => x.GroupId).Distinct().ToArrayAsync(ct);
+    var oversight = await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct);
+    var candidateGroupIds = oversight.Succeeded
+      ? await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderBy(x => x.Id)
+        .Select(x => x.Id).Take(501).ToArrayAsync(ct)
+      : await db.GroupAccessGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
+        .Select(x => x.GroupId).Distinct().OrderBy(x => x).Take(501).ToArrayAsync(ct);
+    if (candidateGroupIds.Length > 500)
+      return CommandResult<ConsolidationOverview>.Fail("scope.limit", "The group overview exceeds its supported limit. Open an exact authorized group workspace.");
     var groupIds = new List<Guid>(candidateGroupIds.Length);
+    var accessModes = new Dictionary<Guid, string>();
     foreach (var groupId in candidateGroupIds)
     {
       var access = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId,
         ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"], ct);
-      if (access.Succeeded) groupIds.Add(groupId);
+      if (access.Succeeded || oversight.Succeeded)
+      {
+        groupIds.Add(groupId);
+        accessModes[groupId] = access.Succeeded ? "OPERATIONAL" : AdministratorOversightReadAuthorization.ReadOnly;
+      }
     }
     var groups = await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.Id)).OrderBy(x => x.Name).ToListAsync(ct);
     var scopes = await db.ConsolidationScopeVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.GroupId)).ToListAsync(ct);
@@ -108,6 +120,16 @@ public static class ConsolidationOverviewQuery
     var translationPolicyIds = scopes.Where(x => x.TranslationPolicyVersionId.HasValue).Select(x => x.TranslationPolicyVersionId!.Value).Distinct().ToArray();
     var translationPolicies = await db.TranslationPolicyVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && translationPolicyIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.Status, ct);
+    foreach (var groupId in groupIds)
+    {
+      var access = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId,
+        ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"], ct);
+      accessModes[groupId] = access.Succeeded ? "OPERATIONAL" : AdministratorOversightReadAuthorization.ReadOnly;
+      if (!access.Succeeded && !(await AdministratorOversightReadAuthorization.AuthorizeGroupAsync(db, actor, groupId, ct)).Succeeded)
+        return CommandResult<ConsolidationOverview>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    }
+    createAccess = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, RequiredRoles: ["Manager", "Partner", "Administrator"], InternalOnly: true, RequireFirmWide: true), ct);
     var result = groups.Select(group => new ConsolidationGroupRow(group.Id, group.Code, group.Name, scopes.Where(x => x.GroupId == group.Id)
       .OrderByDescending(x => x.Version).Select(x =>
       {
@@ -153,7 +175,7 @@ public static class ConsolidationOverviewQuery
           RunStatus = runStatuses.GetValueOrDefault(x.Id, "NO_RUN"),
           Report = reports.GetValueOrDefault(x.Id)
         };
-      }).ToArray())).ToList();
+      }).ToArray(), accessModes[group.Id])).ToList();
     return CommandResult<ConsolidationOverview>.Ok(new ConsolidationOverview(createAccess.Succeeded, result));
   }
 }

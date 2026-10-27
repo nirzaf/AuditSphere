@@ -39,6 +39,34 @@ public sealed class UiWorkbenchContractTests
   }
 
   [Fact]
+  public async Task AdministratorOversight_HttpLedgerReadDoesNotAuthorizeForgedFinanceCommands()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("ADMIN-OVERSIGHT-API");
+    var seed = await PbcSeed.SeedAsync(pg);
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.FirmPeriods.Add(new FirmPeriod { Id = Guid.NewGuid(), FirmId = seed.FirmId, PeriodCode = "2026-10" });
+      await setup.SaveChangesAsync();
+    }
+    using var factory = Factory(pg.ConnectionString, seed.Admin.Subject, seed.Admin.TenantId);
+    using var admin = factory.CreateClient(new() { AllowAutoRedirect = false });
+    var proof = await SignInAsync(admin);
+    var catalogue = await admin.GetFromJsonAsync<string[]>("/api/ui/administration/role-catalogue");
+    Assert.Contains("AccountingPreparer", catalogue!);
+    Assert.Contains("AccountingReviewer", catalogue!);
+    var ledger = await admin.GetFromJsonAsync<JsonElement>("/api/ui/finance");
+    Assert.Equal("READ_ONLY", ledger.GetProperty("accessMode").GetString());
+    Assert.Equal("2026-10", ledger.GetProperty("periods")[0].GetProperty("periodCode").GetString());
+    foreach (var flag in new[] { "canCreateSetup", "canClosePeriod", "canReviewJournals", "canPostJournals",
+      "canCreateJournals", "canReversePostings", "canReopenPeriod" })
+      Assert.False(ledger.GetProperty(flag).GetBoolean(), flag);
+    using var attempt = await PostAsync(admin, "/api/ui/finance/periods", JsonContent.Create(new { periodCode = "2026-11" }), proof);
+    Assert.Equal(HttpStatusCode.Forbidden, attempt.StatusCode);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Single(await verify.FirmPeriods.Where(x => x.FirmId == seed.FirmId).ToListAsync());
+  }
+
+  [Fact]
   public async Task WorkbenchEndpoints_RequireSessionScopeAndAntiforgery_AndKeepDecimalsExact()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("ANGULAR-API-02");

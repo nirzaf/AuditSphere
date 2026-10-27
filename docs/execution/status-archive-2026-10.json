@@ -25879,6 +25879,15 @@
       "imagePublication": "New exact-source images and restored-copy rehearsal required before cutover.",
       "cutoverStatus": "NOT_PERFORMED for this candidate; preceding fb02 is live.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeAccountAndTaskJourneyCorrection20261027"
+    },
+    "currentSourceCiBeforeRolesOversight20261027": {
+      "sourceBaseCommit": "06058e9a1ea1379be376cc79544c9cd6ab10ce2f",
+      "sourceRole": "PERIOD_LIFECYCLE_AUTHORIZATION_ASSERTION_CORRECTION",
+      "fastCi": "NOT_DISPATCHED for follow-up.",
+      "releaseVerification": "Preceding40554419720 MATCH: Angular/Verify PASS, Domain1803/1; API/E2E pending. Follow-up full required.",
+      "imagePublication": "NOT_DISPATCHED for follow-up; 0605 rehearsal is preceding evidence.",
+      "cutoverStatus": "NOT_PERFORMED. Origin/browser baseline200; exact BIC event matched Python403. No exception approved or applied.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeLifecycleCiCorrection20261027"
     }
   },
   "archivedTargetedVerification": {
@@ -27026,6 +27035,17 @@
       "implementationCommit": "0b87a7548ed56602c3bba3b30bc05e79cb573d66",
       "integrationEvidence": ".local/autonomous/evidence/schedule-intake-20261024/api-angular-source-catalog-integration.json",
       "history": "status-archive-2026-10.json#archivedTargetedVerification.scheduleSourceIndependentReviewHistory20261024"
+    },
+    "lifecycleNavigation20261027BeforeRolesOversight20261027": {
+      "status": "FOCUSED_AND_BUILTIN_VERIFIED_CURRENT_CI_REQUIRED",
+      "verification": "Existing destination catalogue preserved; four focused navigation/icon/shell specs passed, plus targeted reruns; production build and scoped lint passed. Built-in synthetic browser checked firm-books and PBC owners, mobile menu keyboard/escape/focus and narrow width.",
+      "boundary": "Static navigation does not grant access; contextual authorization and full application acceptance remain separate."
+    },
+    "heldTaskProgress20261027BeforeRolesOversight20261027": {
+      "status": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
+      "verification": "Active held tasks appear blocked; focused hold/resume test and isolated built-in browser passed. Held-only next action names qualified roles without an unavailable link.",
+      "boundary": "No business write or full Task 02 acceptance; scope and remaining requirements remain open.",
+      "evidence": ".local/autonomous/evidence/claude-completion-20261027/held-progress-review.json"
     }
   },
   "lastUpdatedOn": "2026-10-27"

@@ -29,6 +29,7 @@ export function roleScopeDescription(scope: RoleScope, workspace: Pick<Workspace
 }
 /** Presentation hint only; the Application service independently validates identity kind and scope. */
 export function roleChoices(accountType: string, catalogue: string[]): { roles: string[]; scopes: string[]; initialRole: string } {
+  if (!accountType.startsWith('Client (') && !accountType.startsWith('Staff (')) return { roles: [], scopes: [], initialRole: '' };
   return accountType.startsWith('Client (')
     ? { roles: catalogue.filter(r => r === 'ClientUser'), scopes: ['CLIENT', 'ENGAGEMENT'], initialRole: 'ClientUser' }
     : { roles: catalogue.filter(r => r !== 'ClientUser'), scopes: ['FIRM_WIDE', 'CLIENT', 'ENGAGEMENT', 'GROUP'], initialRole: 'Staff' };

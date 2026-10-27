@@ -14,6 +14,65 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class RoleAssignmentTests
 {
+  [Theory]
+  [InlineData("AccountingPreparer")]
+  [InlineData("AccountingReviewer")]
+  public async Task AccountingRoles_AreReviewedStaffAssignmentsWithExactScopeAndSessionInvalidation(string role)
+  {
+    await using var f = await TenantAdministrationFixture.CreateAsync();
+    await using var db = f.Db();
+    var now = DateTimeOffset.UtcNow;
+    var group = new Domain.Accounting.ClientGroup { Id = Guid.NewGuid(), FirmId = f.FirmId,
+      Code = "ROLE-GROUP", Name = "Role assignment group", CreatedByUserId = f.Admin.Id, CreatedAt = now };
+    db.ClientGroups.Add(group);
+    await db.SaveChangesAsync();
+    Assert.Contains(role, RoleAdministrationService.RoleCodes);
+    Assert.NotEmpty(RoleAssignmentService.RoleCapabilities["Senior"]);
+    Assert.Contains(RoleAssignmentService.RoleCapabilities[role], x => x.Contains("Partner"));
+    foreach (var scope in new[] { "FIRM_WIDE", "CLIENT", "ENGAGEMENT", "GROUP" })
+    {
+      var staff = await StaffAsync(f, scope.ToLowerInvariant() + "@example.test");
+      var request = new RoleAssignmentRequest(staff.Id, role, scope,
+        ClientId: scope is "CLIENT" or "ENGAGEMENT" ? f.ClientId : null,
+        EngagementId: scope == "ENGAGEMENT" ? f.EngagementId : null,
+        GroupId: scope == "GROUP" ? group.Id : null, Reason: "Explicit accounting responsibility", ConfirmScopeExpansion: true);
+      var review = await RoleAssignmentService.PreviewAsync(db, f.AdminActor, request, now);
+      Assert.True(review.Succeeded, review.Message);
+      Assert.Empty(review.Value!.BlockingReasons);
+      var result = await RoleAssignmentService.AssignAsync(db, f.AdminActor, request, now,
+        expectedReviewDigest: RoleAssignmentReviewDigest.Compute(review.Value, request));
+      Assert.True(result.Succeeded, result.Message);
+      var stale = new ActorContext(staff.Id, f.FirmId, staff.SessionEpoch, [role]);
+      var actor = stale with { SessionEpoch = f.CurrentEpoch(staff.Id) };
+      Assert.NotEqual(stale.SessionEpoch, actor.SessionEpoch);
+      if (scope == "GROUP")
+      {
+        Assert.True((await AuthorizationDecision.AuthorizeGroupAsync(db, actor, group.Id, [role])).Succeeded);
+        Assert.False((await AuthorizationDecision.AuthorizeGroupAsync(db, stale, group.Id, [role])).Succeeded);
+        Assert.False((await AuthorizationDecision.AuthorizeGroupAsync(db, actor, Guid.NewGuid(), [role])).Succeeded);
+        Assert.Equal(role, (await db.GroupAccessGrants.SingleAsync(x => x.Id == result.Value!.GrantId)).Role);
+      }
+      else
+      {
+        Assert.True((await AuthorizationDecision.AuthorizeAsync(db, actor,
+          new(f.FirmId, f.ClientId, f.EngagementId, [role], InternalOnly: true))).Succeeded);
+        Assert.False((await AuthorizationDecision.AuthorizeAsync(db, stale,
+          new(f.FirmId, f.ClientId, f.EngagementId, [role], InternalOnly: true))).Succeeded);
+        if (scope != "FIRM_WIDE")
+          Assert.False((await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new(f.FirmId, f.SiblingClientId, f.SiblingEngagementId, [role], InternalOnly: true))).Succeeded);
+        Assert.Equal(role, (await db.RoleGrants.SingleAsync(x => x.Id == result.Value!.GrantId)).Role);
+      }
+    }
+    var client = TenantAdministrationFixture.User(f.FirmId, f.TenantId, "client@example.test", "Client", "Client");
+    db.Users.Add(client);
+    await db.SaveChangesAsync();
+    var denied = await RoleAssignmentService.PreviewAsync(db, f.AdminActor,
+      new(client.Id, role, "CLIENT", f.ClientId, Reason: "Invalid client specialist assignment"), now);
+    Assert.Contains(denied.Value!.BlockingReasons, x => x.Contains("staff identity"));
+    Assert.False(await db.RoleGrants.AnyAsync(x => x.UserId == client.Id));
+  }
+
   [Fact]
   public async Task AdministratorExpiry_RequiresASeparateViableAdministratorBeyondExpiry()
   {
