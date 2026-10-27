@@ -6,7 +6,7 @@ import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { accessWorkspace, accessUser, accessLine, accessGrantEvidence, copyableInvitation } from './access-contracts';
-import { RoleAssignmentDialog, AccessRevocationDialog } from './roles';
+import { RoleAssignmentDialog, AccessRevocationDialog, roleScopeDescription } from './roles';
 import { MicrosoftDirectory } from './directory';
 import { AccessHistory } from './access-history';
 import { tenantWorkspace } from './tenant-contracts';
@@ -15,7 +15,27 @@ import { ManagedGroupsDialog } from './groups';
 import { TenantOperationRecoveryDialog } from './operation-recovery';
 import { capabilityAvailable, recoverableOperation } from './operations-contracts';
 
-@Component({ selector: 'audit-user-access', imports: [ReactiveFormsModule, MatButtonModule, MicrosoftDirectory, AccessHistory, ...SHARED], template: `
+@Component({ selector: 'audit-user-access', imports: [ReactiveFormsModule, MatButtonModule, MicrosoftDirectory, AccessHistory, ...SHARED], styles: [`
+  .user-card { display: grid; gap: .75rem; }
+  .user-head { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+  .user-avatar { display: grid; place-items: center; flex: none; width: 2.5rem; height: 2.5rem; border-radius: 50%;
+    background: var(--as-accent-ink, #1e4fa8); color: #fff; font-weight: 700; }
+  .user-name { flex: 1 1 12rem; min-width: 0; }
+  .user-name h2 { margin: 0; }
+  .user-name p { margin: .125rem 0 0; color: var(--as-text-muted, #52667a); overflow-wrap: anywhere; }
+  .user-facts dd { min-width: 0; overflow-wrap: anywhere; }
+  .user-card h3 { margin: .25rem 0 0; }
+  .grant-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--as-line, #dfe6ee); }
+  .grant { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .25rem 1rem; padding: .5rem 0;
+    border-bottom: 1px solid var(--as-line, #dfe6ee); }
+  .grant-text { display: grid; gap: .125rem; min-width: 0; }
+  .grant-text span { color: var(--as-text-muted, #52667a); font-size: .875rem; overflow-wrap: anywhere; }
+  .grant-actions, .user-actions { display: flex; flex-wrap: wrap; gap: .25rem .5rem; }
+  .grant-history { grid-column: 1 / -1; margin: .25rem 0; padding: .5rem .75rem .5rem 1.75rem; border-radius: var(--as-radius-sm, 6px);
+    background: var(--as-surface-sunken, #f6f8fb); font-size: .875rem; overflow-wrap: anywhere; }
+  .grant-history .history-head { list-style: none; margin-inline-start: -1rem; font-weight: 600; }
+  @media (max-width: 560px) { .grant { grid-template-columns: 1fr; } }
+`], template: `
   <audit-page-header title="Users & Access" eyebrow="Firm administration" description="Local AuditSphere roles and scope are separate from Microsoft directory authority." />
   <button matButton (click)="ws.reload()">Refresh access</button>
   <audit-state [loading]="ws.loading()" [error]="ws.error()" label="firm user access" />
@@ -25,18 +45,48 @@ import { capabilityAvailable, recoverableOperation } from './operations-contract
     <div class="actions"><button matButton (click)="page.set(page() - 1)" [disabled]="page() === 0">Previous users</button><span>Page {{ page() + 1 }}</span>
       <button matButton (click)="page.set(page() + 1)" [disabled]="(page() + 1) * 25 >= filtered().length">Next users</button></div>
     @for(u of visible(); track u.userId) {
-      <section class="panel"><h2>{{ u.displayName }}</h2><p>{{ u.microsoftIdentity }}</p><audit-status [value]="u.auditSphereStatus" />
-        <dl class="facts"><dt>Tenant ID</dt><dd>{{ u.tenantId }}</dd><dt>Object ID</dt><dd>{{ u.objectId }}</dd><dt>Account type</dt><dd>{{ u.accountType }}</dd>
-          <dt>Directory status</dt><dd>{{ u.directoryStatus }}</dd><dt>Invitation</dt><dd>{{ u.invitationStatus }}</dd><dt>Microsoft verification</dt><dd>{{ u.lastMicrosoftVerification ?? 'Not observed' }}</dd>
-          <dt>Last application access</dt><dd>{{ u.lastAuditSphereAccess ?? 'Not observed' }}</dd><dt>Created by</dt><dd>{{ u.createdBy }}</dd><dt>Created</dt><dd>{{ u.createdDate }}</dd></dl>
-        <h3>AuditSphere roles and scope</h3><ul>@for(g of u.access; track g.grantId) { <li>{{ g.role }} · {{ g.scopeKind }} · {{ g.engagementId ?? g.clientId ?? g.groupId ?? 'Firm' }} · expires {{ g.expiresAt ?? 'No expiry' }}
-          <button matButton (click)="toggleHistory(g.grantId)" [attr.aria-expanded]="expandedGrant() === g.grantId" [attr.aria-label]="'View history for ' + g.role + ' for ' + u.displayName">History</button>
-          <button matButton (click)="revoke(u, g)" [attr.aria-label]="'Revoke ' + g.role + ' for ' + u.displayName">Revoke</button>
-          @if (expandedGrant() === g.grantId) { <ul><li role="listitem" class="history-head">Grant change evidence (latest 20)</li>
-            @for(e of grantHistory().get(g.grantId) ?? []; track e.at) { <li>{{ e.at }} · {{ e.action }} · {{ e.priorRole }} → {{ e.newRole }} · {{ e.reason ?? e.source }} · by {{ e.actor }}</li> }
-            @empty { <li>No recorded changes for this grant.</li> }</ul> }</li> } @empty { <li>No active grants</li> }</ul>
-        <button matButton="filled" (click)="assign(u)" [disabled]="u.auditSphereStatus === 'DISABLED'">Assign role and scope</button>
-        @if (u.invitationId) { <button matButton (click)="copyInvitation(u)" [disabled]="copying()">Copy invitation link</button> }
+      <section class="panel user-card">
+        <div class="user-head">
+          <span class="user-avatar" aria-hidden="true">{{ (u.displayName || '?').slice(0, 1).toUpperCase() }}</span>
+          <div class="user-name"><h2>{{ u.displayName }}</h2><p>{{ u.microsoftIdentity }}</p></div>
+          <audit-status [value]="u.auditSphereStatus" />
+        </div>
+        <dl class="facts user-facts">
+          <dt>Account type</dt><dd>{{ u.accountType }}</dd>
+          <dt>Directory status</dt><dd>{{ u.directoryStatus | codeLabel }}</dd>
+          <dt>Invitation</dt><dd>{{ u.invitationStatus | codeLabel }}</dd>
+          <dt>Microsoft verification</dt><dd>{{ u.lastMicrosoftVerification ? (u.lastMicrosoftVerification | utcTime) : 'Not observed' }}</dd>
+          <dt>Last application access</dt><dd>{{ u.lastAuditSphereAccess ? (u.lastAuditSphereAccess | utcTime) : 'Not observed' }}</dd>
+          <dt>Created</dt><dd>{{ u.createdDate | utcTime }} · {{ u.createdBy }}</dd>
+          <dt>Tenant ID</dt><dd><code>{{ u.tenantId }}</code></dd>
+          <dt>Object ID</dt><dd><code>{{ u.objectId }}</code></dd>
+        </dl>
+        <h3>AuditSphere roles and scope</h3>
+        <ul class="grant-list">
+          @for (g of u.access; track g.grantId) {
+            <li class="grant">
+              <div class="grant-text"><strong>{{ g.role | codeLabel }}</strong>
+                <span>{{ scopeLabel(g, w) }} · {{ g.expiresAt ? 'Expires ' + (g.expiresAt | utcTime) : 'No expiry' }}</span></div>
+              <div class="grant-actions">
+                <button matButton (click)="toggleHistory(g.grantId)" [attr.aria-expanded]="expandedGrant() === g.grantId" [attr.aria-label]="'View history for ' + g.role + ' for ' + u.displayName">History</button>
+                <button matButton (click)="revoke(u, g)" [attr.aria-label]="'Revoke ' + g.role + ' for ' + u.displayName">Revoke</button>
+              </div>
+              @if (expandedGrant() === g.grantId) {
+                <ul class="grant-history"><li class="history-head">Grant change evidence (latest 20)</li>
+                  @for (e of grantHistory().get(g.grantId) ?? []; track e.at) {
+                    <li><time [attr.datetime]="e.at">{{ e.at | utcTime }}</time> · {{ e.action | codeLabel }} ·
+                      {{ e.priorRole ? (e.priorRole | codeLabel) : 'None' }} → {{ e.newRole ? (e.newRole | codeLabel) : 'None' }} ·
+                      {{ e.reason ?? (e.source | codeLabel) }} · by {{ e.actor }}</li>
+                  } @empty { <li>No recorded changes for this grant.</li> }
+                </ul>
+              }
+            </li>
+          } @empty { <li class="grant">No active grants</li> }
+        </ul>
+        <div class="user-actions">
+          <button matButton="filled" (click)="assign(u)" [disabled]="u.auditSphereStatus === 'DISABLED'">Assign role and scope</button>
+          @if (u.invitationId) { <button matButton (click)="copyInvitation(u)" [disabled]="copying()">Copy invitation link</button> }
+        </div>
       </section>
     } @empty { <p>No local users match this view.</p> }
     @if (inviteLink()) { <p>Invitation link: <code>{{ inviteLink() }}</code></p> }
@@ -93,6 +143,12 @@ export class UserAccess {
     this.dialog.open(ManagedGroupsDialog,{data:workspace,width:'46rem',maxWidth:'96vw',autoFocus:'first-heading'}).afterClosed().subscribe(changed=>{if(changed)this.ws.reload();});}
   recover(id:string):void{if(!this.ws.data()?.operations.some(o=>o.id===id))return;
     this.dialog.open(TenantOperationRecoveryDialog,{data:id,width:'42rem',maxWidth:'96vw',autoFocus:'first-heading'}).afterClosed().subscribe(changed=>{if(changed)this.ws.reload();});}
+  /** Readable grant scope: named scopes drop the appended identifier and unnamed ones show it shortened; the role dialog keeps exact values. */
+  scopeLabel(grant: ReturnType<typeof accessLine>, workspace: ReturnType<typeof accessWorkspace>): string {
+    const guid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+    return roleScopeDescription(grant, workspace).replace(new RegExp(` \\(${guid}\\)`, 'gi'), '')
+      .replace(new RegExp(guid, 'gi'), id => id.slice(0, 8) + '…');
+  }
   readonly expandedGrant = signal<string | null>(null);
   toggleHistory(grantId: string): void { this.expandedGrant.set(this.expandedGrant() === grantId ? null : grantId); }
   readonly grantHistory = computed(() => { const map = new Map<string, ReturnType<typeof accessGrantEvidence>[]>();

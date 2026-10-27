@@ -68,7 +68,7 @@
       <article class="readiness-card" [attr.data-tone]="tone(report.engagementLetter.status)" aria-labelledby="card-letter">
         <h4 id="card-letter">Engagement letter</h4>
         <p class="card-status">
-          <span class="status-pill">{{ report.engagementLetter.status }}</span>
+          <span class="status-pill">{{ report.engagementLetter.status | codeLabel }}</span>
         </p>
         <p>{{ report.engagementLetter.label }}</p>
       </article>
@@ -76,7 +76,7 @@
       <article class="readiness-card" [attr.data-tone]="tone(report.advancePayment.status)" aria-labelledby="card-advance">
         <h4 id="card-advance">Advance payment</h4>
         <p class="card-status">
-          <span class="status-pill">{{ report.advancePayment.status }}</span>
+          <span class="status-pill">{{ report.advancePayment.status | codeLabel }}</span>
         </p>
         <p>{{ report.advancePayment.label }}</p>
         @if (report.advancePayment.amount) {
@@ -91,7 +91,7 @@
     </div>
 
     <div class="activation-banner" [attr.data-status]="report.activation.status" role="status">
-      <strong>Activation: {{ report.activation.status }}</strong>
+      <strong>Activation: {{ report.activation.status | codeLabel }}</strong>
       <span>{{ report.activation.label }}</span>
     </div>
 
@@ -100,7 +100,7 @@
         <h4>Blocked until resolved</h4>
         <ul>
           @for (blocker of report.blockers; track blocker.code) {
-            <li><code>{{ blocker.code }}</code> {{ blocker.label }}</li>
+            <li>{{ blocker.label }} <code class="blocker-code">{{ blocker.code }}</code></li>
           }
         </ul>
       </div>

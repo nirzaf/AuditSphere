@@ -37,6 +37,7 @@ Text tokens keep at least 4.5:1 contrast on white and on the canvas; control bor
 | Amount strip | A record's headline amounts in one line above its sections | `.amount-strip` |
 | Hint | Explanatory scope or basis text under a control or heading | `.hint` |
 | Status | Persisted workflow states with a semantic tone | `<audit-status>` |
+| Readable codes and times | Stored status, role and reason codes in plain words; stored instants as "27 Oct 2026, 03:16 UTC". Operator diagnostic pages that deliberately show exact state codes keep them. | `codeLabel` and `utcTime` pipes |
 
 Material form fields use `appearance="outline" subscriptSizing="dynamic"` on each field at density -3. A global default provider is not used because importing the token eagerly grew the initial bundle.
 

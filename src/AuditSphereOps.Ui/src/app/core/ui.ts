@@ -2,6 +2,36 @@ import { Component, Pipe, PipeTransform, input } from '@angular/core';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { money, percent } from './decode';
 
+const UTC_TIME = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit',
+  minute: '2-digit', hourCycle: 'h23', timeZone: 'UTC' });
+
+/** A stored status, role or reason code in plain words: NOT_VERIFIED → "Not verified"; RelationshipManager → "Relationship Manager". */
+export function codeLabel(value: string | null | undefined): string {
+  if (!value) return '—';
+  if (/^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$/.test(value) && value.length > 1) {
+    const words = value.toLowerCase().replace(/_/g, ' ');
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  }
+  return /^[A-Z][a-z]+(?:[A-Z][a-z]+)+$/.test(value) ? value.replace(/([a-z])([A-Z])/g, '$1 $2') : value;
+}
+
+/** A stored instant as "26 Oct 2026, 18:08 UTC"; unparseable input is shown unchanged rather than invented. */
+export function utcTime(value: string | null | undefined): string {
+  if (!value) return '—';
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? value : UTC_TIME.format(ms) + ' UTC';
+}
+
+@Pipe({ name: 'codeLabel' })
+export class CodeLabelPipe implements PipeTransform {
+  transform(value: string | null | undefined): string { return codeLabel(value); }
+}
+
+@Pipe({ name: 'utcTime' })
+export class UtcTimePipe implements PipeTransform {
+  transform(value: string | null | undefined): string { return utcTime(value); }
+}
+
 /** Exact decimal string → grouped display; never converts through floating point. */
 @Pipe({ name: 'money' })
 export class MoneyPipe implements PipeTransform {
@@ -124,4 +154,4 @@ export class CommandMessage {
   readonly failed = input(false);
 }
 
-export const SHARED = [MoneyPipe, PercentPipe, PageHeader, StateBlock, StatusChip, CommandMessage] as const;
+export const SHARED = [MoneyPipe, PercentPipe, CodeLabelPipe, UtcTimePipe, PageHeader, StateBlock, StatusChip, CommandMessage] as const;

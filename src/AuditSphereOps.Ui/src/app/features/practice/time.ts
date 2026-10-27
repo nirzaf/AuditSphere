@@ -130,7 +130,7 @@ export const decodeTime = (value: unknown, path: string) => {
         @if (!v.openTasks.length) { <p>No open tasks are currently available to book time against. Create or assign an open task first.</p> }
         @else {
           <form class="inline-form" (submit)="$event.preventDefault(); saveDraft()">
-            <label>Work task <select name="task" [(ngModel)]="draft.task" (ngModelChange)="touchDraft()" required>@for (t of v.openTasks; track t.id) { <option [value]="t.id">{{ t.title }} ({{ t.status }}) · {{ phaseLabel(t.phase) }}{{ t.fsliCode ? ' · FSLI ' + t.fsliCode + ' · map ' + (t.mappingVersionId ?? '').slice(0, 8) : '' }}</option> }</select></label>
+            <label>Work task <select name="task" [(ngModel)]="draft.task" (ngModelChange)="touchDraft()" required>@for (t of v.openTasks; track t.id) { <option [value]="t.id">{{ t.title }} ({{ t.status | codeLabel }}) · {{ phaseLabel(t.phase) }}{{ t.fsliCode ? ' · FSLI ' + t.fsliCode + ' · map ' + (t.mappingVersionId ?? '').slice(0, 8) : '' }}</option> }</select></label>
             <label>Work date (UTC) <input type="date" name="date" [(ngModel)]="draft.date" (ngModelChange)="touchDraft()" required /></label>
             <label>Start time (UTC) <input type="time" name="startTime" [(ngModel)]="draft.startTime" (ngModelChange)="touchDraft()" required /></label>
             <label>Duration (minutes) <input type="number" name="minutes" min="1" max="1440" step="1" [(ngModel)]="draft.minutes" (ngModelChange)="touchDraft()" required /></label>
@@ -148,7 +148,7 @@ export const decodeTime = (value: unknown, path: string) => {
         <label>Open work task to track
           <select name="trackerTask" [ngModel]="trackerTask()" (ngModelChange)="trackerTask.set($event)" [disabled]="tracker().phase !== 'IDLE'">
             <option value="">Choose a task</option>
-            @for (t of v.openTasks; track t.id) { <option [value]="t.id">{{ t.title }} ({{ t.status }}) · {{ phaseLabel(t.phase) }}</option> }
+            @for (t of v.openTasks; track t.id) { <option [value]="t.id">{{ t.title }} ({{ t.status | codeLabel }}) · {{ phaseLabel(t.phase) }}</option> }
           </select>
         </label>
         @if (tracker().phase === 'RUNNING') { <p role="timer" aria-live="off">Active time {{ elapsedText() }}</p> }

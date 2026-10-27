@@ -7,6 +7,7 @@ import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { guidPattern } from '../../core/contracts';
 import { money } from '../../core/decode';
+import { CodeLabelPipe } from '../../core/ui';
 import { OnboardingReadinessReport, decodeOnboardingReadinessReport } from './engagement-workflow-contracts';
 
 const APPROVAL_LABELS: Record<string, string> = {
@@ -28,7 +29,7 @@ const PENDING = new Set(['AWAITING_CLIENT', 'ELIGIBLE', 'READY_FOR_REVIEW', 'NOT
  */
 @Component({
   selector: 'audit-onboarding-readiness',
-  imports: [DatePipe, RouterLink, MatButtonModule],
+  imports: [DatePipe, RouterLink, MatButtonModule, CodeLabelPipe],
   templateUrl: './engagement-onboarding-readiness.html',
   styleUrl: './engagement-onboarding-readiness.scss',
 })

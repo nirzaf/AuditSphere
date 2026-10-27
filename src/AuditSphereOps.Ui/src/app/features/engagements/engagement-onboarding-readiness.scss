@@ -148,3 +148,9 @@
     grid-template-columns: 1fr;
   }
 }
+
+.blocker-code {
+  margin-inline-start: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--as-text-muted, #52667a);
+}
