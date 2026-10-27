@@ -196,7 +196,8 @@ export class ProgressSummary {
         </dl>
         @if (p.gates.length) {
           <div class="tracker-gates" role="note">
-            <h3>{{ p.percentComplete === 99 ? 'Required steps are done; these gates keep progress below 100%' : 'Open gates' }}</h3>
+            <h3>{{ p.applicableRequired > 0 && p.completedRequired === p.applicableRequired
+              ? 'Required steps are done; these gates keep progress below 100%' : 'Open gates' }}</h3>
             <ul>@for (g of p.gates; track $index) { <li>{{ g }}</li> }</ul>
           </div>
         }

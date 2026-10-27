@@ -83,6 +83,18 @@ describe('engagement progress tracker', () => {
     expect(element.querySelector('.tracker-gates')?.textContent).toContain('Completion profile is not approved for this service (D03).');
   });
 
+  it('does not describe all steps as done when 99% is rounded from a plan with pending work', () => {
+    const { http, fixture } = setup(EngagementProgressTracker);
+    fixture.componentRef.setInput('engagementId', id);
+    fixture.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id}/progress`).flush(progress({ percentComplete: 99,
+      applicableRequired: 200, completedRequired: 199, pendingRequired: 1 }));
+    fixture.detectChanges();
+    const gates = (fixture.nativeElement as HTMLElement).querySelector('.tracker-gates');
+    expect(gates?.querySelector('h3')?.textContent).toBe('Open gates');
+    expect(gates?.textContent).toContain('Materiality is not approved.');
+  });
+
   it('refreshes changed evidence in the mounted tracker without collapsing steps or losing focus', () => {
     const { http, fixture } = setup(EngagementProgressTracker);
     fixture.componentRef.setInput('engagementId', id);
