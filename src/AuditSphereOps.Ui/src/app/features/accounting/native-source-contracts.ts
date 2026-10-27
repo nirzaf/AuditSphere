@@ -1,4 +1,4 @@
-import { arr, bool, date, guid, instant, nat, nullable, obj, oneOf, sha256, str } from '../../core/decode';
+import { arr, bool, date, DecodeRefusal, guid, instant, nat, nullable, obj, oneOf, sha256, str } from '../../core/decode';
 
 export const NATIVE_BOOK_SCOPE = 'PERIOD_LEDGER_NO_BOOK' as const;
 export function exactRevision(value: unknown, path = 'revision'): string {
@@ -26,6 +26,10 @@ const context = obj({ clientId: guid, name: str(2000), profile: nullable(obj({ s
   periods: arr(period, 100), hasMorePeriods: bool });
 export function decodeNativeContext(raw: unknown, clientId: string) {
   const c = context(raw, 'context');
+  if (c.clientId === clientId && c.profile?.sourceMode !== 'NATIVE_BOOKKEEPING')
+    throw new DecodeRefusal(c.profile
+      ? 'This client\'s books are not kept natively in AuditSphere, so native trial balance sources and opening balances do not apply. Use its imported sources instead.'
+      : 'This client has no accounting profile yet. Set it up for native bookkeeping in the accounting workspace before creating native sources or opening balances.');
   if (c.clientId !== clientId || c.profile?.sourceMode !== 'NATIVE_BOOKKEEPING' ||
       !/^[A-Z]{3}$/.test(c.profile.currency) || new Set(c.periods.map(p => p.id)).size !== c.periods.length ||
       c.periods.some(p => p.start > p.end || !/^[A-Z]{3}$/.test(p.currency))) throw new Error('Unsupported native context');

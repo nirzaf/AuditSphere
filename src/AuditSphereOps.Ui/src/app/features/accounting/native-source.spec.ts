@@ -54,6 +54,16 @@ describe('native trial balance source adapter', () => {
     const c = f.componentInstance; c.model.set({ ...fields }); TestBed.tick();
     return { f, c, http };
   }
+  it('explains a client without native bookkeeping instead of reporting an unsupported response', async () => {
+    const f = TestBed.createComponent(NativeSourcePage); f.detectChanges(); TestBed.tick();
+    TestBed.inject(HttpTestingController).expectOne(`/api/ui/accounting/clients/${client}`)
+      .flush({ ...context, profile: null, periods: [] });
+    await f.whenStable(); f.detectChanges();
+    const text = (f.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('This client has no accounting profile yet.');
+    expect(text).not.toContain('Unsupported response');
+  });
+
   async function prepare(c: NativeSourcePage, http: HttpTestingController, value = preview) {
     c.wholePeriod.set(true); TestBed.tick();
     const task = c.makePreview();

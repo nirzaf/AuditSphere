@@ -5,7 +5,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Subscription, firstValueFrom, map, timeout } from 'rxjs';
 import { guidPattern } from './contracts';
 import { SessionService } from './session';
-import { Decoder, decode } from './decode';
+import { DecodeRefusal, Decoder, decode } from './decode';
 
 export type CommandOutcome<T = unknown> =
   | { ok: true; value: T }
@@ -50,7 +50,9 @@ export class Api {
         next: (value) => {
           if (generation !== this.session.invalidation()) return;
           loading.set(false);
-          try { data.set(decode(decoder, value)); } catch { error.set('Unsupported response. Refresh the page; if this persists the workspace version may be out of date.'); }
+          try { data.set(decode(decoder, value)); } catch (e) {
+            error.set(e instanceof DecodeRefusal ? e.message : 'Unsupported response. Refresh the page; if this persists the workspace version may be out of date.');
+          }
         },
         error: (e: unknown) => {
           if (generation !== this.session.invalidation()) return;
@@ -81,10 +83,12 @@ export class Api {
     } catch (e) {
       const status = e instanceof HttpErrorResponse ? e.status : 0;
       if (status === 401) this.session.refresh();
-      throw new Error(status === 400 || status === 403 || status === 409 ? Api.message(e, 'Not available in your current scope.') : 'Temporarily unavailable. Retry shortly.');
+      throw new Error(status === 400 || status === 403 || status === 409 ? Api.message(e, 'Not available in your current scope.')
+        : status === 404 ? Api.message(e, 'This record or feature is not available in your current scope.')
+        : status === 401 ? 'Your session ended. Sign in again.' : 'Temporarily unavailable. Retry shortly.');
     }
     if (generation !== this.session.invalidation()) throw new Error('Your session changed. Load this information again after signing in.');
-    try { return decode(decoder, value); } catch { throw new Error('Unsupported response.'); }
+    try { return decode(decoder, value); } catch (e) { throw new Error(e instanceof DecodeRefusal ? e.message : 'Unsupported response.'); }
   }
 
   async command<T = unknown>(url: string, body: unknown = {}, method: 'POST' | 'PUT' | 'DELETE' = 'POST'): Promise<CommandOutcome<T>> {

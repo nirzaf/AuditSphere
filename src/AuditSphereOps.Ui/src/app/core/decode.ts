@@ -7,6 +7,8 @@ import { exactDecimal, guidPattern } from './contracts';
  */
 export type Decoder<T> = (value: unknown, path: string) => T;
 export class DecodeError extends Error {}
+/** A well-formed response the page cannot use in its current state; the message is safe to show as-is. */
+export class DecodeRefusal extends Error {}
 const fail = (path: string, what: string): never => {
   throw new DecodeError(`${path || 'response'}: expected ${what}`);
 };
