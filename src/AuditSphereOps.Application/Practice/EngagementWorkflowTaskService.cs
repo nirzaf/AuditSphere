@@ -19,7 +19,8 @@ public sealed record WorkflowTaskCreateRequest(
   Guid? MappingVersionId = null,
   string? FsliCode = null,
   string? AssignedRole = null,
-  Guid IdempotencyKey = default);
+  Guid IdempotencyKey = default,
+  bool? RequiredTask = null);
 
 public sealed record WorkflowTaskRow(
   Guid Id,
@@ -212,6 +213,7 @@ public static class EngagementWorkflowTaskService
       PlannedEffortMinutes = request.PlannedEffortMinutes,
       DueDatePolicy = "MANUAL",
       AssignedRole = assignedRole,
+      RequiredTask = request.RequiredTask,
       AssignmentSource = "MANUAL"
     };
     return await PracticeTimeService.CreateWorkflowTaskAsync(db, actor,
@@ -222,7 +224,7 @@ public static class EngagementWorkflowTaskService
   private static string CreateRequestDigest(Guid engagementId, string title,
     WorkflowTaskCreateRequest request, string? assignedRole)
   {
-    var canonical = JsonSerializer.SerializeToUtf8Bytes(new
+    var core = new
     {
       engagementId,
       title,
@@ -234,7 +236,11 @@ public static class EngagementWorkflowTaskService
       mappingVersionId = request.MappingVersionId,
       fsliCode = string.IsNullOrWhiteSpace(request.FsliCode) ? null : request.FsliCode.Trim(),
       assignedRole
-    });
+    };
+    // Requests without a designation keep their earlier digest, so in-flight retries still match.
+    var canonical = request.RequiredTask is { } requiredTask
+      ? JsonSerializer.SerializeToUtf8Bytes(new { core, requiredTask })
+      : JsonSerializer.SerializeToUtf8Bytes(core);
     return Convert.ToHexString(SHA256.HashData(canonical)).ToLowerInvariant();
   }
 

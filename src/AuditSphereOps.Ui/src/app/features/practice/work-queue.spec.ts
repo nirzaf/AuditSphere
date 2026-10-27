@@ -201,7 +201,7 @@ describe('workflow queue assignment filters', () => {
     assigneeUserId: '11111111-1111-4111-8111-111111111111', assigneeDisplayName: 'Audit staff', dueDate: '2026-10-15',
     mappingVersionId: null, fsliCode: null, unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0,
     canComplete: false, canChangeDueDate: false, canAssign: true, canCancel: false, canReopen: false, revision: 1, pbcRequestId: null, pbcState: null, reviewState: null, reviewComment: null,
-    onHold: false, holdReason: null as string | null, canSuspend: false, canResume: false,
+    onHold: false, holdReason: null as string | null, canSuspend: false, canResume: false, manualRequiredTask: null as boolean | null,
   };
   const reminderWorkspace = (id: string, title: string, revision: number, status: string, engagementId = task.engagementId,
     reminderOrigin: {

@@ -48,6 +48,21 @@ describe('reviewed task evidence changes', () => {
     return { fixture, component: fixture.componentInstance, http, session };
   }
 
+  it('links each pending prerequisite to the page that clears it and none for satisfied or withdrawn ones', () => {
+    const { fixture, component: c, http } = setup();
+    const pbc = { ...rule, id: task, kind: 'PBC_ACCEPTED_OR_CLOSED', sourceId: engagement, sourceState: 'SENT' };
+    c.workspace.reload(); TestBed.tick();
+    http.expectOne(url).flush({ ...workspace, rules: [rule, pbc,
+      { ...pbc, id: engagement, sourceId: user, satisfied: true, sourceState: 'ACCEPTED' },
+      { ...rule, id: '44444444-4444-4444-8444-444444444444', kind: 'CURRENT_PROCEDURE_REVIEWED', sourceId: task, state: 'WITHDRAWN' }] });
+    TestBed.tick(); fixture.detectChanges();
+    const links = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLAnchorElement>('a.next-action')];
+    expect(links.map(a => [a.textContent?.trim(), a.getAttribute('href')])).toEqual([
+      ['Next: approve materiality in audit planning', `/app/engagements/${engagement}/audit-plan`],
+      ['Next: accept or close the client request', `/app/engagements/${engagement}/pbc`]]);
+    http.verify(); fixture.destroy();
+  });
+
   it('requires current manager authority and exact review assent before one POST', async () => {
     const { component: c, http, fixture } = setup();
     c.reason = 'Require the current independently approved materiality.';

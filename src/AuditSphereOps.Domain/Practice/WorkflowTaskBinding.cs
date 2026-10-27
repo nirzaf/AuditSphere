@@ -61,4 +61,6 @@ public sealed class WorkflowTaskBinding
   /// <summary>Set while a manager has put the active task on hold; the hold and its release are retained as activity.</summary>
   public DateTimeOffset? HeldAt { get; set; }
   public string? HoldReason { get; set; }
+  /// <summary>Required/optional designation chosen for a manual task; template tasks use their pinned step. Null means required.</summary>
+  public bool? RequiredTask { get; set; }
 }

@@ -31,7 +31,7 @@ const queueTaskShape = obj({
   pbcRequestId: nullable(guid), pbcState: nullable(str(32)),
   reviewState: nullable(str(30)), reviewComment: nullable(str(20000)),
   onHold: optionalNullable(bool), holdReason: optionalNullable(str(2000)),
-  canSuspend: optionalNullable(bool), canResume: optionalNullable(bool),
+  canSuspend: optionalNullable(bool), canResume: optionalNullable(bool), manualRequiredTask: optionalNullable(bool),
 });
 /** Older API payloads omit server-projected recovery affordances; absence always fails closed. */
 const queueTask = (value: unknown, path: string) => {
@@ -326,7 +326,7 @@ const queueViews: { key: QueueView; label: string }[] = [
       <article class="task-card">
         <strong>{{ task.title }}</strong>
         <small>Source: {{ task.sourceKey || 'Not recorded' }}@if (task.templateRevisionId) { · template revision {{ task.templateRevisionId }} }@if (task.templateStepId) { · step {{ task.templateStepId }} }</small>
-        @if (task.requiredTask !== null) { <small>Template task designation: {{ !task.requiredTask ? 'Optional' : task.applicabilityCondition ? 'Conditional' : 'Required' }}</small> }@if (task.applicabilityCondition) { <small>Applies when: {{ task.applicabilityCondition }}</small> }
+        @if (task.requiredTask !== null) { <small>Template task designation: {{ !task.requiredTask ? 'Optional' : task.applicabilityCondition ? 'Conditional' : 'Required' }}</small> }@if (task.requiredTask === null && task.manualRequiredTask !== null) { <small>Task designation: {{ task.manualRequiredTask ? 'Required' : 'Optional' }}</small> }@if (task.applicabilityCondition) { <small>Applies when: {{ task.applicabilityCondition }}</small> }
         @if (task.taskGroupName) { <small>Task group: {{ task.taskGroupName }}</small> }
         <small><a [routerLink]="['/app/engagements', task.engagementId]">{{ task.clientName }}</a> · {{ task.engagementServiceRoute }} · {{ task.engagementPeriod }}</small>
         <small>{{ task.phase.replaceAll('_', ' ') }} · #{{ task.ordinal }} · {{ task.dueDate ? 'due ' + task.dueDate : 'no due date' }} · {{ task.assigneeDisplayName ?? 'Unassigned' }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }@if (task.mappingVersionId) { · mapping {{ task.mappingVersionId }} }</small>
@@ -450,7 +450,7 @@ const queueViews: { key: QueueView; label: string }[] = [
                 }
               </td>
               <td><a [routerLink]="['/app/engagements', task.engagementId]">{{ task.clientName }}</a><small>{{ task.engagementServiceRoute }} · {{ task.engagementPeriod }}</small></td>
-              <td>{{ task.title }}<small>Source: {{ task.sourceKey || 'Not recorded' }}@if (task.templateRevisionId) { · template revision {{ task.templateRevisionId }} }@if (task.templateStepId) { · step {{ task.templateStepId }} }</small>@if (task.requiredTask !== null) { <small>Template task designation: {{ !task.requiredTask ? 'Optional' : task.applicabilityCondition ? 'Conditional' : 'Required' }}</small> }@if (task.applicabilityCondition) { <small>Applies when: {{ task.applicabilityCondition }}</small> }@if (task.taskGroupName) { <small>Task group: {{ task.taskGroupName }}</small> }<small>{{ task.phase.replace('_', ' ') }} · #{{ task.ordinal }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }@if (task.mappingVersionId) { · mapping {{ task.mappingVersionId }} }</small>
+              <td>{{ task.title }}<small>Source: {{ task.sourceKey || 'Not recorded' }}@if (task.templateRevisionId) { · template revision {{ task.templateRevisionId }} }@if (task.templateStepId) { · step {{ task.templateStepId }} }</small>@if (task.requiredTask !== null) { <small>Template task designation: {{ !task.requiredTask ? 'Optional' : task.applicabilityCondition ? 'Conditional' : 'Required' }}</small> }@if (task.requiredTask === null && task.manualRequiredTask !== null) { <small>Task designation: {{ task.manualRequiredTask ? 'Required' : 'Optional' }}</small> }@if (task.applicabilityCondition) { <small>Applies when: {{ task.applicabilityCondition }}</small> }@if (task.taskGroupName) { <small>Task group: {{ task.taskGroupName }}</small> }<small>{{ task.phase.replace('_', ' ') }} · #{{ task.ordinal }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }@if (task.mappingVersionId) { · mapping {{ task.mappingVersionId }} }</small>
                 @if (task.pbcRequestId) { <small><a [routerLink]="['/app/engagements', task.engagementId, 'pbc']">PBC request · {{ task.pbcState }}</a></small> }
                 @if (task.taskStatus === 'OPEN' || task.taskStatus === 'IN_PROGRESS') { <small><a routerLink="/app/practice/time" [queryParams]="{ taskId: task.taskId }">Record time for this task</a></small> }
                 @if (task.reviewState) {

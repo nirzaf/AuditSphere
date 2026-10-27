@@ -24,7 +24,7 @@ public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string Cli
   int UnmetEvidencePrerequisites = 0, string SourceKey = "", Guid? TemplateRevisionId = null, Guid? TemplateStepId = null,
   bool? RequiredTask = null, bool CanCancel = false, bool CanReopen = false, string? TaskGroupName = null,
   string? ApplicabilityCondition = null, bool OnHold = false, string? HoldReason = null, bool CanSuspend = false,
-  bool CanResume = false);
+  bool CanResume = false, bool? ManualRequiredTask = null);
 public sealed record WorkflowTaskQueue(string View, IReadOnlyList<WorkflowTaskQueueRow> Tasks,
   bool HasMore, WorkflowTaskQueueCursor? NextCursor, WorkflowTaskQueueSummary? Summary = null);
 public sealed record WorkflowTaskQueueCount(string View, string Count);
@@ -159,6 +159,8 @@ public static class WorkflowTaskQueueQuery
         BindingId = binding.Id, binding.Revision, binding.Phase, binding.Ordinal,
         binding.SourceKey, binding.TemplateRevisionId, binding.TemplateStepId,
         RequiredTask = templateStep == null ? (bool?)null : templateStep.RequiredTask,
+        // Manual and rework tasks count as required unless created as optional.
+        ManualRequiredTask = templateStep == null ? (bool?)(binding.RequiredTask ?? true) : null,
         TaskGroupName = templateStep == null ? null : templateStep.TaskGroupName,
         ApplicabilityCondition = templateStep == null ? null : templateStep.ApplicabilityCondition,
         task.Id, ClientId = binding.ClientId, ClientName = client.LegalName, EngagementId = binding.EngagementId,
@@ -309,7 +311,7 @@ public static class WorkflowTaskQueueQuery
           x.Status == PracticeTimeStates.TaskCompleted && x.CompletedAt.HasValue &&
           x.EngagementStatus is not ("Completed" or "Closed") && !completedDependents.Contains(x.BindingId)) &&
           x.Revision < long.MaxValue && CanElevatedManage(x.ClientId, x.EngagementId), x.TaskGroupName, x.ApplicabilityCondition,
-        x.Held, x.HoldReason, canHold && !x.Held, canHold && x.Held);
+        x.Held, x.HoldReason, canHold && !x.Held, canHold && x.Held, x.ManualRequiredTask);
     }).ToArray();
     var last = page[^1];
     return CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, rows, hasMore,

@@ -21,6 +21,7 @@ interface ManualTaskRequest {
   fsliCode: null;
   assignedRole: null;
   idempotencyKey: string;
+  requiredTask?: boolean;
 }
 
 interface PendingManualTask {
@@ -39,7 +40,8 @@ function isPendingManualTask(value: unknown, engagementId: string): value is Pen
     (body['dueDate'] === null || typeof body['dueDate'] === 'string') &&
     (body['plannedEffortMinutes'] === null || Number.isInteger(body['plannedEffortMinutes'])) &&
     body['assigneeUserId'] === null && body['mappingVersionId'] === null && body['fsliCode'] === null &&
-    body['assignedRole'] === null && typeof body['idempotencyKey'] === 'string' && guidPattern.test(body['idempotencyKey']);
+    body['assignedRole'] === null && typeof body['idempotencyKey'] === 'string' && guidPattern.test(body['idempotencyKey']) &&
+    (body['requiredTask'] === undefined || typeof body['requiredTask'] === 'boolean');
 }
 
 /** Creates ordinary operational work with the server's MANUAL binding; it never advances a lifecycle gate. */
@@ -78,6 +80,8 @@ function isPendingManualTask(value: unknown, engagementId: string): value is Pen
           <label>Planned effort in minutes (optional)
             <input name="plannedEffortMinutes" type="number" min="1" max="1000000" step="1" [(ngModel)]="plannedEffortMinutes" />
           </label>
+          <label class="check"><input name="requiredTask" type="checkbox" [(ngModel)]="requiredTask" />
+            Required task (counts toward engagement progress)</label>
           <button matButton="filled" type="submit" [disabled]="busy() || !taskForm.valid || !phases().length">Create workflow task</button>
         </form>
       }
@@ -90,6 +94,8 @@ function isPendingManualTask(value: unknown, engagementId: string): value is Pen
     h4 { margin-block: 0 .5rem; }
     form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: .75rem; align-items: end; }
     label { display: grid; gap: .3rem; font-weight: 600; }
+    label.check { display: flex; align-items: center; gap: .5rem; min-height: 2.5rem; }
+    label.check input { min-height: 0; }
     input, select { min-height: 2.5rem; max-width: 100%; box-sizing: border-box; }
     button { justify-self: start; }
     code { display: block; overflow-wrap: anywhere; margin-block: .4rem; }
@@ -109,6 +115,7 @@ export class WorkflowTaskCreate {
   ordinal: number | null = 1;
   dueDate = '';
   plannedEffortMinutes: number | null = null;
+  requiredTask = true;
 
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
@@ -150,6 +157,7 @@ export class WorkflowTaskCreate {
     const request: ManualTaskRequest = {
       title, phase, ordinal, dueDate, plannedEffortMinutes, assigneeUserId: null,
       mappingVersionId: null, fsliCode: null, assignedRole: null, idempotencyKey: crypto.randomUUID(),
+      requiredTask: this.requiredTask,
     };
     const saved = { engagementId, request };
     try { sessionStorage.setItem(this.storageKey(engagementId), JSON.stringify(saved)); }
@@ -183,7 +191,7 @@ export class WorkflowTaskCreate {
         }
         sessionStorage.removeItem(this.storageKey(saved.engagementId));
         this.pending.set(null); this.message.set(`Workflow task created (${taskId}).`);
-        this.title = ''; this.dueDate = ''; this.plannedEffortMinutes = null; this.ordinal = 1;
+        this.title = ''; this.dueDate = ''; this.plannedEffortMinutes = null; this.ordinal = 1; this.requiredTask = true;
         this.created.emit();
       } else if (outcome.unknown) {
         this.failed.set(true); this.message.set('The task outcome is unconfirmed. Use Retry exact request to replay the same payload safely.');

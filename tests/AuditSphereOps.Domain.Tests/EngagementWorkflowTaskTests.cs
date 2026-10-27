@@ -1418,6 +1418,47 @@ public sealed class EngagementWorkflowTaskTests
     Assert.Equal("55000", Assert.IsType<PostgresException>(downgrade.GetBaseException()).SqlState);
   }
 
+  [Fact]
+  public async Task ManualTasksCarryARequiredOrOptionalDesignationIntoTheQueueAndProgress()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientA = Guid.NewGuid();
+    var engagementA = Guid.NewGuid();
+    var manager = User(firmId, "DesignationManager");
+    var managerActor = Actor(manager, "Manager");
+    await SeedQueueScopeAsync(pg, firmId, [(clientA, engagementA)], [manager], () =>
+      [Grant(firmId, manager, "Manager", clientA, engagementA)]);
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var legacyId = await CreateQueueTaskAsync(db, managerActor, engagementA, "Undesignated manual task", 1, null);
+    var optionalKey = Guid.NewGuid();
+    var optionalRequest = new WorkflowTaskCreateRequest("Courtesy call", WorkflowTaskPhases.AuditFieldwork, 2,
+      IdempotencyKey: optionalKey, RequiredTask: false);
+    var optional = await EngagementWorkflowTaskService.CreateAsync(db, managerActor, engagementA, optionalRequest);
+    Assert.True(optional.Succeeded, optional.Message);
+    Assert.Equal(optional.Value, (await EngagementWorkflowTaskService.CreateAsync(db, managerActor, engagementA, optionalRequest)).Value);
+    var conflicting = await EngagementWorkflowTaskService.CreateAsync(db, managerActor, engagementA,
+      optionalRequest with { RequiredTask = true });
+    Assert.False(conflicting.Succeeded);
+    var requiredId = (await EngagementWorkflowTaskService.CreateAsync(db, managerActor, engagementA,
+      new WorkflowTaskCreateRequest("Bank letter", WorkflowTaskPhases.AuditFieldwork, 3,
+        IdempotencyKey: Guid.NewGuid(), RequiredTask: true))).Value;
+
+    var team = await WorkflowTaskQueueQuery.GetAsync(db, managerActor, new WorkflowTaskQueueRequest("TEAM"));
+    Assert.True(team.Succeeded, team.Message);
+    bool? Designation(Guid id) => Assert.Single(team.Value!.Tasks, x => x.TaskId == id).ManualRequiredTask;
+    Assert.Equal((true, false, true), (Designation(legacyId), Designation(optional.Value), Designation(requiredId)));
+    Assert.All(team.Value!.Tasks, x => Assert.Null(x.RequiredTask));
+
+    var progress = await EngagementProgressQuery.GetAsync(db, managerActor, engagementA);
+    Assert.True(progress.Succeeded, progress.Message);
+    string Requirement(Guid id) => Assert.Single(progress.Value!.Steps, x => x.TaskId == id).Requirement;
+    Assert.Equal((WorkflowStepRequirements.Mandatory, WorkflowStepRequirements.Optional, WorkflowStepRequirements.Mandatory),
+      (Requirement(legacyId), Requirement(optional.Value), Requirement(requiredId)));
+    Assert.Equal((2, 1), (progress.Value!.ApplicableRequired, progress.Value.OptionalApplicable));
+  }
+
   private static async Task<Guid> CreateQueueTaskAsync(AuditSphereDbContext db, ActorContext actor,
     Guid engagementId, string title, int ordinal, DateOnly? dueDate)
   {

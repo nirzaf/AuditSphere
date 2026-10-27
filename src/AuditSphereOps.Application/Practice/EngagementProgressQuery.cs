@@ -92,7 +92,7 @@ public static class EngagementProgressQuery
       select new
       {
         Binding = binding, task.Title, task.Status, task.AssigneeUserId, task.DueDate,
-        RequiredTask = step == null ? (bool?)null : step.RequiredTask, Condition = step == null ? null : step.ApplicabilityCondition,
+        RequiredTask = step == null ? binding.RequiredTask : step.RequiredTask, Condition = step == null ? null : step.ApplicabilityCondition,
         PbcState = pbc == null ? null : pbc.State
       };
     // Bound each plan independently so an oversized plan cannot consume another engagement's read window.
@@ -183,7 +183,8 @@ public static class EngagementProgressQuery
       }
       var facts = rows.Where(x => x.Binding.EngagementId == engagement.Id).Select(x => new EngagementProgressStepFact(
         x.Binding.WorkTaskId, x.Title, x.Binding.Phase, x.Binding.Ordinal,
-        // Rework and other non-template engagement tasks are commitments the engagement must still discharge.
+        // Rework and other non-template engagement tasks are commitments the engagement must still discharge,
+        // unless a manual task was created as optional.
         x.RequiredTask is { } required ? WorkflowStepRequirements.Classify(required, x.Condition) : WorkflowStepRequirements.Mandatory,
         x.Status, notApplicableBindings.Contains(x.Binding.Id), unmetByBinding.GetValueOrDefault(x.Binding.Id),
         (evidence.GetValueOrDefault(x.Binding.Id)?.Count(r => r.State == WorkflowEvidenceRuleStates.Required && !r.Satisfied) ?? 0) +

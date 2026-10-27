@@ -28,6 +28,17 @@ describe('manual engagement workflow-task creation', () => {
     return { fixture, component: fixture.componentInstance, http: TestBed.inject(HttpTestingController) };
   }
 
+  it('sends an optional designation when the required box is cleared and resets it after creation', async () => {
+    const { fixture, component, http } = setup();
+    component.title = 'Courtesy call'; component.phase = 'AUDIT_PLANNING'; component.requiredTask = false;
+    const saving = component.submit();
+    const post = http.expectOne((request) => request.url === url && request.method === 'POST');
+    expect(post.request.body.requiredTask).toBe(false);
+    post.flush({ value: task }); await saving;
+    expect(component.requiredTask).toBe(true);
+    http.verify(); fixture.destroy();
+  });
+
   it('posts a MANUAL task payload using the server phase and refreshes after a confirmed create', async () => {
     const { fixture, component, http } = setup();
     component.title = 'Prepare lead schedule'; component.phase = 'AUDIT_PLANNING';
@@ -37,7 +48,7 @@ describe('manual engagement workflow-task creation', () => {
     const post = http.expectOne((request) => request.url === url && request.method === 'POST');
     expect(post.request.body).toMatchObject({ title: 'Prepare lead schedule', phase: 'AUDIT_PLANNING', ordinal: 3,
       dueDate: '2026-11-05', plannedEffortMinutes: 90, assigneeUserId: null, mappingVersionId: null,
-      fsliCode: null, assignedRole: null });
+      fsliCode: null, assignedRole: null, requiredTask: true });
     expect(post.request.body.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/i);
     post.flush({ value: task }); await saving;
     expect(created).toBe(true); expect(component.pending()).toBeNull();

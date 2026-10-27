@@ -161521,6 +161521,12 @@
           "canResume": {
             "type": "boolean",
             "default": false
+          },
+          "manualRequiredTask": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },

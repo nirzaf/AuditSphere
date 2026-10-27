@@ -55,6 +55,9 @@ type Change = { kind: Kind; sourceId: string | null; required: boolean; reason: 
               @if (rule.kind === 'CURRENT_MATERIALITY_APPROVED' && rule.evaluatedSourceId) {
                 <small>Evaluated materiality assessment: {{ rule.evaluatedSourceId }}</small>
               }
+              @if (rule.state !== 'WITHDRAWN' && !rule.satisfied && nextAction(rule.kind); as next) {
+                <a matButton="outlined" class="next-action" [routerLink]="['/app/engagements', engagementId(), next.page]">{{ next.label }}</a>
+              }
               @if (rule.templateRequirementId) { <small>Template prerequisite: {{ rule.templateRequirementKey }} · {{ rule.templateRequirementId }}</small> }
               @if (rule.sourceId) { <small>Source reference: {{ rule.sourceId }}</small> }
               <small>Change version {{ rule.version }} · {{ rule.reason }}</small>
@@ -138,6 +141,14 @@ export class WorkflowTaskEvidencePanel {
       try { const saved = sessionStorage.getItem(this.storageKey()); this.pending.set(saved ? guid(saved, 'saved request key') : null); }
       catch { this.pending.set(null); }
     });
+  }
+
+  /** Where the user goes to clear a pending prerequisite; the target page enforces its own authority. */
+  nextAction(kind: string): { page: string; label: string } | null {
+    return ({ CURRENT_MATERIALITY_APPROVED: { page: 'audit-plan', label: 'Next: approve materiality in audit planning' },
+      PBC_ACCEPTED_OR_CLOSED: { page: 'pbc', label: 'Next: accept or close the client request' },
+      CURRENT_PROCEDURE_REVIEWED: { page: 'audit-fieldwork', label: 'Next: get the procedure reviewed in fieldwork' } } as
+      Record<string, { page: string; label: string }>)[kind] ?? null;
   }
 
   label(value: string): string {
