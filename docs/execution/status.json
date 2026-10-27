@@ -1124,7 +1124,9 @@
       "scope": "Registered oversight GET audit evidence/history and same-firm invoice search; no EQR professional activation.",
       "verification": "PostgreSQL Domain audit2 plus final history/FK1 PASS; invoice search RED1 then GREEN2; extended API1 PASS (503 withholding, exact request/resource, ordinary finance, history, no search phrase); Angular3/build/lint/model/OpenAPI PASS. Builtin ledger->search->invoice->history3rows, refresh unchanged,390px fit, console[].",
       "environment": "Original shared PostgreSQL lost global/pg_filenode.map; two connection failures excluded. Final checks used owned PG18.6 port49841; owned fixture/cluster cleaned, source restored. Invalid temporary period seed corrected; launcher1PASS.",
-      "boundary": "No command permission widening, business writes in browser, raw documents, exports, freeze exceptions or live deployment. D-OV04retention/reviewer and D-EQR01..04professional decisions remain open; eleven roles preserved."
+      "boundary": "No command permission widening, business writes in browser, raw documents, exports, freeze exceptions or live deployment. D-OV04retention/reviewer and D-EQR01..04professional decisions remain open; eleven roles preserved.",
+      "ciFollowup": "Exact95ae fast40585165614 failed named boundary-contract check; RED1 reproduced. SharedApiError503 restored; focused contract1PASS and API1PASS after diagnosticID counterexample/fix, payloadwithheld and ordinaryFinance unaffected. OwnedPG cleaned; no guard weakened. New exact-source CI required.",
+      "ciFollowupEvidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/boundary-failure-review.json"
     }
   },
   "externalGates": [
@@ -1609,13 +1611,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "fc934d07e5e797763d4fc683f5d4ad98ceba5c61",
-    "sourceRole": "OVERSIGHT_ACCESS_EVIDENCE_AND_INVOICE_SEARCH",
+    "sourceBaseCommit": "95ae4eb1244d1c7659ae24ab9d5da19c44678f74",
+    "sourceRole": "OVERSIGHT_AUDIT_BOUNDARY_ERROR_CONTRACT_CORRECTION",
     "fastCi": "New exact-source fast gate required after publication.",
-    "releaseVerification": "Current slice full CI NOT_RUN until publication; preceding fc93 full40580164900 sourceMATCH Angular/VerifyPASS, remaining jobs pending at last observation.",
+    "releaseVerification": "Preceding95ae full40585222864 MATCH Angular/VerifyPASS rest pending; fast40585165614 failed named boundary contract, reproduced and corrected locally. New exact-source fast/full/images required after publication.",
     "imagePublication": "New exact images/restored-copy rehearsal required; all predecessor evidence retained only as history.",
     "cutoverStatus": "NOT_PERFORMED; retention/professional acceptance and exact-source release requirements remain separate.",
     "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeOversightAccess20261027"
   },
-  "updatedAtUtc": "2026-10-27T21:13:30.219057+00:00"
+  "updatedAtUtc": "2026-10-27T21:37:32.701148+00:00"
 }

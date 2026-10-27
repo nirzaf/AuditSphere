@@ -102,6 +102,10 @@ public sealed class UiWorkbenchContractTests
     var withheldText = await withheld.Content.ReadAsStringAsync();
     Assert.Contains("oversight.audit-unavailable", withheldText);
     Assert.DoesNotContain("2026-10", withheldText);
+    using var withheldBody = JsonDocument.Parse(withheldText);
+    Assert.Equal(withheld.Headers.GetValues("X-Correlation-Id").Single(),
+      withheldBody.RootElement.GetProperty("correlationId").GetString());
+    Assert.False(string.IsNullOrWhiteSpace(withheldBody.RootElement.GetProperty("correlationId").GetString()));
     Assert.Equal(4, await verify.AdministratorOversightAccessEvents.CountAsync());
     verify.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Reviewer, "FinanceManager"));
     await verify.SaveChangesAsync();

@@ -1,6 +1,7 @@
 using System.Data.Common;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -14,15 +15,20 @@ public static partial class UiEndpoints
 
   private static RouteHandlerBuilder WithOversightAccessEvidence(this RouteHandlerBuilder route,
     string operation, string kind, string? parameter = null) =>
-    route.WithMetadata(new OversightReadDescriptor(operation, kind, parameter))
-      .Produces<UiFailureResponse>(StatusCodes.Status503ServiceUnavailable);
+    // Inherit the UI group's canonical ApiError 503 contract.
+    route.WithMetadata(new OversightReadDescriptor(operation, kind, parameter));
+
+  private static IResult OversightEvidenceUnavailable(HttpContext http, string? code = null, string? message = null) =>
+    Results.Json(new ApiError(code ?? AdministratorOversightAccessEvidence.Unavailable,
+      message ?? "Oversight access evidence could not be retained. Try again later.",
+      http.Response.Headers["X-Correlation-Id"].ToString()), statusCode: 503);
 
   private static async Task<IResult?> RetainOversightAccessAsync(HttpContext http, AuditSphereDbContext queryDb, ActorContext actor)
   {
     if (!queryDb.AdministratorOversightObserved) return null;
     var descriptor = http.GetEndpoint()?.Metadata.GetMetadata<OversightReadDescriptor>();
     if (descriptor is null || !HttpMethods.IsGet(http.Request.Method))
-      return Failure(AdministratorOversightAccessEvidence.Unavailable, "This read is not registered for oversight access evidence.", 503);
+      return OversightEvidenceUnavailable(http, message: "This read is not registered for oversight access evidence.");
     Guid? resourceId = null;
     if (descriptor.RouteParameter is { } parameter)
     {
@@ -39,12 +45,13 @@ public static partial class UiEndpoints
       var result = await AdministratorOversightAccessEvidence.RecordAsync(auditDb, actor, requestId,
         new(descriptor.Operation, descriptor.ResourceKind, resourceId), http.RequestAborted);
       if (result.Succeeded) http.Response.Headers["X-AuditSphere-Oversight-Request-Id"] = requestId.ToString("D");
-      return result.Succeeded ? null : Failure(result.ErrorCode, result.Message,
-        result.ErrorCode == ErrorCodes.ScopeDenied ? 403 : 503);
+      return result.Succeeded ? null : result.ErrorCode == ErrorCodes.ScopeDenied
+        ? Failure(result.ErrorCode, result.Message, 403)
+        : OversightEvidenceUnavailable(http, result.ErrorCode, result.Message);
     }
     catch (Exception error) when (error is DbUpdateException or DbException)
     {
-      return Failure(AdministratorOversightAccessEvidence.Unavailable, "Oversight access evidence could not be retained. Try again later.", 503);
+      return OversightEvidenceUnavailable(http);
     }
   }
 }

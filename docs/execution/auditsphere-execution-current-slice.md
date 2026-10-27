@@ -16,6 +16,8 @@ newer exact-source CI and slice evidence live under `targetedVerification`.
 
 ## Oversight access evidence and specification suitability
 
+The CI boundary-schema failure reproduced locally. Oversight failures now inherit the shared safe error contract and use its diagnostic identity; protected data stays withheld. See [status.json](status.json).
+
 Registered metadata oversight reads retain one immutable authorization event before disclosure; audit failure withholds the response. History uses the current firm-wide Staff Administrator boundary and bounded paging, without recursive events or editing controls. Invoice search now includes the same authorized same-firm invoice family; original finance commands and operational permissions remain unchanged. Focused database, API, Angular and isolated built-in read-to-history checks passed. A shared database failure was isolated from product assertions; the owned replacement test cluster and browser fixture were cleaned. The later specification's older role baseline is superseded by the supported catalogue. EQR applicability, independence, evidence-currentness and legacy activation policy remain open, as do retention/reviewer acceptance and full release verification. See [status.json](status.json).
 
 Prior invoice metadata oversight evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#invoice-metadata-oversight).
