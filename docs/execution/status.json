@@ -1331,8 +1331,8 @@
       "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
       "mailBoundary": "Already paused at observed preflight; remains paused without genuine signed sender authorization.",
       "liveObserved": {
-        "sourceCheckout": "734b6b81172c448313d723d4c8b4bf2ff9c0f48e",
-        "imageSource": "734b6b81172c448313d723d4c8b4bf2ff9c0f48e",
+        "sourceCheckout": "e603fadf7230aa64ec2034b4470595d3f3f633d8",
+        "imageSource": "e603fadf7230aa64ec2034b4470595d3f3f633d8",
         "schema": "288:20261026172424_UserProfiles",
         "coreServices": [
           "api",
@@ -1341,12 +1341,12 @@
           "worker-records"
         ],
         "mailRunning": false,
-        "deploymentProvenance": "Owner-authorized release (hostingerAcceptance.ownerAuthorizedDeployment734b6b81)."
+        "deploymentProvenance": "Owner-authorized release (hostingerAcceptance.ownerAuthorizedDeploymentE603fadf)."
       },
       "backupPreparation": "Fresh quiesced private DB dump/catalog, actualDocker-volume storage andprotectedconfig backup required beforelive mutation; rehearsal snapshot is not finalbackup. Preserveoverlay/privateenv androllbackboundaries, no destructiveDBrestore.",
       "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-a948.json",
       "history": "status-archive-2026-10.json#keys.hostingerPreparationBeforeFixtureDeadlineReadiness20261026",
-      "previousDeploymentEvidence": "status-archive-2026-10.json#keys.hostingerAcceptance.ownerAuthorizedDeploymentFb02fc33"
+      "previousDeploymentEvidence": "status-archive-2026-10.json#keys.hostingerAcceptance.ownerAuthorizedDeployment734b6b81"
     },
     "ownerDirectedRoleGrants20261026": {
       "observedAtUtc": "2026-10-26T18:08:13Z",
@@ -1356,25 +1356,25 @@
       "backup": "/opt/auditsphere/release-preparation/pre-role-grants-20261026T180804Z.dump",
       "unchanged": "Maker-checker and independent-review controls; no Microsoft Entra directory role changed."
     },
-    "ownerAuthorizedDeployment734b6b81": {
-      "observedAtUtc": "2026-10-27T03:40:00Z",
-      "authorization": "Owner chat instruction: enhance and improve the UI/UX of the project and release it.",
-      "previousRelease": "fb02fc3358742a4a23acef6301438de7bce4f521",
-      "release": "734b6b81172c448313d723d4c8b4bf2ff9c0f48e",
+    "ownerAuthorizedDeploymentE603fadf": {
+      "observedAtUtc": "2026-10-27T05:23:00Z",
+      "authorization": "Owner chat instruction: \"Yes release it\" (ERP-style redesign and UI/backend compatibility fixes).",
+      "previousRelease": "734b6b81172c448313d723d4c8b4bf2ff9c0f48e",
+      "release": "e603fadf7230aa64ec2034b4470595d3f3f633d8",
       "fastCi": {
-        "run": 40444158102,
+        "run": 40452896897,
         "result": "FAST_CI_PASS"
       },
-      "imageWorkflowRun": 40444158054,
-      "fullCi": "NOT_RUN",
+      "imageWorkflowRun": 40452896914,
+      "fullCi": "NOT_PASSING: release verification API job fails on test-database crashes (57P03) in CI; unrelated to this change, unresolved.",
       "backup": {
-        "file": "/opt/auditsphere/release-preparation/pre-734b6b81-20261027T033850Z.dump",
+        "file": "/opt/auditsphere/release-preparation/pre-e603fadf-20261027T052114Z.dump",
         "bytes": 2741981,
         "catalogEntries": 4115,
-        "sha256": "b8fe5ccbf6de6b16843d08238baca7a10248bfe9079ff0d7b532eed349528298"
+        "sha256": "72e3c4f0a169f810aff951dd5ba76259c470935bc1b5e2af7ee68151c62086c2"
       },
       "migration": "None pending; 288 applied.",
-      "checks": "health, /app, users and profile pages 200; profile API 401 signed out vs 404 unknown; live bundle has the new user cards; 0 ERR/FTL; mail worker stopped."
+      "checks": "health, /app, users, profile and invoices pages 200; profile API 401 signed out vs 404 unknown; live bundle has the page-header icon, section tabs and native-bookkeeping message; 0 ERR/FTL; mail worker stopped."
     }
   },
   "apiAngularParity": {
