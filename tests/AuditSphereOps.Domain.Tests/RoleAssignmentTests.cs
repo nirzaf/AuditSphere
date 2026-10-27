@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
@@ -14,6 +15,55 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class RoleAssignmentTests
 {
+  [Fact]
+  public async Task ReviewedAccountingGroupRoles_PreservePreparationSelfReviewAndProfessionalGates()
+  {
+    await using var f = await TenantAdministrationFixture.CreateAsync();
+    await using var db = f.Db();
+    var now = DateTimeOffset.UtcNow;
+    var group = await ConsolidationService.CreateGroupAsync(db, f.AdminActor, new("ROLE-OPS", "Reviewed role operations"));
+    Assert.True(group.Succeeded, group.Message);
+    Assert.True((await ConsolidationService.AddMembershipAsync(db, f.AdminActor,
+      new(group.Value, f.ClientId, new(2026, 1, 1), null, "CONTROLLED", 100m, 100m, "Synthetic approved perimeter"))).Succeeded);
+    var period = new ClientReportingPeriod { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId,
+      PeriodCode = "2026-ROLE-OPS", StartDate = new(2026, 1, 1), EndDate = new(2026, 12, 31),
+      Basis = "STATUTORY", Currency = "QAR", CreatedByUserId = f.Admin.Id, CreatedAt = now };
+    db.ClientReportingPeriods.Add(period);
+    await db.SaveChangesAsync();
+    var revision = await db.ClientGroups.Where(x => x.Id == group.Value).Select(x => x.Revision).SingleAsync();
+    var actors = new Dictionary<string, ActorContext>();
+    var scopes = new Dictionary<string, Guid>();
+    foreach (var role in new[] { "AccountingPreparer", "AccountingReviewer" })
+    {
+      var user = await StaffAsync(f, role.ToLowerInvariant() + "@example.test");
+      var request = new RoleAssignmentRequest(user.Id, role, "GROUP", GroupId: group.Value,
+        Reason: "Reviewed exact group accounting responsibility", ConfirmScopeExpansion: true);
+      var preview = await RoleAssignmentService.PreviewAsync(db, f.AdminActor, request, now);
+      Assert.True(preview.Succeeded, preview.Message);
+      Assert.Empty(preview.Value!.BlockingReasons);
+      var assigned = await RoleAssignmentService.AssignAsync(db, f.AdminActor, request, now,
+        expectedReviewDigest: RoleAssignmentReviewDigest.Compute(preview.Value, request));
+      Assert.True(assigned.Succeeded, assigned.Message);
+      var actor = new ActorContext(user.Id, f.FirmId, f.CurrentEpoch(user.Id), [role]);
+      actors[role] = actor;
+      var created = await ConsolidationService.CreateScopeAsync(db, actor,
+        new(group.Value, period.Id, "QAR", ConsolidationCalculator.RestrictedMethod, "INITIAL", ExpectedGroupRevision: revision));
+      Assert.True(created.Succeeded, created.Message);
+      scopes[role] = created.Value;
+      Assert.Equal(ErrorCodes.ScopeDenied, (await ConsolidationService.AddMembershipAsync(db, actor,
+        new(group.Value, f.SiblingClientId, new(2026, 1, 1), null, "CONTROLLED", 100m, 100m, "Not a membership manager"))).ErrorCode);
+    }
+    Assert.Equal(ErrorCodes.ScopeDenied, (await ConsolidationService.ApproveScopeAsync(db,
+      actors["AccountingPreparer"], scopes["AccountingPreparer"])).ErrorCode);
+    Assert.Equal(ErrorCodes.Accounting.MappingInvalid, (await ConsolidationService.ApproveScopeAsync(db,
+      actors["AccountingReviewer"], scopes["AccountingReviewer"])).ErrorCode);
+    var independent = await ConsolidationService.ApproveScopeAsync(db, actors["AccountingReviewer"], scopes["AccountingPreparer"]);
+    Assert.Equal(ErrorCodes.GateBlocked, independent.ErrorCode);
+    Assert.Contains("independently accepted group capability profile", independent.Message);
+    Assert.All(await db.ConsolidationScopeVersions.AsNoTracking().Where(x => x.GroupId == group.Value).ToListAsync(),
+      x => Assert.Equal(AccountingWorkflowStates.Draft, x.Status));
+  }
+
   [Theory]
   [InlineData("AccountingPreparer")]
   [InlineData("AccountingReviewer")]

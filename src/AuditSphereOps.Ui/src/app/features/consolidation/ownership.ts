@@ -1,7 +1,7 @@
 import { Component, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Api, CommandState } from '../../core/api';
-import { arr, bool, date, dec, guid, int, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, date, dec, guid, int, nat, nullable, obj, oneOf, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { percentagePoints } from './group-membership';
@@ -13,6 +13,7 @@ const ownershipRow = obj({
 });
 const membershipWindow = obj({ effectiveFrom: date, effectiveTo: nullable(date) });
 const ownershipShape = obj({
+  accessMode: nullable(oneOf('READ_ONLY', 'OPERATIONAL')),
   scopeId: guid, groupId: guid, groupName: text, scopeVersion: int, groupRevision: int, currentGroupRevision: int,
   scopeStatus: text, scopeMethod: text, canAddOwnership: bool,
   page: nat, pageSize: nat, total: nat, interests: arr(ownershipRow, 100),

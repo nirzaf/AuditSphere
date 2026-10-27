@@ -75,7 +75,7 @@ public static class ConsolidationExternalComponentPackQuery
     if (scope is null)
       return CommandResult<Context>.Fail(ErrorCodes.ScopeDenied, "The consolidation scope is unavailable in the current group grant.");
 
-    var read = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    var read = await AdministratorOversightReadAuthorization.AuthorizeGroupReadAsync(db, actor, scope.GroupId, ReadRoles, ct);
     if (!read.Succeeded)
       return CommandResult<Context>.Fail(read.ErrorCode!, read.Message!);
 
@@ -88,6 +88,19 @@ public static class ConsolidationExternalComponentPackQuery
     var canPrepare = (await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, PreparerRoles, ct)).Succeeded;
     var canReview = (await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReviewerRoles, ct)).Succeeded;
     return CommandResult<Context>.Ok(new Context(scope, currentRevision.Value, canPrepare, canReview));
+  }
+
+  private static async Task<CommandResult> RecheckReadContextAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid scopeId, Context observed, CancellationToken ct)
+  {
+    var loaded = await LoadContextAsync(db, actor, scopeId, ct);
+    if (!loaded.Succeeded) return CommandResult.Fail(loaded.ErrorCode!, loaded.Message!);
+    var current = loaded.Value!;
+    return current.Scope.GroupId == observed.Scope.GroupId && current.Scope.GroupRevision == observed.Scope.GroupRevision &&
+      current.Scope.Status == observed.Scope.Status && current.Scope.Method == observed.Scope.Method &&
+      current.Scope.ReportingCurrency == observed.Scope.ReportingCurrency && current.CurrentGroupRevision == observed.CurrentGroupRevision &&
+      current.CanPrepare == observed.CanPrepare && current.CanReview == observed.CanReview
+      ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.GenerationStale, "The scope or access changed while packs were read. Reload the current workspace.");
   }
 
   public static async Task<CommandResult<ExternalComponentPackPage>> GetPageAsync(
@@ -202,6 +215,17 @@ public static class ConsolidationExternalComponentPackQuery
         x.Id, x.PracticeClientId, x.ServiceRoute, x.PeriodStart, x.PeriodEnd, x.Status)).SingleOrDefaultAsync(ct);
     }
 
+    var currentRead = await RecheckReadContextAsync(db, actor, scopeId, context, ct);
+    if (!currentRead.Succeeded) return CommandResult<ExternalComponentPackPage>.Fail(currentRead.ErrorCode!, currentRead.Message!);
+    if (!context.CanPrepare)
+    {
+      eligibleClients = [];
+      eligibleClientTotalCount = 0;
+      resolvedClient = null;
+      eligibleEngagements.Clear();
+      eligibleEngagementTotalCount = 0;
+      resolvedEngagement = null;
+    }
     return CommandResult<ExternalComponentPackPage>.Ok(new ExternalComponentPackPage(
       scope.Id, scope.GroupId, scope.GroupRevision, context.CurrentGroupRevision,
       scope.Status, scope.ReportingCurrency, scope.Method, actor.UserId,
@@ -247,6 +271,8 @@ public static class ConsolidationExternalComponentPackQuery
       .Skip(lineOffset).Take(linePageSize).Select(x => new ExternalComponentPackLineView(
         x.Id, x.TaxonomyCode, x.Amount, x.Currency, x.SourceLineReference)).ToListAsync(ct);
 
+    var currentRead = await RecheckReadContextAsync(db, actor, scopeId, context, ct);
+    if (!currentRead.Succeeded) return CommandResult<ExternalComponentPackDetail>.Fail(currentRead.ErrorCode!, currentRead.Message!);
     return CommandResult<ExternalComponentPackDetail>.Ok(new ExternalComponentPackDetail(
       scope.Id, scope.GroupId, scope.GroupRevision, context.CurrentGroupRevision,
       scope.Status, actor.UserId, summary, lines,

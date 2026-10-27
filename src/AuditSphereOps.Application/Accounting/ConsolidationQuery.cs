@@ -76,7 +76,7 @@ public static class ConsolidationQuery
       .SingleOrDefaultAsync(x => x.Id == scopeVersionId && x.FirmId == actor.FirmId, ct);
     if (scope is null)
       return CommandResult<TranslationBridgePage>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    var auth = await AdministratorOversightReadAuthorization.AuthorizeGroupReadAsync(db, actor, scope.GroupId, ReadRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<TranslationBridgePage>.Fail(auth.ErrorCode!, auth.Message!);
 
@@ -96,6 +96,8 @@ public static class ConsolidationQuery
         x.ForeignExchangeAdjustment, x.RoundingAdjustment, x.TranslationReserve))
       .ToListAsync(ct);
 
+    auth = await AdministratorOversightReadAuthorization.AuthorizeGroupReadAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    if (!auth.Succeeded) return CommandResult<TranslationBridgePage>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<TranslationBridgePage>.Ok(new TranslationBridgePage(
       items, totalCount, page, pageSize,
       MoneyPolicy.Normalize(totalTranslated), MoneyPolicy.Normalize(totalReserve)));
@@ -116,7 +118,7 @@ public static class ConsolidationQuery
       .SingleOrDefaultAsync(x => x.Id == scopeVersionId && x.FirmId == actor.FirmId, ct);
     if (scope is null)
       return CommandResult<IntercompanyExceptionsPage>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    var auth = await AdministratorOversightReadAuthorization.AuthorizeGroupReadAsync(db, actor, scope.GroupId, ReadRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<IntercompanyExceptionsPage>.Fail(auth.ErrorCode!, auth.Message!);
     var currentGroupRevision = await db.ClientGroups.AsNoTracking()
@@ -150,6 +152,8 @@ public static class ConsolidationQuery
         x.CreatedByUserId, x.CreatedAt, x.ReviewedByUserId, x.ReviewedAt))
       .ToListAsync(ct);
 
+    auth = await AdministratorOversightReadAuthorization.AuthorizeGroupReadAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    if (!auth.Succeeded) return CommandResult<IntercompanyExceptionsPage>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<IntercompanyExceptionsPage>.Ok(new IntercompanyExceptionsPage(
       scope.Id, scope.GroupId, scope.GroupRevision, currentGroupRevision.Value,
       items, totalCount, page, pageSize, MoneyPolicy.Normalize(totalDifference),
@@ -291,7 +295,7 @@ public static class ConsolidationQuery
       .SingleOrDefaultAsync(x => x.Id == scopeVersionId && x.FirmId == actor.FirmId, ct);
     if (scope is null)
       return CommandResult<ConsolidationPage<ComponentReadinessRow>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    var auth = await AdministratorOversightReadAuthorization.AuthorizeGroupReadAsync(db, actor, scope.GroupId, ReadRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<ConsolidationPage<ComponentReadinessRow>>.Fail(auth.ErrorCode!, auth.Message!);
     var groupRevision = await db.ClientGroups.AsNoTracking()
@@ -310,7 +314,7 @@ public static class ConsolidationQuery
       .ToDictionaryAsync(x => x.Id, x => x.LegalName, ct);
     var rows = memberIds.Select(id => ReadinessRow(scope, id, names.GetValueOrDefault(id, "Scoped member"),
       components.FirstOrDefault(x => x.ClientId == id))).ToArray();
-    auth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    auth = await AdministratorOversightReadAuthorization.AuthorizeGroupReadAsync(db, actor, scope.GroupId, ReadRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<ConsolidationPage<ComponentReadinessRow>>.Fail(auth.ErrorCode!, auth.Message!);
     var finalScope = await db.ConsolidationScopeVersions.AsNoTracking()

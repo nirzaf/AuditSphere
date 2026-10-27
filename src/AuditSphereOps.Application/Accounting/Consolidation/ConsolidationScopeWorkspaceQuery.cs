@@ -117,7 +117,7 @@ public sealed record ConsolidationScopeWorkspaceDto(
   ConsolidationPageInfo? ReadinessPaging,
   ConsolidationComponentDto? ResolvedComponent,
   bool CanApproveScope,
-  string? ScopeApprovalBlocker);
+  string? ScopeApprovalBlocker, string AccessMode = "OPERATIONAL", string? AccessReason = null);
 
 /// <summary>
 /// Authoritative detailed read model for a single consolidation perimeter version:
@@ -179,12 +179,14 @@ public static class ConsolidationScopeWorkspaceQuery
       return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(ErrorCodes.GenerationStale,
         "The scope or group changed while this workspace was read. Reload the current pages.");
 
-    var currentReadAuth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, snapshotScope.GroupId, ReadRoles, ct);
+    var currentOperationalRead = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, snapshotScope.GroupId, ReadRoles, ct);
+    var currentReadAuth = currentOperationalRead.Succeeded ? currentOperationalRead :
+      await AdministratorOversightReadAuthorization.AuthorizeGroupAsync(db, actor, snapshotScope.GroupId, ct);
     if (!currentReadAuth.Succeeded)
       return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(currentReadAuth.ErrorCode!, currentReadAuth.Message!);
 
     var workspace = result.Value!;
-    var canPrepareAtReturn = workspace.CanPrepare && currentReadAuth.Succeeded;
+    var canPrepareAtReturn = workspace.CanPrepare && currentOperationalRead.Succeeded;
     var canReviewAtReturn = workspace.CanReview && currentReviewAuth.Succeeded;
     const string reviewerRequired = "Current consolidation reviewer authorization is required.";
     var componentIds = workspace.Components.Select(x => x.Id)
@@ -303,7 +305,10 @@ public static class ConsolidationScopeWorkspaceQuery
       Components = componentsAtReturn,
       ResolvedComponent = resolvedComponentAtReturn,
       CanApproveScope = workspace.CanApproveScope && canApproveScopeAtReturn,
-      ScopeApprovalBlocker = scopeApprovalBlocker
+      ScopeApprovalBlocker = scopeApprovalBlocker,
+      EligiblePackages = canPrepareAtReturn ? workspace.EligiblePackages : new([], 0, eligiblePackagesPage, HistoryPageSize),
+      AccessMode = currentOperationalRead.Succeeded ? "OPERATIONAL" : AdministratorOversightReadAuthorization.ReadOnly,
+      AccessReason = currentOperationalRead.Succeeded ? null : AdministratorOversightReadAuthorization.Reason
     });
   }
 
@@ -322,7 +327,9 @@ public static class ConsolidationScopeWorkspaceQuery
       return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(ErrorCodes.ScopeDenied,
         "The requested consolidation scope is not available in the current firm and group grant.");
 
-    var auth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    var operationalRead = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    var auth = operationalRead.Succeeded ? operationalRead :
+      await AdministratorOversightReadAuthorization.AuthorizeGroupAsync(db, actor, scope.GroupId, ct);
     if (!auth.Succeeded)
       return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(auth.ErrorCode!, auth.Message!);
 
@@ -332,7 +339,7 @@ public static class ConsolidationScopeWorkspaceQuery
       return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(ErrorCodes.ScopeDenied, "Group not found.");
 
     var canReview = (await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReviewRoles, ct)).Succeeded;
-    var canPrepare = auth.Succeeded;
+    var canPrepare = operationalRead.Succeeded;
 
     // Components
     var componentsQuery = db.ConsolidationComponents.AsNoTracking()

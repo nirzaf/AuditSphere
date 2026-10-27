@@ -31,4 +31,14 @@ internal static class AdministratorOversightReadAuthorization
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     return await AuthorizeAsync(db, actor, ct);
   }
+
+  // Only audited group projection entry points may opt in. Never use this decision
+  // to compute CanPrepare/CanReview or to authorize execution, previews or mutations.
+  internal static async Task<CommandResult> AuthorizeGroupReadAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid groupId, IReadOnlyCollection<string> readRoles,
+    CancellationToken ct)
+  {
+    var operational = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId, readRoles, ct);
+    return operational.Succeeded ? operational : await AuthorizeGroupAsync(db, actor, groupId, ct);
+  }
 }

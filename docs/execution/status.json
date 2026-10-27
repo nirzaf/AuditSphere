@@ -1117,10 +1117,13 @@
       "boundary": "Primary projections/catalogue only; other read owners, search/census, professional EQR and recovery remain open. No browser grant/finance writes or deployment. Owned fixture stopped; launcher restored. Peer README and Task03 drafts preserved."
     },
     "rolesBooksOversight20261027": {
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.rolesBooksBeforeScope20261027"
+    },
+    "rolesScopeOversight20261027": {
       "status": "FOCUSED_AND_BUILTIN_PASS_CURRENT_CI_REQUIRED",
-      "verification": "Domain2PASS including original expense lifecycle/paging/trial balance; Angular3PASS, pinned build/lint/OpenAPI PASS. Built-in Administrator metadata/no expense controls, refresh and390px fit; Staff denied, no supplier exposure.",
-      "evidence": ".local/autonomous/evidence/roles-admin-oversight-20261027/books-oversight-review.json",
-      "boundary": "Metadata only; private finance command auth and existing trial-balance/report-export rules unchanged. Other read owners, search/census, EQR and release remain open."
+      "evidence": ".local/autonomous/evidence/roles-admin-oversight-20261027/scope-oversight-review.json",
+      "verification": "Domain scope3+accounting role use1PASS; Angular scope24, ownership/advanced5, advanced recovery RED1 thenGREEN3. Build/lint/OpenAPI PASS. Builtin no-group Admin scope/ownership/packs/advanced, refresh/390px fit, console[].",
+      "boundary": "Read-only flags/options separate from original commands and raw documents. Advanced editable-field gap corrected and rechecked. Remaining read owners/census/professional/release open."
     }
   },
   "externalGates": [

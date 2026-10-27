@@ -56,6 +56,18 @@ describe('advanced consolidation command recovery', () => {
     return { fixture, component: fixture.componentInstance };
   }
 
+  it('shows oversight metadata without editable schedule inputs or operational controls', async () => {
+    const initial = { ...workspace([freshSchedule]), canPrepare: false, canReview: false,
+      suggestedSourceManifestJson: '', accessMode: 'READ_ONLY', accessReason: 'Administrator oversight' };
+    const { fixture } = await open(initial);
+    const view = fixture.nativeElement as HTMLElement;
+    expect(view.textContent).toContain('Read-only — Administrator oversight');
+    expect(view.textContent).toContain('Synthetic group');
+    expect(view.querySelectorAll('textarea, input, select').length).toBe(0);
+    expect([...view.querySelectorAll('button')].some(x => /Submit schedule|Approve context|Run verified/.test(x.textContent ?? ''))).toBe(false);
+    http.expectNone(r => r.method !== 'GET');
+  });
+
   it('blocks duplicate actions after an unknown response until persisted state is read and reviewed', async () => {
     const { fixture, component } = await open();
     const submit = component.submit(scopeId);

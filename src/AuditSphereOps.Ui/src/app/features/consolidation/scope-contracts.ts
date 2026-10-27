@@ -269,6 +269,7 @@ export const decodeIntercompanyMatchOptions = (value: unknown, path: string) => 
 const decodePaging = obj({ totalCount: nat, page: int, pageSize: int });
 
 const decodeScopeWorkspaceShape = obj({
+  accessMode: nullable(oneOf('READ_ONLY', 'OPERATIONAL')),
   scope: decodeScopeSummary,
   canPrepare: bool,
   canReview: bool,
@@ -294,12 +295,16 @@ export const decodeScopeWorkspace = (value: unknown, path: string) => {
       throw new Error(`${path || 'response'}: expected required scopeApprovalBlocker field`);
   }
   const workspace = decodeScopeWorkspaceShape(value, path);
+  const components = [...workspace.components, ...(workspace.resolvedComponent ? [workspace.resolvedComponent] : [])];
+  if (workspace.accessMode === 'READ_ONLY' && (workspace.canPrepare || workspace.canReview || workspace.canApproveScope ||
+      components.some(component => component.canApprove)))
+    throw new Error(`${path || 'response'}: oversight cannot grant operational capabilities`);
   if (workspace.canApproveScope && workspace.scopeApprovalBlocker !== null)
     throw new Error(`${path || 'response'}: approvable scope cannot have an approval blocker`);
   if (workspace.scope.status === 'DRAFT' && workspace.canReview && !workspace.canApproveScope &&
       !workspace.scopeApprovalBlocker?.trim())
     throw new Error(`${path || 'response'}: blocked perimeter approval is missing its reason`);
-  for (const component of [...workspace.components, ...(workspace.resolvedComponent ? [workspace.resolvedComponent] : [])]) {
+  for (const component of components) {
     if (component.canApprove && component.approvalBlocker !== null)
       throw new Error(`${path || 'response'}: approvable component cannot have an approval blocker`);
     if (workspace.canReview && component.status === 'SUBMITTED' && component.submittedByUserId !== workspace.currentUserId &&

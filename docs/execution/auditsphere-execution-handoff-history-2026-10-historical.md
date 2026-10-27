@@ -329,3 +329,7 @@ Focused evidence covers original AR 125 less an actual receipt allocation 20 = 1
 Exact published 1782 CI failed with API 414 pass / 2 fail and E2E 336 pass / 2 fail. The two static route/base-helper checks were corrected and passed locally, published as cd528c48; the revocation click/terminal-denial cohort and Operations CANCEL case pass locally with diagnostics, published as 95cff915. The prior Operations failure cause remains unproven and open for exact-source CI. No full local suite ran. Broader continuity, exact-source full CI, public ACTIVE activation, native zoom/human AT and qualified/live acceptance remain open. Prior empty-subledger details are preserved verbatim in the historical handoff; see `nativeSuccessorOpening` in [status.json](status.json).
 
 <!-- End of preserved native successor opening section. -->
+
+## Administrator replacement safety
+
+Administrator revocation and reviewed replacement count only enabled Staff identities with active, unexpired firm-wide application Administrator access, under the existing firm fence. A named replacement must itself qualify. Planned Administrator expiry requires a separate viable administrator beyond that expiry and displays the provisioning prerequisite. Focused negative, concurrent and successful rotation checks passed; oversight, role-catalogue and recovery acceptance remain separate. No live grants or deployment changed. See [status.json](status.json).

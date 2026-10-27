@@ -70,7 +70,7 @@ export class ScopeIntercompanyState {
       () => {
         const scopeId = this.scopeId();
         this.owner();
-        if (!scopeId) return null;
+        if (!scopeId || !this.workspace()?.canPrepare) return null;
         const selected = this.selectedIntercompanyMembers();
         const selection = selected?.scopeId === scopeId.toLowerCase() ? selected : null;
         return `/api/ui/consolidation/scopes/${scopeId}/intercompany-match-options?membersPage=${this.intercompanyMembersPageNumber()}&membersPageSize=25&memberSearch=${encodeURIComponent(this.intercompanyMemberSearch())}` +

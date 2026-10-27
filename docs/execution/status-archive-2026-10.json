@@ -27062,6 +27062,12 @@
       "verification": "Replacement Client/disabled regression RED2; initial expired setup failure excluded. Corrected focused GREEN8: ineffective replacements, safe planned expiry with actual replacement, concurrent revocation, genuine second administrator and unchanged expiry worker.",
       "evidence": ".local/autonomous/evidence/roles-admin-oversight-20261027/admin-safety-review.json",
       "boundary": "AS-RBAC-04 safety slice only. No UI/oversight or all-admin-loss recovery acceptance, live role mutation or deployment. Original31/Axelor56/practice87 and other roles work remain separate."
+    },
+    "rolesBooksBeforeScope20261027": {
+      "status": "FOCUSED_AND_BUILTIN_PASS_CURRENT_CI_REQUIRED",
+      "verification": "Domain2PASS including original expense lifecycle/paging/trial balance; Angular3PASS, pinned build/lint/OpenAPI PASS. Built-in Administrator metadata/no expense controls, refresh and390px fit; Staff denied, no supplier exposure.",
+      "evidence": ".local/autonomous/evidence/roles-admin-oversight-20261027/books-oversight-review.json",
+      "boundary": "Metadata only; private finance command auth and existing trial-balance/report-export rules unchanged. Other read owners, search/census, EQR and release remain open."
     }
   },
   "lastUpdatedOn": "2026-10-27"

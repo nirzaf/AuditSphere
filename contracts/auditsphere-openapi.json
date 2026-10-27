@@ -98124,6 +98124,16 @@
           },
           "suggestedSourceManifestJson": {
             "type": "string"
+          },
+          "accessMode": {
+            "type": "string",
+            "default": "OPERATIONAL"
+          },
+          "accessReason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -116059,6 +116069,16 @@
             "items": {
               "$ref": "#/components/schemas/ConsolidationOwnershipMember"
             }
+          },
+          "accessMode": {
+            "type": "string",
+            "default": "OPERATIONAL"
+          },
+          "accessReason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -116991,6 +117011,16 @@
             "type": "boolean"
           },
           "scopeApprovalBlocker": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "accessMode": {
+            "type": "string",
+            "default": "OPERATIONAL"
+          },
+          "accessReason": {
             "type": [
               "null",
               "string"

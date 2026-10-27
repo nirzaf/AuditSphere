@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -12,11 +13,24 @@ public static partial class ConsolidationService
     IClientAccountingDbContext db, ActorContext actor, Guid scopeVersionId,
     CancellationToken ct = default)
   {
+    var groupId = await db.ConsolidationScopeVersions.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.Id == scopeVersionId).Select(x => (Guid?)x.GroupId).SingleOrDefaultAsync(ct);
+    if (groupId is null) return CommandResult<ConsolidationReport>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var result = await ReadLatestReportAsync(db, actor, scopeVersionId, ct);
+    // Includes early NO_RUN/STALE metadata results, not just financial report lines.
+    var current = await AdministratorOversightReadAuthorization.AuthorizeGroupReadAsync(db, actor, groupId.Value,
+      ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"], ct);
+    return current.Succeeded ? result : CommandResult<ConsolidationReport>.Fail(current.ErrorCode!, current.Message!);
+  }
+
+  private static async Task<CommandResult<ConsolidationReport>> ReadLatestReportAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid scopeVersionId, CancellationToken ct)
+  {
     var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == scopeVersionId && x.FirmId == actor.FirmId, ct);
     if (scope is null)
       return CommandResult<ConsolidationReport>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await GroupAuthAsync(db, actor, scope.GroupId,
+    var auth = await AdministratorOversightReadAuthorization.AuthorizeGroupReadAsync(db, actor, scope.GroupId,
       ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"], ct);
     if (!auth.Succeeded)
       return CommandResult<ConsolidationReport>.Fail(auth.ErrorCode!, auth.Message!);
@@ -64,7 +78,7 @@ public static partial class ConsolidationService
     if (!finalCurrent.Succeeded || finalCurrent.Value!.Calculation.RunHash != run.RunHash ||
         finalCurrent.Value.Calculation.InputManifest != run.InputManifest)
       return CommandResult<ConsolidationReport>.Ok(new(scope.Id, run.Id, "STALE", run.ApprovedAt, empty));
-    var finalAuth = await GroupAuthAsync(db, actor, scope.GroupId,
+    var finalAuth = await AdministratorOversightReadAuthorization.AuthorizeGroupReadAsync(db, actor, scope.GroupId,
       ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"], ct);
     if (!finalAuth.Succeeded)
       return CommandResult<ConsolidationReport>.Fail(finalAuth.ErrorCode!, finalAuth.Message!);

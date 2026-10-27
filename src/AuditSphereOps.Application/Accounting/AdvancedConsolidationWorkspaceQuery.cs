@@ -14,7 +14,8 @@ public sealed record AdvancedScheduleView(Guid Id, string Status, Guid CreatedBy
 public sealed record AdvancedExecutionView(Guid Id, string Status, Guid CreatedByUserId, Guid? ApprovedByUserId, DateTimeOffset CreatedAt, DateTimeOffset? ApprovedAt,
   decimal ComparativeSignedTotal, decimal CurrentSignedTotal, string OutputDigest);
 public sealed record AdvancedConsolidationWorkspace(AdvancedScopeView Scope, IReadOnlyList<AdvancedScheduleView> Schedules, IReadOnlyList<AdvancedExecutionView> Executions,
-  bool CanPrepare, bool CanReview, string SuggestedSourceManifestJson);
+  bool CanPrepare, bool CanReview, string SuggestedSourceManifestJson,
+  string AccessMode = "OPERATIONAL", string? AccessReason = null);
 
 /// <summary>
 /// Advanced-method consolidation workflow for one explicitly granted group scope: perimeter facts, submitted/approved
@@ -35,7 +36,12 @@ public static class AdvancedConsolidationWorkspaceQuery
 
   public static async Task<CommandResult<AdvancedConsolidationWorkspace>> GetAsync(IClientAccountingDbContext db, ActorContext actor, Guid scopeId, CancellationToken ct = default)
   {
-    if (await ScopeAsync(db, actor, scopeId, ct) is not { } scope)
+    // ScopeAsync remains the original operational gate for RunExecutionAsync below.
+    // Only this metadata read opts into administrative oversight.
+    var methods = AdvancedConsolidationMethods.All.ToArray();
+    var scope = await db.ConsolidationScopeVersions.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == scopeId && methods.Contains(x.Method), ct);
+    if (scope is null || !(await AdministratorOversightReadAuthorization.AuthorizeGroupReadAsync(db, actor, scope.GroupId, GroupRoles, ct)).Succeeded)
       return CommandResult<AdvancedConsolidationWorkspace>.Fail(ErrorCodes.ScopeDenied, "The requested consolidation scope is not available in the current firm and group grant.");
     var components = await db.ConsolidationComponents.AsNoTracking().CountAsync(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
       x.ScopeVersionId == scope.Id && x.Status == AccountingWorkflowStates.Approved, ct);
@@ -45,17 +51,26 @@ public static class AdvancedConsolidationWorkspaceQuery
     var groupName = await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Id == scope.GroupId).Select(x => x.Name).SingleAsync(ct);
     var schedules = await db.AdvancedConsolidationMethodSchedules.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id)
       .OrderByDescending(x => x.CreatedAt).Select(x => new AdvancedScheduleView(x.Id, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt, x.InputSnapshotDigest))
-      .ToListAsync(ct);
+      .Take(501).ToListAsync(ct);
     var scheduleIds = schedules.Select(x => x.Id).ToArray();
     var executions = await db.AdvancedConsolidationExecutions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id && scheduleIds.Contains(x.ScheduleId))
       .OrderByDescending(x => x.CreatedAt).Select(x => new AdvancedExecutionView(x.Id, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt,
-        x.ComparativeSignedTotal, x.CurrentSignedTotal, x.OutputDigest)).ToListAsync(ct);
-    async Task<bool> HasRoleAsync(params string[] roles) => await db.GroupAccessGrants.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-      x.UserId == actor.UserId && x.RevokedAt == null && roles.Contains(x.Role), ct);
+        x.ComparativeSignedTotal, x.CurrentSignedTotal, x.OutputDigest)).Take(501).ToListAsync(ct);
+    if (schedules.Count > 500 || executions.Count > 500)
+      return CommandResult<AdvancedConsolidationWorkspace>.Fail("scope.limit", "Advanced history exceeds the supported interactive limit.");
+    var prepare = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, GroupRoles, ct);
+    var review = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId,
+      ["AccountingReviewer", "Manager", "Partner", "Administrator"], ct);
+    // The submission manifest is action-only context, not part of the oversight read.
+    var manifest = prepare.Succeeded ? await BuildSourceManifestAsync(db, scope, ct) : string.Empty;
+    var currentRead = await AdministratorOversightReadAuthorization.AuthorizeGroupReadAsync(db, actor, scope.GroupId, GroupRoles, ct);
+    if (!currentRead.Succeeded)
+      return CommandResult<AdvancedConsolidationWorkspace>.Fail(currentRead.ErrorCode!, currentRead.Message!);
     return CommandResult<AdvancedConsolidationWorkspace>.Ok(new(
       new AdvancedScopeView(scope.Id, groupName, scope.Version, scope.GroupRevision, scope.Method, scope.ReportingCurrency, scope.Status, components, journals),
-      schedules, executions, await HasRoleAsync(GroupRoles), await HasRoleAsync("AccountingReviewer", "Manager", "Partner", "Administrator"),
-      await BuildSourceManifestAsync(db, scope, ct)));
+      schedules, executions, prepare.Succeeded, review.Succeeded, manifest,
+      prepare.Succeeded ? "OPERATIONAL" : AdministratorOversightReadAuthorization.ReadOnly,
+      prepare.Succeeded ? null : AdministratorOversightReadAuthorization.Reason));
   }
 
   public static async Task<CommandResult<Guid>> RunExecutionAsync(IClientAccountingDbContext db, ActorContext actor, Guid scopeId, CancellationToken ct = default) =>

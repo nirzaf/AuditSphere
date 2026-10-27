@@ -233,6 +233,23 @@ describe('Consolidation Scope Workspace Contracts', () => {
     return { fixture, component: fixture.componentInstance };
   }
 
+  it('renders oversight as read-only and never requests action-only match options or dispatches approval', async () => {
+    const raw = workspacePayload({ accessMode: 'READ_ONLY', canPrepare: false, canReview: false,
+      canApproveScope: false, scopeApprovalBlocker: 'Current consolidation reviewer authorization is required.' });
+    raw.scope.status = 'DRAFT';
+    workspaceData.set(decodeScopeWorkspace(raw, 'root'));
+    const fixture = TestBed.createComponent(ConsolidationScopeWorkspace);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Read-only — Administrator oversight');
+    expect((api.resource.mock.calls[1][0] as () => string | null)()).toBeNull();
+    const labels = [...fixture.nativeElement.querySelectorAll('button')].map((button: any) => button.textContent.trim());
+    expect(labels).not.toContain('Approve perimeter');
+    expect(labels).not.toContain('Calculate consolidation run');
+    await fixture.componentInstance.approveScope(id1);
+    expect(api.command).not.toHaveBeenCalled();
+    expect(() => decodeScopeWorkspace({ ...raw, canPrepare: true }, 'root')).toThrow('oversight cannot grant operational capabilities');
+  });
+
   it('opens external pack history only for the active scope and clears it on a route change', () => {
     const { fixture, component } = open();
     expect(api.resource.mock.calls.filter(([url]) => (url as () => string | null)()?.includes('?eligiblePackagesPage='))).toHaveLength(1);

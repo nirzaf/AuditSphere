@@ -4,10 +4,11 @@ import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
 import { Drafts } from '../../core/drafts';
-import { arr, bool, dec, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, dec, guid, instant, int, nat, nullable, obj, oneOf, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
 export const decodeAdvanced = obj({
+  accessMode: nullable(oneOf('READ_ONLY', 'OPERATIONAL')),
   scope: obj({ id: guid, groupName: text, version: int, groupRevision: int, method: text, reportingCurrency: text, status: text, approvedComponentCount: nat, approvedReviewedJournalCount: nat }),
   schedules: arr(obj({ id: guid, status: text, createdByUserId: guid, approvedByUserId: nullable(guid), createdAt: instant, approvedAt: nullable(instant), inputDigest: text }), 500),
   executions: arr(obj({ id: guid, status: text, createdByUserId: guid, approvedByUserId: nullable(guid), createdAt: instant, approvedAt: nullable(instant),
@@ -22,6 +23,7 @@ export const decodeAdvanced = obj({
     <audit-page-header title="Advanced consolidation workflow" eyebrow="Group accounting" description="Exact approved group perimeter, schedule inputs, and consolidation execution state for this scope." />
     <audit-state [loading]="ws.loading()" [error]="ws.error()" label="the advanced consolidation workflow" />
     @if (workspace(); as w) {
+      @if (w.accessMode === 'READ_ONLY') { <p role="status" class="hint">Read-only — Administrator oversight. Schedule preparation, execution and review require explicit group authority.</p> }
       <p class="actions"><a routerLink="/app/consolidation">Group workspace</a><audit-status [value]="w.scope.status" /></p>
       <p role="status">{{ w.schedules.length }} schedules · {{ approvedSchedules(w) }} approved · {{ w.executions.length }} executions</p>
       <section class="panel" aria-labelledby="scope-heading"><h2 id="scope-heading">{{ w.scope.groupName }} · v{{ w.scope.version }}</h2>
@@ -29,13 +31,14 @@ export const decodeAdvanced = obj({
           <dt>Perimeter</dt><dd>{{ w.scope.status }} · group revision {{ w.scope.groupRevision }}</dd><dt>Approved components</dt><dd>{{ w.scope.approvedComponentCount }}</dd>
           <dt>Approved reviewed journals</dt><dd>{{ w.scope.approvedReviewedJournalCount }}</dd></dl>
         <p><small>This workflow calls the existing scope-checked commands. Approval remains maker/checker separated, source and method evidence are re-read server-side, and no action enables a professional or external release gate.</small></p></section>
+      @if (w.canPrepare) {
       <section class="panel schedule-input" aria-labelledby="schedule-submit-heading"><h2 id="schedule-submit-heading">Submit source-bound schedule</h2>
         <p><small>Inputs are kept as a browser draft for this signed-in user. The server canonicalizes the JSON, validates the selected method and creates a submitted schedule only; it never accepts client-supplied approval state.</small></p>
         <label>Source manifest JSON * <textarea name="manifest" [(ngModel)]="manifest" (ngModelChange)="persist()" rows="10" maxlength="20000" required></textarea></label>
         <label>Method input and statement JSON * <textarea name="snapshot" [(ngModel)]="snapshot" (ngModelChange)="persist()" rows="14" maxlength="20000" required></textarea></label>
         <details><summary>Input guidance</summary><p><small>The source manifest must contain a <code>sources</code> array with each approved component's exact <code>componentId</code>, source <code>kind</code>, source <code>id</code> and package hash. Acquisition/NCI, ownership-change and asset-transfer methods also require approved reviewed-journal references. Foreign-currency and nested-group methods require their approved rate or source-run evidence. The input snapshot must contain the method-specific fields and a balanced, duplicate-free <code>statementLines</code> array.</small></p></details>
-        @if (w.canPrepare) { <button matButton="filled" (click)="submit(w.scope.id)" [disabled]="cmd.busy() || cmd.uncertain()">{{ cmd.busy() ? 'Submitting…' : 'Submit schedule' }}</button> }
-        @else { <p>An explicit preparer grant for this group is required to submit a schedule.</p> }</section>
+        <button matButton="filled" (click)="submit(w.scope.id)" [disabled]="cmd.busy() || cmd.uncertain()">{{ cmd.busy() ? 'Submitting…' : 'Submit schedule' }}</button></section>
+      } @else { <p>An explicit preparer grant for this group is required to submit a schedule.</p> }
       <section class="panel" aria-labelledby="schedule-list-heading"><h2 id="schedule-list-heading">Schedules</h2>
         <div class="table-scroll"><table aria-label="Advanced consolidation schedules"><thead><tr><th>Created</th><th>Status</th><th>Schedule</th><th><span class="sr-only">Action</span></th></tr></thead>
           <tbody>@for (s of w.schedules; track s.id) {

@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Globalization;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
@@ -20,6 +21,90 @@ namespace AuditSphereOps.Domain.Tests;
 /// exceptions and component readiness are group-scoped paged projections.</summary>
 public sealed class ConsolidationQueryTests
 {
+  [Fact]
+  public async Task AdministratorOversight_ScopeMetadataNeverBecomesPreparationReviewOrExecutionAuthority()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var admin = User(f.FirmId, "Oversight administrator");
+    db.Users.Add(admin);
+    db.RoleGrants.Add(Grant(f.FirmId, admin, "Administrator"));
+    var source = await db.ConsolidationScopeVersions.SingleAsync(x => x.Id == f.ScopeId);
+    var advanced = new ConsolidationScopeVersion { Id = Guid.NewGuid(), FirmId = f.FirmId, GroupId = f.GroupId,
+      PeriodId = source.PeriodId, Version = source.Version + 1, GroupRevision = source.GroupRevision,
+      ReportingCurrency = source.ReportingCurrency, Method = AdvancedConsolidationMethods.AcquisitionNci,
+      OpeningBasis = source.OpeningBasis, CreatedByUserId = f.Manager.Id, CreatedAt = DateTimeOffset.UtcNow };
+    db.ConsolidationScopeVersions.Add(advanced);
+    await db.SaveChangesAsync();
+    var actor = Actor(admin, "Administrator");
+    var root = await ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(db, actor, f.ScopeId);
+    Assert.True(root.Succeeded, root.Message);
+    Assert.Equal("READ_ONLY", root.Value!.AccessMode);
+    Assert.False(root.Value.CanPrepare || root.Value.CanReview || root.Value.CanApproveScope);
+    Assert.Empty(root.Value.EligiblePackages.Items);
+    Assert.True(root.Value.LatestReport.Available);
+    Assert.True(root.Value.ComponentReadiness.Available);
+    Assert.True(root.Value.IntercompanyExceptions.Available);
+    var ownership = await ConsolidationOwnershipWorkspaceQuery.GetAsync(db, actor, f.ScopeId);
+    Assert.True(ownership.Succeeded, ownership.Message);
+    Assert.False(ownership.Value!.CanAddOwnership);
+    Assert.Empty(ownership.Value.EligibleMembers);
+    var packs = await ConsolidationExternalComponentPackQuery.GetPageAsync(db, actor, f.ScopeId);
+    Assert.True(packs.Succeeded, packs.Message);
+    Assert.False(packs.Value!.CanSubmitPack || packs.Value.CanReviewPacks || packs.Value.CanPinApprovedPacks);
+    Assert.Empty(packs.Value.EligibleClients);
+    Assert.Empty(packs.Value.EligibleEngagements);
+    var advancedRead = await AdvancedConsolidationWorkspaceQuery.GetAsync(db, actor, advanced.Id);
+    Assert.True(advancedRead.Succeeded, advancedRead.Message);
+    Assert.False(advancedRead.Value!.CanPrepare || advancedRead.Value.CanReview);
+    Assert.Empty(advancedRead.Value.SuggestedSourceManifestJson);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await AdvancedConsolidationWorkspaceQuery.RunExecutionAsync(db, actor, advanced.Id)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await ConsolidationScopeCreationQuery.GetAsync(db, actor, f.GroupId)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await ConsolidationQuery.GetIntercompanyMatchOptionsAsync(db, actor, f.ScopeId)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await ConsolidationService.CreateScopeAsync(db, actor,
+      new(f.GroupId, source.PeriodId, "QAR", ConsolidationCalculator.RestrictedMethod, "INITIAL"))).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await ConsolidationService.ApproveScopeAsync(db, actor, f.ScopeId)).ErrorCode);
+    Assert.Empty(await db.ConsolidationRuns.ToListAsync());
+    var originalOperator = await ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(db, Actor(f.Manager, "Partner"), f.ScopeId);
+    Assert.True(originalOperator.Value!.CanPrepare);
+    Assert.Equal("OPERATIONAL", originalOperator.Value.AccessMode);
+  }
+
+  [Fact]
+  public async Task AdministratorOversight_ScopeSnapshotRechecksRevocationBeforeReturning()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await SeedAsync(pg);
+    var admin = User(f.FirmId, "Revoked oversight administrator");
+    Guid grantId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.Users.Add(admin);
+      var grant = Grant(f.FirmId, admin, "Administrator");
+      grantId = grant.Id;
+      setup.RoleGrants.AddRange(grant, Grant(f.FirmId, f.Manager, "Administrator"));
+      await setup.SaveChangesAsync();
+    }
+    var pause = new PauseAfterComponentPageRead();
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(pause).Options;
+    await using var reader = new AuditSphereDbContext(options);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var reading = ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(reader, Actor(admin, "Administrator"), f.ScopeId, timeout.Token);
+    await pause.Reached.Task.WaitAsync(timeout.Token);
+    try
+    {
+      await using var writer = new AuditSphereDbContext(pg.Options);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(writer, Actor(f.Manager, "Partner"),
+        new(grantId, Reason: "Concurrent oversight access revocation"), timeout.Token);
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+    finally { pause.Release.TrySetResult(true); }
+    var result = await reading.WaitAsync(timeout.Token);
+    Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
+    Assert.Null(result.Value);
+  }
+
   [Fact]
   public async Task AdministratorOversight_ViewsSameFirmGroupsWithoutMembershipAuthorityOrEligibleClients()
   {

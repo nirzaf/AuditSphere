@@ -21,7 +21,8 @@ public sealed record ConsolidationOwnershipWorkspace(
   Guid ScopeId, Guid GroupId, string GroupName, int ScopeVersion, long GroupRevision, long CurrentGroupRevision,
   string ScopeStatus, string ScopeMethod, bool CanAddOwnership,
   int Page, int PageSize, int Total, IReadOnlyList<ConsolidationOwnershipRow> Interests,
-  IReadOnlyList<ConsolidationOwnershipMember> EligibleMembers);
+  IReadOnlyList<ConsolidationOwnershipMember> EligibleMembers,
+  string AccessMode = "OPERATIONAL", string? AccessReason = null);
 
 /// <summary>Group-scoped ownership history and the complete bounded approved member choices.</summary>
 public static class ConsolidationOwnershipWorkspaceQuery
@@ -42,7 +43,7 @@ public static class ConsolidationOwnershipWorkspaceQuery
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == scopeId, ct);
     if (scope is null)
       return CommandResult<ConsolidationOwnershipWorkspace>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var access = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    var access = await AdministratorOversightReadAuthorization.AuthorizeGroupReadAsync(db, actor, scope.GroupId, ReadRoles, ct);
     if (!access.Succeeded)
       return CommandResult<ConsolidationOwnershipWorkspace>.Fail(access.ErrorCode!, access.Message!);
     var group = await db.ClientGroups.AsNoTracking()
@@ -95,7 +96,9 @@ public static class ConsolidationOwnershipWorkspaceQuery
       .ToArray();
 
     var manage = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ManageRoles, ct);
-    access = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    var operationalRead = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    access = operationalRead.Succeeded ? operationalRead :
+      await AdministratorOversightReadAuthorization.AuthorizeGroupAsync(db, actor, scope.GroupId, ct);
     if (!access.Succeeded)
       return CommandResult<ConsolidationOwnershipWorkspace>.Fail(access.ErrorCode!, access.Message!);
     var current = await db.ConsolidationScopeVersions.AsNoTracking()
@@ -111,6 +114,8 @@ public static class ConsolidationOwnershipWorkspaceQuery
       scope.Id, scope.GroupId, group.Name, scope.Version, scope.GroupRevision, group.Revision,
       scope.Status, scope.Method,
       manage.Succeeded && scope.Status == AccountingWorkflowStates.Draft && scope.GroupRevision == group.Revision && choices.Length > 1,
-      page, pageSize, total, rows, choices));
+      page, pageSize, total, rows, operationalRead.Succeeded ? choices : [],
+      operationalRead.Succeeded ? "OPERATIONAL" : AdministratorOversightReadAuthorization.ReadOnly,
+      operationalRead.Succeeded ? null : AdministratorOversightReadAuthorization.Reason));
   }
 }

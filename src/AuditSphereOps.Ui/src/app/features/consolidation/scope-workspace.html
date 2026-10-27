@@ -11,6 +11,7 @@
     <audit-state [loading]="ws.loading()" [error]="ws.error()" label="the consolidation scope workspace" />
 
     @if (ws.data(); as w) {
+      @if (w.accessMode === 'READ_ONLY') { <p role="status" class="hint">Read-only — Administrator oversight. Preparation, execution and independent approval require their own explicit group authority.</p> }
       <p class="actions">
         <a routerLink="/app/consolidation">Group workspace</a>
         <audit-status [value]="w.scope.status" />
