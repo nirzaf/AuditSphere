@@ -15,8 +15,17 @@ using Npgsql;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Serilog;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Serilog console logging, configured like the API so both hosts share one format and one "Serilog" settings section.
+Log.Logger = new LoggerConfiguration()
+  .ReadFrom.Configuration(builder.Configuration)
+  .Enrich.FromLogContext()
+  .WriteTo.Console()
+  .CreateLogger();
+builder.Services.AddSerilog();
 
 // Worker telemetry is independent from provider-effect enablement. The exporter is optional,
 // bounded by the OpenTelemetry SDK, and never owns a business transaction or lease decision.

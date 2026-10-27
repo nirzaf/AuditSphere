@@ -745,7 +745,8 @@
           "Microsoft.Extensions.Hosting": "[10.0.0, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.18.0, )",
           "OpenTelemetry.Extensions.Hosting": "[1.18.0, )",
-          "OpenTelemetry.Instrumentation.Runtime": "[1.18.0, )"
+          "OpenTelemetry.Instrumentation.Runtime": "[1.18.0, )",
+          "Serilog.AspNetCore": "[10.0.0, )"
         }
       },
       "DocumentFormat.OpenXml": {
