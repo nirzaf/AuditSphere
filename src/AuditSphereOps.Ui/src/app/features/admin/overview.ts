@@ -16,6 +16,7 @@ export const adminOverview = obj({ tenantId: nullable(text), cards: arr(obj({ ke
 @Component({ selector: 'audit-administration', imports: [AdministrationRuntime, RouterLink, MatButtonModule, ...SHARED], template: `
   <audit-page-header title="Administration" description="Verified Microsoft capabilities and local AuditSphere access. One verified capability does not imply that the others are available." />
   <nav class="actions" aria-label="Administration sections"><a matButton="filled" routerLink="/app/administration/users">Users & Access</a>
+    <a matButton routerLink="/app/administration/oversight-access">Oversight access</a>
     <a matButton routerLink="/app/operations">Operations</a><a matButton routerLink="/app/administration/project-progress">Project progress</a>
     <a matButton routerLink="/app/administration/microsoft365/tenant-connection">Microsoft tenant connection</a></nav>
   <button matButton (click)="ws.reload()">Refresh verified status</button><audit-state [loading]="ws.loading()" [error]="ws.error()" label="firm administration" />

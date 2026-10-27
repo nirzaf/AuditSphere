@@ -178,6 +178,13 @@ public sealed class GlobalSearchQueryTests
     Assert.Contains(firmWide.Hits, x => x.Href == $"/app/practice/invoices/{ownInvoiceId:D}");
     Assert.Contains(firmWide.Hits, x => x.Href == $"/app/practice/invoices/{siblingInvoiceId:D}");
     Assert.DoesNotContain(firmWide.Hits, x => x.Href == $"/app/practice/invoices/{foreignInvoiceId:D}");
+    var (_, administrator) = await UserAsync(w, ("Administrator", null, null));
+    var oversight = await SearchAsync(w, administrator, Marker);
+    Assert.Contains(oversight.Hits, x => x.Href == $"/app/practice/invoices/{ownInvoiceId:D}");
+    Assert.Contains(oversight.Hits, x => x.Href == $"/app/practice/invoices/{siblingInvoiceId:D}");
+    Assert.DoesNotContain(oversight.Hits, x => x.Href == $"/app/practice/invoices/{foreignInvoiceId:D}");
+    var (_, scopedAdministrator) = await UserAsync(w, ("Administrator", w.Own.ClientId, null));
+    Assert.DoesNotContain((await SearchAsync(w, scopedAdministrator, Marker)).Hits, x => x.Kind == GlobalSearchQuery.Kinds.Invoice);
   }
 
   [Fact]

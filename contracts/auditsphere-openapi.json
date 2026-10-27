@@ -25247,7 +25247,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -49769,6 +49769,125 @@
         ]
       }
     },
+    "/api/ui/administration/oversight-access": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "beforeId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministratorOversightAccessPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/administration/runtime": {
       "get": {
         "tags": [
@@ -71647,7 +71766,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -71979,7 +72098,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -73363,7 +73482,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -81269,7 +81388,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -81546,7 +81665,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -81965,7 +82084,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -82294,7 +82413,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -82745,7 +82864,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -83383,7 +83502,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -83678,7 +83797,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -85431,7 +85550,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -88310,7 +88429,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -98059,6 +98178,91 @@
           },
           "simulationAdaptersAllowed": {
             "type": "boolean"
+          }
+        }
+      },
+      "AdministratorOversightAccessPage": {
+        "required": [
+          "items",
+          "hasMore",
+          "before",
+          "beforeId"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdministratorOversightAccessRow"
+            }
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "before": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "beforeId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "AdministratorOversightAccessRow": {
+        "required": [
+          "id",
+          "actorUserId",
+          "sessionEpoch",
+          "requestId",
+          "operation",
+          "resourceKind",
+          "resourceId",
+          "authorizedAt",
+          "outcome"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sessionEpoch": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "resourceKind": {
+            "type": "string"
+          },
+          "resourceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "authorizedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "outcome": {
+            "type": "string"
           }
         }
       },

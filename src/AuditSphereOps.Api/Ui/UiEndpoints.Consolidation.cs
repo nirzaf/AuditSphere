@@ -148,7 +148,7 @@ public static partial class UiEndpoints
 
   private static void MapConsolidationEndpoints(RouteGroupBuilder group)
   {
-    group.MapUiGet("/consolidation", http => ReadAsync(http, (db, actor, ct) => ConsolidationOverviewQuery.GetAsync(db, actor, ct)))
+    group.MapUiGet("/consolidation", http => ReadAsync(http, (db, actor, ct) => ConsolidationOverviewQuery.GetAsync(db, actor, ct))).WithOversightAccessEvidence("consolidation.list", "FIRM")
       .Produces<ConsolidationOverview>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapPost("/consolidation/groups", (CreateConsolidationGroupInput input, HttpContext http) =>
@@ -162,7 +162,7 @@ public static partial class UiEndpoints
     group.MapGet("/consolidation/groups/{groupId:guid}/members",
       (Guid groupId, HttpContext http, int page = 0, int pageSize = 25, Guid? clientId = null, DateOnly? effectiveFrom = null) =>
         ReadAsync(http, (db, actor, ct) => ConsolidationGroupWorkspaceQuery.GetAsync(
-          db, actor, groupId, page, pageSize, clientId, effectiveFrom, ct)))
+          db, actor, groupId, page, pageSize, clientId, effectiveFrom, ct))).WithOversightAccessEvidence("group-members.read", "GROUP", "groupId")
       .WithDescription("Returns the authorized member page and eligible same-firm client choices. Percentage fields are emitted as exact invariant decimal strings. page defaults to 0, pageSize to 25; clientId and effectiveFrom form an optional exact membership filter.")
       .Produces<ConsolidationGroupMembershipWorkspace>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -194,7 +194,7 @@ public static partial class UiEndpoints
       (Guid scopeId, HttpContext http, int eligiblePackagesPage = 1, int journalsPage = 1, int runsPage = 1,
         int componentsPage = 1, int readinessPage = 1, Guid? selectedComponentId = null) =>
         ReadAsync(http, (db, actor, ct) => ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(
-          db, actor, scopeId, eligiblePackagesPage, journalsPage, runsPage, componentsPage, readinessPage, selectedComponentId, ct)))
+          db, actor, scopeId, eligiblePackagesPage, journalsPage, runsPage, componentsPage, readinessPage, selectedComponentId, ct))).WithOversightAccessEvidence("consolidation-scope.read", "CONSOLIDATION_SCOPE", "scopeId")
       .WithDescription("Returns the authorized scope workspace with independent eligiblePackagesPage, journalsPage, runsPage, componentsPage and readinessPage query parameters. selectedComponentId resolves one exact same-scope component independently of the current page. Each page parameter defaults to 1 and must be positive with a representable row offset; each page contains at most 100 items. components retains its array shape with componentPaging; successful readiness has readinessPaging, while failed readiness has null paging.")
       .Produces<ConsolidationScopeWorkspaceDto>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -213,7 +213,7 @@ public static partial class UiEndpoints
     group.MapGet("/consolidation/scopes/{scopeId:guid}/intercompany-matches",
       (Guid scopeId, HttpContext http, int page = 1, int pageSize = 100, bool unresolvedOnly = false) =>
         ReadAsync(http, (db, actor, ct) => ConsolidationQuery.GetIntercompanyExceptionsAsync(
-          db, actor, scopeId, unresolvedOnly, page, pageSize, ct)))
+          db, actor, scopeId, unresolvedOnly, page, pageSize, ct))).WithOversightAccessEvidence("intercompany-matches.read", "CONSOLIDATION_SCOPE", "scopeId")
       .WithDescription("Returns a bounded page of retained intercompany matches. Amount and difference fields are emitted as exact invariant decimal strings. unresolvedOnly defaults to false so resolved and approved history remains visible; set it to true for the exception view. page defaults to 1 and pageSize to 100 (maximum 500).")
       .Produces<IntercompanyExceptionsPage>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -262,7 +262,7 @@ public static partial class UiEndpoints
     group.MapGet("/consolidation/scopes/{scopeId:guid}/ownership-interests",
       (Guid scopeId, HttpContext http, int page = 0, int pageSize = 25, Guid? parentClientId = null, Guid? childClientId = null) =>
         ReadAsync(http, (db, actor, ct) => ConsolidationOwnershipWorkspaceQuery.GetAsync(
-          db, actor, scopeId, page, pageSize, parentClientId, childClientId, ct)))
+          db, actor, scopeId, page, pageSize, parentClientId, childClientId, ct))).WithOversightAccessEvidence("ownership.read", "CONSOLIDATION_SCOPE", "scopeId")
       .WithDescription("Returns a bounded ownership-interest history page and eligible members with their approved effective-date windows. Ownership and economic-interest percentages are emitted as exact invariant decimal strings; page defaults to 0 and pageSize to 25 (maximum 100).")
       .Produces<ConsolidationOwnershipWorkspace>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -321,7 +321,7 @@ public static partial class UiEndpoints
         ReadAsync(http, (db, actor, ct) => ConsolidationExternalComponentPackQuery.GetPageAsync(
           db, actor, scopeId, page, pageSize,
           clientPage, clientPageSize, clientSearch, engagementPage, engagementPageSize, engagementSearch,
-          selectedClientId, selectedEngagementId, ct)))
+          selectedClientId, selectedEngagementId, ct))).WithOversightAccessEvidence("external-packs.list", "CONSOLIDATION_SCOPE", "scopeId")
       .WithDescription("Returns a bounded page of retained external component packs and independently paged eligible group entities and engagements. clientPage/engagementPage default to 1, their page sizes default to 25 (maximum 100), searches are bounded to 100 characters, and selectedClientId/selectedEngagementId return exact server-resolved selections when still eligible. page defaults to 1 and pageSize to 25 (maximum 100). Amounts and hashes are exact strings.")
       .Produces<ExternalComponentPackPage>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -329,7 +329,7 @@ public static partial class UiEndpoints
     group.MapGet("/consolidation/scopes/{scopeId:guid}/external-packs/{packId:guid}",
       (Guid scopeId, Guid packId, HttpContext http, int linePage = 1, int linePageSize = 100) =>
         ReadAsync(http, (db, actor, ct) => ConsolidationExternalComponentPackQuery.GetPackAsync(
-          db, actor, scopeId, packId, linePage, linePageSize, ct)))
+          db, actor, scopeId, packId, linePage, linePageSize, ct))).WithOversightAccessEvidence("external-pack.read", "EXTERNAL_PACK", "packId")
       .WithDescription("Returns the exact retained source identity, review lineage and a page of typed lines for this pack. linePage defaults to 1 and linePageSize to 100 (maximum 100); HasPreviousLines and HasNextLines page through every retained line (at most 500 per valid pack). Decimal amounts are exact invariant strings.")
       .Produces<ExternalComponentPackDetail>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
@@ -531,7 +531,7 @@ public static partial class UiEndpoints
 
     // Advanced schedules and executions
     group.MapGet("/consolidation/advanced/{scopeId:guid}", (Guid scopeId, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => AdvancedConsolidationWorkspaceQuery.GetAsync(db, actor, scopeId, ct)))
+      ReadAsync(http, (db, actor, ct) => AdvancedConsolidationWorkspaceQuery.GetAsync(db, actor, scopeId, ct))).WithOversightAccessEvidence("advanced-consolidation.read", "CONSOLIDATION_SCOPE", "scopeId")
       .Produces<AdvancedConsolidationWorkspace>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapPost("/consolidation/advanced/{scopeId:guid}/schedules", (Guid scopeId, AdvancedScheduleInput i, HttpContext http) =>

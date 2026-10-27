@@ -19,6 +19,85 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class AuthorizationDecisionTests
 {
+  [Fact]
+  public async Task OversightAccessEvidence_IsImmutableAndDoesNotFlushUnrelatedChanges()
+  {
+    await using var f = await TenantAdministrationFixture.CreateAsync();
+    var requestId = Guid.NewGuid();
+    var target = new AdministratorOversightAccessTarget("firm-finance.read", "FIRM");
+    await using (var query = f.Db())
+    {
+      var client = await query.PracticeClients.SingleAsync(x => x.Id == f.ClientId);
+      client.LegalName = "UNPUBLISHED QUERY EDIT";
+      Assert.Equal(AdministratorOversightAccessEvidence.Unavailable,
+        (await AdministratorOversightAccessEvidence.RecordAsync(query, f.AdminActor, requestId, target)).ErrorCode);
+      await using var writer = f.Db();
+      var first = await AdministratorOversightAccessEvidence.RecordAsync(writer, f.AdminActor, requestId, target);
+      Assert.True(first.Succeeded, first.Message);
+      var replay = await AdministratorOversightAccessEvidence.RecordAsync(writer, f.AdminActor, requestId, target);
+      Assert.Equal(first.Value, replay.Value);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, (await AdministratorOversightAccessEvidence.RecordAsync(
+        writer, f.AdminActor, requestId, target with { Operation = "firm-books.read" })).ErrorCode);
+      Assert.True(query.ChangeTracker.HasChanges());
+    }
+    await using var verify = f.Db();
+    Assert.NotEqual("UNPUBLISHED QUERY EDIT", (await verify.PracticeClients.SingleAsync(x => x.Id == f.ClientId)).LegalName);
+    Assert.Single(await verify.AdministratorOversightAccessEvents.ToListAsync());
+    var update = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlRawAsync(
+      "UPDATE administrator_oversight_access_events SET operation = 'changed'"));
+    Assert.Equal("55000", update.SqlState);
+    var delete = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlRawAsync(
+      "DELETE FROM administrator_oversight_access_events"));
+    Assert.Equal("55000", delete.SqlState);
+    var truncate = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlRawAsync(
+      "TRUNCATE administrator_oversight_access_events"));
+    Assert.Equal("55000", truncate.SqlState);
+  }
+
+  [Fact]
+  public async Task OversightAccessHistory_IsFirmScopedPagedAndCurrentWithoutRecursiveEvents()
+  {
+    await using var f = await TenantAdministrationFixture.CreateAsync();
+    await using var db = f.Db();
+    var otherFirm = Guid.NewGuid();
+    var other = TenantAdministrationFixture.User(otherFirm, f.TenantId, "other@example.test", "Other firm administrator");
+    db.FirmSafetyStates.Add(new AuditSphereOps.Domain.Completion.FirmSafetyState { Id = otherFirm });
+    db.Users.Add(other);
+    db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = otherFirm, UserId = other.Id,
+      Role = "Administrator", GrantedByUserId = other.Id, GrantedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    for (var n = 0; n < 26; n++)
+      Assert.True((await AdministratorOversightAccessEvidence.RecordAsync(db, f.AdminActor,
+        Guid.NewGuid(), new("firm-finance.read", "FIRM"))).Succeeded);
+    Assert.True((await AdministratorOversightAccessEvidence.RecordAsync(db,
+      new(other.Id, otherFirm, other.SessionEpoch, ["Administrator"]), Guid.NewGuid(), new("firm-books.read", "FIRM"))).Succeeded);
+    var page = (await AdministratorOversightAccessEvidence.PageAsync(db, f.AdminActor)).Value!;
+    Assert.Equal(25, page.Items.Count);
+    Assert.True(page.HasMore);
+    Assert.All(page.Items, x => Assert.Equal(f.Admin.Id, x.ActorUserId));
+    var tail = (await AdministratorOversightAccessEvidence.PageAsync(db, f.AdminActor, page.Before, page.BeforeId)).Value!;
+    Assert.Single(tail.Items);
+    Assert.False(tail.HasMore);
+    Assert.DoesNotContain(tail.Items[0].Id, page.Items.Select(x => x.Id));
+    Assert.False(db.AdministratorOversightObserved);
+    Assert.Equal(27, await db.AdministratorOversightAccessEvents.CountAsync());
+    Assert.Equal(ErrorCodes.ScopeDenied, (await AdministratorOversightAccessEvidence.PageAsync(db,
+      f.AdminActor with { SessionEpoch = f.AdminActor.SessionEpoch + 1 })).ErrorCode);
+    var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db, f.SecondAdminActor,
+      new((await db.RoleGrants.SingleAsync(x => x.UserId == f.Admin.Id && x.Role == "Administrator")).Id,
+        Reason: "Remove oversight history access"));
+    Assert.True(revoked.Succeeded, revoked.Message);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await AdministratorOversightAccessEvidence.PageAsync(db, f.AdminActor)).ErrorCode);
+    await using var invalidWriter = f.Db();
+    invalidWriter.AdministratorOversightAccessEvents.Add(new AdministratorOversightAccessEvent
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ActorUserId = other.Id, SessionEpoch = other.SessionEpoch,
+      RequestId = Guid.NewGuid(), Operation = "firm-finance.read", ResourceKind = "FIRM", AuthorizedAt = DateTimeOffset.UtcNow
+    });
+    var foreignActor = await Assert.ThrowsAsync<DbUpdateException>(() => invalidWriter.SaveChangesAsync());
+    Assert.Equal("23503", Assert.IsType<Npgsql.PostgresException>(foreignActor.InnerException).SqlState);
+  }
+
   private sealed record Scope(Guid FirmId, Guid ClientId, Guid EngagementId, Guid DatasetId);
 
   private static async Task<Scope> SeedScopeAsync(
@@ -441,6 +520,8 @@ public sealed class AuthorizationDecisionTests
   private sealed class OperationContextAdapter(AuditSphereDbContext db)
     : AuditSphereOps.Application.Operations.IAuditSphereDbContext
   {
+    public bool AdministratorOversightObserved { get => db.AdministratorOversightObserved; set => db.AdministratorOversightObserved = value; }
+    public DbSet<AdministratorOversightAccessEvent> AdministratorOversightAccessEvents => db.AdministratorOversightAccessEvents;
     public DbSet<AuditSphereOps.Domain.Completion.DurableOperation> DurableOperations => db.DurableOperations;
     public DbSet<AuditSphereOps.Domain.Completion.OperationAttempt> OperationAttempts => db.OperationAttempts;
     public DbSet<AuditSphereOps.Domain.Completion.OperationEvent> OperationEvents => db.OperationEvents;

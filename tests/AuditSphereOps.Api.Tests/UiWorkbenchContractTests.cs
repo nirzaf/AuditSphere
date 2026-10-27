@@ -43,9 +43,15 @@ public sealed class UiWorkbenchContractTests
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("ADMIN-OVERSIGHT-API");
     var seed = await PbcSeed.SeedAsync(pg);
+    var invoiceId = Guid.NewGuid();
     await using (var setup = new AuditSphereDbContext(pg.Options))
     {
       setup.FirmPeriods.Add(new FirmPeriod { Id = Guid.NewGuid(), FirmId = seed.FirmId, PeriodCode = "2026-10" });
+      var account = new BillingAccount { Id = Guid.NewGuid(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId,
+        Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow };
+      setup.BillingAccounts.Add(account);
+      setup.Invoices.Add(new Invoice { Id = invoiceId, FirmId = seed.FirmId, BillingAccountId = account.Id,
+        InvoiceNumber = "PRIVATESEARCHMARKER", Currency = "QAR", Total = 125, Subtotal = 125, CreatedAt = DateTimeOffset.UtcNow });
       await setup.SaveChangesAsync();
     }
     using var factory = Factory(pg.ConnectionString, seed.Admin.Subject, seed.Admin.TenantId);
@@ -64,6 +70,48 @@ public sealed class UiWorkbenchContractTests
     Assert.Equal(HttpStatusCode.Forbidden, attempt.StatusCode);
     await using var verify = new AuditSphereDbContext(pg.Options);
     Assert.Single(await verify.FirmPeriods.Where(x => x.FirmId == seed.FirmId).ToListAsync());
+    var first = Assert.Single(await verify.AdministratorOversightAccessEvents.ToListAsync());
+    Assert.Equal(seed.Admin.Id, first.ActorUserId);
+    Assert.Equal("firm-finance.read", first.Operation);
+    Assert.Equal("DISCLOSURE_AUTHORIZED", first.Outcome);
+    var history = await admin.GetFromJsonAsync<JsonElement>("/api/ui/administration/oversight-access");
+    Assert.Equal(first.Id, history.GetProperty("items")[0].GetProperty("id").GetGuid());
+    Assert.Single(await verify.AdministratorOversightAccessEvents.ToListAsync()); // history is ordinary authorized access
+    Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync("/api/ui/finance")).StatusCode);
+    Assert.Equal(2, await verify.AdministratorOversightAccessEvents.CountAsync());
+    using var invoiceResponse = await admin.GetAsync($"/api/ui/finance/invoices/{invoiceId}");
+    Assert.Equal(HttpStatusCode.OK, invoiceResponse.StatusCode);
+    var invoiceEvent = await verify.AdministratorOversightAccessEvents.SingleAsync(x => x.Operation == "firm-invoice.read");
+    Assert.Equal(invoiceId, invoiceEvent.ResourceId);
+    Assert.Equal("INVOICE", invoiceEvent.ResourceKind);
+    Assert.Equal(invoiceEvent.RequestId.ToString("D"), invoiceResponse.Headers.GetValues("X-AuditSphere-Oversight-Request-Id").Single());
+    using var search = await admin.GetAsync("/api/ui/search?term=PRIVATESEARCHMARKER");
+    Assert.Equal(HttpStatusCode.OK, search.StatusCode);
+    Assert.Contains(invoiceId.ToString("D"), await search.Content.ReadAsStringAsync());
+    Assert.Single(await verify.AdministratorOversightAccessEvents.Where(x => x.Operation == "search.read").ToListAsync());
+    Assert.DoesNotContain("PRIVATESEARCHMARKER", JsonSerializer.Serialize(await verify.AdministratorOversightAccessEvents.ToListAsync()));
+    // Owned test database only: simulate a durable audit-store failure without changing read authorization.
+    await verify.Database.ExecuteSqlRawAsync("""
+      CREATE FUNCTION reject_test_oversight_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'synthetic audit store unavailable' USING ERRCODE = '42501'; END; $$;
+      CREATE TRIGGER reject_test_oversight_insert BEFORE INSERT ON administrator_oversight_access_events
+      FOR EACH ROW EXECUTE FUNCTION reject_test_oversight_insert();
+      """);
+    using var withheld = await admin.GetAsync("/api/ui/finance");
+    Assert.Equal(HttpStatusCode.ServiceUnavailable, withheld.StatusCode);
+    var withheldText = await withheld.Content.ReadAsStringAsync();
+    Assert.Contains("oversight.audit-unavailable", withheldText);
+    Assert.DoesNotContain("2026-10", withheldText);
+    Assert.Equal(4, await verify.AdministratorOversightAccessEvents.CountAsync());
+    verify.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Reviewer, "FinanceManager"));
+    await verify.SaveChangesAsync();
+    using var normalFactory = Factory(pg.ConnectionString, seed.Reviewer.Subject, seed.Reviewer.TenantId);
+    using var normal = normalFactory.CreateClient(new() { AllowAutoRedirect = false });
+    await SignInAsync(normal);
+    var ordinary = await normal.GetFromJsonAsync<JsonElement>("/api/ui/finance");
+    Assert.Equal("OPERATIONAL", ordinary.GetProperty("accessMode").GetString());
+    Assert.Equal(4, await verify.AdministratorOversightAccessEvents.CountAsync());
+    Assert.Equal(HttpStatusCode.Forbidden, (await normal.GetAsync("/api/ui/administration/oversight-access")).StatusCode);
   }
 
   [Fact]

@@ -21,6 +21,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   AuditSphereOps.Application.Operations.IAdjustmentJournalDbContext,
   AuditSphereOps.Application.Operations.IRecordsArchiveCopyDbContext
 {
+  public bool AdministratorOversightObserved { get; set; }
+  public DbSet<AdministratorOversightAccessEvent> AdministratorOversightAccessEvents => Set<AdministratorOversightAccessEvent>();
   public DbSet<AppUser> Users => Set<AppUser>();
   public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
   public DbSet<AssessmentCommandReceipt> AssessmentCommandReceipts => Set<AssessmentCommandReceipt>();
@@ -644,6 +646,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureResourcePlanningReceipts(b);
     ConfigureTimeEntryChanges(b);
     ConfigureUserProfiles(b);
+    ConfigureAdministratorOversightAccess(b);
     ConfigureEngagementCreations(b);
     ConfigureBudgetPreparations(b);
     ConfigureBudgetApprovals(b);

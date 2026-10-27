@@ -337,3 +337,13 @@ Administrator revocation and reviewed replacement count only enabled Staff ident
 ## Primary Administrator oversight and accounting roles
 
 The standard assignment catalogue now offers the existing accounting preparation/review roles to Staff, with explicit scopes and honest independence descriptions. Ledger and accounting-group overview/membership reads opt into current firm-wide Staff Administrator oversight; original finance and group command flags remain separate. Nonmanaging membership readers receive no client choices. Focused and isolated built-in desktop/mobile verification passed; other read owners, search, command census, EQR and complete specification/release acceptance remain open. No live grants or deployment changed. See [status.json](status.json).
+
+## Invoice metadata oversight
+
+Current firm-wide Staff Administrators can discover and read same-firm invoice amounts, lines and retained finance metadata. Read-only mode derives no receipt, credit, terms, posting or sending authority; the API now projects the original operational permission instead of an unconditional action flag. Focused negative/positive and built-in filter, exact-detail, source, refresh and mobile checks passed. Reports, settlement reads, search/census and full release acceptance remain open. See [status.json](status.json).
+
+## Consolidation scope oversight
+
+Audited scope, ownership, component-pack, normalized report and advanced-history reads now allow current firm-wide Staff Administrator oversight without a group grant. Preparation, review, execution and action-only choices retain their original group checks. The browser exposed editable advanced inputs in read-only mode; those inputs are now hidden, and refreshed desktop/mobile checks passed. Focused revocation and accounting-role use retain current authorization, self-review denial and professional gates. Remaining read owners, census and full release acceptance stay open. See [status.json](status.json).
+
+<!-- End of oversight predecessor handoff archive. -->

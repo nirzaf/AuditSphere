@@ -23,6 +23,9 @@ public static partial class UiEndpoints
     !string.IsNullOrWhiteSpace(request.Reason) && request.Reason.Length is >= 5 and <= 1000;
   private static void MapAdministrationEndpoints(RouteGroupBuilder group)
   {
+    group.MapGet("/administration/oversight-access", (DateTimeOffset? before, Guid? beforeId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AdministratorOversightAccessEvidence.PageAsync(db, actor, before, beforeId, ct)))
+      .WithUiResponse<AdministratorOversightAccessPage>();
     group.MapUiGet("/administration/runtime", http => ReadAsync(http, (db, actor, ct) =>
     {
       var configuration = http.RequestServices.GetRequiredService<IConfiguration>();

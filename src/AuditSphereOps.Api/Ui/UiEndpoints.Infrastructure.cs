@@ -31,7 +31,7 @@ public static partial class UiEndpoints
   /// <summary>Angular-owned preview routes (served under /ui). Keep in step with app.routes.ts.</summary>
   public static readonly string[] SpaRoutes =
   [
-    "/ui/setup/microsoft365", "/ui/app/administration", "/ui/app/administration/users", "/ui/app/administration/microsoft365", "/ui/app/administration/microsoft365/tenant-connection",
+    "/ui/setup/microsoft365", "/ui/app/administration", "/ui/app/administration/users", "/ui/app/administration/oversight-access", "/ui/app/administration/microsoft365", "/ui/app/administration/microsoft365/tenant-connection",
     "/ui/portal/accounting/journals/{id:guid}", "/ui/portal/accounting/packages/{id:guid}", "/ui/portal", "/ui/portal/requests/{id:guid}",
     // ASP.NET accepts a trailing slash on this route; a second /ui/ endpoint is ambiguous.
     "/ui", "/ui/app", "/ui/app/accounting", "/ui/app/practice/leads", "/ui/app/practice/pipeline", "/ui/app/practice/commercial-settings",
@@ -157,10 +157,12 @@ public static partial class UiEndpoints
     var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
     if (actor is null) return Failure("session.unavailable", "Sign in again.", 401);
     await using var db = await http.RequestServices.GetRequiredService<IDbContextFactory<AuditSphereDbContext>>().CreateDbContextAsync(http.RequestAborted);
+    db.AdministratorOversightObserved = false;
     var result = await query(db, actor, http.RequestAborted);
     if (!result.Succeeded)
       return Failure(result.ErrorCode, result.Message, result.ErrorCode == ErrorCodes.ScopeDenied || result.ErrorCode is null ? 403 : StatusFor(result.ErrorCode));
     if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Failure("session.unavailable", "Sign in again.", 401);
+    if (await RetainOversightAccessAsync(http, db, actor) is { } auditFailure) return auditFailure;
     return UiResult(result.Value);
   }
 

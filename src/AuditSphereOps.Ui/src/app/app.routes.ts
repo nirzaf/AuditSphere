@@ -11,6 +11,8 @@ export const routes: Routes = [
   { path: 'app/administration/microsoft365', pathMatch: 'full', redirectTo: 'app/administration/microsoft365/tenant-connection' },
   { path: 'app/administration/users', canActivate: [staffGuard], title: 'Users & Access · AuditSphere',
     loadComponent: () => import('./features/admin/access').then(m => m.UserAccess) },
+  { path: 'app/administration/oversight-access', canActivate: [staffGuard], title: 'Oversight access · AuditSphere',
+    loadComponent: () => import('./features/admin/oversight-access').then(m => m.OversightAccessHistory) },
   { path: 'app/administration', pathMatch: 'full', canActivate: [staffGuard], title: 'Administration · AuditSphere',
     loadComponent: () => import('./features/admin/overview').then(m => m.AdministrationOverview) },
   { path: 'portal/accounting/journals/:id', canActivate: [clientGuard], canDeactivate: [unsavedChangesGuard], data: { client: true }, title: 'Journal management response · AuditSphere',

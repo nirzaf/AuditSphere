@@ -305,12 +305,14 @@ public static partial class UiEndpoints
       if (term?.Length > GlobalSearchQuery.MaximumTermLength)
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      db.AdministratorOversightObserved = false;
       var result = await GlobalSearchQuery.SearchAsync(db, actor, term, http.RequestAborted);
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: 403);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      if (await RetainOversightAccessAsync(http, db, actor) is { } auditFailure) return auditFailure;
       return Results.Ok(result.Value);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Search))
+    }).WithOversightAccessEvidence("search.read", "FIRM").WithMetadata(new ApiRateClassAttribute(ApiRateClass.Search))
       .Produces<GlobalSearchResult>()
       .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
       .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);

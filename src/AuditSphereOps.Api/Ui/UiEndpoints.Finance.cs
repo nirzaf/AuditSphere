@@ -79,7 +79,7 @@ public static partial class UiEndpoints
         static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
         return BillingWorkbenchQuery.PageAsync(db, actor,
           new BillingWorkbenchFilter(clientId, Blank(status), Blank(currency), Blank(number)), page ?? 0, ct: ct);
-      })));
+      })).WithOversightAccessEvidence("firm-invoices.list", "FIRM"));
 
     UiEndpointContractMetadata.WithUiResponse<FirmReceivablesAgingReport>(group.MapGet("/finance/receivables-aging", (string? asOf, HttpContext http) => ReadAsync(http, (db, actor, ct) =>
     {
@@ -144,7 +144,7 @@ public static partial class UiEndpoints
             })
           })
         : CommandResult<object>.Fail(r.ErrorCode!, r.Message!);
-    })), includeBadRequest: false);
+    })).WithOversightAccessEvidence("firm-finance.read", "FIRM"), includeBadRequest: false);
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/finance/accounts", (FirmAccountInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.CreateFirmAccountAsync(db, actor,
         new CreateFirmAccountRequest(input.Code ?? "", input.Name ?? "", input.AccountType ?? "", input.NormalSide ?? "", input.PostingAllowed), ct))),
@@ -245,7 +245,7 @@ public static partial class UiEndpoints
         CanSendInvoice = r.Value.CanSendInvoice,
         r.Value.CanAct, r.Value.AccessMode, r.Value.AccessReason,
       });
-    })), includeConflict: false);
+    })).WithOversightAccessEvidence("firm-invoice.read", "INVOICE", "id"), includeConflict: false);
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/finance/invoices/{id:guid}/payment-terms", (Guid id, PaymentTermsInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => InvoicePaymentTermsService.SubmitAsync(db, actor, id,
         new SetInvoicePaymentTermsRequest(input.DueDate, input.Basis ?? "", input.TermsDescription ?? "",

@@ -14,13 +14,13 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
-## Invoice metadata oversight
+## Oversight access evidence and specification suitability
 
-Current firm-wide Staff Administrators can discover and read same-firm invoice amounts, lines and retained finance metadata. Read-only mode derives no receipt, credit, terms, posting or sending authority; the API now projects the original operational permission instead of an unconditional action flag. Focused negative/positive and built-in filter, exact-detail, source, refresh and mobile checks passed. Reports, settlement reads, search/census and full release acceptance remain open. See [status.json](status.json).
+Registered metadata oversight reads retain one immutable authorization event before disclosure; audit failure withholds the response. History uses the current firm-wide Staff Administrator boundary and bounded paging, without recursive events or editing controls. Invoice search now includes the same authorized same-firm invoice family; original finance commands and operational permissions remain unchanged. Focused database, API, Angular and isolated built-in read-to-history checks passed. A shared database failure was isolated from product assertions; the owned replacement test cluster and browser fixture were cleaned. The later specification's older role baseline is superseded by the supported catalogue. EQR applicability, independence, evidence-currentness and legacy activation policy remain open, as do retention/reviewer acceptance and full release verification. See [status.json](status.json).
 
-## Consolidation scope oversight
+Prior invoice metadata oversight evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#invoice-metadata-oversight).
 
-Audited scope, ownership, component-pack, normalized report and advanced-history reads now allow current firm-wide Staff Administrator oversight without a group grant. Preparation, review, execution and action-only choices retain their original group checks. The browser exposed editable advanced inputs in read-only mode; those inputs are now hidden, and refreshed desktop/mobile checks passed. Focused revocation and accounting-role use retain current authorization, self-review denial and professional gates. Remaining read owners, census and full release acceptance stay open. See [status.json](status.json).
+Prior consolidation scope oversight evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#consolidation-scope-oversight).
 
 ## Firm books metadata oversight
 

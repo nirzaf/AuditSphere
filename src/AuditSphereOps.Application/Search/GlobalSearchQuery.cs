@@ -167,6 +167,8 @@ public static class GlobalSearchQuery
     }
 
     (firmWide, clientIds, _) = ScopeFor(FinanceRoles);
+    var invoiceOversight = !firmWide && (await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct)).Succeeded;
+    if (invoiceOversight) firmWide = true; // Same audited invoice-read family; never a finance command grant.
     var invoices = await (
         from i in db.Invoices.AsNoTracking()
         join a in db.BillingAccounts.AsNoTracking() on new { i.FirmId, Id = i.BillingAccountId } equals new { a.FirmId, a.Id }
@@ -191,6 +193,11 @@ public static class GlobalSearchQuery
     truncated |= pages.Length > PerKind;
     hits.AddRange(pages.Take(PerKind).Select(p => new GlobalSearchHit(Kinds.Page, p.Title, "Page", p.Href)));
 
+    if (invoiceOversight)
+    {
+      var current = await AdministratorOversightReadAuthorization.CheckEligibilityAsync(db, actor, ct);
+      if (!current.Succeeded) return CommandResult<GlobalSearchResult>.Fail(current.ErrorCode!, current.Message!);
+    }
     return CommandResult<GlobalSearchResult>.Ok(new(text, hits, truncated));
   }
 

@@ -18,6 +18,9 @@ namespace AuditSphereOps.Application.Operations;
 
 public interface IAuditSphereDbContext : IAsyncDisposable
 {
+  // Request-local observation only; never authorization and never persisted as business state.
+  bool AdministratorOversightObserved { get; set; }
+  DbSet<AdministratorOversightAccessEvent> AdministratorOversightAccessEvents { get; }
   DbSet<AssessmentCommandReceipt> AssessmentCommandReceipts { get; }
   DbSet<ResourcePlanningReceipt> ResourcePlanningReceipts { get; }
   DbSet<DurableOperation> DurableOperations { get; }

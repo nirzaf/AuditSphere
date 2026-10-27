@@ -25897,6 +25897,15 @@
       "imagePublication": "Current follow-up images/rehearsal required; fa30 images/rehearsal are predecessor only.",
       "cutoverStatus": "NOT_PERFORMED; existing live baseline and public browser/source gates must be refreshed.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeBooksOversight20261027"
+    },
+    "currentSourceCiBeforeOversightAccess20261027": {
+      "sourceBaseCommit": "2cc7d2a7a2e44b42dbe171530eed9d5c828e79bd",
+      "sourceRole": "ROLES_PRIMARY_AND_BOOKS_OVERSIGHT_CATALOGUE",
+      "fastCi": "Current follow-up requires exact checkout proof after publication.",
+      "releaseVerification": "Preceding2cc7 full40571713003 source MATCH: Angular PASS, other jobs pending; preceding fa30 retained separately. No current full acceptance.",
+      "imagePublication": "Current follow-up images/rehearsal required; fa30 images/rehearsal are predecessor only.",
+      "cutoverStatus": "NOT_PERFORMED; existing live baseline and public browser/source gates must be refreshed.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeBooksOversight20261027"
     }
   },
   "archivedTargetedVerification": {
@@ -27075,6 +27084,24 @@
       "verification": "Catalogue Domain4PASS, ledger/group reads2PASS, fresh revocation and finance roles3PASS, cookie/forged-command API1PASS; roles Angular14PASS, finance/member9PASS, corrected additive-field overview10PASS; pinned Node build/lint/OpenAPI PASS. Built-in synthetic desktop/390px ledger read-only, expanded perimeter, exact accounting-review preview and restricted Client choices; console empty.",
       "evidence": ".local/autonomous/evidence/roles-admin-oversight-20261027/primary-oversight-review.json",
       "boundary": "Primary projections/catalogue only; other read owners, search/census, professional EQR and recovery remain open. No browser grant/finance writes or deployment. Owned fixture stopped; launcher restored. Peer README and Task03 drafts preserved."
+    },
+    "rolesScopeOversight20261027BeforeOversightAccess20261027": {
+      "status": "FOCUSED_AND_BUILTIN_PASS_CURRENT_CI_REQUIRED",
+      "evidence": ".local/autonomous/evidence/roles-admin-oversight-20261027/scope-oversight-review.json",
+      "verification": "Domain scope3+accounting role use1PASS; Angular scope24, ownership/advanced5, advanced recovery RED1 thenGREEN3. Build/lint/OpenAPI PASS. Builtin no-group Admin scope/ownership/packs/advanced, refresh/390px fit, console[].",
+      "boundary": "Read-only flags/options separate from original commands and raw documents. Advanced editable-field gap corrected and rechecked. Remaining read owners/census/professional/release open."
+    },
+    "rolesInvoiceOversight20261027BeforeOversightAccess20261027": {
+      "status": "FOCUSED_AND_BUILTIN_PASS_CURRENT_CI_REQUIRED",
+      "evidence": ".local/autonomous/evidence/roles-admin-oversight-20261027/invoice-oversight-review.json",
+      "verification": "DomainRED1/GREEN2 including original billing lifecycle and read/write/revocation denials; Angular33/build/lint/OpenAPI PASS. Builtin list/filter/exactdetail/source/refresh/390px and no financialforms, console[].",
+      "boundary": "Readresolver only; original finance commands/flags, separate report exports and raw downloads unchanged. Remaining settlement/report/search/census and professional/release open."
+    },
+    "accountAndTaskJourneyCorrection20261027BeforeOversightAccess20261027": {
+      "status": "FOCUSED_2_PASS_CURRENT_CI_PENDING",
+      "verification": "Both preceding E2E assertions reproduced on ba161 and passed after correction. Firm admin endpoints still return 403; account control shows the signed-in identity and the seeded staff identity remains hidden. Exact retry identity and lifecycle assertions remain; checklist is scoped and PostgreSQL confirms one task for the firm and engagement.",
+      "boundary": "No runtime permission or task behavior changed; no full local suite or new release claim. Finding receipt timeout recurred separately; cause remains unproven.",
+      "evidence": ".local/autonomous/evidence/ledger-ui-20261026/account-task-journey-correction-review.json"
     }
   },
   "lastUpdatedOn": "2026-10-27"

@@ -17,6 +17,14 @@ internal static class AdministratorOversightReadAuthorization
   internal static async Task<CommandResult> AuthorizeAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
   {
+    var result = await CheckEligibilityAsync(db, actor, ct);
+    if (result.Succeeded) db.AdministratorOversightObserved = true;
+    return result;
+  }
+
+  internal static async Task<CommandResult> CheckEligibilityAsync(
+    IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
+  {
     if (!await db.Users.AsNoTracking().AnyAsync(x => x.Id == actor.UserId && x.FirmId == actor.FirmId &&
         x.UserKind == "Staff" && !x.Disabled && x.SessionEpoch == actor.SessionEpoch, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");

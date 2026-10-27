@@ -32466,6 +32466,70 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Security.AdministratorOversightAccessEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<DateTimeOffset>("AuthorizedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("authorized_at");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("operation");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("outcome");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<Guid?>("ResourceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resource_id");
+
+                    b.Property<string>("ResourceKind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("resource_kind");
+
+                    b.Property<long>("SessionEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("session_epoch");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ActorUserId");
+
+                    b.HasIndex("FirmId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "AuthorizedAt", "Id");
+
+                    b.ToTable("administrator_oversight_access_events", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_oversight_access_event", "session_epoch >= 1 AND length(operation) BETWEEN 1 AND 100 AND resource_kind IN ('FIRM','INVOICE','GROUP','CONSOLIDATION_SCOPE','EXTERNAL_PACK') AND ((resource_kind = 'FIRM' AND resource_id IS NULL) OR (resource_kind <> 'FIRM' AND resource_id IS NOT NULL)) AND outcome = 'DISCLOSURE_AUTHORIZED'");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Security.AppUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -39969,6 +40033,16 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "ReviewPointId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Security.AdministratorOversightAccessEvent", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

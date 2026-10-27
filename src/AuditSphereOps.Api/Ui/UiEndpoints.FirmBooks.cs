@@ -20,7 +20,7 @@ public static partial class UiEndpoints
   private static void MapFirmBooksEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/finance/books", (int? expensePage, Guid? expenseId, HttpContext http) => ReadAsync(http,
-      (db, actor, ct) => FirmBooksWorkspaceQuery.GetAsync(db, actor, ct, expensePage ?? 1, expenseId)))
+      (db, actor, ct) => FirmBooksWorkspaceQuery.GetAsync(db, actor, ct, expensePage ?? 1, expenseId))).WithOversightAccessEvidence("firm-books.read", "FIRM")
       .Produces<FirmBooksWorkspace>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
     group.MapGet("/finance/books/trial-balance", (string from, string to, int? activityPage, string? reportIdentity, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FirmExpenseService.TrialBalanceAsync(
