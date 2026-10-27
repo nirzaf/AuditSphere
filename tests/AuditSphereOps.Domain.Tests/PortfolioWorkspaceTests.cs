@@ -11,6 +11,95 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class PortfolioWorkspaceTests
 {
   [Theory]
+  [InlineData("detail")]
+  [InlineData("client")]
+  [InlineData("portfolio")]
+  public async Task ProgressObservesOneCommittedTaskAndHoldState(string view)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var taskId = Guid.NewGuid();
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.WorkTasks.Add(new WorkTask { Id = taskId, FirmId = f.FirmId, ClientId = f.ClientId,
+        EngagementId = f.EngagementId, Title = "Synthetic completed work", Status = PracticeTimeStates.TaskCompleted,
+        CreatedAt = DateTimeOffset.UtcNow });
+      await setup.SaveChangesAsync();
+    }
+    var interceptor = new RevokeDuringRead(async () =>
+    {
+      await using var mutation = new AuditSphereDbContext(pg.Options);
+      await using var tx = await mutation.Database.BeginTransactionAsync();
+      await mutation.WorkTasks.Where(x => x.Id == taskId).ExecuteUpdateAsync(x =>
+        x.SetProperty(t => t.Status, PracticeTimeStates.TaskOpen));
+      mutation.EngagementHolds.Add(new EngagementHold { Id = Guid.NewGuid(), FirmId = f.FirmId,
+        EngagementId = f.EngagementId, HoldKind = "Acceptance", Reason = "Synthetic currentness check",
+        CreatedAt = DateTimeOffset.UtcNow });
+      await mutation.SaveChangesAsync();
+      await tx.CommitAsync();
+    }, "FROM engagement_holds");
+    await using var db = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(interceptor).Options);
+    var actor = PbcSeed.Actor(f.Admin, "Administrator");
+    EngagementProgressView progress;
+    if (view == "detail")
+    {
+      var result = await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId);
+      Assert.True(result.Succeeded, result.Message);
+      progress = result.Value!;
+    }
+    else
+    {
+      var result = view == "client" ? await EngagementProgressQuery.ForClientAsync(db, actor, f.ClientId)
+        : await PortfolioQuery.ProgressAsync(db, actor);
+      Assert.True(result.Succeeded, result.Message);
+      progress = Assert.Single(result.Value!.Items);
+    }
+    Assert.True(interceptor.Fired);
+    var hasHold = progress.Gates.Contains("An engagement hold remains open.");
+    Assert.True((progress.CompletedRequired == 1 && !hasHold) || (progress.CompletedRequired == 0 && hasHold),
+      $"Mixed committed states: completed={progress.CompletedRequired}, hold={hasHold}.");
+  }
+
+  [Fact]
+  public async Task ProgressRefusesCallerOwnedTransactionWithoutCompletingIt()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    await using var callerTransaction = await db.Database.BeginTransactionAsync();
+    var actor = PbcSeed.Actor(f.Admin, "Administrator");
+    var detail = await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId);
+    var client = await EngagementProgressQuery.ForClientAsync(db, actor, f.ClientId);
+    var portfolio = await PortfolioQuery.ProgressAsync(db, actor);
+    Assert.False(detail.Succeeded);
+    Assert.False(client.Succeeded);
+    Assert.False(portfolio.Succeeded);
+    Assert.Same(callerTransaction, db.Database.CurrentTransaction);
+    await callerTransaction.RollbackAsync();
+  }
+
+  [Fact]
+  public async Task ProgressDetailRechecksAuthorityAfterSnapshotCloses()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var interceptor = new RevokeDuringRead(async () =>
+    {
+      await using var mutation = new AuditSphereDbContext(pg.Options);
+      await mutation.RoleGrants.Where(g => g.UserId == f.Staff.Id && g.Role == "Staff")
+        .ExecuteUpdateAsync(update => update.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow));
+    }, "FROM releases");
+    await using var db = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(interceptor).Options);
+    var result = await EngagementProgressQuery.GetAsync(db, PbcSeed.Actor(f.Staff, "Staff"), f.EngagementId);
+    Assert.True(interceptor.Fired);
+    Assert.False(result.Succeeded);
+    Assert.Equal("scope.denied", result.ErrorCode);
+    Assert.Null(result.Value);
+  }
+
+  [Theory]
   [InlineData("AccountingOnly")]
   [InlineData("InternalAudit")]
   public async Task NonAuditProgressRemainsOpenWhenNoCompletionProfileIsApproved(string serviceRoute)

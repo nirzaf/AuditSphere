@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace AuditSphereOps.Application.Practice;
 
@@ -21,22 +22,33 @@ public static partial class PortfolioQuery
     Guid? clientId, int page, int pageSize, CancellationToken ct)
   {
     if (page is < 0 or > 10000) return CommandResult<EngagementProgressList>.Fail("request.invalid", "Choose a valid progress page.");
-    var scope = await ScopeAsync(db, actor, ct, EngagementProgressQuery.ReadRoles);
-    if (scope is null) return CommandResult<EngagementProgressList>.Fail(ErrorCodes.ScopeDenied, "Progress unavailable.");
-    var visible = VisibleEngagements(db, actor, scope);
-    if (clientId is { } client)
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<EngagementProgressList>.Fail(ErrorCodes.GateBlocked, "Progress requires an independent read snapshot.");
+    Scope scope;
+    List<AuditSphereOps.Domain.Engagements.Engagement> permitted;
+    IReadOnlyList<EngagementProgressView> views;
+    int total;
+    await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
     {
-      if (!await db.PracticeClients.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.Id == client, ct) ||
-          (!scope.FirmWide && !scope.Clients.Contains(client) &&
-            !await visible.AnyAsync(x => x.PracticeClientId == client, ct)))
-        return CommandResult<EngagementProgressList>.Fail(ErrorCodes.ScopeDenied, "Client progress unavailable.");
-      visible = visible.Where(x => x.PracticeClientId == client);
+      var snapshotScope = await ScopeAsync(db, actor, ct, EngagementProgressQuery.ReadRoles);
+      if (snapshotScope is null) return CommandResult<EngagementProgressList>.Fail(ErrorCodes.ScopeDenied, "Progress unavailable.");
+      scope = snapshotScope;
+      var visible = VisibleEngagements(db, actor, scope);
+      if (clientId is { } client)
+      {
+        if (!await db.PracticeClients.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.Id == client, ct) ||
+            (!scope.FirmWide && !scope.Clients.Contains(client) &&
+              !await visible.AnyAsync(x => x.PracticeClientId == client, ct)))
+          return CommandResult<EngagementProgressList>.Fail(ErrorCodes.ScopeDenied, "Client progress unavailable.");
+        visible = visible.Where(x => x.PracticeClientId == client);
+      }
+      total = await visible.CountAsync(ct);
+      var candidates = await visible.OrderByDescending(x => x.PeriodEnd).ThenBy(x => x.Id)
+        .Skip(page * pageSize).Take(pageSize).ToListAsync(ct);
+      permitted = await EngagementProgressQuery.PermittedAsync(db, actor, candidates, ct);
+      views = await EngagementProgressQuery.BuildAsync(db, actor, permitted, includeSteps: false, ct);
+      await snapshot.CommitAsync(ct);
     }
-    var total = await visible.CountAsync(ct);
-    var candidates = await visible.OrderByDescending(x => x.PeriodEnd).ThenBy(x => x.Id)
-      .Skip(page * pageSize).Take(pageSize).ToListAsync(ct);
-    var permitted = await EngagementProgressQuery.PermittedAsync(db, actor, candidates, ct);
-    var views = await EngagementProgressQuery.BuildAsync(db, actor, permitted, includeSteps: false, ct);
     if ((await EngagementProgressQuery.PermittedAsync(db, actor, permitted, ct)).Count != permitted.Count ||
         !await CurrentAsync(db, actor, scope, ct))
       return CommandResult<EngagementProgressList>.Fail(ErrorCodes.ScopeDenied, "Progress unavailable.");

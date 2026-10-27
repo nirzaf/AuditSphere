@@ -9,6 +9,7 @@ using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace AuditSphereOps.Application.Practice;
 
@@ -42,13 +43,20 @@ public static class EngagementProgressQuery
   public static async Task<CommandResult<EngagementProgressView>> GetAsync(IAuditSphereDbContext db, ActorContext actor,
     Guid engagementId, CancellationToken ct = default)
   {
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<EngagementProgressView>.Fail(ErrorCodes.GateBlocked, "Progress requires an independent read snapshot.");
     var request = new AuthorizationRequest(actor.FirmId, EngagementId: engagementId, RequiredRoles: ReadRoles, InternalOnly: true);
+    IReadOnlyList<EngagementProgressView> views;
+    await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
+    {
+      var snapshotAuth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+      if (!snapshotAuth.Succeeded) return CommandResult<EngagementProgressView>.Fail(snapshotAuth.ErrorCode!, "Engagement progress unavailable.");
+      var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
+      if (engagement is null) return CommandResult<EngagementProgressView>.Fail(ErrorCodes.ScopeDenied, "Engagement progress unavailable.");
+      views = await BuildAsync(db, actor, [engagement], includeSteps: true, ct);
+      await snapshot.CommitAsync(ct);
+    }
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
-    if (!auth.Succeeded) return CommandResult<EngagementProgressView>.Fail(auth.ErrorCode!, "Engagement progress unavailable.");
-    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
-    if (engagement is null) return CommandResult<EngagementProgressView>.Fail(ErrorCodes.ScopeDenied, "Engagement progress unavailable.");
-    var views = await BuildAsync(db, actor, [engagement], includeSteps: true, ct);
-    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
     return auth.Succeeded ? CommandResult<EngagementProgressView>.Ok(views[0])
       : CommandResult<EngagementProgressView>.Fail(auth.ErrorCode!, "Engagement progress unavailable.");
   }

@@ -26926,6 +26926,13 @@
       "verification": "Actual old-bundle layout RED1; new selected E2E3PASS including390px fit, setup unknown-outcome recovery and finance-role denial. PinnedNode26.8.1 production build/scoped ledger ESLint/diffPASS. Actual builtin ledger form/fieldset both883.125px, row82px, draft2-to3-to2; report link to Firm books and readable expense fields; console[]. All observations before fixture expiry; owned tab9 closed/released; no financial writes.",
       "boundary": "Source survey also covered native journals/opening/consolidation/custom grids; only Ledger/Books were interactively inspected. Existing settings/app style-budget warnings remain. No human AT/nativezoom/full-suite/live-release claim.",
       "evidence": ".local/autonomous/evidence/ledger-ui-20261026/review.json"
+    },
+    "consolidationFormButtonsBeforeProgressSnapshot20261027": {
+      "status": "FOCUSED_AND_BUILTIN_VERIFIED_CI_PENDING",
+      "behavior": "Group and scope submit actions use Material styling and a 44px minimum target; existing validation and command boundaries are unchanged.",
+      "verification": "Pinned Node build, scoped lint, overview spec 9 PASS; synthetic built-in group form desktop/390px, blank validation and keyboard focus verified; fixture stopped. Scope action not interactively exercised.",
+      "boundary": "No full local suite, live write, professional approval or current-source CI claim.",
+      "evidence": ".local/autonomous/evidence/ledger-ui-20261026/consolidation-button-review.json"
     }
   },
   "lastUpdatedOn": "2026-10-27"

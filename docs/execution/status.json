@@ -1055,11 +1055,8 @@
       "evidence": ".local/autonomous/evidence/ledger-ui-20261026/review.json"
     },
     "consolidationFormButtons20261026": {
-      "status": "FOCUSED_AND_BUILTIN_VERIFIED_CI_PENDING",
-      "behavior": "Group and scope submit actions use Material styling and a 44px minimum target; existing validation and command boundaries are unchanged.",
-      "verification": "Pinned Node build, scoped lint, overview spec 9 PASS; synthetic built-in group form desktop/390px, blank validation and keyboard focus verified; fixture stopped. Scope action not interactively exercised.",
-      "boundary": "No full local suite, live write, professional approval or current-source CI claim.",
-      "evidence": ".local/autonomous/evidence/ledger-ui-20261026/consolidation-button-review.json"
+      "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.consolidationFormButtonsBeforeProgressSnapshot20261027"
     },
     "progressContractTrace20261026": {
       "status": "FOCUSED_BUILTIN_PASS_CI_PENDING",
@@ -1098,6 +1095,12 @@
       "verification": "101-step reviewed published template refusal RED1/GREEN1 with no tasks/bindings; Angular 2 specs 10 PASS and pinned Node build PASS. Owned built-in browser observed both 100-step plan and 500-step template guidance; no oversized browser preview.",
       "boundary": "No approved applicability policy, professional decision, full CI or live release claimed.",
       "evidence": ".local/autonomous/evidence/atomic-completion-20261027/plan-bound-review.json"
+    },
+    "progressSnapshot20261027": {
+      "status": "FOCUSED_API_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
+      "verification": "PostgreSQL atomic task-reopen/hold interleaving reproduced mixed progress; repeatable-read detail/client/portfolio checks PASS, caller transaction refusal and fresh revocation checks PASS, audit route and existing scoped API test PASS. Built-in isolated detail/client/portfolio reads PASS; console warnings/errors empty.",
+      "boundary": "Caller-owned transactions are refused, not nested; no schema or provider changes, full CI or live release claim.",
+      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/progress-snapshot-review.json"
     }
   },
   "externalGates": [

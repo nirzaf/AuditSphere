@@ -4,6 +4,8 @@
 
 **Purpose:** How AuditSphere measures and shows engagement progress at the top of the Engagement and Client workspaces and in the portfolio summary. Progress is a read-only projection of persisted records. It never changes task, lifecycle, review or release state, and it is not a second workflow state machine.
 
+Progress detail and paged summaries read their task, evidence, hold, release and scope data within a repeatable-read snapshot. Authorization is checked again after the snapshot closes; a pre-existing caller transaction is refused rather than nested. This is a coherent read point, not a claim that source records cannot change immediately afterward.
+
 ## What is tracked
 
 Progress is calculated per engagement. An engagement is one client, service route and reporting period, so the same client's annual audit, quarterly review or bookkeeping service each have their own figure. Nothing is averaged across engagements; the client and portfolio views list each engagement's own figure.
