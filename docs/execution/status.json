@@ -808,15 +808,8 @@
       "remaining": "Exact live provisioning/membership/denial acceptance remains open; offline proof is preserved in history."
     },
     "ascpSpecDiscovery20261024": {
-      "status": "PARTIAL; bounded engineering deltas and source traces recorded. Whole specification functionality, current full CI and professional/live acceptance remain open.",
-      "source": "f7e7308d6f2949ea95f0be7bf0171bb9d2172fb6",
-      "history": "status-archive-2026-10.json#keys.targetedVerification.ascpSpecDiscoveryFullSnapshot20261025",
-      "confirmationDirectAuthority": {
-        "status": "PASS_FOCUSED13; CURRENT_CI_REQUIRED",
-        "history": "status-archive-2026-10.json#keys.confirmationReviewPreservation20261024",
-        "scope": "Current authority, post-close and original-review guards; broader concurrency/source lineage remain open."
-      },
-      "note": "Full 2026-10-24 discovery snapshot is preserved in the archive; latest workstream states remain in their dedicated targetedVerification records."
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.ascpSpecDiscovery20261024"
     },
     "archivedOn20261024": {
       "entries": [
@@ -843,30 +836,12 @@
       "sourceCommit": "1c89bdc9abd866e93caaec94e523cac959afcb3b"
     },
     "t058CutoffProcedureLineage20261024": {
-      "status": "FOCUSED_PASS; T058 remains PARTIAL; exact-source full CI pending",
-      "issue": "Cut-off evidence previously persisted Guid.Empty; subsequent-match evidence also lacked the selected procedure link. Both now retain the exact selected procedure.",
-      "implementation": "Cut-off and subsequent-match corrections append ExpectedRevision-guarded revisions under the existing firm/client/engagement/item lock order. Current projections use the latest revision; unreviewed, stale-generation, superseded-source and frozen-file writes refuse.",
-      "verification": "Procedure-lineage regression RED 1/1 then GREEN 1/1. AuditSamplingServiceTests focused regression for immutable revisions, stale revisions and current-only summary projection passed 1/1 on the implementation commit.",
-      "sourceCommit": "62463e0b2a4afb6b3783958811fac0ea32880c1e",
-      "limits": "T058 remains partial: approved cut-off-window policy, matching/finding API and Angular workflows, MUS methodology decision, broader rendered workflow and qualified methodology acceptance remain open."
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.t058CutoffProcedureLineage20261024"
     },
     "t058MigrationProbeOrdering20261024": {
-      "status": "FOCUSED_PASS; exact-source full CI running",
-      "priorFailure": {
-        "runId": 40128614450,
-        "sourceCommit": "8feed9c00058e2b8803fed619c715cbcbc4cfdf7",
-        "failure": "AuditFieldworkWorkflowTests.FieldworkEvidence_IsScopedAndReviewable failed with PostgreSQL 42P01 because the test migrated its isolated schema backward before later assertions queried a table from the newer schema."
-      },
-      "repair": "Moved the unchanged protected down-migration refusal assertion to the end of the workflow test; no expected result or protection was weakened.",
-      "verification": "Focused existing Domain test Passed 1, Failed 0, Skipped 0; Release build completed as part of dotnet test.",
-      "sourceCommit": "6ebc066260798fa406e3c70a8a15f1c019a79cbb",
-      "fullCi": {
-        "runId": 40131071167,
-        "candidate": "6ebc066260798fa406e3c70a8a15f1c019a79cbb",
-        "status": "RUNNING",
-        "sourceMatch": "MATCH",
-        "observedAtUtc": "2026-10-24T20:48:01Z"
-      }
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.t058MigrationProbeOrdering20261024"
     },
     "scheduleSourceIndependentReview20261024": {
       "status": "FOCUSED_PASS_API_ANGULAR_CI_PENDING",
@@ -1097,6 +1072,13 @@
       "verification": "Both preceding E2E assertions reproduced on ba161 and passed after correction. Firm admin endpoints still return 403; account control shows the signed-in identity and the seeded staff identity remains hidden. Exact retry identity and lifecycle assertions remain; checklist is scoped and PostgreSQL confirms one task for the firm and engagement.",
       "boundary": "No runtime permission or task behavior changed; no full local suite or new release claim. Finding receipt timeout recurred separately; cause remains unproven.",
       "evidence": ".local/autonomous/evidence/ledger-ui-20261026/account-task-journey-correction-review.json"
+    },
+    "workflowCompletedWorkCorrection20261027": {
+      "sourceCommit": "c7881511484d02f1188c6167d9e7636beeaeaf4f",
+      "status": "FOCUSED_PASS_FULL_CI_PENDING",
+      "local": "EngagementWorkflowTaskTests reopening+cancellation 2/2 PASS (PostgreSQL 5433); work-queue.spec.ts PASS; OpenAPI drift PASS",
+      "browser": "Owned harness: Completed view showed Reopen task; review panel completed-work text; POST reopen 200; activity kept TASK_COMPLETED rev2 and added TASK_REOPENED rev3 with reason; task OPEN, canComplete",
+      "remaining": "Suspension, missed-period recovery and broader stale-predecessor reconciliation open; current-SHA full CI not run"
     }
   },
   "externalGates": [
