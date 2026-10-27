@@ -11,6 +11,53 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class PortfolioWorkspaceTests
 {
   [Theory]
+  [InlineData("AccountingOnly")]
+  [InlineData("InternalAudit")]
+  public async Task NonAuditProgressRemainsOpenWhenNoCompletionProfileIsApproved(string serviceRoute)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var actor = PbcSeed.Actor(f.Admin, "Administrator");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var engagement = await db.Engagements.SingleAsync(x => x.Id == f.EngagementId);
+    engagement.ServiceRoute = serviceRoute;
+    await db.SaveChangesAsync();
+
+    var empty = (await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId)).Value!;
+    Assert.Null(empty.PercentComplete);
+    Assert.Contains("No issued release exists for this engagement yet.", empty.Gates);
+
+    // Synthetic release evidence tests the read projection; it does not approve this service's completion policy.
+    await PortfolioWorkspaceSeed.PopulateAsync(db, f);
+    var hold = await db.EngagementHolds.SingleAsync(x => x.EngagementId == f.EngagementId);
+    hold.Released = true;
+    hold.ReleasedAt = DateTimeOffset.UtcNow;
+    db.WorkTasks.Add(new WorkTask
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+      Title = "Completed synthetic commitment", Status = PracticeTimeStates.TaskCompleted, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
+    var detail = (await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId)).Value!;
+    Assert.False(detail.LifecycleRoute);
+    Assert.Equal((1, 1, 0, 99, true), (detail.ApplicableRequired, detail.CompletedRequired,
+      detail.PendingRequired, detail.PercentComplete, detail.GateOpen));
+    Assert.Contains("Completion profile is not approved for this service (D03).", detail.Gates);
+    Assert.DoesNotContain("No issued release exists for this engagement yet.", detail.Gates);
+    var client = (await EngagementProgressQuery.ForClientAsync(db, actor, f.ClientId)).Value!;
+    var portfolio = (await PortfolioQuery.ProgressAsync(db, actor)).Value!;
+    Assert.All(new[] { Assert.Single(client.Items), Assert.Single(portfolio.Items) }, item =>
+    {
+      Assert.Equal((99, true), (item.PercentComplete, item.GateOpen));
+      Assert.Contains("Completion profile is not approved for this service (D03).", item.Gates);
+    });
+    var denied = await EngagementProgressQuery.GetAsync(db, PbcSeed.Actor(f.Client, "ClientUser"), f.EngagementId);
+    Assert.False(denied.Succeeded);
+    Assert.Null(denied.Value);
+  }
+
+  [Theory]
   [InlineData(false)]
   [InlineData(true)]
   public async Task RevocationDuringProjectionRefusesMixedScopesEvenWhenAnotherGrantRemains(bool export)

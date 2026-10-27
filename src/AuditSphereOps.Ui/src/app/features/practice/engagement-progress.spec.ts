@@ -69,6 +69,20 @@ describe('engagement progress tracker', () => {
     return { http: TestBed.inject(HttpTestingController), fixture: TestBed.createComponent(component) };
   }
 
+  it('explains that a completed task plan remains gated when its service profile is unapproved', () => {
+    const { http, fixture } = setup(EngagementProgressTracker);
+    fixture.componentRef.setInput('engagementId', id);
+    fixture.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id}/progress`).flush(progress({ serviceRoute: 'AccountingOnly',
+      lifecycleRoute: false, stageLabel: null, stageIndex: null, percentComplete: 99, completedRequired: 2,
+      pendingRequired: 0, gates: ['Completion profile is not approved for this service (D03).'] }));
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('.tracker-figure')?.textContent).toContain('99%');
+    expect(element.querySelector('.tracker-figure')?.textContent).toContain('All required steps are complete; open gates prevent completion.');
+    expect(element.querySelector('.tracker-gates')?.textContent).toContain('Completion profile is not approved for this service (D03).');
+  });
+
   it('refreshes changed evidence in the mounted tracker without collapsing steps or losing focus', () => {
     const { http, fixture } = setup(EngagementProgressTracker);
     fixture.componentRef.setInput('engagementId', id);

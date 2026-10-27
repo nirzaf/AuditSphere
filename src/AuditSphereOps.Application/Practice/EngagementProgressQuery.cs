@@ -18,8 +18,8 @@ public sealed record EngagementProgressStepView(Guid TaskId, string Title, strin
 /// <summary>
 /// Engagement progress for the client progress tracker. Percentages count applicable mandatory and conditional template
 /// steps (and non-template engagement tasks) completed through the server's dependency and evidence gates; optional steps
-/// are reported separately. Gates come from the existing derived lifecycle for the audit route and from holds and an
-/// issued release otherwise, so a complete task plan never reads as 100% while a gate is open.
+/// are reported separately. Gates come from the existing derived lifecycle for the audit route; other routes remain
+/// open until their service-specific completion profile is approved, independently of holds and release records.
 /// </summary>
 public sealed record EngagementProgressView(
   Guid EngagementId, Guid ClientId, string ClientName, string ServiceRoute, string PeriodStart, string PeriodEnd,
@@ -35,7 +35,7 @@ public sealed record EngagementProgressList(IReadOnlyList<EngagementProgressView
 public static class EngagementProgressQuery
 {
   internal static readonly string[] ReadRoles = WorkflowTaskEvidenceQuery.ReadRoles;
-  /// <summary>Routes governed by the eleven-state derived audit lifecycle; other routes use task-plan and release gates.</summary>
+  /// <summary>Routes governed by the eleven-state derived audit lifecycle; other routes await approved completion profiles.</summary>
   internal static readonly string[] LifecycleRoutes = ["FinancialStatementAudit"];
   private const int StepLimit = 500;
 
@@ -221,7 +221,8 @@ public static class EngagementProgressQuery
       else
       {
         if (!released.Contains(engagement.Id)) gates.Add("No issued release exists for this engagement yet.");
-        disclosure = "Route-specific release gates for this service are not yet specified (D03); progress reflects the task plan, holds and release only.";
+        gates.Add("Completion profile is not approved for this service (D03).");
+        disclosure = "Progress reflects the task plan, holds and release; service-specific completion requirements await approval (D03).";
       }
 
       // Some derived lifecycle stages omit holds. Keep the gate without disclosing its restricted reason.

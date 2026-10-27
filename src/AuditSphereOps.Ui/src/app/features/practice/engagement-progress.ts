@@ -174,7 +174,8 @@ export class ProgressSummary {
         <div class="tracker-figure">
           <strong>{{ p.percentComplete === null ? '—' : p.percentComplete + '%' }}</strong>
           <span>{{ p.percentComplete === null ? 'No task plan adopted yet; adopt a template to track progress.'
-            : 'of applicable required steps complete' }}</span>
+            : p.gateOpen && p.completedRequired === p.applicableRequired
+              ? 'All required steps are complete; open gates prevent completion.' : 'of applicable required steps complete' }}</span>
         </div>
         @if (p.percentComplete !== null) {
           <mat-progress-bar mode="determinate" [value]="p.percentComplete" aria-label="Engagement progress" />

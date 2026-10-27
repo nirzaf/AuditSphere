@@ -1079,6 +1079,13 @@
       "local": "EngagementWorkflowTaskTests reopening+cancellation 2/2 PASS (PostgreSQL 5433); work-queue.spec.ts PASS; OpenAPI drift PASS",
       "browser": "Owned harness: Completed view showed Reopen task; review panel completed-work text; POST reopen 200; activity kept TASK_COMPLETED rev2 and added TASK_REOPENED rev3 with reason; task OPEN, canComplete",
       "remaining": "Suspension, missed-period recovery and broader stale-predecessor reconciliation open; current-SHA full CI not run"
+    },
+    "nonAuditProgressProfile20261027": {
+      "status": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
+      "behavior": "Non-audit routes retain an explicit D03 gate even with all tasks completed and an issued release; accounting and internal-audit progress is capped at 99 until the completion profile is approved.",
+      "verification": "Focused Domain RED2/GREEN2 including detail, client, portfolio and client-user denial; Angular progress spec 11 PASS and pinned Node build PASS; synthetic built-in accounting engagement showed 99%, D03 gate and completed step, console warnings/errors empty.",
+      "boundary": "No D03 policy decision, live release or current-source full CI claimed.",
+      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/non-audit-progress-review.json"
     }
   },
   "externalGates": [
