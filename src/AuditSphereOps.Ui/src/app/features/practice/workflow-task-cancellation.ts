@@ -80,12 +80,12 @@ type FocusOrigin = { element: Element; interaction: number };
 
       @if (state() === 'editing') {
         @if (canMarkNotApplicable()) {
-          <p>Applies when: {{ task().applicabilityCondition }}. A generic cancellation leaves this required step blocked.</p>
+          <p>Applies when: {{ task().applicabilityCondition }}. Cancelling this conditional step leaves it blocked in progress until its applicability has been independently reviewed.</p>
           <label class="assent"><input type="checkbox" id="task-not-applicable" [checked]="notApplicable()"
             [disabled]="busy()" (change)="notApplicable.set($any($event.target).checked)" />
-            Record this conditional step as Not Applicable for this engagement and reporting period.
+            Record why this conditional step may not apply to this engagement and reporting period.
           </label>
-          <small>An authorized cancellation reason is required. This does not approve underlying professional work.</small>
+          <small>The reason is saved in task activity. It is not an approved applicability decision and does not approve underlying professional work.</small>
         }
         <label for="task-cancellation-reason">Reason for {{ copy().noun }}</label>
         <textarea #reasonEditor id="task-cancellation-reason" rows="4" maxlength="2000" [value]="reason"

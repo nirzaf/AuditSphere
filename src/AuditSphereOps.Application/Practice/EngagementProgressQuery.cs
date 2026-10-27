@@ -126,17 +126,8 @@ public static class EngagementProgressQuery
       group.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Take(StepLimit - boundCounts.GetValueOrDefault(group.Key))).ToList();
     var unboundTaskIds = unboundTasks.Select(x => x.Id).ToHashSet();
     var bindingIds = rows.Select(x => x.Binding.Id).ToArray();
-    // Only a current-revision, explicitly reasoned cancellation can waive a conditional required step.
-    var currentCancellations = await (from activity in db.WorkflowTaskActivities.AsNoTracking()
-      join binding in db.WorkflowTaskBindings.AsNoTracking()
-        on new { activity.FirmId, Id = activity.WorkflowTaskBindingId } equals new { binding.FirmId, binding.Id }
-      where activity.FirmId == f && bindingIds.Contains(binding.Id) &&
-        activity.Kind == WorkflowTaskActivityKinds.Cancelled &&
-        activity.WorkTaskId == binding.WorkTaskId && activity.TaskRevision == binding.Revision
-      select new { BindingId = binding.Id, activity.Reason }).ToListAsync(ct);
-    var notApplicableBindings = currentCancellations
-      .Where(x => WorkflowStepApplicability.IsExplicitNotApplicableReason(x.Reason))
-      .Select(x => x.BindingId).ToHashSet();
+    // Operational activity is not an independently reviewed applicability decision.
+    // Until a current scoped decision is available, conditional cancellations stay required.
     var dependencies = await (from dependency in WorkflowTaskDependencyQuery.Effective(db, f)
       join predecessor in db.WorkflowTaskBindings.AsNoTracking()
         on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.PredecessorBindingId }
@@ -194,7 +185,7 @@ public static class EngagementProgressQuery
         // Rework and other non-template engagement tasks are commitments the engagement must still discharge,
         // unless a manual task was created as optional.
         x.RequiredTask is { } required ? WorkflowStepRequirements.Classify(required, x.Condition) : WorkflowStepRequirements.Mandatory,
-        x.Status, notApplicableBindings.Contains(x.Binding.Id), unmetByBinding.GetValueOrDefault(x.Binding.Id),
+        x.Status, false, unmetByBinding.GetValueOrDefault(x.Binding.Id),
         (evidence.GetValueOrDefault(x.Binding.Id)?.Count(r => r.State == WorkflowEvidenceRuleStates.Required && !r.Satisfied) ?? 0) +
           (x.Binding.PbcRequestId.HasValue && x.PbcState is not (PbcStates.Accepted or PbcStates.Closed) ? 1 : 0),
         x.Binding.PbcRequestId.HasValue && x.PbcState is not (PbcStates.Accepted or PbcStates.Closed),

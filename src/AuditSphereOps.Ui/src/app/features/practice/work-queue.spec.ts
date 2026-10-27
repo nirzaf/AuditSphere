@@ -783,13 +783,15 @@ describe('workflow queue assignment filters', () => {
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 
-  it('records non-applicability only after an explicit conditional-step choice in the reviewed intent', () => {
+  it('records the conditional reason without presenting cancellation as an applicability approval', () => {
     const test = start();
     const { fixture, http, host } = test;
     try {
       const panel = openCancellation(test, { requiredTask: true, templateStepId: task.taskId,
         applicabilityCondition: 'Only where the entity holds inventory' });
       expect(host.textContent).toContain('Applies when: Only where the entity holds inventory');
+      expect(host.textContent).toContain('Cancelling this conditional step leaves it blocked in progress');
+      expect(host.textContent).toContain('It is not an approved applicability decision');
       panel.updateReason('No inventory at the reporting date.');
       panel.prepareReview();
       expect(panel.intent()?.reason).toBe('No inventory at the reporting date.');

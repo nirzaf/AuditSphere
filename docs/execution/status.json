@@ -1081,10 +1081,8 @@
       "evidence": ".local/autonomous/evidence/atomic-completion-20261027/non-audit-progress-review.json"
     },
     "roundedProgressHeading20261027": {
-      "status": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
-      "verification": "Angular RED1/GREEN12; pinned Node build PASS. Owned synthetic browser showed 199 completed, one pending, 99 percent and Open gates; next action selected the exact pending task in Time; console warnings/errors empty.",
-      "boundary": "No live write, full CI or professional policy approval.",
-      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/rounded-progress-review.json"
+      "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.roundedProgressHeadingBeforeTask03Safety20261027"
     },
     "workflowPlanBounds20261027": {
       "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
@@ -1097,16 +1095,20 @@
       "evidence": ".local/autonomous/evidence/atomic-completion-20261027/progress-snapshot-review.json"
     },
     "agreementAmbiguity20261027": {
-      "status": "FOCUSED_API_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
-      "verification": "Multiple linked agreements caused activation exception and second link was accepted: RED2. GREEN5 retained paid/unpaid, exact allocation and replay; concurrent link left one link; scoped API authorization/revocation PASS. Owned synthetic Partner browser showed Draft and multiple-agreement blocker; refresh preserved it and console warnings/errors empty.",
-      "boundary": "No real financial mutation, professional approval, full CI or deployment claim.",
-      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/multi-agreement-review.json"
+      "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.agreementAmbiguityBeforeTask03Safety20261027"
     },
     "ambiguousProposalResolution20261027": {
       "status": "FOCUSED_API_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
       "verification": "Ambiguous linked proposals returned one arbitrarily: RED1. GREEN4 plus existing scoped authorization API PASS. Owned synthetic browser showed Draft and explicit activation blocker, with blocked onboarding and no console warnings/errors.",
       "boundary": "No live write, full CI or professional approval.",
       "evidence": ".local/autonomous/evidence/atomic-completion-20261027/ambiguous-resolver-review.json"
+    },
+    "conditionalCancellationSafety20261027": {
+      "status": "FOCUSED_DOMAIN_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
+      "verification": "Prefix-only cancellation RED1 then focused Domain GREEN15; Angular work queue GREEN36 and production build PASS. Owned built-in browser verified blocked required step, zero N/A, conditional reason review and disabled confirmation without assent.",
+      "boundary": "Task applicability maker/checker receipt and qualified professional policy remain open; no live write or release claim.",
+      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/task03-prefix-safety-review.json"
     }
   },
   "externalGates": [

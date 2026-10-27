@@ -19,13 +19,13 @@ Ordinary Time tasks with the exact firm, client and engagement are included even
 | Template step | Classification | Counts toward percentage |
 | --- | --- | --- |
 | Required, no applicability condition | Mandatory | Always |
-| Required, with an "Applies when" condition (at most 500 characters) | Conditional | Unless recorded as not applicable |
+| Required, with an "Applies when" condition (at most 500 characters) | Conditional | Always, until an independently reviewed task decision is implemented |
 | Not required | Optional | Never; shown separately as "x of y" |
 | Manual task with no template step | Mandatory | Always |
 
-A conditional step is recorded as not applicable only through an authorized cancellation with an explicit `Not applicable: <reason>` decision in the current binding revision's immutable `TASK_CANCELLED` activity. A generic cancellation, blank decision or historical cancellation does not waive a required step. A cancelled mandatory step is never waived; it stays blocked until reopened and completed. Conditions are only allowed on required steps. Non-applicability does not itself approve professional work or satisfy dependent task prerequisites.
+An operational cancellation, including a reason beginning `Not applicable:`, remains in immutable task activity but is not an independently reviewed applicability decision. A cancelled conditional step therefore remains blocked and in the required denominator. The scoped maker/checker task-decision workflow is not yet implemented; no historical cancellation is migrated into an approval. A cancelled mandatory step also stays blocked. Conditions are only allowed on required steps.
 
-When a cancelled conditional task has required `ReviewedProcedure` evidence rules, every exact linked procedure must also have a current independent `NotApplicableApproved` decision from the existing audit applicability workflow. A decision on another procedure, a pending or returned decision, or approval made stale by changed inputs leaves the task blocked and in the denominator. An operational cancellation cannot supply those professional decisions. Unlinked operational conditional steps still use the explicit current cancellation decision.
+For a conditional task with required `ReviewedProcedure` evidence, each exact linked procedure also needs a current independent `NotApplicableApproved` decision. Pending, returned, unrelated or stale procedure decisions remain distinct blockers and cannot substitute for the missing task decision. Neither task cancellation nor progress makes a professional decision or satisfies dependent prerequisites.
 
 ## Calculation
 

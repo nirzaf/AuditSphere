@@ -659,12 +659,15 @@ public sealed class EngagementWorkflowPlanTests
     Assert.True((await EngagementWorkflowTaskService.CancelAsync(db, adminActor, inventory.Id,
       noInventoryReason, inventory.Revision)).Succeeded);
     var half = (await EngagementProgressQuery.GetAsync(db, adminActor, engagementId)).Value!;
-    Assert.Equal((2, 1, 1, 0, 1), (half.ApplicableRequired, half.CompletedRequired, half.PendingRequired,
+    // A reasoned operational cancellation is not an independently reviewed applicability decision.
+    Assert.Equal(EngagementProgressStepStates.Blocked,
+      half.Steps.Single(x => x.TaskId == inventory.Id).State);
+    Assert.Equal((3, 1, 1, 1, 0), (half.ApplicableRequired, half.CompletedRequired, half.PendingRequired,
       half.BlockedRequired, half.NotApplicable));
-    Assert.Equal(50, half.PercentComplete);
+    Assert.Equal(33, half.PercentComplete);
     Assert.Equal("Prepare close work", half.NextAction);
 
-    // Reopening invalidates the prior waiver; a later generic cancellation cannot inherit it.
+    // Reopening and generic cancellation preserve operational history but cannot create an applicability decision.
     Assert.True((await EngagementWorkflowTaskService.ReopenAsync(db, adminActor, inventory.Id,
       "Reassess applicability.", (await TaskAsync("Prepare inventory work")).Revision)).Succeeded);
     Assert.True((await EngagementWorkflowTaskService.CancelAsync(db, adminActor, inventory.Id,
@@ -678,15 +681,15 @@ public sealed class EngagementWorkflowPlanTests
       "Reconsider applicability.", (await TaskAsync("Prepare inventory work")).Revision)).Succeeded);
     Assert.True((await EngagementWorkflowTaskService.CancelAsync(db, adminActor, inventory.Id,
       noInventoryReason, (await TaskAsync("Prepare inventory work")).Revision)).Succeeded);
-    var restoredWaiver = (await EngagementProgressQuery.GetAsync(db, adminActor, engagementId)).Value!;
-    Assert.Equal((2, 1, 1, 0, 1), (restoredWaiver.ApplicableRequired, restoredWaiver.CompletedRequired,
-      restoredWaiver.PendingRequired, restoredWaiver.BlockedRequired, restoredWaiver.NotApplicable));
+    var repeatedCancellation = (await EngagementProgressQuery.GetAsync(db, adminActor, engagementId)).Value!;
+    Assert.Equal((3, 1, 1, 1, 0), (repeatedCancellation.ApplicableRequired, repeatedCancellation.CompletedRequired,
+      repeatedCancellation.PendingRequired, repeatedCancellation.BlockedRequired, repeatedCancellation.NotApplicable));
 
     var close = await TaskAsync("Prepare close work");
     Assert.True((await EngagementWorkflowTaskService.CompleteAsync(db, adminActor, close.Id, close.Revision)).Succeeded);
     var planDone = (await EngagementProgressQuery.GetAsync(db, adminActor, engagementId)).Value!;
-    // Every applicable step is complete, but the derived audit lifecycle has not reached release.
-    Assert.Equal((99, true), (planDone.PercentComplete, planDone.GateOpen));
+    // The cancelled conditional step remains blocked, independently of the release gate.
+    Assert.Equal((66, true), (planDone.PercentComplete, planDone.GateOpen));
     Assert.NotEmpty(planDone.Gates);
     Assert.Equal("Client onboarding", planDone.Phase);
     Assert.Equal((1, 0), (planDone.OptionalApplicable, planDone.OptionalCompleted));
@@ -702,7 +705,7 @@ public sealed class EngagementWorkflowPlanTests
     var largerPlan = await EngagementProgressQuery.GetAsync(db, adminActor, engagementId);
     Assert.True(largerPlan.Succeeded, largerPlan.Message);
     Assert.Equal(101, largerPlan.Value!.Steps.Count);
-    Assert.Equal((99, 2, 97, 0), (largerPlan.Value.ApplicableRequired, largerPlan.Value.CompletedRequired,
+    Assert.Equal((100, 2, 97, 1), (largerPlan.Value.ApplicableRequired, largerPlan.Value.CompletedRequired,
       largerPlan.Value.PendingRequired, largerPlan.Value.BlockedRequired));
     Assert.Equal(2, largerPlan.Value.PercentComplete);
 
@@ -847,36 +850,38 @@ public sealed class EngagementWorkflowPlanTests
         WorkflowStepApplicability.NotApplicableReasonPrefix +
         "Synthetic operational exclusion; this is not a professional applicability decision.", binding.Revision)).Succeeded);
 
-    async Task AssertProgressAsync(bool excluded)
+    async Task AssertProgressAsync(bool professionalApprovalCurrent)
     {
       var result = await EngagementProgressQuery.GetAsync(db, adminActor, engagementId);
       Assert.True(result.Succeeded, result.Message);
       var progress = result.Value!;
-      Assert.Equal(excluded ? EngagementProgressStepStates.NotApplicable : EngagementProgressStepStates.Blocked,
-        progress.Steps.Single(x => x.TaskId == bindings[1].WorkTaskId).State);
-      Assert.Equal(EngagementProgressStepStates.NotApplicable,
-        progress.Steps.Single(x => x.TaskId == bindings[2].WorkTaskId).State);
-      Assert.Equal(excluded ? (1, 1, 0, 2) : (2, 1, 1, 1),
+      var linked = progress.Steps.Single(x => x.TaskId == bindings[1].WorkTaskId);
+      var unlinked = progress.Steps.Single(x => x.TaskId == bindings[2].WorkTaskId);
+      Assert.Equal(EngagementProgressStepStates.Blocked, linked.State);
+      Assert.Equal(EngagementProgressStepStates.Blocked, unlinked.State);
+      Assert.Contains(professionalApprovalCurrent ? "independently reviewed applicability decision" : "required procedure N/A approval", linked.Condition);
+      Assert.Contains("independently reviewed applicability decision", unlinked.Condition);
+      Assert.Equal((3, 1, 2, 0),
         (progress.ApplicableRequired, progress.CompletedRequired, progress.BlockedRequired, progress.NotApplicable));
-      Assert.Equal(excluded ? 99 : 50, progress.PercentComplete);
+      Assert.Equal(33, progress.PercentComplete);
     }
 
-    await AssertProgressAsync(excluded: false); // The exact required procedure is still applicable.
+    await AssertProgressAsync(professionalApprovalCurrent: false); // The exact required procedure is still applicable.
     var proposal = await DecideAsync(procedure, adminActor, AuditApplicabilityActions.ProposeNotApplicable,
       "Synthetic fixture: propose the inventory exclusion for independent review.");
-    await AssertProgressAsync(excluded: false);
+    await AssertProgressAsync(professionalApprovalCurrent: false);
     await DecideAsync(procedure, partnerActor, AuditApplicabilityActions.ReturnNotApplicable,
       "Synthetic fixture: current inventory evidence is still required.", proposal.DecisionId);
-    await AssertProgressAsync(excluded: false);
+    await AssertProgressAsync(professionalApprovalCurrent: false);
     proposal = await DecideAsync(procedure, adminActor, AuditApplicabilityActions.ProposeNotApplicable,
       "Synthetic fixture: current evidence now supports the inventory exclusion.");
     await DecideAsync(procedure, partnerActor, AuditApplicabilityActions.ApproveNotApplicable, null, proposal.DecisionId);
-    await AssertProgressAsync(excluded: true);
+    await AssertProgressAsync(professionalApprovalCurrent: true);
 
-    // Changed inputs invalidate retained professional N/A decisions, but not an unlinked operational cancellation.
+    // Changed inputs invalidate retained professional N/A decisions; both task cancellations remain blocked.
     await db.ClientSafetyStates.Where(x => x.FirmId == firmId && x.Id == clientId)
       .ExecuteUpdateAsync(x => x.SetProperty(s => s.InputGeneration, s => s.InputGeneration + 1));
-    await AssertProgressAsync(excluded: false);
+    await AssertProgressAsync(professionalApprovalCurrent: false);
     Assert.Equal(2, await db.WorkTasks.AsNoTracking().CountAsync(x => x.EngagementId == engagementId &&
       x.Status == PracticeTimeStates.TaskCancelled));
     Assert.Equal(2, await db.WorkflowTaskActivities.CountAsync(x => x.EngagementId == engagementId &&

@@ -2,8 +2,8 @@ namespace AuditSphereOps.Domain.Practice;
 
 /// <summary>
 /// How a template step counts toward engagement progress. A required step with no stated applicability condition is
-/// mandatory; a required step with a condition is conditional (it applies unless an authorized user records it as not
-/// applicable, using the existing reasoned task cancellation and current N/A decisions for required professional sources);
+/// mandatory; a required step with a condition is conditional (it applies unless supported by a current independently
+/// reviewed applicability decision and any required professional-source decisions);
 /// a step that is not required is optional.
 /// </summary>
 public static class WorkflowStepRequirements
@@ -94,6 +94,8 @@ public static class EngagementProgressCalculator
       PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Conditional && fact.NotApplicableRecorded &&
         fact.UnmetNotApplicableApprovals == 0 =>
         (EngagementProgressStepStates.NotApplicable, "Recorded as not applicable"),
+      PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Conditional =>
+        (EngagementProgressStepStates.Blocked, "Cancelled; an independently reviewed applicability decision is required before this conditional step can be excluded"),
       // A mandatory step cannot be waived by cancelling it: it stays outstanding until it is reopened and completed.
       PracticeTimeStates.TaskCancelled => (EngagementProgressStepStates.Blocked, "Cancelled; a required step must be reopened"),
       PracticeTimeStates.TaskOpen or PracticeTimeStates.TaskInProgress when fact.UnmetDependencies > 0 =>

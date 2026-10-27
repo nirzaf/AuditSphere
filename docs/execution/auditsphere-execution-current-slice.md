@@ -20,6 +20,10 @@ The owner requested improvements to the ledger screenshot and similarly affected
 
 The next progress audit also reproduced omitted ordinary engagement tasks. Those records now contribute mandatory commitments without creating workflow bindings or double counting, share the existing projection cap and retain their exact time-task handoff. Focused PostgreSQL and canonical/previous-UI browser journeys passed. The test waits for the existing independent planning read before requesting navigation; its protection was not weakened. Results and the excluded environment/expiry attempts are recorded in `targetedVerification.manualTaskProgress20261026`. Current-source full CI, connected workflow, D03 and professional/live acceptance remain open; neither this UI slice nor a passing focused check completes the assignment.
 
+## Conditional-task cancellation safety (2026-10-27)
+
+A conditional task cancellation remains blocked and in the required denominator even when its retained reason begins `Not applicable:`. The cancellation panel describes that reason as operational history, not an approval. Independent current procedure decisions remain separately evaluated. The scoped maker/checker task applicability decision and its UI are still open; existing cancellation and reopening history is preserved. Focused and built-in browser evidence is recorded in [status.json](status.json).
+
 ## Progress scope, professional applicability and paging (2026-10-26)
 
 Client and portfolio progress now apply the exact progress-reading scope before totals and page bounds. The client tracker exposes continuation across permitted periods and keeps keyboard focus on its persistent heading while changing pages. A cancelled conditional task with required procedure evidence also needs current independent not-applicable approval for every exact source; pending, returned, unrelated or stale decisions leave the task blocked. Upstream explicit cancellation markers, open holds, PBC currentness and revocation fences remain intact.
@@ -355,6 +359,4 @@ The existing upload-recovery Playwright journey now drops the response after the
 
 ## WU-004 scoped foreign-key classifier
 
-The migrated-schema check recognizes a firm-scoped FK only when it preserves every child-to-parent column mapping and maps `firm_id` to `firm_id`. Budget approval and preparation receipts now use composite `(firm_id, budget_id)` and `(firm_id, engagement_id)` FKs. Four direct cross-firm probes were refused by the expected constraints after valid receipts and spare budgets were created through existing application workflows. The catalog scan now reports 50 remaining candidate links without fixture rows; those are still unprobed, and WU-004 remains partial alongside append-only and supported-upgrade-path coverage. The focused migrated-schema test passed and EF reports no model drift. Exact source/test digests and boundaries are in [status.json](status.json) and the ignored review evidence.
-
-The budget-receipt follow-up adds an EF migration for those four firm-scoped references. The focused test applies the migration from an empty isolated PostgreSQL schema, creates valid preparation/approval receipts through existing application workflows, then verifies each foreign-firm budget or engagement reference fails with SQLSTATE `23503` on the intended composite FK; each attempt is rolled back. The migration and snapshot have no pending model drift. This does not establish a supported in-place upgrade/downgrade or exercise the remaining links; WU-004 remains partial.
+The earlier scoped classifier evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#wu-004-scoped-foreign-key-classifier); WU-004 remains partial.
