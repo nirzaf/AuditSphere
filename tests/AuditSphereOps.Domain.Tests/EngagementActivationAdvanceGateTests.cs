@@ -21,6 +21,10 @@ public sealed class EngagementActivationAdvanceGateTests
       f.Staff.Id, FeeMilestoneStates.Paid);
     await db.SaveChangesAsync();
     var partner = PbcSeed.Actor(f.Staff, "Partner");
+    var current = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == f.EngagementId);
+    var resolved = await DualKeyEvidence.ResolveEngagementProposalAsync(db, f.FirmId, f.EngagementId,
+      f.ClientId, current.ServiceRoute, current.PeriodStart, current.PeriodEnd, default);
+    Assert.Null(resolved);
 
     var state = await EngagementActivationWorkspace.StateAsync(db, partner, f.EngagementId);
     Assert.True(state.Succeeded, state.Message);

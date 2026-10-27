@@ -33,9 +33,12 @@ internal static class DualKeyEvidence
     IAuditSphereDbContext db, Guid firmId, Guid engagementId, Guid clientId, string serviceRoute,
     string periodStart, string periodEnd, CancellationToken ct)
   {
-    var linked = await db.EngagementFeeAgreements.AsNoTracking()
+    var linkedAgreements = await db.EngagementFeeAgreements.AsNoTracking()
       .Where(x => x.FirmId == firmId && x.EngagementId == engagementId)
-      .Select(x => new { x.ProposalId, x.PracticeClientId }).FirstOrDefaultAsync(ct);
+      .Select(x => new { x.ProposalId, x.PracticeClientId }).Take(2).ToListAsync(ct);
+    // A historical ambiguous link must not pick an arbitrary commercial proposal.
+    if (linkedAgreements.Count > 1) return null;
+    var linked = linkedAgreements.SingleOrDefault();
     if (linked is not null)
     {
       if (linked.PracticeClientId != clientId) return null;

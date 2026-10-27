@@ -1101,6 +1101,12 @@
       "verification": "Multiple linked agreements caused activation exception and second link was accepted: RED2. GREEN5 retained paid/unpaid, exact allocation and replay; concurrent link left one link; scoped API authorization/revocation PASS. Owned synthetic Partner browser showed Draft and multiple-agreement blocker; refresh preserved it and console warnings/errors empty.",
       "boundary": "No real financial mutation, professional approval, full CI or deployment claim.",
       "evidence": ".local/autonomous/evidence/atomic-completion-20261027/multi-agreement-review.json"
+    },
+    "ambiguousProposalResolution20261027": {
+      "status": "FOCUSED_API_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
+      "verification": "Ambiguous linked proposals returned one arbitrarily: RED1. GREEN4 plus existing scoped authorization API PASS. Owned synthetic browser showed Draft and explicit activation blocker, with blocked onboarding and no console warnings/errors.",
+      "boundary": "No live write, full CI or professional approval.",
+      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/ambiguous-resolver-review.json"
     }
   },
   "externalGates": [
