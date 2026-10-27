@@ -318,3 +318,14 @@ The next progress audit also reproduced omitted ordinary engagement tasks. Those
 ## Period close readiness
 
 The readiness view now reports a missing or unapproved opening bridge before period close, matching the existing close command. Focused PostgreSQL and isolated built-in browser checks passed; current release verification remains pending. See [status.json](status.json).
+
+
+## Native successor opening continuity
+
+The existing opening owner retains the source-bound empty-subledger v1 path and adds v2 original-item carry for complete, unallocated original opening/sales/purchase invoice populations. Actual original IDs, reference/date semantics, posting artifacts, approved controls and source facts remain retained; no successor invoice is reposted. Later supported successor allocations consume those same originals without changing the immutable capture baseline. Historical partial allocations, unsupported credits, ambiguous effective cutoffs, individually nonzero P&L accounts and incompatible chart/currency remain refused. This is a bounded continuity extension, not a new closing policy or public period activation.
+
+Focused evidence covers original AR 125 less an actual receipt allocation 20 = 105, native AP 100 less an actual supplier credit allocation 40 = 60, returned-purchase resubmission preserving the original journal, and self-hashed amount/party/omission/version/control/receipt forgeries refused by actual database boundaries. The returned-purchase test exposed and corrected duplicate journal numbering. Nine Angular cases, lint/build and the existing browser journey's empty/nonempty variants pass; a nonempty repeat also passes. Original preview built-in inspection is retained; the final retained-source handoff expired before built-in capture, so it is not claimed. Empty rollback/forward restores the published v1 constraint; retained v2 blocks rollback with SQLSTATE 55000. That check passes after correcting its EF exception-wrapper assertion. EF model drift, canonical OpenAPI regeneration/drift and fresh emitter compilation pass; these checks establish the bounded slice, not full release acceptance.
+
+Exact published 1782 CI failed with API 414 pass / 2 fail and E2E 336 pass / 2 fail. The two static route/base-helper checks were corrected and passed locally, published as cd528c48; the revocation click/terminal-denial cohort and Operations CANCEL case pass locally with diagnostics, published as 95cff915. The prior Operations failure cause remains unproven and open for exact-source CI. No full local suite ran. Broader continuity, exact-source full CI, public ACTIVE activation, native zoom/human AT and qualified/live acceptance remain open. Prior empty-subledger details are preserved verbatim in the historical handoff; see `nativeSuccessorOpening` in [status.json](status.json).
+
+<!-- End of preserved native successor opening section. -->

@@ -12,6 +12,41 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class RoleAdministrationTests
 {
+  [Theory]
+  [InlineData("expired")]
+  [InlineData("disabled")]
+  [InlineData("client")]
+  [InlineData("scoped")]
+  public async Task LastAdministratorRevocation_RefusesIneffectiveReplacement(string condition)
+  {
+    await using var f = await TenantAdministrationFixture.CreateAsync();
+    await using var db = f.Db();
+    var grant = await db.RoleGrants.SingleAsync(x => x.UserId == f.SecondAdmin.Id);
+    var replacement = await db.Users.SingleAsync(x => x.Id == f.SecondAdmin.Id);
+    if (condition == "expired")
+    {
+      grant.RevokedAt = DateTimeOffset.UtcNow;
+      db.RoleGrants.Add(new RoleGrant { Id = Guid.CreateVersion7(), FirmId = f.FirmId,
+        UserId = replacement.Id, Role = "Administrator", GrantedByUserId = f.Admin.Id,
+        GrantedAt = DateTimeOffset.UtcNow.AddHours(-2), ExpiresAt = DateTimeOffset.UtcNow.AddHours(-1) });
+    }
+    if (condition == "disabled") replacement.Disabled = true;
+    if (condition == "client") replacement.UserKind = "Client";
+    if (condition == "scoped") grant.ClientId = f.ClientId;
+    await db.SaveChangesAsync();
+    var ownGrant = await db.RoleGrants.SingleAsync(x => x.UserId == f.Admin.Id);
+    var epoch = f.CurrentEpoch(f.Admin.Id);
+
+    var result = await RoleAdministrationService.RevokeRoleGrantAsync(db, f.AdminActor,
+      new(ownGrant.Id, replacement.Id, "Reviewed administrator rotation"));
+
+    Assert.Equal("roles.last-admin", result.ErrorCode);
+    db.ChangeTracker.Clear();
+    Assert.Null((await db.RoleGrants.SingleAsync(x => x.Id == ownGrant.Id)).RevokedAt);
+    Assert.Equal(epoch, f.CurrentEpoch(f.Admin.Id));
+    Assert.False(await db.RoleGrantChangeEvidences.AnyAsync(x => x.RoleGrantId == ownGrant.Id && x.Action == "REVOKED"));
+  }
+
   [Fact]
   public async Task RosterIdentityAndRoleGrant_AreExactScopedIdempotentAndRevokeSafely()
   {

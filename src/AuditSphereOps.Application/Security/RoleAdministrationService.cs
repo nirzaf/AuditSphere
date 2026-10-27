@@ -322,19 +322,16 @@ public static class RoleAdministrationService
     if (grant.RevokedAt is not null) return CommandResult.Ok();
     if (grant.Role.Equals("Administrator", StringComparison.OrdinalIgnoreCase) && grant.ClientId is null && grant.EngagementId is null)
     {
-      var remaining = await db.RoleGrants.AsNoTracking().CountAsync(x =>
-        x.FirmId == actor.FirmId && x.Role == "Administrator" && x.ClientId == null && x.EngagementId == null &&
-        x.RevokedAt == null && x.Id != grant.Id, ct);
-      if (remaining == 0)
-      {
-        var replacement = request.ReplacementAdministratorUserId.HasValue && await db.RoleGrants.AsNoTracking().AnyAsync(x =>
-          x.FirmId == actor.FirmId && x.UserId == request.ReplacementAdministratorUserId && x.Role == "Administrator" &&
-          x.ClientId == null && x.EngagementId == null && x.RevokedAt == null, ct);
-        if (!replacement) return CommandResult.Fail("roles.last-admin", "A verified replacement firm administrator is required before revocation.");
-      }
+      var replacements = EffectiveFirmAdministrators(db, actor.FirmId, DateTimeOffset.UtcNow)
+        .Where(x => x.Id != grant.Id);
+      if (!await replacements.AnyAsync(ct))
+        return CommandResult.Fail("roles.last-admin", "A verified replacement firm administrator is required before revocation.");
       if (grant.UserId == actor.UserId &&
           (!request.ReplacementAdministratorUserId.HasValue || request.ReplacementAdministratorUserId == actor.UserId))
         return CommandResult.Fail("roles.self-admin-change", "Another authorized administrator must perform this privileged self-change.");
+      if (request.ReplacementAdministratorUserId is { } replacementId &&
+          !await replacements.AnyAsync(x => x.UserId == replacementId, ct))
+        return CommandResult.Fail("roles.last-admin", "The named replacement must be an enabled Staff identity with current firm-wide Administrator access.");
     }
     var target = await db.Users.SingleAsync(x => x.Id == grant.UserId && x.FirmId == actor.FirmId, ct);
     grant.RevokedAt = DateTimeOffset.UtcNow;
@@ -354,6 +351,15 @@ public static class RoleAdministrationService
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
+
+  // Callers publishing a grant change hold the existing firm row lock. Expiry is evaluated
+  // at the decision time, even when the expiry worker has not yet revoked the stored row.
+  internal static IQueryable<RoleGrant> EffectiveFirmAdministrators(
+    IAuditSphereDbContext db, Guid firmId, DateTimeOffset at) =>
+    db.RoleGrants.AsNoTracking().Where(grant => grant.FirmId == firmId && grant.Role == "Administrator" &&
+      grant.ClientId == null && grant.EngagementId == null && grant.RevokedAt == null &&
+      (grant.ExpiresAt == null || grant.ExpiresAt > at) && db.Users.Any(user =>
+        user.Id == grant.UserId && user.FirmId == firmId && user.UserKind == "Staff" && !user.Disabled));
 
   public static async Task<CommandResult> MarkInvitationCopiedAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid invitationId, CancellationToken ct = default)

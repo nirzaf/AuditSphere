@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Administrator replacement safety
+
+Administrator revocation and reviewed replacement count only enabled Staff identities with active, unexpired firm-wide application Administrator access, under the existing firm fence. A named replacement must itself qualify. Planned Administrator expiry requires a separate viable administrator beyond that expiry and displays the provisioning prerequisite. Focused negative, concurrent and successful rotation checks passed; oversight, role-catalogue and recovery acceptance remain separate. No live grants or deployment changed. See [status.json](status.json).
+
 ## Held-task progress
 
 An active task on hold is shown as blocked until the hold is reviewed. When it is the next remaining task, the tracker names the qualified roles without linking to an unavailable work queue. Focused hold/resume and isolated built-in browser checks passed; other Task 02 scope and release acceptance remain open. See [status.json](status.json).
@@ -357,11 +361,7 @@ Native TB/GL handoffs retain focused source, authorization, download and package
 
 ## Native successor opening continuity
 
-The existing opening owner retains the source-bound empty-subledger v1 path and adds v2 original-item carry for complete, unallocated original opening/sales/purchase invoice populations. Actual original IDs, reference/date semantics, posting artifacts, approved controls and source facts remain retained; no successor invoice is reposted. Later supported successor allocations consume those same originals without changing the immutable capture baseline. Historical partial allocations, unsupported credits, ambiguous effective cutoffs, individually nonzero P&L accounts and incompatible chart/currency remain refused. This is a bounded continuity extension, not a new closing policy or public period activation.
-
-Focused evidence covers original AR 125 less an actual receipt allocation 20 = 105, native AP 100 less an actual supplier credit allocation 40 = 60, returned-purchase resubmission preserving the original journal, and self-hashed amount/party/omission/version/control/receipt forgeries refused by actual database boundaries. The returned-purchase test exposed and corrected duplicate journal numbering. Nine Angular cases, lint/build and the existing browser journey's empty/nonempty variants pass; a nonempty repeat also passes. Original preview built-in inspection is retained; the final retained-source handoff expired before built-in capture, so it is not claimed. Empty rollback/forward restores the published v1 constraint; retained v2 blocks rollback with SQLSTATE 55000. That check passes after correcting its EF exception-wrapper assertion. EF model drift, canonical OpenAPI regeneration/drift and fresh emitter compilation pass; these checks establish the bounded slice, not full release acceptance.
-
-Exact published 1782 CI failed with API 414 pass / 2 fail and E2E 336 pass / 2 fail. The two static route/base-helper checks were corrected and passed locally, published as cd528c48; the revocation click/terminal-denial cohort and Operations CANCEL case pass locally with diagnostics, published as 95cff915. The prior Operations failure cause remains unproven and open for exact-source CI. No full local suite ran. Broader continuity, exact-source full CI, public ACTIVE activation, native zoom/human AT and qualified/live acceptance remain open. Prior empty-subledger details are preserved verbatim in the historical handoff; see `nativeSuccessorOpening` in [status.json](status.json).
+Exact preceding evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#native-successor-opening-continuity). Current period-close follow-up is above.
 
 ## Bank linked-source freshness
 

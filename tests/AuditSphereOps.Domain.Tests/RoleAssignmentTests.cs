@@ -14,6 +14,40 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class RoleAssignmentTests
 {
+  [Fact]
+  public async Task AdministratorExpiry_RequiresASeparateViableAdministratorBeyondExpiry()
+  {
+    await using var f = await TenantAdministrationFixture.CreateAsync();
+    await using var db = f.Db();
+    var now = DateTimeOffset.UtcNow;
+    var actingGrant = await db.RoleGrants.SingleAsync(x => x.UserId == f.Admin.Id);
+    actingGrant.ExpiresAt = now.AddMinutes(30);
+    var replacedGrant = await db.RoleGrants.SingleAsync(x => x.UserId == f.SecondAdmin.Id);
+    await db.SaveChangesAsync();
+    var request = new RoleAssignmentRequest(f.SecondAdmin.Id, "Administrator", "FIRM_WIDE",
+      ExpiresAt: now.AddHours(2), Reason: "Time bounded access rotation", ReplacesGrantId: replacedGrant.Id);
+
+    var blocked = await RoleAssignmentService.PreviewAsync(db, f.AdminActor, request, now);
+    Assert.True(blocked.Succeeded, blocked.Message);
+    Assert.Contains(blocked.Value!.BlockingReasons, x => x.Contains("beyond this expiry"));
+    var refused = await RoleAssignmentService.AssignAsync(db, f.AdminActor, request, now);
+    Assert.Equal("roles.blocked", refused.ErrorCode);
+    Assert.Null((await db.RoleGrants.SingleAsync(x => x.Id == replacedGrant.Id)).RevokedAt);
+
+    actingGrant.ExpiresAt = null;
+    await db.SaveChangesAsync();
+    var permitted = await RoleAssignmentService.PreviewAsync(db, f.AdminActor, request, now);
+    Assert.True(permitted.Succeeded, permitted.Message);
+    Assert.Empty(permitted.Value!.BlockingReasons);
+    Assert.Contains(permitted.Value.Warnings, x => x.Contains("expired access is never extended"));
+    var applied = await RoleAssignmentService.AssignAsync(db, f.AdminActor, request, now,
+      expectedReviewDigest: RoleAssignmentReviewDigest.Compute(permitted.Value, request));
+    Assert.True(applied.Succeeded, applied.Message);
+    db.ChangeTracker.Clear();
+    Assert.NotNull((await db.RoleGrants.SingleAsync(x => x.Id == replacedGrant.Id)).RevokedAt);
+    Assert.Equal(request.ExpiresAt, (await db.RoleGrants.SingleAsync(x => x.Id == applied.Value!.GrantId)).ExpiresAt);
+  }
+
   private static async Task<AppUser> StaffAsync(TenantAdministrationFixture f, string email = "staff@example.test")
   {
     await using var db = f.Db();

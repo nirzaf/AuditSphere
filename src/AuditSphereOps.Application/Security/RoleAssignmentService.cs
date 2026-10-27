@@ -167,7 +167,8 @@ public static class RoleAssignmentService
       if (old is null)
         return CommandResult<AssignmentPublication>.Fail(ErrorCodes.StaleRevision,
           "The grant being replaced changed; reload before saving.");
-      if (IsFirmAdministrator(old) && !await AnotherFirmAdministratorAsync(db, actor.FirmId, old.Id, ct) &&
+      if (IsFirmAdministrator(old) && !await RoleAdministrationService.EffectiveFirmAdministrators(db, actor.FirmId, DateTimeOffset.UtcNow)
+          .AnyAsync(x => x.Id != old.Id, ct) &&
           !(role == "Administrator" && scopeKind == "FIRM_WIDE"))
         return CommandResult<AssignmentPublication>.Fail("roles.last-admin",
           "A verified replacement firm administrator is required before this change.");
@@ -354,8 +355,17 @@ public static class RoleAssignmentService
     var reduction = removedLine is not null && !Covers(proposed, removedLine);
     if (removedLine is not null && IsFirmAdministrator(removedLine) &&
         !(proposed.Role == "Administrator" && proposed.ScopeKind == "FIRM_WIDE") &&
-        !await AnotherFirmAdministratorAsync(db, actor.FirmId, removedLine.GrantId, ct))
+        !await RoleAdministrationService.EffectiveFirmAdministrators(db, actor.FirmId, DateTimeOffset.UtcNow)
+          .AnyAsync(x => x.Id != removedLine.GrantId, ct))
       blocking.Add("A verified replacement firm administrator is required before this change.");
+
+    if (role == "Administrator" && scopeKind == "FIRM_WIDE" && request.ExpiresAt is { } administratorExpiry)
+    {
+      warnings.Add("This Administrator access expires. A second enabled Staff administrator must remain authorized beyond that expiry; expired access is never extended automatically.");
+      if (!await RoleAdministrationService.EffectiveFirmAdministrators(db, actor.FirmId, administratorExpiry)
+          .AnyAsync(x => x.Id != request.ReplacesGrantId && x.UserId != target.Id, ct))
+        blocking.Add("Provision another firm administrator whose access continues beyond this expiry before scheduling this Administrator grant.");
+    }
 
     if (role is not null && scopeKind is "CLIENT" or "ENGAGEMENT" && role != "ClientUser" && request.ClientId.HasValue)
     {
@@ -416,12 +426,6 @@ public static class RoleAssignmentService
 
   private static bool IsFirmAdministrator(AccessLine line) =>
     line.Role.Equals("Administrator", StringComparison.OrdinalIgnoreCase) && line.ScopeKind == "FIRM_WIDE";
-
-  private static Task<bool> AnotherFirmAdministratorAsync(IAuditSphereDbContext db, Guid firmId, Guid excludingGrantId,
-    CancellationToken ct) =>
-    db.RoleGrants.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.Role == "Administrator" &&
-      x.ClientId == null && x.EngagementId == null && x.RevokedAt == null && x.Id != excludingGrantId &&
-      db.Users.Any(u => u.Id == x.UserId && !u.Disabled), ct);
 
   internal static RoleGrantChangeEvidence Evidence(ActorContext actor, Guid targetUserId, Guid grantId, string action,
     string priorRole, Guid? priorClient, Guid? priorEngagement, string newRole, Guid? newClient, Guid? newEngagement,
