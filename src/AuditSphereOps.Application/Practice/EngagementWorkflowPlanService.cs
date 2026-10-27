@@ -548,8 +548,11 @@ public static class EngagementWorkflowPlanService
     var steps = await db.WorkflowTemplateSteps.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.TemplateRevisionId == revision.Id)
       .OrderBy(x => x.SortOrder).ThenBy(x => x.StableKey).ToListAsync(ct);
-    if (steps.Count == 0 || steps.Count > 100)
+    if (steps.Count == 0)
       return CommandResult<EngagementWorkflowPlanPreview>.Fail(ErrorCodes.GateBlocked, "The published template has no usable task steps.");
+    if (steps.Count > 100)
+      return CommandResult<EngagementWorkflowPlanPreview>.Fail(ErrorCodes.GateBlocked,
+        $"This published template has {steps.Count} steps; an engagement plan can contain at most 100. Choose a smaller published template. No tasks were created.");
     if (ownerMap.Keys.Except(steps.Select(x => x.StableKey), StringComparer.Ordinal).Any())
       return CommandResult<EngagementWorkflowPlanPreview>.Fail("workflow.plan-invalid", "An owner selection references a step outside this template revision.");
     if (pbcOwnerMap.Keys.Except(steps.Select(x => x.StableKey), StringComparer.Ordinal).Any() ||

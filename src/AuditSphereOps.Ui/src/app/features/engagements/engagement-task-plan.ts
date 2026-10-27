@@ -87,6 +87,7 @@ function isPendingPlan(value: unknown): value is PendingPlan {
     <section class="task-plan" aria-labelledby="task-plan-heading">
       <h2 id="task-plan-heading">Operational task plan</h2>
       <p>Preview a published firm template against this engagement’s staffing and schedule. Created tasks organize work; they do not satisfy audit, review, approval, reporting, or archive gates.</p>
+      <p class="hint">An engagement plan can be created only from a published template with at most 100 steps.</p>
       @if (suggestedRevisionId()) {
         <p>The annual preparation selected revision {{ suggestedRevisionId() }} as a reference. Review the current staffing, dates and exact template before creating tasks.</p>
         @if (!catalog.loading() && !catalog.error() && referenceUnavailable()) {

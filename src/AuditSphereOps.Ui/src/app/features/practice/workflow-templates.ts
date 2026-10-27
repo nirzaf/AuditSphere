@@ -121,6 +121,7 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
               <small>Use the exact service route supported by this template.</small></label>
             <label>Industry key (optional) <input name="templateIndustry" [(ngModel)]="draft.industryKey" maxlength="80" /></label>
             <h3>Task steps</h3>
+            <p class="hint">A template may contain up to 500 steps, but an engagement plan can be created only from a published template with at most 100 steps.</p>
             @for (step of draft.steps; track $index; let i = $index) {
               <fieldset class="step-form">
                 <legend>Step {{ i + 1 }}</legend>

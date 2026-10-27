@@ -19,6 +19,39 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class EngagementWorkflowPlanTests
 {
   [Fact]
+  public async Task OversizedPublishedTemplateExplainsPlanLimitAndCreatesNoTasks()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientId = Guid.NewGuid();
+    var engagementId = Guid.NewGuid();
+    var admin = User(firmId, "LimitAdmin");
+    var partner = User(firmId, "LimitPartner");
+    var staff = User(firmId, "LimitStaff");
+    var adminActor = Actor(admin, "Administrator");
+    var partnerActor = Actor(partner, "Partner");
+    await SeedAsync(pg.Options, firmId, clientId, engagementId, Guid.NewGuid(), admin, partner, staff);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var draft = await WorkflowTemplateService.CreateDraftAsync(db, adminActor,
+      new SaveWorkflowTemplateDraftRequest(null, "Large audit template", "FinancialStatementAudit", null,
+        Enumerable.Range(1, 101).Select(i => Step($"STEP{i}", i, 0)).ToArray()));
+    Assert.True(draft.Succeeded, draft.Message);
+    var revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == draft.Value);
+    Assert.True((await WorkflowTemplateService.ReviewAsync(db, partnerActor, revision.TemplateId, revision.Id,
+      revision.Revision, "Review the large audit template.")).Succeeded);
+    await db.Entry(revision).ReloadAsync();
+    Assert.True((await WorkflowTemplateService.PublishAsync(db, partnerActor, revision.TemplateId, revision.Id,
+      revision.Revision, "Publish the reviewed audit template.")).Succeeded);
+    var preview = await EngagementWorkflowPlanService.PreviewAsync(db, adminActor, engagementId,
+      new PreviewEngagementWorkflowPlanRequest(revision.Id));
+    Assert.False(preview.Succeeded);
+    Assert.Contains("100", preview.Message);
+    Assert.Contains("101", preview.Message);
+    Assert.Equal(0, await db.WorkTasks.CountAsync(x => x.EngagementId == engagementId));
+    Assert.Equal(0, await db.WorkflowTaskBindings.CountAsync(x => x.EngagementId == engagementId));
+  }
+
+  [Fact]
   public async Task PlanPinsPublishedTemplateAndSchedule_AndRecoversRetryWithoutDuplicateTasks()
   {
     await using var pg = await PgTestSchema.CreateAsync();
