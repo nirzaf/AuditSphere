@@ -24,6 +24,7 @@ const decodeInvoiceLine: typeof invoiceLine = (value, path) => {
 };
 
 export const decodeInvoice = obj({
+  accessMode: nullable(oneOf('READ_ONLY', 'OPERATIONAL')),
   id: guid, billingAccountId: guid, invoiceNumber: text, currency: nullable(text), subtotal: dec, tax: dec, total: dec, revision: nat, status: text,
   createdAt: instant, postedAt: nullable(instant), outstanding: dec, credited: dec, allocated: dec, canAct: bool,
   lines: arr(decodeInvoiceLine, 5000),
@@ -63,6 +64,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
     <audit-page-header title="Practice invoice" eyebrow="Practice billing" description="Client invoice record, line items, receipts and credit notes under firm finance controls." />
     <audit-state [loading]="invoice.loading()" [error]="invoice.error()" label="invoice" />
     @if (invoice.data(); as i) {
+      @if (i.accessMode === 'READ_ONLY') { <p role="status">Read-only — Administrator oversight. Receipt, credit, terms and invoice operations require their own finance authority.</p> }
       <p role="status" class="amount-strip">{{ i.currency ?? 'Billing account currency' }} · Invoice total {{ i.total | money }} · credited {{ i.credited | money }} · allocated {{ i.allocated | money }} · balance outstanding {{ i.outstanding | money }}</p>
       <nav class="invoice-sections" aria-label="Invoice sections">
         @for (section of sections(i.canAct); track section.id) {

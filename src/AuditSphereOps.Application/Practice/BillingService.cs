@@ -439,7 +439,7 @@ public static class BillingService
   public static async Task<CommandResult<InvoiceBalance>> GetInvoiceBalanceAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid invoiceId, CancellationToken ct = default)
   {
-    var resolved = await ResolveAuthorizedInvoiceAsync(db, actor, invoiceId, ct);
+    var resolved = await ResolveInvoiceForReadAsync(db, actor, invoiceId, ct);
     if (!resolved.Succeeded) return CommandResult<InvoiceBalance>.Fail(resolved.ErrorCode!, resolved.Message!);
     var invoice = resolved.Value!.Invoice;
     var account = resolved.Value.Account;
@@ -447,6 +447,8 @@ public static class BillingService
       x.Status == BillingStates.CreditIssued).SumAsync(x => (decimal?)x.Amount, ct) ?? 0;
     var allocated = await GetNetAppliedToInvoiceAsync(db, actor.FirmId, invoiceId, ct);
     var currency = invoice.Currency ?? account.Currency;
+    var currentRead = await ResolveInvoiceForReadAsync(db, actor, invoiceId, ct);
+    if (!currentRead.Succeeded) return CommandResult<InvoiceBalance>.Fail(currentRead.ErrorCode!, currentRead.Message!);
     return CommandResult<InvoiceBalance>.Ok(new InvoiceBalance(invoice.Id, currency, invoice.Total,
       MoneyPolicy.Normalize(credited), MoneyPolicy.Normalize(allocated),
       MoneyPolicy.Normalize(invoice.Total - credited - allocated)));
@@ -455,18 +457,20 @@ public static class BillingService
   /// <summary>True only when the invoice detail route would open for this actor (same authorization path).</summary>
   public static async Task<bool> CanOpenInvoiceAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid invoiceId, CancellationToken ct = default) =>
-    (await ResolveAuthorizedInvoiceAsync(db, actor, invoiceId, ct)).Succeeded;
+    (await ResolveInvoiceForReadAsync(db, actor, invoiceId, ct)).Succeeded;
 
   public static async Task<CommandResult<InvoiceDetailView>> GetInvoiceDetailAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid invoiceId, CancellationToken ct = default)
   {
-    var resolved = await ResolveAuthorizedInvoiceAsync(db, actor, invoiceId, ct);
+    var resolved = await ResolveInvoiceForReadAsync(db, actor, invoiceId, ct);
     if (!resolved.Succeeded) return CommandResult<InvoiceDetailView>.Fail(resolved.ErrorCode!, resolved.Message!);
     var context = resolved.Value!;
     var lines = await db.InvoiceLines.AsNoTracking().Where(x =>
-      x.FirmId == actor.FirmId && x.InvoiceId == invoiceId).ToListAsync(ct);
+      x.FirmId == actor.FirmId && x.InvoiceId == invoiceId).OrderBy(x => x.Id).Take(5001).ToListAsync(ct);
     var allocations = await db.ReceiptAllocations.AsNoTracking().Where(x =>
-      x.FirmId == actor.FirmId && x.InvoiceId == invoiceId).OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
+      x.FirmId == actor.FirmId && x.InvoiceId == invoiceId).OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Take(5001).ToListAsync(ct);
+    if (lines.Count > 5000 || allocations.Count > 5000)
+      return CommandResult<InvoiceDetailView>.Fail("billing.history-limit", "The invoice exceeds the supported detail history limit.");
     var credited = await db.CreditNotes.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
       x.InvoiceId == invoiceId && x.Status == BillingStates.CreditIssued)
       .SumAsync(x => (decimal?)x.Amount, ct) ?? 0;
@@ -475,6 +479,8 @@ public static class BillingService
     var balance = new InvoiceBalance(context.Invoice.Id, currency, context.Invoice.Total,
       MoneyPolicy.Normalize(credited), MoneyPolicy.Normalize(allocated),
       MoneyPolicy.Normalize(context.Invoice.Total - credited - allocated));
+    var currentRead = await ResolveInvoiceForReadAsync(db, actor, invoiceId, ct);
+    if (!currentRead.Succeeded) return CommandResult<InvoiceDetailView>.Fail(currentRead.ErrorCode!, currentRead.Message!);
     return CommandResult<InvoiceDetailView>.Ok(new(context.Invoice, lines, allocations, balance));
   }
 
@@ -508,7 +514,8 @@ public static class BillingService
     return MoneyPolicy.Normalize(applied - reversed);
   }
 
-  private static async Task<CommandResult<AuthorizedInvoice>> ResolveAuthorizedInvoiceAsync(
+  // Audited metadata read resolver only. Commands retain AuthorizeBillingAsync and their own locks.
+  private static async Task<CommandResult<AuthorizedInvoice>> ResolveInvoiceForReadAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid invoiceId, CancellationToken ct)
   {
     var invoice = await db.Invoices.AsNoTracking().SingleOrDefaultAsync(x =>
@@ -518,6 +525,7 @@ public static class BillingService
       x.Id == invoice.BillingAccountId && x.FirmId == actor.FirmId, ct);
     if (account is null) return CommandResult<AuthorizedInvoice>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeBillingAsync(db, actor, account.PracticeClientId, BillingRoles, ct);
+    if (!auth.Succeeded) auth = await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<AuthorizedInvoice>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<AuthorizedInvoice>.Ok(new(invoice, account));
   }

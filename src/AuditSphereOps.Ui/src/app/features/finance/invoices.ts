@@ -30,7 +30,8 @@ const total = obj({
   currency: str(3), basis: oneOf('POSTED', 'UNPOSTED', 'CANCELLED'), count: nat, total: dec,
   credited: nullable(dec), allocated: nullable(dec), outstanding: nullable(dec),
 });
-const page = obj({ items: arr(row, 100), total: nat, page: nat, pageSize: nat, totals: arr(total, 600) });
+const page = obj({ items: arr(row, 100), total: nat, page: nat, pageSize: nat, totals: arr(total, 600),
+  accessMode: nullable(oneOf('READ_ONLY', 'OPERATIONAL')) });
 
 /** Refuses a page whose totals do not account for the matching invoices or that mixes settlement into unposted value. */
 export function decodeInvoicePage(value: unknown, path: string) {
@@ -81,6 +82,7 @@ const NO_FILTERS: Filters = { clientId: '', clientName: '', status: '', currency
     }
     <audit-state [loading]="view.loading()" [error]="view.error()" label="firm invoices" />
     @if (view.data(); as v) {
+      @if (v.accessMode === 'READ_ONLY') { <p role="status">Read-only — Administrator oversight. Invoice operations require their own finance authority.</p> }
       <section class="panel" aria-labelledby="invoice-totals-heading">
         <h2 id="invoice-totals-heading">Totals by currency</h2>
         <p class="invoice-scope">Complete for all {{ v.total }} invoices matching the filters, not only this page. Currencies are never combined.

@@ -16,6 +16,51 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class BillingTests
 {
+  [Fact]
+  public async Task AdministratorOversight_InvoiceReadsNeverSupplyFinanceCommandAuthority()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var accountId = (await BillingService.CreateBillingAccountAsync(db, f.ManagerActor, new(f.ClientId, "QAR"))).Value;
+    var invoiceId = (await BillingService.CreateInvoiceDraftAsync(db, f.ManagerActor,
+      new(accountId, "OVERSIGHT-INV", [new("Reviewed service metadata", 1, 125.12m)]))).Value;
+    var admin = User(f.FirmId, "Oversight administrator");
+    var scoped = User(f.FirmId, "Scoped administrator");
+    db.Users.AddRange(admin, scoped);
+    var grant = Grant(f.FirmId, admin, "Administrator", f.ClientId);
+    grant.ClientId = null;
+    db.RoleGrants.AddRange(grant, Grant(f.FirmId, scoped, "Administrator", f.ClientId));
+    await db.SaveChangesAsync();
+    var actor = Actor(admin, "Administrator");
+    var list = await BillingWorkbenchQuery.PageAsync(db, actor);
+    Assert.True(list.Succeeded, list.Message);
+    Assert.Equal(invoiceId, Assert.Single(list.Value!.Items).Id);
+    var read = await BillingInvoiceWorkspaceQuery.GetAsync(db, actor, invoiceId);
+    Assert.True(read.Succeeded, read.Message);
+    var w = read.Value!;
+    Assert.Equal(125.12m, w.Detail.Balance.Outstanding);
+    Assert.False(w.CanAct);
+    Assert.Equal("READ_ONLY", w.AccessMode);
+    Assert.Equal("READ_ONLY", list.Value.AccessMode);
+    Assert.False(w.CanSubmitPaymentTerms || w.CanReviewPaymentTerms || w.CanIssueCreditNote ||
+      w.CanApproveInvoice || w.CanPostInvoice || w.CanSendInvoice);
+    Assert.Empty(w.Receipts);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await BillingWorkbenchQuery.PageAsync(db, Actor(scoped, "Administrator"))).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await BillingInvoiceWorkspaceQuery.GetAsync(db, Actor(scoped, "Administrator"), invoiceId)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await BillingService.SubmitInvoiceAsync(db, actor, invoiceId)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await BillingService.ApproveInvoiceAsync(db, actor, invoiceId)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await BillingService.PostInvoiceAsync(db, actor, invoiceId)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await BillingService.SendInvoiceAsync(db, actor, invoiceId)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await BillingService.RecordReceiptAsync(db, actor, new(accountId, 125.12m, "DENIED", RequestId: Guid.NewGuid()))).ErrorCode);
+    Assert.Equal(BillingStates.InvoiceDraft, (await db.Invoices.AsNoTracking().SingleAsync(x => x.Id == invoiceId)).Status);
+    Assert.Empty(await db.Receipts.ToListAsync());
+    grant.RevokedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync();
+    Assert.Equal(ErrorCodes.ScopeDenied, (await BillingInvoiceWorkspaceQuery.GetAsync(db, actor, invoiceId)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await BillingWorkbenchQuery.PageAsync(db, actor)).ErrorCode);
+  }
+
   private sealed record Fixture(
     Guid FirmId,
     Guid ClientId,

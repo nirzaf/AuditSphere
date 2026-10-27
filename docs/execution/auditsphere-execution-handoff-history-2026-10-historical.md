@@ -333,3 +333,7 @@ Exact published 1782 CI failed with API 414 pass / 2 fail and E2E 336 pass / 2 f
 ## Administrator replacement safety
 
 Administrator revocation and reviewed replacement count only enabled Staff identities with active, unexpired firm-wide application Administrator access, under the existing firm fence. A named replacement must itself qualify. Planned Administrator expiry requires a separate viable administrator beyond that expiry and displays the provisioning prerequisite. Focused negative, concurrent and successful rotation checks passed; oversight, role-catalogue and recovery acceptance remain separate. No live grants or deployment changed. See [status.json](status.json).
+
+## Primary Administrator oversight and accounting roles
+
+The standard assignment catalogue now offers the existing accounting preparation/review roles to Staff, with explicit scopes and honest independence descriptions. Ledger and accounting-group overview/membership reads opt into current firm-wide Staff Administrator oversight; original finance and group command flags remain separate. Nonmanaging membership readers receive no client choices. Focused and isolated built-in desktop/mobile verification passed; other read owners, search, command census, EQR and complete specification/release acceptance remain open. No live grants or deployment changed. See [status.json](status.json).

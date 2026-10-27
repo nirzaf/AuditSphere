@@ -104307,6 +104307,16 @@
             "items": {
               "$ref": "#/components/schemas/BillingWorkbenchTotal"
             }
+          },
+          "accessMode": {
+            "type": "string",
+            "default": "OPERATIONAL"
+          },
+          "accessReason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -124424,6 +124434,16 @@
           },
           "canAct": {
             "type": "boolean"
+          },
+          "accessMode": {
+            "type": "string",
+            "default": "OPERATIONAL"
+          },
+          "accessReason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

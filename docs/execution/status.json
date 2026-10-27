@@ -1110,11 +1110,7 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.rolesAdministratorSafetyBeforeBooks20261027"
     },
     "rolesPrimaryOversight20261027": {
-      "status": "FOCUSED_API_BUILTIN_PASS_CURRENT_CI_REQUIRED",
-      "sourceBaseCommit": "cf0b083ab1f34a0700f09d1252298516afee0919",
-      "verification": "Catalogue Domain4PASS, ledger/group reads2PASS, fresh revocation and finance roles3PASS, cookie/forged-command API1PASS; roles Angular14PASS, finance/member9PASS, corrected additive-field overview10PASS; pinned Node build/lint/OpenAPI PASS. Built-in synthetic desktop/390px ledger read-only, expanded perimeter, exact accounting-review preview and restricted Client choices; console empty.",
-      "evidence": ".local/autonomous/evidence/roles-admin-oversight-20261027/primary-oversight-review.json",
-      "boundary": "Primary projections/catalogue only; other read owners, search/census, professional EQR and recovery remain open. No browser grant/finance writes or deployment. Owned fixture stopped; launcher restored. Peer README and Task03 drafts preserved."
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.rolesPrimaryBeforeInvoice20261027"
     },
     "rolesBooksOversight20261027": {
       "history": "status-archive-2026-10.json#archivedTargetedVerification.rolesBooksBeforeScope20261027"
@@ -1124,6 +1120,12 @@
       "evidence": ".local/autonomous/evidence/roles-admin-oversight-20261027/scope-oversight-review.json",
       "verification": "Domain scope3+accounting role use1PASS; Angular scope24, ownership/advanced5, advanced recovery RED1 thenGREEN3. Build/lint/OpenAPI PASS. Builtin no-group Admin scope/ownership/packs/advanced, refresh/390px fit, console[].",
       "boundary": "Read-only flags/options separate from original commands and raw documents. Advanced editable-field gap corrected and rechecked. Remaining read owners/census/professional/release open."
+    },
+    "rolesInvoiceOversight20261027": {
+      "status": "FOCUSED_AND_BUILTIN_PASS_CURRENT_CI_REQUIRED",
+      "evidence": ".local/autonomous/evidence/roles-admin-oversight-20261027/invoice-oversight-review.json",
+      "verification": "DomainRED1/GREEN2 including original billing lifecycle and read/write/revocation denials; Angular33/build/lint/OpenAPI PASS. Builtin list/filter/exactdetail/source/refresh/390px and no financialforms, console[].",
+      "boundary": "Readresolver only; original finance commands/flags, separate report exports and raw downloads unchanged. Remaining settlement/report/search/census and professional/release open."
     }
   },
   "externalGates": [

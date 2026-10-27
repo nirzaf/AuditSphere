@@ -36,7 +36,8 @@ public sealed record BillingInvoiceWorkspace(
   IReadOnlyList<BillingPaymentTermsSummary> PaymentTerms, bool PaymentTermsHaveMore,
   bool CanSubmitPaymentTerms, bool CanReviewPaymentTerms,
   bool CanIssueCreditNote, bool CanApproveInvoice, bool CanPostInvoice, bool CanSendInvoice,
-  IReadOnlyList<BillingInvoiceLineSource>? LineSources = null);
+  IReadOnlyList<BillingInvoiceLineSource>? LineSources = null,
+  bool CanAct = true, string AccessMode = "OPERATIONAL", string? AccessReason = null);
 
 /// <summary>Bounded invoice payment and credit-note context for the authorized finance workspace.</summary>
 public static partial class BillingInvoiceWorkspaceQuery
@@ -188,11 +189,15 @@ public static partial class BillingInvoiceWorkspaceQuery
     if (!await BillingService.CanOpenInvoiceAsync(db, actor, invoiceId, ct))
       return CommandResult<BillingInvoiceWorkspace>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
+    var operational = (await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, account.PracticeClientId, RequiredRoles: BillingRoles, InternalOnly: true), ct)).Succeeded;
     return CommandResult<BillingInvoiceWorkspace>.Ok(new BillingInvoiceWorkspace(
       detail.Value, account.Id, receipts, hasMoreReceipts,
       allocations,
       creditRows.Take(PageLimit).ToArray(), creditRows.Count > PageLimit,
       visibleTerms, termsRows.Count > PaymentTermsHistoryLimit, canSubmitTerms, canReviewTerms, canIssue,
-      canApprove, canPost, canSend, lineSources));
+      canApprove, canPost, canSend, lineSources, operational,
+      operational ? "OPERATIONAL" : AdministratorOversightReadAuthorization.ReadOnly,
+      operational ? null : AdministratorOversightReadAuthorization.Reason));
   }
 }

@@ -54,7 +54,8 @@ public static partial class UiEndpoints
     bool ReceiptsHaveMore, IReadOnlyList<BillingCreditNoteSummary> CreditNotes, bool CreditNotesHaveMore,
     IReadOnlyList<BillingPaymentTermsSummary> PaymentTerms, bool PaymentTermsHaveMore,
     bool CanSubmitPaymentTerms, bool CanReviewPaymentTerms, bool CanIssueCreditNote,
-    bool CanApproveInvoice, bool CanPostInvoice, bool CanSendInvoice, bool CanAct);
+    bool CanApproveInvoice, bool CanPostInvoice, bool CanSendInvoice, bool CanAct,
+    string AccessMode = "OPERATIONAL", string? AccessReason = null);
   public sealed record FinanceInvoiceLine(string Description, decimal Quantity, decimal UnitPrice, decimal LineTotal,
     BillingInvoiceLineSource? Source = null, Guid? Id = null);
   public sealed record FinanceJournalForm(string Journal, IFormFile? Evidence);
@@ -242,7 +243,7 @@ public static partial class UiEndpoints
         CanApproveInvoice = r.Value.CanApproveInvoice,
         CanPostInvoice = r.Value.CanPostInvoice,
         CanSendInvoice = r.Value.CanSendInvoice,
-        CanAct = true,
+        r.Value.CanAct, r.Value.AccessMode, r.Value.AccessReason,
       });
     })), includeConflict: false);
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/finance/invoices/{id:guid}/payment-terms", (Guid id, PaymentTermsInput input, HttpContext http) =>

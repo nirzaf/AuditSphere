@@ -36,6 +36,15 @@ describe('Invoice exact read and allocation pagination', () => {
     const fixture = TestBed.createComponent(InvoiceDetail); fixture.detectChanges(); TestBed.tick();
     http.expectOne(`/api/ui/finance/invoices/${id(1)}`).flush(payload); TestBed.tick(); return fixture;
   }
+  it('keeps oversight amounts and lines visible without receipt or invoice command controls', () => {
+    const host = open({ ...invoice(1), canAct: false, canPostInvoice: false, accessMode: 'READ_ONLY' }).nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Read-only — Administrator oversight');
+    expect(host.textContent).toContain('Synthetic confidential line');
+    expect(host.textContent).toContain('67.50');
+    expect(host.querySelectorAll('form, textarea, input').length).toBe(0);
+    expect(host.querySelector('section[aria-labelledby="workflow-heading"]')).toBeNull();
+    http.expectNone(r => r.method !== 'GET');
+  });
   it('states that a SENT invoice is a staff record without delivery evidence', () => {
     const sent = open({ ...invoice(1), status: 'SENT', postedAt: '2026-10-02T09:00:00Z' });
     const note = (sent.nativeElement as HTMLElement).querySelector('[data-testid="invoice-sent-untracked"]');

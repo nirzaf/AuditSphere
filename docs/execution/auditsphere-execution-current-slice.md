@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Invoice metadata oversight
+
+Current firm-wide Staff Administrators can discover and read same-firm invoice amounts, lines and retained finance metadata. Read-only mode derives no receipt, credit, terms, posting or sending authority; the API now projects the original operational permission instead of an unconditional action flag. Focused negative/positive and built-in filter, exact-detail, source, refresh and mobile checks passed. Reports, settlement reads, search/census and full release acceptance remain open. See [status.json](status.json).
+
 ## Consolidation scope oversight
 
 Audited scope, ownership, component-pack, normalized report and advanced-history reads now allow current firm-wide Staff Administrator oversight without a group grant. Preparation, review, execution and action-only choices retain their original group checks. The browser exposed editable advanced inputs in read-only mode; those inputs are now hidden, and refreshed desktop/mobile checks passed. Focused revocation and accounting-role use retain current authorization, self-review denial and professional gates. Remaining read owners, census and full release acceptance stay open. See [status.json](status.json).
@@ -22,9 +26,7 @@ Audited scope, ownership, component-pack, normalized report and advanced-history
 
 Firm-wide Staff Administrator oversight now includes the bounded expense metadata list, with source-document bytes excluded and current authorization rechecked. Original finance preparation, submission and independent review remain separate. Focused and isolated built-in desktop/mobile checks passed; ordinary Staff remains denied. Existing trial-balance authority is unchanged. Other read owners and full specification/release acceptance remain open. See [status.json](status.json).
 
-## Primary Administrator oversight and accounting roles
-
-The standard assignment catalogue now offers the existing accounting preparation/review roles to Staff, with explicit scopes and honest independence descriptions. Ledger and accounting-group overview/membership reads opt into current firm-wide Staff Administrator oversight; original finance and group command flags remain separate. Nonmanaging membership readers receive no client choices. Focused and isolated built-in desktop/mobile verification passed; other read owners, search, command census, EQR and complete specification/release acceptance remain open. No live grants or deployment changed. See [status.json](status.json).
+Primary role-catalogue and oversight evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#primary-administrator-oversight-and-accounting-roles).
 
 Administrator replacement safety evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#administrator-replacement-safety).
 

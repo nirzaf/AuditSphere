@@ -29,7 +29,7 @@ public sealed record BillingWorkbenchTotal(string Currency, string Basis, int Co
   decimal? Credited, decimal? Allocated, decimal? Outstanding);
 
 public sealed record BillingWorkbenchPage(IReadOnlyList<BillingWorkbenchRow> Items, int Total, int Page, int PageSize,
-  IReadOnlyList<BillingWorkbenchTotal> Totals);
+  IReadOnlyList<BillingWorkbenchTotal> Totals, string AccessMode = "OPERATIONAL", string? AccessReason = null);
 
 /// <summary>Read-only firm invoice discovery for firm-wide finance roles. Opening an invoice uses the existing detail route.</summary>
 public static class BillingWorkbenchQuery
@@ -56,6 +56,7 @@ public static class BillingWorkbenchQuery
       return CommandResult<BillingWorkbenchPage>.Fail("request.invalid", "Invalid invoice filter or page.");
     var request = new AuthorizationRequest(actor.FirmId, RequiredRoles: FinanceRoles, InternalOnly: true, RequireFirmWide: true);
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    if (!auth.Succeeded) auth = await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<BillingWorkbenchPage>.Fail(auth.ErrorCode!, "Invoices unavailable.");
 
     var f = actor.FirmId;
@@ -185,7 +186,11 @@ public static class BillingWorkbenchQuery
     }
 
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
-    return auth.Succeeded ? CommandResult<BillingWorkbenchPage>.Ok(new(rows, matching, page, pageSize, totals))
+    var operational = auth.Succeeded;
+    if (!auth.Succeeded) auth = await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct);
+    return auth.Succeeded ? CommandResult<BillingWorkbenchPage>.Ok(new(rows, matching, page, pageSize, totals,
+        operational ? "OPERATIONAL" : AdministratorOversightReadAuthorization.ReadOnly,
+        operational ? null : AdministratorOversightReadAuthorization.Reason))
       : CommandResult<BillingWorkbenchPage>.Fail(auth.ErrorCode!, "Invoices unavailable.");
   }
 }
