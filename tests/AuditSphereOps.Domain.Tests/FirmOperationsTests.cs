@@ -22,6 +22,42 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed partial class FirmOperationsTests
 {
+  [Fact]
+  public async Task AdministratorOversight_ExpenseMetadataDoesNotGrantPreparationOrReview()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = w.U["manager"].Id,
+      Role = "Administrator", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.U["manager"].Id });
+    await db.SaveChangesAsync();
+    var finance = w.A("finance", "FinanceManager");
+    var admin = w.A("manager", "Administrator");
+    var cash = (await LedgerService.CreateFirmAccountAsync(db, finance,
+      new("OS-EXP-CASH", "Bank", LedgerStates.AccountAsset, LedgerStates.Debit))).Value;
+    var rent = (await LedgerService.CreateFirmAccountAsync(db, finance,
+      new("OS-EXP-RENT", "Rent", LedgerStates.AccountExpense, LedgerStates.Debit))).Value;
+    var request = new RecordFirmExpenseRequest(new(2026, 2, 3), FirmExpenseCategories.Rent,
+      "Synthetic oversight supplier", "Read metadata only", 125.12m, "QAR", rent, cash,
+      "private-receipt.pdf", "application/pdf", "%PDF private evidence"u8.ToArray());
+    var expense = await FirmExpenseService.RecordAsync(db, finance, request);
+    Assert.True(expense.Succeeded, expense.Message);
+    var view = await FirmBooksWorkspaceQuery.GetAsync(db, admin);
+    Assert.True(view.Succeeded, view.Message);
+    Assert.Equal("READ_ONLY", view.Value!.AccessMode);
+    Assert.False(view.Value.CanPrepare || view.Value.CanReview);
+    var row = Assert.Single(view.Value.Expenses);
+    Assert.Equal((expense.Value, "Synthetic oversight supplier", 125.12m), (row.Id, row.Payee, row.Amount));
+    Assert.All(await FirmExpenseService.ListAsync(db, admin), x => Assert.Empty(x.EvidenceContent));
+    Assert.Equal(ErrorCodes.ScopeDenied, (await FirmExpenseService.RecordAsync(db, admin, request)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await FirmExpenseService.SubmitAsync(db, admin, expense.Value)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await FirmExpenseService.ReviewAsync(db, admin, expense.Value, true, null)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await FirmBooksWorkspaceQuery.GetAsync(db, w.A("staff", "Staff"))).ErrorCode);
+    Assert.True((await FirmBooksWorkspaceQuery.GetAsync(db, finance)).Value!.CanPrepare);
+    Assert.Single(await db.FirmExpenses.ToListAsync());
+    Assert.Equal(FirmExpenseStates.Draft, (await db.FirmExpenses.SingleAsync()).Status);
+  }
+
   private sealed record World(Guid FirmId, Guid ClientId, Guid EngagementId, Dictionary<string, AppUser> U)
   {
     public ActorContext A(string name, params string[] roles) => new(U[name].Id, FirmId, U[name].SessionEpoch, roles);

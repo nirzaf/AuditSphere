@@ -6,7 +6,7 @@ import { Api, CommandState, UNKNOWN_OUTCOME } from '../../core/api';
 import { Drafts } from '../../core/drafts';
 import { SessionService } from '../../core/session';
 import { TabDrafts } from '../../core/tab-drafts';
-import { arr, bool, date, dec, decimalInput, guid, nat, nullable, obj, sha256, str, text } from '../../core/decode';
+import { arr, bool, date, dec, decimalInput, guid, nat, nullable, obj, oneOf, sha256, str, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { decodeExpenseCreateLookup, decodeExpenseId, ExpenseCreateReference, expenseCreateReference, hashExpenseCreation } from './books-contracts';
 
@@ -16,6 +16,7 @@ type ExpenseAction = { expenseId: string; action: 'submit'; target: null } |
   { expenseId: string; action: 'review'; target: 'APPROVED' | 'REJECTED' };
 type ExpenseActionReconciliation = 'APPLIED' | 'UNCHANGED' | 'UNVERIFIABLE' | null;
 export const decodeBooks = obj({
+  accessMode: nullable(oneOf('READ_ONLY', 'OPERATIONAL')),
   accounts: arr(obj({ id: guid, code: text, name: text, accountType: text })),
   expensePage: nat, hasMoreExpenses: bool, expenses: arr(expense, 200), categories: arr(text, 20), canPrepare: bool, canReview: bool, maxEvidenceBytes: nat, maxReviewCommentLength: nat,
 });
@@ -68,6 +69,7 @@ export class FirmExpenseRejectionDialog {
       description="The firm's own operating expenses with source documents, posted through the firm ledger after independent review, and the calculated firm trial balance." />
     <audit-state [loading]="books.loading()" [error]="books.error()" label="firm books" />
     @if (books.data(); as b) {
+      @if (b.accessMode === 'READ_ONLY') { <p role="status" class="hint">Read-only — Administrator oversight. Expense preparation, submission and review require their own current finance authority.</p> }
       <section class="panel" aria-labelledby="expense-heading">
         <h2 id="expense-heading">Operating expenses</h2>
         @if (b.canPrepare) {

@@ -25888,6 +25888,15 @@
       "imagePublication": "NOT_DISPATCHED for follow-up; 0605 rehearsal is preceding evidence.",
       "cutoverStatus": "NOT_PERFORMED. Origin/browser baseline200; exact BIC event matched Python403. No exception approved or applied.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeLifecycleCiCorrection20261027"
+    },
+    "currentSourceCiBeforeBooksOversight20261027": {
+      "sourceBaseCommit": "2cc7d2a7a2e44b42dbe171530eed9d5c828e79bd",
+      "sourceRole": "ROLES_PRIMARY_AND_BOOKS_OVERSIGHT_CATALOGUE",
+      "fastCi": "Current follow-up requires exact checkout proof after publication.",
+      "releaseVerification": "Preceding2cc7 full40571713003 source MATCH: Angular PASS, other jobs pending; preceding fa30 retained separately. No current full acceptance.",
+      "imagePublication": "Current follow-up images/rehearsal required; fa30 images/rehearsal are predecessor only.",
+      "cutoverStatus": "NOT_PERFORMED; existing live baseline and public browser/source gates must be refreshed.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeBooksOversight20261027"
     }
   },
   "archivedTargetedVerification": {
@@ -27046,6 +27055,13 @@
       "verification": "Active held tasks appear blocked; focused hold/resume test and isolated built-in browser passed. Held-only next action names qualified roles without an unavailable link.",
       "boundary": "No business write or full Task 02 acceptance; scope and remaining requirements remain open.",
       "evidence": ".local/autonomous/evidence/claude-completion-20261027/held-progress-review.json"
+    },
+    "rolesAdministratorSafetyBeforeBooks20261027": {
+      "status": "FOCUSED_PASS_CURRENT_CI_REQUIRED",
+      "sourceBaseCommit": "fa30cd38b6bff3bd68f758e4c1a017b298ead3a8",
+      "verification": "Replacement Client/disabled regression RED2; initial expired setup failure excluded. Corrected focused GREEN8: ineffective replacements, safe planned expiry with actual replacement, concurrent revocation, genuine second administrator and unchanged expiry worker.",
+      "evidence": ".local/autonomous/evidence/roles-admin-oversight-20261027/admin-safety-review.json",
+      "boundary": "AS-RBAC-04 safety slice only. No UI/oversight or all-admin-loss recovery acceptance, live role mutation or deployment. Original31/Axelor56/practice87 and other roles work remain separate."
     }
   },
   "lastUpdatedOn": "2026-10-27"

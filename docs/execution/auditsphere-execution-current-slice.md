@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Firm books metadata oversight
+
+Firm-wide Staff Administrator oversight now includes the bounded expense metadata list, with source-document bytes excluded and current authorization rechecked. Original finance preparation, submission and independent review remain separate. Focused and isolated built-in desktop/mobile checks passed; ordinary Staff remains denied. Existing trial-balance authority is unchanged. Other read owners and full specification/release acceptance remain open. See [status.json](status.json).
+
 ## Primary Administrator oversight and accounting roles
 
 The standard assignment catalogue now offers the existing accounting preparation/review roles to Staff, with explicit scopes and honest independence descriptions. Ledger and accounting-group overview/membership reads opt into current firm-wide Staff Administrator oversight; original finance and group command flags remain separate. Nonmanaging membership readers receive no client choices. Focused and isolated built-in desktop/mobile verification passed; other read owners, search, command census, EQR and complete specification/release acceptance remain open. No live grants or deployment changed. See [status.json](status.json).

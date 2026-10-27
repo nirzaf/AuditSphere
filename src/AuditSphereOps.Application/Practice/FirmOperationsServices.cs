@@ -657,16 +657,22 @@ public static class FirmExpenseService
   }
 
   public static async Task<IReadOnlyList<FirmExpense>> ListAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct = default,
-    int page = 1, Guid? expenseId = null, bool includeContinuation = false) =>
-    page is >= 1 and <= 100000 && expenseId != Guid.Empty &&
-      (await AuthorizeAsync(db, actor, [.. Preparers, .. Reviewers], ct)).Succeeded
-      ? await db.FirmExpenses.AsNoTracking().Where(x => x.FirmId == actor.FirmId && (!expenseId.HasValue || x.Id == expenseId))
+    int page = 1, Guid? expenseId = null, bool includeContinuation = false)
+  {
+    if (page is < 1 or > 100000 || expenseId == Guid.Empty || !await CanReadExpenseMetadataAsync(db, actor, ct)) return [];
+    // Explicit read projection only: never materialize evidence bytes or reuse oversight for an expense command.
+    var rows = await db.FirmExpenses.AsNoTracking().Where(x => x.FirmId == actor.FirmId && (!expenseId.HasValue || x.Id == expenseId))
         .OrderByDescending(x => x.ExpenseDate).ThenByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
         .Skip((page - 1) * 200).Take(includeContinuation ? 201 : 200)
         .Select(x => new FirmExpense { Id = x.Id, FirmId = x.FirmId, ExpenseDate = x.ExpenseDate, Category = x.Category, Payee = x.Payee, Description = x.Description, Amount = x.Amount,
           Currency = x.Currency, EvidenceFileName = x.EvidenceFileName, EvidenceSha256 = x.EvidenceSha256, Status = x.Status, PreparedByUserId = x.PreparedByUserId, ReviewedByUserId = x.ReviewedByUserId,
-          ReviewComment = x.ReviewComment, PostingId = x.PostingId, CreatedAt = x.CreatedAt }).ToListAsync(ct)
-      : [];
+          ReviewComment = x.ReviewComment, PostingId = x.PostingId, CreatedAt = x.CreatedAt }).ToListAsync(ct);
+    return await CanReadExpenseMetadataAsync(db, actor, ct) ? rows : [];
+  }
+
+  private static async Task<bool> CanReadExpenseMetadataAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct) =>
+    (await AuthorizeAsync(db, actor, [.. Preparers, .. Reviewers], ct)).Succeeded ||
+    (await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct)).Succeeded;
 
   /// <summary>
   /// The trial balance shows cumulative opening, movement and closing balances. Revenue, expenses and profit are

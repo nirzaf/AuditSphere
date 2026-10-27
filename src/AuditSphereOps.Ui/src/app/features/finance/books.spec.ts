@@ -51,12 +51,14 @@ describe('firm expense paging and exact recovery', () => {
     const userId = '11111111-1111-4111-8111-111111111111';
     TestBed.inject(SessionService).current.set({ userId, firmId: userId, generation: '1', staff: true });
     const fixture = TestBed.createComponent(FirmBooks), http = TestBed.inject(HttpTestingController);
-    const workspace = { accounts: [], expenses: [], categories: ['OTHER'], canPrepare: false, canReview: false,
+    const workspace = { accounts: [], expenses: [], categories: ['OTHER'], canPrepare: false, canReview: false, accessMode: 'READ_ONLY',
       maxEvidenceBytes: 5242880, maxReviewCommentLength: 1000, expensePage: 1, hasMoreExpenses: true };
     const id = '22222222-2222-4222-8222-222222222222';
     try {
       fixture.detectChanges(); TestBed.tick();
       http.expectOne('/api/ui/finance/books').flush(workspace); TestBed.tick(); fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Read-only — Administrator oversight');
+      expect(fixture.nativeElement.querySelector('input[name="payee"]')).toBeNull();
       const next = [...fixture.nativeElement.querySelectorAll('button')].find((b: any) => b.textContent.includes('Next expenses')) as HTMLButtonElement;
       expect(next.disabled).toBe(false); next.click(); TestBed.tick();
       http.expectOne('/api/ui/finance/books?expensePage=2').flush({ ...workspace, expensePage: 2, hasMoreExpenses: false });

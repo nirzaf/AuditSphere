@@ -126502,6 +126502,16 @@
           "hasMoreExpenses": {
             "type": "boolean",
             "default": false
+          },
+          "accessMode": {
+            "type": "string",
+            "default": "OPERATIONAL"
+          },
+          "accessReason": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
