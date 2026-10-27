@@ -1018,11 +1018,7 @@
       "history": "status-archive-2026-10.json#keys.targetedVerification.practiceProgressCurrentness20261026"
     },
     "userRolePrivilegesGuide20261026": {
-      "status": "VERIFIED_DOCUMENTATION_ONLY",
-      "guide": "docs/architecture/auditsphere-architecture-user-roles-and-privileges-current.md",
-      "scope": "Staff/client identities; standard assignment roles; backend-only accepted codes; explicit staffing ranks; per-role capabilities/scopes and independence boundaries. Linked from README and docs index.",
-      "boundary": "Describes current source; no runtime or role/grant changes, full tests not applicable.",
-      "verification": "Source catalogue/guard/staffing review, complete standard-role row coverage, Markdown health/filenames/narrative/task-board and diff checks PASS. No runtime tests required or run for this documentation slice."
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.userRolePrivilegesGuide20261026BeforeReleaseCandidateReplay20261027"
     },
     "practiceProgressScopeWaiver20261026": {
       "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
@@ -1097,11 +1093,7 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.heldTaskProgress20261027BeforeRolesOversight20261027"
     },
     "priorCloseReview20261027": {
-      "status": "FOCUSED_AND_BUILTIN_VERIFIED_FOLLOWUP_FULL_CI_REQUIRED",
-      "verification": "Prior-close currentness and immutable review: focused concurrency/archive/new-legacy cases, Angular, authenticated journey, build/lint/model/contracts and isolated desktop/mobile browser passed.",
-      "boundary": "Immutable review and original approval retained; no full specification acceptance or live cutover.",
-      "evidence": ".local/autonomous/evidence/claude-completion-20261027/period-prior-close-review.json",
-      "ciFollowup": "Exact0605 full Domain1803PASS/1FAIL: pregrant stale-revision assertion reproduced RED1. Corrected fixture GREEN1 checks scope denial first, then authorized stale refusal and unchanged successful amendment. Runtime unchanged."
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.priorCloseReview20261027BeforeReleaseCandidateReplay20261027"
     },
     "rolesAdministratorSafety20261027": {
       "history": "status-archive-2026-10.json#archivedTargetedVerification.rolesAdministratorSafetyBeforeBooks20261027"
@@ -1127,6 +1119,13 @@
       "boundary": "No command permission widening, business writes in browser, raw documents, exports, freeze exceptions or live deployment. D-OV04retention/reviewer and D-EQR01..04professional decisions remain open; eleven roles preserved.",
       "ciFollowup": "Exact95ae fast40585165614 failed named boundary-contract check; RED1 reproduced. SharedApiError503 restored; focused contract1PASS and API1PASS after diagnosticID counterexample/fix, payloadwithheld and ordinaryFinance unaffected. OwnedPG cleaned; no guard weakened. New exact-source CI required.",
       "ciFollowupEvidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/boundary-failure-review.json"
+    },
+    "releaseCandidateReplay20261027": {
+      "status": "FOCUSED_PASS_CURRENT_CI_REQUIRED",
+      "scope": "Existing-candidate authority and current package-review publication; no EQR policy activation.",
+      "evidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/replay-review.json",
+      "verification": "True forged-role replay RED1 and returned-source currentness RED1; final regression plus unchanged completion projection GREEN2. Exact candidate replay retains approval count; stale session and source refusals retain empty identifiers. Existing workpaper and financial-package release dependencies PASS2; owned PG18.6 cleaned.",
+      "boundary": "Initial test fixture used a different released manifest; subsequent extra candidate changed the old projection fixture. A separate new regression preserves the original test unchanged; stale-session expected code uses the existing ordinary authorizer. No live action or new approval rule; current package review is reused at publication."
     }
   },
   "externalGates": [
@@ -1611,13 +1610,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "95ae4eb1244d1c7659ae24ab9d5da19c44678f74",
-    "sourceRole": "OVERSIGHT_AUDIT_BOUNDARY_ERROR_CONTRACT_CORRECTION",
-    "fastCi": "New exact-source fast gate required after publication.",
-    "releaseVerification": "Preceding95ae full40585222864 MATCH Angular/VerifyPASS rest pending; fast40585165614 failed named boundary contract, reproduced and corrected locally. New exact-source fast/full/images required after publication.",
-    "imagePublication": "New exact images/restored-copy rehearsal required; all predecessor evidence retained only as history.",
+    "sourceBaseCommit": "287c116cdc238bf284b5e9c98810b8335da417e4",
+    "sourceRole": "RELEASE_CANDIDATE_REPLAY_AUTHORITY_AND_CURRENT_PACKAGE_REVIEW",
+    "fastCi": "Preceding287c fast40588533206 metadata success; new source requires current actual checkout proof.",
+    "releaseVerification": "Preceding287c full40588578957 source MATCH, Angular PASS and remaining jobs running at last observation. No current full acceptance.",
+    "imagePublication": "Preceding287c images40588533271 metadata success; current images/restored-copy rehearsal required.",
     "cutoverStatus": "NOT_PERFORMED; retention/professional acceptance and exact-source release requirements remain separate.",
     "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeOversightAccess20261027"
   },
-  "updatedAtUtc": "2026-10-27T21:37:32.701148+00:00"
+  "updatedAtUtc": "2026-10-27T22:00:15.103895+00:00"
 }

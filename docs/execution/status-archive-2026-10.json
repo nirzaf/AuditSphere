@@ -27102,6 +27102,20 @@
       "verification": "Both preceding E2E assertions reproduced on ba161 and passed after correction. Firm admin endpoints still return 403; account control shows the signed-in identity and the seeded staff identity remains hidden. Exact retry identity and lifecycle assertions remain; checklist is scoped and PostgreSQL confirms one task for the firm and engagement.",
       "boundary": "No runtime permission or task behavior changed; no full local suite or new release claim. Finding receipt timeout recurred separately; cause remains unproven.",
       "evidence": ".local/autonomous/evidence/ledger-ui-20261026/account-task-journey-correction-review.json"
+    },
+    "priorCloseReview20261027BeforeReleaseCandidateReplay20261027": {
+      "status": "FOCUSED_AND_BUILTIN_VERIFIED_FOLLOWUP_FULL_CI_REQUIRED",
+      "verification": "Prior-close currentness and immutable review: focused concurrency/archive/new-legacy cases, Angular, authenticated journey, build/lint/model/contracts and isolated desktop/mobile browser passed.",
+      "boundary": "Immutable review and original approval retained; no full specification acceptance or live cutover.",
+      "evidence": ".local/autonomous/evidence/claude-completion-20261027/period-prior-close-review.json",
+      "ciFollowup": "Exact0605 full Domain1803PASS/1FAIL: pregrant stale-revision assertion reproduced RED1. Corrected fixture GREEN1 checks scope denial first, then authorized stale refusal and unchanged successful amendment. Runtime unchanged."
+    },
+    "userRolePrivilegesGuide20261026BeforeReleaseCandidateReplay20261027": {
+      "status": "VERIFIED_DOCUMENTATION_ONLY",
+      "guide": "docs/architecture/auditsphere-architecture-user-roles-and-privileges-current.md",
+      "scope": "Staff/client identities; standard assignment roles; backend-only accepted codes; explicit staffing ranks; per-role capabilities/scopes and independence boundaries. Linked from README and docs index.",
+      "boundary": "Describes current source; no runtime or role/grant changes, full tests not applicable.",
+      "verification": "Source catalogue/guard/staffing review, complete standard-role row coverage, Markdown health/filenames/narrative/task-board and diff checks PASS. No runtime tests required or run for this documentation slice."
     }
   },
   "lastUpdatedOn": "2026-10-27"

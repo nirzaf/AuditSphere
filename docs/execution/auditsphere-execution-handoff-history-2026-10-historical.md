@@ -347,3 +347,13 @@ Current firm-wide Staff Administrators can discover and read same-firm invoice a
 Audited scope, ownership, component-pack, normalized report and advanced-history reads now allow current firm-wide Staff Administrator oversight without a group grant. Preparation, review, execution and action-only choices retain their original group checks. The browser exposed editable advanced inputs in read-only mode; those inputs are now hidden, and refreshed desktop/mobile checks passed. Focused revocation and accounting-role use retain current authorization, self-review denial and professional gates. Remaining read owners, census and full release acceptance stay open. See [status.json](status.json).
 
 <!-- End of oversight predecessor handoff archive. -->
+
+## Firm books metadata oversight
+
+Firm-wide Staff Administrator oversight now includes the bounded expense metadata list, with source-document bytes excluded and current authorization rechecked. Original finance preparation, submission and independent review remain separate. Focused and isolated built-in desktop/mobile checks passed; ordinary Staff remains denied. Existing trial-balance authority is unchanged. Other read owners and full specification/release acceptance remain open. See [status.json](status.json).
+
+Primary role-catalogue and oversight evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#primary-administrator-oversight-and-accounting-roles).
+
+Administrator replacement safety evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#administrator-replacement-safety).
+
+<!-- End of firm books predecessor archive. -->

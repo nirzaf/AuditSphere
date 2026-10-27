@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Release-candidate replay
+
+An existing candidate is no longer returned before current authority is checked. Replay uses the ordinary release service and retains its approval identity. Candidate publication rechecks the existing independent package-review prerequisite under release locks, so a returned cash-flow review blocks preparation as shown in the workspace. Focused replay and unchanged historical projection checks passed; remaining release acceptance stays open. See [status.json](status.json).
+
 ## Oversight access evidence and specification suitability
 
 The CI boundary-schema failure reproduced locally. Oversight failures now inherit the shared safe error contract and use its diagnostic identity; protected data stays withheld. See [status.json](status.json).
@@ -24,13 +28,7 @@ Prior invoice metadata oversight evidence is preserved in the [handoff history](
 
 Prior consolidation scope oversight evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#consolidation-scope-oversight).
 
-## Firm books metadata oversight
-
-Firm-wide Staff Administrator oversight now includes the bounded expense metadata list, with source-document bytes excluded and current authorization rechecked. Original finance preparation, submission and independent review remain separate. Focused and isolated built-in desktop/mobile checks passed; ordinary Staff remains denied. Existing trial-balance authority is unchanged. Other read owners and full specification/release acceptance remain open. See [status.json](status.json).
-
-Primary role-catalogue and oversight evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#primary-administrator-oversight-and-accounting-roles).
-
-Administrator replacement safety evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#administrator-replacement-safety).
+Earlier Firm books metadata oversight is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#firm-books-metadata-oversight).
 
 ## Held-task progress
 

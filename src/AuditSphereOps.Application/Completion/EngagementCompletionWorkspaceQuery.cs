@@ -212,10 +212,15 @@ public static class EngagementCompletionWorkspaceQuery
     if (package is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The financial package is unavailable in the current firm scope.");
     var existing = await db.ReleaseCandidates.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.TargetKind == ReleaseTargetKinds.FinancialPackage &&
       x.TargetId == package.Id && x.TargetRevision == package.Revision && x.ManifestDigest == package.CalculationHash, ct);
-    if (existing is not null) return CommandResult<Guid>.Ok(existing.Id);
     var firm = await db.FirmSafetyStates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == actor.FirmId, ct);
     var client = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == package.ClientId, ct);
     if (firm is null || client is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Release safety state is unavailable.");
+    // Replay still requires the canonical current authority, approval and release fences.
+    // Reuse the retained approval so a retry never creates another professional decision.
+    if (existing is not null)
+      return await ReleaseService.CreateCandidateAsync(db, actor, new CreateReleaseCandidateRequest(existing.ApprovalId,
+        ReleaseTargetKinds.FinancialPackage, package.Id, package.Revision, client.InputGeneration,
+        firm.PolicyGeneration, package.CalculationHash), ct);
     var approval = await ApprovalService.CreateAsync(db, actor, new CreateApprovalRequest(ReleaseTargetKinds.FinancialPackage, package.Id, package.Revision,
       client.InputGeneration, firm.PolicyGeneration, package.CalculationHash), ct);
     if (!approval.Succeeded) return CommandResult<Guid>.Fail(approval.ErrorCode!, approval.Message!);

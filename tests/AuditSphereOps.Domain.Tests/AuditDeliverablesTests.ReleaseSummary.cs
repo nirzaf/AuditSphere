@@ -11,6 +11,51 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed partial class AuditDeliverablesTests
 {
   [Fact]
+  public async Task ReleaseCandidateReplayRequiresCurrentAuthorityAndPackageEvidence()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var partner = w.A("partner", "Partner");
+    var (packageId, _) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options,
+      new CompletionBundleScope(w.FirmId, w.ClientId, w.EngagementId, w.U));
+    await using var db = new AuditSphereDbContext(pg.Options);
+    // The released fixture uses its own manifest; prepare the workspace's exact calculation-hash candidate.
+    var prepared = await EngagementCompletionWorkspaceQuery.PrepareReleaseCandidateAsync(db, partner, w.EngagementId, packageId);
+    Assert.True(prepared.Succeeded, prepared.Message);
+    var candidate = await db.ReleaseCandidates.AsNoTracking().SingleAsync(x => x.Id == prepared.Value);
+    var approvals = await db.Approvals.CountAsync();
+    var replay = await EngagementCompletionWorkspaceQuery.PrepareReleaseCandidateAsync(db, partner, w.EngagementId, packageId);
+    Assert.True(replay.Succeeded, replay.Message);
+    Assert.Equal(prepared.Value, replay.Value);
+    Assert.Equal(approvals, await db.Approvals.CountAsync());
+
+    var forgedPartner = await EngagementCompletionWorkspaceQuery.PrepareReleaseCandidateAsync(db,
+      w.A("associate", "Partner"), w.EngagementId, packageId);
+    Assert.False(forgedPartner.Succeeded);
+    Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ScopeDenied, forgedPartner.ErrorCode);
+    Assert.Equal(Guid.Empty, forgedPartner.Value);
+    var staleSession = await EngagementCompletionWorkspaceQuery.PrepareReleaseCandidateAsync(db,
+      partner with { SessionEpoch = partner.SessionEpoch + 1 }, w.EngagementId, packageId);
+    Assert.False(staleSession.Succeeded);
+    Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.GenerationStale, staleSession.ErrorCode);
+    Assert.Equal(Guid.Empty, staleSession.Value);
+
+    var returned = await CashFlowSourceReviewCall.RecordAsync(db, w.A("senior", "AccountingReviewer"),
+      packageId, "RETURNED", "Synthetic correction requires independent source re-review.");
+    Assert.True(returned.Succeeded, returned.Message);
+    var staleWorkspace = await EngagementCompletionWorkspaceQuery.GetAsync(db, partner, w.EngagementId, DateTimeOffset.UtcNow);
+    Assert.True(staleWorkspace.Succeeded, staleWorkspace.Message);
+    Assert.False(staleWorkspace.Value!.CanPrepareRelease);
+    var stale = await EngagementCompletionWorkspaceQuery.PrepareReleaseCandidateAsync(db, partner, w.EngagementId, packageId);
+    Assert.False(stale.Succeeded);
+    Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.GateBlocked, stale.ErrorCode);
+    Assert.Equal(Guid.Empty, stale.Value);
+    Assert.Equal(approvals, await db.Approvals.CountAsync());
+    Assert.Single(await db.ReleaseCandidates.Where(x => x.TargetId == packageId &&
+      x.TargetRevision == candidate.TargetRevision && x.ManifestDigest == candidate.ManifestDigest).ToListAsync());
+  }
+
+  [Fact]
   public async Task CompletionProjectionShowsTheExactCheckpointAndPersistedReleaseIdentity()
   {
     await using var pg = await PgTestSchema.CreateAsync();

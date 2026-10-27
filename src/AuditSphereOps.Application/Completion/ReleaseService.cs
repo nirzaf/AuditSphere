@@ -97,6 +97,16 @@ public static class ReleaseService
     if (applicability is null || applicability.Status != ApprovalStates.Current)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The approval is not currently applicable.");
 
+    if (current.Kind == ReleaseTargetKinds.FinancialPackage)
+    {
+      if (db is not IClientAccountingDbContext accountingDb)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client accounting review persistence is unavailable.");
+      var packageReview = await FinancialPackageReviewService.RequireCurrentAsync(
+        accountingDb, actor, current.Id, requirePartner: true, ct);
+      if (!packageReview.Succeeded)
+        return CommandResult<Guid>.Fail(packageReview.ErrorCode!, packageReview.Message!);
+    }
+
     var existing = await db.ReleaseCandidates.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.TargetKind == current.Kind && x.TargetId == current.Id &&
       x.TargetRevision == current.Revision && x.ManifestDigest == request.ManifestDigest, ct);

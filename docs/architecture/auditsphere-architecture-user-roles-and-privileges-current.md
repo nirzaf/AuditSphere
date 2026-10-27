@@ -133,6 +133,8 @@ Participating GET requests retain one append-only access event before disclosing
 
 This is a staged rollout. Other finance reports and navigation require their own source audit and verification; this policy does not silently enable every query. Existing Administrator command allowlists remain unchanged pending their separate policy census. Private work, client-portal authority, confidential raw documents, professional approvals and provider consent are not inherited. Retirement of historical role codes remains a separate decision.
 
+Preparing an existing release candidate still uses the ordinary release service's current authority and generation checks. It reuses the retained approval rather than creating another decision. Financial-package candidate publication, including replay, requires the existing current independent package review under release locks; administrative oversight cannot satisfy it.
+
 The later Role Authorization and EQR specification is a useful source for operation inventories and access evidence, but its older nine-role catalogue does not replace the eleven supported roles above. Its professional EQR changes remain unactivated: service applicability and decision authority, reviewer eligibility/independence, the exact draft evidence and change boundary, and treatment of legacy/open engagements require recorded policy (D-EQR-01 through D-EQR-04). The existing `EqrCase.EqrPartnerUserId`, staffed Partner signing controls and release prerequisites remain authoritative; an EQR display or administrative read cannot supply concurrence or final approval.
 
 ## Managing access
