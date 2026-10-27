@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Period close readiness
+
+The readiness view now reports a missing or unapproved opening bridge before period close, matching the existing close command. Focused PostgreSQL and isolated built-in browser checks passed; current release verification remains pending. See [status.json](status.json).
+
 ## Adjustment posting and selected-source currentness (2026-10-27)
 
 A journal based on an earlier trial balance cannot be posted after a replacement is accepted for the same reporting context. Source acceptance and posting serialize on the existing firm/client/engagement fence, and the journal review explains the posting restriction while retaining independent return. The path where no source acceptance exists remains legacy behavior; it is not full source-to-package acceptance. Focused tests and the isolated built-in browser evidence are recorded in [status.json](status.json).
@@ -355,7 +359,7 @@ Exact published 1782 CI failed with API 414 pass / 2 fail and E2E 336 pass / 2 f
 
 ## Bank linked-source freshness
 
-Bank creation and review now reject approved linked schedules whose generation differs from the current client generation. A focused existing workflow reproduced stale-source creation before the fix and passed afterward, retaining the original approved reconciliation and refusing a synthetic historical-invalid review. This is a source-adapter prerequisite, not runtime race proof, typed booked-balance retention or T059/Task 18 completion.
+Prior evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#bank-linked-source-freshness).
 
 ## Client-portal unknown upload-start recovery
 

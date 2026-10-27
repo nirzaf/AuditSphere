@@ -89,6 +89,8 @@ A task completion or UI action **never sets an audit lifecycle state directly**.
 
 ### Financial boundaries and service modes
 
+Period close readiness reports an unapproved or missing required opening bridge before the close decision; the independent approval and close checks remain authoritative.
+
 | Boundary | Source of truth | Non-negotiable rule |
 | --- | --- | --- |
 | **Firm ledger** | Practice fees, invoices, cash allocations, expenses, posted firm accounting | Never post client bookkeeping transactions to the firm's books |

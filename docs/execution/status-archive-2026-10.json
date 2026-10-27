@@ -26965,6 +26965,13 @@
       "verification": "Ambiguous linked proposals returned one arbitrarily: RED1. GREEN4 plus existing scoped authorization API PASS. Owned synthetic browser showed Draft and explicit activation blocker, with blocked onboarding and no console warnings/errors.",
       "boundary": "No live write, full CI or professional approval.",
       "evidence": ".local/autonomous/evidence/atomic-completion-20261027/ambiguous-resolver-review.json"
+    },
+    "nonAuditProgressProfileBeforePeriodReadiness20261027": {
+      "status": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
+      "behavior": "Non-audit routes retain an explicit D03 gate even with all tasks completed and an issued release; accounting and internal-audit progress is capped at 99 until the completion profile is approved.",
+      "verification": "Focused Domain RED2/GREEN2 including detail, client, portfolio and client-user denial; Angular progress spec 11 PASS and pinned Node build PASS; synthetic built-in accounting engagement showed 99%, D03 gate and completed step, console warnings/errors empty.",
+      "boundary": "No D03 policy decision, live release or current-source full CI claimed.",
+      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/non-audit-progress-review.json"
     }
   },
   "lastUpdatedOn": "2026-10-27"

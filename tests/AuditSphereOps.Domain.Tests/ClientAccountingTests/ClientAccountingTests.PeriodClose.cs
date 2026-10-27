@@ -168,6 +168,11 @@ public sealed partial class ClientAccountingTests
       Assert.Equal("RECONCILED", bridge.Status);
       Assert.Null(bridge.ApprovedByUserId);
 
+      var readinessBeforeApproval = await PeriodCloseReadinessQuery.GetReadinessAsync(db, reviewer, nextPeriodId);
+      Assert.True(readinessBeforeApproval.Succeeded, readinessBeforeApproval.Message);
+      Assert.False(readinessBeforeApproval.Value!.CanClose);
+      Assert.Contains(readinessBeforeApproval.Value.Blockers, x => x.Code == "opening-bridge.not-current");
+
       var closeBeforeBridgeApproval = await ClientAccountingService.ClosePeriodAsync(db, reviewer,
         nextPeriodId, "Unreviewed opening bridge");
       Assert.False(closeBeforeBridgeApproval.Succeeded);
@@ -195,6 +200,9 @@ public sealed partial class ClientAccountingTests
       opening.Id, expectedClientId: scope.ClientA, expectedSourceHash: new string('a', 64))).ErrorCode);
     Assert.True((await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(verify, reviewer,
       opening.Id, expectedClientId: scope.ClientA, expectedSourceHash: opening.SourceHash)).Succeeded);
+    var readinessAfterApproval = await PeriodCloseReadinessQuery.GetReadinessAsync(verify, reviewer, nextPeriodId);
+    Assert.True(readinessAfterApproval.Succeeded, readinessAfterApproval.Message);
+    Assert.True(readinessAfterApproval.Value!.CanClose);
     var closeAfterBridgeApproval = await ClientAccountingService.ClosePeriodAsync(verify, reviewer,
       nextPeriodId, "Opening bridge reviewed");
     Assert.True(closeAfterBridgeApproval.Succeeded, closeAfterBridgeApproval.Message);

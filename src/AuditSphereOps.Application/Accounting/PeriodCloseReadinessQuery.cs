@@ -43,6 +43,16 @@ public static class PeriodCloseReadinessQuery
     }
     else
     {
+      var openingBridge = await db.OpeningBalanceBridges.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == period.ClientId &&
+          x.CurrentPeriodId == period.Id, ct);
+      if ((period.PriorPeriodId.HasValue &&
+           (openingBridge is null || openingBridge.PriorPeriodId != period.PriorPeriodId.Value)) ||
+          (openingBridge is not null &&
+           (openingBridge.Status != AccountingWorkflowStates.Approved ||
+            openingBridge.ApprovedByUserId is null || openingBridge.ApprovedAt is null)))
+        blockers.Add(new PeriodCloseBlocker("opening-bridge.not-current",
+          "A reviewed opening balance bridge for the linked prior period is required before close."));
       if (await db.ClientOperationalJournals.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
         x.ClientId == period.ClientId && x.PeriodId == period.Id && x.Status != "POSTED", ct))
         blockers.Add(new PeriodCloseBlocker("native-journals.unposted", "Unposted native client journals block period close."));
