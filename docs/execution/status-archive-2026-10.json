@@ -25756,6 +25756,15 @@
       },
       "fullCi": "NOT_RUN",
       "boundary": "Read-only projection over existing tasks, evidence, cancellations, holds, releases and the derived lifecycle; no new workflow state, approval or release decision. Non-audit route gates remain disclosed as unspecified pending D03."
+    },
+    "currentSourceCiBeforeAccountAndTaskJourneyCorrection20261027": {
+      "sourceBaseCommit": "bedb020e800f8f66bceabcfc5dc3bb77052a2f08",
+      "sourceRole": "SHARED_FORM_LAYOUT_AND_MANUAL_TASK_PROGRESS_PUBLICATION_CANDIDATE",
+      "fastCi": "New exact-source gate required after publication; d1 fast40383096357 PASS all3 actualcheckoutMATCH is preceding evidence only.",
+      "releaseVerification": "New exact-source full dispatch required; d1 full40383293201 is preceding only, not acceptance of these UI/manual changes.",
+      "imagePublication": "New automatic exact-source images and restored-copy rehearsal required.",
+      "cutoverStatus": "NOT_PERFORMED; preserve existing authorized Acceptance and current live baseline until mandatory exact gates/backup/plan pass.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeSharedFormsAndManualTasks20261026"
     }
   },
   "archivedTargetedVerification": {
@@ -26804,6 +26813,14 @@
       "evidence": ".local/autonomous/evidence/accounting-profile-assent-built-20261025/review.json",
       "ci": "Predecessor 69264b349b09 passed Angular, Domain, and build/contracts/publication but its E2E failed. Corrected exact full run 40157541524 now resolves to 7703f3f868c232f857f0ca4c6109b99b93bc9f58 (MATCH) and is running; fast run 40157502647 is also running.",
       "limits": "The focused E2E verifies profile revision assent behavior only. It does not establish full-suite, human screen-reader, native zoom, professional policy, or live-provider acceptance."
+    },
+    "sharedFormLayoutBeforeAccountTaskJourneyCorrection20261027": {
+      "status": "LOCAL_AND_BUILTIN_VERIFIED_CURRENT_FULL_PENDING",
+      "sourceBaseCommit": "bedb020e800f8f66bceabcfc5dc3bb77052a2f08",
+      "behavior": "Shared form sections stack; responsive native fields/fieldsets/workspace grids and horizontal checkboxes. Ledger report links and full-width responsive journal rows; filter bars/toolbars/custom grids preserved.",
+      "verification": "Actual old-bundle layout RED1; new selected E2E3PASS including390px fit, setup unknown-outcome recovery and finance-role denial. PinnedNode26.8.1 production build/scoped ledger ESLint/diffPASS. Actual builtin ledger form/fieldset both883.125px, row82px, draft2-to3-to2; report link to Firm books and readable expense fields; console[]. All observations before fixture expiry; owned tab9 closed/released; no financial writes.",
+      "boundary": "Source survey also covered native journals/opening/consolidation/custom grids; only Ledger/Books were interactively inspected. Existing settings/app style-budget warnings remain. No human AT/nativezoom/full-suite/live-release claim.",
+      "evidence": ".local/autonomous/evidence/ledger-ui-20261026/review.json"
     }
   },
   "lastUpdatedOn": "2026-10-26"

@@ -189,7 +189,9 @@ public sealed class AngularFirmScopeRevocationParityJourneyTests
     var deniedBody = await clientPage.Locator("body").InnerTextAsync();
     Assert.DoesNotContain("Users & Access", deniedBody);
     Assert.DoesNotContain("Setup progress", deniedBody);
-    Assert.DoesNotContain(erroneousClientAdmin.Email, deniedBody);
+    await Assertions.Expect(clientPage.Locator("audit-user-account summary"))
+      .ToContainTextAsync(erroneousClientAdmin.Email);
+    Assert.DoesNotContain(f.Staff.Email, deniedBody);
     Assert.Empty(errors);
   }
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 
 namespace AuditSphereOps.E2E.Tests;
@@ -61,7 +62,11 @@ public sealed class AngularWorkflowTaskCreationJourneyTests
     Assert.Equal(2, keys.Count);
     Assert.Equal(keys[0], keys[1]);
     await page.ReloadAsync();
-    await Assertions.Expect(page.GetByText(title, new() { Exact = true })).ToHaveCountAsync(1, new() { Timeout = 20000 });
+    await Assertions.Expect(page.Locator("audit-engagement-workflow .phase-checklists")
+      .GetByText(title, new() { Exact = true })).ToHaveCountAsync(1, new() { Timeout = 20000 });
+    await using (var db = host.CreateDbContext())
+      Assert.Equal(1, await db.WorkTasks.CountAsync(task => task.FirmId == f.FirmId &&
+        task.EngagementId == f.EngagementId && task.Title == title));
     var stagesAfter = await page.Locator("audit-engagement-workflow").Locator("ol, [role='list']").First.InnerTextAsync();
     Assert.Equal(stagesBefore, stagesAfter);
     Assert.Empty(errors);

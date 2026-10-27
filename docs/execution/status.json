@@ -1076,10 +1076,7 @@
     },
     "sharedFormLayout20261026": {
       "status": "LOCAL_AND_BUILTIN_VERIFIED_CURRENT_FULL_PENDING",
-      "sourceBaseCommit": "bedb020e800f8f66bceabcfc5dc3bb77052a2f08",
-      "behavior": "Shared form sections stack; responsive native fields/fieldsets/workspace grids and horizontal checkboxes. Ledger report links and full-width responsive journal rows; filter bars/toolbars/custom grids preserved.",
-      "verification": "Actual old-bundle layout RED1; new selected E2E3PASS including390px fit, setup unknown-outcome recovery and finance-role denial. PinnedNode26.8.1 production build/scoped ledger ESLint/diffPASS. Actual builtin ledger form/fieldset both883.125px, row82px, draft2-to3-to2; report link to Firm books and readable expense fields; console[]. All observations before fixture expiry; owned tab9 closed/released; no financial writes.",
-      "boundary": "Source survey also covered native journals/opening/consolidation/custom grids; only Ledger/Books were interactively inspected. Existing settings/app style-budget warnings remain. No human AT/nativezoom/full-suite/live-release claim.",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.sharedFormLayoutBeforeAccountTaskJourneyCorrection20261027",
       "evidence": ".local/autonomous/evidence/ledger-ui-20261026/review.json"
     },
     "consolidationFormButtons20261026": {
@@ -1094,6 +1091,12 @@
       "verification": "Preceding API trace RED1, focused GREEN1; Angular progress 10 PASS; canonical and legacy E2E 2 PASS. Synthetic built-in client progress page1/page2/back retained focus; no writes.",
       "boundary": "Preceding runner shutdown cause unproven; no full local suite or current-source release claim.",
       "evidence": ".local/autonomous/evidence/ledger-ui-20261026/contract-trace-fix-review.json"
+    },
+    "accountAndTaskJourneyCorrection20261027": {
+      "status": "FOCUSED_2_PASS_CURRENT_CI_PENDING",
+      "verification": "Both preceding E2E assertions reproduced on ba161 and passed after correction. Firm admin endpoints still return 403; account control shows the signed-in identity and the seeded staff identity remains hidden. Exact retry identity and lifecycle assertions remain; checklist is scoped and PostgreSQL confirms one task for the firm and engagement.",
+      "boundary": "No runtime permission or task behavior changed; no full local suite or new release claim. Finding receipt timeout recurred separately; cause remains unproven.",
+      "evidence": ".local/autonomous/evidence/ledger-ui-20261026/account-task-journey-correction-review.json"
     }
   },
   "externalGates": [
@@ -1586,13 +1589,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "bedb020e800f8f66bceabcfc5dc3bb77052a2f08",
-    "sourceRole": "SHARED_FORM_LAYOUT_AND_MANUAL_TASK_PROGRESS_PUBLICATION_CANDIDATE",
-    "fastCi": "New exact-source gate required after publication; d1 fast40383096357 PASS all3 actualcheckoutMATCH is preceding evidence only.",
-    "releaseVerification": "New exact-source full dispatch required; d1 full40383293201 is preceding only, not acceptance of these UI/manual changes.",
-    "imagePublication": "New automatic exact-source images and restored-copy rehearsal required.",
-    "cutoverStatus": "NOT_PERFORMED; preserve existing authorized Acceptance and current live baseline until mandatory exact gates/backup/plan pass.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeSharedFormsAndManualTasks20261026"
+    "sourceBaseCommit": "ba161e45b26c35dbfb16a2357bf7add804c4e240",
+    "sourceRole": "ACCOUNT_AND_TASK_JOURNEY_FIXTURE_CORRECTION",
+    "fastCi": "New exact-source fast gate required after publication.",
+    "releaseVerification": "New exact-source full gate required; preceding ba161 remains in progress.",
+    "imagePublication": "New exact-source images and restored-copy rehearsal required before cutover.",
+    "cutoverStatus": "NOT_PERFORMED for this candidate; preceding fb02 is live.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeAccountAndTaskJourneyCorrection20261027"
   },
   "updatedAtUtc": "2026-10-26T19:44:40.494212+00:00"
 }
