@@ -6,7 +6,7 @@
 
 ## Direction
 
-Calm authority for regulated financial work: a navy shell, white work surfaces on a cool slate canvas, one blue action accent, semantic status colours, and dense but legible data. Minimal (Swiss) style with subtle motion. The system font stack is kept so no external font is downloaded.
+Calm authority for regulated financial work in a dense ERP style (in the manner of Odoo or Axelor): a navy shell, white work surfaces on a cool slate canvas, one blue action accent, semantic status colours, and dense but legible data. Record pages lead with an identity strip and in-page section tabs; every page header carries its area icon. Subtle motion only. The system font stack is kept so no external font is downloaded.
 
 ## Tokens
 
@@ -28,9 +28,11 @@ Text tokens keep at least 4.5:1 contrast on white and on the canvas; control bor
 
 | Pattern | Use | Markup |
 | --- | --- | --- |
-| Page header | Every page opens with it; projected content is page actions, shown right of the title | `<audit-page-header>` |
-| Panel | A titled section of related content | `.panel` |
-| Key figures | A row of tiles, each a short label above one tabular value | `section.portfolio-metrics > article > h2 + strong` |
+| Page header | Every page opens with it as a card: the area icon of its sidebar item (`pageIconFor`), eyebrow, title and description; projected content is page actions, shown right of the title | `<audit-page-header>` |
+| Record header | The identity strip of a record page: icon, record title, status and key facts | `section.record-header` |
+| Section tabs | Sticky tabs for long record pages. Every section stays rendered; a tab jumps to and focuses its section and highlights the one in view. Tab labels must not repeat a heading or test-visible text on the page | `<audit-section-tabs [sections]>` |
+| Panel | A titled section of related content; its opening `h2` reads as a card header with a divider | `.panel` |
+| Key figures | A row of tiles, each a short label above one tabular value, with a rotating accent stripe and an optional corner icon | `section.portfolio-metrics > article > span.tile-icon? + h2 + strong` |
 | Filter strip | Search and filter controls, stacked label over control, actions aligned to the controls | `.filter-bar` (also `.lead-filters`, `.invoice-filters`, `.pipeline-filters`) |
 | Segmented control | Views switched with `aria-pressed` buttons, or a record's section shortcuts | `nav.analytics-views`, `nav.queue-views`, `nav.invoice-sections`, `nav.proposal-sections` |
 | Data table | Tables live in `.table-scroll` cards; numbers use `.number`; dates that must not wrap use `.nowrap` | `table`, `.table-scroll` |

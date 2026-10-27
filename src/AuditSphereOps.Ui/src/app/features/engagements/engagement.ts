@@ -11,6 +11,8 @@ import { EngagementPlanning } from './planning';
 import { EngagementTaskPlan } from './engagement-task-plan';
 import { EngagementCommunicationsPanel } from './engagement-communications';
 import { EngagementActivity } from './engagement-activity';
+import { PageSection, SectionTabs } from '../../core/section-tabs';
+import { WorkspaceNavigationIcon } from '../../core/workspace-navigation-icon';
 import { EngagementProgressTracker } from '../practice/engagement-progress';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
@@ -37,6 +39,8 @@ export function engagementWorkflowAvailable(requiresAccountingPreparation: boole
 @Component({
   selector: 'audit-engagement',
   imports: [
+    SectionTabs,
+    WorkspaceNavigationIcon,
     EngagementProgressTracker,
     EngagementLifecycle,
     EngagementWorkflow,
@@ -54,6 +58,15 @@ export function engagementWorkflowAvailable(requiresAccountingPreparation: boole
   styleUrl: './engagement.scss',
 })
 export class EngagementDetail {
+  /** In-page tabs; every section stays rendered so deep links and assistive technology still reach it directly. */
+  readonly sections: readonly PageSection[] = [
+    { id: 'engagement-progress-section', label: 'Progress' }, { id: 'engagement-summary', label: 'Summary' },
+    { id: 'engagement-service', label: 'Service' }, { id: 'engagement-workflow-section', label: 'Workflow' },
+    { id: 'engagement-readiness', label: 'Readiness' }, { id: 'engagement-team', label: 'Team & budget' },
+    { id: 'engagement-task-plan', label: 'Task plan' }, { id: 'engagement-messages', label: 'Messages' },
+    { id: 'engagement-history', label: 'History' }, { id: 'engagement-lifecycle', label: 'Lifecycle' },
+    { id: 'engagement-clearance', label: 'Holds & gates' },
+  ];
   readonly workflowLink = engagementWorkflowLink;
   readonly workflowAvailable = engagementWorkflowAvailable;
   readonly workflows: Array<{ path: string; label: string; requiresAccountingPreparation?: boolean }> = [

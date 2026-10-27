@@ -23,13 +23,14 @@
       @if (client.lastArchivedAt) { <span> Last archived {{ utcTime(client.lastArchivedAt) }}.</span> }
     </aside>
   }
-  <section class="client-metrics" aria-label="Scoped client summary">
+  <audit-section-tabs [sections]="sections()" label="Client sections" />
+  <section id="client-summary" class="client-metrics" aria-label="Scoped client summary">
     <article><h2>Engagements</h2><strong>{{ client.metrics.engagements }}</strong></article>
     <article><h2>Work blocked</h2><strong>{{ client.metrics.workBlocked }}</strong></article>
     <article><h2>Client contacts</h2><strong>{{ client.metrics.contacts }}</strong></article>
   </section>
-  @if (client.metrics.engagements > 0) { <audit-client-progress [clientId]="client.id" /> }
-  <section aria-labelledby="client-name" class="client-profile">
+  @if (client.metrics.engagements > 0) { <audit-client-progress id="client-progress-section" [clientId]="client.id" /> }
+  <section id="client-profile-section" aria-labelledby="client-name" class="client-profile">
     <h2 id="client-name">{{ client.name }}</h2>
     @if (client.commercialName) { <p>Trading as: {{ client.commercialName }}</p> }
     <dl>
@@ -40,7 +41,7 @@
       <dt>Onboarded</dt><dd><time [attr.datetime]="client.createdAt">{{ utcTime(client.createdAt) }}</time></dd>
     </dl>
   </section>
-  <section aria-label="Associated engagements">
+  <section id="client-engagements" aria-label="Associated engagements">
     <h2>Associated engagements</h2>
     @if (!client.engagements.length) { <p>No engagements available on this page in your current scope.</p> }
     @else {
@@ -75,7 +76,7 @@
           <a matButton="filled" [routerLink]="['/app/clients', client.id, 'engagements', 'new']" [queryParams]="location()">Review new engagement</a>
         </section>
       }
-  <section aria-label="Client portal intent">
+  <section id="client-portal" aria-label="Client portal intent">
     <h2>Client portal</h2>
     @if (client.portalIntent; as intent) {
       <p><audit-status [value]="intent.state" /> for <strong>{{ intent.recipientEmail }}</strong></p>
@@ -83,7 +84,7 @@
       <p class="muted">Intent last updated: <time [attr.datetime]="intent.updatedAt">{{ utcTime(intent.updatedAt) }}</time>. This notice does not grant access or verify Microsoft invitation redemption.</p>
     } @else { <p>No portal intent was recorded for this client at conversion.</p> }
   </section>
-  <section aria-label="Client contacts">
+  <section id="client-contacts" aria-label="Client contacts">
     <h2>Client contacts</h2>
     @if (!client.contacts.length) { <p>No contacts available on this page.</p> }
     @else {
@@ -105,9 +106,11 @@
       <p><a matButton="filled" [routerLink]="['/app/clients', client.id, 'contacts', 'new']" [queryParams]="location()">Add client contact</a></p>
     }
   </section>
-  @defer (on viewport) {
-    <audit-client-relationships [clientId]="client.id" />
-  } @placeholder {
-    <p class="muted">Organization hierarchy and correspondence routing</p>
-  }
+  <div id="client-relationships-section">
+    @defer (on viewport) {
+      <audit-client-relationships [clientId]="client.id" />
+    } @placeholder {
+      <p class="muted">Organization hierarchy and correspondence routing</p>
+    }
+  </div>
 }

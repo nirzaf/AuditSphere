@@ -9,13 +9,14 @@ import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { PortfolioProgress } from '../practice/engagement-progress';
+import { WorkspaceNavigationIcon } from '../../core/workspace-navigation-icon';
 import { PortfolioNavigation, decodePortfolioWorkspace, portfolioLocation, portfolioWindow } from './portfolio-contracts';
 export { decodePortfolio } from './portfolio-contracts';
 export type { ClientRow, PortfolioPage } from './portfolio-contracts';
 
 @Component({
   selector: 'audit-portfolio',
-  imports: [RouterLink, FormField, MatButtonModule, MatFormFieldModule, MatInputModule, PortfolioProgress, ...SHARED],
+  imports: [RouterLink, FormField, MatButtonModule, MatFormFieldModule, MatInputModule, PortfolioProgress, WorkspaceNavigationIcon, ...SHARED],
   templateUrl: './portfolio.html',
   styleUrl: './portfolio.scss',
 })

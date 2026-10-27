@@ -19,13 +19,19 @@
 }
 @if (data(); as engagement) {
   <div [hidden]="loading()">
-    <h2>{{ engagement.serviceRoute }} — {{ engagement.clientName }}</h2>
-    <p>
-      <audit-status [value]="engagement.status" /> · {{ engagement.periodStart }} to
-      {{ engagement.periodEnd }}
-    </p>
-    <audit-engagement-progress [engagementId]="engagement.id" />
-    <section aria-label="Engagement summary" class="engagement-metrics">
+    <section class="record-header" aria-label="Engagement record">
+      <span class="record-icon" aria-hidden="true"><audit-nav-icon name="briefcase-business" /></span>
+      <div class="record-title">
+        <h2>{{ engagement.serviceRoute || 'Engagement' }} — {{ engagement.clientName }}</h2>
+        <p class="record-meta">
+          <audit-status [value]="engagement.status" />
+          <span>{{ engagement.periodStart && engagement.periodEnd ? engagement.periodStart + ' to ' + engagement.periodEnd : 'Period not recorded' }}</span>
+        </p>
+      </div>
+    </section>
+    <audit-section-tabs [sections]="sections" label="Engagement sections" />
+    <audit-engagement-progress id="engagement-progress-section" [engagementId]="engagement.id" />
+    <section id="engagement-summary" aria-label="Engagement summary" class="engagement-metrics">
       <article>
         <h3>Professional work</h3>
         <strong>{{ workBlocked(engagement) ? 'Blocked' : 'Open' }}</strong>
@@ -39,7 +45,7 @@
         <strong>{{ engagement.holdMetrics.released }}</strong>
       </article>
     </section>
-    <section class="engagement-profile" aria-label="Engagement profile">
+    <section id="engagement-service" class="engagement-profile" aria-label="Engagement profile">
       <h2>Service and period</h2>
       <dl>
         <dt>Client</dt>
@@ -95,13 +101,15 @@
         <a matButton [routerLink]="['/app/engagements', engagement.id, 'activation']" [queryParams]="location()">Review and activate engagement</a>
       </section>
     }
-    <audit-engagement-workflow [engagementId]="engagement.id" />
-    <audit-onboarding-readiness [engagementId]="engagement.id" />
-    @defer (on viewport(planningTrigger); on idle) {
-      <audit-engagement-planning [engagementId]="engagement.id" />
-    } @placeholder {
-      <p #planningTrigger>Team and budget</p>
-    }
+    <audit-engagement-workflow id="engagement-workflow-section" [engagementId]="engagement.id" />
+    <audit-onboarding-readiness id="engagement-readiness" [engagementId]="engagement.id" />
+    <div id="engagement-team">
+      @defer (on viewport(planningTrigger); on idle) {
+        <audit-engagement-planning [engagementId]="engagement.id" />
+      } @placeholder {
+        <p #planningTrigger>Team and budget</p>
+      }
+    </div>
     <div id="engagement-task-plan">
       @defer (on viewport; when taskPlanRequested()) {
         <audit-engagement-task-plan [engagementId]="engagement.id" [serviceRoute]="engagement.serviceRoute" [suggestedRevisionId]="taskTemplateReference()" />
@@ -109,12 +117,14 @@
         <p>Operational task plan</p>
       }
     </div>
-    @defer (on viewport) {
-      <audit-engagement-communications [engagementId]="engagement.id" />
-    } @placeholder {
-      <p>Communications</p>
-    }
-    <details (toggle)="activityOpen.set($any($event.target).open)">
+    <div id="engagement-messages">
+      @defer (on viewport) {
+        <audit-engagement-communications [engagementId]="engagement.id" />
+      } @placeholder {
+        <p>Communications</p>
+      }
+    </div>
+    <details id="engagement-history" (toggle)="activityOpen.set($any($event.target).open)">
       <summary>Activity</summary>
       @if (activityOpen()) {
         <audit-engagement-activity [engagementId]="engagement.id" />
@@ -122,7 +132,7 @@
         <p>Recorded engagement activity</p>
       }
     </details>
-    <details class="technical-lifecycle" open>
+    <details id="engagement-lifecycle" class="technical-lifecycle" open>
       <summary>Technical lifecycle: 11 canonical stages</summary>
       @defer (on viewport) {
         <audit-engagement-lifecycle [engagementId]="engagement.id" />

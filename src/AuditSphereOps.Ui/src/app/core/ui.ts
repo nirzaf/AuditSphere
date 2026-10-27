@@ -1,6 +1,10 @@
-import { Component, Pipe, PipeTransform, input } from '@angular/core';
+import { Component, Pipe, PipeTransform, inject, input } from '@angular/core';
+import { Router } from '@angular/router';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { money, percent } from './decode';
+import { NAVIGATION } from '../navigation';
+import type { NavIconName } from '../navigation-icons';
+import { WorkspaceNavigationIcon } from './workspace-navigation-icon';
 
 const UTC_TIME = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit',
   minute: '2-digit', hourCycle: 'h23', timeZone: 'UTC' });
@@ -47,9 +51,29 @@ export class PercentPipe implements PipeTransform {
   }
 }
 
+/** The sidebar icon of the area a page belongs to, so each page header carries the same visual cue as its menu item. */
+export function pageIconFor(url: string): NavIconName {
+  const path = url.split(/[?#]/, 1)[0].replace(/^\/ui(?=\/)/, '');
+  let best: { path: string; icon: NavIconName } | null = null;
+  for (const group of NAVIGATION) for (const item of group.items) {
+    const matches = path === item.path || (!item.exact && path.startsWith(item.path + '/'));
+    if (matches && (!best || item.path.length > best.path.length)) best = item;
+  }
+  if (best) return best.icon;
+  if (/^\/app\/(engagements|clients|assessments)(\/|$)/.test(path)) return 'briefcase-business';
+  if (/^\/app\/(audit|findings|reviews|releases|completion|records)(\/|$)/.test(path)) return 'file-search';
+  if (path.startsWith('/app/accounting')) return 'calculator';
+  if (path.startsWith('/app/consolidation')) return 'layers';
+  if (path.startsWith('/app/profile')) return 'user-round';
+  if (path.startsWith('/portal')) return 'globe';
+  return 'layout-dashboard';
+}
+
 @Component({
   selector: 'audit-page-header',
+  imports: [WorkspaceNavigationIcon],
   template: `<header>
+    <span class="page-icon" aria-hidden="true"><audit-nav-icon [name]="icon" /></span>
     <div class="page-header-text">
       @if (eyebrow()) { <p class="eyebrow">{{ eyebrow() }}</p> }
       <h1>{{ title() }}</h1>
@@ -59,6 +83,7 @@ export class PercentPipe implements PipeTransform {
   </header>`,
 })
 export class PageHeader {
+  readonly icon = pageIconFor(inject(Router, { optional: true })?.url ?? '');
   readonly title = input.required<string>();
   readonly eyebrow = input('');
   readonly description = input('');

@@ -19,12 +19,12 @@
     </aside>
   }
   <section aria-label="Current scope summary" class="portfolio-metrics">
-    <article><h2>Clients</h2><strong>{{ result.metrics.clients }}</strong></article>
-    <article><h2>Engagements</h2><strong>{{ result.metrics.engagements }}</strong></article>
-    <article><h2>Open holds</h2><strong>{{ result.metrics.openHolds }}</strong></article>
-    <article><h2>Pending operations</h2><strong>{{ result.metrics.pendingOperations }}</strong></article>
-    <article><h2>Ready candidates</h2><strong>{{ result.metrics.readyCandidates }}</strong></article>
-    <article><h2>Issued releases</h2><strong>{{ result.metrics.issuedReleases }}</strong></article>
+    <article><span class="tile-icon" aria-hidden="true"><audit-nav-icon name="users-round" /></span><h2>Clients</h2><strong>{{ result.metrics.clients }}</strong></article>
+    <article><span class="tile-icon" aria-hidden="true"><audit-nav-icon name="briefcase-business" /></span><h2>Engagements</h2><strong>{{ result.metrics.engagements }}</strong></article>
+    <article><span class="tile-icon" aria-hidden="true"><audit-nav-icon name="scale" /></span><h2>Open holds</h2><strong>{{ result.metrics.openHolds }}</strong></article>
+    <article><span class="tile-icon" aria-hidden="true"><audit-nav-icon name="activity" /></span><h2>Pending operations</h2><strong>{{ result.metrics.pendingOperations }}</strong></article>
+    <article><span class="tile-icon" aria-hidden="true"><audit-nav-icon name="clipboard-check" /></span><h2>Ready candidates</h2><strong>{{ result.metrics.readyCandidates }}</strong></article>
+    <article><span class="tile-icon" aria-hidden="true"><audit-nav-icon name="file-check-2" /></span><h2>Issued releases</h2><strong>{{ result.metrics.issuedReleases }}</strong></article>
   </section>
   <p class="hint">Summary counts cover your current scope and are unaffected by search.</p>
   <button matButton="outlined" (click)="download()" [disabled]="exporting()">{{ exporting() ? 'Preparing CSV…' : 'Download scoped CSV' }}</button>

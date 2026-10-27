@@ -4,11 +4,24 @@ form mat-form-field, form label { flex: 1 1 14rem; }
 form h3, form p { flex-basis: 100%; }
 section { margin-block: 1.5rem; }
 .client-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .75rem; }
-.client-metrics article, .client-profile { border: 1px solid var(--mat-sys-outline-variant); border-radius: .75rem; padding: 1rem; }
-.client-metrics h2 { font-size: .9rem; margin: 0 0 .75rem; }
-.client-metrics strong { font-size: 1.8rem; }
+.client-metrics article, .client-profile { border: 1px solid var(--as-line, #dfe6ee); border-radius: var(--as-radius-md, 10px); padding: 1rem;
+  background: var(--as-surface-raised, #fff); box-shadow: var(--as-shadow-1); }
+.client-metrics article { border-top: 3px solid var(--tile-accent, #1d4ed8); }
+.client-metrics article:nth-child(2) { --tile-accent: #b45309; }
+.client-metrics article:nth-child(3) { --tile-accent: #0e7490; }
+.client-metrics h2 { font-size: .8125rem; font-weight: 600; color: var(--as-text-muted, #455468); margin: 0 0 .5rem; }
+.client-metrics strong { font-size: 1.625rem; color: var(--as-ink, #12385d); font-variant-numeric: tabular-nums; }
+.client-profile { margin-block: 1.25rem; padding: 1.25rem 1.5rem; }
 dl { display: grid; grid-template-columns: minmax(9rem, 1fr) 3fr; gap: .65rem 1rem; }
 dt { font-weight: 600; } dd { margin: 0; overflow-wrap: anywhere; }
 small { display: block; overflow-wrap: anywhere; }
 table { min-width: 30rem; }
 @media (max-width: 600px) { dl { grid-template-columns: 1fr; } dd { margin-bottom: .5rem; } }
+
+// The client toolbar reads as the record header: status, archive state and record actions in one strip.
+nav[aria-label='Client navigation'] {
+  margin: 0 0 1rem; padding: .75rem 1rem; gap: .5rem 1rem;
+  border: 1px solid var(--as-line, #dfe6ee); border-inline-start: 4px solid var(--as-accent-ink, #1e4fa8);
+  border-radius: var(--as-radius-lg, 14px); background: var(--as-surface-raised, #fff); box-shadow: var(--as-shadow-1);
+}
+.client-archive-state { color: var(--as-text-muted, #455468); font-size: .875rem; }

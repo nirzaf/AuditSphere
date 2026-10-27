@@ -1,4 +1,4 @@
-import { afterNextRender, Component, DestroyRef, ElementRef, Injector, effect, inject, signal, untracked } from '@angular/core';
+import { afterNextRender, Component, DestroyRef, ElementRef, Injector, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -13,6 +13,7 @@ import { SHARED } from '../../core/ui';
 import { guidPattern } from '../../core/contracts';
 import { Client, ClientLocation, clientLocation, decodeClient, decodeClientArchiveState, clientUtcTime, portalIntentExplanation } from './client-contracts';
 import { ClientRelationships } from './client-relationships';
+import { PageSection, SectionTabs } from '../../core/section-tabs';
 import { ClientProgress } from '../practice/engagement-progress';
 export { decodeClient } from './client-contracts';
 type ArchiveFocus = { owner: string; interaction: number; origin: HTMLElement; isArchived: boolean; revision: string };
@@ -32,6 +33,7 @@ type ArchiveFocus = { owner: string; interaction: number; origin: HTMLElement; i
     MatProgressBarModule,
     ClientRelationships,
     ClientProgress,
+    SectionTabs,
     ...SHARED,
   ],
   templateUrl: './client.html',
@@ -56,6 +58,14 @@ export class ClientDetail {
   private archiveRequest?: Subscription;
   private id = '';
   readonly data = signal<Client | null>(null);
+  /** In-page tabs; all sections stay rendered. Progress appears only when the client has engagements in scope. */
+  readonly sections = computed<readonly PageSection[]>(() => [
+    { id: 'client-summary', label: 'Summary' },
+    ...((this.data()?.metrics.engagements ?? 0) > 0 ? [{ id: 'client-progress-section', label: 'Progress' }] : []),
+    { id: 'client-profile-section', label: 'Profile' }, { id: 'client-engagements', label: 'Engagements' },
+    { id: 'client-portal', label: 'Portal' }, { id: 'client-contacts', label: 'Contacts' },
+    { id: 'client-relationships-section', label: 'Relationships' },
+  ]);
   readonly loading = signal(false);
   readonly error = signal('');
   readonly archiveBusy = signal(false);

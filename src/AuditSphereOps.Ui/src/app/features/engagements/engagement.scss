@@ -22,15 +22,32 @@ label {
 .engagement-metrics article,
 .engagement-profile {
   padding: 1rem;
-  border: 1px solid var(--mat-sys-outline-variant);
-  border-radius: 0.75rem;
+  border: 1px solid var(--as-line, #dfe6ee);
+  border-radius: var(--as-radius-md, 10px);
+  background: var(--as-surface-raised, #fff);
+  box-shadow: var(--as-shadow-1);
 }
+.engagement-metrics article {
+  position: relative;
+  overflow: hidden;
+  border-top: 3px solid var(--tile-accent, #1d4ed8);
+}
+.engagement-metrics article:nth-child(2) { --tile-accent: #b45309; }
+.engagement-metrics article:nth-child(3) { --tile-accent: #047857; }
 .engagement-metrics h3 {
-  font-size: 0.9rem;
-  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--as-text-muted, #455468);
+  margin: 0 0 0.5rem;
 }
 .engagement-metrics strong {
-  font-size: 1.8rem;
+  font-size: 1.625rem;
+  color: var(--as-ink, #12385d);
+  font-variant-numeric: tabular-nums;
+}
+.engagement-profile {
+  margin-block: 1.25rem;
+  padding: 1.25rem 1.5rem;
 }
 dl {
   display: grid;
