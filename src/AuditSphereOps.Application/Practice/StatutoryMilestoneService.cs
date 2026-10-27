@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -41,7 +42,8 @@ public sealed record MilestonePlanView(
   long Revision,
   Guid ScheduledByUserId,
   DateTimeOffset ScheduledAt,
-  bool CanConfigure);
+  bool CanConfigure,
+  IReadOnlyList<string>? Notes = null);
 
 public static class StatutoryMilestoneService
 {
@@ -91,7 +93,9 @@ public static class StatutoryMilestoneService
       plan.Revision,
       plan.ScheduledByUserId,
       plan.ScheduledAt,
-      canConfigure));
+      canConfigure,
+      StatutoryMilestoneCalculator.CalendarNotes(plan.StatutoryFilingCutoff, plan.FieldworkStartDate, plan.DraftReportDate,
+        plan.FinalReportDate, plan.ArchiveDeadlineDate)));
   }
 
   public static async Task<CommandResult<CalculatedMilestones>> CalculatePreviewAsync(
@@ -134,6 +138,37 @@ public static class StatutoryMilestoneService
         request.FinalReportDate,
         request.AdjustmentReason,
         request.WarningOverrideReason);
+
+      // An amendment is previewed against the current plan: changed dates are listed and open tasks are counted, but
+      // nothing is moved. Saving adds a new plan revision; earlier revisions and completed tasks are kept.
+      var current = await db.EngagementMilestonePlans.AsNoTracking()
+        .Where(p => p.FirmId == actor.FirmId && p.EngagementId == engagement.Id)
+        .OrderByDescending(p => p.Revision).FirstOrDefaultAsync(ct);
+      if (current is not null)
+      {
+        var notes = new List<string>(calculated.Notes ?? []);
+        void Changed(string label, DateOnly before, DateOnly after)
+        {
+          if (before != after) notes.Add($"{label} changes from {before:yyyy-MM-dd} to {after:yyyy-MM-dd} (plan revision {current.Revision}).");
+        }
+        Changed("The statutory filing cutoff", current.StatutoryFilingCutoff, calculated.StatutoryFilingCutoff);
+        Changed("Fieldwork start", current.FieldworkStartDate, calculated.FieldworkStartDate);
+        Changed("The draft report target", current.DraftReportDate, calculated.DraftReportDate);
+        Changed("The final signed report", current.FinalReportDate, calculated.FinalReportDate);
+        if (notes.Count > (calculated.Notes?.Count ?? 0))
+        {
+          var lateOpenTasks = await (from binding in db.WorkflowTaskBindings.AsNoTracking()
+            join task in db.WorkTasks.AsNoTracking() on new { binding.FirmId, Id = binding.WorkTaskId } equals new { task.FirmId, task.Id }
+            where binding.FirmId == actor.FirmId && binding.EngagementId == engagement.Id &&
+              (task.Status == PracticeTimeStates.TaskOpen || task.Status == PracticeTimeStates.TaskInProgress) &&
+              task.DueDate > calculated.FinalReportDate
+            select task.Id).CountAsync(ct);
+          notes.Add(lateOpenTasks == 0
+            ? "No open task is due after the proposed final report date."
+            : $"{lateOpenTasks} open task(s) are due after the proposed final report date. Their due dates are not moved; reschedule them if needed.");
+        }
+        calculated = calculated with { Notes = notes };
+      }
 
       return CommandResult<CalculatedMilestones>.Ok(calculated);
     }

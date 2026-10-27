@@ -9,7 +9,8 @@ public sealed record CalculatedMilestones(
   DateOnly ArchiveDeadlineDate,
   bool HasAdjustments,
   IReadOnlyList<string> Warnings,
-  bool WarningOverrideRequired);
+  bool WarningOverrideRequired,
+  IReadOnlyList<string>? Notes = null);
 
 /// <summary>
 /// Pure operational milestone calculator relative to explicitly stored statutory cutoffs (§4.2.2, AS-COMP-10).
@@ -47,7 +48,8 @@ public static class StatutoryMilestoneCalculator
 
     var warnings = EvaluateWarnings(statutoryFilingCutoff, fieldworkStart, draftReport, finalReport);
     return new(periodEnd, statutoryFilingCutoff, fieldworkStart, draftReport, finalReport, archiveDeadline,
-      HasAdjustments: false, Warnings: warnings, WarningOverrideRequired: false);
+      HasAdjustments: false, Warnings: warnings, WarningOverrideRequired: false,
+      Notes: CalendarNotes(statutoryFilingCutoff, fieldworkStart, draftReport, finalReport, archiveDeadline));
   }
 
   public static string? ValidateChronology(
@@ -129,6 +131,31 @@ public static class StatutoryMilestoneCalculator
     var overrideRequired = warnings.Count > 0 && string.IsNullOrWhiteSpace(warningOverrideReason);
 
     return new(periodEnd, statutoryFilingCutoff, fieldworkStart, draftReport, finalReport, archiveDeadline,
-      HasAdjustments: isAdjusted, Warnings: warnings, WarningOverrideRequired: overrideRequired);
+      HasAdjustments: isAdjusted, Warnings: warnings, WarningOverrideRequired: overrideRequired,
+      Notes: CalendarNotes(statutoryFilingCutoff, fieldworkStart, draftReport, finalReport, archiveDeadline));
+  }
+
+  /// <summary>
+  /// Informational notes for milestones outside the firm working week (Sunday to Thursday, ADR-0017). Dates are never
+  /// moved: the cutoff is statutory and the others stay as calculated or entered. Public holidays have no approved list.
+  /// </summary>
+  public static IReadOnlyList<string> CalendarNotes(DateOnly statutoryFilingCutoff, DateOnly fieldworkStartDate,
+    DateOnly draftReportDate, DateOnly finalReportDate, DateOnly archiveDeadlineDate)
+  {
+    var notes = new List<string>();
+    void Check(string label, DateOnly date, bool later)
+    {
+      if (ResourceGridCalculator.IsWorkingDay(date)) return;
+      var nearest = date;
+      do nearest = nearest.AddDays(later ? 1 : -1); while (!ResourceGridCalculator.IsWorkingDay(nearest));
+      notes.Add($"{label} {date:yyyy-MM-dd} falls on a {date.DayOfWeek}, outside the Sunday to Thursday working week. " +
+        $"The nearest {(later ? "later" : "earlier")} working day is {nearest:yyyy-MM-dd}.");
+    }
+    Check("The statutory filing cutoff", statutoryFilingCutoff, later: false);
+    Check("Fieldwork start", fieldworkStartDate, later: true);
+    Check("The draft report target", draftReportDate, later: false);
+    Check("The final signed report", finalReportDate, later: false);
+    Check("The archive deadline", archiveDeadlineDate, later: false);
+    return notes;
   }
 }

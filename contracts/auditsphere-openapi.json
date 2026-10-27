@@ -105013,6 +105013,15 @@
           },
           "warningOverrideRequired": {
             "type": "boolean"
+          },
+          "notes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -133248,6 +133257,15 @@
           },
           "canConfigure": {
             "type": "boolean"
+          },
+          "notes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

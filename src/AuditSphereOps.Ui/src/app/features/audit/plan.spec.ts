@@ -473,6 +473,8 @@ describe('Practical rounding form (STE 3.2)', () => {
       hasAdjustments: true,
       warnings: ['Compressed review window: 2 days between draft report and final report (recommended minimum 7 days).'],
       warningOverrideRequired: true,
+      notes: ['The statutory filing cutoff 2027-04-30 falls on a Friday, outside the Sunday to Thursday working week. The nearest earlier working day is 2027-04-29.',
+        '1 open task(s) are due after the proposed final report date. Their due dates are not moved; reschedule them if needed.'],
     } });
     await preparing;
     f.detectChanges();
@@ -482,6 +484,9 @@ describe('Practical rounding form (STE 3.2)', () => {
     expect(host.textContent).toContain('2027-06-27');
     expect(host.textContent).toContain('Compressed review window: 2 days');
     expect(host.textContent).toContain('A documented manager or partner override reason is required');
+    expect(host.textContent).toContain('dates are not moved automatically');
+    expect(host.textContent).toContain('2027-04-30 falls on a Friday');
+    expect(host.textContent).toContain('1 open task(s) are due after the proposed final report date');
     expect(host.textContent).toContain('an adjustment reason is required');
     expect(host.textContent).toContain('Warning override reason (required if warnings triggered)');
     expect(host.textContent).toContain('Save milestone schedule');

@@ -27,15 +27,18 @@ const fsliRow = obj({
   currency: text, tolerableError: dec, planningMateriality: dec, band: text, criticalEstimate: bool,
   highInherentRisk: bool, significantRisk: bool, fraudRisk: bool, performerRole: text, reviewerRole: text, explanation: text
 });
+/** Older servers omit milestone notes; absence means none. */
+const milestoneNotes = (value: unknown, path: string): string[] => value === undefined || value === null ? [] : arr(text, 50)(value, path);
 const milestonePlan = obj({
   id: guid, engagementId: guid, periodEnd: text, statutoryFilingCutoff: text,
   fieldworkStartDate: text, draftReportDate: text, finalReportDate: text, archiveDeadlineDate: text,
   adjustmentReason: nullable(text), warningOverrideReason: nullable(text), warnings: arr(text, 50),
-  revision: nat, scheduledByUserId: guid, scheduledAt: instant, canConfigure: bool
+  revision: nat, scheduledByUserId: guid, scheduledAt: instant, canConfigure: bool, notes: milestoneNotes
 });
 const calculatedMilestones = obj({
   periodEnd: date, statutoryFilingCutoff: date, fieldworkStartDate: date, draftReportDate: date,
-  finalReportDate: date, archiveDeadlineDate: date, hasAdjustments: bool, warnings: arr(text, 50), warningOverrideRequired: bool
+  finalReportDate: date, archiveDeadlineDate: date, hasAdjustments: bool, warnings: arr(text, 50), warningOverrideRequired: bool,
+  notes: milestoneNotes
 });
 const workpaperProcedure = obj({ id: guid, sourceProcedureId: text, title: text, applicabilityStatus: text, status: text, workpaperId: nullable(guid) });
 const workpaperFieldwork = obj({ engagementId: guid, canManageFieldwork: bool, procedures: arr(workpaperProcedure, 5000) });
@@ -92,6 +95,10 @@ interface WorkpaperContext { engagementId: string; generation: number; actorKey:
               @if (m.warningOverrideReason) { <p><em>Override reason:</em> {{ m.warningOverrideReason }}</p> }
             </div>
           }
+          @if (m.notes.length > 0) {
+            <div class="milestone-notes"><strong>Calendar notes:</strong>
+              <ul>@for (note of m.notes; track note) { <li>{{ note }}</li> }</ul></div>
+          }
           @if (m.adjustmentReason) { <p><em>Adjustment reason:</em> {{ m.adjustmentReason }}</p> }
         } @else {
           <p>No statutory milestone plan has been recorded for this engagement yet.</p>
@@ -129,6 +136,10 @@ interface WorkpaperContext { engagementId: string; generation: number; actorKey:
                     </div>
                   } @else {
                     <p role="status">No scheduling warnings were returned for these inputs.</p>
+                  }
+                  @if (preview.notes.length > 0) {
+                    <div class="milestone-notes" role="status"><strong>Calendar and amendment notes — dates are not moved automatically:</strong>
+                      <ul>@for (note of preview.notes; track note) { <li>{{ note }}</li> }</ul></div>
                   }
                   @if (preview.hasAdjustments) { <p>The schedule differs from calculated defaults; an adjustment reason is required.</p> }
                 </section>

@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -28,6 +29,14 @@ public sealed class StatutoryMilestonePlanningTests
     Assert.False(result.HasAdjustments);
     Assert.Empty(result.Warnings);
     Assert.False(result.WarningOverrideRequired);
+    // ADR-0017 working week is Sunday to Thursday: 30 April 2027 is a Friday and 13 March 2027 a Saturday. Notes never move dates.
+    Assert.Equal([
+      "The statutory filing cutoff 2027-04-30 falls on a Friday, outside the Sunday to Thursday working week. The nearest earlier working day is 2027-04-29.",
+      "The draft report target 2027-03-13 falls on a Saturday, outside the Sunday to Thursday working week. The nearest earlier working day is 2027-03-11."],
+      result.Notes);
+    Assert.Equal(["Fieldwork start 2027-01-08 falls on a Friday, outside the Sunday to Thursday working week. The nearest later working day is 2027-01-10."],
+      StatutoryMilestoneCalculator.CalendarNotes(new DateOnly(2027, 4, 29), new DateOnly(2027, 1, 8), new DateOnly(2027, 3, 11),
+        new DateOnly(2027, 4, 15), new DateOnly(2027, 6, 14)));
   }
 
   [Fact]
@@ -200,6 +209,34 @@ public sealed class StatutoryMilestonePlanningTests
     Assert.True(workspaceResult.Succeeded);
     Assert.NotNull(workspaceResult.Value!.MilestonePlan);
     Assert.Equal(statutoryCutoff, workspaceResult.Value!.MilestonePlan!.StatutoryFilingCutoff);
+  }
+
+  [Fact]
+  public async Task Service_AmendmentPreview_ListsChangedDatesAndLateOpenTasksWithoutMovingThem()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var manager = w.Actor("manager", "Manager");
+    Assert.True((await StatutoryMilestoneService.SaveMilestonesAsync(db, manager,
+      new SaveMilestonesRequest(w.EngagementId, new DateOnly(2027, 4, 30)))).Succeeded);
+    var taskDue = new DateOnly(2027, 4, 20);
+    var task = await EngagementWorkflowTaskService.CreateAsync(db, manager, w.EngagementId,
+      new WorkflowTaskCreateRequest("Bank confirmation follow-up", WorkflowTaskPhases.AuditFieldwork, 1, taskDue,
+        IdempotencyKey: Guid.NewGuid()));
+    Assert.True(task.Succeeded, task.Message);
+
+    // 115 days to a 25 April cutoff gives a 14-day buffer, so the final report default is 11 April 2027.
+    var preview = await StatutoryMilestoneService.CalculatePreviewAsync(db, manager,
+      new PreviewMilestonesRequest(w.EngagementId, new DateOnly(2027, 4, 25)));
+    Assert.True(preview.Succeeded, preview.Message);
+    Assert.Equal(new DateOnly(2027, 4, 11), preview.Value!.FinalReportDate);
+    Assert.Contains("The statutory filing cutoff changes from 2027-04-30 to 2027-04-25 (plan revision 1).", preview.Value.Notes!);
+    Assert.Contains("The final signed report changes from 2027-04-15 to 2027-04-11 (plan revision 1).", preview.Value.Notes!);
+    Assert.Contains("1 open task(s) are due after the proposed final report date. Their due dates are not moved; reschedule them if needed.",
+      preview.Value.Notes!);
+    Assert.Equal(taskDue, (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == task.Value)).DueDate);
+    Assert.Equal(1, await db.EngagementMilestonePlans.CountAsync(x => x.EngagementId == w.EngagementId));
   }
 
   [Fact]
