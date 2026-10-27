@@ -105,6 +105,8 @@ export class EngagementDetail {
     const fragmentSubscription = this.route.fragment?.subscribe(fragment =>
       this.taskPlanRequested.set(fragment === 'engagement-task-plan'));
     this.location.set(engagementLocation((k) => this.route.snapshot.queryParamMap.get(k)));
+    // Route, query and session triggers all fire on open; each reloads only for a real change, so opening loads once.
+    let sessionState = this.sessionState();
     const routeSubscription = this.route.paramMap.subscribe((p) => {
       this.routeRevision++;
       this.clear();
@@ -112,14 +114,19 @@ export class EngagementDetail {
       this.load();
     });
     const querySubscription = this.route.queryParamMap.subscribe((p) => {
-      this.location.set(engagementLocation((k) => p.get(k)));
+      const location = engagementLocation((k) => p.get(k));
       this.taskTemplateReference.set(p.get('templateRevisionId')?.toLowerCase() ?? null);
+      if (JSON.stringify(location) === JSON.stringify(this.location())) return;
+      this.location.set(location);
       this.load();
     });
     effect(() => {
       this.session.invalidation();
       const staff = this.session.current()?.staff;
       untracked(() => {
+        const state = this.sessionState();
+        if (state === sessionState) return;
+        sessionState = state;
         this.routeRevision++;
         this.request?.unsubscribe();
         this.clear();
@@ -142,6 +149,9 @@ export class EngagementDetail {
     this.loading.set(false);
     this.error.set('');
     this.activityOpen.set(false);
+  }
+  private sessionState(): string {
+    return JSON.stringify([this.session.current(), this.session.invalidation()]);
   }
   private owner(): string {
     const s = this.session.current();

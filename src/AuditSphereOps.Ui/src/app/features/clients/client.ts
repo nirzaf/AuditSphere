@@ -72,6 +72,8 @@ export class ClientDetail {
   readonly archiveMessage = signal('');
   readonly archiveFailed = signal(false);
   constructor() {
+    // Route, query and session triggers all fire on open; each reloads only for a real change, so opening loads once.
+    let sessionState = this.sessionState();
     const routeSubscription = this.route.paramMap.subscribe((p) => {
       this.routeRevision++;
       this.id = (p.get('id') ?? '').toLowerCase();
@@ -81,13 +83,18 @@ export class ClientDetail {
       this.load();
     });
     const querySubscription = this.route.queryParamMap.subscribe(p => {
-      this.location.set(clientLocation(k => p.get(k)));
+      const location = clientLocation(k => p.get(k));
+      if (JSON.stringify(location) === JSON.stringify(this.location())) return;
+      this.location.set(location);
       this.load();
     });
     effect(() => {
       this.session.invalidation();
       const staff = this.session.current()?.staff;
       untracked(() => {
+        const state = this.sessionState();
+        if (state === sessionState) return;
+        sessionState = state;
         this.routeRevision++;
           this.request?.unsubscribe();
         this.archiveRequest?.unsubscribe();
@@ -164,6 +171,9 @@ export class ClientDetail {
   private owner(): string {
     const s = this.session.current();
     return s?.staff ? `${s.firmId}:${s.userId}:${s.generation}:${this.session.invalidation()}:${this.id}:${this.routeRevision}` : '';
+  }
+  private sessionState(): string {
+    return JSON.stringify([this.session.current(), this.session.invalidation()]);
   }
   load(archiveFocus?: ArchiveFocus): void {
     const revision = ++this.viewRevision;

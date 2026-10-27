@@ -139,6 +139,18 @@ describe('Engagement read and command lifetime', () => {
     expect(active).toHaveLength(1);
     return active[0];
   }
+  it('sends one engagement read on open and reads again when the session changes', () => {
+    open();
+    const all = () => TestBed.inject(HttpTestingController)
+      .match((r) => r.method === 'GET' && !r.url.endsWith('/planning') && !isOwnedPanelRead(r.url));
+    const first = all();
+    expect(first).toHaveLength(1);
+    expect(first[0].cancelled).toBe(false);
+    TestBed.inject(SessionService).current.set({ userId: id, firmId: id, generation: '2', staff: true });
+    TestBed.tick();
+    expect(first[0].cancelled).toBe(true);
+    read().flush(payload);
+  });
   it('allows same-engagement paging but delegates a different route to planning', async () => {
     const f = open();
     read().flush(payload);
