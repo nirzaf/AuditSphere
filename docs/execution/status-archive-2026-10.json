@@ -26933,6 +26933,20 @@
       "verification": "Pinned Node build, scoped lint, overview spec 9 PASS; synthetic built-in group form desktop/390px, blank validation and keyboard focus verified; fixture stopped. Scope action not interactively exercised.",
       "boundary": "No full local suite, live write, professional approval or current-source CI claim.",
       "evidence": ".local/autonomous/evidence/ledger-ui-20261026/consolidation-button-review.json"
+    },
+    "workflowPlanBoundsBeforeAgreementAmbiguity20261027": {
+      "status": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
+      "verification": "101-step reviewed published template refusal RED1/GREEN1 with no tasks/bindings; Angular 2 specs 10 PASS and pinned Node build PASS. Owned built-in browser observed both 100-step plan and 500-step template guidance; no oversized browser preview.",
+      "boundary": "No approved applicability policy, professional decision, full CI or live release claimed.",
+      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/plan-bound-review.json"
+    },
+    "manualTaskProgressBeforeAgreementAmbiguity20261027": {
+      "status": "FOCUSED_AND_BUILTIN_VERIFIED_CURRENT_FULL_PENDING",
+      "implementationCommit": "bedb020e800f8f66bceabcfc5dc3bb77052a2f08",
+      "behavior": "Exact unbound engagement tasks count as mandatory with retained status/assignee/phase/due date; no invented/duplicate bindings; combined500-step cap and per-engagement overflow; exact existing time link.",
+      "verification": "Missing-task RED1/GREEN2; corrected time route Domain1PASS. Final selected E2E3PASS includes canonical/previous-UI task handoffs and unchanged metadata/revocation assertions. Existing planning-read guard preserved; fixture awaits loaded planning before navigation. Actual builtin50% and exact selected task observed before expiry on preceding UI build. Later expired capture and omitted-host-env startup failure excluded; no console claim for that earlier manual inspection.",
+      "boundary": "No full local suites, deployment or professional approval. New shared UI bundle covered by final E2E; connected/D03/current full acceptance open.",
+      "evidence": ".local/autonomous/evidence/practice-completion-20261026/manual-task-progress-review.json"
     }
   },
   "lastUpdatedOn": "2026-10-27"

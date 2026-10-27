@@ -126,6 +126,9 @@ public static partial class FeeAgreementService
     if (agreement.EngagementId.HasValue) return CommandResult.Fail(ErrorCodes.ProtectedState, "The agreement is already linked to an engagement.");
     var belongs = await db.Engagements.AsNoTracking().AnyAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId && x.PracticeClientId == agreement.PracticeClientId, ct);
     if (!belongs) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (await db.EngagementFeeAgreements.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+        x.EngagementId == engagementId && x.Id != agreement.Id, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Another fee agreement is already linked to this engagement.");
     agreement.EngagementId = engagementId;
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);

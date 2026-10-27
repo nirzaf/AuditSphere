@@ -11,6 +11,84 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class EngagementActivationAdvanceGateTests
 {
   [Fact]
+  public async Task MultipleLinkedAgreementsRefuseActivationWithoutChangingEngagement()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    await EngagementActivationReviewSeed.PopulateAsync(db, f, FeeMilestoneStates.Paid);
+    EngagementActivationReviewSeed.LinkFeeAgreement(db, f.FirmId, f.ClientId, f.EngagementId,
+      f.Staff.Id, FeeMilestoneStates.Paid);
+    await db.SaveChangesAsync();
+    var partner = PbcSeed.Actor(f.Staff, "Partner");
+
+    var state = await EngagementActivationWorkspace.StateAsync(db, partner, f.EngagementId);
+    Assert.True(state.Succeeded, state.Message);
+    Assert.False(state.Value!.Eligible);
+    Assert.Contains(state.Value.Blockers, b => b.Code == "commercial.not-current");
+    Assert.Contains(state.Value.Blockers, b => b.Code == "advance.multiple-agreements");
+    var result = await EngagementLifecycleService.ActivateAsync(db, partner, f.EngagementId);
+    Assert.False(result.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, result.ErrorCode);
+    Assert.Empty(await db.EngagementActivations.ToListAsync());
+    var engagement = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == f.EngagementId);
+    Assert.Equal("Draft", engagement.Status);
+    Assert.True(engagement.ProfessionalWorkBlocked);
+  }
+
+  [Fact]
+  public async Task LinkingASecondAgreementIsRefusedAndExactLinkReplaySucceeds()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    await EngagementActivationReviewSeed.PopulateAsync(db, f, FeeMilestoneStates.Paid);
+    var originalId = await db.EngagementFeeAgreements.Where(x => x.EngagementId == f.EngagementId)
+      .Select(x => x.Id).SingleAsync();
+    EngagementActivationReviewSeed.LinkFeeAgreement(db, f.FirmId, f.ClientId, f.EngagementId,
+      f.Staff.Id, FeeMilestoneStates.Planned);
+    var second = db.EngagementFeeAgreements.Local.Single(x => x.Id != originalId);
+    second.EngagementId = null;
+    await db.SaveChangesAsync();
+    var admin = PbcSeed.Actor(f.Admin, "Administrator");
+    Assert.True((await FeeAgreementService.LinkEngagementAsync(db, admin, originalId, f.EngagementId)).Succeeded);
+    var attempt = await FeeAgreementService.LinkEngagementAsync(db, admin, second.Id, f.EngagementId);
+    Assert.False(attempt.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, attempt.ErrorCode);
+    Assert.Equal(originalId, await db.EngagementFeeAgreements.AsNoTracking()
+      .Where(x => x.EngagementId == f.EngagementId).Select(x => x.Id).SingleAsync());
+  }
+
+  [Fact]
+  public async Task ConcurrentAgreementLinksLeaveOnlyOneLinked()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      await EngagementActivationReviewSeed.PopulateAsync(setup, f, advanceState: null);
+      EngagementActivationReviewSeed.LinkFeeAgreement(setup, f.FirmId, f.ClientId, f.EngagementId,
+        f.Staff.Id, FeeMilestoneStates.Planned);
+      EngagementActivationReviewSeed.LinkFeeAgreement(setup, f.FirmId, f.ClientId, f.EngagementId,
+        f.Staff.Id, FeeMilestoneStates.Planned);
+      foreach (var agreement in setup.EngagementFeeAgreements.Local) agreement.EngagementId = null;
+      await setup.SaveChangesAsync();
+    }
+    await using var read = new AuditSphereDbContext(pg.Options);
+    var ids = await read.EngagementFeeAgreements.AsNoTracking().Where(x => x.FirmId == f.FirmId)
+      .Select(x => x.Id).ToArrayAsync();
+    Assert.Equal(2, ids.Length);
+    await using var first = new AuditSphereDbContext(pg.Options);
+    await using var second = new AuditSphereDbContext(pg.Options);
+    var actor = PbcSeed.Actor(f.Admin, "Administrator");
+    var results = await Task.WhenAll(FeeAgreementService.LinkEngagementAsync(first, actor, ids[0], f.EngagementId),
+      FeeAgreementService.LinkEngagementAsync(second, actor, ids[1], f.EngagementId));
+    Assert.Single(results, x => x.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, Assert.Single(results, x => !x.Succeeded).ErrorCode);
+    Assert.Equal(1, await read.EngagementFeeAgreements.CountAsync(x => x.FirmId == f.FirmId && x.EngagementId == f.EngagementId));
+  }
+
+  [Fact]
   public async Task ActivationWithoutLinkedFeeAgreementIsBlocked()
   {
     await using var pg = await PgTestSchema.CreateAsync();

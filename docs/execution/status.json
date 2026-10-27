@@ -1042,12 +1042,8 @@
       "history": "status-archive-2026-10.json#keys.targetedVerification.practiceProgressScopeWaiver20261026"
     },
     "manualTaskProgress20261026": {
-      "status": "FOCUSED_AND_BUILTIN_VERIFIED_CURRENT_FULL_PENDING",
-      "implementationCommit": "bedb020e800f8f66bceabcfc5dc3bb77052a2f08",
-      "behavior": "Exact unbound engagement tasks count as mandatory with retained status/assignee/phase/due date; no invented/duplicate bindings; combined500-step cap and per-engagement overflow; exact existing time link.",
-      "verification": "Missing-task RED1/GREEN2; corrected time route Domain1PASS. Final selected E2E3PASS includes canonical/previous-UI task handoffs and unchanged metadata/revocation assertions. Existing planning-read guard preserved; fixture awaits loaded planning before navigation. Actual builtin50% and exact selected task observed before expiry on preceding UI build. Later expired capture and omitted-host-env startup failure excluded; no console claim for that earlier manual inspection.",
-      "boundary": "No full local suites, deployment or professional approval. New shared UI bundle covered by final E2E; connected/D03/current full acceptance open.",
-      "evidence": ".local/autonomous/evidence/practice-completion-20261026/manual-task-progress-review.json"
+      "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.manualTaskProgressBeforeAgreementAmbiguity20261027"
     },
     "sharedFormLayout20261026": {
       "status": "LOCAL_AND_BUILTIN_VERIFIED_CURRENT_FULL_PENDING",
@@ -1091,16 +1087,20 @@
       "evidence": ".local/autonomous/evidence/atomic-completion-20261027/rounded-progress-review.json"
     },
     "workflowPlanBounds20261027": {
-      "status": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
-      "verification": "101-step reviewed published template refusal RED1/GREEN1 with no tasks/bindings; Angular 2 specs 10 PASS and pinned Node build PASS. Owned built-in browser observed both 100-step plan and 500-step template guidance; no oversized browser preview.",
-      "boundary": "No approved applicability policy, professional decision, full CI or live release claimed.",
-      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/plan-bound-review.json"
+      "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.workflowPlanBoundsBeforeAgreementAmbiguity20261027"
     },
     "progressSnapshot20261027": {
       "status": "FOCUSED_API_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
       "verification": "PostgreSQL atomic task-reopen/hold interleaving reproduced mixed progress; repeatable-read detail/client/portfolio checks PASS, caller transaction refusal and fresh revocation checks PASS, audit route and existing scoped API test PASS. Built-in isolated detail/client/portfolio reads PASS; console warnings/errors empty.",
       "boundary": "Caller-owned transactions are refused, not nested; no schema or provider changes, full CI or live release claim.",
       "evidence": ".local/autonomous/evidence/atomic-completion-20261027/progress-snapshot-review.json"
+    },
+    "agreementAmbiguity20261027": {
+      "status": "FOCUSED_API_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
+      "verification": "Multiple linked agreements caused activation exception and second link was accepted: RED2. GREEN5 retained paid/unpaid, exact allocation and replay; concurrent link left one link; scoped API authorization/revocation PASS. Owned synthetic Partner browser showed Draft and multiple-agreement blocker; refresh preserved it and console warnings/errors empty.",
+      "boundary": "No real financial mutation, professional approval, full CI or deployment claim.",
+      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/multi-agreement-review.json"
     }
   },
   "externalGates": [

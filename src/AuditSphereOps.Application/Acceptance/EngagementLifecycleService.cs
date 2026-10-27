@@ -82,12 +82,15 @@ public static partial class EngagementLifecycleService
     if (await db.EngagementHolds.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && !x.Released, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An unreleased hold blocks activation.");
     // STE 4.1.5 / C-02: every activation requires a linked agreement and its fully paid 50% advance.
-    var linkedAgreement = await db.EngagementFeeAgreements.AsNoTracking()
-      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
-    if (linkedAgreement is null)
+    var linkedAgreements = await db.EngagementFeeAgreements.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).Take(2).ToListAsync(ct);
+    if (linkedAgreements.Count == 0)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         "A linked engagement fee agreement with a fully paid and allocated 50% advance is required before the engagement can be activated.");
-    if (linkedAgreement is not null && !await AuditSphereOps.Application.Practice.FeeAgreementService.AdvanceCurrentlyPaidAsync(db, actor.FirmId, linkedAgreement.Id, ct))
+    if (linkedAgreements.Count != 1)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "More than one fee agreement is linked to this engagement. Resolve the agreement links before activation.");
+    if (!await AuditSphereOps.Application.Practice.FeeAgreementService.AdvanceCurrentlyPaidAsync(db, actor.FirmId, linkedAgreements[0].Id, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         "The 50% advance must be fully paid and allocated before the engagement can be activated.");
     // AUD-WF-01: the client commercial key is the second, independent key. A paid advance never substitutes for it.

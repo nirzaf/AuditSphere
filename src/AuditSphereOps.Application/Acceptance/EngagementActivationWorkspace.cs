@@ -73,12 +73,13 @@ public static class EngagementActivationWorkspace
     var linkedAgreementIds=await db.EngagementFeeAgreements.AsNoTracking()
       .Where(x=>x.FirmId==a.FirmId&&x.EngagementId==id).Select(x=>x.Id).ToListAsync(ct);
     var advancePaid=false;
-    foreach(var agreementId in linkedAgreementIds)
-      if(await AuditSphereOps.Application.Practice.FeeAgreementService.AdvanceCurrentlyPaidAsync(db,a.FirmId,agreementId,ct))
-      { advancePaid=true; break; }
+    if(linkedAgreementIds.Count==1)
+      advancePaid=await AuditSphereOps.Application.Practice.FeeAgreementService.AdvanceCurrentlyPaidAsync(db,a.FirmId,linkedAgreementIds[0],ct);
     if(linkedAgreementIds.Count==0)
       blockers.Add(new("advance.fee-agreement-missing","A linked fee agreement with a fully paid and allocated 50% advance is required before activation."));
-    if(linkedAgreementIds.Count>0 && !advancePaid)
+    if(linkedAgreementIds.Count>1)
+      blockers.Add(new("advance.multiple-agreements","More than one fee agreement is linked to this engagement. Resolve the agreement links before activation."));
+    if(linkedAgreementIds.Count==1 && !advancePaid)
       blockers.Add(new("advance.unpaid","Record the fully paid and allocated 50% advance before activation."));
     // AUD-WF-01: the client commercial key is read through the same resolver activation enforces, never inferred from payment.
     var commercial=await DualKeyEvidence.CurrentCommercialKeyAsync(db,a.FirmId,e,ct);
