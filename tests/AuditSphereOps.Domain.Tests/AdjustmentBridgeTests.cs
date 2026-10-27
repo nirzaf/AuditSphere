@@ -1,3 +1,6 @@
+using System.Data.Common;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Npgsql;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
@@ -447,6 +450,224 @@ public sealed class AdjustmentBridgeTests
       Assert.Equal(0, second.AppliedJournalCount);
       Assert.Equal(175000m, Profit(second.Balances)); // not 170,000
       Assert.Equal(95000m, second.Balances["150100"] + second.Balances["159100"]);
+    }
+  }
+
+  [Fact]
+  public async Task SupersededAcceptedSourceCannotPostAnEarlierAdjustment()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    var preparer = Actor(users.Preparer, "AccountingPreparer");
+    var reviewer = Actor(users.Reviewer, "AccountingReviewer");
+    Guid first;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var imported = await TrialBalanceImportService.ImportAsync(db, preparer, scope.ClientId, scope.EngagementId,
+        TrialBalanceV1Csv, new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"));
+      Assert.True(imported.Succeeded, imported.Message); first = imported.Value;
+    }
+    await ValidateAsync(pg, scope.FirmId);
+    Guid journal;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var accepted = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(db, reviewer,
+        new(scope.ClientId, scope.EngagementId, AccountingSourceKinds.TrialBalance, first, null, "Review first source"));
+      Assert.True(accepted.Succeeded, accepted.Message);
+      var draft = await AdjustmentJournalService.CreateDraftAsync(db, preparer, first, "AJ-STALE-SOURCE",
+        [("520100", 5000m, 0m), ("159100", 0m, 5000m)]);
+      Assert.True(draft.Succeeded, draft.Message); journal = draft.Value;
+      var submitted = await AdjustmentJournalService.SubmitDraftAsync(db, preparer, journal);
+      Assert.True(submitted.Succeeded, submitted.Message);
+    }
+    Guid second;
+    Guid currentJournal;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var imported = await TrialBalanceImportService.ImportAsync(db, preparer, scope.ClientId, scope.EngagementId,
+        TrialBalanceV2Csv, new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"));
+      Assert.True(imported.Succeeded, imported.Message); second = imported.Value;
+    }
+    await ValidateAsync(pg, scope.FirmId);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var accepted = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(db, reviewer,
+        new(scope.ClientId, scope.EngagementId, AccountingSourceKinds.TrialBalance, second, null, "Review replacement source"));
+      Assert.True(accepted.Succeeded, accepted.Message);
+      var source = await db.TrialBalanceDatasets.AsNoTracking().SingleAsync(x => x.Id == second);
+      var selected = await AccountingSourceAcceptanceService.GetSelectedTrialBalanceForPeriodAsync(db, reviewer,
+        scope.ClientId, scope.EngagementId, source.PeriodId, source.BookId, source.Basis, source.Currency, source.LegalEntityKey);
+      Assert.True(selected.Succeeded, selected.Message);
+      Assert.Equal(second, selected.Value!.TrialBalanceDatasetId);
+      var workspace = await AdjustmentJournalWorkspace.GetAsync(db, db, reviewer, journal);
+      Assert.True(workspace.Succeeded, workspace.Message);
+      Assert.False(workspace.Value!.CanPost);
+      Assert.True(workspace.Value.CanReturn);
+      Assert.Contains("different or stale trial balance", workspace.Value.PostBlocker);
+      await GrantAsync(db, scope, users.Preparer, "AccountingReviewer");
+      var selfPost = await AdjustmentJournalService.PostAsync(db, Actor(users.Preparer, "AccountingReviewer"), journal);
+      Assert.False(selfPost.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, selfPost.ErrorCode);
+      var posting = await AdjustmentJournalService.PostAsync(db, reviewer, journal);
+      Assert.False(posting.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, posting.ErrorCode);
+      var currentDraft = await AdjustmentJournalService.CreateDraftAsync(db, preparer, second, "AJ-CURRENT-SOURCE",
+        [("520100", 5000m, 0m), ("159100", 0m, 5000m)]);
+      Assert.True(currentDraft.Succeeded, currentDraft.Message);
+      currentJournal = currentDraft.Value;
+      var currentPosting = await AdjustmentJournalService.PostAsync(db, reviewer, currentJournal);
+      Assert.True(currentPosting.Succeeded, currentPosting.Message);
+    }
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal("Submitted", (await verify.AdjustmentJournals.AsNoTracking().SingleAsync(x => x.Id == journal)).Status);
+    Assert.Equal("Posted", (await verify.AdjustmentJournals.AsNoTracking().SingleAsync(x => x.Id == currentJournal)).Status);
+  }
+
+  [Fact]
+  public async Task AcceptedSourceForAnotherEntityDoesNotSupersedeThisJournal()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    var preparer = Actor(users.Preparer, "AccountingPreparer");
+    var reviewer = Actor(users.Reviewer, "AccountingReviewer");
+    Guid first;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var imported = await TrialBalanceImportService.ImportAsync(db, preparer, scope.ClientId, scope.EngagementId,
+        TrialBalanceV1Csv, new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"));
+      Assert.True(imported.Succeeded, imported.Message); first = imported.Value;
+    }
+    await ValidateAsync(pg, scope.FirmId);
+    Guid journal;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var accepted = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(db, reviewer,
+        new(scope.ClientId, scope.EngagementId, AccountingSourceKinds.TrialBalance, first, null, "Review original entity source"));
+      Assert.True(accepted.Succeeded, accepted.Message);
+      var draft = await AdjustmentJournalService.CreateDraftAsync(db, preparer, first, "AJ-ENTITY-SCOPE",
+        [("520100", 5000m, 0m), ("159100", 0m, 5000m)]);
+      Assert.True(draft.Succeeded, draft.Message); journal = draft.Value;
+    }
+    Guid other;
+    var otherEntityCsv = TrialBalanceV2Csv.Replace(",QAR,DEMO,", ",QAR,OTHER-ENTITY,", StringComparison.Ordinal);
+    Assert.NotEqual(TrialBalanceV2Csv, otherEntityCsv);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var imported = await TrialBalanceImportService.ImportAsync(db, preparer, scope.ClientId, scope.EngagementId,
+        otherEntityCsv, new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"));
+      Assert.True(imported.Succeeded, imported.Message); other = imported.Value;
+    }
+    await ValidateAsync(pg, scope.FirmId);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var accepted = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(db, reviewer,
+        new(scope.ClientId, scope.EngagementId, AccountingSourceKinds.TrialBalance, other, null, "Review separate entity source"));
+      Assert.True(accepted.Succeeded, accepted.Message);
+      var source = await db.TrialBalanceDatasets.AsNoTracking().SingleAsync(x => x.Id == first);
+      var selected = await AccountingSourceAcceptanceService.GetSelectedTrialBalanceForPeriodAsync(db, reviewer,
+        scope.ClientId, scope.EngagementId, source.PeriodId, source.BookId, source.Basis, source.Currency, source.LegalEntityKey);
+      Assert.True(selected.Succeeded, selected.Message);
+      Assert.Equal(first, selected.Value!.TrialBalanceDatasetId);
+      var posted = await AdjustmentJournalService.PostAsync(db, reviewer, journal);
+      Assert.True(posted.Succeeded, posted.Message);
+    }
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal("Posted", (await verify.AdjustmentJournals.AsNoTracking().SingleAsync(x => x.Id == journal)).Status);
+  }
+
+  [Fact]
+  public async Task SourceAcceptanceWaitsForPostingUnderTheSameContextFence()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    var preparer = Actor(users.Preparer, "AccountingPreparer");
+    var reviewer = Actor(users.Reviewer, "AccountingReviewer");
+    Guid first;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var imported = await TrialBalanceImportService.ImportAsync(db, preparer, scope.ClientId, scope.EngagementId,
+        TrialBalanceV1Csv, new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"));
+      Assert.True(imported.Succeeded, imported.Message); first = imported.Value;
+    }
+    await ValidateAsync(pg, scope.FirmId);
+    Guid journal;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var accepted = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(db, reviewer,
+        new(scope.ClientId, scope.EngagementId, AccountingSourceKinds.TrialBalance, first, null, "Review first source"));
+      Assert.True(accepted.Succeeded, accepted.Message);
+      var draft = await AdjustmentJournalService.CreateDraftAsync(db, preparer, first, "AJ-SOURCE-RACE",
+        [("520100", 5000m, 0m), ("159100", 0m, 5000m)]);
+      Assert.True(draft.Succeeded, draft.Message); journal = draft.Value;
+    }
+    Guid second;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var imported = await TrialBalanceImportService.ImportAsync(db, preparer, scope.ClientId, scope.EngagementId,
+        TrialBalanceV2Csv, new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"));
+      Assert.True(imported.Succeeded, imported.Message); second = imported.Value;
+    }
+    await ValidateAsync(pg, scope.FirmId);
+
+    var gate = new SourceSelectionGate();
+    var postOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(gate).Options;
+    var applicationName = "as-source-race-" + Guid.NewGuid().ToString("N");
+    var acceptanceConnection = new NpgsqlConnectionStringBuilder(pg.ConnectionString) { ApplicationName = applicationName, Pooling = false };
+    var acceptOptions = new DbContextOptionsBuilder<AuditSphereDbContext>().UseNpgsql(acceptanceConnection.ConnectionString).Options;
+    await using var postingDb = new AuditSphereDbContext(postOptions);
+    await using var acceptanceDb = new AuditSphereDbContext(acceptOptions);
+    var posting = AdjustmentJournalService.PostAsync(postingDb, reviewer, journal);
+    Task<CommandResult<Guid>>? accepting = null;
+    try
+    {
+      await gate.Reached.WaitAsync(TimeSpan.FromSeconds(30));
+      accepting = AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(acceptanceDb, reviewer,
+        new(scope.ClientId, scope.EngagementId, AccountingSourceKinds.TrialBalance, second, null, "Review replacement source"));
+      await using var observer = new NpgsqlConnection(pg.ConnectionString);
+      await observer.OpenAsync();
+      var waiting = false;
+      for (var i = 0; i < 100 && !waiting; i++)
+      {
+        await using var command = new NpgsqlCommand("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name = @name AND state = 'active' AND wait_event_type = 'Lock')", observer);
+        command.Parameters.AddWithValue("name", applicationName);
+        waiting = (bool)(await command.ExecuteScalarAsync())!;
+        if (!waiting) await Task.Delay(100);
+      }
+      Assert.True(waiting, "Source acceptance did not wait on the posting transaction's context fence.");
+      Assert.False(accepting.IsCompleted);
+      gate.Release();
+      var posted = await posting.WaitAsync(TimeSpan.FromSeconds(30));
+      Assert.True(posted.Succeeded, posted.Message);
+      var accepted = await accepting.WaitAsync(TimeSpan.FromSeconds(30));
+      Assert.True(accepted.Succeeded, accepted.Message);
+    }
+    finally { gate.Release(); }
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal("Posted", (await verify.AdjustmentJournals.AsNoTracking().SingleAsync(x => x.Id == journal)).Status);
+    var current = await AccountingSourceAcceptanceService.GetSelectedSourceAsync(verify, reviewer, scope.ClientId,
+      scope.EngagementId, AccountingSourceKinds.TrialBalance);
+    Assert.True(current.Succeeded, current.Message);
+    Assert.Equal(second, current.Value!.TrialBalanceDatasetId);
+  }
+
+  private sealed class SourceSelectionGate : DbCommandInterceptor
+  {
+    private readonly TaskCompletionSource reached = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int armed;
+    public Task Reached => reached.Task;
+    public void Release() => release.TrySetResult();
+    public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+      DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("source_acceptance_decisions", StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.Exchange(ref armed, 1) == 0)
+      {
+        reached.TrySetResult();
+        await release.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+      }
+      return result;
     }
   }
 

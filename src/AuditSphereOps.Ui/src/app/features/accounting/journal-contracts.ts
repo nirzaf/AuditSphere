@@ -104,6 +104,7 @@ const view = obj({
   managementDecision: nullable(decodeManagementDecision),
   sourceReflection: nullable(decodeSourceReflection),
   canReconcileReflection: bool,
+  postBlocker: (value: unknown, path: string) => value === undefined ? null : nullable(str(2000))(value, path),
 });
 function units(s: string): bigint {
   if (!/^(0|[1-9][0-9]{0,18})(\.[0-9]{1,6})?$/.test(s))
@@ -131,7 +132,7 @@ export function decodeJournalReview(raw: unknown, path = 'response') {
     (v.canEdit && !['Draft', 'Returned'].includes(v.status)) ||
     (v.canSubmit && !['Draft', 'Returned'].includes(v.status)) ||
     (v.canReturn && v.status !== 'Submitted') ||
-    (v.canPost && v.status !== 'Submitted') ||
+    (v.canPost && (v.status !== 'Submitted' || v.postBlocker !== null)) ||
     (v.canReverse && v.status !== 'Posted') ||
     (v.canReconcileReflection && v.status !== 'Posted') ||
     (v.blocker && (v.canEdit || v.canSubmit || v.canPost || v.canReturn || v.canReverse || v.canReconcileReflection)) ||

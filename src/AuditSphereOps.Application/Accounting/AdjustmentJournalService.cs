@@ -432,15 +432,32 @@ public static class AdjustmentJournalService
     Guid journalId,
     CancellationToken ct = default)
   {
-    var journal = await db.AdjustmentJournals.SingleOrDefaultAsync(j => j.Id == journalId, ct);
-    if (journal is null)
+    var snapshot = await db.AdjustmentJournals.AsNoTracking().SingleOrDefaultAsync(j =>
+      j.Id == journalId && j.FirmId == actor.FirmId, ct);
+    if (snapshot is null || db is not IClientAccountingDbContext clientDb)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(snapshot.FirmId, snapshot.ClientId, snapshot.EngagementId, ReviewerRoles,
+        RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded) return CommandResult.Fail(auth.ErrorCode!, auth.Message!);
+
+    // Source acceptance uses the same firm/client/engagement locks, so it cannot change
+    // the selected source between this check and posting. The workspace owns its outer transaction.
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var locked = await GeneralLedgerCompletenessWorkspace.LockAsync(clientDb, actor, snapshot.ClientId, snapshot.EngagementId, ct);
+    if (!locked.Succeeded) return locked;
+    var journal = await db.AdjustmentJournals.FromSqlInterpolated($"SELECT * FROM adjustment_journals WHERE firm_id = {actor.FirmId} AND id = {journalId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
+    if (journal is null || journal.ClientId != snapshot.ClientId || journal.EngagementId != snapshot.EngagementId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await db.AdjustmentJournals.Attach(journal).ReloadAsync(ct);
+    if (journal.FirmId != actor.FirmId || journal.ClientId != snapshot.ClientId || journal.EngagementId != snapshot.EngagementId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(journal.FirmId, journal.ClientId, journal.EngagementId, ReviewerRoles,
         RequireProfessionalWork: true), ct);
-    if (!auth.Succeeded)
-      return CommandResult.Fail(auth.ErrorCode!, auth.Message!);
+    if (!auth.Succeeded) return CommandResult.Fail(auth.ErrorCode!, auth.Message!);
 
     if (journal.Status is not ("Draft" or "Submitted"))
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft or submitted journal can be posted.");
@@ -449,6 +466,13 @@ public static class AdjustmentJournalService
     if (journal.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied,
         "Separation of duties: the preparer cannot post their own journal.");
+    var source = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == journal.FirmId && x.ClientId == journal.ClientId && x.EngagementId == journal.EngagementId &&
+      x.Id == journal.BaseDatasetId, ct);
+    if (source is null) return CommandResult.Fail(ErrorCodes.GateBlocked, "The journal's source is unavailable.");
+    var sourceCurrent = await CheckSelectedPostingSourceAsync(clientDb, source, ct);
+    if (!sourceCurrent.Succeeded) return sourceCurrent;
+
     if (journal.Purpose == AdjustmentJournalPurposes.ClientBookCorrection)
     {
       if (db is not IAdjustmentJournalDbContext decisionDb ||
@@ -467,7 +491,28 @@ public static class AdjustmentJournalService
 
     journal.Status = "Posted";
     await db.SaveChangesAsync(ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(journal.FirmId, journal.ClientId, journal.EngagementId, ReviewerRoles,
+        RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded) return CommandResult.Fail(auth.ErrorCode!, auth.Message!);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
+  }
+
+  // A source selection in another period, book, basis, currency or entity does not supersede this source.
+  // Legacy datasets with no acceptance decision keep their existing path until the separate acceptance gate is adopted.
+  internal static async Task<CommandResult> CheckSelectedPostingSourceAsync(
+    IClientAccountingDbContext db, TrialBalanceDataset source, CancellationToken ct)
+  {
+    var selected = await AccountingSourceAcceptanceService.GetSelectedTrialBalanceForAuthorizedScopeAsync(db,
+      source.FirmId, source.ClientId, source.EngagementId, source.PeriodId, source.BookId, source.Basis,
+      source.Currency, source.LegalEntityKey, ct);
+    if (!selected.Succeeded) return CommandResult.Fail(selected.ErrorCode!, selected.Message!);
+    if (selected.Value is { } current && (!current.IsCurrent || current.TrialBalanceDatasetId != source.Id))
+      return CommandResult.Fail(ErrorCodes.StaleRevision,
+        "A different or stale trial balance is currently accepted for this reporting context. Review the current source before posting.");
+    var native = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, source, ct);
+    return native.Succeeded ? CommandResult.Ok() : CommandResult.Fail(native.ErrorCode!, native.Message!);
   }
 
   internal static string? CheckLines(IReadOnlyList<(string AccountCode, decimal Debit, decimal Credit)> lines)

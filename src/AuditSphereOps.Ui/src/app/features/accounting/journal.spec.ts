@@ -104,6 +104,19 @@ describe('Exact native journal editor and receipt recovery', () => {
     TestBed.tick();
     return { f, c: f.componentInstance, http };
   }
+  it('explains a stale posting source while keeping independent return available', async () => {
+    const stale = 'A different or stale trial balance is currently accepted for this reporting context.';
+    const { f } = await open({ ...v, status: 'Submitted', canEdit: false, canSubmit: false,
+      canReturn: true, canPost: false, postBlocker: stale });
+    f.detectChanges();
+    expect(f.nativeElement.textContent).toContain(stale);
+    const post = f.nativeElement.querySelector('option[value="POST"]') as HTMLOptionElement;
+    expect(post.disabled).toBe(true);
+    const returnOption = f.nativeElement.querySelector('option[value="RETURN"]') as HTMLOptionElement;
+    expect(returnOption.disabled).toBe(false);
+    f.destroy();
+  });
+
   async function prepare(c: AdjustmentJournal, http: HttpTestingController) {
     const task = c.prepare();
     http.expectOne(root + '/preview').flush({ value: preview });

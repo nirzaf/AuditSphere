@@ -50,6 +50,9 @@
     @if (j.blocker) {
       <p role="status">{{ j.blocker }}</p>
     }
+    @if (j.postBlocker && (j.status === 'Draft' || j.status === 'Returned' || j.status === 'Submitted')) {
+      <p role="status">{{ j.postBlocker }}</p>
+    }
     <p>
       Technical posting freezes this treatment. External client-book posting, management consent and
       package application are separate decisions. Group eliminations use the consolidation workflow.

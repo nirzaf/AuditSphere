@@ -92,7 +92,7 @@ public static partial class AdjustmentJournalWorkspace
     if (!final.Succeeded) return Fail<JournalActionPreview>(final.ErrorCode!, final.Message!);
     if (final.Value!.ReviewBasis != v.ReviewBasis) return Fail<JournalActionPreview>(ErrorCodes.StaleRevision, "The review changed during validation. Refresh and preview again.");
     return CommandResult<JournalActionPreview>.Ok(new(r.Action, v.ReviewBasis, Hash(r), enabled && errors.Count == 0,
-      v.Blocker ?? (!enabled ? "This action is unavailable for your current authority and journal state. An independent reviewer is required for review." : null),
+      v.Blocker ?? (r.Action == "POST" ? v.PostBlocker : null) ?? (!enabled ? "This action is unavailable for your current authority and journal state. An independent reviewer is required for review." : null),
       errors, lines.Sum(x => x.Debit), lines.Sum(x => x.Credit), lines));
   }
 

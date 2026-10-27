@@ -130431,6 +130431,12 @@
           "canReconcileReflection": {
             "type": "boolean",
             "default": false
+          },
+          "postBlocker": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

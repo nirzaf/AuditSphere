@@ -1099,16 +1099,20 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.agreementAmbiguityBeforeTask03Safety20261027"
     },
     "ambiguousProposalResolution20261027": {
-      "status": "FOCUSED_API_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
-      "verification": "Ambiguous linked proposals returned one arbitrarily: RED1. GREEN4 plus existing scoped authorization API PASS. Owned synthetic browser showed Draft and explicit activation blocker, with blocked onboarding and no console warnings/errors.",
-      "boundary": "No live write, full CI or professional approval.",
-      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/ambiguous-resolver-review.json"
+      "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.ambiguousProposalResolutionBeforeTask10Safety20261027"
     },
     "conditionalCancellationSafety20261027": {
       "status": "FOCUSED_DOMAIN_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
       "verification": "Prefix-only cancellation RED1 then focused Domain GREEN15; Angular work queue GREEN36 and production build PASS. Owned built-in browser verified blocked required step, zero N/A, conditional reason review and disabled confirmation without assent.",
       "boundary": "Task applicability maker/checker receipt and qualified professional policy remain open; no live write or release claim.",
       "evidence": ".local/autonomous/evidence/atomic-completion-20261027/task03-prefix-safety-review.json"
+    },
+    "adjustmentSelectedSourceSafety20261027": {
+      "status": "FOCUSED_API_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
+      "verification": "Same-context accepted replacement allowed stale posting: RED1. Domain GREEN2, lock interleaving GREEN1, other-entity isolation GREEN1, scoped API GREEN1, Angular GREEN19 and built-in stale journal/return preview PASS.",
+      "boundary": "Legacy no-selection path remains; full Task10, CI and live deployment remain open.",
+      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/task10-stale-source-review.json"
     }
   },
   "externalGates": [

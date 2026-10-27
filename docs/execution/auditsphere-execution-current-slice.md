@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Adjustment posting and selected-source currentness (2026-10-27)
+
+A journal based on an earlier trial balance cannot be posted after a replacement is accepted for the same reporting context. Source acceptance and posting serialize on the existing firm/client/engagement fence, and the journal review explains the posting restriction while retaining independent return. The path where no source acceptance exists remains legacy behavior; it is not full source-to-package acceptance. Focused tests and the isolated built-in browser evidence are recorded in [status.json](status.json).
+
 ## Shared form layout and ordinary-task progress (2026-10-26)
 
 The owner requested improvements to the ledger screenshot and similarly affected pages. Shared native forms now stack structural sections and use responsive field grids, with defined workspace/journal layouts and horizontal checkbox labels. Intentional filter/tool bars and page-specific grids remain intact. Ledger rows use the full form width, with paired or stacked fields at narrower sizes. An actual built-in browser check exercised adding/removing a draft line, report navigation and the Firm books expense form without financial writes; focused browser checks also covered narrow rendering and unchanged setup recovery and role denial. Production compilation and scoped lint passed. Exact evidence is in `targetedVerification.sharedFormLayout20261026` in [status.json](status.json).

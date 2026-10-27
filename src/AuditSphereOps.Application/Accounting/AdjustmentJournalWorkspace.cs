@@ -30,7 +30,7 @@ public sealed record JournalReviewView(Guid JournalId, Guid ClientId, Guid Engag
   int HistoryCount, int HistoryPage, IReadOnlyList<JournalActionReceipt> History,
   JournalManagementDecisionView? ManagementDecision = null,
   JournalReflectionView? SourceReflection = null,
-  bool CanReconcileReflection = false);
+  bool CanReconcileReflection = false, string? PostBlocker = null);
 
 /// <summary>Native journal commands compose the existing treatment service in one owned,
 /// serialized transaction with exact review fencing, final authority and immutable receipts.
@@ -82,6 +82,8 @@ public static partial class AdjustmentJournalWorkspace
     var prepared = (await Auth(db, actor, j, PrepareRoles, ct)).Succeeded;
     var reviewed = (await Auth(db, actor, j, ReviewRoles, ct)).Succeeded && j.CreatedByUserId != actor.UserId;
     var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, d, ct);
+    var postingSource = await AdjustmentJournalService.CheckSelectedPostingSourceAsync(db, d, ct);
+    var postBlocker = postingSource.Succeeded ? null : postingSource.Message;
     var blocker = !nativeSource.Succeeded ? nativeSource.Message :
       firm is null || safety is null ? "Safety state is unavailable." :
       !NativeTrialBalanceSourceWorkspace.IsBaseSource(d) || d.ImportState != TrialBalanceImportStates.Sealed || d.ValidationStatus != "Accepted" || !d.Balanced || d.ControlTotal != 0m || !SourceAcceptanceWorkspace.ValidHash(MappedTrialBalanceSource.Digest(d))
@@ -107,10 +109,10 @@ public static partial class AdjustmentJournalWorkspace
     var editable = blocker is null && prepared && j.Status is "Draft" or "Returned" && !hasManagement;
     var canSubmit = blocker is null && prepared && j.Status is "Draft" or "Returned";
     var canReturn = blocker is null && reviewed && j.Status == "Submitted";
-    var canPost = blocker is null && reviewed && j.Status == "Submitted" &&
+    var canPost = blocker is null && postBlocker is null && reviewed && j.Status == "Submitted" &&
       j.Purpose != AdjustmentJournalPurposes.GroupOnlyElimination && (j.Purpose != AdjustmentJournalPurposes.ClientBookCorrection || managementAccepted);
     var canReconcileReflection = blocker is null && reviewed && j.Status == "Posted";
-    var basis = Hashing.Sha256Hex(JsonSerializer.Serialize(new { actor.FirmId, actor.UserId, actor.SessionEpoch, j, d, lines, decisions, reconciliations, history, period, book, firm, safety, frozen, hasReversal }));
+    var basis = Hashing.Sha256Hex(JsonSerializer.Serialize(new { actor.FirmId, actor.UserId, actor.SessionEpoch, j, d, lines, decisions, reconciliations, history, period, book, firm, safety, frozen, hasReversal, postBlocker }));
     auth = await Auth(db, actor, j, ReadRoles, ct);
     if (!auth.Succeeded) return Fail<Snapshot>(auth.ErrorCode!, auth.Message!);
     var view = new JournalReviewView(id, j.ClientId, j.EngagementId, j.JournalNumber, j.Status, j.Revision, basis, d.Id, d.Revision,
@@ -119,7 +121,7 @@ public static partial class AdjustmentJournalWorkspace
       lines, lines.Sum(x => x.Debit), lines.Sum(x => x.Credit), blocker, editable, canSubmit, canReturn, canPost,
       blocker is null && prepared && j.Status == "Posted" && !hasReversal, history.Count, historyPage,
       history.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Skip((historyPage - 1) * 25).Take(25).Select(Receipt).ToArray(),
-      currentDecision, currentReflection, canReconcileReflection);
+      currentDecision, currentReflection, canReconcileReflection, postBlocker);
     return CommandResult<Snapshot>.Ok(new(view, j, SnapshotJson(j, lines)));
   }
 

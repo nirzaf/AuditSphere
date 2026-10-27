@@ -653,7 +653,7 @@ Every Angular page inherits these behaviours from `core/`; page code adds only i
 ## Native journal revision lifecycle
 
 - Domain: `Accounting/AdjustmentJournalAction.cs` retains actor/request identity and immutable before/after evidence.
-- Application: `Accounting/AdjustmentJournalWorkspace.cs` and `.Commands.cs` own scoped reviews, previews, serialized transitions, receipt reconciliation, history and controlled export; they compose the existing `AdjustmentJournalService`.
+- Application: `Accounting/AdjustmentJournalWorkspace.cs` and `.Commands.cs` own scoped reviews, previews, serialized transitions, receipt reconciliation, history and controlled export; they compose the existing `AdjustmentJournalService`. Posting rechecks the selected trial balance for the exact period/book/basis/currency/entity under the same firm/client/engagement lock as source acceptance. A superseded source blocks posting; no-selection legacy data retains its existing path. The review exposes a separate posting blocker so return remains available.
 - API: `Ui/UiEndpoints.JournalReview.cs` exposes trusted-session reads and antiforgery-protected previews/actions/exports.
 - Angular: `features/accounting/journal.ts`, `.html`, `.scss` and `journal-contracts.ts` implement the exact editor, review, tab recovery, uncertain-result fencing and retained timeline.
 - Persistence: `AuditSphereDbContext.AdjustmentJournalActions.cs` and `NativeAdjustmentJournalActions` enforce scoped lineage, unique requests and append-only evidence; the line trigger checks both old/new journal states.
