@@ -19,7 +19,9 @@ public sealed record AccountingAmendmentItem(Guid Id, Guid PeriodId, string Prev
   string Reason, Guid ActorId, string RecordedAt);
 public sealed record AccountingOpeningItem(Guid Id, Guid PeriodId, Guid? PriorPeriodId, Guid? SourcePackageId,
   string SourceHash, string PriorClosing, string CurrentOpening, string Residual, string Status, string Evidence,
-  Guid? ApprovedBy, string? ApprovedAt);
+  Guid? ApprovedBy, string? ApprovedAt, string? PriorRevision = null, bool Current = false,
+  bool CanReview = false, string? ReviewBlocker = null, Guid? CurrentReviewId = null,
+  Guid? CurrentReviewerId = null, string? CurrentReviewedAt = null);
 public sealed record AccountingClientWorkspace(Guid ClientId, string Name, AccountingProfileItem? Profile,
   IReadOnlyList<AccountingPeriodItem> Periods, bool HasMorePeriods, IReadOnlyList<AccountingBookItem> Books, bool HasMoreBooks,
   IReadOnlyList<AccountingAmendmentItem> Amendments, bool HasMoreAmendments,
@@ -84,6 +86,22 @@ public static class AccountingWorkspaceQuery
       return CommandResult<AccountingClientWorkspace>.Fail(ErrorCodes.GateBlocked, "Opening history requires bounded review.");
     var canReview = (await AuthorizationDecision.AuthorizeAsync(db, actor,
       new(actor.FirmId, clientId, RequiredRoles: ["AccountingReviewer", "Manager", "Partner", "Administrator"], InternalOnly: true), ct)).Succeeded;
+    var openingViews = new List<AccountingOpeningItem>();
+    foreach (var opening in openings)
+    {
+      var current = await OpeningBalanceBridgeCurrentness.GetAsync(db, opening, ct);
+      var periodOpen = periods.Any(x => x.Id == opening.CurrentPeriodId && x.Status != "CLOSED");
+      openingViews.Add(new(opening.Id, opening.CurrentPeriodId, opening.PriorPeriodId, opening.SourcePackageId, opening.SourceHash,
+        opening.PriorClosingAmount.ToString(CultureInfo.InvariantCulture), opening.CurrentOpeningAmount.ToString(CultureInfo.InvariantCulture),
+        opening.Residual.ToString(CultureInfo.InvariantCulture), opening.Status, opening.EvidenceReference, opening.ApprovedByUserId,
+        opening.ApprovedAt?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
+        current.Prior?.Revision.ToString(CultureInfo.InvariantCulture), current.Current,
+        canReview && periodOpen && !current.Current && opening.Residual == 0m &&
+          opening.Status is "RECONCILED" or "APPROVED" &&
+          (opening.PriorPeriodId is null || current.Prior?.Status == "CLOSED"), current.Blocker,
+        current.Review?.Id, current.Review?.ReviewerId,
+        current.Review?.CreatedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)));
+    }
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
       return CommandResult<AccountingClientWorkspace>.Fail(ErrorCodes.ScopeDenied, "Accounting unavailable.");
     return CommandResult<AccountingClientWorkspace>.Ok(new(clientId, client.LegalName,
@@ -97,9 +115,6 @@ public static class AccountingWorkspaceQuery
       amendments.Take(100).Select(x => new AccountingAmendmentItem(x.Id, x.PeriodId,
         x.PreviousRevision.ToString(CultureInfo.InvariantCulture), x.AmendmentRevision.ToString(CultureInfo.InvariantCulture),
         x.Reason, x.CreatedByUserId, x.CreatedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture))).ToArray(), amendments.Count > 100,
-      openings.Select(x => new AccountingOpeningItem(x.Id, x.CurrentPeriodId, x.PriorPeriodId, x.SourcePackageId, x.SourceHash,
-        x.PriorClosingAmount.ToString(CultureInfo.InvariantCulture), x.CurrentOpeningAmount.ToString(CultureInfo.InvariantCulture),
-        x.Residual.ToString(CultureInfo.InvariantCulture), x.Status, x.EvidenceReference, x.ApprovedByUserId,
-        x.ApprovedAt?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture))).ToArray(), canReview));
+      openingViews, canReview));
   }
 }

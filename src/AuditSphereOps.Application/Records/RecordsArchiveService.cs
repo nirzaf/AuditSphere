@@ -646,6 +646,9 @@ public static class RecordsArchiveService
     var openingBalanceBridges = typedAccounting is null ? [] : await typedAccounting.OpeningBalanceBridges.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.CurrentPeriodId, x.PriorPeriodId, x.SourcePackageId, x.SourceHash, x.PriorClosingAmount, x.CurrentOpeningAmount, x.Residual, x.Status, x.EvidenceReference, x.ApprovedByUserId, x.ApprovedAt, x.CreatedAt }).ToListAsync(ct);
+    var openingBalanceBridgeReviews = typedAccounting is null ? [] : await typedAccounting.OpeningBalanceBridgeReviews.AsNoTracking()
+      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.BridgeId, x.PriorPeriodId, x.PriorPeriodRevision, x.EvidenceHash, x.Reason, x.ReviewerId, x.CreatedAt }).ToListAsync(ct);
     var periodRestatements = typedAccounting is null ? [] : await typedAccounting.ClientPeriodRestatements.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.PeriodId, x.OriginalPackageId, x.RevisedPackageId, x.OriginalPackageHash, x.RevisedPackageHash, x.RevisedBasis, x.Reason, x.EvidenceReference, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.ApprovedAt, x.CreatedAt }).ToListAsync(ct);
@@ -949,6 +952,7 @@ public static class RecordsArchiveService
         periodAmendments,
         reportingBooks,
         openingBalanceBridges,
+        openingBalanceBridgeReviews,
         periodRestatements,
         sourceImportBatches,
         importChunks,

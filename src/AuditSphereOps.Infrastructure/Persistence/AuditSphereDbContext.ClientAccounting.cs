@@ -136,6 +136,7 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var opening = b.Entity<OpeningBalanceBridge>();
+    opening.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.Id }).HasName("ak_opening_bridge_scope_id");
     opening.Property(x => x.SourceHash).HasMaxLength(64);
     opening.Property(x => x.Status).HasMaxLength(30);
     opening.Property(x => x.EvidenceReference).HasMaxLength(2000);
@@ -145,6 +146,20 @@ public sealed partial class AuditSphereDbContext
       "length(trim(status)) > 0"));
     opening.HasOne<ClientReportingPeriod>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.CurrentPeriodId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var openingReview = b.Entity<OpeningBalanceBridgeReview>();
+    openingReview.ToTable("opening_balance_bridge_reviews", t => t.HasCheckConstraint("ck_opening_bridge_review",
+      "prior_period_revision >= 2 AND evidence_hash ~ '^[0-9a-f]{64}$' AND length(trim(reason)) BETWEEN 1 AND 2000"));
+    openingReview.Property(x => x.EvidenceHash).HasMaxLength(64);
+    openingReview.Property(x => x.Reason).HasMaxLength(2000);
+    openingReview.HasIndex(x => new { x.FirmId, x.ClientId, x.BridgeId, x.PriorPeriodRevision }).IsUnique()
+      .HasDatabaseName("ux_opening_bridge_review_revision");
+    openingReview.HasOne<OpeningBalanceBridge>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.BridgeId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    openingReview.HasOne<ClientReportingPeriod>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.PriorPeriodId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    openingReview.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReviewerId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var restatement = b.Entity<ClientPeriodRestatement>();
     restatement.Property(x => x.OriginalPackageHash).HasMaxLength(64);

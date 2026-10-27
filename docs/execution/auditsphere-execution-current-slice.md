@@ -22,9 +22,9 @@ An active task on hold is shown as blocked until the hold is reviewed. When it i
 
 The sidebar groups existing destinations by lifecycle and keeps client accounting, group consolidation and firm finance distinct. A shared route-owner map highlights contextual pages without granting authority. Focused checks and isolated built-in desktop/mobile keyboard verification passed; contextual capability and full acceptance remain open. See [status.json](status.json).
 
-## Period close readiness
+## Period close and prior evidence
 
-The readiness view now reports a missing or unapproved opening bridge before period close, matching the existing close command. Focused PostgreSQL and isolated built-in browser checks passed; current release verification remains pending. See [status.json](status.json).
+A reopened or subsequently reclosed prior period invalidates an earlier opening review for successor close. A qualified reviewer can review the unchanged exact evidence against the corrected prior revision and retain a new immutable review with a reason; the original approval remains historical evidence. Close, reopen and opening review serialize through the client safety fence. Readiness and the accounting screen expose the same blocker and fresh review controls. Focused, concurrency, existing accounting journey and isolated built-in browser checks passed; current release verification and remaining reporting acceptance remain open. See [status.json](status.json).
 
 ## Adjustment posting and selected-source currentness (2026-10-27)
 

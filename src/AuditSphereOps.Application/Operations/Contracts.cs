@@ -342,6 +342,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<ClientPeriodAmendment> ClientPeriodAmendments { get; }
   DbSet<ClientReportingBook> ClientReportingBooks { get; }
   DbSet<OpeningBalanceBridge> OpeningBalanceBridges { get; }
+  DbSet<OpeningBalanceBridgeReview> OpeningBalanceBridgeReviews { get; }
   DbSet<ClientPeriodRestatement> ClientPeriodRestatements { get; }
   DbSet<ClientChartVersion> ClientChartVersions { get; }
   DbSet<AccountingBackfillQuarantine> AccountingBackfillQuarantines { get; }

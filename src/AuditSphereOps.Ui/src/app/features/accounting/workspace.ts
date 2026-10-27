@@ -25,7 +25,7 @@ interface Period { id: string; revision: string; code: string; start: string; en
 interface Book { id: string; periodId: string; revision: string; code: string; basis: string; inclusionRule: string; currency: string; status: string }
 interface Amendment { id: string; periodId: string; previousRevision: string; revision: string; reason: string; actorId: string; recordedAt: string }
 interface SourcePackage { id: string; hash: string; currency: string }
-interface Opening { id: string; periodId: string; priorPeriodId: string | null; sourcePackageId: string | null; sourceHash: string; priorClosing: string; currentOpening: string; residual: string; status: string; evidence: string; approvedBy: string | null; approvedAt: string | null }
+interface Opening { id: string; periodId: string; priorPeriodId: string | null; sourcePackageId: string | null; sourceHash: string; priorClosing: string; currentOpening: string; residual: string; status: string; evidence: string; approvedBy: string | null; approvedAt: string | null; priorRevision: string | null; current: boolean; canReview: boolean; reviewBlocker: string | null; currentReviewId: string | null; currentReviewerId: string | null; currentReviewedAt: string | null }
 interface Workspace { clientId: string; name: string; profile: Profile | null; periods: Period[]; hasMorePeriods: boolean; books: Book[]; hasMoreBooks: boolean; amendments: Amendment[]; hasMoreAmendments: boolean; openingBridges: Opening[]; canReviewOpening: boolean }
 export interface Dimension { id: string; dimensionType: string; code: string; name: string; status: string; revision: number; createdAt: string }
 function record(value: unknown): Record<string, unknown> {
@@ -110,7 +110,12 @@ export function decodeWorkspace(value: unknown): Workspace {
     if (typeof b['id'] !== 'string' || !guidPattern.test(b['id']) || typeof b['periodId'] !== 'string' || !(v['periods'] as Period[]).some(p => p.id === b['periodId']) ||
       !['priorClosing', 'currentOpening', 'residual'].every(k => exactDecimal(b[k])) || typeof b['sourceHash'] !== 'string' || !/^[a-f0-9]{64}$/.test(b['sourceHash']) ||
       !['status', 'evidence'].every(k => typeof b[k] === 'string') || !['priorPeriodId', 'sourcePackageId', 'approvedBy'].every(k => b[k] === null || (typeof b[k] === 'string' && guidPattern.test(String(b[k])))) ||
-      !(b['approvedAt'] === null || typeof b['approvedAt'] === 'string')) throw new Error('Invalid opening bridge');
+      !(b['approvedAt'] === null || typeof b['approvedAt'] === 'string') ||
+      typeof b['current'] !== 'boolean' || typeof b['canReview'] !== 'boolean' ||
+      !(b['priorRevision'] === null || typeof b['priorRevision'] === 'string' && /^[1-9]\d{0,18}$/.test(b['priorRevision'])) ||
+      !(b['reviewBlocker'] === null || typeof b['reviewBlocker'] === 'string') ||
+      !['currentReviewId', 'currentReviewerId'].every(k => b[k] === null || typeof b[k] === 'string' && guidPattern.test(String(b[k]))) ||
+      !(b['currentReviewedAt'] === null || typeof b['currentReviewedAt'] === 'string')) throw new Error('Invalid opening bridge');
   }
   return v as unknown as Workspace;
 }
@@ -263,10 +268,19 @@ function isProfileSaveAcknowledgement(value: unknown, profile: Profile | null): 
         @for (b of w.openingBridges; track b.id) { <section><h4>Opening bridge · {{ b.periodId }}</h4>
           <dl><dt>Prior closing / current opening / residual</dt><dd>{{ b.priorClosing }} / {{ b.currentOpening }} / {{ b.residual }}</dd>
             <dt>Source SHA-256</dt><dd>{{ b.sourceHash }}</dd><dt>Evidence</dt><dd>{{ b.evidence }}</dd><dt>Status</dt><dd>{{ b.status }}</dd>
-            <dt>Approved by / UTC</dt><dd>{{ b.approvedBy ?? 'Not approved' }} / {{ b.approvedAt ?? 'Not approved' }}</dd></dl>
-          @if (b.status === 'RECONCILED' && w.canReviewOpening) {
+            <dt>Original approval by / UTC</dt><dd>{{ b.approvedBy ?? 'Not approved' }} / {{ b.approvedAt ?? 'Not approved' }}</dd>
+            <dt>Prior closing revision</dt><dd>{{ b.priorRevision ?? 'No linked prior period' }}</dd>
+            <dt>Current opening review</dt><dd>{{ b.current ? 'Current' : 'Review required' }}</dd>
+            @if (b.currentReviewId) { <dt>Retained current review</dt><dd>{{ b.currentReviewId }} · {{ b.currentReviewerId }} · {{ b.currentReviewedAt }}</dd> }
+          </dl>
+          @if (b.reviewBlocker) { <p>{{ b.reviewBlocker }}</p> }
+          @if (b.canReview && w.canReviewOpening) {
+            @if (b.status === 'APPROVED') {
+              <p>Review the retained amounts and source evidence against the corrected prior close. A new review preserves the original approval; it does not change opening amounts.</p>
+              <label>Opening revalidation reason<textarea [(ngModel)]="openingReason" (ngModelChange)="openingReviewed = ''" maxlength="2000"></textarea></label>
+            }
             <label><input type="checkbox" [checked]="openingReviewed === b.id" (change)="openingReviewed = $any($event.target).checked ? b.id : ''" /> I reviewed this opening bridge and exact source evidence.</label>
-            <button matButton [disabled]="openingReviewed !== b.id || saving() || writeBlocked()" (click)="approveOpening(b)">Approve opening bridge</button>
+            <button matButton [disabled]="openingReviewed !== b.id || (b.status === 'APPROVED' && !openingReason.trim()) || saving() || writeBlocked()" (click)="approveOpening(b)">{{ b.status === 'APPROVED' ? 'Revalidate opening bridge' : 'Approve opening bridge' }}</button>
           }
         </section> }
         <h3>Period amendment history</h3>
@@ -339,6 +353,7 @@ export class AccountingWorkspace {
   selectedSource = '';
   private sourceRead?: Subscription;
   openingReviewed = '';
+  openingReason = '';
   rollReviewed = false;
   roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' };
   bookReviewed = false;
@@ -363,7 +378,7 @@ export class AccountingWorkspace {
   constructor() {
     effect(() => {
       this.session.invalidation(); const staff = this.session.current()?.staff;
-      untracked(() => { this.request?.unsubscribe(); this.taskOwnerRead?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.taskOwnerSummary.set(null); this.taskOwnerLoading.set(false); this.taskOwnerError.set(''); this.sources.set(null); this.dimensions.set(null); this.dimensionsLoading.set(false); this.dimensionsError.set(''); this.dimensionsTruncated.set(false); this.selectedSource = ''; this.saving.set(false); this.reviewed = false; this.openingReviewed = ''; this.rollReviewed = false; this.dimReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false; this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' }; this.dim = { type: 'BRANCH', code: '', name: '' }; this.form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '', sourceMode: 'EXTERNAL_SOURCE', reason: '' }; this.data.set(null); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(false); if (staff) this.load(); });
+      untracked(() => { this.request?.unsubscribe(); this.taskOwnerRead?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.taskOwnerSummary.set(null); this.taskOwnerLoading.set(false); this.taskOwnerError.set(''); this.sources.set(null); this.dimensions.set(null); this.dimensionsLoading.set(false); this.dimensionsError.set(''); this.dimensionsTruncated.set(false); this.selectedSource = ''; this.saving.set(false); this.reviewed = false; this.openingReviewed = ''; this.openingReason = ''; this.rollReviewed = false; this.dimReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false; this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' }; this.dim = { type: 'BRANCH', code: '', name: '' }; this.form = { jurisdiction: '', currency: '', month: 1, day: 1, source: '', identifier: '', sourceMode: 'EXTERNAL_SOURCE', reason: '' }; this.data.set(null); this.workspace.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(false); if (staff) this.load(); });
     });
     inject(DestroyRef).onDestroy(() => { this.request?.unsubscribe(); this.taskOwnerRead?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.dimRead?.unsubscribe(); this.sourceRead?.unsubscribe(); this.sources.set(null); this.taskOwnerSummary.set(null); this.dimensions.set(null); this.selectedSource = ''; });
   }
@@ -396,7 +411,7 @@ export class AccountingWorkspace {
   select(id: string): void {
     if (this.saving()) return;
     if (!this.data()?.items.some(c => c.id === id)) return;
-    this.openingReviewed = ''; this.rollReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false;
+    this.openingReviewed = ''; this.openingReason = ''; this.rollReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false;
     this.period = { code: '', start: '', end: '', basis: '', currency: '', prior: '' };
     this.dimReviewed = false; this.dim = { type: 'BRANCH', code: '', name: '' };
     this.detail?.unsubscribe(); this.dimRead?.unsubscribe(); this.workspace.set(null); this.dimensions.set(null); this.clearSources(); this.decisionPeriod.set(''); this.error.set(''); this.loading.set(true);
@@ -522,7 +537,7 @@ export class AccountingWorkspace {
       currency: this.period.currency, priorPeriodId: this.period.prior || null, reviewed: true,
     }).pipe(timeout(15000)).subscribe({
       next: () => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.select(w.clientId); },
-      error: failure => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.openingReviewed = ''; this.rollReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false;
+      error: failure => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.openingReviewed = ''; this.openingReason = ''; this.rollReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false;
         this.uncertain.set(true); this.error.set('Period creation was not confirmed. Select the client again to inspect persisted periods.'); if (failure.status === 401) this.session.clear(); },
     });
   }
@@ -533,7 +548,7 @@ export class AccountingWorkspace {
     this.saving.set(true); this.error.set('');
     this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/books', { ...this.book, reviewed: true }).pipe(timeout(15000)).subscribe({
       next: () => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.select(w.clientId); },
-      error: failure => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.openingReviewed = ''; this.rollReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.uncertain.set(true);
+      error: failure => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.openingReviewed = ''; this.openingReason = ''; this.rollReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.uncertain.set(true);
         this.error.set('Book creation was not confirmed. Select the client again to inspect persisted books.'); if (failure.status === 401) this.session.clear(); },
     });
   }
@@ -549,18 +564,20 @@ export class AccountingWorkspace {
       currentOpening: this.roll.opening, evidence: this.roll.evidence, sourcePackageId: this.selectedSource || null, reviewed: true,
     }).pipe(timeout(15000)).subscribe({
       next: () => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.select(w.clientId); },
-      error: failure => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.openingReviewed = ''; this.rollReviewed = false; this.uncertain.set(true);
+      error: failure => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.openingReviewed = ''; this.openingReason = ''; this.rollReviewed = false; this.uncertain.set(true);
         this.error.set('Roll-forward was not confirmed. Refresh persisted periods and opening evidence before another attempt.'); if (failure.status === 401) this.session.clear(); },
     });
   }
 
   approveOpening(bridge: Opening): void {
     const w = this.workspace();
-    if (!w?.canReviewOpening || !w.openingBridges.some(b => b.id === bridge.id) || this.openingReviewed !== bridge.id || this.saving() || this.writeBlocked()) return;
+    if (!w?.canReviewOpening || !bridge.canReview || !w.openingBridges.some(b => b === bridge) || this.openingReviewed !== bridge.id ||
+      bridge.status === 'APPROVED' && !this.openingReason.trim() || this.saving() || this.writeBlocked()) return;
     const generation = this.session.invalidation(); this.saving.set(true);
-    this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/opening-bridges/' + bridge.id + '/approve', { sourceHash: bridge.sourceHash, reviewed: true }).pipe(timeout(15000)).subscribe({
+    this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/opening-bridges/' + bridge.id + '/approve',
+      { sourceHash: bridge.sourceHash, reviewed: true, priorRevision: bridge.priorRevision, reason: bridge.status === 'APPROVED' ? this.openingReason.trim() : null }).pipe(timeout(15000)).subscribe({
       next: () => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.select(w.clientId); },
-      error: () => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.openingReviewed = ''; this.uncertain.set(true); this.error.set('Opening approval not confirmed. Refresh persisted evidence before another decision.'); },
+      error: () => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.openingReviewed = ''; this.openingReason = ''; this.uncertain.set(true); this.error.set('Opening approval not confirmed. Refresh persisted evidence before another decision.'); },
     });
   }
 

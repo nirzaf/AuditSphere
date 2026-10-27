@@ -142,9 +142,11 @@ public static partial class ClientAccountingService
     CancellationToken ct = default, long? expectedRevision = null, Guid? expectedClientId = null)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var scope = await LockPeriodDecisionScopeAsync(db, actor, periodId, ReviewerRoles, ct);
+    if (!scope.Succeeded) return scope;
     var period = await db.ClientReportingPeriods
       .FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {periodId} AND firm_id = {actor.FirmId} FOR UPDATE")
-      .SingleOrDefaultAsync(ct);
+      .AsNoTracking().SingleOrDefaultAsync(ct);
     if (period is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (expectedClientId.HasValue && period.ClientId != expectedClientId.Value)
@@ -169,6 +171,13 @@ public static partial class ClientAccountingService
         (openingBridge.Status != AccountingWorkflowStates.Approved || openingBridge.ApprovedByUserId is null || openingBridge.ApprovedAt is null))
       return CommandResult.Fail(ErrorCodes.GateBlocked,
         "The opening balance bridge must be approved by a reviewer before period close.");
+    if (openingBridge?.PriorPeriodId is { } priorId)
+    {
+      await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {priorId} AND firm_id = {actor.FirmId} AND client_id = {period.ClientId} FOR SHARE")
+        .AsNoTracking().SingleOrDefaultAsync(ct);
+      var current = await OpeningBalanceBridgeCurrentness.GetAsync(db, openingBridge, ct);
+      if (!current.Current) return CommandResult.Fail(ErrorCodes.GenerationStale, current.Blocker!);
+    }
     if (await db.ClientOperationalJournals.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == period.ClientId &&
       x.PeriodId == period.Id && x.Status != "POSTED", ct))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Unposted native client journals block period close.");
@@ -203,6 +212,7 @@ public static partial class ClientAccountingService
         return CommandResult.Fail(ErrorCodes.GateBlocked,
           "Every financial package for the period needs current management, accounting, and partner approval before close.");
     }
+    period = TrackPeriodDecision(db, period);
     period.Status = AccountingWorkflowStates.Closed;
     period.ClosedByUserId = actor.UserId;
     period.ClosedAt = DateTimeOffset.UtcNow;
@@ -218,9 +228,11 @@ public static partial class ClientAccountingService
     CancellationToken ct = default, long? expectedRevision = null, Guid? expectedClientId = null)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var scope = await LockPeriodDecisionScopeAsync(db, actor, periodId, ["Partner", "Administrator"], ct);
+    if (!scope.Succeeded) return scope;
     var period = await db.ClientReportingPeriods
       .FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {periodId} AND firm_id = {actor.FirmId} FOR UPDATE")
-      .SingleOrDefaultAsync(ct);
+      .AsNoTracking().SingleOrDefaultAsync(ct);
     if (period is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (expectedClientId.HasValue && period.ClientId != expectedClientId.Value)
@@ -234,6 +246,7 @@ public static partial class ClientAccountingService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Only a closed period can be reopened with a recorded decision.");
     var previousRevision = period.Revision;
     var amendmentRevision = previousRevision + 1;
+    period = TrackPeriodDecision(db, period);
     period.Status = AccountingWorkflowStates.Draft;
     period.CloseReason = "REOPENED: " + reason.Trim();
     period.Revision = amendmentRevision;
@@ -248,5 +261,29 @@ public static partial class ClientAccountingService
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
+  }
+
+  // Existing native-source and reviewed maintenance commands take client safety before period rows.
+  // The same order serializes close/reopen/review without locking a successor before its owner.
+  private static async Task<CommandResult> LockPeriodDecisionScopeAsync(IClientAccountingDbContext db,
+    ActorContext actor, Guid periodId, string[] roles, CancellationToken ct)
+  {
+    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == periodId && x.FirmId == actor.FirmId, ct);
+    if (period is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeClientAsync(db, actor, period.ClientId, roles, ct);
+    if (!auth.Succeeded) return auth;
+    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {period.ClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id = {actor.FirmId} AND id = {actor.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    return await AuthorizeClientAsync(db, actor, period.ClientId, roles, ct);
+  }
+
+  private static ClientReportingPeriod TrackPeriodDecision(IClientAccountingDbContext db, ClientReportingPeriod fresh)
+  {
+    var tracked = db.ClientReportingPeriods.Local.SingleOrDefault(x => x.Id == fresh.Id);
+    if (tracked is null) { db.ClientReportingPeriods.Attach(fresh); return fresh; }
+    tracked.Revision = fresh.Revision;
+    return tracked;
   }
 }

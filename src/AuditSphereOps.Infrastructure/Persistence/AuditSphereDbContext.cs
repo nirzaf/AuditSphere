@@ -384,6 +384,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<ClientReportingBook> ClientReportingBooks => Set<ClientReportingBook>();
 
   public DbSet<OpeningBalanceBridge> OpeningBalanceBridges => Set<OpeningBalanceBridge>();
+  public DbSet<OpeningBalanceBridgeReview> OpeningBalanceBridgeReviews => Set<OpeningBalanceBridgeReview>();
 
   public DbSet<ClientPeriodRestatement> ClientPeriodRestatements => Set<ClientPeriodRestatement>();
 

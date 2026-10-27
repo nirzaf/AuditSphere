@@ -123,9 +123,11 @@ public sealed partial class ClientAccountingTests
       await db.ClientReportingPeriods.Where(x => x.Id == periodId).Select(x => x.Status).SingleAsync());
   }
 
-  [Fact]
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
   [Trait("Profile", "Database")]
-  public async Task PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence()
+  public async Task PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence(bool legacyApproval)
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var scope = await SeedAsync(pg);
@@ -198,13 +200,95 @@ public sealed partial class ClientAccountingTests
       opening.Id, expectedClientId: scope.ClientB, expectedSourceHash: opening.SourceHash)).ErrorCode);
     Assert.Equal(ErrorCodes.GenerationStale, (await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(verify, reviewer,
       opening.Id, expectedClientId: scope.ClientA, expectedSourceHash: new string('a', 64))).ErrorCode);
-    Assert.True((await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(verify, reviewer,
-      opening.Id, expectedClientId: scope.ClientA, expectedSourceHash: opening.SourceHash)).Succeeded);
+    if (legacyApproval)
+    {
+      // Synthetic persisted pre-migration approval: no new review receipt may be inferred or backfilled.
+      var legacy = await verify.OpeningBalanceBridges.SingleAsync(x => x.Id == opening.Id);
+      legacy.Status = AccountingWorkflowStates.Approved;
+      legacy.ApprovedByUserId = scope.Reviewer.Id;
+      legacy.ApprovedAt = DateTimeOffset.UtcNow;
+      await verify.SaveChangesAsync();
+    }
+    else
+      Assert.True((await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(verify, reviewer,
+        opening.Id, expectedClientId: scope.ClientA, expectedSourceHash: opening.SourceHash)).Succeeded);
     var readinessAfterApproval = await PeriodCloseReadinessQuery.GetReadinessAsync(verify, reviewer, nextPeriodId);
     Assert.True(readinessAfterApproval.Succeeded, readinessAfterApproval.Message);
     Assert.True(readinessAfterApproval.Value!.CanClose);
     var closeAfterBridgeApproval = await ClientAccountingService.ClosePeriodAsync(verify, reviewer,
       nextPeriodId, "Opening bridge reviewed");
     Assert.True(closeAfterBridgeApproval.Succeeded, closeAfterBridgeApproval.Message);
+    verify.RoleGrants.Add(ClientPartnerGrant(scope));
+    await verify.SaveChangesAsync();
+    var partner = Actor(scope.Partner, "Partner");
+    Assert.True((await ClientAccountingService.ReopenPeriodAsync(verify, partner, nextPeriodId, "Review successor after prior correction")).Succeeded);
+    Assert.True((await ClientAccountingService.ReopenPeriodAsync(verify, partner, priorPeriodId, "Correct prior closing evidence")).Succeeded);
+    var reopenedPriorClose = await ClientAccountingService.ClosePeriodAsync(verify, reviewer, nextPeriodId, "Prior is open");
+    Assert.False(reopenedPriorClose.Succeeded);
+    var openPriorReadiness = await PeriodCloseReadinessQuery.GetReadinessAsync(verify, reviewer, nextPeriodId);
+    Assert.False(openPriorReadiness.Value!.CanClose);
+    Assert.Contains(openPriorReadiness.Value.Blockers, x => x.Code == "opening-bridge.prior-close-changed");
+    // Hold the actual prior-close publication while successor close attempts the same client fence.
+    // A waiting caller must evaluate the committed revised prior close, not its earlier approval.
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+    var pause = new PausePeriodCloseSave();
+    await using var priorCloseDb = new AuditSphereDbContext(
+      new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(pause).Options);
+    await using var successorCloseDb = new AuditSphereDbContext(pg.Options);
+    Task<CommandResult>? priorCloseTask = null;
+    Task<CommandResult>? successorCloseTask = null;
+    CommandResult reclosedPriorClose;
+    try
+    {
+      await priorCloseDb.Database.OpenConnectionAsync(timeout.Token);
+      await successorCloseDb.Database.OpenConnectionAsync(timeout.Token);
+      var priorPid = ((NpgsqlConnection)priorCloseDb.Database.GetDbConnection()).ProcessID;
+      var successorPid = ((NpgsqlConnection)successorCloseDb.Database.GetDbConnection()).ProcessID;
+      priorCloseTask = ClientAccountingService.ClosePeriodAsync(priorCloseDb, reviewer, priorPeriodId, "Corrected prior close", timeout.Token);
+      await pause.Reached.Task.WaitAsync(timeout.Token);
+      successorCloseTask = ClientAccountingService.ClosePeriodAsync(successorCloseDb, reviewer, nextPeriodId, "Earlier bridge approval is stale", timeout.Token);
+      var blocked = false;
+      var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+      while (!blocked && DateTimeOffset.UtcNow < deadline)
+      {
+        blocked = await verify.Database.SqlQuery<bool>(
+          $"SELECT {priorPid} = ANY(pg_blocking_pids({successorPid})) AS \"Value\"").SingleAsync(timeout.Token);
+        if (!blocked) await Task.Delay(20, timeout.Token);
+      }
+      Assert.True(blocked, "Successor close must wait for the actual prior closing decision.");
+      pause.Release.TrySetResult(true);
+      var priorClosed = await priorCloseTask.WaitAsync(timeout.Token);
+      Assert.True(priorClosed.Succeeded, priorClosed.Message);
+      reclosedPriorClose = await successorCloseTask.WaitAsync(timeout.Token);
+    }
+    finally
+    {
+      pause.Release.TrySetResult(true);
+      if (priorCloseTask is not null) try { await priorCloseTask.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
+      if (successorCloseTask is not null) try { await successorCloseTask.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
+    }
+    Assert.False(reclosedPriorClose.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, reclosedPriorClose.ErrorCode);
+    var staleReview = await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(verify, reviewer,
+      opening.Id, expectedClientId: scope.ClientA, expectedSourceHash: opening.SourceHash,
+      expectedPriorRevision: 2, reviewReason: "Reviewed the corrected prior close");
+    Assert.Equal(ErrorCodes.StaleRevision, staleReview.ErrorCode);
+    var originalApproval = await verify.OpeningBalanceBridges.AsNoTracking().SingleAsync(x => x.Id == opening.Id);
+    Assert.True((await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(verify, reviewer,
+      opening.Id, expectedClientId: scope.ClientA, expectedSourceHash: opening.SourceHash,
+      expectedPriorRevision: 4, reviewReason: "Reviewed unchanged opening amounts against the corrected prior close")).Succeeded);
+    var preservedApproval = await verify.OpeningBalanceBridges.AsNoTracking().SingleAsync(x => x.Id == opening.Id);
+    Assert.Equal(originalApproval.ApprovedAt, preservedApproval.ApprovedAt);
+    Assert.Equal(originalApproval.ApprovedByUserId, preservedApproval.ApprovedByUserId);
+    Assert.Equal(legacyApproval ? new long[] { 4 } : new long[] { 2, 4 }, await verify.OpeningBalanceBridgeReviews.Where(x => x.BridgeId == opening.Id)
+      .OrderBy(x => x.PriorPeriodRevision).Select(x => x.PriorPeriodRevision).ToArrayAsync());
+    Assert.True((await PeriodCloseReadinessQuery.GetReadinessAsync(verify, reviewer, nextPeriodId)).Value!.CanClose);
+    Assert.True((await ClientAccountingService.ClosePeriodAsync(verify, reviewer, nextPeriodId, "Corrected opening independently revalidated")).Succeeded);
+    var immutable = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE opening_balance_bridge_reviews SET reason = {"tampered"} WHERE bridge_id = {opening.Id}"));
+    Assert.Equal("55000", immutable.SqlState);
+    var originalImmutable = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE opening_balance_bridges SET source_hash = {new string('b', 64)} WHERE id = {opening.Id}"));
+    Assert.Equal("55000", originalImmutable.SqlState);
   }
 }

@@ -184,6 +184,7 @@ public sealed partial class ClientAccountingTests
     {
       var priorPeriodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
         new ReportingPeriodRequest(scope.ClientA, "2025", new DateOnly(2025, 1, 1), new DateOnly(2025, 12, 31), "STATUTORY", "QAR"))).Value;
+      Assert.True((await ClientAccountingService.ClosePeriodAsync(db, reviewer, priorPeriodId, "Reviewed prior closing for opening evidence")).Succeeded);
       periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
         new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR", priorPeriodId))).Value;
       Assert.True((await ClientAccountingService.CreateBookAsync(db, preparer,

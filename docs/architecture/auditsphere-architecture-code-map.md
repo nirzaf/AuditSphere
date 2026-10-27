@@ -87,7 +87,7 @@ Posted movement lines exclude opening balances and imported GL; the official nat
 
 Critical invariants: firm-wide configuration rejects client-scoped grants; period close needs
 
-current reviews for matching packages; reopen/restatement create immutable revision lineage.
+current reviews for matching packages; reopen/restatement create immutable revision lineage. `OpeningBalanceBridgeCurrentness` checks the exact closed prior revision; `OpeningBalanceBridgeReview` retains append-only evidence reviews after a corrected prior close. Existing original approvals remain historical, and the initial unchanged legacy close remains compatible. The accounting workspace and close-readiness report expose currentness from the same check; structured records exports retain these reviews.
 
 Client bookkeeping source mode is explicit on `ClientAccountingProfile`; existing and new
 profiles default to `EXTERNAL_SOURCE`. `NATIVE_BOOKKEEPING` requires reviewer access and an

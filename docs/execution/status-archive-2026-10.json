@@ -26984,6 +26984,17 @@
       "verification": "Prefix-only cancellation RED1 then focused Domain GREEN15; Angular work queue GREEN36 and production build PASS. Owned built-in browser verified blocked required step, zero N/A, conditional reason review and disabled confirmation without assent.",
       "boundary": "Task applicability maker/checker receipt and qualified professional policy remain open; no live write or release claim.",
       "evidence": ".local/autonomous/evidence/atomic-completion-20261027/task03-prefix-safety-review.json"
+    },
+    "periodOpeningReadiness20261027BeforePriorCloseReview20261027": {
+      "status": "FOCUSED_AND_BUILTIN_VERIFIED_CURRENT_CI_REQUIRED",
+      "verification": "Existing PostgreSQL roll-forward test RED1 then GREEN1: unapproved opening bridge blocks readiness; approval clears it and existing close succeeds. Built-in synthetic reviewer saw blocker and disabled close after assent; refresh cleared assent. No browser financial write.",
+      "boundary": "Readiness only; close authorization unchanged. Full source CI and live acceptance remain pending."
+    },
+    "adjustmentSelectedSourceSafety20261027BeforePriorCloseReview20261027": {
+      "status": "FOCUSED_API_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
+      "verification": "Same-context accepted replacement allowed stale posting: RED1. Domain GREEN2, lock interleaving GREEN1, other-entity isolation GREEN1, scoped API GREEN1, Angular GREEN19 and built-in stale journal/return preview PASS.",
+      "boundary": "Legacy no-selection path remains; full Task10, CI and live deployment remain open.",
+      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/task10-stale-source-review.json"
     }
   },
   "lastUpdatedOn": "2026-10-27"

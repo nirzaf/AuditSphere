@@ -11221,6 +11221,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "ClientId", "Id")
+                        .HasName("ak_opening_bridge_scope_id");
+
                     b.HasIndex("FirmId", "ClientId", "CurrentPeriodId")
                         .IsUnique()
                         .HasDatabaseName("ux_opening_balance_bridge_period");
@@ -11228,6 +11231,69 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("opening_balance_bridges", null, t =>
                         {
                             t.HasCheckConstraint("ck_opening_balance_bridge_values", "length(trim(status)) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.OpeningBalanceBridgeReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BridgeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bridge_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("EvidenceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("evidence_hash");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("PriorPeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("prior_period_id");
+
+                    b.Property<long>("PriorPeriodRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("prior_period_revision");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("ReviewerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewer_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ReviewerId");
+
+                    b.HasIndex("FirmId", "ClientId", "PriorPeriodId");
+
+                    b.HasIndex("FirmId", "ClientId", "BridgeId", "PriorPeriodRevision")
+                        .IsUnique()
+                        .HasDatabaseName("ux_opening_bridge_review_revision");
+
+                    b.ToTable("opening_balance_bridge_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_opening_bridge_review", "prior_period_revision >= 2 AND evidence_hash ~ '^[0-9a-f]{64}$' AND length(trim(reason)) BETWEEN 1 AND 2000");
                         });
                 });
 
@@ -35165,6 +35231,30 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "CurrentPeriodId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.OpeningBalanceBridgeReview", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewerId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.OpeningBalanceBridge", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "BridgeId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "PriorPeriodId")
                         .HasPrincipalKey("FirmId", "ClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

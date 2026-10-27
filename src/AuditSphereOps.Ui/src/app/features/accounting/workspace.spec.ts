@@ -110,6 +110,47 @@ describe('Accounting workspace mode and period navigation', () => {
     await settle(fixture);
   }
 
+  it('reviews a stale opening against the exact prior revision without overwriting its original approval', async () => {
+    const fixture = await open();
+    const nextId = guid(12);
+    const priorRevision = '9007199254740993';
+    const bridge = { id: guid(13), periodId: nextId, priorPeriodId: guid(11), sourcePackageId: null,
+      sourceHash: 'f'.repeat(64), priorClosing: '100.123456', currentOpening: '100.123456', residual: '0',
+      status: 'APPROVED', evidence: 'Synthetic signed prior close', approvedBy: userId, approvedAt: '2026-10-01T00:00:00Z',
+      priorRevision, current: false, canReview: true, reviewBlocker: 'The prior closing revision changed.',
+      currentReviewId: null, currentReviewerId: null, currentReviewedAt: null };
+    const response = { ...clientWorkspace(clientA, 'Client A', guid(3), [period(nextId, '2027')]),
+      openingBridges: [bridge], canReviewOpening: true };
+    expect(() => decodeWorkspace({ ...response, openingBridges: [{ ...bridge, priorRevision: Number(priorRevision) }] })).toThrow();
+    await select(fixture, clientA, response);
+    const w = fixture.componentInstance;
+    const selected = w.workspace()!.openingBridges[0];
+    const button = [...fixture.nativeElement.querySelectorAll('button')].find((b: unknown) =>
+      (b as HTMLElement).textContent?.includes('Revalidate opening bridge')) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Original approval by / UTC');
+    w.openingReviewed = bridge.id;
+    w.approveOpening(selected);
+    http.expectNone(request => request.method === 'POST');
+    w.openingReason = 'Reviewed unchanged amounts against the corrected close';
+    w.approveOpening(selected);
+    const write = http.expectOne('/api/ui/accounting/clients/' + clientA + '/opening-bridges/' + bridge.id + '/approve');
+    expect(write.request.body).toEqual({ sourceHash: bridge.sourceHash, reviewed: true, priorRevision,
+      reason: 'Reviewed unchanged amounts against the corrected close' });
+    write.flush(null, { status: 204, statusText: 'No Content' });
+    await settle(fixture);
+    http.expectOne('/api/ui/accounting/clients/' + clientA).flush({ ...response,
+      openingBridges: [{ ...bridge, current: true, canReview: false, reviewBlocker: null,
+        currentReviewId: guid(14), currentReviewerId: userId, currentReviewedAt: '2026-10-27T12:00:00Z' }] });
+    await settle(fixture);
+    http.expectOne('/api/ui/accounting/clients/' + clientA + '/dimensions').flush([]);
+    await settle(fixture);
+    expect(fixture.nativeElement.textContent).toContain('Retained current review');
+    expect(fixture.nativeElement.textContent).not.toContain('Revalidate opening bridge');
+    expect(w.openingReviewed).toBe('');
+    expect(w.openingReason).toBe('');
+  });
+
   it('locks unsupported mode changes, links exact periods, and distinguishes rejection from unknown outcomes by client', async () => {
     const fixture = await open();
     const workspace = fixture.componentInstance;

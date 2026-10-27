@@ -1101,15 +1101,10 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.conditionalCancellationBeforeHeldProgress20261027"
     },
     "adjustmentSelectedSourceSafety20261027": {
-      "status": "FOCUSED_API_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
-      "verification": "Same-context accepted replacement allowed stale posting: RED1. Domain GREEN2, lock interleaving GREEN1, other-entity isolation GREEN1, scoped API GREEN1, Angular GREEN19 and built-in stale journal/return preview PASS.",
-      "boundary": "Legacy no-selection path remains; full Task10, CI and live deployment remain open.",
-      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/task10-stale-source-review.json"
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.adjustmentSelectedSourceSafety20261027BeforePriorCloseReview20261027"
     },
     "periodOpeningReadiness20261027": {
-      "status": "FOCUSED_AND_BUILTIN_VERIFIED_CURRENT_CI_REQUIRED",
-      "verification": "Existing PostgreSQL roll-forward test RED1 then GREEN1: unapproved opening bridge blocks readiness; approval clears it and existing close succeeds. Built-in synthetic reviewer saw blocker and disabled close after assent; refresh cleared assent. No browser financial write.",
-      "boundary": "Readiness only; close authorization unchanged. Full source CI and live acceptance remain pending."
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.periodOpeningReadiness20261027BeforePriorCloseReview20261027"
     },
     "lifecycleNavigation20261027": {
       "status": "FOCUSED_AND_BUILTIN_VERIFIED_CURRENT_CI_REQUIRED",
@@ -1121,6 +1116,12 @@
       "verification": "Active held tasks appear blocked; focused hold/resume test and isolated built-in browser passed. Held-only next action names qualified roles without an unavailable link.",
       "boundary": "No business write or full Task 02 acceptance; scope and remaining requirements remain open.",
       "evidence": ".local/autonomous/evidence/claude-completion-20261027/held-progress-review.json"
+    },
+    "priorCloseReview20261027": {
+      "status": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
+      "verification": "Prior-open/reclose RED1 then focused Domain, observed concurrency, native successor and archive PASS; new/legacy approval theory2 PASS; Angular9, signed-in accounting journey1, build/lint/model/OpenAPI PASS. Built-in reviewer saw stale-close blocker, exact amounts, fresh assent and390px fit.",
+      "boundary": "Immutable review and original approval retained; no full specification acceptance or live cutover.",
+      "evidence": ".local/autonomous/evidence/claude-completion-20261027/period-prior-close-review.json"
     }
   },
   "externalGates": [

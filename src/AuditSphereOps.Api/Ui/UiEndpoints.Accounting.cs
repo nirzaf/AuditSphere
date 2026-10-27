@@ -30,7 +30,9 @@ public static partial class UiEndpoints
     Guid? PriorPeriodId, bool Reviewed);
   public sealed record AccountingBookInput(Guid PeriodId, string Code, string Basis, string InclusionRule, string Currency, bool Reviewed);
   public sealed record AccountingPeriodDecisionInput(string Revision, string Reason, bool Reviewed);
-  public sealed record AccountingOpeningApprovalInput(string SourceHash, bool Reviewed);
+  /// <summary>Review exact opening evidence against the displayed prior close; revalidation retains a reason.</summary>
+  public sealed record AccountingOpeningApprovalInput(string SourceHash, bool Reviewed, string? PriorRevision = null,
+    [property: MaxLength(2000)] string? Reason = null);
   public sealed record AccountingRollforwardInput(Guid PriorPeriodId, string Revision, string Code, string Start,
     string End, string Basis, string Currency, string SourceHash, string PriorClosing, string CurrentOpening,
     string Evidence, Guid? SourcePackageId, bool Reviewed);
@@ -66,8 +68,17 @@ public static partial class UiEndpoints
       try { await csrf.ValidateRequestAsync(http); }
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
       if (!input.Reviewed || input.SourceHash is not { Length: 64 }) return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+      long? priorRevision = null;
+      if (input.PriorRevision is not null)
+      {
+        if (!long.TryParse(input.PriorRevision, NumberStyles.None, CultureInfo.InvariantCulture, out var revision) || revision < 2)
+          return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+        priorRevision = revision;
+      }
+      if (input.Reason is { Length: > 2000 }) return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(db, actor, bridgeId, http.RequestAborted, id, input.SourceHash);
+      var result = await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(db, actor, bridgeId, http.RequestAborted,
+        id, input.SourceHash, priorRevision, input.Reason);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces(StatusCodes.Status204NoContent)

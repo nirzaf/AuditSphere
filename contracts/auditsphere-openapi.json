@@ -96079,6 +96079,19 @@
           },
           "reviewed": {
             "type": "boolean"
+          },
+          "priorRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reason": {
+            "maxLength": 2000,
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -96147,6 +96160,46 @@
             "format": "uuid"
           },
           "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "priorRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "current": {
+            "type": "boolean",
+            "default": false
+          },
+          "canReview": {
+            "type": "boolean",
+            "default": false
+          },
+          "reviewBlocker": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currentReviewId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "currentReviewerId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "currentReviewedAt": {
             "type": [
               "null",
               "string"

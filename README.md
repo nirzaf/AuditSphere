@@ -91,7 +91,7 @@ A task completion or UI action **never sets an audit lifecycle state directly**.
 
 ### Financial boundaries and service modes
 
-Period close readiness reports an unapproved or missing required opening bridge before the close decision; the independent approval and close checks remain authoritative.
+Period close readiness reports missing, unapproved or stale opening evidence. Reopening or reclosing the prior period requires a fresh review of the exact opening evidence against that closing revision; the original approval and each new review remain immutable. The accounting screen retains exact amounts, requires a reason and fresh assent for revalidation, and keeps successor close blocked until the review is current.
 
 | Boundary | Source of truth | Non-negotiable rule |
 | --- | --- | --- |
