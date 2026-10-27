@@ -1086,10 +1086,8 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.workflowPlanBoundsBeforeAgreementAmbiguity20261027"
     },
     "progressSnapshot20261027": {
-      "status": "FOCUSED_API_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
-      "verification": "PostgreSQL atomic task-reopen/hold interleaving reproduced mixed progress; repeatable-read detail/client/portfolio checks PASS, caller transaction refusal and fresh revocation checks PASS, audit route and existing scoped API test PASS. Built-in isolated detail/client/portfolio reads PASS; console warnings/errors empty.",
-      "boundary": "Caller-owned transactions are refused, not nested; no schema or provider changes, full CI or live release claim.",
-      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/progress-snapshot-review.json"
+      "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.progressSnapshotBeforeLifecycleNavigation20261027"
     },
     "agreementAmbiguity20261027": {
       "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
@@ -1115,6 +1113,11 @@
       "status": "FOCUSED_AND_BUILTIN_VERIFIED_CURRENT_CI_REQUIRED",
       "verification": "Existing PostgreSQL roll-forward test RED1 then GREEN1: unapproved opening bridge blocks readiness; approval clears it and existing close succeeds. Built-in synthetic reviewer saw blocker and disabled close after assent; refresh cleared assent. No browser financial write.",
       "boundary": "Readiness only; close authorization unchanged. Full source CI and live acceptance remain pending."
+    },
+    "lifecycleNavigation20261027": {
+      "status": "FOCUSED_AND_BUILTIN_VERIFIED_CURRENT_CI_REQUIRED",
+      "verification": "Existing destination catalogue preserved; four focused navigation/icon/shell specs passed, plus targeted reruns; production build and scoped lint passed. Built-in synthetic browser checked firm-books and PBC owners, mobile menu keyboard/escape/focus and narrow width.",
+      "boundary": "Static navigation does not grant access; contextual authorization and full application acceptance remain separate."
     }
   },
   "externalGates": [

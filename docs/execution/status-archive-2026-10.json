@@ -26972,6 +26972,12 @@
       "verification": "Focused Domain RED2/GREEN2 including detail, client, portfolio and client-user denial; Angular progress spec 11 PASS and pinned Node build PASS; synthetic built-in accounting engagement showed 99%, D03 gate and completed step, console warnings/errors empty.",
       "boundary": "No D03 policy decision, live release or current-source full CI claimed.",
       "evidence": ".local/autonomous/evidence/atomic-completion-20261027/non-audit-progress-review.json"
+    },
+    "progressSnapshotBeforeLifecycleNavigation20261027": {
+      "status": "FOCUSED_API_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
+      "verification": "PostgreSQL atomic task-reopen/hold interleaving reproduced mixed progress; repeatable-read detail/client/portfolio checks PASS, caller transaction refusal and fresh revocation checks PASS, audit route and existing scoped API test PASS. Built-in isolated detail/client/portfolio reads PASS; console warnings/errors empty.",
+      "boundary": "Caller-owned transactions are refused, not nested; no schema or provider changes, full CI or live release claim.",
+      "evidence": ".local/autonomous/evidence/atomic-completion-20261027/progress-snapshot-review.json"
     }
   },
   "lastUpdatedOn": "2026-10-27"

@@ -2,13 +2,9 @@ import { Component, inject, input } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
-import { NAVIGATION } from '../navigation';
+import { NAVIGATION, navigationOwner, type NavGroupId } from '../navigation';
 import { SessionService } from './session';
 import { WorkspaceNavigationIcon } from './workspace-navigation-icon';
-
-/** Engagement sub-pages that belong to a sidebar area other than the engagement's Practice record. */
-const AUDIT_ENGAGEMENT = /^\/app\/engagements\/[^/]+\/(audit-plan|audit-fieldwork|completion)(?:\/|$)/;
-const ACCOUNTING_ENGAGEMENT = /^\/app\/engagements\/[^/]+\/(general-ledger|tb-intake|financial-package|statements)(?:\/|$)/;
 
 /** Presentation links only; the API owns every record and action permission. */
 @Component({
@@ -17,15 +13,22 @@ const ACCOUNTING_ENGAGEMENT = /^\/app\/engagements\/[^/]+\/(general-ledger|tb-in
   template: `
     <nav class="workspace-navigation" [class.compact-navigation]="compactNavigation()" aria-label="Workspace navigation">
       @if (session.current()?.staff) {
-        @for (group of nav; track group.title) {
-          <h2 [class.current-section]="isCurrentGroup(group.title)"
-            [attr.aria-current]="isCurrentGroup(group.title) ? 'location' : null"
+        @for (group of nav; track group.id) {
+          <h2 [class.current-section]="isCurrentGroup(group.id)"
+            [attr.aria-current]="isCurrentGroup(group.id) ? 'location' : null"
             [attr.aria-label]="group.title"
             [attr.title]="compactNavigation() ? group.title : null">
             <span class="group-mark"><audit-nav-icon [name]="group.icon" /></span>
             <span class="group-label">{{ group.title }}</span>
           </h2>
-          @for (item of group.items; track item.path) {
+          @for (item of group.items; track item.id; let index = $index) {
+            @if (group.id === 'execution' && item.id === 'consolidation') {
+              <h3 class="subsection">Audit Fieldwork</h3>
+              <p class="section-hint">Open an authorized engagement for audit work.</p>
+            }
+            @if (item.section && (index === 0 || group.items[index - 1].section !== item.section)) {
+              <h3 class="subsection">{{ item.section }}</h3>
+            }
             <a [routerLink]="item.path" routerLinkActive="active"
               [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
               ariaCurrentWhenActive="page"
@@ -55,6 +58,8 @@ const ACCOUNTING_ENGAGEMENT = /^\/app\/engagements\/[^/]+\/(general-ledger|tb-in
       letter-spacing: .08em; font-weight: 700; margin: 1.25rem 0 .25rem; padding-inline: .75rem;
       color: var(--as-shell-muted, #cbd5e1); }
     h2:first-of-type { margin-block-start: 0; }
+    .subsection { margin: .7rem .75rem .15rem; color: var(--as-shell-muted, #cbd5e1); font-size: .75rem; }
+    .section-hint { margin: .15rem .75rem .4rem; padding: 0; font-size: .75rem; }
     h2.current-section { color: white; border-inline-start: 3px solid #60a5fa; padding-inline-start: .5rem; }
     .group-mark, .item-mark { display: inline-grid; place-items: center; flex: none; }
     .group-mark { --nav-icon-size: 1rem; }
@@ -72,7 +77,8 @@ const ACCOUNTING_ENGAGEMENT = /^\/app\/engagements\/[^/]+\/(general-ledger|tb-in
     .compact-navigation h2.current-section { border-inline: 0; padding-inline: 0; }
     .compact-navigation .group-mark { min-width: 2rem; min-height: 1.75rem; border: 1px solid var(--as-shell-border, #475569);
       border-radius: 6px; }
-    .compact-navigation .group-label, .compact-navigation .nav-label, .compact-navigation .access-note { display: none; }
+    .compact-navigation .group-label, .compact-navigation .nav-label, .compact-navigation .access-note,
+    .compact-navigation .subsection, .compact-navigation .section-hint { display: none; }
     .compact-navigation a { justify-content: center; padding-inline: .25rem; }
     .compact-navigation .item-mark { width: 2.25rem; height: 2.25rem; border: 1px solid var(--as-shell-border, #475569);
       border-radius: 8px; }
@@ -87,16 +93,5 @@ export class WorkspaceNavigation {
   private readonly router = inject(Router);
   private readonly currentRoute = toSignal(this.router.events.pipe(map(() => this.router.url)), { initialValue: this.router.url });
 
-  isCurrentGroup(title: string): boolean {
-    const path = this.currentRoute().split(/[?#]/, 1)[0];
-    const under = (root: string): boolean => path === root || path.startsWith(`${root}/`);
-    if (title === 'Administration') return under('/app/administration') || path === '/app/operations';
-    if (title === 'Accounting') return under('/app/accounting') || ACCOUNTING_ENGAGEMENT.test(path);
-    if (title === 'Consolidation') return under('/app/consolidation');
-    if (title === 'Audit') return under('/app/audit') || under('/app/library') || AUDIT_ENGAGEMENT.test(path);
-    if (title === 'Practice') return under('/app/practice') || under('/app/clients') || under('/app/finance') ||
-      under('/app/work') || path === '/app' ||
-      (under('/app/engagements') && !AUDIT_ENGAGEMENT.test(path) && !ACCOUNTING_ENGAGEMENT.test(path));
-    return false;
-  }
+  isCurrentGroup(id: NavGroupId): boolean { return navigationOwner(this.currentRoute())?.groupId === id; }
 }

@@ -105,6 +105,10 @@ describe('responsive workspace navigation', () => {
     for (const link of links) expect(link.querySelector('svg[aria-hidden="true"] path')).toBeTruthy();
     for (const heading of nav.querySelectorAll('h2')) expect(heading.querySelector('svg[aria-hidden="true"]')).toBeTruthy();
     expect(nav.querySelector('a[href$="/app/finance/books"]')?.textContent?.trim()).toBe('Firm books');
+    expect(Array.from(nav.querySelectorAll('h3')).map(heading => heading.textContent?.trim())).toEqual([
+      'Client Accounting', 'Audit Fieldwork', 'Group Consolidation',
+    ]);
+    expect(nav.textContent).toContain('Open an authorized engagement for audit work.');
     s.fixture.destroy();
   });
   it('reports a safe load failure and allows retry', async () => {

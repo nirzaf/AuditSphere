@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Lifecycle navigation
+
+The sidebar groups existing destinations by lifecycle and keeps client accounting, group consolidation and firm finance distinct. A shared route-owner map highlights contextual pages without granting authority. Focused checks and isolated built-in desktop/mobile keyboard verification passed; contextual capability and full acceptance remain open. See [status.json](status.json).
+
 ## Period close readiness
 
 The readiness view now reports a missing or unapproved opening bridge before period close, matching the existing close command. Focused PostgreSQL and isolated built-in browser checks passed; current release verification remains pending. See [status.json](status.json).
@@ -24,9 +28,7 @@ A journal based on an earlier trial balance cannot be posted after a replacement
 
 ## Shared form layout and ordinary-task progress (2026-10-26)
 
-The owner requested improvements to the ledger screenshot and similarly affected pages. Shared native forms now stack structural sections and use responsive field grids, with defined workspace/journal layouts and horizontal checkbox labels. Intentional filter/tool bars and page-specific grids remain intact. Ledger rows use the full form width, with paired or stacked fields at narrower sizes. An actual built-in browser check exercised adding/removing a draft line, report navigation and the Firm books expense form without financial writes; focused browser checks also covered narrow rendering and unchanged setup recovery and role denial. Production compilation and scoped lint passed. Exact evidence is in `targetedVerification.sharedFormLayout20261026` in [status.json](status.json).
-
-The next progress audit also reproduced omitted ordinary engagement tasks. Those records now contribute mandatory commitments without creating workflow bindings or double counting, share the existing projection cap and retain their exact time-task handoff. Focused PostgreSQL and canonical/previous-UI browser journeys passed. The test waits for the existing independent planning read before requesting navigation; its protection was not weakened. Results and the excluded environment/expiry attempts are recorded in `targetedVerification.manualTaskProgress20261026`. Current-source full CI, connected workflow, D03 and professional/live acceptance remain open; neither this UI slice nor a passing focused check completes the assignment.
+Prior evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#shared-form-layout-and-ordinary-task-progress-2026-10-26).
 
 ## Conditional-task cancellation safety (2026-10-27)
 

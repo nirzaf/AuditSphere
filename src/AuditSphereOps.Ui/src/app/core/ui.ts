@@ -2,7 +2,7 @@ import { Component, Pipe, PipeTransform, inject, input } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { money, percent } from './decode';
-import { NAVIGATION } from '../navigation';
+import { navigationOwner } from '../navigation';
 import type { NavIconName } from '../navigation-icons';
 import { WorkspaceNavigationIcon } from './workspace-navigation-icon';
 
@@ -54,20 +54,8 @@ export class PercentPipe implements PipeTransform {
 /** The sidebar icon of the area a page belongs to, so each page header carries the same visual cue as its menu item. */
 export function pageIconFor(url: string): NavIconName {
   const path = url.split(/[?#]/, 1)[0].replace(/^\/ui(?=\/)/, '');
-  let best: { path: string; icon: NavIconName } | null = null;
-  for (const group of NAVIGATION) for (const item of group.items) {
-    const matches = path === item.path || (!item.exact && path.startsWith(item.path + '/'));
-    if (matches && (!best || item.path.length > best.path.length)) best = item;
-  }
-  if (best) return best.icon;
-  // Engagement sub-pages that the sidebar files under Accounting or Audit take that area's icon.
-  if (/^\/app\/engagements\/[^/]+\/(general-ledger|tb-intake|financial-package|statements)(\/|$)/.test(path)) return 'calculator';
-  if (/^\/app\/engagements\/[^/]+\/(audit-plan|audit-fieldwork|completion|confirmations|pbc)(\/|$)/.test(path)) return 'file-search';
-  if (/^\/app\/(engagements|clients|assessments)(\/|$)/.test(path)) return 'briefcase-business';
-  if (/^\/app\/(audit|findings|reviews|releases|completion|records)(\/|$)/.test(path)) return 'file-search';
-  if (path.startsWith('/app/accounting')) return 'calculator';
-  if (path.startsWith('/app/consolidation')) return 'layers';
-  if (path.startsWith('/app/profile')) return 'user-round';
+  const owner = navigationOwner(path);
+  if (owner) return owner.icon;
   if (path.startsWith('/portal')) return 'globe';
   return 'layout-dashboard';
 }

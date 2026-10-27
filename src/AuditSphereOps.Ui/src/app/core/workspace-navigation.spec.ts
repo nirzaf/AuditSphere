@@ -5,29 +5,33 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WorkspaceNavigation } from './workspace-navigation';
+import { NAVIGATION } from '../navigation';
 
 @Component({ template: '' })
 class Blank {}
 
-const TITLES = ['Administration', 'Practice', 'Accounting', 'Consolidation', 'Audit'];
+const GROUP_IDS = NAVIGATION.map(group => group.id);
 const ENGAGEMENT = '/app/engagements/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 describe('workspace navigation group highlighting', () => {
   afterEach(() => TestBed.resetTestingModule());
 
   it.each([
-    ['/app', ['Practice']],
-    ['/app/work', ['Practice']],
-    ['/app/finance/books', ['Practice']],
-    ['/app/accounting/mappings', ['Accounting']],
-    ['/app/accounting/remeasurement', ['Accounting']],
-    ['/app/consolidation/scopes/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', ['Consolidation']],
-    [`${ENGAGEMENT}`, ['Practice']],
-    [`${ENGAGEMENT}/tb-intake`, ['Accounting']],
-    [`${ENGAGEMENT}/general-ledger`, ['Accounting']],
-    [`${ENGAGEMENT}/audit-plan`, ['Audit']],
-    ['/app/audit/library', ['Audit']],
-    ['/app/administration/users', ['Administration']],
+    ['/app', ['work']],
+    ['/app/work', ['work']],
+    ['/app/finance/books', ['firm-finance']],
+    ['/app/accounting/mappings', ['execution']],
+    ['/app/accounting/remeasurement', ['execution']],
+    ['/app/consolidation/scopes/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', ['execution']],
+    [`${ENGAGEMENT}`, ['planning']],
+    [`${ENGAGEMENT}/tb-intake`, ['execution']],
+    [`${ENGAGEMENT}/general-ledger`, ['execution']],
+    [`${ENGAGEMENT}/audit-plan`, ['planning']],
+    [`${ENGAGEMENT}/pbc`, ['execution']],
+    [`${ENGAGEMENT}/confirmations`, ['execution']],
+    ['/app/accounting/reviews', ['review-delivery']],
+    ['/app/audit/library', ['reference-admin']],
+    ['/app/administration/users', ['reference-admin']],
   ])('highlights the owning group for %s', async (url, expected) => {
     TestBed.configureTestingModule({
       imports: [WorkspaceNavigation],
@@ -35,6 +39,6 @@ describe('workspace navigation group highlighting', () => {
     });
     await TestBed.inject(Router).navigateByUrl(url);
     const nav = TestBed.createComponent(WorkspaceNavigation).componentInstance;
-    expect(TITLES.filter(title => nav.isCurrentGroup(title))).toEqual(expected);
+    expect(GROUP_IDS.filter(id => nav.isCurrentGroup(id))).toEqual(expected);
   });
 });
