@@ -1331,8 +1331,8 @@
       "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
       "mailBoundary": "Already paused at observed preflight; remains paused without genuine signed sender authorization.",
       "liveObserved": {
-        "sourceCheckout": "fb02fc3358742a4a23acef6301438de7bce4f521",
-        "imageSource": "fb02fc3358742a4a23acef6301438de7bce4f521",
+        "sourceCheckout": "734b6b81172c448313d723d4c8b4bf2ff9c0f48e",
+        "imageSource": "734b6b81172c448313d723d4c8b4bf2ff9c0f48e",
         "schema": "288:20261026172424_UserProfiles",
         "coreServices": [
           "api",
@@ -1341,40 +1341,12 @@
           "worker-records"
         ],
         "mailRunning": false,
-        "deploymentProvenance": "Owner-authorized deployment (hostingerAcceptance.ownerAuthorizedDeploymentFb02fc33)."
+        "deploymentProvenance": "Owner-authorized release (hostingerAcceptance.ownerAuthorizedDeployment734b6b81)."
       },
       "backupPreparation": "Fresh quiesced private DB dump/catalog, actualDocker-volume storage andprotectedconfig backup required beforelive mutation; rehearsal snapshot is not finalbackup. Preserveoverlay/privateenv androllbackboundaries, no destructiveDBrestore.",
       "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-a948.json",
       "history": "status-archive-2026-10.json#keys.hostingerPreparationBeforeFixtureDeadlineReadiness20261026",
-      "previousDeploymentEvidence": "status-archive-2026-10.json#keys.hostingerAcceptance.ownerAuthorizedDeploymentE6ad2e59"
-    },
-    "ownerAuthorizedDeploymentFb02fc33": {
-      "observedAtUtc": "2026-10-26T20:08:00Z",
-      "authorization": "Owner chat instruction: deploy current master to the VPS the same way, fresh backup, apply the UserProfiles migration, mail worker stays paused.",
-      "previousRelease": "e6ad2e59bd4ac600b056d557f3a29d9b7901e303",
-      "release": "fb02fc3358742a4a23acef6301438de7bce4f521",
-      "fastCi": {
-        "run": 40389605641,
-        "result": "FAST_CI_PASS"
-      },
-      "imageWorkflowRun": 40389605878,
-      "fullCi": "NOT_RUN",
-      "backup": {
-        "file": "/opt/auditsphere/release-preparation/pre-fb02fc33-20261026T200632Z.dump",
-        "bytes": 2739461,
-        "catalogEntries": 4110,
-        "sha256": "c14f3c929dd0b51fbf0db1f626fd1421009193f4805a4bc92413b2a207856b7d",
-        "quiesced": "api and workers stopped before pg_dump"
-      },
-      "migration": {
-        "applied": [
-          "20261026172424_UserProfiles"
-        ],
-        "result": "288 applied; user_profiles table present"
-      },
-      "checks": "health live/ready, /app, /app/profile, /app/administration/users 200; /api/ui/me/profile and progress 401 signed out vs unknown route 404; live bundle contains profile page, access history and sign-out icon; 0 ERR/FTL lines.",
-      "mailWorker": "Stopped before and after; not started.",
-      "notVerified": "Signed-in live browser review of the profile page and access history."
+      "previousDeploymentEvidence": "status-archive-2026-10.json#keys.hostingerAcceptance.ownerAuthorizedDeploymentFb02fc33"
     },
     "ownerDirectedRoleGrants20261026": {
       "observedAtUtc": "2026-10-26T18:08:13Z",
@@ -1383,6 +1355,26 @@
       "reasonForOperatorPath": "In-app self-elevation requires a second administrator and none exists.",
       "backup": "/opt/auditsphere/release-preparation/pre-role-grants-20261026T180804Z.dump",
       "unchanged": "Maker-checker and independent-review controls; no Microsoft Entra directory role changed."
+    },
+    "ownerAuthorizedDeployment734b6b81": {
+      "observedAtUtc": "2026-10-27T03:40:00Z",
+      "authorization": "Owner chat instruction: enhance and improve the UI/UX of the project and release it.",
+      "previousRelease": "fb02fc3358742a4a23acef6301438de7bce4f521",
+      "release": "734b6b81172c448313d723d4c8b4bf2ff9c0f48e",
+      "fastCi": {
+        "run": 40444158102,
+        "result": "FAST_CI_PASS"
+      },
+      "imageWorkflowRun": 40444158054,
+      "fullCi": "NOT_RUN",
+      "backup": {
+        "file": "/opt/auditsphere/release-preparation/pre-734b6b81-20261027T033850Z.dump",
+        "bytes": 2741981,
+        "catalogEntries": 4115,
+        "sha256": "b8fe5ccbf6de6b16843d08238baca7a10248bfe9079ff0d7b532eed349528298"
+      },
+      "migration": "None pending; 288 applied.",
+      "checks": "health, /app, users and profile pages 200; profile API 401 signed out vs 404 unknown; live bundle has the new user cards; 0 ERR/FTL; mail worker stopped."
     }
   },
   "apiAngularParity": {
