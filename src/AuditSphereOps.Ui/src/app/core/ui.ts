@@ -60,6 +60,9 @@ export function pageIconFor(url: string): NavIconName {
     if (matches && (!best || item.path.length > best.path.length)) best = item;
   }
   if (best) return best.icon;
+  // Engagement sub-pages that the sidebar files under Accounting or Audit take that area's icon.
+  if (/^\/app\/engagements\/[^/]+\/(general-ledger|tb-intake|financial-package|statements)(\/|$)/.test(path)) return 'calculator';
+  if (/^\/app\/engagements\/[^/]+\/(audit-plan|audit-fieldwork|completion|confirmations|pbc)(\/|$)/.test(path)) return 'file-search';
   if (/^\/app\/(engagements|clients|assessments)(\/|$)/.test(path)) return 'briefcase-business';
   if (/^\/app\/(audit|findings|reviews|releases|completion|records)(\/|$)/.test(path)) return 'file-search';
   if (path.startsWith('/app/accounting')) return 'calculator';

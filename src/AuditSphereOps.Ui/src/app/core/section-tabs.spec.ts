@@ -42,6 +42,8 @@ describe('page header icon', () => {
     expect(pageIconFor('/ui/app/accounting/mappings/123')).toBe('git-branch');
     expect(pageIconFor('/app/engagements/0247f5d8-4f57-4df5-ad3a-aff29b3a8517')).toBe('briefcase-business');
     expect(pageIconFor('/app/findings/abc')).toBe('file-search');
+    expect(pageIconFor('/app/engagements/0247f5d8-4f57-4df5-ad3a-aff29b3a8517/general-ledger/upload')).toBe('calculator');
+    expect(pageIconFor('/app/engagements/0247f5d8-4f57-4df5-ad3a-aff29b3a8517/audit-plan')).toBe('file-search');
     expect(pageIconFor('/portal/requests/1')).toBe('globe');
   });
 });

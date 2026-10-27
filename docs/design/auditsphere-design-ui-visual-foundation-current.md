@@ -43,6 +43,17 @@ Text tokens keep at least 4.5:1 contrast on white and on the canvas; control bor
 
 Material form fields use `appearance="outline" subscriptSizing="dynamic"` on each field at density -3. A global default provider is not used because importing the token eagerly grew the initial bundle.
 
+### Form controls
+
+Most screens use native controls; one global style in `styles.scss` gives every native field the same look as the Material outline fields, so no second component library is needed and labels, form bindings and tests are unchanged.
+
+- Text fields, selects and textareas: 40 px tall, 8 px radius (`--as-radius-control`), a 3:1 outline (`--as-control-border`), darker on hover, accent border with a soft ring on focus, and a visible keyboard focus outline. Selects use one chevron instead of the platform arrow; date and time pickers keep native pickers with a quieter icon.
+- Invalid fields (`aria-invalid="true"` or a touched invalid Angular control) show a red border; disabled fields are sunken with a dashed outline; read-only fields are sunken.
+- Checkboxes and radios are drawn (accent fill and white check), remain native inputs, and fall back to the platform look in forced-colours mode. Consecutive options are spaced.
+- File pickers show a pill-shaped "Choose file" button; fieldsets read as light cards with a bold legend.
+- Labels are small semibold text above the field. Forms that place `label[for]` directly before its control lay out as an ERP form: label on the left, field on the right, stacking on phones.
+- Material outline fields take the same radius and outline colours through `mat.form-field-overrides`.
+
 ## Rules
 
 - Do not use CSS text transforms on headings, labels or column headers; screen readers and role-based tests read the rendered text.
