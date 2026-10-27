@@ -25906,6 +25906,15 @@
       "imagePublication": "Current follow-up images/rehearsal required; fa30 images/rehearsal are predecessor only.",
       "cutoverStatus": "NOT_PERFORMED; existing live baseline and public browser/source gates must be refreshed.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeBooksOversight20261027"
+    },
+    "currentSourceCiBeforeExpiryPrecision20261027": {
+      "sourceBaseCommit": "098d3ea85be662b0d0609524258ec27216c4cd46",
+      "sourceRole": "ADMIN_EXPIRY_TEST_FIXTURE_TIMESTAMP_PRECISION",
+      "fastCi": "Preceding098d fast40591574750 actual3checkouts PASS; new exact source requires current proof.",
+      "releaseVerification": "Preceding098d full40591646605 MATCH: Domain1821PASS/1FAIL in expiry assertion; API/E2E still running. Focused correction verified; no full acceptance.",
+      "imagePublication": "Preceding098d exactimages40591574870/readback/rehearsal PASS; new exactsource images/rehearsal required.",
+      "cutoverStatus": "NOT_PERFORMED; retention/professional acceptance and exact-source release requirements remain separate.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeExpiryPrecision20261027"
     }
   },
   "archivedTargetedVerification": {

@@ -16,6 +16,8 @@ newer exact-source CI and slice evidence live under `targetedVerification`.
 
 ## Release-candidate replay
 
+The administrator-expiry regression now uses the existing microsecond-aligned clock fixture; its exact equality and rotation/refusal assertions are unchanged. See [status.json](status.json).
+
 An existing candidate is no longer returned before current authority is checked. Replay uses the ordinary release service and retains its approval identity. Candidate publication rechecks the existing independent package-review prerequisite under release locks, so a returned cash-flow review blocks preparation as shown in the workspace. Focused replay and unchanged historical projection checks passed; remaining release acceptance stays open. See [status.json](status.json).
 
 ## Oversight access evidence and specification suitability

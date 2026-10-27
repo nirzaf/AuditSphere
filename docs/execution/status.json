@@ -1118,7 +1118,8 @@
       "environment": "Original shared PostgreSQL lost global/pg_filenode.map; two connection failures excluded. Final checks used owned PG18.6 port49841; owned fixture/cluster cleaned, source restored. Invalid temporary period seed corrected; launcher1PASS.",
       "boundary": "No command permission widening, business writes in browser, raw documents, exports, freeze exceptions or live deployment. D-OV04retention/reviewer and D-EQR01..04professional decisions remain open; eleven roles preserved.",
       "ciFollowup": "Exact95ae fast40585165614 failed named boundary-contract check; RED1 reproduced. SharedApiError503 restored; focused contract1PASS and API1PASS after diagnosticID counterexample/fix, payloadwithheld and ordinaryFinance unaffected. OwnedPG cleaned; no guard weakened. New exact-source CI required.",
-      "ciFollowupEvidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/boundary-failure-review.json"
+      "ciFollowupEvidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/boundary-failure-review.json",
+      "expiryPrecisionCiFollowup": "Exact098d full Domain1821PASS/1FAIL: expiry timestamp equality lost sub-microsecond ticks. Deterministic RED1, representable fixture clock GREEN2; all equality/rotation/refusal assertions unchanged. No runtime change. Evidence: .local/autonomous/evidence/role-authorization-eqr-20261027/expiry-review.json"
     },
     "releaseCandidateReplay20261027": {
       "status": "FOCUSED_PASS_CURRENT_CI_REQUIRED",
@@ -1610,13 +1611,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "287c116cdc238bf284b5e9c98810b8335da417e4",
-    "sourceRole": "RELEASE_CANDIDATE_REPLAY_AUTHORITY_AND_CURRENT_PACKAGE_REVIEW",
-    "fastCi": "Preceding287c fast40588533206 metadata success; new source requires current actual checkout proof.",
-    "releaseVerification": "Preceding287c full40588578957 source MATCH, Angular PASS and remaining jobs running at last observation. No current full acceptance.",
-    "imagePublication": "Preceding287c images40588533271 metadata success; current images/restored-copy rehearsal required.",
+    "sourceBaseCommit": "098d3ea85be662b0d0609524258ec27216c4cd46",
+    "sourceRole": "ADMIN_EXPIRY_TEST_FIXTURE_TIMESTAMP_PRECISION",
+    "fastCi": "Preceding098d fast40591574750 actual3checkouts PASS; new exact source requires current proof.",
+    "releaseVerification": "Preceding098d full40591646605 MATCH: Domain1821PASS/1FAIL in expiry assertion; API/E2E still running. Focused correction verified; no full acceptance.",
+    "imagePublication": "Preceding098d exactimages40591574870/readback/rehearsal PASS; new exactsource images/rehearsal required.",
     "cutoverStatus": "NOT_PERFORMED; retention/professional acceptance and exact-source release requirements remain separate.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeOversightAccess20261027"
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeExpiryPrecision20261027"
   },
-  "updatedAtUtc": "2026-10-27T22:00:15.103895+00:00"
+  "updatedAtUtc": "2026-10-27T22:41:41.482714+00:00"
 }

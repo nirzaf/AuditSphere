@@ -128,7 +128,8 @@ public sealed class RoleAssignmentTests
   {
     await using var f = await TenantAdministrationFixture.CreateAsync();
     await using var db = f.Db();
-    var now = DateTimeOffset.UtcNow;
+    // PostgreSQL timestamps retain microseconds; keep the exact round-trip assertion representable.
+    var now = new DateTimeOffset(DateTimeOffset.UtcNow.UtcTicks / 10 * 10, TimeSpan.Zero);
     var actingGrant = await db.RoleGrants.SingleAsync(x => x.UserId == f.Admin.Id);
     actingGrant.ExpiresAt = now.AddMinutes(30);
     var replacedGrant = await db.RoleGrants.SingleAsync(x => x.UserId == f.SecondAdmin.Id);
