@@ -221,7 +221,7 @@ public static partial class UiEndpoints
           input.Reason, input.ExpectedRevision, ct);
         return result.Succeeded ? CommandResult<bool>.Ok(true) : CommandResult<bool>.Fail(result.ErrorCode!, result.Message!);
       });
-    }).WithDescription("Reopens one cancelled operational task under the current scoped management grant and expected revision. Retains its reopening reason and activity; never approves source work or changes professional decisions.")
+    }).WithDescription("Reopens one cancelled operational task, or returns one completed task to active work for correction, under the current scoped management grant and expected revision. A completed task is refused while a dependent task is completed or its engagement is completed or closed. Retains its reopening reason and activity, including the original completion; never approves source work or changes professional decisions.")
       .WithT046Response<UiValueResponse<bool>>(includeConflict: true, includeNotFound: true);
 
     tasks.MapPost("/{taskId:guid}/due-date", (

@@ -21,6 +21,11 @@ export interface WorkflowTaskCancellationTarget {
 }
 export type WorkflowTaskRecoveryAction = 'cancel' | 'reopen';
 
+/** A cancelled task resumes; a completed task returns to active work for correction. The server flag decides. */
+export function canReopenTask(task: Pick<WorkflowTaskCancellationTarget, 'canReopen' | 'taskStatus'>): boolean {
+  return task.canReopen && (task.taskStatus === 'CANCELLED' || task.taskStatus === 'COMPLETED');
+}
+
 const workflowTaskWorkspaceShape = obj({
   engagementId: guid,
   truncated: bool,
@@ -48,6 +53,8 @@ type FocusOrigin = { element: Element; interaction: number };
       <h2 #panelHeading id="cancellation-heading" tabindex="-1">{{ actionMode() === 'cancel' ? 'Review task cancellation' : 'Review task reopening' }}</h2>
       @if (actionMode() === 'cancel') {
         <p>Cancellation only ends this operational task. It does not approve or complete source audit work. A cancelled required predecessor continues to block its dependent task.</p>
+      } @else if (reopensCompletedWork()) {
+        <p>Reopening returns this completed task to active work so it can be corrected and completed again. Its original completion stays in task activity, and tasks that depend on it wait until it is completed again. It does not approve or make a professional decision about source audit work.</p>
       } @else {
         <p>Reopening restores operational task tracking only. It does not approve, complete, or make a professional decision about source audit work.</p>
       }
@@ -92,7 +99,7 @@ type FocusOrigin = { element: Element; interaction: number };
           @if (actionMode() === 'cancel') {
             <p role="status">The task is still active at the original revision. No cancellation is observed. A retry will send the exact original reason and revision.</p>
           } @else {
-            <p role="status">The task remains cancelled at the original revision. No reopening is observed. A retry will send the exact original reason and revision.</p>
+            <p role="status">The task remains {{ reopensCompletedWork() ? 'completed' : 'cancelled' }} at the original revision. No reopening is observed. A retry will send the exact original reason and revision.</p>
           }
         }
         <label class="assent"><input type="checkbox" [checked]="assent()" [disabled]="busy()"
@@ -167,6 +174,10 @@ export class WorkflowTaskCancellationPanel {
   readonly state = signal<RecoveryState>('editing');
   readonly intent = signal<Intent | null>(null);
   readonly actionMode = computed(() => this.intent()?.action ?? this.action());
+  /** Task status when the intent was reviewed; a retry is offered only while the task still has it. */
+  private readonly reviewedStatus = signal<string | null>(null);
+  readonly reopensCompletedWork = computed(() => this.actionMode() === 'reopen' &&
+    ((this.intent() ? this.reviewedStatus() : null) ?? this.task().taskStatus) === 'COMPLETED');
   readonly canMarkNotApplicable = computed(() => this.actionMode() === 'cancel' &&
     this.task().requiredTask === true && !!this.task().applicabilityCondition?.trim());
   readonly notApplicable = signal(false);
@@ -226,6 +237,7 @@ export class WorkflowTaskCancellationPanel {
     const owner = this.ownerKey();
     const context = this.contextKey();
     this.intent.set({ action, expectedRevision: task.revision, reason });
+    this.reviewedStatus.set(task.taskStatus);
     this.assent.set(false);
     this.state.set('review');
     if (origin) this.focusAfterRender(() => this.heading()?.nativeElement, owner, context, origin);
@@ -318,7 +330,7 @@ export class WorkflowTaskCancellationPanel {
         } else this.state.set('stale');
       } else if (['OPEN', 'IN_PROGRESS'].includes(row.status) && row.revision > intent.expectedRevision) {
         this.state.set('observed');
-      } else if (row.status === 'CANCELLED' && row.revision === intent.expectedRevision) {
+      } else if (row.status === this.reviewedStatus() && row.revision === intent.expectedRevision) {
         this.state.set('retryable');
         this.assent.set(false);
       } else this.state.set('stale');
@@ -357,6 +369,7 @@ export class WorkflowTaskCancellationPanel {
     ++this.request;
     this.state.set('editing');
     this.intent.set(null);
+    this.reviewedStatus.set(null);
     this.observed.set(null);
     this.assent.set(false);
     this.notApplicable.set(false);
@@ -399,9 +412,7 @@ export class WorkflowTaskCancellationPanel {
   }
 
   canPerform(task: WorkflowTaskCancellationTarget, action: WorkflowTaskRecoveryAction): boolean {
-    return action === 'cancel'
-      ? task.canCancel
-      : task.canReopen && task.taskStatus === 'CANCELLED';
+    return action === 'cancel' ? task.canCancel : canReopenTask(task);
   }
 
   private actionUrl(task: WorkflowTaskCancellationTarget, action: WorkflowTaskRecoveryAction): string {

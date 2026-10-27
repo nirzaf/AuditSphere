@@ -504,7 +504,7 @@ public sealed class EngagementWorkflowTaskTests
       var completedQueue = await WorkflowTaskQueueQuery.GetAsync(db, managerActor,
         new WorkflowTaskQueueRequest("COMPLETED"));
       Assert.True(completedQueue.Succeeded, completedQueue.Message);
-      Assert.False(Assert.Single(completedQueue.Value!.Tasks, x => x.TaskId == completedTaskId).CanReopen);
+      Assert.True(Assert.Single(completedQueue.Value!.Tasks, x => x.TaskId == completedTaskId).CanReopen);
       var activityPage = await WorkflowTaskActivityQuery.GetAsync(db, managerActor, engagementA,
         predecessorTaskId, new WorkflowTaskActivityRequest());
       Assert.True(activityPage.Succeeded, activityPage.Message);
@@ -691,9 +691,9 @@ public sealed class EngagementWorkflowTaskTests
       predecessorTaskId, "  ", expectedRevision: 5);
     Assert.Equal("workflow.task-invalid", blankReason.ErrorCode);
 
-    var completedReopen = await EngagementWorkflowTaskService.ReopenAsync(db, managerActor,
-      completedTaskId, "Completed work remains completed.", completedRevision);
-    Assert.Equal(ErrorCodes.ProtectedState, completedReopen.ErrorCode);
+    var completedReopen = await EngagementWorkflowTaskService.ReopenAsync(db, staffActor,
+      completedTaskId, "Completed work remains completed without management scope.", completedRevision);
+    Assert.Equal(ErrorCodes.ScopeDenied, completedReopen.ErrorCode);
     var completedAfter = await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == completedTaskId);
     Assert.Equal(PracticeTimeStates.TaskCompleted, completedAfter.Status);
     Assert.Equal(completedAt, completedAfter.CompletedAt);
@@ -844,6 +844,51 @@ public sealed class EngagementWorkflowTaskTests
     var dependentCompleted = await EngagementWorkflowTaskService.CompleteAsync(db, otherManagerActor,
       dependentTaskId, expectedRevision: 2);
     Assert.True(dependentCompleted.Succeeded, dependentCompleted.Message);
+
+    // Completed-work correction: a completed dependent must be reopened before its prerequisite.
+    var predecessorBlockedByDependent = await EngagementWorkflowTaskService.ReopenAsync(db, otherManagerActor,
+      predecessorTaskId, "Correct the prerequisite.", expectedRevision: 9);
+    Assert.Equal(ErrorCodes.GateBlocked, predecessorBlockedByDependent.ErrorCode);
+    Assert.Equal(PracticeTimeStates.TaskCompleted,
+      (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == predecessorTaskId)).Status);
+    var correctionQueue = await WorkflowTaskQueueQuery.GetAsync(db, otherManagerActor,
+      new WorkflowTaskQueueRequest("COMPLETED"));
+    Assert.True(correctionQueue.Succeeded, correctionQueue.Message);
+    Assert.False(Assert.Single(correctionQueue.Value!.Tasks, x => x.TaskId == predecessorTaskId).CanReopen);
+    Assert.True(Assert.Single(correctionQueue.Value.Tasks, x => x.TaskId == dependentTaskId).CanReopen);
+    var dependentCompletedAt = (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == dependentTaskId)).CompletedAt;
+    const string correctionReason = "The reconciliation was marked done before the bank letter arrived.";
+    var dependentReopened = await EngagementWorkflowTaskService.ReopenAsync(db, otherManagerActor,
+      dependentTaskId, correctionReason, expectedRevision: 3);
+    Assert.True(dependentReopened.Succeeded, dependentReopened.Message);
+    var correctedTask = await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == dependentTaskId);
+    Assert.Equal(PracticeTimeStates.TaskOpen, correctedTask.Status);
+    Assert.Null(correctedTask.CompletedAt);
+    var dependentHistory = await db.WorkflowTaskActivities.AsNoTracking().Where(x => x.WorkTaskId == dependentTaskId)
+      .OrderBy(x => x.TaskRevision).Select(x => new { x.Kind, x.TaskRevision, x.OccurredAt, x.Reason }).ToListAsync();
+    Assert.Contains(dependentHistory, x => x.Kind == WorkflowTaskActivityKinds.Completed && x.TaskRevision == 3 &&
+      x.OccurredAt == dependentCompletedAt);
+    Assert.Equal((WorkflowTaskActivityKinds.Reopened, 4L, correctionReason),
+      (dependentHistory[^1].Kind, dependentHistory[^1].TaskRevision, dependentHistory[^1].Reason));
+    var correctionReplay = await EngagementWorkflowTaskService.ReopenAsync(db, otherManagerActor,
+      dependentTaskId, correctionReason, expectedRevision: 3);
+    Assert.True(correctionReplay.Succeeded, correctionReplay.Message);
+    Assert.Equal(dependentHistory.Count, await db.WorkflowTaskActivities.CountAsync(x => x.WorkTaskId == dependentTaskId));
+
+    var engagement = await db.Engagements.SingleAsync(x => x.Id == engagementA);
+    engagement.Status = "Closed";
+    await db.SaveChangesAsync();
+    var closedEngagementReopen = await EngagementWorkflowTaskService.ReopenAsync(db, otherManagerActor,
+      predecessorTaskId, "Correct the prerequisite.", expectedRevision: 9);
+    Assert.Equal(ErrorCodes.ProtectedState, closedEngagementReopen.ErrorCode);
+    engagement.Status = "Active";
+    await db.SaveChangesAsync();
+    var predecessorReopened = await EngagementWorkflowTaskService.ReopenAsync(db, otherManagerActor,
+      predecessorTaskId, "Correct the prerequisite.", expectedRevision: 9);
+    Assert.True(predecessorReopened.Succeeded, predecessorReopened.Message);
+    var dependentWaitsForPrerequisite = await EngagementWorkflowTaskService.CompleteAsync(db, otherManagerActor,
+      dependentTaskId, expectedRevision: 4);
+    Assert.Equal(ErrorCodes.GateBlocked, dependentWaitsForPrerequisite.ErrorCode);
 
     var migrations = db.Database.GetMigrations().ToArray();
     var reopeningMigrationIndex = Array.FindIndex(migrations,

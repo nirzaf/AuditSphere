@@ -61,14 +61,40 @@ public static partial class PracticeTimeService
 
     if (workflowBinding.Revision != expectedRevision)
       return CommandResult.Fail(ErrorCodes.StaleRevision, "The workflow task changed. Refresh it and try again.");
-    if (task.Status != PracticeTimeStates.TaskCancelled || task.CompletedAt.HasValue)
-      return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a cancelled operational task without completed-work evidence can be reopened.");
+    var correctingCompletedWork = task.Status == PracticeTimeStates.TaskCompleted && task.CompletedAt.HasValue;
+    if (!correctingCompletedWork && (task.Status != PracticeTimeStates.TaskCancelled || task.CompletedAt.HasValue))
+      return CommandResult.Fail(ErrorCodes.ProtectedState,
+        "Only a completed task, or a cancelled task without completed-work evidence, can be reopened.");
     if (workflowBinding.Revision == long.MaxValue)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "The workflow task revision cannot advance further.");
+    if (correctingCompletedWork)
+    {
+      var engagementStatus = await db.Engagements.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.Id == task.EngagementId).Select(x => x.Status).SingleOrDefaultAsync(ct);
+      if (engagementStatus is null or "Completed" or "Closed")
+        return CommandResult.Fail(ErrorCodes.ProtectedState, "Completed work in a completed or closed engagement cannot be reopened.");
+      // The client lock serializes this with dependent completion, so a dependent cannot complete against the reopened task.
+      var hasCompletedDependent = await (from dependency in WorkflowTaskDependencyQuery.Effective(db, actor.FirmId)
+        join successor in db.WorkflowTaskBindings.AsNoTracking()
+          on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.SuccessorBindingId }
+          equals new { successor.FirmId, successor.ClientId, successor.EngagementId, successor.Id }
+        join successorTask in db.WorkTasks.AsNoTracking()
+          on new { successor.FirmId, WorkTaskId = successor.WorkTaskId }
+          equals new { successorTask.FirmId, WorkTaskId = successorTask.Id }
+        where dependency.FirmId == actor.FirmId && dependency.ClientId == task.ClientId &&
+          dependency.EngagementId == task.EngagementId && dependency.PredecessorBindingId == workflowBinding.Id &&
+          successorTask.Status == PracticeTimeStates.TaskCompleted
+        select dependency.SuccessorBindingId).AnyAsync(ct);
+      if (hasCompletedDependent)
+        return CommandResult.Fail(ErrorCodes.GateBlocked,
+          "A task that depends on this one is already completed. Reopen the dependent task first.");
+    }
 
     auth = await AuthorizeTaskAsync(db, actor, task, ApprovalRoles, ct);
     if (!auth.Succeeded) return auth;
+    // Completed-work correction returns the task to active work; its TASK_COMPLETED activity keeps the original completion.
     task.Status = PracticeTimeStates.TaskOpen;
+    task.CompletedAt = null;
     workflowBinding.Revision++;
     AddWorkflowTaskActivity(db, actor, task, workflowBinding, WorkflowTaskActivityKinds.Reopened,
       null, workflowBinding.Revision, DateTimeOffset.UtcNow, reason: normalizedReason);

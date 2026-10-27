@@ -9,7 +9,7 @@ import { SessionService } from '../../core/session';
 import { QUEUE_DISPLAYS, QueueDisplay, boardColumns, groupedTasks, queueCalendar } from './work-queue-views';
 import { WorkflowTaskDependenciesPanel } from './workflow-task-dependencies';
 import { WorkflowTaskEvidencePanel } from './workflow-task-evidence';
-import { decodeWorkflowTaskWorkspace, WorkflowTaskCancellationPanel } from './workflow-task-cancellation';
+import { canReopenTask, decodeWorkflowTaskWorkspace, WorkflowTaskCancellationPanel } from './workflow-task-cancellation';
 import type { WorkflowTaskRecoveryAction } from './workflow-task-cancellation';
 
 const nonBlank = (max: number) => (value: unknown, path: string): string => {
@@ -264,7 +264,7 @@ const queueViews: { key: QueueView; label: string }[] = [
             </section>
           }
           @if (reminderQueueTask(); as task) {
-            @if (task.canChangeDueDate || task.canComplete || task.canCancel || (task.canReopen && task.taskStatus === 'CANCELLED') || task.canAssign) {
+            @if (task.canChangeDueDate || task.canComplete || task.canCancel || reopenable(task) || task.canAssign) {
               <div role="group" aria-label="Actions authorized by the current work queue">
                 @if (task.canChangeDueDate) {
                   <label class="sr-only" [attr.for]="'reminder-due-date-' + task.taskId">Due date for {{ task.title }}</label>
@@ -278,7 +278,7 @@ const queueViews: { key: QueueView; label: string }[] = [
                   <button matButton [attr.data-cancel-engagement]="task.engagementId" [attr.data-cancel-task]="task.taskId"
                     (click)="openCancellation(task, $event)">Cancel task</button>
                 }
-                @if (task.canReopen && task.taskStatus === 'CANCELLED') {
+                @if (reopenable(task)) {
                   <button matButton [attr.data-reopen-engagement]="task.engagementId" [attr.data-reopen-task]="task.taskId"
                     (click)="openReopening(task, $event)">Reopen task</button>
                 }
@@ -343,7 +343,7 @@ const queueViews: { key: QueueView; label: string }[] = [
           <button matButton [attr.data-cancel-engagement]="task.engagementId" [attr.data-cancel-task]="task.taskId"
             (click)="openCancellation(task, $event)">Cancel task</button>
         }
-        @if (task.canReopen && task.taskStatus === 'CANCELLED') {
+        @if (reopenable(task)) {
           <button matButton [attr.data-reopen-engagement]="task.engagementId" [attr.data-reopen-task]="task.taskId"
             (click)="openReopening(task, $event)">Reopen task</button>
         }
@@ -459,7 +459,7 @@ const queueViews: { key: QueueView; label: string }[] = [
                 @if (task.canComplete) { <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button> }
                 @if (task.canCancel) { <button matButton [attr.data-cancel-engagement]="task.engagementId" [attr.data-cancel-task]="task.taskId"
                   (click)="openCancellation(task, $event)">Cancel task</button> }
-                @if (task.canReopen && task.taskStatus === 'CANCELLED') { <button matButton
+                @if (reopenable(task)) { <button matButton
                   [attr.data-reopen-engagement]="task.engagementId" [attr.data-reopen-task]="task.taskId"
                   (click)="openReopening(task, $event)">Reopen task</button> }
                 @if (task.canAssign) { <button matButton (click)="openAssignment(task)">{{ task.assigneeUserId ? 'Reassign task' : 'Assign task' }}</button> }</td>
@@ -826,9 +826,11 @@ export class WorkflowWorkQueue {
   }
 
   openReopening(task: QueueTask, event: MouseEvent): void {
-    if (task.taskStatus !== 'CANCELLED') return;
+    if (!this.reopenable(task)) return;
     this.openRecovery(task, 'reopen', event);
   }
+
+  reopenable(task: QueueTask): boolean { return canReopenTask(task); }
 
   private openRecovery(task: QueueTask, action: WorkflowTaskRecoveryAction, event: MouseEvent): void {
     if (this.cancellationTask() || !this.canRecover(task, action)) return;
@@ -848,7 +850,7 @@ export class WorkflowWorkQueue {
   }
 
   private canRecover(task: QueueTask, action: WorkflowTaskRecoveryAction): boolean {
-    return action === 'cancel' ? task.canCancel : task.canReopen && task.taskStatus === 'CANCELLED';
+    return action === 'cancel' ? task.canCancel : canReopenTask(task);
   }
 
   closeCancellation(): void {

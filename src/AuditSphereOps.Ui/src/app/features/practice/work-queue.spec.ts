@@ -367,6 +367,30 @@ describe('workflow queue assignment filters', () => {
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 
+  it('offers completed-work correction only when the server allows reopening the completed task', () => {
+    const { fixture, http, host, component } = start();
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      component.selectView('COMPLETED'); TestBed.tick();
+      const otherTask = { ...task, taskId: '55555555-5555-4555-8555-555555555555', title: 'Dependent already done', taskStatus: 'COMPLETED' };
+      http.expectOne(tasksUrl('view=COMPLETED&pageSize=50&includeSummary=true')).flush({ view: 'COMPLETED',
+        tasks: [{ ...task, taskStatus: 'COMPLETED', canReopen: true }, otherTask], hasMore: false, nextCursor: null, summary: summary() });
+      fixture.detectChanges(); TestBed.tick();
+      expect(host.querySelector(`button[data-reopen-task="${otherTask.taskId}"]`)).toBeNull();
+      const trigger = host.querySelector<HTMLButtonElement>(`button[data-reopen-task="${task.taskId}"]`)!;
+      expect(trigger.textContent?.trim()).toBe('Reopen task');
+      trigger.focus(); trigger.click(); fixture.detectChanges(); TestBed.tick();
+      const panel = host.querySelector('section[aria-labelledby="cancellation-heading"]')!;
+      expect(panel.querySelector('h2')?.textContent?.trim()).toBe('Review task reopening');
+      expect(panel.textContent).toContain('returns this completed task to active work');
+      expect(panel.textContent).toContain('tasks that depend on it wait until it is completed again');
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
   it('restores focus to the current queue view when a reopened cancelled row has disappeared', () => {
     const { fixture, http, host, component } = start();
     try {

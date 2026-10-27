@@ -160,7 +160,7 @@ public static class WorkflowTaskQueueQuery
         TaskGroupName = templateStep == null ? null : templateStep.TaskGroupName,
         ApplicabilityCondition = templateStep == null ? null : templateStep.ApplicabilityCondition,
         task.Id, ClientId = binding.ClientId, ClientName = client.LegalName, EngagementId = binding.EngagementId,
-        EngagementServiceRoute = engagement.ServiceRoute,
+        EngagementServiceRoute = engagement.ServiceRoute, EngagementStatus = engagement.Status,
         EngagementPeriod = engagement.PeriodStart + " – " + engagement.PeriodEnd,
         task.Title, task.Status, task.CompletedAt, task.AssigneeUserId, task.DueDate, task.MappingVersionId, task.FsliCode,
         PbcRequestId = binding.PbcRequestId, PbcState = pbcRequest == null ? null : pbcRequest.State,
@@ -255,6 +255,18 @@ public static class WorkflowTaskQueueQuery
         predecessorTask.Status != PracticeTimeStates.TaskCompleted
       select dependency.SuccessorBindingId).ToListAsync(ct);
     var unmetByBinding = unmet.GroupBy(x => x).ToDictionary(x => x.Key, x => x.Count());
+    var completedPageIds = page.Where(x => x.Status == PracticeTimeStates.TaskCompleted).Select(x => x.BindingId).ToArray();
+    var completedDependents = completedPageIds.Length == 0 ? [] : (await (
+      from dependency in WorkflowTaskDependencyQuery.Effective(db, actor.FirmId)
+      join successor in db.WorkflowTaskBindings.AsNoTracking()
+        on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.SuccessorBindingId }
+        equals new { successor.FirmId, successor.ClientId, successor.EngagementId, successor.Id }
+      join successorTask in db.WorkTasks.AsNoTracking()
+        on new { successor.FirmId, WorkTaskId = successor.WorkTaskId }
+        equals new { successorTask.FirmId, WorkTaskId = successorTask.Id }
+      where dependency.FirmId == actor.FirmId && completedPageIds.Contains(dependency.PredecessorBindingId) &&
+        successorTask.Status == PracticeTimeStates.TaskCompleted
+      select dependency.PredecessorBindingId).Distinct().ToListAsync(ct)).ToHashSet();
     var evidenceBindings = await db.WorkflowTaskBindings.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && bindingIds.Contains(x.Id)).ToListAsync(ct);
     var evidence = await WorkflowTaskEvidenceQuery.EvaluateManyAsync(db, actor.FirmId, evidenceBindings, ct);
@@ -285,8 +297,10 @@ public static class WorkflowTaskQueueQuery
         x.DueDate, x.MappingVersionId, x.FsliCode, unmetCount, canComplete, canChangeDueDate, canAssign, x.Revision,
         x.PbcRequestId, x.PbcState, x.ReviewState, x.ReviewComment, unmetEvidence,
         x.SourceKey, x.TemplateRevisionId, x.TemplateStepId, x.RequiredTask, canCancel,
-        x.Status == PracticeTimeStates.TaskCancelled && !x.CompletedAt.HasValue && x.Revision < long.MaxValue &&
-          CanElevatedManage(x.ClientId, x.EngagementId), x.TaskGroupName, x.ApplicabilityCondition);
+        (x.Status == PracticeTimeStates.TaskCancelled && !x.CompletedAt.HasValue ||
+          x.Status == PracticeTimeStates.TaskCompleted && x.CompletedAt.HasValue &&
+          x.EngagementStatus is not ("Completed" or "Closed") && !completedDependents.Contains(x.BindingId)) &&
+          x.Revision < long.MaxValue && CanElevatedManage(x.ClientId, x.EngagementId), x.TaskGroupName, x.ApplicabilityCondition);
     }).ToArray();
     var last = page[^1];
     return CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, rows, hasMore,
