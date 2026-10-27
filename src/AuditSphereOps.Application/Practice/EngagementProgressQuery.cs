@@ -191,7 +191,8 @@ public static class EngagementProgressQuery
         x.Binding.PbcRequestId.HasValue && x.PbcState is not (PbcStates.Accepted or PbcStates.Closed),
         x.Binding.ReviewProcedureResultId.HasValue, x.AssigneeUserId, x.DueDate, x.Condition,
         conditionalProcedureRules.GetValueOrDefault(x.Binding.Id)?.Count(rule =>
-          applicability.GetValueOrDefault(rule.SourceId ?? Guid.Empty) != AuditApplicabilityStatuses.NotApplicableApproved) ?? 0)).ToList();
+          applicability.GetValueOrDefault(rule.SourceId ?? Guid.Empty) != AuditApplicabilityStatuses.NotApplicableApproved) ?? 0,
+        OnHold: x.Binding.HeldAt.HasValue)).ToList();
       facts.AddRange(unboundTasks.Where(x => x.EngagementId == engagement.Id).Select((task, index) =>
         new EngagementProgressStepFact(task.Id, task.Title, task.Phase, 100001 + index,
           WorkflowStepRequirements.Mandatory, task.Status, false, 0, 0, false, false,
@@ -233,11 +234,17 @@ public static class EngagementProgressQuery
       var next = figures.NextStep;
       var phase = lifecycleRoute && stageIndex is { } index ? DisplayPhase(index)
         : next is not null ? PhaseLabel(next.Phase) : figures.ApplicableRequired == 0 ? "No task plan adopted" : "Task plan complete";
-      var nextAction = next is not null ? next.Title : gates.FirstOrDefault();
+      var nextAction = next is not null ? next.OnHold
+        ? $"Review the hold with a Manager, Partner or Administrator: {next.Title}" : next.Title : gates.FirstOrDefault();
       string? nextLink = null;
       if (next is not null)
-        nextLink = unboundTaskIds.Contains(next.TaskId) ? $"/app/practice/time?taskId={next.TaskId:D}"
-          : $"/app/work?engagementId={engagement.Id:D}&taskId={next.TaskId:D}";
+      {
+        // Hold review requires an elevated actor and the optional work queue may not be enabled.
+        // Do not promise a resume action through an unavailable or unauthorized workspace.
+        if (!next.OnHold)
+          nextLink = unboundTaskIds.Contains(next.TaskId) ? $"/app/practice/time?taskId={next.TaskId:D}"
+            : $"/app/work?engagementId={engagement.Id:D}&taskId={next.TaskId:D}";
+      }
       else if (gates.Count > 0) nextLink = gateLink ?? $"/app/engagements/{engagement.Id:D}";
       views.Add(new EngagementProgressView(engagement.Id, engagement.PracticeClientId,
         clients.GetValueOrDefault(engagement.PracticeClientId, "Client"), engagement.ServiceRoute, engagement.PeriodStart,

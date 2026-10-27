@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Held-task progress
+
+An active task on hold is shown as blocked until the hold is reviewed. When it is the next remaining task, the tracker names the qualified roles without linking to an unavailable work queue. Focused hold/resume and isolated built-in browser checks passed; other Task 02 scope and release acceptance remain open. See [status.json](status.json).
+
 ## Lifecycle navigation
 
 The sidebar groups existing destinations by lifecycle and keeps client accounting, group consolidation and firm finance distinct. A shared route-owner map highlights contextual pages without granting authority. Focused checks and isolated built-in desktop/mobile keyboard verification passed; contextual capability and full acceptance remain open. See [status.json](status.json).

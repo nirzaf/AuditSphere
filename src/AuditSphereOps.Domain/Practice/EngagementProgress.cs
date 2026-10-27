@@ -38,11 +38,12 @@ public static class EngagementProgressStepStates
 public sealed record EngagementProgressStepFact(
   Guid TaskId, string Title, string Phase, int Ordinal, string Requirement, string TaskStatus,
   bool NotApplicableRecorded, int UnmetDependencies, int UnmetEvidence, bool WaitingForClient, bool Rework,
-  Guid? AssigneeUserId, DateOnly? DueDate, string? ApplicabilityCondition = null, int UnmetNotApplicableApprovals = 0);
+  Guid? AssigneeUserId, DateOnly? DueDate, string? ApplicabilityCondition = null, int UnmetNotApplicableApprovals = 0,
+  bool OnHold = false);
 
 public sealed record EngagementProgressStep(
   Guid TaskId, string Title, string Phase, int Ordinal, string Requirement, string State, string? Condition,
-  Guid? AssigneeUserId, DateOnly? DueDate, string? ApplicabilityCondition);
+  Guid? AssigneeUserId, DateOnly? DueDate, string? ApplicabilityCondition, bool OnHold = false);
 
 /// <summary>
 /// Progress over applicable mandatory and conditional steps. <see cref="PercentComplete"/> is null when no applicable
@@ -98,6 +99,8 @@ public static class EngagementProgressCalculator
         (EngagementProgressStepStates.Blocked, "Cancelled; an independently reviewed applicability decision is required before this conditional step can be excluded"),
       // A mandatory step cannot be waived by cancelling it: it stays outstanding until it is reopened and completed.
       PracticeTimeStates.TaskCancelled => (EngagementProgressStepStates.Blocked, "Cancelled; a required step must be reopened"),
+      PracticeTimeStates.TaskOpen or PracticeTimeStates.TaskInProgress when fact.OnHold =>
+        (EngagementProgressStepStates.Blocked, "Task is on hold; review the hold before work continues"),
       PracticeTimeStates.TaskOpen or PracticeTimeStates.TaskInProgress when fact.UnmetDependencies > 0 =>
         (EngagementProgressStepStates.Blocked, $"Waiting on {fact.UnmetDependencies} prerequisite task(s)"),
       PracticeTimeStates.TaskOpen or PracticeTimeStates.TaskInProgress =>
@@ -106,6 +109,6 @@ public static class EngagementProgressCalculator
       _ => (EngagementProgressStepStates.Blocked, "Unrecognised task state"),
     };
     return new EngagementProgressStep(fact.TaskId, fact.Title, fact.Phase, fact.Ordinal, fact.Requirement, state, condition,
-      fact.AssigneeUserId, fact.DueDate, fact.ApplicabilityCondition);
+      fact.AssigneeUserId, fact.DueDate, fact.ApplicabilityCondition, fact.OnHold);
   }
 }

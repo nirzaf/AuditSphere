@@ -1394,12 +1394,23 @@ public sealed class EngagementWorkflowTaskTests
     Assert.False(Assert.Single(await View(staffActor, "ON_HOLD")).CanResume);
     var workspace = await EngagementWorkflowTaskService.GetAsync(db, managerActor, engagementA, selectedTaskId: taskId);
     Assert.True(Assert.Single(workspace.Value!.Tasks).OnHold);
+    var heldProgress = await EngagementProgressQuery.GetAsync(db, managerActor, engagementA);
+    Assert.True(heldProgress.Succeeded, heldProgress.Message);
+    var heldStep = Assert.Single(heldProgress.Value!.Steps, x => x.TaskId == taskId);
+    Assert.Equal(EngagementProgressStepStates.Blocked, heldStep.State);
+    Assert.Contains("hold", heldStep.Condition!, StringComparison.OrdinalIgnoreCase);
+    Assert.Equal("Held then cancelled", heldProgress.Value.NextAction);
+    Assert.Equal(yesterday, heldProgress.Value.NextDueDate);
 
     const string resumeReason = "The bank replied; work can continue.";
     var resumed = await EngagementWorkflowTaskService.ResumeAsync(db, managerActor, taskId, resumeReason, 3);
     Assert.True(resumed.Succeeded, resumed.Message);
     binding = await db.WorkflowTaskBindings.AsNoTracking().SingleAsync(x => x.WorkTaskId == taskId);
     Assert.Equal((4L, (DateTimeOffset?)null, (string?)null), (binding.Revision, binding.HeldAt, binding.HoldReason));
+    var resumedProgress = await EngagementProgressQuery.GetAsync(db, managerActor, engagementA);
+    Assert.True(resumedProgress.Succeeded, resumedProgress.Message);
+    Assert.Equal(EngagementProgressStepStates.Pending,
+      Assert.Single(resumedProgress.Value!.Steps, x => x.TaskId == taskId).State);
     Assert.Contains(await View(managerActor, "OVERDUE"), x => x.TaskId == taskId && !x.OnHold && x.CanSuspend);
     Assert.True((await EngagementWorkflowTaskService.CompleteAsync(db, managerActor, taskId, 4)).Succeeded);
     Assert.Equal([WorkflowTaskActivityKinds.Suspended, WorkflowTaskActivityKinds.Resumed], await db.WorkflowTaskActivities
@@ -1407,6 +1418,10 @@ public sealed class EngagementWorkflowTaskTests
         x.Kind == WorkflowTaskActivityKinds.Resumed)).OrderBy(x => x.TaskRevision).Select(x => x.Kind).ToListAsync());
 
     Assert.True((await EngagementWorkflowTaskService.SuspendAsync(db, managerActor, otherTaskId, holdReason, 1)).Succeeded);
+    var onlyHeldProgress = await EngagementProgressQuery.GetAsync(db, managerActor, engagementA);
+    Assert.True(onlyHeldProgress.Succeeded, onlyHeldProgress.Message);
+    Assert.Equal("Review the hold with a Manager, Partner or Administrator: Held then cancelled", onlyHeldProgress.Value!.NextAction);
+    Assert.Null(onlyHeldProgress.Value.NextActionLink);
     Assert.True((await EngagementWorkflowTaskService.CancelAsync(db, managerActor, otherTaskId, "No longer needed.", 2)).Succeeded);
     var cancelledBinding = await db.WorkflowTaskBindings.AsNoTracking().SingleAsync(x => x.WorkTaskId == otherTaskId);
     Assert.Null(cancelledBinding.HeldAt);
