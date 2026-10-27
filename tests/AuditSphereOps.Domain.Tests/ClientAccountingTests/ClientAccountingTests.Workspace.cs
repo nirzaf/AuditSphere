@@ -124,10 +124,12 @@ public sealed partial class ClientAccountingTests
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      Assert.Equal(ErrorCodes.StaleRevision, (await ClientAccountingService.ReopenPeriodAsync(db, partner, id,
+      Assert.Equal(ErrorCodes.ScopeDenied, (await ClientAccountingService.ReopenPeriodAsync(db, partner, id,
         "Correction", expectedRevision: 1, expectedClientId: scope.ClientA)).ErrorCode);
       db.RoleGrants.Add(ClientPartnerGrant(scope));
       await db.SaveChangesAsync();
+      Assert.Equal(ErrorCodes.StaleRevision, (await ClientAccountingService.ReopenPeriodAsync(db, partner, id,
+        "Correction", expectedRevision: 1, expectedClientId: scope.ClientA)).ErrorCode);
       Assert.True((await ClientAccountingService.ReopenPeriodAsync(db, partner, id, "Correction",
         expectedRevision: 2, expectedClientId: scope.ClientA)).Succeeded);
     }

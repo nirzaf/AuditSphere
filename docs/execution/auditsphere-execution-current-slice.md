@@ -24,7 +24,7 @@ The sidebar groups existing destinations by lifecycle and keeps client accountin
 
 ## Period close and prior evidence
 
-A reopened or subsequently reclosed prior period invalidates an earlier opening review for successor close. A qualified reviewer can review the unchanged exact evidence against the corrected prior revision and retain a new immutable review with a reason; the original approval remains historical evidence. Close, reopen and opening review serialize through the client safety fence. Readiness and the accounting screen expose the same blocker and fresh review controls. Focused, concurrency, existing accounting journey and isolated built-in browser checks passed; current release verification and remaining reporting acceptance remain open. See [status.json](status.json).
+A reopened or subsequently reclosed prior period invalidates an earlier opening review for successor close. A qualified reviewer can review the unchanged exact evidence against the corrected prior revision and retain a new immutable review with a reason; the original approval remains historical evidence. Close, reopen and opening review serialize through the client safety fence. Readiness and the accounting screen expose the same blocker and fresh review controls. Focused, concurrency, existing accounting journey and isolated built-in browser checks passed; current release verification and remaining reporting acceptance remain open. See [status.json](status.json). The lifecycle regression now checks denial before the client grant and stale revision after it; its exact CI assertion failure reproduced and the corrected focused case passed. Runtime rules are unchanged.
 
 ## Adjustment posting and selected-source currentness (2026-10-27)
 

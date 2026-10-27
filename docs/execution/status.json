@@ -1118,10 +1118,11 @@
       "evidence": ".local/autonomous/evidence/claude-completion-20261027/held-progress-review.json"
     },
     "priorCloseReview20261027": {
-      "status": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_PENDING",
-      "verification": "Prior-open/reclose RED1 then focused Domain, observed concurrency, native successor and archive PASS; new/legacy approval theory2 PASS; Angular9, signed-in accounting journey1, build/lint/model/OpenAPI PASS. Built-in reviewer saw stale-close blocker, exact amounts, fresh assent and390px fit.",
+      "status": "FOCUSED_AND_BUILTIN_VERIFIED_FOLLOWUP_FULL_CI_REQUIRED",
+      "verification": "Prior-close currentness and immutable review: focused concurrency/archive/new-legacy cases, Angular, authenticated journey, build/lint/model/contracts and isolated desktop/mobile browser passed.",
       "boundary": "Immutable review and original approval retained; no full specification acceptance or live cutover.",
-      "evidence": ".local/autonomous/evidence/claude-completion-20261027/period-prior-close-review.json"
+      "evidence": ".local/autonomous/evidence/claude-completion-20261027/period-prior-close-review.json",
+      "ciFollowup": "Exact0605 full Domain1803PASS/1FAIL: pregrant stale-revision assertion reproduced RED1. Corrected fixture GREEN1 checks scope denial first, then authorized stale refusal and unchanged successful amendment. Runtime unchanged."
     }
   },
   "externalGates": [
@@ -1606,13 +1607,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "ba161e45b26c35dbfb16a2357bf7add804c4e240",
-    "sourceRole": "ACCOUNT_AND_TASK_JOURNEY_FIXTURE_CORRECTION",
-    "fastCi": "New exact-source fast gate required after publication.",
-    "releaseVerification": "New exact-source full gate required; preceding ba161 remains in progress.",
-    "imagePublication": "New exact-source images and restored-copy rehearsal required before cutover.",
-    "cutoverStatus": "NOT_PERFORMED for this candidate; preceding fb02 is live.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeAccountAndTaskJourneyCorrection20261027"
+    "sourceBaseCommit": "06058e9a1ea1379be376cc79544c9cd6ab10ce2f",
+    "sourceRole": "PERIOD_LIFECYCLE_AUTHORIZATION_ASSERTION_CORRECTION",
+    "fastCi": "NOT_DISPATCHED for follow-up.",
+    "releaseVerification": "Preceding40554419720 MATCH: Angular/Verify PASS, Domain1803/1; API/E2E pending. Follow-up full required.",
+    "imagePublication": "NOT_DISPATCHED for follow-up; 0605 rehearsal is preceding evidence.",
+    "cutoverStatus": "NOT_PERFORMED. Origin/browser baseline200; exact BIC event matched Python403. No exception approved or applied.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeLifecycleCiCorrection20261027"
   },
-  "updatedAtUtc": "2026-10-26T19:44:40.494212+00:00"
+  "updatedAtUtc": "2026-10-27T18:37:04.401790+00:00"
 }
