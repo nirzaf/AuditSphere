@@ -58,4 +58,7 @@ public sealed class WorkflowTaskBinding
   public string? CancellationReason { get; set; }
   public DateTimeOffset? SupersededAt { get; set; }
   public string? SupersessionReason { get; set; }
+  /// <summary>Set while a manager has put the active task on hold; the hold and its release are retained as activity.</summary>
+  public DateTimeOffset? HeldAt { get; set; }
+  public string? HoldReason { get; set; }
 }

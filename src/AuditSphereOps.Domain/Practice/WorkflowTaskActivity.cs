@@ -11,8 +11,11 @@ public static class WorkflowTaskActivityKinds
   public const string EvidenceChanged = "TASK_EVIDENCE_RULE_CHANGED";
   public const string Cancelled = "TASK_CANCELLED";
   public const string Reopened = "TASK_REOPENED";
+  public const string Suspended = "TASK_SUSPENDED";
+  public const string Resumed = "TASK_RESUMED";
 
-  public static readonly string[] All = [Created, Assigned, Reassigned, Completed, DueDateChanged, EvidenceChanged, DependencyChanged, Cancelled, Reopened];
+  public static readonly string[] All = [Created, Assigned, Reassigned, Completed, DueDateChanged, EvidenceChanged, DependencyChanged, Cancelled, Reopened,
+    Suspended, Resumed];
 }
 
 /// <summary>

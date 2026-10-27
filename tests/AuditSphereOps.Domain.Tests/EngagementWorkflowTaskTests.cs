@@ -1318,6 +1318,106 @@ public sealed class EngagementWorkflowTaskTests
     await seed.SaveChangesAsync();
   }
 
+  [Fact]
+  public async Task HoldIsScopedReplayablePausesCompletionTimeAndQueueViewsAndCancellationClearsIt()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientA = Guid.NewGuid();
+    var clientB = Guid.NewGuid();
+    var engagementA = Guid.NewGuid();
+    var engagementB = Guid.NewGuid();
+    var manager = User(firmId, "HoldManager");
+    var staff = User(firmId, "HoldStaff");
+    var siblingManager = User(firmId, "HoldSiblingManager");
+    var managerActor = Actor(manager, "Manager");
+    var staffActor = Actor(staff, "Staff");
+    var siblingManagerActor = Actor(siblingManager, "Manager");
+    await SeedQueueScopeAsync(pg, firmId, [(clientA, engagementA), (clientB, engagementB)],
+      [manager, staff, siblingManager], () =>
+      [
+        Grant(firmId, manager, "Manager", clientA, engagementA),
+        Grant(firmId, staff, "Staff", clientA, engagementA),
+        Grant(firmId, siblingManager, "Manager", clientB, engagementB)
+      ]);
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var yesterday = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+    var taskId = await CreateQueueTaskAsync(db, managerActor, engagementA, "Bank letter follow-up", 1, yesterday);
+    var otherTaskId = await CreateQueueTaskAsync(db, managerActor, engagementA, "Held then cancelled", 2, null);
+    Assert.True((await EngagementWorkflowTaskService.AssignAsync(db, managerActor, taskId, staff.Id, 1)).Succeeded);
+    const string holdReason = "Client asked us to pause until the bank replies.";
+
+    Assert.Equal(ErrorCodes.ScopeDenied,
+      (await EngagementWorkflowTaskService.SuspendAsync(db, staffActor, taskId, holdReason, 2)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied,
+      (await EngagementWorkflowTaskService.SuspendAsync(db, siblingManagerActor, taskId, holdReason, 2)).ErrorCode);
+    Assert.Equal("workflow.task-invalid",
+      (await EngagementWorkflowTaskService.SuspendAsync(db, managerActor, taskId, " ", 2)).ErrorCode);
+    Assert.Equal(ErrorCodes.StaleRevision,
+      (await EngagementWorkflowTaskService.SuspendAsync(db, managerActor, taskId, holdReason, 1)).ErrorCode);
+    Assert.Equal(ErrorCodes.ProtectedState,
+      (await EngagementWorkflowTaskService.ResumeAsync(db, managerActor, taskId, "Not on hold yet.", 2)).ErrorCode);
+
+    var held = await EngagementWorkflowTaskService.SuspendAsync(db, managerActor, taskId, holdReason, 2);
+    Assert.True(held.Succeeded, held.Message);
+    var binding = await db.WorkflowTaskBindings.AsNoTracking().SingleAsync(x => x.WorkTaskId == taskId);
+    Assert.Equal(3, binding.Revision);
+    Assert.NotNull(binding.HeldAt);
+    Assert.Equal(holdReason, binding.HoldReason);
+    Assert.Equal(PracticeTimeStates.TaskInProgress, (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == taskId)).Status);
+    Assert.True((await EngagementWorkflowTaskService.SuspendAsync(db, managerActor, taskId, holdReason, 2)).Succeeded);
+    Assert.Equal(ErrorCodes.IdempotencyConflict,
+      (await EngagementWorkflowTaskService.SuspendAsync(db, managerActor, taskId, "A different hold reason.", 2)).ErrorCode);
+    Assert.Equal(ErrorCodes.ProtectedState,
+      (await EngagementWorkflowTaskService.SuspendAsync(db, managerActor, taskId, holdReason, 3)).ErrorCode);
+    Assert.Single(await db.WorkflowTaskActivities.AsNoTracking().Where(x => x.WorkTaskId == taskId &&
+      x.Kind == WorkflowTaskActivityKinds.Suspended && x.TaskRevision == 3 && x.Reason == holdReason).ToListAsync());
+
+    Assert.Equal(ErrorCodes.GateBlocked, (await EngagementWorkflowTaskService.CompleteAsync(db, managerActor, taskId, 3)).ErrorCode);
+    var heldTime = await PracticeTimeService.SaveTimeDraftAsync(db, staffActor,
+      new SaveTimeDraftRequest(taskId, yesterday, 540, 30, "Staff", "Planning", PracticeTimeStates.NonBillable, "Paused work."));
+    Assert.Equal(ErrorCodes.GateBlocked, heldTime.ErrorCode);
+
+    async Task<IReadOnlyList<WorkflowTaskQueueRow>> View(ActorContext actor, string view)
+    {
+      var page = await WorkflowTaskQueueQuery.GetAsync(db, actor, new WorkflowTaskQueueRequest(view));
+      Assert.True(page.Succeeded, page.Message);
+      return page.Value!.Tasks;
+    }
+    Assert.DoesNotContain(await View(staffActor, "MY_TASKS"), x => x.TaskId == taskId);
+    Assert.DoesNotContain(await View(managerActor, "OVERDUE"), x => x.TaskId == taskId);
+    Assert.Contains(await View(managerActor, "TEAM"), x => x.TaskId == taskId && x.OnHold);
+    var heldRow = Assert.Single(await View(managerActor, "ON_HOLD"));
+    Assert.Equal((taskId, true, holdReason, false, false, true), (heldRow.TaskId, heldRow.OnHold, heldRow.HoldReason,
+      heldRow.CanComplete, heldRow.CanSuspend, heldRow.CanResume));
+    Assert.False(Assert.Single(await View(staffActor, "ON_HOLD")).CanResume);
+    var workspace = await EngagementWorkflowTaskService.GetAsync(db, managerActor, engagementA, selectedTaskId: taskId);
+    Assert.True(Assert.Single(workspace.Value!.Tasks).OnHold);
+
+    const string resumeReason = "The bank replied; work can continue.";
+    var resumed = await EngagementWorkflowTaskService.ResumeAsync(db, managerActor, taskId, resumeReason, 3);
+    Assert.True(resumed.Succeeded, resumed.Message);
+    binding = await db.WorkflowTaskBindings.AsNoTracking().SingleAsync(x => x.WorkTaskId == taskId);
+    Assert.Equal((4L, (DateTimeOffset?)null, (string?)null), (binding.Revision, binding.HeldAt, binding.HoldReason));
+    Assert.Contains(await View(managerActor, "OVERDUE"), x => x.TaskId == taskId && !x.OnHold && x.CanSuspend);
+    Assert.True((await EngagementWorkflowTaskService.CompleteAsync(db, managerActor, taskId, 4)).Succeeded);
+    Assert.Equal([WorkflowTaskActivityKinds.Suspended, WorkflowTaskActivityKinds.Resumed], await db.WorkflowTaskActivities
+      .AsNoTracking().Where(x => x.WorkTaskId == taskId && (x.Kind == WorkflowTaskActivityKinds.Suspended ||
+        x.Kind == WorkflowTaskActivityKinds.Resumed)).OrderBy(x => x.TaskRevision).Select(x => x.Kind).ToListAsync());
+
+    Assert.True((await EngagementWorkflowTaskService.SuspendAsync(db, managerActor, otherTaskId, holdReason, 1)).Succeeded);
+    Assert.True((await EngagementWorkflowTaskService.CancelAsync(db, managerActor, otherTaskId, "No longer needed.", 2)).Succeeded);
+    var cancelledBinding = await db.WorkflowTaskBindings.AsNoTracking().SingleAsync(x => x.WorkTaskId == otherTaskId);
+    Assert.Null(cancelledBinding.HeldAt);
+    Assert.Empty(await View(managerActor, "ON_HOLD"));
+
+    var migrations = db.Database.GetMigrations().ToArray();
+    var holdIndex = Array.FindIndex(migrations, x => x.EndsWith("_WorkflowTaskHold", StringComparison.Ordinal));
+    var downgrade = await Assert.ThrowsAnyAsync<Exception>(() => db.GetService<IMigrator>().MigrateAsync(migrations[holdIndex - 1]));
+    Assert.Equal("55000", Assert.IsType<PostgresException>(downgrade.GetBaseException()).SqlState);
+  }
+
   private static async Task<Guid> CreateQueueTaskAsync(AuditSphereDbContext db, ActorContext actor,
     Guid engagementId, string title, int ordinal, DateOnly? dueDate)
   {

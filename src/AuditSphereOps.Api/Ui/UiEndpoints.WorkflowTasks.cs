@@ -224,6 +224,26 @@ public static partial class UiEndpoints
     }).WithDescription("Reopens one cancelled operational task, or returns one completed task to active work for correction, under the current scoped management grant and expected revision. A completed task is refused while a dependent task is completed or its engagement is completed or closed. Retains its reopening reason and activity, including the original completion; never approves source work or changes professional decisions.")
       .WithT046Response<UiValueResponse<bool>>(includeConflict: true, includeNotFound: true);
 
+    foreach (var (path, hold) in new[] { ("suspend", true), ("resume", false) })
+      tasks.MapPost("/{taskId:guid}/" + path, (
+        Guid engagementId, Guid taskId, WorkflowTaskReopeningInput input, HttpContext http) =>
+      {
+        if (input.ExpectedRevision < 1 || string.IsNullOrWhiteSpace(input.Reason) || input.Reason.Trim().Length > 2000)
+          return Task.FromResult(Invalid("Review the current task revision and enter a reason of 1 to 2000 characters."));
+        return CommandAsync(http, async (db, actor, ct) =>
+        {
+          var scoped = await EngagementWorkflowTaskService.EnsureTaskScopeAsync(db, actor, engagementId, taskId, ct);
+          if (!scoped.Succeeded) return CommandResult<bool>.Fail(scoped.ErrorCode!, scoped.Message!);
+          var result = hold
+            ? await EngagementWorkflowTaskService.SuspendAsync(db, actor, taskId, input.Reason, input.ExpectedRevision, ct)
+            : await EngagementWorkflowTaskService.ResumeAsync(db, actor, taskId, input.Reason, input.ExpectedRevision, ct);
+          return result.Succeeded ? CommandResult<bool>.Ok(true) : CommandResult<bool>.Fail(result.ErrorCode!, result.Message!);
+        });
+      }).WithDescription(hold
+          ? "Puts one open or in-progress operational task on hold under the current scoped management grant and expected revision. A held task keeps its owner, due date, time and evidence, leaves the personal, date and client-waiting queue views and reminders, and cannot be completed or receive new time until resumed. Retains the reason as activity."
+          : "Resumes one held operational task under the current scoped management grant and expected revision, returning it to the queue views and reminders. Retains the reason as activity; never approves source work.")
+        .WithT046Response<UiValueResponse<bool>>(includeConflict: true, includeNotFound: true);
+
     tasks.MapPost("/{taskId:guid}/due-date", (
       Guid engagementId, Guid taskId, WorkflowTaskDueDateInput input, HttpContext http) =>
     {

@@ -57,7 +57,7 @@ public static class EngagementDeadlineReminderQuery
                             on new { binding.FirmId, WorkTaskId = binding.WorkTaskId }
                             equals new { task.FirmId, WorkTaskId = task.Id }
                           where binding.FirmId == actor.FirmId && binding.ClientId == engagement.PracticeClientId &&
-                            binding.EngagementId == engagementId && ActiveTaskStates.Contains(task.Status) &&
+                            binding.EngagementId == engagementId && ActiveTaskStates.Contains(task.Status) && binding.HeldAt == null &&
                             task.DueDate.HasValue && task.DueDate.Value <= sevenDaysFromToday
                           select new { task.Id, task.Title, task.DueDate })
       .Distinct()
@@ -74,7 +74,7 @@ public static class EngagementDeadlineReminderQuery
                                 on new { binding.FirmId, binding.ClientId, binding.EngagementId, Id = binding.PbcRequestId }
                                 equals new { request.FirmId, request.ClientId, request.EngagementId, Id = (Guid?)request.Id }
                               where binding.FirmId == actor.FirmId && binding.ClientId == engagement.PracticeClientId &&
-                                binding.EngagementId == engagementId && ActiveTaskStates.Contains(task.Status) &&
+                                binding.EngagementId == engagementId && ActiveTaskStates.Contains(task.Status) && binding.HeldAt == null &&
                                 ClientWaitingPbcStates.Contains(request.State)
                               select new { RequestId = request.Id, TaskId = task.Id, TaskTitle = task.Title };
 
@@ -91,7 +91,7 @@ public static class EngagementDeadlineReminderQuery
                                     equals new { request.FirmId, request.ClientId, request.EngagementId, Id = (Guid?)request.Id }
                                   where binding.FirmId == actor.FirmId && binding.ClientId == engagement.PracticeClientId &&
                                     binding.EngagementId == engagementId && rule.ClientId == engagement.PracticeClientId &&
-                                    rule.EngagementId == engagementId && ActiveTaskStates.Contains(task.Status) &&
+                                    rule.EngagementId == engagementId && ActiveTaskStates.Contains(task.Status) && binding.HeldAt == null &&
                                     ClientWaitingPbcStates.Contains(request.State)
                                   select new { RequestId = request.Id, TaskId = task.Id, TaskTitle = task.Title };
 

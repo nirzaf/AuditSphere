@@ -223,7 +223,7 @@ internal static class WorkflowReminderRuntime
         ? db.WorkflowTaskBindings.FromSqlInterpolated($"SELECT * FROM workflow_task_bindings WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND work_task_id = {sourceId} FOR UPDATE")
         : db.WorkflowTaskBindings.Where(x => x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && x.WorkTaskId == sourceId);
       var binding = await bindingQuery.AsNoTracking().SingleOrDefaultAsync(ct);
-      if (task is null || binding is null || binding.ReminderRuleRevisionId is not null ||
+      if (task is null || binding is null || binding.ReminderRuleRevisionId is not null || binding.HeldAt is not null ||
           task.Status is not (PracticeTimeStates.TaskOpen or PracticeTimeStates.TaskInProgress) || task.DueDate is null)
         return null;
       var dueRevision = await db.WorkflowTaskActivities.AsNoTracking().Where(x => x.FirmId == firmId &&

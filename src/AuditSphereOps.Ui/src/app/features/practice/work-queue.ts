@@ -30,11 +30,14 @@ const queueTaskShape = obj({
   requiredTask: nullable(bool), taskGroupName: optionalNullable(str(120)), applicabilityCondition: optionalNullable(str(500)),
   pbcRequestId: nullable(guid), pbcState: nullable(str(32)),
   reviewState: nullable(str(30)), reviewComment: nullable(str(20000)),
+  onHold: optionalNullable(bool), holdReason: optionalNullable(str(2000)),
+  canSuspend: optionalNullable(bool), canResume: optionalNullable(bool),
 });
 /** Older API payloads omit server-projected recovery affordances; absence always fails closed. */
 const queueTask = (value: unknown, path: string) => {
   const decoded = queueTaskShape(value, path);
-  return { ...decoded, canCancel: decoded.canCancel ?? false, canReopen: decoded.canReopen ?? false };
+  return { ...decoded, canCancel: decoded.canCancel ?? false, canReopen: decoded.canReopen ?? false,
+    onHold: decoded.onHold ?? false, canSuspend: decoded.canSuspend ?? false, canResume: decoded.canResume ?? false };
 };
 type QueueTask = ReturnType<typeof queueTask>;
 /** Readiness presentation from server-evaluated facts; never inferred from viewer action permissions. */
@@ -126,7 +129,7 @@ const reviewItem = obj({ resultId: guid, procedureId: guid, engagementId: guid, 
 const decodeReviewInbox = obj({ reviews: arr(reviewItem, 100), hasMore: bool,
   nextCursor: nullable(obj({ submittedAt: instant, resultId: guid })) });
 const activityEventShape = obj({
-  id: guid, kind: oneOf('TASK_CREATED', 'TASK_ASSIGNED', 'TASK_REASSIGNED', 'TASK_COMPLETED', 'TASK_CANCELLED', 'TASK_REOPENED', 'TASK_DUE_DATE_CHANGED', 'TASK_EVIDENCE_RULE_CHANGED', 'TASK_DEPENDENCIES_CHANGED'),
+  id: guid, kind: oneOf('TASK_CREATED', 'TASK_ASSIGNED', 'TASK_REASSIGNED', 'TASK_COMPLETED', 'TASK_CANCELLED', 'TASK_REOPENED', 'TASK_SUSPENDED', 'TASK_RESUMED', 'TASK_DUE_DATE_CHANGED', 'TASK_EVIDENCE_RULE_CHANGED', 'TASK_DEPENDENCIES_CHANGED'),
   sourceLabel: oneOf('Operational Task'), actorDisplayName: nonBlank(200),
   assigneeDisplayName: nullable(str(200)), taskRevision: int, reason: nullable(str(2000)),
   previousDueDate: nullable(date), newDueDate: nullable(date), occurredAt: instant,
@@ -137,6 +140,8 @@ const activityEvent = (value: unknown, path: string) => {
     throw new Error(`${path}.reason: expected non-empty cancellation reason`);
   if (event.kind === 'TASK_REOPENED' && !event.reason?.trim())
     throw new Error(`${path}.reason: expected non-empty reopening reason`);
+  if ((event.kind === 'TASK_SUSPENDED' || event.kind === 'TASK_RESUMED') && !event.reason?.trim())
+    throw new Error(`${path}.reason: expected non-empty hold reason`);
   return event;
 };
 export const decodeActivity = obj({
@@ -144,7 +149,7 @@ export const decodeActivity = obj({
   hasMore: bool, nextCursor: nullable(obj({ occurredAt: instant, activityId: guid })),
 });
 
-type QueueView = 'MY_TASKS' | 'TEAM' | 'DUE_TODAY' | 'UPCOMING' | 'WAITING_FOR_CLIENT' | 'UNDER_REVIEW' | 'CHANGES_REQUIRED' | 'OVERDUE' | 'COMPLETED' | 'CANCELLED';
+type QueueView = 'MY_TASKS' | 'TEAM' | 'DUE_TODAY' | 'UPCOMING' | 'WAITING_FOR_CLIENT' | 'UNDER_REVIEW' | 'CHANGES_REQUIRED' | 'OVERDUE' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
 const queueViews: { key: QueueView; label: string }[] = [
   { key: 'MY_TASKS', label: 'My tasks' },
   { key: 'TEAM', label: 'Team' },
@@ -154,6 +159,7 @@ const queueViews: { key: QueueView; label: string }[] = [
   { key: 'UNDER_REVIEW', label: 'Under review' },
   { key: 'CHANGES_REQUIRED', label: 'Changes required' },
   { key: 'OVERDUE', label: 'Overdue' },
+  { key: 'ON_HOLD', label: 'On hold' },
   { key: 'COMPLETED', label: 'Completed' },
   { key: 'CANCELLED', label: 'Cancelled' },
 ];
@@ -264,7 +270,7 @@ const queueViews: { key: QueueView; label: string }[] = [
             </section>
           }
           @if (reminderQueueTask(); as task) {
-            @if (task.canChangeDueDate || task.canComplete || task.canCancel || reopenable(task) || task.canAssign) {
+            @if (task.canChangeDueDate || task.canComplete || task.canCancel || reopenable(task) || task.canSuspend || task.canResume || task.canAssign) {
               <div role="group" aria-label="Actions authorized by the current work queue">
                 @if (task.canChangeDueDate) {
                   <label class="sr-only" [attr.for]="'reminder-due-date-' + task.taskId">Due date for {{ task.title }}</label>
@@ -281,6 +287,10 @@ const queueViews: { key: QueueView; label: string }[] = [
                 @if (reopenable(task)) {
                   <button matButton [attr.data-reopen-engagement]="task.engagementId" [attr.data-reopen-task]="task.taskId"
                     (click)="openReopening(task, $event)">Reopen task</button>
+                }
+                @if (task.canSuspend || task.canResume) {
+                  <button matButton [attr.data-hold-engagement]="task.engagementId" [attr.data-hold-task]="task.taskId"
+                    (click)="openHold(task, $event)">{{ task.canResume ? 'Resume task' : 'Put on hold' }}</button>
                 }
                 @if (task.canAssign) { <button matButton (click)="openAssignment(task)">{{ task.assigneeUserId ? 'Reassign task' : 'Assign task' }}</button> }
               </div>
@@ -329,7 +339,7 @@ const queueViews: { key: QueueView; label: string }[] = [
             <small><a [routerLink]="['/app/engagements', task.engagementId, 'audit-fieldwork']">Open fieldwork</a></small>
           }
         }
-        <small><audit-status [value]="task.taskStatus" />@if (task.reviewState) { · <audit-status [value]="task.reviewState" /> }@if (task.pbcState) { · PBC {{ task.pbcState }} }</small>
+        <small><audit-status [value]="task.taskStatus" />@if (task.onHold) { · <audit-status value="ON_HOLD" /> }@if (task.reviewState) { · <audit-status [value]="task.reviewState" /> }@if (task.pbcState) { · PBC {{ task.pbcState }} }</small>
         @if (blockedPrerequisites(task)) { <small class="prerequisite-status">Prerequisites: <audit-status value="BLOCKED" /></small> }
         @if (task.unmetTaskDependencies) { <small>{{ task.unmetTaskDependencies }} task prerequisite(s) incomplete</small> }
         @if (task.unmetEvidencePrerequisites) { <small>{{ task.unmetEvidencePrerequisites }} evidence prerequisite(s) pending</small> }
@@ -346,6 +356,10 @@ const queueViews: { key: QueueView; label: string }[] = [
         @if (reopenable(task)) {
           <button matButton [attr.data-reopen-engagement]="task.engagementId" [attr.data-reopen-task]="task.taskId"
             (click)="openReopening(task, $event)">Reopen task</button>
+        }
+        @if (task.canSuspend || task.canResume) {
+          <button matButton [attr.data-hold-engagement]="task.engagementId" [attr.data-hold-task]="task.taskId"
+            (click)="openHold(task, $event)">{{ task.canResume ? 'Resume task' : 'Put on hold' }}</button>
         }
         @if (task.canAssign) { <button matButton (click)="openAssignment(task)"> {{ task.assigneeUserId ? 'Reassign task' : 'Assign task' }} </button> }
       </article>
@@ -448,7 +462,8 @@ const queueViews: { key: QueueView; label: string }[] = [
                 }
               </td>
               <td>{{ task.assigneeDisplayName ?? 'Unassigned' }}</td>
-              <td><audit-status [value]="task.taskStatus" />
+              <td><audit-status [value]="task.taskStatus" />@if (task.onHold) { <audit-status value="ON_HOLD" /> }
+                @if (task.onHold && task.holdReason) { <small>Hold reason: {{ task.holdReason }}</small> }
                 @if (blockedPrerequisites(task)) { <small class="prerequisite-status">Prerequisites: <audit-status value="BLOCKED" /></small> }
               </td>
               <td>{{ task.unmetTaskDependencies ? task.unmetTaskDependencies + ' task prerequisite(s) incomplete' : 'No task prerequisites pending' }}
@@ -462,6 +477,9 @@ const queueViews: { key: QueueView; label: string }[] = [
                 @if (reopenable(task)) { <button matButton
                   [attr.data-reopen-engagement]="task.engagementId" [attr.data-reopen-task]="task.taskId"
                   (click)="openReopening(task, $event)">Reopen task</button> }
+                @if (task.canSuspend || task.canResume) { <button matButton
+                  [attr.data-hold-engagement]="task.engagementId" [attr.data-hold-task]="task.taskId"
+                  (click)="openHold(task, $event)">{{ task.canResume ? 'Resume task' : 'Put on hold' }}</button> }
                 @if (task.canAssign) { <button matButton (click)="openAssignment(task)">{{ task.assigneeUserId ? 'Reassign task' : 'Assign task' }}</button> }</td>
             </tr>
           } @empty {
@@ -544,6 +562,8 @@ const queueViews: { key: QueueView; label: string }[] = [
                 }
                 @if (event.kind === 'TASK_CANCELLED') { <small>Cancellation reason: {{ event.reason }}</small> }
                 @if (event.kind === 'TASK_REOPENED') { <small>Reopening reason: {{ event.reason }}</small> }
+                @if (event.kind === 'TASK_SUSPENDED') { <small>Hold reason: {{ event.reason }}</small> }
+                @if (event.kind === 'TASK_RESUMED') { <small>Resumption reason: {{ event.reason }}</small> }
                 <time [attr.datetime]="event.occurredAt">{{ event.occurredAt }}</time>
               </li>
             } @empty {
@@ -818,6 +838,7 @@ export class WorkflowWorkQueue {
       TASK_REASSIGNED: 'Task reassigned', TASK_COMPLETED: 'Task completed',
       TASK_CANCELLED: 'Task cancelled',
       TASK_REOPENED: 'Task reopened',
+      TASK_SUSPENDED: 'Task put on hold', TASK_RESUMED: 'Task resumed',
       TASK_DUE_DATE_CHANGED: 'Due date changed', TASK_EVIDENCE_RULE_CHANGED: 'Evidence prerequisite changed', TASK_DEPENDENCIES_CHANGED: 'Task ordering changed' } as Record<string, string>)[kind] ?? 'Workflow event';
   }
 
@@ -828,6 +849,10 @@ export class WorkflowWorkQueue {
   openReopening(task: QueueTask, event: MouseEvent): void {
     if (!this.reopenable(task)) return;
     this.openRecovery(task, 'reopen', event);
+  }
+
+  openHold(task: QueueTask, event: MouseEvent): void {
+    this.openRecovery(task, task.canResume ? 'resume' : 'suspend', event);
   }
 
   reopenable(task: QueueTask): boolean { return canReopenTask(task); }
@@ -850,7 +875,8 @@ export class WorkflowWorkQueue {
   }
 
   private canRecover(task: QueueTask, action: WorkflowTaskRecoveryAction): boolean {
-    return action === 'cancel' ? task.canCancel : canReopenTask(task);
+    return action === 'cancel' ? task.canCancel : action === 'reopen' ? canReopenTask(task) :
+      action === 'suspend' ? task.canSuspend : task.canResume;
   }
 
   closeCancellation(): void {
@@ -868,9 +894,10 @@ export class WorkflowWorkQueue {
     afterNextRender(() => {
       if (this.workQueueDestroyed || owner !== this.sessionOwnerKey() || interaction !== this.focusInteraction ||
           (document.activeElement !== active && document.activeElement !== document.body)) return;
-      const selector = action === 'cancel' ? 'button[data-cancel-task]' : 'button[data-reopen-task]';
-      const taskAttribute = action === 'cancel' ? 'cancelTask' : 'reopenTask';
-      const engagementAttribute = action === 'cancel' ? 'cancelEngagement' : 'reopenEngagement';
+      const prefix = action === 'cancel' || action === 'reopen' ? action : 'hold';
+      const selector = `button[data-${prefix}-task]`;
+      const taskAttribute = `${prefix}Task`;
+      const engagementAttribute = `${prefix}Engagement`;
       const current = trigger?.element.isConnected ? trigger.element :
         [...this.hostElement.nativeElement.querySelectorAll<HTMLButtonElement>(selector)]
           .find(button => button.dataset[taskAttribute] === selected.taskId && button.dataset[engagementAttribute] === selected.engagementId);

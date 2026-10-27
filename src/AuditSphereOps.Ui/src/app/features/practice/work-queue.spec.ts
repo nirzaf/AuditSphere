@@ -68,6 +68,15 @@ describe('workflow task activity contract', () => {
     for (const reason of [undefined, null, '', '   ', 'x'.repeat(2001)])
       expect(() => decodeActivity({ ...activity, events: [{ ...reopening, reason }] }, 'activity')).toThrow();
   });
+
+  it('requires the retained reason on hold and resumption events', () => {
+    for (const kind of ['TASK_SUSPENDED', 'TASK_RESUMED']) {
+      const event = { ...activity.events[0], kind, reason: 'Client asked to pause until the bank replies.' };
+      expect(decodeActivity({ ...activity, events: [event], hasMore: false, nextCursor: null }, 'activity').events[0].kind).toBe(kind);
+      for (const reason of [null, '   '])
+        expect(() => decodeActivity({ ...activity, events: [{ ...event, reason }] }, 'activity')).toThrow();
+    }
+  });
 });
 
 const summaryViews = ['MY_TASKS', 'DUE_TODAY', 'OVERDUE', 'WAITING_FOR_CLIENT', 'UNDER_REVIEW', 'CHANGES_REQUIRED', 'UPCOMING'];
@@ -192,6 +201,7 @@ describe('workflow queue assignment filters', () => {
     assigneeUserId: '11111111-1111-4111-8111-111111111111', assigneeDisplayName: 'Audit staff', dueDate: '2026-10-15',
     mappingVersionId: null, fsliCode: null, unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0,
     canComplete: false, canChangeDueDate: false, canAssign: true, canCancel: false, canReopen: false, revision: 1, pbcRequestId: null, pbcState: null, reviewState: null, reviewComment: null,
+    onHold: false, holdReason: null as string | null, canSuspend: false, canResume: false,
   };
   const reminderWorkspace = (id: string, title: string, revision: number, status: string, engagementId = task.engagementId,
     reminderOrigin: {
@@ -387,6 +397,41 @@ describe('workflow queue assignment filters', () => {
       expect(panel.querySelector('h2')?.textContent?.trim()).toBe('Review task reopening');
       expect(panel.textContent).toContain('returns this completed task to active work');
       expect(panel.textContent).toContain('tasks that depend on it wait until it is completed again');
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('offers hold and resume only from server flags and explains each in the review panel', () => {
+    const { fixture, http, host, component } = start();
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      component.selectView('ON_HOLD'); TestBed.tick();
+      const held = { ...task, onHold: true, holdReason: 'Client asked to pause.', canResume: true };
+      const readOnly = { ...task, taskId: '55555555-5555-4555-8555-555555555555', onHold: true, holdReason: 'Paused.' };
+      http.expectOne(tasksUrl('view=ON_HOLD&pageSize=50&includeSummary=true'))
+        .flush({ view: 'ON_HOLD', tasks: [held, readOnly], hasMore: false, nextCursor: null, summary: summary() });
+      fixture.detectChanges(); TestBed.tick();
+      expect(host.textContent).toContain('Hold reason: Client asked to pause.');
+      expect(host.querySelector(`button[data-hold-task="${readOnly.taskId}"]`)).toBeNull();
+      const resume = host.querySelector<HTMLButtonElement>(`button[data-hold-task="${task.taskId}"]`)!;
+      expect(resume.textContent?.trim()).toBe('Resume task');
+      resume.focus(); resume.click(); fixture.detectChanges(); TestBed.tick();
+      const panel = () => host.querySelector('section[aria-labelledby="cancellation-heading"]')!;
+      expect(panel().querySelector('h2')?.textContent?.trim()).toBe('Review resuming the task');
+      expect(panel().textContent).toContain('Reason for resumption');
+      component.closeCancellation(); fixture.detectChanges(); TestBed.tick();
+      component.selectView('TEAM'); TestBed.tick();
+      http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true'))
+        .flush({ view: 'TEAM', tasks: [{ ...task, canSuspend: true }], hasMore: false, nextCursor: null, summary: summary() });
+      fixture.detectChanges(); TestBed.tick();
+      const hold = host.querySelector<HTMLButtonElement>(`button[data-hold-task="${task.taskId}"]`)!;
+      expect(hold.textContent?.trim()).toBe('Put on hold');
+      hold.focus(); hold.click(); fixture.detectChanges(); TestBed.tick();
+      expect(panel().querySelector('h2')?.textContent?.trim()).toBe('Review putting the task on hold');
+      expect(panel().textContent).toContain('cannot be completed or receive new time until a manager resumes it');
       http.verify({ ignoreCancelled: true });
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });

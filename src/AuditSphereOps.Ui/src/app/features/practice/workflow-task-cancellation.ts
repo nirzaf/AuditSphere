@@ -16,10 +16,18 @@ export interface WorkflowTaskCancellationTarget {
   revision: number;
   canCancel: boolean;
   canReopen: boolean;
+  canSuspend?: boolean;
+  canResume?: boolean;
   requiredTask?: boolean | null;
   applicabilityCondition?: string | null;
 }
-export type WorkflowTaskRecoveryAction = 'cancel' | 'reopen';
+export type WorkflowTaskRecoveryAction = 'cancel' | 'reopen' | 'suspend' | 'resume';
+const RECOVERY_COPY: Record<WorkflowTaskRecoveryAction, { noun: string; title: string; review: string; confirm: string }> = {
+  cancel: { noun: 'cancellation', title: 'Review task cancellation', review: 'Review cancellation', confirm: 'Confirm task cancellation' },
+  reopen: { noun: 'reopening', title: 'Review task reopening', review: 'Review reopening', confirm: 'Confirm task reopening' },
+  suspend: { noun: 'hold', title: 'Review putting the task on hold', review: 'Review hold', confirm: 'Confirm task hold' },
+  resume: { noun: 'resumption', title: 'Review resuming the task', review: 'Review resumption', confirm: 'Confirm task resumption' },
+};
 
 /** A cancelled task resumes; a completed task returns to active work for correction. The server flag decides. */
 export function canReopenTask(task: Pick<WorkflowTaskCancellationTarget, 'canReopen' | 'taskStatus'>): boolean {
@@ -35,6 +43,7 @@ const workflowTaskWorkspaceShape = obj({
     assigneeDisplayName: nullable(str(200)),
     revision: int,
     status: str(40),
+    onHold: (value: unknown, path: string) => value === undefined ? null : nullable(bool)(value, path),
   }), 500),
 });
 
@@ -50,8 +59,12 @@ type FocusOrigin = { element: Element; interaction: number };
   imports: [MatButtonModule],
   template: `
     <section class="panel" aria-labelledby="cancellation-heading">
-      <h2 #panelHeading id="cancellation-heading" tabindex="-1">{{ actionMode() === 'cancel' ? 'Review task cancellation' : 'Review task reopening' }}</h2>
-      @if (actionMode() === 'cancel') {
+      <h2 #panelHeading id="cancellation-heading" tabindex="-1">{{ copy().title }}</h2>
+      @if (actionMode() === 'suspend') {
+        <p>Putting a task on hold pauses it. It leaves My tasks, the due-date and client-waiting views and reminders, and it cannot be completed or receive new time until a manager resumes it. Its owner, due date, time and evidence are kept.</p>
+      } @else if (actionMode() === 'resume') {
+        <p>Resuming returns the task to the queue views and reminders so it can be worked on and completed again.</p>
+      } @else if (actionMode() === 'cancel') {
         <p>Cancellation only ends this operational task. It does not approve or complete source audit work. A cancelled required predecessor continues to block its dependent task.</p>
       } @else if (reopensCompletedWork()) {
         <p>Reopening returns this completed task to active work so it can be corrected and completed again. Its original completion stays in task activity, and tasks that depend on it wait until it is completed again. It does not approve or make a professional decision about source audit work.</p>
@@ -74,13 +87,13 @@ type FocusOrigin = { element: Element; interaction: number };
           </label>
           <small>An authorized cancellation reason is required. This does not approve underlying professional work.</small>
         }
-        <label for="task-cancellation-reason">Reason for {{ actionMode() === 'cancel' ? 'cancellation' : 'reopening' }}</label>
+        <label for="task-cancellation-reason">Reason for {{ copy().noun }}</label>
         <textarea #reasonEditor id="task-cancellation-reason" rows="4" maxlength="2000" [value]="reason"
           [disabled]="busy()" (input)="updateReason($any($event.target).value)"
           aria-describedby="task-cancellation-reason-help"></textarea>
         <small id="task-cancellation-reason-help">Enter a reason of up to 2,000 characters. It will be retained in task activity.</small>
         <button matButton="filled" type="button" (click)="prepareReview()" [disabled]="busy() || !canPerform(task(), actionMode())">
-          {{ actionMode() === 'cancel' ? 'Review cancellation' : 'Review reopening' }}
+          {{ copy().review }}
         </button>
       }
 
@@ -98,30 +111,35 @@ type FocusOrigin = { element: Element; interaction: number };
         @if (state() === 'retryable') {
           @if (actionMode() === 'cancel') {
             <p role="status">The task is still active at the original revision. No cancellation is observed. A retry will send the exact original reason and revision.</p>
+          } @else if (actionMode() === 'suspend' || actionMode() === 'resume') {
+            <p role="status">The task is still {{ actionMode() === 'suspend' ? 'active' : 'on hold' }} at the original revision. No {{ copy().noun }} is observed. A retry will send the exact original reason and revision.</p>
           } @else {
             <p role="status">The task remains {{ reopensCompletedWork() ? 'completed' : 'cancelled' }} at the original revision. No reopening is observed. A retry will send the exact original reason and revision.</p>
           }
         }
         <label class="assent"><input type="checkbox" [checked]="assent()" [disabled]="busy()"
           (change)="assent.set($any($event.target).checked)" />
-          @if (state() === 'retryable') { I reviewed the unchanged task and exact original reason, and explicitly agree to retry this {{ actionMode() === 'cancel' ? 'cancellation' : 'reopening' }}. }
+          @if (state() === 'retryable') { I reviewed the unchanged task and exact original reason, and explicitly agree to retry this {{ copy().noun }}. }
           @else { I reviewed this exact task, engagement scope, revision, and reason. }
         </label>
         <div class="actions">
           <button matButton="filled" type="button" (click)="submit()" [disabled]="busy() || !assent()">
-            {{ actionMode() === 'cancel' ? 'Confirm task cancellation' : 'Confirm task reopening' }}
+            {{ copy().confirm }}
           </button>
           @if (state() === 'review') { <button matButton type="button" (click)="backToEditing()" [disabled]="busy()">Back to reason</button> }
         </div>
       }
 
-      @if (busy()) { <p role="status">Waiting for the {{ actionMode() === 'cancel' ? 'cancellation' : 'reopening' }} response. The reviewed reason and revision are held unchanged.</p> }
+      @if (busy()) { <p role="status">Waiting for the {{ copy().noun }} response. The reviewed reason and revision are held unchanged.</p> }
       @if (state() === 'unknown') {
-        <p role="alert">{{ message() || ('The ' + (actionMode() === 'cancel' ? 'cancellation' : 'reopening') + ' outcome is unconfirmed.') }} The exact original reason and revision are retained. Do not resend until the current task has been checked.</p>
-        <button matButton type="button" (click)="checkStatus()" [disabled]="busy()">Check {{ actionMode() === 'cancel' ? 'cancellation' : 'reopening' }} status</button>
+        <p role="alert">{{ message() || ('The ' + copy().noun + ' outcome is unconfirmed.') }} The exact original reason and revision are retained. Do not resend until the current task has been checked.</p>
+        <button matButton type="button" (click)="checkStatus()" [disabled]="busy()">Check {{ copy().noun }} status</button>
       }
       @if (state() === 'observed') {
-        @if (actionMode() === 'cancel') {
+        @if (actionMode() === 'suspend' || actionMode() === 'resume') {
+          <p role="status">{{ actionMode() === 'suspend' ? 'Hold' : 'Resumption' }} observed at task revision {{ observed()?.revision }}. Review the retained activity and reason before relying on it.</p>
+          <button matButton="filled" type="button" (click)="acknowledgeAndReviewActivity()">Acknowledge {{ copy().noun }} and review activity</button>
+        } @else if (actionMode() === 'cancel') {
           <p role="status">Cancellation observed at task revision {{ observed()?.revision }}. Review the retained activity and reason before relying on it.</p>
           <button matButton="filled" type="button" (click)="acknowledgeAndReviewActivity()">Acknowledge cancellation and review activity</button>
         } @else {
@@ -130,12 +148,12 @@ type FocusOrigin = { element: Element; interaction: number };
         }
       }
       @if (state() === 'stale') {
-        <p role="alert">The task now has status {{ observed()?.status }} at revision {{ observed()?.revision }}. The original revision changed, so this {{ actionMode() === 'cancel' ? 'cancellation' : 'reopening' }} cannot be retried. Refresh the queue and review the current task.</p>
+        <p role="alert">The task now has status {{ observed()?.status }} at revision {{ observed()?.revision }}. The original revision changed, so this {{ copy().noun }} cannot be retried. Refresh the queue and review the current task.</p>
         <button matButton="filled" type="button" (click)="acknowledgeChangedTask()" [disabled]="busy()">Acknowledge changed task and refresh</button>
       }
       @if (state() === 'confirmed') {
-        <p role="status">Task {{ actionMode() === 'cancel' ? 'cancellation' : 'reopening' }} response confirmed. Review the retained task activity and {{ actionMode() === 'cancel' ? 'cancellation' : 'reopening' }} reason.</p>
-        <button matButton="filled" type="button" (click)="reviewActivity.emit()">Review {{ actionMode() === 'cancel' ? 'cancellation' : 'reopening' }} activity</button>
+        <p role="status">Task {{ copy().noun }} response confirmed. Review the retained task activity and {{ copy().noun }} reason.</p>
+        <button matButton="filled" type="button" (click)="reviewActivity.emit()">Review {{ copy().noun }} activity</button>
       }
       @if (state() === 'refused') {
         <p role="alert">{{ message() }}</p>
@@ -143,7 +161,7 @@ type FocusOrigin = { element: Element; interaction: number };
       }
       @if (failed() && state() !== 'refused' && state() !== 'unknown') { <p role="alert">{{ message() }}</p> }
       @if (state() === 'editing' || state() === 'review' || state() === 'refused') {
-        <button matButton type="button" (click)="closeRequested.emit()" [disabled]="busy()">Close {{ actionMode() === 'cancel' ? 'cancellation' : 'reopening' }} review</button>
+        <button matButton type="button" (click)="closeRequested.emit()" [disabled]="busy()">Close {{ copy().noun }} review</button>
       }
     </section>
   `,
@@ -174,6 +192,7 @@ export class WorkflowTaskCancellationPanel {
   readonly state = signal<RecoveryState>('editing');
   readonly intent = signal<Intent | null>(null);
   readonly actionMode = computed(() => this.intent()?.action ?? this.action());
+  readonly copy = computed(() => RECOVERY_COPY[this.actionMode()]);
   /** Task status when the intent was reviewed; a retry is offered only while the task still has it. */
   private readonly reviewedStatus = signal<string | null>(null);
   readonly reopensCompletedWork = computed(() => this.actionMode() === 'reopen' &&
@@ -199,7 +218,7 @@ export class WorkflowTaskCancellationPanel {
       const task = this.task();
       const owner = this.ownerKey();
       const context = [task.taskId, task.clientId, task.engagementId, task.title, task.engagementServiceRoute,
-        task.engagementPeriod, task.revision, task.taskStatus, task.canCancel, task.canReopen,
+        task.engagementPeriod, task.revision, task.taskStatus, task.canCancel, task.canReopen, task.canSuspend, task.canResume,
       task.requiredTask, task.applicabilityCondition, this.action()].join('|');
       if (owner === this.owner && context === this.context) return;
       this.owner = owner;
@@ -230,7 +249,7 @@ export class WorkflowTaskCancellationPanel {
       ? `Not applicable: ${justification}` : justification;
     if (!justification || reason.length > 2000) {
       this.failed.set(true);
-      this.message.set(`Enter a non-empty ${action === 'cancel' ? 'cancellation' : 'reopening'} reason of up to 2,000 characters.`);
+      this.message.set(`Enter a non-empty ${RECOVERY_COPY[action].noun} reason of up to 2,000 characters.`);
       return;
     }
     const origin = this.focusedControl();
@@ -281,7 +300,7 @@ export class WorkflowTaskCancellationPanel {
       } else if (outcome.ok || outcome.unknown) {
         this.state.set('unknown');
         this.failed.set(true);
-        this.message.set(`The ${intent.action === 'cancel' ? 'cancellation' : 'reopening'} response could not be confirmed.`);
+        this.message.set(`The ${RECOVERY_COPY[intent.action].noun} response could not be confirmed.`);
         if (origin) this.focusAfterRender(() => this.heading()?.nativeElement, owner, context, origin);
       } else {
         this.state.set('refused');
@@ -296,7 +315,7 @@ export class WorkflowTaskCancellationPanel {
       if (!this.current(owner, context, request)) return;
       this.state.set('unknown');
       this.failed.set(true);
-      this.message.set(`The ${intent.action === 'cancel' ? 'cancellation' : 'reopening'} response could not be confirmed.`);
+      this.message.set(`The ${RECOVERY_COPY[intent.action].noun} response could not be confirmed.`);
       if (origin) this.focusAfterRender(() => this.heading()?.nativeElement, owner, context, origin);
     } finally {
       if (this.current(owner, context, request)) this.busy.set(false);
@@ -319,7 +338,14 @@ export class WorkflowTaskCancellationPanel {
       const workspace = await this.api.get(this.workspaceUrl(task), decodeWorkflowTaskWorkspace);
       if (!this.current(owner, context, request)) return;
       const row = this.exactObservation(workspace, task.taskId, task.engagementId, intent.expectedRevision);
-      if (intent.action === 'cancel') {
+      if (intent.action === 'suspend' || intent.action === 'resume') {
+        const target = intent.action === 'suspend';
+        if (row.onHold === target && row.revision > intent.expectedRevision) this.state.set('observed');
+        else if (row.onHold === !target && row.revision === intent.expectedRevision && ['OPEN', 'IN_PROGRESS'].includes(row.status)) {
+          this.state.set('retryable');
+          this.assent.set(false);
+        } else this.state.set('stale');
+      } else if (intent.action === 'cancel') {
         if (row.status === 'CANCELLED') {
           if (row.revision <= intent.expectedRevision)
             throw new Error('Cancellation status did not advance the reviewed revision. Keep the outcome unresolved and refresh before relying on it.');
@@ -407,12 +433,13 @@ export class WorkflowTaskCancellationPanel {
   private contextKey(): string {
     const task = this.task();
     return [task.taskId, task.clientId, task.engagementId, task.title, task.engagementServiceRoute,
-      task.engagementPeriod, task.revision, task.taskStatus, task.canCancel, task.canReopen,
+      task.engagementPeriod, task.revision, task.taskStatus, task.canCancel, task.canReopen, task.canSuspend, task.canResume,
       task.requiredTask, task.applicabilityCondition, this.action()].join('|');
   }
 
   canPerform(task: WorkflowTaskCancellationTarget, action: WorkflowTaskRecoveryAction): boolean {
-    return action === 'cancel' ? task.canCancel : canReopenTask(task);
+    return action === 'cancel' ? task.canCancel : action === 'reopen' ? canReopenTask(task) :
+      action === 'suspend' ? task.canSuspend === true : task.canResume === true;
   }
 
   private actionUrl(task: WorkflowTaskCancellationTarget, action: WorkflowTaskRecoveryAction): string {

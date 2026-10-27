@@ -352,6 +352,9 @@ public static partial class PracticeTimeService
     auth = await AuthorizeTaskAsync(db, actor, task, ApprovalRoles, ct);
     if (!auth.Succeeded) return auth;
     task.Status = PracticeTimeStates.TaskCancelled;
+    // A cancelled task is no longer held; the earlier hold stays in its activity.
+    workflowBinding.HeldAt = null;
+    workflowBinding.HoldReason = null;
     workflowBinding.Revision++;
     AddWorkflowTaskActivity(db, actor, task, workflowBinding, WorkflowTaskActivityKinds.Cancelled,
       null, workflowBinding.Revision, DateTimeOffset.UtcNow, reason: normalizedReason);
@@ -421,6 +424,8 @@ public static partial class PracticeTimeService
     if (task.Status == PracticeTimeStates.TaskCompleted) return CommandResult.Ok();
     if (task.Status == PracticeTimeStates.TaskCancelled)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "A cancelled task cannot be completed.");
+    if (workflowBinding?.HeldAt is not null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Resume the task before completing it.");
     if (workflowBinding?.PbcRequestId is { } pbcRequestId)
     {
       var pbc = await db.PbcRequests.FromSqlInterpolated($"""
@@ -494,6 +499,9 @@ public static partial class PracticeTimeService
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (task.Status is PracticeTimeStates.TaskCompleted or PracticeTimeStates.TaskCancelled)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Time cannot be added to a closed task.");
+    if (await db.WorkflowTaskBindings.AsNoTracking().AnyAsync(x =>
+          x.FirmId == actor.FirmId && x.WorkTaskId == task.Id && x.HeldAt != null, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Time cannot be added while the task is on hold.");
     if (task.AssigneeUserId != actor.UserId &&
         !await IsElevatedAsync(db, actor, task.ClientId, task.EngagementId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Only the assignee or an authorized manager can record time.");

@@ -39,7 +39,7 @@ public sealed record WorkflowTaskRow(
   long Revision,
   DateTimeOffset CreatedAt,
   Guid? ReminderRuleId = null, Guid? ReminderRuleRevisionId = null, Guid? ReminderOperationId = null,
-  WorkflowReminderTaskOrigin? ReminderSource = null, bool CanOpenReminderRule = false);
+  WorkflowReminderTaskOrigin? ReminderSource = null, bool CanOpenReminderRule = false, bool OnHold = false);
 
 public sealed record WorkflowTaskWorkspace(
   Guid EngagementId,
@@ -77,7 +77,7 @@ public static class EngagementWorkflowTaskService
                       select new WorkflowTaskRow(task.Id, task.Title, binding.Phase, binding.Ordinal, task.Status,
                         binding.AssigneeUserIdSnapshot, null, binding.AssignedRole, task.DueDate, binding.PlannedEffortMinutes, task.MappingVersionId,
                         task.FsliCode, binding.TemplateRevisionId, binding.Generation, binding.Revision, binding.CreatedAt,
-                        null, binding.ReminderRuleRevisionId, binding.ReminderOperationId, null, false))
+                        null, binding.ReminderRuleRevisionId, binding.ReminderOperationId, null, false, binding.HeldAt != null))
       .Take(501).ToListAsync(ct);
     var truncated = rows.Count > 500;
     if (truncated) rows.RemoveAt(rows.Count - 1);
@@ -265,5 +265,13 @@ public static class EngagementWorkflowTaskService
     IAuditSphereDbContext db, ActorContext actor, Guid taskId, string reason,
     long expectedRevision, CancellationToken ct = default) =>
     PracticeTimeService.ReopenWorkflowTaskAsync(db, actor, taskId, reason, expectedRevision, ct);
+  public static Task<CommandResult> SuspendAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid taskId, string reason,
+    long expectedRevision, CancellationToken ct = default) =>
+    PracticeTimeService.HoldWorkflowTaskAsync(db, actor, taskId, true, reason, expectedRevision, ct);
+  public static Task<CommandResult> ResumeAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid taskId, string reason,
+    long expectedRevision, CancellationToken ct = default) =>
+    PracticeTimeService.HoldWorkflowTaskAsync(db, actor, taskId, false, reason, expectedRevision, ct);
 
 }

@@ -193,6 +193,7 @@ public sealed class WorkflowReminderDiscovery(
                   where binding.FirmId == worker.FirmId && binding.ReminderRuleRevisionId == null &&
                     task.ClientId == binding.ClientId && task.EngagementId == binding.EngagementId &&
                     (task.Status == PracticeTimeStates.TaskOpen || task.Status == PracticeTimeStates.TaskInProgress) &&
+                    binding.HeldAt == null &&
                     task.DueDate.HasValue && task.DueDate.Value <= cutoff
                   select new { task.Id, binding.ClientId, binding.EngagementId, DueDate = task.DueDate!.Value };
       var query = baseQuery;
