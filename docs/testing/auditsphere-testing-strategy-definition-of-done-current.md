@@ -67,6 +67,8 @@ A **PR** is CI-verified only when actual fast `ci.yml` checks pass for the PR SH
 
 ## 5. Independent and external gates
 
+For monetary-unit sampling, use bounded ordinary fixtures to compare historical selection and explanation behavior. Exercise extreme amount/interval ratios only against the bounded implementation; never use the old interval-addition loop as a performance baseline for those inputs. Numeric-limit checks must distinguish a valid final crossing from a controlled unsupported-range or precision refusal.
+
 A full automated CI PASS **does not** certify Entra tenant consent, Graph/SharePoint site grants, live release, source-provider correctness, legal/compliance or professional audit opinions. Those require the named owner, authorized environment, exact evidence, appropriate independent approval and the relevant current requirements/ADR. Record unresolved gates as `BLOCKED_EXTERNAL`; do not bypass maker/checker, immutable records or exact financial correctness for faster delivery.
 
 ### Operational evidence record (WU-038)

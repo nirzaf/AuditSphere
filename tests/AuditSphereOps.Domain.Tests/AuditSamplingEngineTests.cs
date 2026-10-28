@@ -61,6 +61,65 @@ public sealed class AuditSamplingEngineTests
     Assert.All(outcome.Items, item => Assert.Contains("Monetary unit", item.InclusionReason));
   }
 
+  [Fact]
+  public void MonetaryUnit_PreservesExactCrossingsAndFirstCrossingReasons()
+  {
+    var outcome = AuditSamplingEngine.Select([
+      new("below", 99.99m), new("equal", 0.01m), new("above", 0.01m),
+      new("many", 299.99m), new("between", 1m), new("negative", -100m), new("zero", 0m)
+    ], new(AuditSamplingMethods.MonetaryUnit, Interval: 100m));
+    Assert.Equal(["equal", "many", "negative"], outcome.Items.Select(x => x.StableRowId));
+    Assert.Equal([100m, 400m, 501m], outcome.Items.Select(x => x.CumulativeAbsoluteAmount));
+    Assert.Equal([0.01m, 299.99m, 100m], outcome.Items.Select(x => x.AbsoluteAmount));
+    Assert.Equal([
+      $"Monetary unit: cumulative exposure {100.00m} crossed the interval at {100m}.",
+      $"Monetary unit: cumulative exposure {400.00m} crossed the interval at {200m}.",
+      $"Monetary unit: cumulative exposure {501.00m} crossed the interval at {500m}."
+    ], outcome.Items.Select(x => x.InclusionReason));
+    Assert.Equal(6, outcome.PopulationCount);
+  }
+
+  [Fact]
+  public void MonetaryUnit_HandlesLastCrossingAtDecimalMaximum()
+  {
+    var outcome = AuditSamplingEngine.Select([new("maximum", decimal.MaxValue)],
+      new(AuditSamplingMethods.MonetaryUnit, Interval: decimal.MaxValue));
+    Assert.Equal("maximum", Assert.Single(outcome.Items).StableRowId);
+    Assert.Equal(decimal.MaxValue, outcome.SelectedAbsoluteTotal);
+    Assert.Equal(100m, outcome.CoveragePercent);
+  }
+
+  [Fact]
+  public void MonetaryUnit_RefusesTotalOutsideDecimalRange()
+  {
+    var error = Assert.Throws<ArgumentException>(() => AuditSamplingEngine.Select(
+      [new("first", decimal.MaxValue), new("second", decimal.MaxValue)],
+      new(AuditSamplingMethods.MonetaryUnit, Interval: decimal.MaxValue)));
+    Assert.Contains("decimal", error.Message, StringComparison.OrdinalIgnoreCase);
+  }
+
+  // Never run these extreme ratios against the old interval-addition loop.
+  [Fact]
+  public void MonetaryUnit_ExtremeRatioStillSelectsEachCrossingRowOnce()
+  {
+    var outcome = AuditSamplingEngine.Select([
+      new("large", 1_000_000m), new("next", 0.000001m), new("negative", -0.000001m), new("zero", 0m)
+    ], new(AuditSamplingMethods.MonetaryUnit, Interval: 0.000001m));
+    Assert.Equal(["large", "next", "negative"], outcome.Items.Select(x => x.StableRowId));
+    Assert.Equal([1_000_000m, 0.000001m, 0.000001m], outcome.Items.Select(x => x.AbsoluteAmount));
+    Assert.Equal(100m, outcome.CoveragePercent);
+    Assert.Equal(3, outcome.SelectedCount);
+  }
+
+  [Fact]
+  public void MonetaryUnit_RefusesAnUnrepresentableNextPoint()
+  {
+    var error = Assert.Throws<ArgumentException>(() => AuditSamplingEngine.Select(
+      [new("near-limit", decimal.MaxValue - 1m), new("last", 1m)],
+      new(AuditSamplingMethods.MonetaryUnit, Interval: 0.1m)));
+    Assert.Contains("precision", error.Message, StringComparison.OrdinalIgnoreCase);
+  }
+
   [Fact(DisplayName = "Key-item sampling selects every exposure at or above the threshold")]
   public void KeyItem_SelectsAboveThreshold()
   {

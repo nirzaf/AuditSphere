@@ -26083,6 +26083,14 @@
         ".local/autonomous/evidence/axelor-final-20261025/preceding-7a-new-e2e/review.json"
       ],
       "superseded": "Owned7a/e53/a48 pending runs canceled after finalb94MATCH and snapshots; knownfailedTRXs retained; no FULL_CI_PASS claimed."
+    },
+    "currentSourceCiBeforeTechnicalStoriesR0320261028": {
+      "sourceBaseCommit": "1c02ae74634535122d8dbf8e70a2367aad754e82",
+      "sourceRole": "NATIVE_SUCCESSOR_REVIEWER_PROOF_READ_TEST_SYNCHRONIZATION",
+      "releaseVerification": "1c02 full40646526244 E2E335partialPASS/1assertFAIL then15minute inactivityabort; actualcheckout/TRX/logdigests retained. APIpending. No fullPASS.",
+      "imagePublication": "1c02 fast/images all6actualcheckouts/pins/cache/rehearsal293/cleanup/defaultguardsPASS; predecessoronly for new source.",
+      "cutoverStatus": "NOT_PERFORMED; exact new gates and realD-OV04 plus freshbaseline/QUIESCEDbackup/publicacceptance required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeNativeProofRead20261028"
     }
   },
   "archivedTargetedVerification": {
@@ -27330,6 +27338,24 @@
       "journeyBoundary": "One request links those steps; no commercial-to-archive identity.",
       "remaining": "Other journeys, WU-012/WU-014 and professional/live acceptance remain open.",
       "ci": "40160126775 on 940ff390 is predecessor-only."
+    },
+    "nativeSuccessorProofReadCi20261028BeforeTechnicalStoriesR0320261028": {
+      "status": "VERIFIED_TEST_ONLY_FOCUSED",
+      "sourceBaseCommit": "1c02ae74634535122d8dbf8e70a2367aad754e82",
+      "observed": "CurrentE2E335partialPASS/1nativeTrueassertFAIL plus15minute siblingCLIENTinactivityabort; no fullPASS.",
+      "proof": "Controlled first real reviewerproofGET delayed8seconds: oldhelper exactmissingbuttonRED1; samefixture correctedhelperGREEN2. Catalogue alone is not retainedproof readiness.",
+      "preserved": "Original disabled/uncheckedassent/independentapproval/DB/hash/originalrequest/itemcarry assertions retained; runtime/grants/permissions/timeouts unchanged.",
+      "cleanup": "OwnedPG18.6port60019/datadir/root/listener/API/DB/processabsence independentlyverified; original5433untouched.",
+      "remaining": "SiblinginactivitycauseUNCONFIRMED; separate earlier previewtimeoutunconfirmed. New exactCI/retention/releasegates required.",
+      "evidence": ".local/autonomous/evidence/markdown-codebase-reconciliation-20261028/native-proof-read-review.json"
+    },
+    "markdownCodebaseReconciliation20261028BeforeTechnicalStoriesR0320261028": {
+      "status": "VERIFIED_DOCUMENTATION_ONLY_EXACT_SOURCE_RELEASE_GATES_SEPARATE",
+      "sourceBaseCommit": "30fece316f9f2668c12ac2235a835ee387b44e33",
+      "change": "Align current architecture/model/HTTP, conditional-task operator flow, receipt presentation, canonical shell startup, Web retirement and actual-mount backup/retention boundaries. Archive superseded handoff exactly; keep historical verification distinct.",
+      "verification": "Role catalogue and current source guard hashes, fiveapplicability+oversighthistory OpenAPI paths, SQLguard declarations, retiredWeb absence and startupHTML/CSP source checksPASS. No app tests/browser/provider/live action for documentation-only work.",
+      "remaining": "New published source needs its own exact gates; D-OV04 and professional/external acceptance remain open.",
+      "validation": "Documentationhealth/filenames/narrative/source-integrity/taskboard/UIinventory/diffPASS. No full local suites."
     }
   },
   "lastUpdatedOn": "2026-10-28"

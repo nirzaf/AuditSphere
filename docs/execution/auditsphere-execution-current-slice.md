@@ -14,21 +14,15 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Bounded monetary-unit sampling
+
+Selected technical-review story R03 replaces repeated interval additions with bounded arithmetic per population row, retaining selection order, absolute exposure, first-crossing explanations and the existing engine identity. Final maximum-value crossings succeed without creating a needless next point; unsupported decimal totals or precision fail through the existing validation contract. Focused arithmetic and integration evidence is recorded in [status.json](status.json). This establishes no sampling-methodology policy or professional acceptance; exact-source CI and release gates remain separate.
+
 ## Finance authority after lock waits
 
 Selected technical-review story R01 now rechecks current database authority after the existing mutation locks for invoice transitions/posting, journal transitions/posting, period close/reopen and rate revision/approval. The real role-revocation interleaving reproduced stale authority; the corrected paths refuse before changing business records or returning replay success. Unchanged authority and exact retries retain their original results. Role scopes, independent approval and accounting boundaries are unchanged. Focused evidence is in [status.json](status.json); other attached stories, exact-source CI and release/professional acceptance remain separate.
 
-## Native successor reviewer proof read
-
-The native successor reviewer journey now distinguishes catalogue availability from the dependent retained proof read. Its approval assertions wait for the exact successful proof response; unchecked assent, independent approval, retained source hashes and persistence assertions remain intact. A controlled first-response delay reproduces the original missing-control observation. This is test synchronization only; application permissions, deadlines and professional decisions are unchanged. Exact paired results and incomplete CI boundaries are recorded in [status.json](status.json); the separate sibling-client inactivity abort remains unconfirmed.
-
-## Markdown codebase reconciliation
-
-Current Markdown guidance now describes conditional-task and oversight evidence, exact recovery visibility, the retired Web host and canonical-shell startup behavior. Operator guidance separates configured storage from verified live mounts and keeps retention/reviewer policy and exact-source release gates explicit. Preserved sources and historical acceptance records are unchanged; superseded handoff sections are archived verbatim. The [reconciliation report](auditsphere-execution-report-documentation-reconciliation-current.md) identifies the survey and code owners; [status.json](status.json) records validation and source boundaries.
-
-## Verified review-point receipt during refresh
-
-The review-point command panel now retains its exact verified receipt while the independent detail read reloads. A focused regression reproduced the hidden confirmation; direct success and recovered outcomes now retain the same panel, while confirmed scope denial still removes it. Existing command checks and browser cases are unchanged. Focused checks and an owned canonical built-in workflow passed; exact-source CI, retention/reviewer acceptance and release gates remain open. See [status.json](status.json).
+Earlier native-proof synchronization, documentation reconciliation and review-point refresh evidence is retained verbatim in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#technical-story-handoff-transfer).
 
 Earlier sibling snapshot evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#review-point-receipt-refresh-handoff-transfer).
 

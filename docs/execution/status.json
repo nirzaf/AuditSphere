@@ -1116,22 +1116,10 @@
       "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.reviewPointReceiptRefreshBeforeMarkdownSweep20261028"
     },
     "markdownCodebaseReconciliation20261028": {
-      "status": "VERIFIED_DOCUMENTATION_ONLY_EXACT_SOURCE_RELEASE_GATES_SEPARATE",
-      "sourceBaseCommit": "30fece316f9f2668c12ac2235a835ee387b44e33",
-      "change": "Align current architecture/model/HTTP, conditional-task operator flow, receipt presentation, canonical shell startup, Web retirement and actual-mount backup/retention boundaries. Archive superseded handoff exactly; keep historical verification distinct.",
-      "verification": "Role catalogue and current source guard hashes, fiveapplicability+oversighthistory OpenAPI paths, SQLguard declarations, retiredWeb absence and startupHTML/CSP source checksPASS. No app tests/browser/provider/live action for documentation-only work.",
-      "remaining": "New published source needs its own exact gates; D-OV04 and professional/external acceptance remain open.",
-      "validation": "Documentationhealth/filenames/narrative/source-integrity/taskboard/UIinventory/diffPASS. No full local suites."
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.markdownCodebaseReconciliation20261028BeforeTechnicalStoriesR0320261028"
     },
     "nativeSuccessorProofReadCi20261028": {
-      "status": "VERIFIED_TEST_ONLY_FOCUSED",
-      "sourceBaseCommit": "1c02ae74634535122d8dbf8e70a2367aad754e82",
-      "observed": "CurrentE2E335partialPASS/1nativeTrueassertFAIL plus15minute siblingCLIENTinactivityabort; no fullPASS.",
-      "proof": "Controlled first real reviewerproofGET delayed8seconds: oldhelper exactmissingbuttonRED1; samefixture correctedhelperGREEN2. Catalogue alone is not retainedproof readiness.",
-      "preserved": "Original disabled/uncheckedassent/independentapproval/DB/hash/originalrequest/itemcarry assertions retained; runtime/grants/permissions/timeouts unchanged.",
-      "cleanup": "OwnedPG18.6port60019/datadir/root/listener/API/DB/processabsence independentlyverified; original5433untouched.",
-      "remaining": "SiblinginactivitycauseUNCONFIRMED; separate earlier previewtimeoutunconfirmed. New exactCI/retention/releasegates required.",
-      "evidence": ".local/autonomous/evidence/markdown-codebase-reconciliation-20261028/native-proof-read-review.json"
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.nativeSuccessorProofReadCi20261028BeforeTechnicalStoriesR0320261028"
     },
     "technicalStoriesFinanceAuthority20261028": {
       "attachmentSha256": "94d629586b4aa45975f289e7138cc0eabd7bff63e27dd4c3ae10635b8e4256df",
@@ -1143,6 +1131,15 @@
       "sourceBaseCommit": "6b82b4b8ebe8bd7f08a3fc0101ce96079c010652",
       "status": "FOCUSED_PASS_EXACT_CI_PENDING",
       "testValue": "Actual original source RED11/11controlPASS; identical tests correctedGREEN22/0FAIL/0skip. Supported revoker increments epoch under shared firm fence; no denied business writes; unchanged-authority exact outcomes and retries preserved."
+    },
+    "technicalStoriesMonetaryUnit20261028": {
+      "status": "FOCUSED_PASS_EXACT_CI_PENDING",
+      "sourceBaseCommit": "aef4a075d211b3335b73276605252c9669ed9bd4",
+      "scope": "R03 bounded interval advancement per population row; preserves row order/absolute exposure/one selection per row/first-crossing explanations/engine version. No methodology interval cap.",
+      "testValue": "Safe actual original RED2/control1PASS for final-point/total overflow; corrected sampling engineGREEN17/0FAIL/0skip. Trillion-crossing and unsupported-next-point precision cases run only on bounded code.",
+      "integration": "Existing reviewed preview/run/retained-readback fixtureGREEN1/0FAIL/0skip. Owned PG18.6 cleaned; exact datadir/DB/connections/root/listener/postmaster absence independently verified. Original5433 untouched.",
+      "remaining": "Other attached stories remain proposals requiring current assessment. No new built-in/live/professional acceptance or exact final-source CI/release PASS.",
+      "evidence": ".local/autonomous/evidence/technical-stories-20261028/R03-review.json"
     }
   },
   "externalGates": [
@@ -1627,12 +1624,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "1c02ae74634535122d8dbf8e70a2367aad754e82",
-    "sourceRole": "NATIVE_SUCCESSOR_REVIEWER_PROOF_READ_TEST_SYNCHRONIZATION",
-    "releaseVerification": "1c02 full40646526244 E2E335partialPASS/1assertFAIL then15minute inactivityabort; actualcheckout/TRX/logdigests retained. APIpending. No fullPASS.",
-    "imagePublication": "1c02 fast/images all6actualcheckouts/pins/cache/rehearsal293/cleanup/defaultguardsPASS; predecessoronly for new source.",
-    "cutoverStatus": "NOT_PERFORMED; exact new gates and realD-OV04 plus freshbaseline/QUIESCEDbackup/publicacceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeNativeProofRead20261028"
+    "sourceBaseCommit": "aef4a075d211b3335b73276605252c9669ed9bd4",
+    "sourceRole": "R01_FINANCE_CURRENT_AUTHORITY_AND_R03_BOUNDED_MONETARY_UNIT_SAMPLING",
+    "status": "PENDING_CURRENT_PUBLICATION_EXACT_CI",
+    "releaseVerification": "6b82 full40667149009 attempt2 remains predecessor-only; no current fullPASS. Exact final candidate dispatch and actual checkout/artifact proof required.",
+    "imagePublication": "New final-source images/cache/rehearsal required; predecessor6b82 evidence is retained, never relabelled.",
+    "cutoverStatus": "NOT_PERFORMED; exact new gates, realD-OV04, freshbaseline/QUIESCEDbackup and genuine public/authenticated acceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeTechnicalStoriesR0320261028"
   },
-  "updatedAtUtc": "2026-10-28T13:14:11.884657+00:00"
+  "updatedAtUtc": "2026-10-28T13:25:23.914327+00:00"
 }

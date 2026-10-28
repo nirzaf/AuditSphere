@@ -429,3 +429,21 @@ Focused PostgreSQL, Angular and API checks, fresh contract emission and producti
 The completed roles-guide milestone is retained in the [handoff archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#user-roles-and-privileges-guide-2026-10-26).
 
 Archive transfer preserves the preceding source sections verbatim.
+
+## Technical-story handoff transfer
+
+The following sections are copied verbatim from the active handoff before the selected technical-story continuation. They describe earlier source and evidence boundaries.
+
+## Native successor reviewer proof read
+
+The native successor reviewer journey now distinguishes catalogue availability from the dependent retained proof read. Its approval assertions wait for the exact successful proof response; unchecked assent, independent approval, retained source hashes and persistence assertions remain intact. A controlled first-response delay reproduces the original missing-control observation. This is test synchronization only; application permissions, deadlines and professional decisions are unchanged. Exact paired results and incomplete CI boundaries are recorded in [status.json](status.json); the separate sibling-client inactivity abort remains unconfirmed.
+
+## Markdown codebase reconciliation
+
+Current Markdown guidance now describes conditional-task and oversight evidence, exact recovery visibility, the retired Web host and canonical-shell startup behavior. Operator guidance separates configured storage from verified live mounts and keeps retention/reviewer policy and exact-source release gates explicit. Preserved sources and historical acceptance records are unchanged; superseded handoff sections are archived verbatim. The [reconciliation report](auditsphere-execution-report-documentation-reconciliation-current.md) identifies the survey and code owners; [status.json](status.json) records validation and source boundaries.
+
+## Verified review-point receipt during refresh
+
+The review-point command panel now retains its exact verified receipt while the independent detail read reloads. A focused regression reproduced the hidden confirmation; direct success and recovered outcomes now retain the same panel, while confirmed scope denial still removes it. Existing command checks and browser cases are unchanged. Focused checks and an owned canonical built-in workflow passed; exact-source CI, retention/reviewer acceptance and release gates remain open. See [status.json](status.json).
+
+Current continuation: [active handoff](auditsphere-execution-current-slice.md).

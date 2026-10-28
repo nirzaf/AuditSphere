@@ -91,15 +91,23 @@ public static class AuditSamplingEngine
     var ordered = normalizedPopulation
       .Where(x => plan.Method == AuditSamplingMethods.Systematic || plan.Method == AuditSamplingMethods.AttributeStrata || Abs(x.SignedAmount) > 0m)
       .ToList();
-    var signedTotal = normalizedPopulation.Sum(x => x.SignedAmount);
-    var absoluteTotal = ordered.Sum(x => Abs(x.SignedAmount));
+    decimal signedTotal, absoluteTotal;
+    try
+    {
+      signedTotal = normalizedPopulation.Sum(x => x.SignedAmount);
+      absoluteTotal = ordered.Sum(x => Abs(x.SignedAmount));
+    }
+    catch (OverflowException ex) when (plan.Method == AuditSamplingMethods.MonetaryUnit)
+    {
+      throw new ArgumentException("Sampling population exceeds the supported decimal monetary range.", nameof(population), ex);
+    }
 
     List<SampledItem> selected;
     IReadOnlyList<AttributeStratumSummary>? strata = null;
     switch (plan.Method)
     {
       case AuditSamplingMethods.MonetaryUnit:
-        selected = SelectMonetaryUnit(ordered, Require(plan.Interval, "interval", plan.Method));
+        selected = SelectMonetaryUnit(ordered, Require(plan.Interval, "interval", plan.Method), absoluteTotal);
         break;
       case AuditSamplingMethods.KeyItem:
         selected = SelectKeyItems(ordered, Require(plan.KeyItemThreshold, "key-item threshold", plan.Method));
@@ -213,11 +221,12 @@ public static class AuditSamplingEngine
       : "NOT_STATED",
   };
 
-  private static List<SampledItem> SelectMonetaryUnit(List<SamplingPopulationItem> ordered, decimal interval)
+  private static List<SampledItem> SelectMonetaryUnit(List<SamplingPopulationItem> ordered, decimal interval, decimal absoluteTotal)
   {
     var selected = new List<SampledItem>();
     var cumulative = 0m;
     var nextSelectionPoint = interval;
+    var intervalScale = (decimal.GetBits(interval)[3] >> 16) & 0xff;
     foreach (var item in ordered)
     {
       var exposure = Abs(item.SignedAmount);
@@ -227,9 +236,15 @@ public static class AuditSamplingEngine
         selected.Add(new SampledItem(item.StableRowId, item.SignedAmount, exposure,
           $"Monetary unit: cumulative exposure {Money(cumulative)} crossed the interval at {Money(nextSelectionPoint)}.",
           Money(cumulative)));
-        // Advance beyond the crossed point; a single large item can cover several
-        // intervals, and each crossing selects that row only once.
-        while (cumulative >= nextSelectionPoint) nextSelectionPoint += interval;
+        // Skip all crossed intervals in bounded arithmetic, still selecting a row once.
+        // Do not construct an out-of-range next point after the final possible hit.
+        var distance = interval - cumulative % interval;
+        if (distance > absoluteTotal - cumulative) break;
+        var next = decimal.Round(cumulative + distance, intervalScale, MidpointRounding.ToEven);
+        if (next <= cumulative || next - cumulative != distance || next % interval != 0m)
+          throw new ArgumentException("Sampling interval exceeds the supported decimal precision for this population.", nameof(interval));
+        // Retain the interval's decimal scale for the existing inclusion-reason contract.
+        nextSelectionPoint = next;
       }
     }
     return selected;
