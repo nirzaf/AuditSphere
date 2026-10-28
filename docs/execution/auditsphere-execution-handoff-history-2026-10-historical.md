@@ -373,3 +373,15 @@ The API regression expected a current firm-wide Administrator metadata read to b
 Prior replay and timestamp-fixture evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#release-candidate-replay).
 
 > The preceding section was moved verbatim during conditional-task applicability publication.
+
+## Pre-navigation verification handoff transfer
+
+The following previous handoff sections are retained verbatim.
+
+## Client-portal unknown upload-start recovery
+
+The existing upload-recovery Playwright journey now drops the response after the API commits one upload intent, verifies the visible `STARTED` receipt and unknown-outcome message, reselects the exact file, then resumes that same intent. It also drops a committed chunk acknowledgement and proves the next resume completes the original file without another intent. The focused method passed 1/1 on `48cd3e68`; TRX and source details are under `portalUploadStartRecovery20261025` in [status.json](status.json). At the latest observation, fast CI `40161352561` had passed Docs Health and Angular while its .NET Release build was still running; full release verification `40161404727` had resolved the exact source and passed its Angular/full-spec job, with build/contracts/publication and .NET Domain/API/E2E jobs still running. No worker/provider acceptance or independent staff acceptance is claimed; WU-034 remains partial.
+
+## WU-004 scoped foreign-key classifier
+
+The earlier scoped classifier evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#wu-004-scoped-foreign-key-classifier); WU-004 remains partial.

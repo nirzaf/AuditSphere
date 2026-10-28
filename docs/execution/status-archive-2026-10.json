@@ -25958,6 +25958,15 @@
       "imagePublication": "Exact5108 images40597005023/checkouts/digests/readback/rehearsal PASS; predecessor only after next publication.",
       "cutoverStatus": "NOT_PERFORMED; whole Task03 runtime/UI/browsing and retention/professional/current release requirements remain separate.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeOwnershipOversight20261028"
+    },
+    "currentSourceCiBeforeNavigationCi20261028": {
+      "sourceBaseCommit": "662aee2f8b1122856f2c185867a40501b7b1b512",
+      "sourceRole": "TASK03_SOURCE_BOUND_CONDITIONAL_APPLICABILITY",
+      "fastCi": "Preceding662a fast40610442216 PASS all3actualcheckouts; following feature commit requires new exact proof.",
+      "releaseVerification": "Preceding662a full40610531872 MATCH still running at last observation, no full PASS. Unpublished Task03 verification is focused and synthetic built-in only.",
+      "imagePublication": "Preceding662a images40610551772 PASS all3actualcheckouts/immutable digests; following feature source requires current images and rehearsal.",
+      "cutoverStatus": "NOT_PERFORMED; exact-source gates, fresh baseline-bound receipt/backup and retention/professional acceptance remain separate.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeTask03Publication20261028"
     }
   },
   "archivedTargetedVerification": {
@@ -27168,6 +27177,17 @@
       "scope": "Staff/client identities; standard assignment roles; backend-only accepted codes; explicit staffing ranks; per-role capabilities/scopes and independence boundaries. Linked from README and docs index.",
       "boundary": "Describes current source; no runtime or role/grant changes, full tests not applicable.",
       "verification": "Source catalogue/guard/staffing review, complete standard-role row coverage, Markdown health/filenames/narrative/task-board and diff checks PASS. No runtime tests required or run for this documentation slice."
+    },
+    "axelorInvoiceDescription20261026BeforeNavigationCi20261028": {
+      "status": "FOCUSED_FAST_IMAGES_REHEARSAL_PASS_FULL_PENDING",
+      "precedingRun": 40224215180,
+      "precedingResult": "E2E336PASS3FAIL; exact invoice descriptions obscured by sibling expandable source text",
+      "local": "Original three named tests RED3 then GREEN3; Angular30, scoped lint and fresh production build PASS; no full local suite",
+      "change": "Standalone span around invoice description; no test or command changes",
+      "evidence": ".local/autonomous/evidence/axelor-final-20261025/c15-new-e2e-failure",
+      "remaining": "Exact full40234333952 MATCH: AngularPASS; Domain/API/E2E/Verify active. Final requirement acceptance and authorized Acceptance cutover pending.",
+      "browser": "Owned built-in invoice read and source expansion observed; exact description, Sent status and unchanged QAR amount; owned tab closed and fixture released. Named repeat1PASS.",
+      "sourceCommit": "a48db01526015e4b5e767620160eff3a699e4a77"
     }
   },
   "lastUpdatedOn": "2026-10-28"

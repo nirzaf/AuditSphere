@@ -322,15 +322,20 @@ public sealed class AngularRouteAndShellMigrationSweepTests
   {
     var expected = route switch
     {
-      "/" or "/app" => "Practice",
-      _ when route.StartsWith("/app/administration", StringComparison.Ordinal) || route == "/app/operations" => "Administration",
-      _ when route.StartsWith("/app/accounting", StringComparison.Ordinal) => "Accounting",
-      _ when route.StartsWith("/app/consolidation", StringComparison.Ordinal) => "Consolidation",
-      _ when route.StartsWith("/app/audit", StringComparison.Ordinal) || route == "/app/library" ||
-        Regex.IsMatch(route, @"^/app/engagements/[^/]+/(audit-plan|audit-fieldwork|completion)(?:/|$)") => "Audit",
-      _ when route.StartsWith("/app/practice", StringComparison.Ordinal) || route.StartsWith("/app/clients/", StringComparison.Ordinal) ||
-        route.StartsWith("/app/finance", StringComparison.Ordinal) || route == "/app/work" ||
-        Regex.IsMatch(route, @"^/app/engagements/[^/]+(?:/pbc)?$") => "Practice",
+      "/" or "/app" or "/app/work" => "My Work & Portfolio",
+      _ when route.StartsWith("/app/administration", StringComparison.Ordinal) || route == "/app/operations" ||
+        route is "/app/audit/library" or "/app/library" => "Reference & Administration",
+      _ when Regex.IsMatch(route, @"^/app/accounting/(reviews|rollforward|restatements|packages|periods)(?:/|$)") ||
+        Regex.IsMatch(route, @"^/app/engagements/[^/]+/(completion|financial-package|statements)(?:/|$)") => "Review, Reporting & Close",
+      _ when route.StartsWith("/app/accounting", StringComparison.Ordinal) || route.StartsWith("/app/consolidation", StringComparison.Ordinal) ||
+        Regex.IsMatch(route, @"^/app/engagements/[^/]+/(audit-fieldwork|confirmations|pbc)(?:/|$)") => "Work Execution",
+      _ when route == "/app/practice/resources" ||
+        Regex.IsMatch(route, @"^/app/engagements/[^/]+(?:/audit-plan)?$") ||
+        Regex.IsMatch(route, @"^/app/clients/[^/]+/engagements(?:/|$)") => "Engagements & Planning",
+      _ when route.StartsWith("/app/finance", StringComparison.Ordinal) ||
+        route is "/app/practice/time" or "/app/practice/analytics" => "Firm Finance & Time",
+      _ when route.StartsWith("/app/practice", StringComparison.Ordinal) ||
+        route.StartsWith("/app/clients/", StringComparison.Ordinal) => "Clients & Commercial",
       _ => null
     };
 

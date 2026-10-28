@@ -30,7 +30,7 @@ public sealed class AngularShellNavigationJourneyTests
     var close = dialog.GetByRole(AriaRole.Button,new(){Name="Close navigation",Exact=true});
     await Assertions.Expect(close).ToBeFocusedAsync();
     await close.PressAsync("Shift+Tab");
-    await Assertions.Expect(dialog.GetByRole(AriaRole.Link,new(){Name="Technical library",Exact=true})).ToBeFocusedAsync();
+    await Assertions.Expect(dialog.GetByRole(AriaRole.Link,new(){Name="Operations",Exact=true})).ToBeFocusedAsync();
     await page.Keyboard.PressAsync("Tab"); await Assertions.Expect(close).ToBeFocusedAsync();
     await page.Keyboard.PressAsync("Escape"); await Assertions.Expect(dialog).ToHaveCountAsync(0); await Assertions.Expect(menu).ToBeFocusedAsync();
     await menu.PressAsync("Enter"); await dialog.GetByRole(AriaRole.Link,new(){Name="Accounting",Exact=true}).ClickAsync();

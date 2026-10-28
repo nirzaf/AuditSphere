@@ -936,15 +936,8 @@
       "remaining": "The responsive successor requires its own exact-source gates; preceding passes never establish current release acceptance."
     },
     "axelorInvoiceDescription20261026": {
-      "status": "FOCUSED_FAST_IMAGES_REHEARSAL_PASS_FULL_PENDING",
-      "precedingRun": 40224215180,
-      "precedingResult": "E2E336PASS3FAIL; exact invoice descriptions obscured by sibling expandable source text",
-      "local": "Original three named tests RED3 then GREEN3; Angular30, scoped lint and fresh production build PASS; no full local suite",
-      "change": "Standalone span around invoice description; no test or command changes",
-      "evidence": ".local/autonomous/evidence/axelor-final-20261025/c15-new-e2e-failure",
-      "remaining": "Exact full40234333952 MATCH: AngularPASS; Domain/API/E2E/Verify active. Final requirement acceptance and authorized Acceptance cutover pending.",
-      "browser": "Owned built-in invoice read and source expansion observed; exact description, Sent status and unchanged QAR amount; owned tab closed and fixture released. Named repeat1PASS.",
-      "sourceCommit": "a48db01526015e4b5e767620160eff3a699e4a77"
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.axelorInvoiceDescription20261026BeforeNavigationCi20261028",
+      "scope": "Historical invoice-description slice; current exact-source regression and requirement acceptance remain separate."
     },
     "axelorFinalAcceptanceGap20261026": {
       "status": "FOCUSED_FAST_IMAGES_REHEARSAL_PASS_FULL_PENDING",
@@ -1129,6 +1122,16 @@
       "scope": "Immutable scoped conditional-task proposal/APPROVE/RETURN/REVOKE with exact accepted PBC/task/template/profile/period basis, current authority and owner recovery; no task-state or professional waiver. Additive migration293.",
       "verification": "Focused source/commands/race/reads/history/progress/professional-conjunction proofs retained. Batch1PASS:100 mixed-scope source reads,101-task projection, own-client staleness/foreign receipt refusal. API boundary1/schema2PASS; Angular6/workqueue37/build/lintPASS. Model unchanged from verified EF drift. Built-in canonical maker/checker/stale-source progress/withdrawal, fresh final canonical receipt persistence, history and390px rendering verified; console empty. Owned clusters/hosts/staging cleaned, launcher restored exactly.",
       "boundary": "UNKNOWN/mismatched-receipt branches are component evidence; history25+1 and separate professional applicability are backend evidence. No whole-assignment, live-provider or professional acceptance; current-candidate full CI/images/rehearsal/deployment remain required."
+    },
+    "shellNavigationCi20261028": {
+      "status": "TEST_ONLY_NAMED_RED3_GREEN4_FULL_CI_REQUIRED",
+      "sourceBaseCommit": "d8b8e564c461e8270c7f528dee47ed0ef64ef873",
+      "failure": "Preceding5108 full40596945111 E2Ejob122515917737:334PASS/5FAIL/0skips; actualcheckout5108 MATCH; TRXartifact12782999615 digest verified. Navigation labels and final focus target were obsolete.",
+      "local": "Unchanged affected cohort RED3 plus native-opening variants GREEN2. Navigation correction GREEN4 includes exact section/current-link/role-denial checks, six viewport matrix and both canonical/preview focus/revocation journeys. No assertion removed; runtime unchanged.",
+      "timeout": "Prior native-opening preview timeout not reproduced; both variants passed unchanged. No speculative fix, longer timeout or retry; current full result remains required.",
+      "evidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/e2e-5108-terminal-review.json",
+      "cleanup": "OwnedPG18.6port56219 exactstop/root/listener absence verified; original5433 untouched.",
+      "limits": "Existing headless Playwright cohort only; no new built-in browser or whole-assignment/release acceptance."
     }
   },
   "externalGates": [
@@ -1613,13 +1616,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "662aee2f8b1122856f2c185867a40501b7b1b512",
-    "sourceRole": "TASK03_SOURCE_BOUND_CONDITIONAL_APPLICABILITY",
-    "fastCi": "Preceding662a fast40610442216 PASS all3actualcheckouts; following feature commit requires new exact proof.",
-    "releaseVerification": "Preceding662a full40610531872 MATCH still running at last observation, no full PASS. Unpublished Task03 verification is focused and synthetic built-in only.",
-    "imagePublication": "Preceding662a images40610551772 PASS all3actualcheckouts/immutable digests; following feature source requires current images and rehearsal.",
-    "cutoverStatus": "NOT_PERFORMED; exact-source gates, fresh baseline-bound receipt/backup and retention/professional acceptance remain separate.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeTask03Publication20261028"
+    "sourceBaseCommit": "d8b8e564c461e8270c7f528dee47ed0ef64ef873",
+    "sourceRole": "TEST_ONLY_CURRENT_NAVIGATION_CONTRACT_CORRECTION",
+    "fastCi": "Preceding d8b8 fast40613988509/images40613988520 PASS all6actualcheckouts and immutable manifests; following test/docs commit needs new exact gates.",
+    "releaseVerification": "Preceding d8b8 full40614045400 sourceMATCH remains running; Angular/VerifyPASS, Domain/API/E2E active at last observation. Not full acceptance.",
+    "imagePublication": "d8b8 pinned cache readback and owned rehearsal schema288to293/five migrations/380originalprojections unchanged with independent cleanup PASS; predecessor only for following source.",
+    "cutoverStatus": "NOT_PERFORMED. Fresh exact-source gates, current rehearsal/plan/receipt, QUIESCED backup, retention acceptance and actual origin/public browser acceptance remain required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeNavigationCi20261028"
   },
-  "updatedAtUtc": "2026-10-28T01:14:55.756825+00:00"
+  "updatedAtUtc": "2026-10-28T01:58:58.356395+00:00"
 }
