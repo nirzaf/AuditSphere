@@ -769,6 +769,16 @@ public sealed partial class ClientAccountingTests
 
       var approveTranslation = await CurrencyTranslationService.ApproveTranslationAsync(db, reviewer, first.Value);
       Assert.True(approveTranslation.Succeeded, approveTranslation.Message);
+      // A different date on the same approved component cannot manufacture opening CTA:
+      // the immutable scope pin is checked before any earlier-result lookup.
+      foreach (var otherDate in new[] { rateDate.AddDays(-1), rateDate.AddDays(1) })
+      {
+        var wrongPin = await CurrencyTranslationService.TranslateComponentAsync(db, preparer, fixture.ComponentId,
+          fixture.RateSetId, fixture.PolicyId, otherDate, "CLOSING");
+        Assert.False(wrongPin.Succeeded);
+        Assert.Equal(ErrorCodes.GateBlocked, wrongPin.ErrorCode);
+        Assert.Equal(1, await db.TranslationResults.CountAsync(x => x.ComponentId == fixture.ComponentId));
+      }
       await ApproveForeignScopeAsync(db, scope, fixture);
 
       var run = await ConsolidationService.RunAsync(db, preparer, fixture.ScopeId);

@@ -457,6 +457,24 @@
       ],
       "observedAtSource": "57e6e0accad72aa5677a0bb6743a9739dd3080e5",
       "consequence": "ADR0018 DEC08 explicitly leaves countdown semantics open. Current SignReportAsync schedules from signed deliverable CreatedAt, then records SignatureApplication.SignedAt separately. Existing freeze test uses deliverable CreatedAt; this is not proof for a different approved anchor. Resolve the authoritative event/date/time and any transition rule without rewriting historical signatures/schedules or silently selecting a clock; preserve existing protection until approved semantics and focused evidence are available."
+    },
+    {
+      "decisionId": "POLICY-FIRM-INVOICE-RECOGNITION",
+      "title": "Selected firm invoice recognition trigger, accounts and correction treatment",
+      "ownerRole": "Qualified firm accounting/finance owner and independent reviewer",
+      "scope": "Technical Stories C02 billing-to-firm-ledger integration; existing invoice approval/post/send and separate journal workflows retained",
+      "effectiveFrom": null,
+      "evidenceReference": "docs/execution/auditsphere-execution-technical-stories-current.md",
+      "status": "PENDING",
+      "dependentWorkUnits": [],
+      "observedAtSource": "a53ff729ed91e14753a78a60eff037f309b526a6",
+      "requiredDecision": [
+        "Selected firm profile and exact recognition event or events",
+        "Approved receivable/revenue/deferred-fee account identities and currency/rounding treatment",
+        "Credit/reversal/cancellation and closed-period correction rules",
+        "Independent approval, source identity, retry and unknown-outcome acceptance fixtures"
+      ],
+      "consequence": "Existing posting freezes the billing invoice only. No automatic revenue recognition, new journal or invented accounting entries are enabled."
     }
   ],
   "serviceProfiles": [

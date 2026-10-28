@@ -14,6 +14,14 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Technical Stories adoption and integration
+
+All supplied stories now have explicit suitability, implementation and dependency records in the [Technical Stories register](auditsphere-execution-technical-stories-current.md). The repair stories have focused implementations; broader feature/professional/provider acceptance remains separate. Current dimension-publication and confirmation batch/critical-case checks passed without adding duplicate workflows. Their source cards now distinguish existing backend behavior from missing handoffs and required evidence bindings.
+
+The opening-CTA investigation found that current same-component rate-date pins refuse the earlier/later lookup path; zero-opening behavior remains balanced. No financial formula or historical result was changed. Qualified carry-forward semantics and fixtures remain open. Mail guidance now reflects the implemented distinct legacy-AAP and roleless Exchange-RBAC gates, with actual signed deployment/sender acceptance still required.
+
+The preceding full run is failed, with interruption and aborted-test evidence retained. Its unchanged navigation failure passed narrowly on the current source; the original cause and inactivity/interruption causes remain unconfirmed. Final exact-source CI, image rehearsal, genuine retention/reviewer acceptance and authorized public deployment acceptance are still required. Original assignment scopes remain independent and active; see [status.json](status.json).
+
 ## Accurate invoice posting action
 
 Invoice posting now describes freezing the billing record. The command and its role, replay and unknown-outcome controls are unchanged; no ledger-recognition rule is introduced. Targeted Angular, build/lint and existing browser journeys passed. The owned built-in browser verified the approved-state label, workflow jump and keyboard focus before its fixture deadline; a later expired-fixture DOM observation is excluded. The automated continuation confirmed successful posting/replay/send with no firm journal or posting. Exact results and cleanup are in [status.json](status.json).

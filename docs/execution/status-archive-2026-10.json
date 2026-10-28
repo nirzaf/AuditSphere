@@ -26091,6 +26091,15 @@
       "imagePublication": "1c02 fast/images all6actualcheckouts/pins/cache/rehearsal293/cleanup/defaultguardsPASS; predecessoronly for new source.",
       "cutoverStatus": "NOT_PERFORMED; exact new gates and realD-OV04 plus freshbaseline/QUIESCEDbackup/publicacceptance required.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeNativeProofRead20261028"
+    },
+    "currentSourceCiBeforeTechnicalStoriesAll20261028": {
+      "sourceBaseCommit": "aef4a075d211b3335b73276605252c9669ed9bd4",
+      "sourceRole": "R01_FINANCE_CURRENT_AUTHORITY_AND_R03_BOUNDED_MONETARY_UNIT_SAMPLING",
+      "status": "PENDING_CURRENT_PUBLICATION_EXACT_CI",
+      "releaseVerification": "6b82 full40667149009 attempt2 remains predecessor-only; no current fullPASS. Exact final candidate dispatch and actual checkout/artifact proof required.",
+      "imagePublication": "New final-source images/cache/rehearsal required; predecessor6b82 evidence is retained, never relabelled.",
+      "cutoverStatus": "NOT_PERFORMED; exact new gates, realD-OV04, freshbaseline/QUIESCEDbackup and genuine public/authenticated acceptance required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeTechnicalStoriesR0320261028"
     }
   },
   "archivedTargetedVerification": {
@@ -27420,6 +27429,36 @@
       "results": "Original retirement/disableRED2 and actor-revocationcontrolPASS1. Stable correctedgroup4PASS; extended existinggroup1PASS proves lost-committed response, retirement, one-mutation reconciliation and unchanged RoleGrants. Intermediate SQL relation typo excluded/corrected.",
       "cleanup": "Independent owned PG exact root/listener/postmaster absence; no DB/connections, original5433 untouched.",
       "remaining": "Exact final-source CI and actual tenant acceptance."
+    },
+    "technicalStoriesDiscovery20261028BeforeAllStoriesIntegration20261028": {
+      "status": "FOCUSED_PASS_EXACT_CI_REQUIRED",
+      "evidence": ".local/autonomous/evidence/technical-stories-all-20261028/R06-review.json",
+      "scope": "R06 finite25-row timestamp/ID keyset cycles with high-watermark, wrap/revisit and restart-safe durable dedup; configured policy/actor epochs and draft-only handler unchanged. No automation enabled.",
+      "results": "Original real eligible advance behind25older tied ineligible balancesRED1; corrected existingOneClick2PASS. Existing real50/50 cycle3PASS proves a skipped balance becomes oneDRAFT after actual synthetic financial-package release, preserves earlier negative eligibility and exact replay. V01 separate gold/pin2PASS in same artifact are not fee-case counts.",
+      "cleanup": "Independent owned PG root/listener/postmaster absence; no test DB/connections; original5433 untouched.",
+      "remaining": "Final-source CI and qualified/provider acceptance."
+    },
+    "technicalStoriesInvoiceLabel20261028BeforeAllStoriesIntegration20261028": {
+      "status": "FOCUSED_AND_BUILTIN_PASS_EXACT_CI_REQUIRED",
+      "evidence": ".local/autonomous/evidence/technical-stories-all-20261028/R10-review.json",
+      "scope": "R10 truthful invoice freeze label, existing command/recovery/authority unchanged. No billing-ledger recognition policy.",
+      "results": "PinnedAngular31/build/lintPASS; existing focusedE2E4PASS incl actual new5a9 navigation failure (cause unconfirmed),294scope detail, invoice role/workflow and lost-response recovery. Owned handoff1PASS includes no journal/posting after billing action. Built-in approved state/correct label/workflow jump/keyboardfocus before fixture expiry; screenshot retained; late DOM excluded.",
+      "cleanup": "Owned PG/DB/API/browser/process/root/listener absent independently; original5433/Entra1 untouched.",
+      "remaining": "Full final-source CI, human AT/native zoom and qualified/live acceptance."
+    },
+    "axelorFinalAcceptanceGap20261026BeforeAllStoriesIntegration20261028": {
+      "status": "FOCUSED_FAST_IMAGES_REHEARSAL_PASS_FULL_PENDING",
+      "runtimeSourceUnchanged": "a48db01526015e4b5e767620160eff3a699e4a77",
+      "requirements": [
+        "UX-AC-24",
+        "UX-AC-25"
+      ],
+      "local": "Existing reminderE2E1PASS; calculator namedDomain1PASS; existing Angularresources16PASS; no full local suites",
+      "behavior": "Reminder-selected task beyond500-row workspace remains exact, then HTTP401/noID/title and rendered protected-content removal after sessionrevocation. Calculator6000capacity/6600planned/6000all-approved/4800billable yields110%planned/80%billable. Existing displaymock480/1200 corrected50% to40%; no production calculation change.",
+      "browser": "Owned builtin same exact task ID/title/read-onlycontext observed; tab12 closed before fixture release; automatic same-session revocation scenario passed afterward.",
+      "evidence": ".local/autonomous/evidence/axelor-final-20261025/acceptance-gap-review.json",
+      "remaining": "Exact full40236162417MATCH: Angular/VerifyPASS; Domain/API/E2Eactive. Final requirement acceptance and authorized Acceptance cutover pending.",
+      "finalSource": "b94e3ddc472827f1604b20f477a1e376597e83dc"
     }
   },
   "lastUpdatedOn": "2026-10-28"

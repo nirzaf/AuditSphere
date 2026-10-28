@@ -38,11 +38,11 @@ The whole card remains **BLOCKED/PARTIAL** on T058 and its remaining criteria; t
 
 ### Remaining full-task blockers
 
-- Reconcile confirmations to the authoritative client ledger balance and preserve reconciling items and explanations.
-- Refuse an `AGREED` decision when the confirmed amount differs from the booked amount without an approved explanation.
-- Link exceptions to SAD and ReviewPoints; structure direct versus client-forwarded response origin and retain the contact-validation reviewer.
-- Persist response-document SHA-256 lineage, expose response aging, and link alternative procedures to the tests performed.
-- Complete hard dependency T058 before promoting this card to active implementation or review.
+- The approved typed Bank binding exists. Establish the adopted authoritative balance contracts for other required areas and preserve their scoped reconciling items and explanations.
+- The application already refuses an `AGREED` amount that differs from its booked amount. A separately approved reconciling-explanation workflow and SAD/ReviewPoint relationships remain open; do not reintroduce permissive agreement.
+- Origin and channel are retained separately from the response reference and authenticity assessment. Complete any adopted controlled provenance/contact-validation reviewer and exact response-document byte/hash bindings through existing documents/PBC custody; a reference string alone does not prove those bindings or whole-system absence of custody.
+- Link applicable alternative work to the exact tests/procedures and approved exception dispositions. Critical unreturned cases retain their independent completion block after alternative closure and criticality reassessment.
+- Complete hard dependency T058 and its qualified handoff before promoting this card to completed implementation or review. Current focused batch/current-criticality checks and their limits are in the Technical Stories register and execution ledger; genuine dispatch/response acceptance remains separate.
 
 ## Outcome
 

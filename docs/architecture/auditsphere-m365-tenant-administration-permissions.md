@@ -23,12 +23,13 @@ document grants consent, turns on external effects or records live acceptance.
 - Microsoft group membership is never an AuditSphere authorization source.
 - Web sign-in, the directory reader/consent app, the selected-site document worker,
   the outbound-mail app, and **each tenant-administration capability** are separate
-  app identities. Every capability identity may hold **exactly one** Graph
-  application role: `User.Read.All`, `Sites.Selected`, `Mail.Send`, `User.Create`,
-  `User.Invite.All`, or `GroupMember.ReadWrite.All`, respectively. A token is
-  accepted only for the exact tenant and only when it holds its single required role
-  (`GraphCapabilityTokenSource`); any additional role, such as `Sites.Selected` or
-  `Directory.ReadWrite.All`, is refused. No runtime identity combines SharePoint,
+  app identities. Non-mail capability identities hold **exactly one** required Graph
+  application role (`User.Read.All`, `Sites.Selected`, `User.Create`, `User.Invite.All`
+  or `GroupMember.ReadWrite.All`). `GraphCapabilityTokenSource` enforces the exact
+  tenant and role; additional roles are refused. Mail has its own model-bound token
+  validator: legacy Application Access Policy uses exactly `Mail.Send`; Exchange
+  Application RBAC uses a roleless application token and its independently verified
+  sender scope. Delegated tokens and combined role models are refused. No runtime identity combines SharePoint,
   mail, directory-reading, provisioning, invitation, or group-membership permissions.
   Startup refuses an enabled capability without a complete certificate or when two
   enabled capabilities reuse an app ID.
@@ -49,7 +50,7 @@ consented in a production tenant by this change.
 | Directory consent sign-in | Microsoft admin-consent screen and identity leg | `User.Read` (plus `openid`) | Delegated; Microsoft includes `User.Read` on the initial consent screen | Sign in the tenant administrator for the nonce-bound identity leg; AuditSphere never uses a delegated Graph token for directory access | Shown on the Microsoft consent screen | None beyond the consenting administrator | With `DirectoryReader` |
 | `DIRECTORY_READ` | `GET /users`, `GET /users/{id}` | `User.Read.All` | Application, directory-reader/consent app | Bounded search of existing users; exact `accountEnabled`/`userType` checks; UPN/guest reconciliation reads | Required | Privileged Role Administrator or Global Administrator | Off (`DirectoryReader:Enabled`) |
 | `SELECTED_SITE` | Exact `/sites/{id}`, `/drives/{id}` | `Sites.Selected` + per-site `write` grant | Application, document-worker app | Read/write only the approved working site | Required, plus a separate exact-site grant | Privileged Role Administrator; SharePoint Administrator for the site grant | Existing (`SelectedSite:*`) |
-| `OUTBOUND_MAIL` | `POST /users/{sender}/sendMail` | `Mail.Send` | Application, mail app restricted by an Exchange application access policy | Send AuditSphere notifications from one sender only; no mailbox reading | Required | Privileged Role Administrator; Exchange Administrator for the access policy | Off (`TenantAdministration:OutboundMail`) |
+| `OUTBOUND_MAIL` | `POST /users/{sender}/sendMail` | Model-bound: legacy Entra `Mail.Send` with AAP, or Exchange Application RBAC sender scope with no Entra Graph role | Application; dedicated mail identity and signed scope evidence | Send AuditSphere notifications from one approved sender; no mailbox reading | Model-specific consent/assignment and signed verification required | Authorized Entra/Exchange administrator for the selected model | Off (`TenantAdministration:OutboundMail`) |
 | `TENANT_USER_PROVISIONING` | `POST /users`; reconciliation via reader `GET /users?$filter=userPrincipalName eq` | `User.Create` | Application, dedicated provisioning app identity | Create a workforce user only when explicitly enabled | Required | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:Provisioning`) |
 | `GUEST_INVITATION` | `POST /invitations`; reconciliation via reader | `User.Invite.All` | Application, dedicated guest-invitation app identity | Invite an explicitly approved external client identity; never automatic | Required; tenant B2B policy must allow app-only invitations | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:GuestInvitation`) |
 | `GROUP_MEMBERSHIP` | `GET /groups/{id}`, `GET /groups/{id}/members`, `POST /groups/{id}/members/$ref`, `DELETE /groups/{id}/members/{id}/$ref` | `GroupMember.ReadWrite.All` | Application, dedicated group-membership app identity | Add/remove users only in allowlisted AuditSphere-managed groups | Required | Privileged Role Administrator or Global Administrator | Off (`TenantAdministration:GroupMembership`) |
@@ -143,7 +144,7 @@ current live configuration or acceptance state.
 
 ## Remaining external gates
 
-**New Exchange deployments:** Microsoft now recommends [Application RBAC](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac); [Application Access Policies](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-access-policies) are legacy. The current AuditSphere Outbound Mail capability verifier requires an Entra `Mail.Send` application role, while a correctly scoped RBAC-only configuration should not retain a separate unrestricted Entra grant. Exchange grants are additive. The current verifier therefore needs a reviewed compatibility change before claiming an integrated RBAC-only deployment is supported. Preserve/reverify existing approved AAP restrictions; do not infer that an RBAC scope constrains a separate Entra grant or silently create new legacy policies as the new-customer default. This note changes no approved permissions, runtime code or live policy.
+**New Exchange deployments:** Microsoft now recommends [Application RBAC](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac); [Application Access Policies](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-access-policies) are legacy. AuditSphere implements separate legacy-AAP and Exchange-RBAC authorization models. `GraphMailAccessTokenValidator` accepts exactly the legacy `Mail.Send` role or a roleless RBAC application token, respectively. `MailAuthorizationRuntimeGate` also requires fresh signed evidence bound to the exact tenant, app, sender, authorization model and deployment configuration; a generic capability row cannot replace it. Exchange grants are additive, so a separate unrestricted Entra grant does not become constrained by an RBAC assignment. Implemented compatibility is distinct from enrollment and genuine delivery acceptance on a selected deployment. Preserve/reverify existing approved AAP restrictions; do not infer that an RBAC scope constrains a separate Entra grant or silently create new legacy policies as the new-customer default. This documentation correction changes no approved permissions, runtime code or live policy.
 
 Live capability status must be read from the current deployment's persisted
 verification rows. Any capability whose dedicated app registration, certificate,

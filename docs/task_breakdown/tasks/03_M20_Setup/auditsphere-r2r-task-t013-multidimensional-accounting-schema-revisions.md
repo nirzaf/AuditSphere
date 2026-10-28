@@ -21,6 +21,12 @@ updated_at: ""
 
 **Status scope:** NOT_STARTED means this new task has not been assessed/executed under this breakdown. It does not assert that its underlying code is absent. First inspect and reuse the current implementation. No current repository progress has been imported.
 
+## Current backend evidence and handoff boundary
+
+The current implementation already owns bounded schema drafts, independent publication, exact published-revision resolution, canonical digests and retained successor identities in `ClientAccountingService.Dimensions.cs`. The existing `DimensionSchemaDraft_PublishesAndResolvesExactImmutableSuccessorRevisions` check exercised those contracts against the current owned PostgreSQL environment; its observed result is recorded in `docs/execution/status.json` and the Technical Stories register. No new schema aggregate is needed merely because this card has not completed its breakdown review.
+
+This is a backend implementation and focused-verification finding. It does not establish a native dimension consumer, complete T007/T013 reviewed handoffs, T014 activation or the qualified T003 policy/fixture acceptance. Preserve the existing identities and dependency rules before adding a consumer.
+
 ## Outcome
 
 Define and publish bounded accounting dimensions without an operational ERP.
