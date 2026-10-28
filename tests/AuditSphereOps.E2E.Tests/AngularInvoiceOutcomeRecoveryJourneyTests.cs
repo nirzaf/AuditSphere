@@ -100,7 +100,7 @@ public sealed class AngularInvoiceOutcomeRecoveryJourneyTests
     await managerPage.GotoAsync(managerOrigin + "/auth/sign-in?returnUrl=" +
       Uri.EscapeDataString(invoiceRoute));
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Button,
-      new() { Name = "Post invoice (freeze & emit ledger event)", Exact = true })).ToBeVisibleAsync();
+      new() { Name = "Post invoice (freeze billing record)", Exact = true })).ToBeVisibleAsync();
     var postCalls = 0;
     await managerPage.RouteAsync($"**/api/ui/finance/invoices/{invoiceId:D}/post", async interception =>
     {
@@ -115,12 +115,12 @@ public sealed class AngularInvoiceOutcomeRecoveryJourneyTests
       await interception.AbortAsync();
     });
     await managerPage.GetByRole(AriaRole.Button,
-      new() { Name = "Post invoice (freeze & emit ledger event)", Exact = true }).ClickAsync();
+      new() { Name = "Post invoice (freeze billing record)", Exact = true }).ClickAsync();
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Heading,
       new() { Name = "Verify the saved billing state", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(managerPage.GetByText(lostResponseMessage, new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Button,
-      new() { Name = "Post invoice (freeze & emit ledger event)", Exact = true })).ToBeDisabledAsync();
+      new() { Name = "Post invoice (freeze billing record)", Exact = true })).ToBeDisabledAsync();
     Assert.Equal(1, postCalls);
     await managerPage.GetByRole(AriaRole.Button,
       new() { Name = "Refresh persisted billing state", Exact = true }).ClickAsync();

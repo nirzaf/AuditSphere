@@ -281,7 +281,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
               @else { <p>Approval requires a separate authorized FinanceReviewer.</p> }
             }
             @case ('APPROVED') {
-              @if (i.canPostInvoice) { <button matButton="filled" (click)="act(i.id, 'post', 'Invoice posted and frozen.')" [disabled]="busy() || uncertain()">Post invoice (freeze & emit ledger event)</button> }
+              @if (i.canPostInvoice) { <button matButton="filled" (click)="act(i.id, 'post', 'Invoice posted and frozen.')" [disabled]="busy() || uncertain()">Post invoice (freeze billing record)</button> }
               @else { <p>Posting requires an authorized FinanceManager and an approved firm finance profile in the invoice currency.</p> }
             }
             @case ('POSTED') {

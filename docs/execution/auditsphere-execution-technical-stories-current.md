@@ -49,7 +49,7 @@ Pending assessment is a work state, not a conclusion that code is missing. An im
 | R07 | Verify the exact action-bound archive manifest after a legitimate rebuild | IMPLEMENT | Original failures reproduced; corrected focused database checks passed, final-source CI pending |
 | R08 | Enforce meaningful sampling evidence references at the application boundary | IMPLEMENT | Shared current sampling evidence and required references implemented; focused checks passed, final-source CI pending |
 | R09 | Revalidate managed-group eligibility at dispatch admission | IMPLEMENT | Original preflight races reproduced; corrected admission and recovery checks passed, final-source CI pending |
-| R10 | Describe invoice posting according to its actual accounting effect | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |
+| R10 | Describe invoice posting according to its actual accounting effect | IMPLEMENT | Accurate freeze label; Angular, existing journeys and actual built-in label/focus verified; final-source CI pending |
 | R11 | Authorize already-posted expense replay before returning metadata | IMPLEMENT | Deterministic original failure and corrected authenticated HTTP checks; final-source CI pending |
 | S00 | Reconcile the requirements baseline and establish a current completion register | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |
 | S99 | Close selected engineering work with evidence from one source and environment | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |

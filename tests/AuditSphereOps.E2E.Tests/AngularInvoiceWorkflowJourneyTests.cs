@@ -175,7 +175,7 @@ public sealed class AngularInvoiceWorkflowJourneyTests
       new() { Name = "Approve invoice", Exact = true }).ClickAsync();
     await Assertions.Expect(reviewerPage.GetByText("Invoice approved.", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Button,
-      new() { Name = "Post invoice (freeze & emit ledger event)", Exact = true })).ToHaveCountAsync(0);
+      new() { Name = "Post invoice (freeze billing record)", Exact = true })).ToHaveCountAsync(0);
     await Assertions.Expect(reviewerPage.GetByText(
       "Posting requires an authorized FinanceManager and an approved firm finance profile in the invoice currency.",
       new() { Exact = true })).ToBeVisibleAsync();
@@ -201,9 +201,11 @@ public sealed class AngularInvoiceWorkflowJourneyTests
 
     await managerPage.ReloadAsync();
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Button,
-      new() { Name = "Post invoice (freeze & emit ledger event)", Exact = true })).ToBeVisibleAsync();
+      new() { Name = "Post invoice (freeze billing record)", Exact = true })).ToBeVisibleAsync();
+    await OwnedBrowserFixtureHandoff.WaitAsync(managerOrigin,
+      $"/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/practice/invoices/{invoiceId:D}")}", "invoice-posting");
     await managerPage.GetByRole(AriaRole.Button,
-      new() { Name = "Post invoice (freeze & emit ledger event)", Exact = true }).ClickAsync();
+      new() { Name = "Post invoice (freeze billing record)", Exact = true }).ClickAsync();
     await Assertions.Expect(managerPage.GetByText("Invoice posted and frozen.", new() { Exact = true })).ToBeVisibleAsync();
     var repeatedPostResponses = await managerPage.EvaluateAsync<string>("""
       async () => {
@@ -241,6 +243,8 @@ public sealed class AngularInvoiceWorkflowJourneyTests
       Assert.Equal(f.Reviewer.Id, sent.ApprovedByUserId);
       Assert.NotNull(sent.PostedAt);
       Assert.NotNull(sent.SentAt);
+      Assert.Empty(await db.FirmJournals.AsNoTracking().ToArrayAsync());
+      Assert.Empty(await db.FirmPostings.AsNoTracking().ToArrayAsync());
     }
     await managerPage.SetViewportSizeAsync(390, 844);
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Heading,

@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Accurate invoice posting action
+
+Invoice posting now describes freezing the billing record. The command and its role, replay and unknown-outcome controls are unchanged; no ledger-recognition rule is introduced. Targeted Angular, build/lint and existing browser journeys passed. The owned built-in browser verified the approved-state label, workflow jump and keyboard focus before its fixture deadline; a later expired-fixture DOM observation is excluded. The automated continuation confirmed successful posting/replay/send with no firm journal or posting. Exact results and cleanup are in [status.json](status.json).
+
 ## Bounded automatic fee discovery
 
 Draft discovery advances through a bounded, stable scan cycle and revisits earlier skipped milestones. A finite watermark prevents incoming work from postponing a revisit indefinitely. Restarts begin at the first page, with existing durable identities preventing duplicate drafts. Focused tests reached a later eligible advance beyond older ineligible work and revisited a balance after its actual package-release prerequisite changed. Standing authority, independent approval, posting and mail boundaries remain unchanged; see [status.json](status.json).
