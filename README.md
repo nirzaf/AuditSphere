@@ -7,10 +7,126 @@
 
 **AuditSphereOps** is an audit, accounting, and practice-management platform for accounting firms. It connects client onboarding, engagement management, professional audit work, financial-statement preparation, time and billing, controlled deliverable release, records, and group consolidation within a **.NET modular monolith with an Angular frontend**.
 
-See [User types, role hierarchy and privileges](docs/architecture/auditsphere-architecture-user-roles-and-privileges-current.md) for the role charts, each user's capabilities, grant scopes and approval boundaries.
+See [User Types, Role Hierarchy & Access Privileges](#user-types-role-hierarchy--access-privileges) below for a summary, and the [detailed roles and privileges reference](docs/architecture/auditsphere-architecture-user-roles-and-privileges-current.md) for guard-level capabilities, grant scopes and approval boundaries.
 
 > **Release status: under active development — not verified as 100% complete or production-ready.** Major functionality is implemented, but complete end-to-end acceptance, approved professional policies, live Microsoft 365/SharePoint evidence, operational recovery, and release sign-off remain separate obligations. Do not infer readiness from a route, UI page, green focused test, or documentation checkmark. Use the [current execution evidence](docs/execution/status.json), [active handoff](docs/execution/auditsphere-execution-current-slice.md), and [production-readiness tracker](docs/execution/auditsphere-execution-audit-production-readiness-gap-closure-current.md).
 >
+
+## User Types, Role Hierarchy & Access Privileges
+
+AuditSphere uses **explicit, scoped role grants — not a job-title hierarchy or a superuser**. Every protected command and query re-checks, on the server, the current identity, an active grant covering the requested scope, the role list that operation accepts, and its business gates. A person may hold several grants; each is evaluated on its own. Angular navigation and `can*` flags are presentation only.
+
+This section describes **implemented authorization in source code**. It does not claim that every workflow listed below has completed browser, professional or production acceptance (see the release status above).
+
+### User types
+
+```mermaid
+flowchart TB
+    ENTRA["Microsoft Entra ID: sign-in and identity evidence only"]
+    ENTRA -.->|"Member identity"| STAFF["Internal firm user - UserKind Staff"]
+    ENTRA -.->|"Guest identity"| EXT["External client user - UserKind Client"]
+
+    subgraph ADMIN["Firm administration"]
+        A["Administrator"]
+    end
+    subgraph AUDIT["Audit engagement team"]
+        P["Partner"]
+        M["Manager"]
+        S["Senior"]
+        ST["Staff"]
+    end
+    subgraph COMM["Commercial and client relationships"]
+        RM["RelationshipManager"]
+    end
+    subgraph FIN["Firm finance - maker and checker"]
+        FM["FinanceManager - prepares"]
+        FR["FinanceReviewer - reviews and approves"]
+    end
+    subgraph PORTAL["Client Portal - /ui/portal"]
+        CU["ClientUser"]
+    end
+
+    STAFF -->|"explicit grant"| ADMIN
+    STAFF -->|"explicit grant or engagement staffing"| AUDIT
+    STAFF -->|"explicit grant"| COMM
+    STAFF -->|"explicit grant"| FIN
+    EXT -->|"client or engagement grant only"| PORTAL
+
+    subgraph NONHUMAN["Non-human identities - not a UserKind"]
+        W["Worker: durable operations under a declared authority mode"]
+        G["Capability-specific Microsoft 365 / Graph identities"]
+    end
+
+    classDef nonhuman stroke-dasharray: 5 5
+    class W,G nonhuman
+```
+
+Groups show **responsibility areas, not a ranking**; no arrow implies permission inheritance. Signing in, Entra directory membership or an invitation grants **no** AuditSphere role. Disabled users, revoked or expired grants and stale sessions are access states, not further user types. Worker and provider identities execute only their configured operations; they are not interactive administrators or professional approvers.
+
+**Standard role catalogue.** Exactly nine roles can be assigned through Administration → Users & Access ([`RoleAdministrationService`](src/AuditSphereOps.Application/Security/RoleAdministrationService.cs)): `Administrator`, `Partner`, `Manager`, `Senior`, `Staff`, `RelationshipManager`, `FinanceManager`, `FinanceReviewer` and `ClientUser`. Internal roles require a staff identity; `ClientUser` requires a client identity and can never be firm-wide.
+
+**Backend-recognized codes (not selectable).** Some Application guards also accept `Reviewer`, `SeniorManager`, `EngagementLeader`, `Auditor`, `Accountant`, `AccountingPreparer`, `AccountingReviewer`, `CommercialManager` and `RecordsCustodian`. The standard catalogue cannot assign them, they are not aliases of a standard role, and a code accepted by one module may be refused by another. See [additional codes](docs/architecture/auditsphere-architecture-user-roles-and-privileges-current.md#additional-codes-recognized-by-selected-backend-guards).
+
+### Engagement staffing hierarchy
+
+Engagement staffing ([`StaffingLevels`](src/AuditSphereOps.Domain/Practice/ResourcePlanning.cs)) uses four levels. Each level maps to one **engagement-scoped** grant for its role (an identical existing grant is reused); revoking the assignment revokes the grant that staffing created and invalidates the user's session.
+
+```mermaid
+flowchart TB
+    EP["Engagement Partner | ENGAGEMENT_PARTNER | rank 4 | grants Partner"]
+    AM["Audit Manager | AUDIT_MANAGER | rank 3 | grants Manager"]
+    SA["Senior Auditor | SENIOR_AUDITOR | rank 2 | grants Senior"]
+    SS["Staff Associate | STAFF_ASSOCIATE | rank 1 | grants Staff"]
+    EP -.->|"higher review rank"| AM
+    AM -.->|"higher review rank"| SA
+    SA -.->|"higher review rank"| SS
+```
+
+- **Rank is a review threshold, not inherited permission.** Risk-banded procedures require a minimum preparer, owner and reviewer rank (for example, a red-risk procedure requires Engagement Partner review). The reviewer must still be an authorized, independent person on that engagement.
+- **Staffing rules** ([`StaffingService`](src/AuditSphereOps.Application/Practice/StaffingService.cs)): a `Partner`, `Manager` or `Administrator` grant on the engagement is required to staff; nobody staffs themselves or above their own level; an engagement has at most one Engagement Partner; Partner and Manager levels require current, independently reviewed certification evidence; only enabled staff identities can be staffed.
+- **Engagement Partner gates:** completion clearance, the opinion decision, signing and bundle assembly accept only the **currently staffed Engagement Partner**. Holding a `Partner` grant without that staffing fails closed.
+- Staffing never creates firm-wide or client-wide access and never overrides independence holds, professional-work holds or frozen engagement files.
+
+### Role and privilege matrix
+
+Summaries reflect the role lists accepted by Application guards. "Accepted by" means the role satisfies that operation's role check; the scope, staffing, independence and state gates in the last column still apply.
+
+| User Role | Primary Responsibilities | Permitted Operations | Access Scope | Restrictions / Approval Requirements |
+| --- | --- | --- | --- | --- |
+| `Administrator` | Firm access governance and application configuration | **Administer:** verify users, grant/replace/revoke roles with preview and reason, copy invitations, view access history, configure the Microsoft 365 connection. **Configure:** workflow templates, reminder rules and pricing rules (shared with Partner). **Also accepted by** staffing, resource planning and many audit and client-accounting preparation/review guards, release approval/release recording and records-archive custody. | User administration and M365 configuration require a **`FIRM_WIDE`** Administrator grant; other operations follow their own scope | No self-elevation or privileged self-change; the last firm administrator cannot be removed without a replacement. **Not accepted** by Partner-only gates (acceptance decisions, engagement activation, Partner-stage package approval, Engagement Partner sign-off) or by firm billing/ledger guards. Grants no Entra role. |
+| `Partner` | Professional leadership, acceptance and sign-off | **Approve:** client-acceptance decisions, engagement activation, Partner-stage financial-package approval, audit-programme ownership and applicability. **As staffed Engagement Partner:** completion clearance, opinion decision, signing and bundle assembly. **Review:** procedures, review notes, confirmations, time approval. **Prepare/manage:** planning, staffing, commercial records, client accounting, consolidation, release, records custody. | `CLIENT` or `ENGAGEMENT` grants or staffing; `FIRM_WIDE` where a configuration command requires it; consolidation needs an explicit `GROUP` grant | Engagement Partner actions require current staffing on that engagement. One person cannot approve two stages of the same package version. Decisions are recorded human decisions; holds, frozen files and stale evidence still block. |
+| `Manager` | Engagement planning, coordination and review | **Plan/manage:** workflow plans, tasks, staffing (up to Audit Manager), resource planning, risk-owner assignment, finding designation. **Review:** procedures, review notes, confirmations, planning completion, time approval, client-accounting reviews (mapping, adjustments, package accounting stage). **Prepare:** audit deliverables, client-accounting packages, consolidation groups and ownership, commercial records. | `CLIENT` or `ENGAGEMENT` grants or Audit Manager staffing; `GROUP` grant for consolidation | Cannot make Partner-only or Engagement Partner decisions. Review rank thresholds still apply (rank 3). Cannot review their own work where independent review is required. |
+| `Senior` | Preparation and coordination of assigned audit work | **Prepare:** fieldwork procedures, confirmations, finding responses, review-point dispositions, PBC/evidence, workflow tasks, time, trial-balance intake. **Review:** procedures and review notes where the risk band allows rank 2. **Read:** engagement, completion and package workspaces. | `CLIENT` or `ENGAGEMENT` grants or Senior Auditor staffing | No time approval, staffing, client-accounting mapping/package review, commercial, finance or administration. Not a Manager or Partner substitute. |
+| `Staff` | Preparation of assigned work | **Prepare:** working papers, procedures, assigned tasks, time, PBC/evidence, adjustment journals and plans, statement layouts, package seal preparation, trial-balance intake. **Respond:** review points and review notes. **Read:** portfolio, engagement and progress workspaces. | `CLIENT` or `ENGAGEMENT` grants or Staff Associate staffing | No review, approval, staffing or Partner authority. Mapping drafts and most client-accounting preparation need an accounting-capable role. |
+| `RelationshipManager` | Client relationships and commercial pipeline | **Prepare/manage:** leads, CRM and contacts, client conversion, proposals and quotations, fee agreements, commercial documents, engagement drafts. **Read:** onboarding readiness and client search. | Scope required by each commercial command; several commercial queries require `FIRM_WIDE` | No Partner acceptance/risk decision or engagement activation. Pricing rules and commercial-document profiles are Administrator/Partner only. No audit, finance or portal access. |
+| `FinanceManager` | Firm billing and ledger preparation (maker) | **Prepare:** invoices, credit notes, payment-terms changes, receipt allocations and reversals, firm ledger journals, firm expenses. **Read:** finance reports, unbilled time, receivables ageing, fee agreements and settlements, end-of-service records. | Firm finance ledger, books and workbench operations require a **`FIRM_WIDE`** grant | **Cannot approve own invoice, journal, payment-terms change, reversal or expense**; approval requires a FinanceReviewer. No client-bookkeeping, audit or administration authority. |
+| `FinanceReviewer` | Independent firm-finance review (checker) | **Review/approve:** invoices, ledger journals, payment-terms changes, receipt-allocation reversals, firm expenses; record receipts. **Read:** firm finance reports and settlements. | Firm finance operations require a **`FIRM_WIDE`** grant | The preparer of an invoice, journal, payment-terms change, reversal or expense is refused its approval, even when holding both finance roles. Granting both roles is flagged as a segregation-of-duties impact and needs explicit confirmation. |
+| `ClientUser` | Client-side collaboration | **Respond:** view assigned PBC requests and shared material, upload evidence, reply. **Delegate:** a request owner who is the client's primary contact may delegate it to another ClientUser of the same client. | `CLIENT` or `ENGAGEMENT` only; never `FIRM_WIDE` | Denied every internal-only operation. Where onboarding applies, the portal opens only after commercial acceptance, Partner risk clearance, activation and advance payment. Request-level upload/reply permissions still apply. |
+
+### Authorization scope model
+
+| Scope | Covers | Does not imply |
+| --- | --- | --- |
+| `FIRM_WIDE` | Eligible records across the actor's own firm for the granted role | Cross-firm access, extra roles or `GROUP` access |
+| `CLIENT` | One client and its engagements where the command accepts client-level coverage | Sibling clients or firm-wide-only operations |
+| `ENGAGEMENT` | One engagement, resolved through its stored client link | Other engagements of the same client or client-wide access |
+| `GROUP` | One consolidation group via a separate `GroupAccessGrant` | Component clients' books, other groups or ordinary client/engagement access |
+
+**Effective access** = current session identity (not disabled, current session epoch) **+** an active, unexpired grant whose scope covers the target **+** a role that the specific operation accepts **+** any staffing requirement **+** that operation's business gates (independence, holds, frozen files, revision fences, current evidence, onboarding). Scope linkage is always read from stored records, never from browser input. See [`AuthorizationDecision`](src/AuditSphereOps.Application/Security/AuthorizationDecision.cs).
+
+Security boundaries:
+
+- **No rank inheritance:** a higher staffing rank or `Partner` grant does not include the permissions of lower roles, and no role inherits another role's lists.
+- **Administrator is not a superuser:** it cannot bypass Partner-only gates, finance maker-checker, independence holds, frozen files or provider consent, and cannot elevate itself.
+- **Microsoft Global Administrator is not an AuditSphere Administrator:** Entra roles are not mapped to application roles, and AuditSphere roles never grant Entra roles.
+- **Client isolation:** client identities and `ClientUser` grants are refused by every internal-only command.
+- **Finance separation:** `FinanceManager` prepares and `FinanceReviewer` approves; the preparer of an invoice, journal, payment-terms change, reversal or expense cannot approve it.
+- **Human professional decisions:** Partner acceptance, Engagement Partner clearance, opinion and signing require the authorized person's recorded decision and are never generated automatically.
+- **Segregation of duties:** where independent review applies, preparers cannot review or approve their own work, and one person cannot approve two stages of the same package version.
+- **Fail closed:** cross-firm, sibling-client and unauthorized engagement requests are denied with non-disclosing errors.
+- **Current state matters:** role changes and revocations increment the user's session epoch; revoked or expired grants, stale sessions, professional-work holds and frozen engagement files continue to restrict access.
+
+> **Implementation status:** the guards above are implemented in source code. Several connected role journeys, professional-policy approvals and live-provider checks remain partial or unverified; track them in the [execution evidence](docs/execution/status.json).
 
 ## What AuditSphere covers
 
