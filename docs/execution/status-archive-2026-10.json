@@ -25935,6 +25935,29 @@
       "imagePublication": "Preceding098d exactimages40591574870/readback/rehearsal PASS; new exactsource images/rehearsal required.",
       "cutoverStatus": "NOT_PERFORMED; retention/professional acceptance and exact-source release requirements remain separate.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeExpiryPrecision20261027"
+    },
+    "targetedVerification.releaseCandidateReplay20261027BeforeTask03Publication20261028": {
+      "status": "FOCUSED_PASS_CURRENT_CI_REQUIRED",
+      "scope": "Existing-candidate authority and current package-review publication; no EQR policy activation.",
+      "evidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/replay-review.json",
+      "verification": "True forged-role replay RED1 and returned-source currentness RED1; final regression plus unchanged completion projection GREEN2. Exact candidate replay retains approval count; stale session and source refusals retain empty identifiers. Existing workpaper and financial-package release dependencies PASS2; owned PG18.6 cleaned.",
+      "boundary": "Initial test fixture used a different released manifest; subsequent extra candidate changed the old projection fixture. A separate new regression preserves the original test unchanged; stale-session expected code uses the existing ordinary authorizer. No live action or new approval rule; current package review is reused at publication."
+    },
+    "targetedVerification.ownershipOversightCi20261028BeforeTask03Publication20261028": {
+      "status": "FOCUSED_PASS_FULL_CI_BLOCKED",
+      "sourceBaseCommit": "5108555076f6f7555d71dbe9614fc5d8babd9fcf",
+      "evidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/ownership-oversight-ci-review.json",
+      "verification": "Exact API job122515917721 has one observed stale Administrator403 assertion and terminal runner shutdown143, no finalTRX. Named unchanged RED1/corrected GREEN1; current READ_ONLY/audit event and denied commands/ungranted Staff403 verified. Runtime unchanged.",
+      "boundary": "Current full40596945111 not PASS; E2E pending. Unpublished Task03 feature/browser acceptance separate. No cutover."
+    },
+    "currentSourceCiBeforeTask03Publication20261028": {
+      "sourceBaseCommit": "5108555076f6f7555d71dbe9614fc5d8babd9fcf",
+      "sourceRole": "OWNERSHIP_OVERSIGHT_AUTHORIZATION_TEST_CORRECTION",
+      "fastCi": "Exact5108 fast40596869486 PASS with actual3checkouts. New test/doc source requires new exact proof.",
+      "releaseVerification": "Exact5108 full40596945111 MATCH: Angular/Verify/Domain1822PASS; API terminal143 and observed stale ownership-read assertion. Named correction verified locally; E2E pending, no full PASS.",
+      "imagePublication": "Exact5108 images40597005023/checkouts/digests/readback/rehearsal PASS; predecessor only after next publication.",
+      "cutoverStatus": "NOT_PERFORMED; whole Task03 runtime/UI/browsing and retention/professional/current release requirements remain separate.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeOwnershipOversight20261028"
     }
   },
   "archivedTargetedVerification": {

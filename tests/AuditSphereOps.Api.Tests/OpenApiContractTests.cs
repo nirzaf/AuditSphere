@@ -42,6 +42,25 @@ public sealed class OpenApiContractTests
       : [type.GetString()!];
   }
 
+  [Fact]
+  public async Task WorkflowApplicabilityContractsPreserveExactRevisionAndReceiptVersionsAsStrings()
+  {
+    using var factory = ContractFactory();
+    using var client = factory.CreateClient();
+    var contract = await FetchContractAsync(client);
+    foreach (var (schema, property) in new[]
+    {
+      ("WorkflowApplicabilityProposalInput", "expectedTaskRevision"),
+      ("WorkflowApplicabilityDecisionInput", "expectedTaskRevision"),
+      ("WorkflowApplicabilityWorkspaceResponse", "taskRevision"),
+      ("WorkflowApplicabilityProposalResponse", "version"),
+      ("WorkflowApplicabilityDecisionResponse", "version"),
+      ("WorkflowApplicabilityReceiptResponse", "version"),
+      ("WorkflowApplicabilityHistoryItemResponse", "version")
+    })
+      Assert.Equal(new[] { "string" }, SchemaTypes(SchemaProperty(contract, schema, property)));
+  }
+
   private static void AssertExactDecimalSchema(JsonElement schema, bool nullable)
   {
     var expectedTypes = nullable ? new[] { "null", "string" } : ["string"];

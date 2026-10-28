@@ -107,6 +107,8 @@ public static partial class UiEndpoints
           : Results.NotFound();
       });
 
+    MapWorkflowApplicabilityEndpoints(tasks);
+
     tasks.MapGet("", (Guid engagementId, Guid? taskId, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => EngagementWorkflowTaskService.GetAsync(db, actor, engagementId, taskId, ct)))
       .WithDescription("Returns the authorized engagement's bounded task workspace. Optional taskId resolves one exact task in this same scope for recovery independently of the default first-page window.")

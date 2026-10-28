@@ -14,7 +14,7 @@ using Npgsql;
 
 namespace AuditSphereOps.Api.Tests;
 
-public sealed class WorkflowEvidenceApiTests
+public sealed partial class WorkflowEvidenceApiTests
 {
   [Fact]
   public async Task EvidenceChangesRequireCookieCsrfManagerScopeAndCurrentRevisionAndRecoverOnlyTheOwnersReceipt()

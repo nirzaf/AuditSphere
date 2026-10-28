@@ -16,7 +16,7 @@ using WorkerHost = AuditSphereOps.Worker.Worker;
 namespace AuditSphereOps.Domain.Tests;
 
 [Trait("Profile", "Database")]
-public sealed class PbcTransferTests
+public sealed partial class PbcTransferTests
 {
   [Fact]
   public async Task MaximumChunk_TransfersOnceAndReportsMeasurement()

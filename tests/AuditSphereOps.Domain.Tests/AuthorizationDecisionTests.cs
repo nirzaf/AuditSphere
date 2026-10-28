@@ -738,6 +738,8 @@ public sealed class AuthorizationDecisionTests
     public DbSet<WorkflowTaskActivity> WorkflowTaskActivities => db.WorkflowTaskActivities;
     public DbSet<WorkflowTaskDependency> WorkflowTaskDependencies => db.WorkflowTaskDependencies;
     public DbSet<WorkflowTaskEvidenceRule> WorkflowTaskEvidenceRules => db.WorkflowTaskEvidenceRules;
+    public DbSet<WorkflowTaskApplicabilityProposal> WorkflowTaskApplicabilityProposals => db.WorkflowTaskApplicabilityProposals;
+    public DbSet<WorkflowTaskApplicabilityDecision> WorkflowTaskApplicabilityDecisions => db.WorkflowTaskApplicabilityDecisions;
     public DbSet<WorkflowTaskDependencyRevision> WorkflowTaskDependencyRevisions => db.WorkflowTaskDependencyRevisions;
     public DbSet<WorkflowTemplate> WorkflowTemplates => db.WorkflowTemplates;
     public DbSet<WorkflowTemplateRevision> WorkflowTemplateRevisions => db.WorkflowTemplateRevisions;

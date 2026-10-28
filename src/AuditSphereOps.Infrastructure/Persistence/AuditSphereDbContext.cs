@@ -155,6 +155,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<WorkflowTaskActivity> WorkflowTaskActivities => Set<WorkflowTaskActivity>();
   public DbSet<WorkflowTaskDependency> WorkflowTaskDependencies => Set<WorkflowTaskDependency>();
   public DbSet<WorkflowTaskEvidenceRule> WorkflowTaskEvidenceRules => Set<WorkflowTaskEvidenceRule>();
+  public DbSet<WorkflowTaskApplicabilityProposal> WorkflowTaskApplicabilityProposals => Set<WorkflowTaskApplicabilityProposal>();
+  public DbSet<WorkflowTaskApplicabilityDecision> WorkflowTaskApplicabilityDecisions => Set<WorkflowTaskApplicabilityDecision>();
   public DbSet<WorkflowTaskDependencyRevision> WorkflowTaskDependencyRevisions => Set<WorkflowTaskDependencyRevision>();
   public DbSet<WorkflowTemplate> WorkflowTemplates => Set<WorkflowTemplate>();
   public DbSet<WorkflowTemplateRevision> WorkflowTemplateRevisions => Set<WorkflowTemplateRevision>();
@@ -637,6 +639,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigurePractice(b);
     ConfigureBillingCommands(b);
     ConfigureWorkflowTasks(b);
+    ConfigureWorkflowApplicability(b);
     ConfigureWorkflowTemplates(b);
     ConfigureWorkflowTaskPlanReceipts(b);
     ConfigureWorkflowReminders(b);

@@ -19,11 +19,13 @@ Ordinary Time tasks with the exact firm, client and engagement are included even
 | Template step | Classification | Counts toward percentage |
 | --- | --- | --- |
 | Required, no applicability condition | Mandatory | Always |
-| Required, with an "Applies when" condition (at most 500 characters) | Conditional | Always, until an independently reviewed task decision is implemented |
+| Required, with an "Applies when" condition (at most 500 characters) | Conditional | Until a current independent task decision and any required professional decisions permit exclusion |
 | Not required | Optional | Never; shown separately as "x of y" |
 | Manual task with no template step | Mandatory | Always |
 
-An operational cancellation, including a reason beginning `Not applicable:`, remains in immutable task activity but is not an independently reviewed applicability decision. A cancelled conditional step therefore remains blocked and in the required denominator. The scoped maker/checker task-decision workflow is not yet implemented; no historical cancellation is migrated into an approval. A cancelled mandatory step also stays blocked. Conditions are only allowed on required steps.
+An operational cancellation, including a reason beginning `Not applicable:`, remains in immutable task activity but is not an independently reviewed applicability decision. Without a current independent task decision, a cancelled conditional step remains blocked and in the required denominator. No historical cancellation is migrated into an approval. A cancelled mandatory step also stays blocked. Conditions are only allowed on required steps.
+
+`PracticeTimeService.WorkflowApplicability.cs` retains a conditional task proposal and an independent Manager, Partner or Administrator disposition under the existing scoped workflow-management and session rules. The proposal pins the published template, task revision, service/profile/period, generation and exact independently accepted PBC file receipt. It does not interpret the condition. Approval rechecks that basis under the existing safety locks; return and revocation can withdraw stale evidence under current authority. A newer unreviewed proposal, returned or revoked approval, changed basis or task hold restores the required denominator. The operational task status and strict task-completed dependencies remain unchanged.
 
 For a conditional task with required `ReviewedProcedure` evidence, each exact linked procedure also needs a current independent `NotApplicableApproved` decision. Pending, returned, unrelated or stale procedure decisions remain distinct blockers and cannot substitute for the missing task decision. Neither task cancellation nor progress makes a professional decision or satisfies dependent prerequisites.
 
@@ -56,8 +58,17 @@ Bound and unbound task sources each use a bounded overflow witness. Their combin
 
 The decoder refuses figures that do not add up, a percentage above what the counts allow, 100% with an open gate, and a next-action link outside the application. The "Applies when" field is in the template editor (`workflow-templates.ts`). The plan preview (`engagement-task-plan.ts`) and the work queue (`work-queue.ts`) label each template task Required, Conditional or Optional and show its condition, so the person recording a step as not applicable sees why it may not apply.
 
+The conditional work-queue action opens `workflow-task-applicability.ts`. It reuses the scoped PBC source picker, shows exact retained/current basis text and requires a separate review with fresh assent. An unconfirmed command keeps its actor/firm/task recovery key and blocks another submission; recovery only reads that owner's retained receipt. Receipts and immutable paged history establish what was recorded, never current applicability. New applicability HTTP revisions and versions are canonical positive Int64 strings; opaque basis JSON is displayed without numeric parsing or reserialization.
+
 ## Endpoints
 
 - `GET /api/ui/engagements/{id}/progress`
 - `GET /api/ui/clients/{id}/progress?page=` (optional zero-based page; omitted means the first page)
 - `GET /api/ui/portfolio/progress?page=`
+- `GET /api/ui/engagements/{engagementId}/workflow/tasks/{taskId}/applicability` (optional exact source request or historical proposal)
+- `GET /api/ui/engagements/{engagementId}/workflow/tasks/{taskId}/applicability/history` (bounded complete keyset cursor)
+- `GET /api/ui/engagements/{engagementId}/workflow/tasks/{taskId}/applicability/receipts/{key}` (current actor's request recovery)
+- `POST /api/ui/engagements/{engagementId}/workflow/tasks/{taskId}/applicability/proposals`
+- `POST /api/ui/engagements/{engagementId}/workflow/tasks/{taskId}/applicability/decisions`
+
+These task routes retain the existing authenticated, feature-filtered boundary and CSRF-protected command transport. `WorkflowTaskApplicabilityQuery` reads independent snapshots, rechecks authority before disclosure and batches source facts with engagement/client keys. PostgreSQL retains proposal/decision lineage, independent actors and append-only evidence; no task or professional approval is backfilled. Release and professional acceptance remain separate from implementation and focused verification.

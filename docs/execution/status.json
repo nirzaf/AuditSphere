@@ -333,7 +333,7 @@
     "atomicAuditWorkingProcessTask03": {
       "result": "PARTIAL",
       "archiveRef": "status-archive-2026-10.json#keys.targetedVerification.atomicAuditWorkingProcessTask03",
-      "note": "Implementation evidence is archived; professional methodology acceptance and full-suite/external gates remain open."
+      "note": "Source-bound independent task decision implemented for accepted PBC evidence; professional decisions, exact-source full CI and release acceptance remain separate."
     },
     "atomicAuditWorkingProcessTask01": {
       "result": "PARTIAL",
@@ -1115,18 +1115,20 @@
       "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.roleAuthorizationEqrAccess20261027"
     },
     "releaseCandidateReplay20261027": {
-      "status": "FOCUSED_PASS_CURRENT_CI_REQUIRED",
-      "scope": "Existing-candidate authority and current package-review publication; no EQR policy activation.",
-      "evidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/replay-review.json",
-      "verification": "True forged-role replay RED1 and returned-source currentness RED1; final regression plus unchanged completion projection GREEN2. Exact candidate replay retains approval count; stale session and source refusals retain empty identifiers. Existing workpaper and financial-package release dependencies PASS2; owned PG18.6 cleaned.",
-      "boundary": "Initial test fixture used a different released manifest; subsequent extra candidate changed the old projection fixture. A separate new regression preserves the original test unchanged; stale-session expected code uses the existing ordinary authorizer. No live action or new approval rule; current package review is reused at publication."
+      "result": "FOCUSED_PASS_HISTORY_RETAINED",
+      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.releaseCandidateReplay20261027BeforeTask03Publication20261028"
     },
     "ownershipOversightCi20261028": {
-      "status": "FOCUSED_PASS_FULL_CI_BLOCKED",
-      "sourceBaseCommit": "5108555076f6f7555d71dbe9614fc5d8babd9fcf",
-      "evidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/ownership-oversight-ci-review.json",
-      "verification": "Exact API job122515917721 has one observed stale Administrator403 assertion and terminal runner shutdown143, no finalTRX. Named unchanged RED1/corrected GREEN1; current READ_ONLY/audit event and denied commands/ungranted Staff403 verified. Runtime unchanged.",
-      "boundary": "Current full40596945111 not PASS; E2E pending. Unpublished Task03 feature/browser acceptance separate. No cutover."
+      "result": "FOCUSED_PASS_HISTORY_RETAINED",
+      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.ownershipOversightCi20261028BeforeTask03Publication20261028"
+    },
+    "task03ScopedApplicability20261028": {
+      "result": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_REQUIRED",
+      "sourceBaseCommit": "662aee2f8b1122856f2c185867a40501b7b1b512",
+      "evidence": ".local/autonomous/evidence/claude-completion-20261027/task03-final-review.json",
+      "scope": "Immutable scoped conditional-task proposal/APPROVE/RETURN/REVOKE with exact accepted PBC/task/template/profile/period basis, current authority and owner recovery; no task-state or professional waiver. Additive migration293.",
+      "verification": "Focused source/commands/race/reads/history/progress/professional-conjunction proofs retained. Batch1PASS:100 mixed-scope source reads,101-task projection, own-client staleness/foreign receipt refusal. API boundary1/schema2PASS; Angular6/workqueue37/build/lintPASS. Model unchanged from verified EF drift. Built-in canonical maker/checker/stale-source progress/withdrawal, fresh final canonical receipt persistence, history and390px rendering verified; console empty. Owned clusters/hosts/staging cleaned, launcher restored exactly.",
+      "boundary": "UNKNOWN/mismatched-receipt branches are component evidence; history25+1 and separate professional applicability are backend evidence. No whole-assignment, live-provider or professional acceptance; current-candidate full CI/images/rehearsal/deployment remain required."
     }
   },
   "externalGates": [
@@ -1611,13 +1613,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "5108555076f6f7555d71dbe9614fc5d8babd9fcf",
-    "sourceRole": "OWNERSHIP_OVERSIGHT_AUTHORIZATION_TEST_CORRECTION",
-    "fastCi": "Exact5108 fast40596869486 PASS with actual3checkouts. New test/doc source requires new exact proof.",
-    "releaseVerification": "Exact5108 full40596945111 MATCH: Angular/Verify/Domain1822PASS; API terminal143 and observed stale ownership-read assertion. Named correction verified locally; E2E pending, no full PASS.",
-    "imagePublication": "Exact5108 images40597005023/checkouts/digests/readback/rehearsal PASS; predecessor only after next publication.",
-    "cutoverStatus": "NOT_PERFORMED; whole Task03 runtime/UI/browsing and retention/professional/current release requirements remain separate.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeOwnershipOversight20261028"
+    "sourceBaseCommit": "662aee2f8b1122856f2c185867a40501b7b1b512",
+    "sourceRole": "TASK03_SOURCE_BOUND_CONDITIONAL_APPLICABILITY",
+    "fastCi": "Preceding662a fast40610442216 PASS all3actualcheckouts; following feature commit requires new exact proof.",
+    "releaseVerification": "Preceding662a full40610531872 MATCH still running at last observation, no full PASS. Unpublished Task03 verification is focused and synthetic built-in only.",
+    "imagePublication": "Preceding662a images40610551772 PASS all3actualcheckouts/immutable digests; following feature source requires current images and rehearsal.",
+    "cutoverStatus": "NOT_PERFORMED; exact-source gates, fresh baseline-bound receipt/backup and retention/professional acceptance remain separate.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeTask03Publication20261028"
   },
-  "updatedAtUtc": "2026-10-28T00:41:45.314355+00:00"
+  "updatedAtUtc": "2026-10-28T01:14:55.756825+00:00"
 }

@@ -90,11 +90,17 @@ public static class EngagementProgressCalculator
       PracticeTimeStates.TaskCompleted => (EngagementProgressStepStates.Completed, (string?)null),
       PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Optional =>
         (EngagementProgressStepStates.NotApplicable, "Optional step cancelled"),
+      PracticeTimeStates.TaskOpen or PracticeTimeStates.TaskInProgress or PracticeTimeStates.TaskCancelled
+        when fact.Requirement == WorkflowStepRequirements.Conditional && fact.OnHold =>
+        (EngagementProgressStepStates.Blocked, "Task is on hold; review the hold before work continues"),
+      PracticeTimeStates.TaskOpen or PracticeTimeStates.TaskInProgress or PracticeTimeStates.TaskCancelled
+        when fact.Requirement == WorkflowStepRequirements.Conditional && fact.NotApplicableRecorded && fact.UnmetNotApplicableApprovals > 0 =>
+        (EngagementProgressStepStates.Blocked, "Required procedure N/A approval is missing or no longer current"),
+      PracticeTimeStates.TaskOpen or PracticeTimeStates.TaskInProgress or PracticeTimeStates.TaskCancelled
+        when fact.Requirement == WorkflowStepRequirements.Conditional && fact.NotApplicableRecorded && fact.UnmetNotApplicableApprovals == 0 =>
+        (EngagementProgressStepStates.NotApplicable, "Current independently reviewed task applicability"),
       PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Conditional && fact.UnmetNotApplicableApprovals > 0 =>
         (EngagementProgressStepStates.Blocked, "Cancelled, but required procedure N/A approval is missing or no longer current"),
-      PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Conditional && fact.NotApplicableRecorded &&
-        fact.UnmetNotApplicableApprovals == 0 =>
-        (EngagementProgressStepStates.NotApplicable, "Recorded as not applicable"),
       PracticeTimeStates.TaskCancelled when fact.Requirement == WorkflowStepRequirements.Conditional =>
         (EngagementProgressStepStates.Blocked, "Cancelled; an independently reviewed applicability decision is required before this conditional step can be excluded"),
       // A mandatory step cannot be waived by cancelling it: it stays outstanding until it is reopened and completed.

@@ -248,6 +248,34 @@ describe('workflow queue assignment filters', () => {
     trigger.focus(); trigger.click(); fixture.detectChanges(); TestBed.tick();
     return fixture.debugElement.query(By.directive(WorkflowTaskCancellationPanel)).componentInstance as WorkflowTaskCancellationPanel;
   };
+
+  it('keeps the applicability receipt panel through a queue refresh and removes it after confirmed scope loss', () => {
+    const { fixture, http, host, component } = start();
+    const conditional = { ...task, applicabilityCondition: 'Synthetic condition', requiredTask: true };
+    const queueUrl = tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true');
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [conditional], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); fixture.detectChanges();
+      const trigger = [...host.querySelectorAll<HTMLButtonElement>('button')].find(x => x.textContent?.trim() === 'Review conditional applicability')!;
+      trigger.click(); TestBed.tick(); fixture.detectChanges();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/applicability`).flush({
+        engagementId: task.engagementId, taskId: task.taskId, taskRevision: '1', latestProposalId: null,
+        proposal: null, preview: null, canPropose: false, canApprove: false, canReturn: false, canRevoke: false });
+      TestBed.tick();
+      const retainedPanel = host.querySelector('audit-workflow-task-applicability');
+      expect(retainedPanel).not.toBeNull();
+      component.queue.reload(); TestBed.tick();
+      expect(component.applicabilityTask()?.taskId).toBe(task.taskId);
+      fixture.detectChanges(); expect(host.querySelector('audit-workflow-task-applicability')).toBe(retainedPanel);
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [conditional], hasMore: false, nextCursor: null });
+      TestBed.tick(); fixture.detectChanges(); expect(host.querySelector('audit-workflow-task-applicability')).not.toBeNull();
+      component.queue.reload(); TestBed.tick(); http.expectOne(queueUrl).flush({}, { status: 403, statusText: 'Scope removed' });
+      TestBed.tick(); fixture.detectChanges(); expect(component.applicabilityTask()).toBeNull();
+      expect(host.querySelector('audit-workflow-task-applicability')).toBeNull(); http.verify();
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
   const openReopening = (test: ReturnType<typeof start>) => {
     const { fixture, http, host } = test;
     fixture.detectChanges(); TestBed.tick();

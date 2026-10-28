@@ -9,6 +9,7 @@ import { SessionService } from '../../core/session';
 import { QUEUE_DISPLAYS, QueueDisplay, boardColumns, groupedTasks, queueCalendar } from './work-queue-views';
 import { WorkflowTaskDependenciesPanel } from './workflow-task-dependencies';
 import { WorkflowTaskEvidencePanel } from './workflow-task-evidence';
+import { WorkflowTaskApplicabilityPanel } from './workflow-task-applicability';
 import { canReopenTask, decodeWorkflowTaskWorkspace, WorkflowTaskCancellationPanel } from './workflow-task-cancellation';
 import type { WorkflowTaskRecoveryAction } from './workflow-task-cancellation';
 
@@ -166,7 +167,7 @@ const queueViews: { key: QueueView; label: string }[] = [
 
 @Component({
   selector: 'audit-work-queue',
-  imports: [MatButtonModule, RouterLink, NgTemplateOutlet, WorkflowTaskEvidencePanel, WorkflowTaskDependenciesPanel, WorkflowTaskCancellationPanel, ...SHARED],
+  imports: [MatButtonModule, RouterLink, NgTemplateOutlet, WorkflowTaskEvidencePanel, WorkflowTaskApplicabilityPanel, WorkflowTaskDependenciesPanel, WorkflowTaskCancellationPanel, ...SHARED],
   template: `
     <audit-page-header title="My work" eyebrow="Engagement tasks"
       description="Operational tasks across your current client and engagement grants. Task completion never replaces audit review or engagement approval." />
@@ -345,6 +346,7 @@ const queueViews: { key: QueueView; label: string }[] = [
         @if (task.unmetEvidencePrerequisites) { <small>{{ task.unmetEvidencePrerequisites }} evidence prerequisite(s) pending</small> }
         <button matButton (click)="showActivity(task.engagementId, task.taskId, task.title)">{{ activityTask()?.taskId === task.taskId ? 'Hide activity' : 'View activity' }}</button>
         <button matButton (click)="evidenceTask.set(task)">Review prerequisites</button>
+        @if (task.applicabilityCondition) { <button matButton (click)="applicabilityTask.set(task)">Review conditional applicability</button> }
         <button matButton (click)="orderingTask.set(task)">Review task ordering</button>
         @if (task.canComplete) {
           <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button>
@@ -469,6 +471,7 @@ const queueViews: { key: QueueView; label: string }[] = [
               <td>{{ task.unmetTaskDependencies ? task.unmetTaskDependencies + ' task prerequisite(s) incomplete' : 'No task prerequisites pending' }}
                 @if (task.unmetEvidencePrerequisites) { <small>{{ task.unmetEvidencePrerequisites }} evidence prerequisite(s) pending</small> }
                 <button matButton (click)="evidenceTask.set(task)">Review prerequisites</button>
+                @if (task.applicabilityCondition) { <button matButton (click)="applicabilityTask.set(task)">Review conditional applicability</button> }
         <button matButton (click)="orderingTask.set(task)">Review task ordering</button></td>
               <td><button matButton (click)="showActivity(task.engagementId, task.taskId, task.title)">{{ activityTask()?.taskId === task.taskId ? 'Hide activity' : 'View activity' }}</button>
                 @if (task.canComplete) { <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button> }
@@ -576,6 +579,11 @@ const queueViews: { key: QueueView; label: string }[] = [
         }
       </section>
     }
+    @if (applicabilityTask(); as selected) {
+      <audit-workflow-task-applicability [engagementId]="selected.engagementId" [taskId]="selected.taskId" [title]="selected.title"
+        (changed)="refreshTaskWorkspaces(); activity.reload()" />
+      <button matButton (click)="applicabilityTask.set(null)">Close conditional applicability</button>
+    }
     @if (cancellationTask(); as selected) {
       <audit-workflow-task-cancellation [task]="selected" [action]="cancellationAction()" (changed)="cancellationChanged()"
         (reviewActivity)="reviewCancellationActivity(selected)" (refreshRequested)="refreshCancellationQueue()"
@@ -607,6 +615,7 @@ export class WorkflowWorkQueue {
   readonly activityTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
   readonly orderingTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
   readonly evidenceTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
+  readonly applicabilityTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
   readonly cancellationTask = signal<QueueTask | null>(null);
   readonly cancellationAction = signal<WorkflowTaskRecoveryAction>('cancel');
   readonly assignmentTask = signal<QueueTask | null>(null);
@@ -681,6 +690,7 @@ export class WorkflowWorkQueue {
       this.session.invalidation(); this.session.current();
       untracked(() => {
         this.evidenceTask.set(null); this.orderingTask.set(null); this.activityTask.set(null);
+        this.applicabilityTask.set(null);
         this.cancellationTask.set(null); this.cancellationAction.set('cancel'); this.cancellationTrigger = null; this.resetAssignment();
       });
     });
@@ -694,6 +704,9 @@ export class WorkflowWorkQueue {
       const selected = this.evidenceTask();
       if (selected && !page?.tasks.some(x => x.taskId === selected.taskId && x.engagementId === selected.engagementId))
         this.evidenceTask.set(null);
+      const applicability = this.applicabilityTask();
+      if (applicability && !this.queue.loading() && !page?.tasks.some(x => x.taskId === applicability.taskId && x.engagementId === applicability.engagementId))
+        this.applicabilityTask.set(null);
     });
   }
 

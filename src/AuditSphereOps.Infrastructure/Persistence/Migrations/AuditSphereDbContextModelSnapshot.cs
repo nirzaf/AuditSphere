@@ -29416,6 +29416,223 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskApplicabilityDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<string>("BasisHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("basis_hash");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("IdempotencyKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<Guid?>("PreviousDecisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("previous_decision_id");
+
+                    b.Property<Guid>("ProposalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("proposal_id");
+
+                    b.Property<Guid>("ProposerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("proposer_user_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("RequestDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_digest");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<Guid>("WorkflowTaskBindingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workflow_task_binding_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id");
+
+                    b.HasIndex("FirmId", "ActorUserId", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ProposalId", "Version")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "WorkflowTaskBindingId", "ProposalId", "PreviousDecisionId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "WorkflowTaskBindingId", "ProposalId", "ProposerUserId")
+                        .HasDatabaseName("IX_workflow_task_applicability_decisions_firm_id_client_id_en~1");
+
+                    b.ToTable("workflow_task_applicability_decisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workflow_task_applicability_decision_values", "version >= 1 AND actor_epoch >= 0 AND actor_user_id <> proposer_user_id AND kind IN ('APPROVE','RETURN','REVOKE') AND length(trim(reason)) BETWEEN 1 AND 1000 AND basis_hash ~ '^[0-9a-f]{64}$' AND request_digest ~ '^[0-9a-f]{64}$' AND ((version = 1 AND previous_decision_id IS NULL AND kind IN ('APPROVE','RETURN')) OR (version > 1 AND previous_decision_id IS NOT NULL AND kind = 'REVOKE')) AND idempotency_key <> '00000000-0000-0000-0000-000000000000'::uuid");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskApplicabilityProposal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<string>("BasisHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("basis_hash");
+
+                    b.Property<string>("BasisJson")
+                        .IsRequired()
+                        .HasMaxLength(32768)
+                        .HasColumnType("character varying(32768)")
+                        .HasColumnName("basis_json");
+
+                    b.Property<int>("BindingGeneration")
+                        .HasColumnType("integer")
+                        .HasColumnName("binding_generation");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("ConditionDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("condition_digest");
+
+                    b.Property<long>("EngagementGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("engagement_generation");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("IdempotencyKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<Guid>("PbcAcceptanceReceiptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_acceptance_receipt_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("RequestDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_digest");
+
+                    b.Property<long>("TaskRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("task_revision");
+
+                    b.Property<Guid>("TemplateRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_revision_id");
+
+                    b.Property<Guid>("TemplateStepId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_step_id");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<Guid>("WorkflowTaskBindingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workflow_task_binding_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id");
+
+                    b.HasIndex("FirmId", "ActorUserId", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "TemplateRevisionId", "TemplateStepId");
+
+                    b.HasIndex("FirmId", "WorkflowTaskBindingId", "Version")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcAcceptanceReceiptId");
+
+                    b.ToTable("workflow_task_applicability_proposals", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workflow_task_applicability_proposal_values", "version >= 1 AND task_revision >= 1 AND binding_generation >= 1 AND engagement_generation >= 1 AND actor_epoch >= 0 AND length(trim(reason)) BETWEEN 1 AND 1000 AND length(basis_json) BETWEEN 2 AND 32768 AND jsonb_typeof(basis_json::jsonb) = 'object' AND basis_hash = encode(sha256(convert_to(basis_json, 'UTF8')), 'hex') AND condition_digest ~ '^[0-9a-f]{64}$' AND request_digest ~ '^[0-9a-f]{64}$' AND idempotency_key <> '00000000-0000-0000-0000-000000000000'::uuid");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskBinding", b =>
                 {
                     b.Property<Guid>("Id")
@@ -39291,6 +39508,62 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId")
                         .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTaskBinding", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "WorkflowTaskBindingId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskApplicabilityDecision", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTaskApplicabilityDecision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "WorkflowTaskBindingId", "ProposalId", "PreviousDecisionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "WorkflowTaskBindingId", "ProposalId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_workflow_applicability_decision_previous");
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTaskApplicabilityProposal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "WorkflowTaskBindingId", "ProposalId", "ProposerUserId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "WorkflowTaskBindingId", "Id", "ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_workflow_applicability_decision_proposal");
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTaskApplicabilityProposal", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplateStep", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TemplateRevisionId", "TemplateStepId")
+                        .HasPrincipalKey("FirmId", "TemplateRevisionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcAcceptanceReceipt", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcAcceptanceReceiptId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 

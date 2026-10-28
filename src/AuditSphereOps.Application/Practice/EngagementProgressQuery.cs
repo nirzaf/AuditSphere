@@ -126,8 +126,8 @@ public static class EngagementProgressQuery
       group.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Take(StepLimit - boundCounts.GetValueOrDefault(group.Key))).ToList();
     var unboundTaskIds = unboundTasks.Select(x => x.Id).ToHashSet();
     var bindingIds = rows.Select(x => x.Binding.Id).ToArray();
-    // Operational activity is not an independently reviewed applicability decision.
-    // Until a current scoped decision is available, conditional cancellations stay required.
+    // Operational activity never supplies applicability. Only the exact current independently
+    // reviewed task receipt (and separately required professional decisions) can exclude a task.
     var dependencies = await (from dependency in WorkflowTaskDependencyQuery.Effective(db, f)
       join predecessor in db.WorkflowTaskBindings.AsNoTracking()
         on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.PredecessorBindingId }
@@ -135,9 +135,14 @@ public static class EngagementProgressQuery
       where dependency.FirmId == f && bindingIds.Contains(dependency.SuccessorBindingId)
       select new { dependency.PredecessorBindingId, dependency.SuccessorBindingId }).ToListAsync(ct);
     var evidence = new Dictionary<Guid, IReadOnlyList<WorkflowEvidenceRuleView>>();
+    var taskApplicability = new Dictionary<Guid, bool>();
     foreach (var page in rows.Select(x => x.Binding).Chunk(WorkflowTaskEvidenceQuery.MaximumBindings))
+    {
       foreach (var (bindingId, rules) in await WorkflowTaskEvidenceQuery.EvaluateManyAsync(db, f, page, ct))
         evidence.Add(bindingId, rules);
+      foreach (var (bindingId, current) in await WorkflowTaskApplicabilityQuery.EffectiveManyAsync(db, f, page, ct))
+        taskApplicability.Add(bindingId, current);
+    }
     var currentCompleted = rows.Where(x => x.Status == PracticeTimeStates.TaskCompleted &&
         // Follow-up task completion requires the linked PBC to be accepted or closed; recheck its current state.
         (!x.Binding.PbcRequestId.HasValue || x.PbcState is PbcStates.Accepted or PbcStates.Closed) &&
@@ -164,9 +169,11 @@ public static class EngagementProgressQuery
     var views = new List<EngagementProgressView>();
     foreach (var engagement in engagements)
     {
-      // Operational cancellation cannot supply a professional N/A decision for any required exact procedure source.
+      // A task receipt never supplies professional N/A. Check required exact procedure sources for
+      // reviewed open tasks too, while retaining the existing cancelled-task blocker disclosure.
       var conditionalProcedureRules = rows.Where(x => x.Binding.EngagementId == engagement.Id &&
-          x.Status == PracticeTimeStates.TaskCancelled && x.RequiredTask == true && !string.IsNullOrWhiteSpace(x.Condition))
+          (x.Status == PracticeTimeStates.TaskCancelled || taskApplicability.GetValueOrDefault(x.Binding.Id)) &&
+          x.RequiredTask == true && !string.IsNullOrWhiteSpace(x.Condition))
         .ToDictionary(x => x.Binding.Id, x => evidence[x.Binding.Id].Where(rule =>
           rule.State == WorkflowEvidenceRuleStates.Required && rule.Kind == WorkflowEvidenceKinds.ReviewedProcedure).ToArray());
       var procedureIds = conditionalProcedureRules.Values.SelectMany(rules => rules)
@@ -185,7 +192,7 @@ public static class EngagementProgressQuery
         // Rework and other non-template engagement tasks are commitments the engagement must still discharge,
         // unless a manual task was created as optional.
         x.RequiredTask is { } required ? WorkflowStepRequirements.Classify(required, x.Condition) : WorkflowStepRequirements.Mandatory,
-        x.Status, false, unmetByBinding.GetValueOrDefault(x.Binding.Id),
+        x.Status, taskApplicability.GetValueOrDefault(x.Binding.Id), unmetByBinding.GetValueOrDefault(x.Binding.Id),
         (evidence.GetValueOrDefault(x.Binding.Id)?.Count(r => r.State == WorkflowEvidenceRuleStates.Required && !r.Satisfied) ?? 0) +
           (x.Binding.PbcRequestId.HasValue && x.PbcState is not (PbcStates.Accepted or PbcStates.Closed) ? 1 : 0),
         x.Binding.PbcRequestId.HasValue && x.PbcState is not (PbcStates.Accepted or PbcStates.Closed),

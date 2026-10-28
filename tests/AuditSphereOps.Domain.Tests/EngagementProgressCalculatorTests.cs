@@ -66,6 +66,26 @@ public sealed class EngagementProgressCalculatorTests
   }
 
   [Fact]
+  public void Progress_ReviewedConditionalExclusionRequiresCurrentTaskAndProfessionalDecisionsWithoutHold()
+  {
+    foreach (var state in new[] { PracticeTimeStates.TaskOpen, PracticeTimeStates.TaskInProgress, PracticeTimeStates.TaskCancelled })
+    {
+      var reviewed = Step(1, WorkflowStepRequirements.Conditional, state, cancellation: true);
+      var excluded = EngagementProgressCalculator.Calculate([reviewed], gateOpen: true);
+      Assert.Equal((0, 1), (excluded.ApplicableRequired, excluded.NotApplicable));
+      Assert.Equal(EngagementProgressStepStates.NotApplicable, Assert.Single(excluded.Steps).State);
+      var professionalMissing = EngagementProgressCalculator.Calculate([reviewed with { UnmetNotApplicableApprovals = 1 }], gateOpen: true);
+      Assert.Equal((1, 1, 0), (professionalMissing.ApplicableRequired, professionalMissing.BlockedRequired, professionalMissing.NotApplicable));
+      var held = EngagementProgressCalculator.Calculate([reviewed with { OnHold = true }], gateOpen: true);
+      Assert.Equal((1, 1, 0), (held.ApplicableRequired, held.BlockedRequired, held.NotApplicable));
+      var stale = EngagementProgressCalculator.Calculate([reviewed with { NotApplicableRecorded = false }], gateOpen: true);
+      Assert.Equal((1, 0), (stale.ApplicableRequired, stale.NotApplicable));
+      var mandatory = EngagementProgressCalculator.Calculate([reviewed with { Requirement = WorkflowStepRequirements.Mandatory }], gateOpen: true);
+      Assert.Equal((1, 0), (mandatory.ApplicableRequired, mandatory.NotApplicable));
+    }
+  }
+
+  [Fact]
   public void Progress_IsNeverCompleteWhileAGateIsOpenAndIsUnavailableWithoutAPlan()
   {
     IReadOnlyList<EngagementProgressStepFact> done = [Step(1, WorkflowStepRequirements.Mandatory, PracticeTimeStates.TaskCompleted)];

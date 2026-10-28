@@ -14,11 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
-## Ownership oversight authorization test
+## Source-bound conditional task applicability
 
-The API regression expected a current firm-wide Administrator metadata read to be denied. It now verifies the approved read-only oversight result, retained exact disclosure evidence and denied commands; ungranted staff remain denied. The original accounting assertions are retained. Full release verification remains incomplete after a runner shutdown. See [status.json](status.json).
+Conditional tasks now have immutable source-pinned proposals and independent reviewed dispositions. Current authorization, exact accepted evidence and separate professional applicability govern exclusion; stale, returned, revoked or held work stays required. Task status and task-completed dependencies are preserved. The work queue provides reviewed source selection, assent, history and owner-only receipt recovery. Focused checks and owned built-in workflows passed; full release and professional acceptance remain separate. See [status.json](status.json).
 
-Prior replay and timestamp-fixture evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#release-candidate-replay).
+Prior ownership authorization evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#ownership-oversight-authorization-test).
 
 ## Oversight access evidence and specification suitability
 

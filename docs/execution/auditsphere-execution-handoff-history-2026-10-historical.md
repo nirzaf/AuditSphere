@@ -365,3 +365,11 @@ The administrator-expiry regression now uses the existing microsecond-aligned cl
 An existing candidate is no longer returned before current authority is checked. Replay uses the ordinary release service and retains its approval identity. Candidate publication rechecks the existing independent package-review prerequisite under release locks, so a returned cash-flow review blocks preparation as shown in the workspace. Focused replay and unchanged historical projection checks passed; remaining release acceptance stays open. See [status.json](status.json).
 
 > The preceding section was moved verbatim from the active handoff during the ownership oversight test correction.
+
+## Ownership oversight authorization test
+
+The API regression expected a current firm-wide Administrator metadata read to be denied. It now verifies the approved read-only oversight result, retained exact disclosure evidence and denied commands; ungranted staff remain denied. The original accounting assertions are retained. Full release verification remains incomplete after a runner shutdown. See [status.json](status.json).
+
+Prior replay and timestamp-fixture evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#release-candidate-replay).
+
+> The preceding section was moved verbatim during conditional-task applicability publication.
