@@ -81,15 +81,15 @@ The API publish target bundles the Angular browser artifacts into `ui/`. Missing
 `AngularUi:CanonicalRoutes` defaults to true in the API host. The native catalogue
 serves `/app`, `/portal` and `/setup/microsoft365`. The `/ui` preview URLs remain
 usable, and both modes load the same fingerprinted assets from `/ui/`. Sign-in
-and consent destinations follow the configured mode. The separate Web project
-is not part of API route composition; retaining/building it does not prove
-operational rollback readiness.
+and consent destinations follow the configured mode. The retired Web host is absent from the current project graph; its historical source does not provide an accepted operational rollback.
 
 For an approved API release rollback, restore the previous compatible API build
 and its matching retained Angular assets using the deployment's release process.
 Setting `AngularUi:CanonicalRoutes=false` is only a route-prefix compatibility
 mode: it serves the same Angular application under `/ui` and does not restore
 any legacy host. Do not start a second database writer or loosen authorization for rollback.
+
+Canonical route HTML and the inline-script CSP hashes are captured when the API starts. Rebuilding browser artifacts under a running API does not refresh that captured canonical shell. Restart the owned development/test API after replacing a build, and verify the actual fingerprinted main script in the canonical page before accepting a UI fix. A freshly served `/ui` preview alone does not prove that a running canonical host has loaded the replacement shell. See `Ui/UiEndpoints.cs` and `ApiHost.HttpBoundary.cs` in the API project.
 
 Before replacing a build, retain its complete browser artifact directory separately.
 `AngularUi:PreviousBuildPath` may point to that distinct approved directory for the
@@ -103,9 +103,8 @@ canary or owner acceptance.
 ## Legacy Presentation Host Status
 
 The owner authorized retirement of the Blazor rollback/reference host on 2026-10-17.
-The removal is prepared on branch `chore/retire-blazor-host` for review; `master`
-retains the host until that review concludes. The removed source remains available
-at commit `c3905e07`. The API does not reference the retired project and continues
+The owner-authorized removal was merged to `master`; the host and Razor files are absent from the current tree. The removed source remains available
+at the historical pre-removal commit identified in the [retirement gate](../../docs/migration/auditsphere-migration-blazor-removal-readiness.md). The API does not reference the retired project and continues
 to serve the current Angular UI. No production-like rollback exercise has been
 accepted; owner authorization does not prove OIDC callback, route-switch, data
 compatibility, or production rollback acceptance. The API host remains the normal

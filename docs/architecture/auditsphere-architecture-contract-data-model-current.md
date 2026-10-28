@@ -24,16 +24,20 @@
 | 3 Fieldwork | `Fieldwork`, `FieldworkConnections`, `ConfirmationBookedSources`, `FindingCommands`, `ReviewPointCommands`, `WorkpaperCommands`, `Reviews`, `Pbc`, `ClientPortal`, `Documents` | `Audit/Fieldwork.cs`, `FieldworkConnections.cs`, `AuditSamplingEngine.cs`, `AuditConfirmationClosure.cs`, `AuditConfirmationBookedSource.cs`, `Audit/*CommandReceipt.cs`, `Reviews/Reviews.cs`, `Reviews/ReviewPointCommandReceipt.cs`, `Documents/*.cs` |
 | 3 (TB and accounting inputs) | `Accounting`, `NativeTrialBalanceSources`, `NativeGeneralLedgerSources`, `ClientAccounting`, `ClientAccountingProfileRevisions`, `ClientAccountingDimensionSchema`, `PeriodMaintenanceReceipts`, `FinancialStatements`, `AdjustmentBridge`, `AdjustmentJournalActions`, `AdjustmentPlanActions`, `AccountingAnalysisPreparations`, `AccountingCreationPreparations`, `AccountingEvidenceActions`, `ClientAccountRoles`, `ValuationPreparations` | `Accounting/*.cs` |
 | 4 Reporting and archive | `Completion`, `AuditDeliverables`, `FileFreeze`, `ScopedEvidence` | `Completion/*.cs`, `Records/*.cs` |
-| 5 Practice management | `FirmOperations`, `Practice` (time, billing, ledger), `TimeEntryChanges`, `BillingCommands`, `WorkflowTasks`, `WorkflowTemplates`, `WorkflowEvidence`, `WorkflowDependencyRevisions`, `WorkflowReminders` | `Practice/Time.cs`, `TimeEntryChangeReceipt.cs`, `Billing.cs`, `BillingCommandReceipt.cs`, `FirmLedger.cs`, `FirmOperations.cs`, `Workflow*.cs` |
+| 5 Practice management | `FirmOperations`, `Practice` (time, billing, ledger), `TimeEntryChanges`, `BillingCommands`, `WorkflowTasks`, `WorkflowTemplates`, `WorkflowEvidence`, `WorkflowApplicability`, `WorkflowDependencyRevisions`, `WorkflowReminders` | `Practice/Time.cs`, `TimeEntryChangeReceipt.cs`, `Billing.cs`, `BillingCommandReceipt.cs`, `FirmLedger.cs`, `FirmOperations.cs`, `Workflow*.cs` |
 | Owner addition: client bookkeeping | `ClientAccountingSchedules`, `ClientCounterparties`, `ClientManualSettlements`, `ClientOpenItemAllocations`, `ClientOperationalLedger`, `ClientOpeningSuccessors`, `ClientSalesInvoices`, `ClientSalesInvoiceWorkflow`, `ClientSalesCreditNotes`, `ClientPurchaseInvoices`, `ClientPurchaseCreditNotes` | `Accounting/Client*.cs` |
 | Owner addition: consolidation | `Consolidation` | `Accounting/` consolidation and FX records |
-| Platform | `Security`, `Operations`, `OperatorCommands`, `Microsoft365`, `ClientSharePointSites` | `Security/Users.cs`, `Completion/OperatorCommandReceipt.cs`, `Microsoft365/*.cs`, `Shared/Kernel.cs` |
+| Platform | `Security`, `OversightAccess`, `Operations`, `OperatorCommands`, `Microsoft365`, `ClientSharePointSites` | `Security/Users.cs`, `Security/AdministratorOversightAccessEvent.cs`, `Completion/OperatorCommandReceipt.cs`, `Microsoft365/*.cs`, `Shared/Kernel.cs` |
 
 Procedure execution adds `audit_procedure_command_receipts` (append-only actor/request receipts with definition, generation, result/review and evidence-digest identity) and the nullable `evidence_digest` column. The submitted evidence snapshot is stored inside the immutable `audit_procedure_results.structured_result_json` under the server-reserved versioned property `_auditEvidenceSnapshot`; direct result/review writes are not accepted. See [AuditProcedureCommandReceipt](../../src/AuditSphereOps.Domain/Audit/AuditProcedureCommandReceipt.cs) and `AuditProgramService.Evidence.cs`.
 
 SharePoint-primary PBC storage adds `pbc_document_registrations` (append-only link from a received upload and its completed transfer to an exact-version `document_snapshots` row and its `document_references` row, guarded at commit), `pbc_storage_dispositions` (per-upload read source and local-copy state, moving only LOCAL_STAGED → SELECTED_SITE → back, or SELECTED_SITE → RELEASED) and append-only `pbc_storage_events`; `pbc_storage_command_receipts` retain each administrator command's request hash, review basis, preview and outcome, bound at commit to its exact storage event or registration. `pbc_upload_chunks.staged_path` history is never rewritten when a staged copy is released.
 
 Use the [code map](auditsphere-architecture-code-map.md) to go from a capability to its Application services.
+
+Conditional task applicability uses `workflow_task_applicability_proposals` and `workflow_task_applicability_decisions`, mapped by `AuditSphereDbContext.WorkflowApplicability.cs` from `Domain/Practice/WorkflowTaskApplicability.cs`. Scoped foreign keys bind the exact task binding, template step, independently accepted PBC receipt and actors. Sequential proposal/decision lineage, basis hashes, exact revision/generation pins and independent actors are retained; command request keys recover the actor's original outcome. The `WorkflowTaskApplicabilityEvidence` migration protects these records against UPDATE/DELETE/TRUNCATE and refuses downgrade when evidence exists. It changes neither operational task status nor professional procedure decisions and fabricates no legacy approvals.
+
+`administrator_oversight_access_events`, mapped by `AuditSphereDbContext.OversightAccess.cs`, retains the exact firm/actor/session, registered operation, resource, request identity and `DISCLOSURE_AUTHORIZED` outcome. A scoped actor foreign key and unique firm/request identity accompany the `AdministratorOversightAccessEvidence` migration's append-only protections. No automatic expiry or disposal is implemented; retention and independent-history-reviewer policy must be accepted separately before the dependent rollout.
 
 ## 3. Changing the schema
 
@@ -44,8 +48,8 @@ Use the [code map](auditsphere-architecture-code-map.md) to go from a capability
    dotnet ef migrations add <BusinessChangeName> --project src/AuditSphereOps.Infrastructure \
      --startup-project src/AuditSphereOps.Api
    ```
-4. Confirm there is no remaining drift with the `has-pending-model-changes` command in `AGENTS.md` §3.
-5. Never edit or delete an applied migration. Never apply migrations to Development or production from an agent session; deployment uses the approved procedure in the operator guide.
+4. Confirm there is no pending model drift with the pinned EF tool and the matching built Infrastructure/API configuration; the CI workflow retains the full build and drift gate.
+5. Never edit or delete an applied migration. Focused migration checks use an owned test database; Development or live migrations require the separately authorized operator deployment/recovery procedure. A model-drift check is not migration authority.
 6. If the change alters a request or response shape, regenerate `contracts/auditsphere-openapi.json` (section 4) and update the Angular decoder.
 
 ## 4. API contract regeneration

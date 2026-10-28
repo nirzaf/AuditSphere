@@ -93,6 +93,7 @@ implemented patterns; acceptance claims always belong to `docs/execution/status.
 - Session-bound components fence on `SessionService.invalidation()`: dialogs
   close when the generation changes, responses from a stale identity are
   dropped, and identity switches clear in-memory form state.
+- Finding and review-point pages keep an already verified receipt panel mounted during the independent same-scope detail refresh. Completed scope denial hides protected receipt content; route/session changes retain their existing invalidation rules. Test the parent loading condition as well as the command-state class: a retained receipt signal alone does not prove that its confirmation is visible. Historical receipt display never supplies current authorization or approval.
 
 ## Tests that hold the line
 

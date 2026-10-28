@@ -26,6 +26,10 @@ operator must first install Git and Docker Compose if unavailable, create `/opt/
 owner-only access, and check out the approved source revision there. Do not run OS upgrades or
 restart the VPS as part of this deployment.
 
+Before an upgrade, verify the exact candidate's fast CI, full release contract and immutable image checkouts/digests, then its restored-copy migration rehearsal and independently checked cleanup. Revalidate the live baseline before a source/image-bound plan and preflight are used. A release containing Administrator oversight history also requires the actual retention and independent-history-reviewer policy recorded for that rollout; a technical pass supplies neither policy nor professional EQR approval. Current implementation retains this history without automatic expiry, blocks modification/deletion/truncation and restricts history reading to current firm-wide Staff Administrators. Finite disposal or additional reviewer access requires implementation and verification before adoption.
+
+The storage layout below is the checked-in provisioning configuration, not proof of an existing server's volume backing. Inspect actual container mounts and Docker volume driver options before every backup; existing named volumes can retain earlier options. Quiesce the relevant application writers for the final database dump/catalog and capture all actual mutable volume contents, mounted credentials, private configuration and overlays. Preserve prior images and existing access. Do not assume that backing up only the storage image covers every active mount, or recreate existing volumes to make them match the template. Rehearsal backups are separate from final cutover backups.
+
 The acceptance deployment has one 30 GB ext4 filesystem mounted at `/opt/auditsphere/storage`.
 Its PostgreSQL, data-protection, PBC staging and release-checkpoint bind volumes all live there.
 The filesystem is backed by `/opt/auditsphere/auditsphere-acceptance-storage.img`, so the data

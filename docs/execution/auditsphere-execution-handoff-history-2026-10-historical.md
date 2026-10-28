@@ -413,3 +413,19 @@ README and the current roles reference now match the assignment catalogue, scope
 Earlier navigation verification is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#user-privilege-documentation-handoff-transfer).
 
 Archive transfer preserves the source sections verbatim.
+
+## Pre-applicability cancellation and progress handoff
+
+## Conditional-task cancellation safety (2026-10-27)
+
+A conditional task cancellation remains blocked and in the required denominator even when its retained reason begins `Not applicable:`. The cancellation panel describes that reason as operational history, not an approval. Independent current procedure decisions remain separately evaluated. The scoped maker/checker task applicability decision and its UI are still open; existing cancellation and reopening history is preserved. Focused and built-in browser evidence is recorded in [status.json](status.json).
+
+## Progress scope, professional applicability and paging (2026-10-26)
+
+Client and portfolio progress now apply the exact progress-reading scope before totals and page bounds. The client tracker exposes continuation across permitted periods and keeps keyboard focus on its persistent heading while changing pages. A cancelled conditional task with required procedure evidence also needs current independent not-applicable approval for every exact source; pending, returned, unrelated or stale decisions leave the task blocked. Upstream explicit cancellation markers, open holds, PBC currentness and revocation fences remain intact.
+
+Focused PostgreSQL, Angular and API checks, fresh contract emission and production compilation passed. An actual built-in browser journey exercised both client page directions, boundary controls and retained heading focus; an earlier expired fixture is excluded. The existing PBC source-currentness regression passed independently. Exact results, source identities and CI are in `targetedVerification.practiceProgressScopeWaiver20261026` in [status.json](status.json). The [existing criterion register](auditsphere-execution-report-practice-management-criterion-audit-current.md) remains the completion backlog; WF-02/WF-03, unbound manual task coverage, connected acceptance, D03 and professional/live gates remain open. No full local suite, latest-source deployment or professional acceptance is claimed.
+
+The completed roles-guide milestone is retained in the [handoff archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#user-roles-and-privileges-guide-2026-10-26).
+
+Archive transfer preserves the preceding source sections verbatim.

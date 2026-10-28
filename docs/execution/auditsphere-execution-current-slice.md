@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Markdown codebase reconciliation
+
+Current Markdown guidance now describes conditional-task and oversight evidence, exact recovery visibility, the retired Web host and canonical-shell startup behavior. Operator guidance separates configured storage from verified live mounts and keeps retention/reviewer policy and exact-source release gates explicit. Preserved sources and historical acceptance records are unchanged; superseded handoff sections are archived verbatim. The [reconciliation report](auditsphere-execution-report-documentation-reconciliation-current.md) identifies the survey and code owners; [status.json](status.json) records validation and source boundaries.
+
 ## Verified review-point receipt during refresh
 
 The review-point command panel now retains its exact verified receipt while the independent detail read reloads. A focused regression reproduced the hidden confirmation; direct success and recovered outcomes now retain the same panel, while confirmed scope denial still removes it. Existing command checks and browser cases are unchanged. Focused checks and an owned canonical built-in workflow passed; exact-source CI, retention/reviewer acceptance and release gates remain open. See [status.json](status.json).
@@ -60,17 +64,7 @@ A journal based on an earlier trial balance cannot be posted after a replacement
 
 Prior evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#shared-form-layout-and-ordinary-task-progress-2026-10-26).
 
-## Conditional-task cancellation safety (2026-10-27)
-
-A conditional task cancellation remains blocked and in the required denominator even when its retained reason begins `Not applicable:`. The cancellation panel describes that reason as operational history, not an approval. Independent current procedure decisions remain separately evaluated. The scoped maker/checker task applicability decision and its UI are still open; existing cancellation and reopening history is preserved. Focused and built-in browser evidence is recorded in [status.json](status.json).
-
-## Progress scope, professional applicability and paging (2026-10-26)
-
-Client and portfolio progress now apply the exact progress-reading scope before totals and page bounds. The client tracker exposes continuation across permitted periods and keeps keyboard focus on its persistent heading while changing pages. A cancelled conditional task with required procedure evidence also needs current independent not-applicable approval for every exact source; pending, returned, unrelated or stale decisions leave the task blocked. Upstream explicit cancellation markers, open holds, PBC currentness and revocation fences remain intact.
-
-Focused PostgreSQL, Angular and API checks, fresh contract emission and production compilation passed. An actual built-in browser journey exercised both client page directions, boundary controls and retained heading focus; an earlier expired fixture is excluded. The existing PBC source-currentness regression passed independently. Exact results, source identities and CI are in `targetedVerification.practiceProgressScopeWaiver20261026` in [status.json](status.json). The [existing criterion register](auditsphere-execution-report-practice-management-criterion-audit-current.md) remains the completion backlog; WF-02/WF-03, unbound manual task coverage, connected acceptance, D03 and professional/live gates remain open. No full local suite, latest-source deployment or professional acceptance is claimed.
-
-The completed roles-guide milestone is retained in the [handoff archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md#user-roles-and-privileges-guide-2026-10-26).
+Earlier cancellation and scoped-progress evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#pre-applicability-cancellation-and-progress-handoff); the source-bound applicability section above records the later implementation.
 
 ## Practice management completion and tracker bounds (2026-10-26)
 

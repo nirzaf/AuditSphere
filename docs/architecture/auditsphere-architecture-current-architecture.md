@@ -42,7 +42,7 @@ this document wins and the source text remains a historical requirement record.
 ```mermaid
 flowchart TB
     subgraph ACTORS["Users and external actors"]
-        STAFF["Firm staff: Administrator, Partner, Manager, Preparer"]
+        STAFF["Firm staff: scoped roles and separate engagement staffing"]
         CLIENT["Client liaison, CFO, management"]
         OPERATOR["Tenant / deployment operator"]
     end
@@ -189,6 +189,8 @@ flowchart TB
 - **One `AuditSphereDbContext`**, physically split into capability partial files
   (`AuditSphereDbContext.<Module>.cs`), with `OnModelCreating` calling `Configure<Module>(b)`
   methods. No DbContext-per-module.
+- **Administrator oversight is a registered read capability**, not a command override. Current firm-wide Staff Administrator authority and session freshness are rechecked before a registered metadata response is disclosed. A separate audit context must first retain its immutable disclosure-authorization event; an audit failure withholds the data. Read-only history uses the same current administrative boundary. Commands, exports and raw files retain their original authorizers; retention/reviewer acceptance remains separate. See the [roles reference](auditsphere-architecture-user-roles-and-privileges-current.md).
+- **Conditional operational task applicability is retained evidence**, separate from task status and professional procedure decisions. A source-pinned proposal and independent current decision can affect the progress denominator only while the accepted source, task/template/profile/period basis and separately required professional not-applicable decisions remain current and no hold blocks the work. Stale, returned or revoked evidence restores required work; a task-completed dependency still requires actual completion. Existing scoped management authority governs proposal, review and removal; no second operational lifecycle or professional waiver is introduced.
 - **Pure calculators** (`LineTranslationCalculator`, `ConsolidationCalculator`,
   `CurrencyTranslationCalculator`, `TrialBalanceCalculator`, advanced-consolidation
   calculators) contain no EF Core, network, clock or random-ID dependencies.

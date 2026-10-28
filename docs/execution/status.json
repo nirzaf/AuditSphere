@@ -1,10 +1,13 @@
 {
   "schemaVersion": "1",
   "documentationReconciliation": {
-    "result": "DOCS_RECONCILED",
+    "result": "DOCS_RECONCILED_SOURCE_AND_VALIDATORS_PASS",
     "report": "docs/execution/auditsphere-execution-report-documentation-reconciliation-current.md",
-    "history": "status-archive-2026-10.json#keys.documentationReconciliationPublished20261018",
-    "publication": "APPROVED: f409e762 and da2cdd38 confirmed on remote master; professional/external gates unchanged"
+    "sourceBaseCommit": "30fece316f9f2668c12ac2235a835ee387b44e33",
+    "scope": "All237trackedMarkdown files surveyed; current source/contract/operator drift corrected.147protected requirement/task/source/evidence files unchanged; D1proposal preserved exactly.",
+    "history": "status-archive-2026-10.json#keys.documentationReconciliationBeforeMarkdownSweep20261028",
+    "evidence": ".local/autonomous/evidence/markdown-codebase-reconciliation-20261028/review.json",
+    "validation": "237Markdown/19canonical/3770relative links/501paths; filenames/narrative/audit-source/taskboard/UIinventory/diffPASS.13Markdown files updated plus executionJSON; no runtime tests or new browser/live claim."
   },
   "specificationVersion": "5.0",
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
@@ -1132,15 +1135,16 @@
       "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.siblingGroupSnapshotCi20261028BeforeReviewPointRefresh20261028"
     },
     "reviewPointReceiptRefreshCi20261028": {
-      "status": "TRUE_RED2_FOCUSED_AND_BUILTIN_PASS_CURRENT_EXACT_CI_REQUIRED",
-      "sourceBaseCommit": "506cb33fb567604c50e1bfba7819bdac929cb57a",
-      "failure": "Precedingc633 full40627322002 E2Ejob122615809391:338PASS/1FAIL/0skip, actualcheckoutMATCH; TRXartifact12794826771 digestf6d0092f6e62bff31f208a0fb9fbdae38291cbcbda9c6c952e82353ec0800ca6 verified. REOPEN lost-committed receipt hidden during independent detail refresh.",
-      "change": "Keep the exact verified receipt panel mounted during detail loading. Detail content still clears while loading; completed403 hides receipt. Current authority, original assertions, receipt validation and commands unchanged.",
-      "verification": "Same new detail composition tests old-sourceRED2/7PASS -> fixedGREEN9; existingstate30PASS. Existing six-case CLEAR/REOPEN success/lost-committed/lost-uncommitted E2E6PASS/0FAIL/0skip. PinnedNode26.8.1 productionbuild/lintPASS with existing style warnings.",
-      "browser": "Fresh canonical main-R4OXDNL4; actual built-in synthetic CLEAR and REOPEN each unchecked-assent/one-command/exactreceipt/explicitrefresh retention PASS; DB2receipts/2events/revision3/target9007199254740993 unchanged. Desktop1018px nooverflow/duplicateIDs0/console[].",
-      "cleanup": "OwnedPG18.6port58367 exactdata-dir/stop/root/listener/API/database/manifest absence independently verified; temporary launcher restored byte-exact; ownedtab28closed/original5433andEntra1untouched.",
-      "evidence": ".local/autonomous/evidence/user-types-privileges-20261028/review-point-refresh-review.json",
-      "limits": "Lost-response/denial/session evidence is automated, not built-in branches; no professional/provider/live acceptance. Failed screenshot captures excluded. New exact gates and D-OV04 remain required."
+      "status": "TRUE_RED2_FOCUSED_AND_BUILTIN_PASS_EXACT_SOURCE_CI_REQUIRED",
+      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.reviewPointReceiptRefreshBeforeMarkdownSweep20261028"
+    },
+    "markdownCodebaseReconciliation20261028": {
+      "status": "VERIFIED_DOCUMENTATION_ONLY_EXACT_SOURCE_RELEASE_GATES_SEPARATE",
+      "sourceBaseCommit": "30fece316f9f2668c12ac2235a835ee387b44e33",
+      "change": "Align current architecture/model/HTTP, conditional-task operator flow, receipt presentation, canonical shell startup, Web retirement and actual-mount backup/retention boundaries. Archive superseded handoff exactly; keep historical verification distinct.",
+      "verification": "Role catalogue and current source guard hashes, fiveapplicability+oversighthistory OpenAPI paths, SQLguard declarations, retiredWeb absence and startupHTML/CSP source checksPASS. No app tests/browser/provider/live action for documentation-only work.",
+      "remaining": "New published source needs its own exact gates; D-OV04 and professional/external acceptance remain open.",
+      "validation": "Documentationhealth/filenames/narrative/source-integrity/taskboard/UIinventory/diffPASS. No full local suites."
     }
   },
   "externalGates": [
@@ -1625,12 +1629,12 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "506cb33fb567604c50e1bfba7819bdac929cb57a",
-    "sourceRole": "REVIEW_POINT_VERIFIED_RECEIPT_REFRESH_VISIBILITY_REPAIR",
-    "releaseVerification": "Preceding506c full40633235431 sourceMATCH Angular/Verify/Domain1825PASS; API/E2E active at05:49UTC. Following source requires new exact gates.",
-    "imagePublication": "506c fast/images actual6checkouts/digests/cache/schema293rehearsal/cleanup/defaultguards PASS; predecessor only after this repair.",
-    "cutoverStatus": "NOT_PERFORMED. Current exact gates, baseline-bound receipt/QUIESCED backups, actual D-OV04 policy and origin/public acceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeReviewPointRefresh20261028"
+    "sourceBaseCommit": "30fece316f9f2668c12ac2235a835ee387b44e33",
+    "sourceRole": "OWNER_REQUESTED_MARKDOWN_CODEBASE_RECONCILIATION",
+    "releaseVerification": "Preceding30fe full40641158657 sourceMATCH Angular/Verify/Domain1825PASS; API/E2E pending. New documentation source requires its own gates.",
+    "imagePublication": "30fe fast/images actual6checkouts/digests/cache/schema293rehearsal/cleanup/defaultguards PASS; predecessor only for the following source.",
+    "cutoverStatus": "NOT_PERFORMED. RealD-OV04 acceptance, exact current gates, refreshed plan/preflight, QUIESCED backups and origin/public acceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeMarkdownSweep20261028"
   },
-  "updatedAtUtc": "2026-10-28T05:57:08.320589+00:00"
+  "updatedAtUtc": "2026-10-28T06:47:11.025258+00:00"
 }

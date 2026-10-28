@@ -1,14 +1,32 @@
 # AuditSphere — Documentation Reconciliation
 
-**Status: CURRENT** for instruction reconciliation. The D1 policy below is **PROPOSED, NOT APPROVED**.
+**Status: CURRENT** for codebase and instruction reconciliation. The D1 policy below is **PROPOSED, NOT APPROVED**.
 
-**Revalidated baseline:** `d4bbef4dc5717f943810a939eee83d4acb158992` on 2026-10-18, in the main `master` worktree. The original documentation slice merged as PR #46 at `e030f19a9507ce8707121849b9055f28bf8323bd`; the companion API/Angular integration merged as PR #47 at `8758a8f9a2b8269633079cc861f95052f4fd3ee0`. Those merges do not establish full feature parity or release acceptance.
+**Historical instruction-reconciliation baseline:** `d4bbef4dc5717f943810a939eee83d4acb158992` on 2026-10-18, in the main `master` worktree. The original documentation slice merged as PR #46 at `e030f19a9507ce8707121849b9055f28bf8323bd`; the companion API/Angular integration merged as PR #47 at `8758a8f9a2b8269633079cc861f95052f4fd3ee0`. Those merges do not establish full feature parity or release acceptance.
 
 **Authority:** owner's documentation/engineering delegation, [AGENTS.md](../../AGENTS.md), [documentation index](../auditsphere-docs-index.md), [current architecture](../architecture/auditsphere-architecture-current-architecture.md), requirements and each [approved ADR](../architecture/adr/auditsphere-architecture-index-adr-register-current.md) within its explicit scope. Requirement sources, executed contracts, historical evidence and prior verification records remain preserved. No professional approval, task completion, external-gate promotion or deployment is recorded here.
 
+## Current codebase reconciliation
+
+The latest pass surveys every tracked Markdown file, including root/development/infrastructure guides, task cards and preserved sources. File/link/path checks cover the whole inventory; capability-level source tracing targets changed implementation claims. Unaffected documents stay unchanged. This is documentation consistency work, not proof that every feature is functionally accepted.
+
+| Current guide family | Executable owner / evidence boundary | Reconciliation |
+| --- | --- | --- |
+| Architecture, data model and HTTP boundary | Workflow applicability and oversight Domain records, DbContext partials, migrations and authenticated API owners; checked-in OpenAPI | Document immutable conditional-task proposals/independent decisions, actor-owned recovery and oversight disclosure evidence without widening commands, exports or professional authority. |
+| Workflow operations and roles | Existing work queue/source picker, applicability panel and current assignment catalogue | Explain exact accepted-source review, fresh assent, independent decisions, stale return/revocation, historical inspection and uncertain-outcome recovery. Existing role and professional boundaries remain authoritative. |
+| Angular development and conventions | API route/CSP startup composition and finding/review-point page composition | Correct the obsolete claim that master still retains the Web host; explain canonical shell restart/asset verification and receipt visibility across same-scope loading versus completed denial. |
+| Acceptance operations | Checked-in Compose volume configuration and independently observed mount/backup boundaries | Distinguish configured storage from actual volume backing, preserve existing resources, require exact-source gates and actual retention/reviewer acceptance, and separate restored-copy rehearsal from quiesced final backup/cutover. |
+| Execution and agent guidance | Source-bound reviews, ignored autonomous checkpoint and execution ledger | Archive superseded handoff text verbatim, keep current guidance aligned with code, and retain separate implementation, focused/browser verification, exact-source CI and external/professional acceptance. |
+
+Current source identities, inventory scope, validation results and remaining gates are recorded under `documentationReconciliation` and `targetedVerification` in [status.json](status.json). No application tests, browser workflow, provider operation, grant change or deployment is performed by this documentation pass. Documentation publication itself needs its own release gates before deployment; earlier source verification cannot be relabelled as acceptance of a later source.
+
+## Historical instruction reconciliation
+
+The original baseline and verification records below are retained as dated evidence. They are not current test discovery, CI status or release acceptance. The D1 packet remains a proposal requiring the same qualified decisions; this pass changes none of its wording or authority.
+
 ## Before → authority → correction
 
-The rows describe the issues at the original reconciliation baseline. Their dispositions were rechecked against current `master`; original requirement/source wording remains preserved where it is explicitly marked historical or superseded.
+The rows describe the issues at the original reconciliation baseline. Their dispositions were checked against the historical baseline above; original requirement/source wording remains preserved where it is explicitly marked historical or superseded.
 
 | Original conflict / affected paths | Classification and controlling authority | Current disposition |
 | --- | --- | --- |
@@ -23,7 +41,7 @@ The rows describe the issues at the original reconciliation baseline. Their disp
 | AWP source coverage conflated with performed work or Task 10 approval | CODE_OR_TEST_GAP / PROFESSIONAL_POLICY; atomic spec D1 and existing evidence | Tasks 01–09 have technical implementation and historical focused checks, not complete current acceptance. The source spec's “9 completed” checklist is a dated focused-evidence snapshot; status records remain PARTIAL and Task 04 has no separate current ledger entry. Retain every source ID; Task 10 stays blocked only on its terminal policy. Proposed sequencing below changes no gates. |
 | [Restore runbook](../operations/auditsphere-operations-runbook-restore-drill.md) implies an old checkpoint is latest/current and includes Purview as a recovery prerequisite | STALE_DOC / EXTERNAL_GATE; ADR-0009, P7/P8 and retained evidence | Label the same-host checkpoint historical. Operations/records owners approve targets/topology and measure custodially separate cross-store restore. No new multi-region requirement, p95/capacity target, provider or metric is invented. |
 
-Records updated in this revalidation: [central index](../auditsphere-docs-index.md), [current-slice handoff](auditsphere-execution-current-slice.md), [status.json](status.json), this report and the [R2R index](../task_breakdown/auditsphere-r2r-index-task-breakdown.md). The current audit disposition ledger, generated task board and its [generator](../../scripts/docs/build-task-board.py) were checked but unchanged; the board generator retains the existing API/Angular tracker pointer and reconciliation pointer. Original audit items and card approval/status metadata are unchanged; regenerated counts follow actual card front matter.
+Records updated in that historical revalidation: [central index](../auditsphere-docs-index.md), [current-slice handoff](auditsphere-execution-current-slice.md), [status.json](status.json), this report and the [R2R index](../task_breakdown/auditsphere-r2r-index-task-breakdown.md). The current audit disposition ledger, generated task board and its [generator](../../scripts/docs/build-task-board.py) were checked but unchanged; the board generator retains the existing API/Angular tracker pointer and reconciliation pointer. Original audit items and card approval/status metadata are unchanged; regenerated counts follow actual card front matter.
 
 ## Delegated engineering resolutions
 
@@ -61,9 +79,11 @@ Before implementation the qualified owner/reviewer must approve a versioned exac
 | PROFESSIONAL_POLICY — D1 | Qualified methodology owner + independent professional reviewer: accept or revise D1-DRAFT-01 with the exact mapping and compatibility evidence above. Unrelated technical work proceeds. |
 | EXTERNAL_GATE — P7/P8 | Operations/records/security custodians + independent reviewer: approved RPO/RTO/topology, measured cross-store restore, p95 route/workload targets, browser/provider concurrency and throughput measurements, secret custody, collector/alerts and sanitized logs. Same-host samples are not production evidence. |
 | EXTERNAL_GATE — accessibility/locale and P1/P2/P2b/M365-ADMIN/P3/P9/P10 | Accessibility reviewer: supported browser/locale matrix, keyboard/responsive and assistive-technology evidence against existing conventions. Authorized tenant/operator/release owners: fresh exact capability/resource/denial and business-workflow observations, independent checkpoints/review and production acceptance. No consent, role, resource, certificate or deployment changes here. |
+| OWNER_POLICY — oversight retention/history reviewer | Actual D-OV04 environment scope, retention duration/start trigger, holds/release authority, expiry disposition, reviewer scope/independence and approver/policy identity remain required. Current history has no automatic expiry and only current firm-wide Staff Administrators can read it; finite disposal or extra reviewer permissions requires implementation and verification before adoption. |
+| PROFESSIONAL_POLICY — EQR | D-EQR-01 through D-EQR-04 remain open for applicability/decision authority, eligibility/independence, exact draft evidence/currentness and legacy activation. Existing assigned EQR Partner, staffed Partner signing and release gates remain authoritative; no concurrence or approval is fabricated. |
 | OUT_OF_SCOPE | Purview/eSignature providers, broad new Graph roles, second ERP/microservices and excluded operational functions remain excluded. |
 
-## Checks actually run
+## Historical checks actually run
 
 - `python3 scripts/docs/verify-audit-program-source.py` passed: source SHA-256, 20 ordered sections and all 165 exact procedure paragraphs match the JSON manifest. This proves source integrity, not execution of the procedures.
 - Local documentation checks passed: Markdown health (219 files, 3,017 relative links, 441 repository paths), filename policy (219 files), narrative metrics (six protected files), task-pack validation (75 tasks and 2,899 local links), and `git diff --check`. `python3 scripts/docs/build-task-board.py` regenerated 99 items with no generated-board diff. Exact source-integrity results are in the first bullet; check results are also recorded in `status.json` under `documentationReconciliation`.

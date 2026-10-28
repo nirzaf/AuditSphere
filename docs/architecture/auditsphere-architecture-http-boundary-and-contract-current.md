@@ -51,6 +51,10 @@ Several capabilities expose one shared transport pattern: `state` returns the cu
 
 Billing mutations use request-identity receipts without a preview route: `GET /finance/commands/receipts/{requestId}` (`BillingCommandWorkspace`) recovers record-receipt, allocation and credit-note outcomes. Application authorization, freshness, freeze, independence and current-evidence gates remain authoritative behind every route above; the HTTP shape grants nothing.
 
+Conditional task applicability is an additive family under `/api/ui/engagements/{engagementId}/workflow/tasks/{taskId}/applicability`, owned by `UiEndpoints.WorkflowApplicability.cs`. GET reads the workspace and optional accepted-source preview; `/history` reads retained events and `/receipts/{key}` recovers the current actor's original request. POST `/proposals` and `/decisions` require explicit review, exact task/head/basis pins and a saved request key. Positive Int64 revisions and versions are strings. Historical receipts never establish current applicability, and none of these routes changes task status or supplies professional approval.
+
+Registered Administrator oversight GETs are gated at response publication by `UiEndpoints.OversightAccess.cs`: a separate writer retains disclosure authorization and current administrative authority is checked again before protected metadata is returned. Failure to retain that event withholds the response with the shared `ApiError` service-unavailable contract and correlation identity. `GET /api/ui/administration/oversight-access` is bounded read-only history, not a recursive disclosure event or an edit/export permission. The operation inventory is in the [roles reference](auditsphere-architecture-user-roles-and-privileges-current.md#explicit-administrator-read-only-oversight).
+
 ## 3. Rate-Limit Policy Catalog
 
 Native ASP.NET Core rate limiting (`AddRateLimiter`/`UseRateLimiter`) is configured as one

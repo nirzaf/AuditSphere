@@ -26028,6 +26028,31 @@
       "imagePublication": "c633 fast/images actual6checkouts/digests/cache/schema293rehearsal/independentcleanup/defaultguard PASS; predecessor only for following source.",
       "cutoverStatus": "NOT_PERFORMED. Current exact gates, baseline-bound receipt/QUIESCED backup, D-OV04 acceptance and origin/public browser acceptance required.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeSiblingSnapshot20261028"
+    },
+    "documentationReconciliationBeforeMarkdownSweep20261028": {
+      "result": "DOCS_RECONCILED",
+      "report": "docs/execution/auditsphere-execution-report-documentation-reconciliation-current.md",
+      "history": "status-archive-2026-10.json#keys.documentationReconciliationPublished20261018",
+      "publication": "APPROVED: f409e762 and da2cdd38 confirmed on remote master; professional/external gates unchanged"
+    },
+    "currentSourceCiBeforeMarkdownSweep20261028": {
+      "sourceBaseCommit": "506cb33fb567604c50e1bfba7819bdac929cb57a",
+      "sourceRole": "REVIEW_POINT_VERIFIED_RECEIPT_REFRESH_VISIBILITY_REPAIR",
+      "releaseVerification": "Preceding506c full40633235431 sourceMATCH Angular/Verify/Domain1825PASS; API/E2E active at05:49UTC. Following source requires new exact gates.",
+      "imagePublication": "506c fast/images actual6checkouts/digests/cache/schema293rehearsal/cleanup/defaultguards PASS; predecessor only after this repair.",
+      "cutoverStatus": "NOT_PERFORMED. Current exact gates, baseline-bound receipt/QUIESCED backups, actual D-OV04 policy and origin/public acceptance required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeReviewPointRefresh20261028"
+    },
+    "targetedVerification.reviewPointReceiptRefreshBeforeMarkdownSweep20261028": {
+      "status": "TRUE_RED2_FOCUSED_AND_BUILTIN_PASS_CURRENT_EXACT_CI_REQUIRED",
+      "sourceBaseCommit": "506cb33fb567604c50e1bfba7819bdac929cb57a",
+      "failure": "Precedingc633 full40627322002 E2Ejob122615809391:338PASS/1FAIL/0skip, actualcheckoutMATCH; TRXartifact12794826771 digestf6d0092f6e62bff31f208a0fb9fbdae38291cbcbda9c6c952e82353ec0800ca6 verified. REOPEN lost-committed receipt hidden during independent detail refresh.",
+      "change": "Keep the exact verified receipt panel mounted during detail loading. Detail content still clears while loading; completed403 hides receipt. Current authority, original assertions, receipt validation and commands unchanged.",
+      "verification": "Same new detail composition tests old-sourceRED2/7PASS -> fixedGREEN9; existingstate30PASS. Existing six-case CLEAR/REOPEN success/lost-committed/lost-uncommitted E2E6PASS/0FAIL/0skip. PinnedNode26.8.1 productionbuild/lintPASS with existing style warnings.",
+      "browser": "Fresh canonical main-R4OXDNL4; actual built-in synthetic CLEAR and REOPEN each unchecked-assent/one-command/exactreceipt/explicitrefresh retention PASS; DB2receipts/2events/revision3/target9007199254740993 unchanged. Desktop1018px nooverflow/duplicateIDs0/console[].",
+      "cleanup": "OwnedPG18.6port58367 exactdata-dir/stop/root/listener/API/database/manifest absence independently verified; temporary launcher restored byte-exact; ownedtab28closed/original5433andEntra1untouched.",
+      "evidence": ".local/autonomous/evidence/user-types-privileges-20261028/review-point-refresh-review.json",
+      "limits": "Lost-response/denial/session evidence is automated, not built-in branches; no professional/provider/live acceptance. Failed screenshot captures excluded. New exact gates and D-OV04 remain required."
     }
   },
   "archivedTargetedVerification": {

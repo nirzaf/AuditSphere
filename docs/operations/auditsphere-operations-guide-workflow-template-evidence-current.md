@@ -47,9 +47,23 @@ The **Exact source reference** field remains available when the identifier is al
 - Existing plans recover their original receipt and source bindings. Replacing a published template does not migrate or rebind those tasks automatically.
 - Legacy templates with no declarations retain their original content identity and behavior. No historical professional evidence is backfilled or rewritten.
 
+## Review conditional task applicability
+
+In the work queue, a conditional task exposes **Review conditional applicability**. This is separate from cancelling a task or editing its reason.
+
+1. Select a permitted PBC request through the existing source picker. Review the server's exact accepted receipt, source basis and hash; a draft request or descriptive instruction cannot establish applicability.
+2. Enter a reason and choose **Review new proposal** when current server capabilities permit it. Review the exact task revision, proposal head and basis, then give fresh unchecked-by-default assent before **Save reviewed applicability action**.
+3. Another actor with current scoped management authority reviews the retained proposal and its current source basis. Only available server-projected actions can be used: independent approval, return or revocation. Stale source evidence cannot be approved; current independent authority may still return or revoke it.
+4. **Read retained applicability history** inspects immutable proposal/decision events. A selected historical proposal is inspection only. A retained approval excludes work only while its exact basis remains current, no hold blocks it, and every separately required professional not-applicable decision is current. Task status and strict task-completed dependencies remain unchanged.
+5. If an action's outcome is unconfirmed, retain its original saved request key and use **Read saved applicability receipt**. Recovery reads the current actor's original request; it does not submit another action or treat the historical receipt as current applicability. Unavailable recovery storage blocks new submissions.
+
+The applicability panel survives work-queue loading for the selected task; confirmed loss of that task's scope closes it. This operational review does not establish a professional conclusion, waive an audit procedure or activate EQR policy.
+
 ## Deployment and verification
 
 Migration `WorkflowTemplateEvidenceRequirements` adds declaration rows and nullable rule provenance. PostgreSQL guards restrict declaration changes to draft revisions, cap each step at eight declarations and retain exact task/template provenance across rule revisions. Downgrade refuses to discard retained declarations or provenance. Follow the existing backup and migration approval process; do not treat an application rollback as a database downgrade.
+
+`WorkflowTaskApplicabilityEvidence` separately retains source-pinned proposals and independent decisions with append-only scope and lineage guards. It backfills no approvals and refuses downgrade over retained evidence. Existing cancellation history, task revisions and professional decisions remain intact.
 
 Focused checks, browser observations and remaining release gates belong in [execution status](../execution/status.json). Passing a build or synthetic journey does not prove production readiness or replace human methodology and accessibility acceptance.
 
@@ -61,3 +75,4 @@ Focused checks, browser observations and remaining release gates belong in [exec
 - [Scoped source discovery](../../src/AuditSphereOps.Application/Practice/WorkflowEvidenceSourceQuery.cs) and [Angular source picker](../../src/AuditSphereOps.Ui/src/app/features/practice/workflow-evidence-source-picker.ts)
 - [Template editor](../../src/AuditSphereOps.Ui/src/app/features/practice/workflow-templates.ts)
 - [Plan UI](../../src/AuditSphereOps.Ui/src/app/features/engagements/engagement-task-plan.ts)
+- [Task applicability commands](../../src/AuditSphereOps.Application/Practice/PracticeTimeService.WorkflowApplicability.cs), [read/currentness query](../../src/AuditSphereOps.Application/Practice/WorkflowTaskApplicabilityQuery.cs) and [review panel](../../src/AuditSphereOps.Ui/src/app/features/practice/workflow-task-applicability.ts)
