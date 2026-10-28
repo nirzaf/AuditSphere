@@ -81,7 +81,18 @@ public sealed class AutomaticFeeInvoiceHandler(AutomaticFeeInvoicePolicy policy)
 public sealed class AutomaticFeeInvoiceDiscovery(IAuditSphereDbContextFactory factory, IOperationStore store, AutomaticFeeInvoiceHandler handler, WorkerOptions options,
   AutomaticFeeInvoicePolicy policy) : IPendingOperationDiscovery
 {
+  private readonly SemaphoreSlim scanGate = new(1, 1);
+  private (DateTimeOffset CreatedAt, Guid Id)? after;
+  private (DateTimeOffset CreatedAt, Guid Id)? upper;
+
   public async Task<int> EnqueuePendingAsync(CancellationToken ct)
+  {
+    await scanGate.WaitAsync(ct);
+    try { return await EnqueueNextBatchAsync(ct); }
+    finally { scanGate.Release(); }
+  }
+
+  private async Task<int> EnqueueNextBatchAsync(CancellationToken ct)
   {
     if (!policy.Enabled) return 0;
     await using var read = await factory.CreateAsync(ct);
@@ -90,10 +101,26 @@ public sealed class AutomaticFeeInvoiceDiscovery(IAuditSphereDbContextFactory fa
     if (finance is null || admin is null ||
         !(await AuthorizationDecision.AuthorizeAsync(read, new(finance.Id, options.FirmId, finance.SessionEpoch, ["FinanceManager"]), new(options.FirmId, RequiredRoles: ["FinanceManager"], InternalOnly: true, RequireFirmWide: true), ct)).Succeeded ||
         !(await AuthorizationDecision.AuthorizeAsync(read, new(admin.Id, options.FirmId, admin.SessionEpoch, ["Administrator"]), new(options.FirmId, RequiredRoles: ["Administrator"], InternalOnly: true, RequireFirmWide: true), ct)).Succeeded) return 0;
-    var milestones = await read.FeeMilestones.AsNoTracking().Where(x => x.FirmId == options.FirmId && x.InvoiceId == null &&
+    var candidates = read.FeeMilestones.AsNoTracking().Where(x => x.FirmId == options.FirmId && x.InvoiceId == null &&
       !read.DurableOperations.Any(o => o.FirmId == x.FirmId && o.TargetId == x.Id && o.OperationKind == AutomaticFeeInvoiceHandler.Kind &&
-        o.Status != OperationState.AUTHORIZATION_BLOCKED && o.Status != OperationState.PROVIDER_BLOCKED && o.Status != OperationState.DEAD_LETTER))
-      .OrderBy(x => x.CreatedAt).Take(25).ToListAsync(ct);
+        o.Status != OperationState.AUTHORIZATION_BLOCKED && o.Status != OperationState.PROVIDER_BLOCKED && o.Status != OperationState.DEAD_LETTER));
+    // A finite scan cycle revisits earlier skipped work even while new milestones arrive.
+    // Restart begins a new cycle; durable operation identities still own deduplication.
+    if (upper is null)
+    {
+      var newest = await candidates.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+        .Select(x => new { x.CreatedAt, x.Id }).FirstOrDefaultAsync(ct);
+      if (newest is null) return 0;
+      upper = (newest.CreatedAt, newest.Id);
+    }
+    var boundary = upper.Value;
+    candidates = candidates.Where(x => x.CreatedAt < boundary.CreatedAt ||
+      x.CreatedAt == boundary.CreatedAt && x.Id.CompareTo(boundary.Id) <= 0);
+    if (after is { } cursor)
+      candidates = candidates.Where(x => x.CreatedAt > cursor.CreatedAt ||
+        x.CreatedAt == cursor.CreatedAt && x.Id.CompareTo(cursor.Id) > 0);
+    var milestones = await candidates.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Take(25).ToListAsync(ct);
+    if (milestones.Count == 0) { after = null; upper = null; return 0; }
     var count = 0;
     foreach (var milestone in milestones)
     {
@@ -111,6 +138,9 @@ public sealed class AutomaticFeeInvoiceDiscovery(IAuditSphereDbContextFactory fa
       if (!result.Succeeded) continue;
       await tx.CommitAsync(ct); count++;
     }
+    var last = milestones[^1];
+    if (milestones.Count < 25 || last.Id == boundary.Id) { after = null; upper = null; }
+    else after = (last.CreatedAt, last.Id);
     return count;
   }
 }

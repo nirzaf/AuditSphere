@@ -27401,6 +27401,25 @@
       "testValue": "Original PBC revocation/source-changeRED2; valid expense unauthorized replayRED1. Corrected combinedHTTP5PASS/0FAIL/0skip including unchanged local bytes/headers, remote verification and authorized same-posting replay. Initial invalid expense request setup excluded.",
       "cleanup": "Owned PG18.6/HTTP manifests cleaned, owned DBs/connections/processes absent; exact datadir stopped/root/listener absent; original5433 untouched.",
       "remaining": "Full final-source CI and qualified/live acceptance; no new built-in claim."
+    },
+    "technicalStoriesSnapshotArchive20261028BeforeDiscovery20261028": {
+      "status": "FOCUSED_PG_PASS_EXACT_CI_REQUIRED",
+      "scope": "R05 one committed receivables snapshot, fresh access check after commit; R07 exact current action-bound reviewed manifest verification with retained versions. No recognition, retention or provider policy change.",
+      "evidence": [
+        ".local/autonomous/evidence/technical-stories-all-20261028/R05-review.json",
+        ".local/autonomous/evidence/technical-stories-all-20261028/R07-review.json"
+      ],
+      "results": "Original impossible outstanding150 (expected100) and multi-manifest exception reproduced. Corrected focusedGREEN7/0FAIL/0skip: snapshot, post-snapshot revocation, existing as-of/currency/terms, v2 lineage, single-version and hold/request controls. Initial barrier and error-code fixture errors excluded.",
+      "cleanup": "Independently verified owned PG18.6 exact root/listener/postmaster absent; no test DB/connections; original5433 untouched.",
+      "remaining": "Final exact-source CI and qualified acceptance."
+    },
+    "technicalStoriesGroupAdmission20261028BeforeDiscovery20261028": {
+      "status": "FOCUSED_PG_SIMULATION_PASS_EXACT_CI_REQUIRED",
+      "evidence": ".local/autonomous/evidence/technical-stories-all-20261028/R09-review.json",
+      "scope": "R09 current exact group/target/capability/actor admission after preflight, serialized with retirement; no network transaction, app-role or permission change.",
+      "results": "Original retirement/disableRED2 and actor-revocationcontrolPASS1. Stable correctedgroup4PASS; extended existinggroup1PASS proves lost-committed response, retirement, one-mutation reconciliation and unchanged RoleGrants. Intermediate SQL relation typo excluded/corrected.",
+      "cleanup": "Independent owned PG exact root/listener/postmaster absence; no DB/connections, original5433 untouched.",
+      "remaining": "Exact final-source CI and actual tenant acceptance."
     }
   },
   "lastUpdatedOn": "2026-10-28"

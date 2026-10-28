@@ -45,7 +45,7 @@ Pending assessment is a work state, not a conclusion that code is missing. An im
 | R03 | Bound monetary-unit sampling work without changing the sampling methodology | IMPLEMENT | PUBLISHED; FOCUSED_PASS_EXACT_CI_PENDING |
 | R04 | Preserve current authority at local PBC response release | IMPLEMENT | Deterministic original failure and corrected authenticated HTTP checks; final-source CI pending |
 | R05 | Calculate firm receivables ageing from one committed snapshot | IMPLEMENT | Original failures reproduced; corrected focused database checks passed, final-source CI pending |
-| R06 | Prevent optional fee-invoice discovery from starving eligible milestones | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |
+| R06 | Prevent optional fee-invoice discovery from starving eligible milestones | IMPLEMENT | Bounded fair cycles, restart and real release-prerequisite revisit checked; final-source CI pending |
 | R07 | Verify the exact action-bound archive manifest after a legitimate rebuild | IMPLEMENT | Original failures reproduced; corrected focused database checks passed, final-source CI pending |
 | R08 | Enforce meaningful sampling evidence references at the application boundary | IMPLEMENT | Shared current sampling evidence and required references implemented; focused checks passed, final-source CI pending |
 | R09 | Revalidate managed-group eligibility at dispatch admission | IMPLEMENT | Original preflight races reproduced; corrected admission and recovery checks passed, final-source CI pending |

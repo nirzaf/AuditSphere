@@ -1137,22 +1137,19 @@
     },
     "technicalStoriesSnapshotArchive20261028": {
       "status": "FOCUSED_PG_PASS_EXACT_CI_REQUIRED",
-      "scope": "R05 one committed receivables snapshot, fresh access check after commit; R07 exact current action-bound reviewed manifest verification with retained versions. No recognition, retention or provider policy change.",
-      "evidence": [
-        ".local/autonomous/evidence/technical-stories-all-20261028/R05-review.json",
-        ".local/autonomous/evidence/technical-stories-all-20261028/R07-review.json"
-      ],
-      "results": "Original impossible outstanding150 (expected100) and multi-manifest exception reproduced. Corrected focusedGREEN7/0FAIL/0skip: snapshot, post-snapshot revocation, existing as-of/currency/terms, v2 lineage, single-version and hold/request controls. Initial barrier and error-code fixture errors excluded.",
-      "cleanup": "Independently verified owned PG18.6 exact root/listener/postmaster absent; no test DB/connections; original5433 untouched.",
-      "remaining": "Final exact-source CI and qualified acceptance."
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.technicalStoriesSnapshotArchive20261028BeforeDiscovery20261028"
     },
     "technicalStoriesGroupAdmission20261028": {
       "status": "FOCUSED_PG_SIMULATION_PASS_EXACT_CI_REQUIRED",
-      "evidence": ".local/autonomous/evidence/technical-stories-all-20261028/R09-review.json",
-      "scope": "R09 current exact group/target/capability/actor admission after preflight, serialized with retirement; no network transaction, app-role or permission change.",
-      "results": "Original retirement/disableRED2 and actor-revocationcontrolPASS1. Stable correctedgroup4PASS; extended existinggroup1PASS proves lost-committed response, retirement, one-mutation reconciliation and unchanged RoleGrants. Intermediate SQL relation typo excluded/corrected.",
-      "cleanup": "Independent owned PG exact root/listener/postmaster absence; no DB/connections, original5433 untouched.",
-      "remaining": "Exact final-source CI and actual tenant acceptance."
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.technicalStoriesGroupAdmission20261028BeforeDiscovery20261028"
+    },
+    "technicalStoriesDiscovery20261028": {
+      "status": "FOCUSED_PASS_EXACT_CI_REQUIRED",
+      "evidence": ".local/autonomous/evidence/technical-stories-all-20261028/R06-review.json",
+      "scope": "R06 finite25-row timestamp/ID keyset cycles with high-watermark, wrap/revisit and restart-safe durable dedup; configured policy/actor epochs and draft-only handler unchanged. No automation enabled.",
+      "results": "Original real eligible advance behind25older tied ineligible balancesRED1; corrected existingOneClick2PASS. Existing real50/50 cycle3PASS proves a skipped balance becomes oneDRAFT after actual synthetic financial-package release, preserves earlier negative eligibility and exact replay. V01 separate gold/pin2PASS in same artifact are not fee-case counts.",
+      "cleanup": "Independent owned PG root/listener/postmaster absence; no test DB/connections; original5433 untouched.",
+      "remaining": "Final-source CI and qualified/provider acceptance."
     }
   },
   "externalGates": [

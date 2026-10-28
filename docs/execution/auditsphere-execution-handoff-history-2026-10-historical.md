@@ -467,3 +467,47 @@ The completed user-type documentation reconciliation is retained in the [handoff
 Conditional tasks now have immutable source-pinned proposals and independent reviewed dispositions. Current authorization, exact accepted evidence and separate professional applicability govern exclusion; stale, returned, revoked or held work stays required. Task status and task-completed dependencies are preserved. The work queue provides reviewed source selection, assent, history and owner-only receipt recovery. Focused checks and owned built-in workflows passed; full release and professional acceptance remain separate. See [status.json](status.json).
 
 Prior ownership authorization evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#ownership-oversight-authorization-test).
+
+## Oversight access evidence and specification suitability
+
+The CI boundary-schema failure reproduced locally. Oversight failures now inherit the shared safe error contract and use its diagnostic identity; protected data stays withheld. See [status.json](status.json).
+
+Registered metadata oversight reads retain one immutable authorization event before disclosure; audit failure withholds the response. History uses the current firm-wide Staff Administrator boundary and bounded paging, without recursive events or editing controls. Invoice search now includes the same authorized same-firm invoice family; original finance commands and operational permissions remain unchanged. Focused database, API, Angular and isolated built-in read-to-history checks passed. A shared database failure was isolated from product assertions; the owned replacement test cluster and browser fixture were cleaned. The later specification's older role baseline is superseded by the supported catalogue. EQR applicability, independence, evidence-currentness and legacy activation policy remain open, as do retention/reviewer acceptance and full release verification. See [status.json](status.json).
+
+Prior invoice metadata oversight evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#invoice-metadata-oversight).
+
+Prior consolidation scope oversight evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#consolidation-scope-oversight).
+
+Earlier Firm books metadata oversight is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#firm-books-metadata-oversight).
+
+## Held-task progress
+
+An active task on hold is shown as blocked until the hold is reviewed. When it is the next remaining task, the tracker names the qualified roles without linking to an unavailable work queue. Focused hold/resume and isolated built-in browser checks passed; other Task 02 scope and release acceptance remain open. See [status.json](status.json).
+
+## Lifecycle navigation
+
+The sidebar groups existing destinations by lifecycle and keeps client accounting, group consolidation and firm finance distinct. A shared route-owner map highlights contextual pages without granting authority. Focused checks and isolated built-in desktop/mobile keyboard verification passed; contextual capability and full acceptance remain open. See [status.json](status.json).
+
+## Period close and prior evidence
+
+A reopened or subsequently reclosed prior period invalidates an earlier opening review for successor close. A qualified reviewer can review the unchanged exact evidence against the corrected prior revision and retain a new immutable review with a reason; the original approval remains historical evidence. Close, reopen and opening review serialize through the client safety fence. Readiness and the accounting screen expose the same blocker and fresh review controls. Focused, concurrency, existing accounting journey and isolated built-in browser checks passed; current release verification and remaining reporting acceptance remain open. See [status.json](status.json). The lifecycle regression now checks denial before the client grant and stale revision after it; its exact CI assertion failure reproduced and the corrected focused case passed. Runtime rules are unchanged.
+
+## Adjustment posting and selected-source currentness (2026-10-27)
+
+A journal based on an earlier trial balance cannot be posted after a replacement is accepted for the same reporting context. Source acceptance and posting serialize on the existing firm/client/engagement fence, and the journal review explains the posting restriction while retaining independent return. The path where no source acceptance exists remains legacy behavior; it is not full source-to-package acceptance. Focused tests and the isolated built-in browser evidence are recorded in [status.json](status.json).
+
+## Shared form layout and ordinary-task progress (2026-10-26)
+
+Prior evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#shared-form-layout-and-ordinary-task-progress-2026-10-26).
+
+Earlier cancellation and scoped-progress evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#pre-applicability-cancellation-and-progress-handoff); the source-bound applicability section above records the later implementation.
+
+## Practice management completion and tracker bounds (2026-10-26)
+
+The owner requested continued autonomous completion across the existing commercial-to-archive workflow, with a mandatory per-engagement and reporting-period progress tracker. Preserve the derived lifecycle, independent review, current source evidence and external acceptance gates. A focused regression reproduces the supported large-plan tracker failure: the progress query exceeded the existing evidence reader's task-page bound. The correction batches that read without relaxing evidence limits. Exact red/green results and current CI belong in `targetedVerification.practiceProgressBoundedEvidence20261026` in [status.json](status.json).
+
+Concurrent work published the profile and progress tracker and recorded an owner-authorized Acceptance deployment. Its recorded full CI status is not run; independently observed server checkout and readiness do not establish whole-project acceptance. The currentness correction blocks completed successors transitively when a prerequisite loses current evidence; the original completion history stays intact. Its actual PostgreSQL regression failed at 66% before correction and passed at 0% with three blocked steps afterward. The visible tracker refresh also passed focused Angular checks, production compilation and an owned built-in browser transition from 0% to 99%, preserving expanded details and keyboard focus while the release gate stayed open. The resumable backlog continues with professional not-applicable evidence, honest scoped paging, unbound task coverage and existing connected-workflow gaps. No professional or provider approval is inferred.
+
+## Axelor UX final scoped verification (2026-10-25)
+
+The owner reiterated completion of every applicable story in the attached UX specification. Static prior-action/deep-link parity is recorded separately from executed behavior. Existing journeys now cover ordinary commercial pipeline filtering/refresh, scoped lead/pipeline/invoice denial and unchanged provider/posting intentions. Built-in browser review exercised commercial, denied and independent finance roles; negative monthly P&L, report detail and missing comparator matched the existing accounting basis. No financial, tenant, provider or professional rules changed. Focused results and candidate identities are in `targetedVerification.axelorFinal20261025`; exact final-candidate full CI remains required. Broader human/provider/professional acceptance is not fabricated or silently folded into this bounded UX change.

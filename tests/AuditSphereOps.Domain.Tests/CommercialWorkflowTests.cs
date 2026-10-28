@@ -1164,12 +1164,54 @@ public sealed class CommercialWorkflowTests
     var store = new PostgresOperationStore(factory);
     var options = new WorkerOptions(w.FirmId, "Test");
     var policy = new AutomaticFeeInvoicePolicy(true, w.FinanceManager.UserId, admin.Id);
+    if (!revokeStandingAuthority)
+    {
+      // Valid retained planned balance populations with no engagement/release can precede
+      // the later eligible advance. Equal timestamps require a stable unique tie-breaker.
+      var originalAgreement = await db.EngagementFeeAgreements.SingleAsync(x => x.ProposalId == proposalId);
+      var originalProposal = await db.Proposals.SingleAsync(x => x.Id == proposalId);
+      var originalQuote = await db.QuotationVersions.SingleAsync(x => x.Id == originalAgreement.QuotationVersionId);
+      var originalOpportunity = await db.Opportunities.SingleAsync(x => x.Id == originalProposal.OpportunityId);
+      var earlier = DateTimeOffset.UtcNow.AddDays(-1);
+      for (var i = 0; i < 25; i++)
+      {
+        var retainedProposal = (Proposal)db.Entry(originalProposal).CurrentValues.ToObject();
+        retainedProposal.Id = Guid.CreateVersion7();
+        var retainedOpportunity = (Opportunity)db.Entry(originalOpportunity).CurrentValues.ToObject();
+        retainedOpportunity.Id = Guid.CreateVersion7();
+        retainedProposal.OpportunityId = retainedOpportunity.Id;
+        var retainedQuote = (QuotationVersion)db.Entry(originalQuote).CurrentValues.ToObject();
+        retainedQuote.Id = Guid.CreateVersion7();
+        retainedQuote.ProposalId = retainedProposal.Id;
+        var retainedAgreement = (EngagementFeeAgreement)db.Entry(originalAgreement).CurrentValues.ToObject();
+        retainedAgreement.Id = Guid.CreateVersion7();
+        retainedAgreement.ProposalId = retainedProposal.Id;
+        retainedAgreement.QuotationVersionId = retainedQuote.Id;
+        retainedAgreement.EngagementId = null;
+        retainedAgreement.CreatedAt = earlier;
+        db.Opportunities.Add(retainedOpportunity);
+        db.Proposals.Add(retainedProposal);
+        db.QuotationVersions.Add(retainedQuote);
+        db.EngagementFeeAgreements.Add(retainedAgreement);
+        db.FeeMilestones.Add(new FeeMilestone
+        {
+          Id = Guid.CreateVersion7(), FirmId = w.FirmId, AgreementId = retainedAgreement.Id,
+          Kind = FeeMilestoneKinds.Balance, Amount = 1m, CreatedAt = earlier
+        });
+      }
+      await db.SaveChangesAsync();
+    }
     var handler = new AutomaticFeeInvoiceHandler(policy);
     var discovery = new AutomaticFeeInvoiceDiscovery(factory, store, handler, options, policy);
     Assert.Equal(0, await new AutomaticFeeInvoiceDiscovery(factory, store, handler, options, policy with { Enabled = false }).EnqueuePendingAsync(default));
     Assert.Equal(0, await new AutomaticFeeInvoiceDiscovery(factory, store, handler, options, policy with { ApprovingAdministratorId = w.Prep.UserId }).EnqueuePendingAsync(default));
+    if (!revokeStandingAuthority) Assert.Equal(0, await discovery.EnqueuePendingAsync(default));
     Assert.Equal(1, await discovery.EnqueuePendingAsync(default));
     Assert.Equal(0, await discovery.EnqueuePendingAsync(default));
+    // A fresh worker restarts the bounded scan safely; durable request identity still prevents duplicates.
+    var restarted = new AutomaticFeeInvoiceDiscovery(factory, store, handler, options, policy);
+    Assert.Equal(0, await restarted.EnqueuePendingAsync(default));
+    Assert.Equal(0, await restarted.EnqueuePendingAsync(default));
     if (revokeStandingAuthority)
       await db.Users.Where(x => x.Id == admin.Id).ExecuteUpdateAsync(x => x.SetProperty(v => v.SessionEpoch, v => v.SessionEpoch + 1));
     var dispatcher = new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options);
@@ -1902,6 +1944,11 @@ public sealed class CommercialWorkflowTests
     Assert.NotNull(workpaperOnlyView.Value);
     Assert.False(workpaperOnlyView.Value.ReleaseRecorded,
       "A WORKPAPER-only release must not project financial-package release eligibility for a balance invoice.");
+    var feePolicy = new AutomaticFeeInvoicePolicy(true, w.FinanceManager.UserId, operationsAdmin.Id);
+    var feeHandler = new AutomaticFeeInvoiceHandler(feePolicy);
+    var feeOptions = new WorkerOptions(w.FirmId, "Test");
+    var feeDiscovery = new AutomaticFeeInvoiceDiscovery(factory, store, feeHandler, feeOptions, feePolicy);
+    Assert.Equal(0, await feeDiscovery.EnqueuePendingAsync(default)); // Earlier balance is not eligible yet.
 
     var (packageId, packageReleaseId) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options,
       new CompletionBundleScope(w.FirmId, clientId, engagementId, new Dictionary<string, AppUser>
@@ -1920,6 +1967,12 @@ public sealed class CommercialWorkflowTests
     Assert.True(financialPackageView.Succeeded, financialPackageView.Message);
     Assert.NotNull(financialPackageView.Value);
     Assert.True(financialPackageView.Value.ReleaseRecorded);
+    Assert.Equal(1, await feeDiscovery.EnqueuePendingAsync(default)); // Revisit after the genuine local release prerequisite.
+    var feeDispatcher = new OperationDispatcher(store, new DurableOperationRegistry([feeHandler], feeOptions), feeOptions);
+    Assert.True(await feeDispatcher.ProcessNextAsync());
+    Assert.Equal(0, await feeDiscovery.EnqueuePendingAsync(default));
+    var autoBalance = await db.FeeMilestones.AsNoTracking().SingleAsync(x => x.AgreementId == agreementId && x.Kind == FeeMilestoneKinds.Balance);
+    Assert.Equal(BillingStates.InvoiceDraft, (await db.Invoices.AsNoTracking().SingleAsync(x => x.Id == autoBalance.InvoiceId)).Status);
 
     var balance = await FeeAgreementService.IssueBalanceInvoiceAsync(db, w.FinanceManager, agreementId);
     Assert.True(balance.Succeeded, balance.Message);
