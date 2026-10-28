@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Native successor reviewer proof read
+
+The native successor reviewer journey now distinguishes catalogue availability from the dependent retained proof read. Its approval assertions wait for the exact successful proof response; unchecked assent, independent approval, retained source hashes and persistence assertions remain intact. A controlled first-response delay reproduces the original missing-control observation. This is test synchronization only; application permissions, deadlines and professional decisions are unchanged. Exact paired results and incomplete CI boundaries are recorded in [status.json](status.json); the separate sibling-client inactivity abort remains unconfirmed.
+
 ## Markdown codebase reconciliation
 
 Current Markdown guidance now describes conditional-task and oversight evidence, exact recovery visibility, the retired Web host and canonical-shell startup behavior. Operator guidance separates configured storage from verified live mounts and keeps retention/reviewer policy and exact-source release gates explicit. Preserved sources and historical acceptance records are unchanged; superseded handoff sections are archived verbatim. The [reconciliation report](auditsphere-execution-report-documentation-reconciliation-current.md) identifies the survey and code owners; [status.json](status.json) records validation and source boundaries.

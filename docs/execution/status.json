@@ -957,14 +957,8 @@
       "finalSource": "b94e3ddc472827f1604b20f477a1e376597e83dc"
     },
     "axelorPrecedingFailures20261026": {
-      "source": "Preceding c15 and7a; not currentacceptance",
-      "api": "c15 API121262425454 failed: hostedrunnerlostcommunication confirmed by GitHubannotation, noTRX/visiblefailedtest; CPU/memory/network causeunproven. Currentb94 unfilteredAPIrequired.",
-      "e2e": "7a335PASS4FAIL:3knowninvoice failures fixeda48; UND/lostcommitted finding10s-barrier timeout exactcase1PASS unchanged, causeunproven; no productfix/timeoutchange.",
-      "evidence": [
-        ".local/autonomous/evidence/axelor-final-20261025/c15-new-api-failure/review.json",
-        ".local/autonomous/evidence/axelor-final-20261025/preceding-7a-new-e2e/review.json"
-      ],
-      "superseded": "Owned7a/e53/a48 pending runs canceled after finalb94MATCH and snapshots; knownfailedTRXs retained; no FULL_CI_PASS claimed."
+      "status": "HISTORICAL_EVIDENCE_RETAINED",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.axelorPrecedingFailures20261026.beforeNativeProofRead20261028"
     },
     "ciFixtureDeadlineReadiness20261026": {
       "status": "PRECEDING_A948_TEST_FIXTURE_EVIDENCE_ARCHIVED_NOT_CURRENT_RELEASE_ACCEPTANCE",
@@ -1115,8 +1109,8 @@
       "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.releaseCandidateReplay20261027BeforeTask03Publication20261028"
     },
     "ownershipOversightCi20261028": {
-      "result": "FOCUSED_PASS_HISTORY_RETAINED",
-      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.ownershipOversightCi20261028BeforeTask03Publication20261028"
+      "status": "HISTORICAL_SLICE_RETAINED",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.ownershipOversightCi20261028.beforeNativeProofRead20261028"
     },
     "task03ScopedApplicability20261028": {
       "result": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_REQUIRED",
@@ -1127,12 +1121,12 @@
       "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.shellNavigationBeforeRolesDocumentation20261028"
     },
     "userTypesPrivileges20261028": {
-      "status": "SOURCE_RECONCILED_DOCS_VERIFIED",
-      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.userTypesPrivileges20261028BeforeReviewPointRefresh20261028"
+      "status": "HISTORICAL_SLICE_RETAINED",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.userTypesPrivileges20261028.beforeNativeProofRead20261028"
     },
     "siblingGroupSnapshotCi20261028": {
-      "status": "TEST_ONLY_TRUE_RED1_GREEN3_CURRENT_EXACT_CI_REQUIRED",
-      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.siblingGroupSnapshotCi20261028BeforeReviewPointRefresh20261028"
+      "status": "HISTORICAL_SLICE_RETAINED",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.siblingGroupSnapshotCi20261028.beforeNativeProofRead20261028"
     },
     "reviewPointReceiptRefreshCi20261028": {
       "status": "TRUE_RED2_FOCUSED_AND_BUILTIN_PASS_EXACT_SOURCE_CI_REQUIRED",
@@ -1145,6 +1139,16 @@
       "verification": "Role catalogue and current source guard hashes, fiveapplicability+oversighthistory OpenAPI paths, SQLguard declarations, retiredWeb absence and startupHTML/CSP source checksPASS. No app tests/browser/provider/live action for documentation-only work.",
       "remaining": "New published source needs its own exact gates; D-OV04 and professional/external acceptance remain open.",
       "validation": "Documentationhealth/filenames/narrative/source-integrity/taskboard/UIinventory/diffPASS. No full local suites."
+    },
+    "nativeSuccessorProofReadCi20261028": {
+      "status": "VERIFIED_TEST_ONLY_FOCUSED",
+      "sourceBaseCommit": "1c02ae74634535122d8dbf8e70a2367aad754e82",
+      "observed": "CurrentE2E335partialPASS/1nativeTrueassertFAIL plus15minute siblingCLIENTinactivityabort; no fullPASS.",
+      "proof": "Controlled first real reviewerproofGET delayed8seconds: oldhelper exactmissingbuttonRED1; samefixture correctedhelperGREEN2. Catalogue alone is not retainedproof readiness.",
+      "preserved": "Original disabled/uncheckedassent/independentapproval/DB/hash/originalrequest/itemcarry assertions retained; runtime/grants/permissions/timeouts unchanged.",
+      "cleanup": "OwnedPG18.6port60019/datadir/root/listener/API/DB/processabsence independentlyverified; original5433untouched.",
+      "remaining": "SiblinginactivitycauseUNCONFIRMED; separate earlier previewtimeoutunconfirmed. New exactCI/retention/releasegates required.",
+      "evidence": ".local/autonomous/evidence/markdown-codebase-reconciliation-20261028/native-proof-read-review.json"
     }
   },
   "externalGates": [
@@ -1629,12 +1633,12 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "30fece316f9f2668c12ac2235a835ee387b44e33",
-    "sourceRole": "OWNER_REQUESTED_MARKDOWN_CODEBASE_RECONCILIATION",
-    "releaseVerification": "Preceding30fe full40641158657 sourceMATCH Angular/Verify/Domain1825PASS; API/E2E pending. New documentation source requires its own gates.",
-    "imagePublication": "30fe fast/images actual6checkouts/digests/cache/schema293rehearsal/cleanup/defaultguards PASS; predecessor only for the following source.",
-    "cutoverStatus": "NOT_PERFORMED. RealD-OV04 acceptance, exact current gates, refreshed plan/preflight, QUIESCED backups and origin/public acceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeMarkdownSweep20261028"
+    "sourceBaseCommit": "1c02ae74634535122d8dbf8e70a2367aad754e82",
+    "sourceRole": "NATIVE_SUCCESSOR_REVIEWER_PROOF_READ_TEST_SYNCHRONIZATION",
+    "releaseVerification": "1c02 full40646526244 E2E335partialPASS/1assertFAIL then15minute inactivityabort; actualcheckout/TRX/logdigests retained. APIpending. No fullPASS.",
+    "imagePublication": "1c02 fast/images all6actualcheckouts/pins/cache/rehearsal293/cleanup/defaultguardsPASS; predecessoronly for new source.",
+    "cutoverStatus": "NOT_PERFORMED; exact new gates and realD-OV04 plus freshbaseline/QUIESCEDbackup/publicacceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeNativeProofRead20261028"
   },
   "updatedAtUtc": "2026-10-28T06:47:11.025258+00:00"
 }

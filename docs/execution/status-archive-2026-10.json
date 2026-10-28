@@ -26053,6 +26053,36 @@
       "cleanup": "OwnedPG18.6port58367 exactdata-dir/stop/root/listener/API/database/manifest absence independently verified; temporary launcher restored byte-exact; ownedtab28closed/original5433andEntra1untouched.",
       "evidence": ".local/autonomous/evidence/user-types-privileges-20261028/review-point-refresh-review.json",
       "limits": "Lost-response/denial/session evidence is automated, not built-in branches; no professional/provider/live acceptance. Failed screenshot captures excluded. New exact gates and D-OV04 remain required."
+    },
+    "targetedVerification.userTypesPrivileges20261028.beforeNativeProofRead20261028": {
+      "status": "SOURCE_RECONCILED_DOCS_VERIFIED",
+      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.userTypesPrivileges20261028BeforeReviewPointRefresh20261028"
+    },
+    "targetedVerification.siblingGroupSnapshotCi20261028.beforeNativeProofRead20261028": {
+      "status": "TEST_ONLY_TRUE_RED1_GREEN3_CURRENT_EXACT_CI_REQUIRED",
+      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.siblingGroupSnapshotCi20261028BeforeReviewPointRefresh20261028"
+    },
+    "currentSourceCiBeforeNativeProofRead20261028": {
+      "sourceBaseCommit": "30fece316f9f2668c12ac2235a835ee387b44e33",
+      "sourceRole": "OWNER_REQUESTED_MARKDOWN_CODEBASE_RECONCILIATION",
+      "releaseVerification": "Preceding30fe full40641158657 sourceMATCH Angular/Verify/Domain1825PASS; API/E2E pending. New documentation source requires its own gates.",
+      "imagePublication": "30fe fast/images actual6checkouts/digests/cache/schema293rehearsal/cleanup/defaultguards PASS; predecessor only for the following source.",
+      "cutoverStatus": "NOT_PERFORMED. RealD-OV04 acceptance, exact current gates, refreshed plan/preflight, QUIESCED backups and origin/public acceptance required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeMarkdownSweep20261028"
+    },
+    "targetedVerification.ownershipOversightCi20261028.beforeNativeProofRead20261028": {
+      "result": "FOCUSED_PASS_HISTORY_RETAINED",
+      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.ownershipOversightCi20261028BeforeTask03Publication20261028"
+    },
+    "targetedVerification.axelorPrecedingFailures20261026.beforeNativeProofRead20261028": {
+      "source": "Preceding c15 and7a; not currentacceptance",
+      "api": "c15 API121262425454 failed: hostedrunnerlostcommunication confirmed by GitHubannotation, noTRX/visiblefailedtest; CPU/memory/network causeunproven. Currentb94 unfilteredAPIrequired.",
+      "e2e": "7a335PASS4FAIL:3knowninvoice failures fixeda48; UND/lostcommitted finding10s-barrier timeout exactcase1PASS unchanged, causeunproven; no productfix/timeoutchange.",
+      "evidence": [
+        ".local/autonomous/evidence/axelor-final-20261025/c15-new-api-failure/review.json",
+        ".local/autonomous/evidence/axelor-final-20261025/preceding-7a-new-e2e/review.json"
+      ],
+      "superseded": "Owned7a/e53/a48 pending runs canceled after finalb94MATCH and snapshots; knownfailedTRXs retained; no FULL_CI_PASS claimed."
     }
   },
   "archivedTargetedVerification": {

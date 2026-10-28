@@ -355,6 +355,7 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     page.PageError += (_, error) => errors.Add("maker: " + error);
     reviewPage.PageError += (_, error) => errors.Add("reviewer: " + error);
     var path = $"/ui/app/accounting/clients/{f.ClientId:D}/operational-opening-balances";
+    var delayedReviewerProof = false;
     async Task OpenAsync(IPage browserPage, string origin)
     {
       await browserPage.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
@@ -362,7 +363,20 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
       // Retain the exact response body before the target-period navigation can release it.
       var catalogue = await PlaywrightResponseCapture.RunAsync(browserPage,
         request => request.Method == "GET" && request.Url.Contains($"/operational-opening-successors/catalog/{targetId:D}?", StringComparison.Ordinal),
-        () => browserPage.GetByLabel("Opening period", new() { Exact = true }).SelectOptionAsync(targetId.ToString()));
+        async () =>
+        {
+          if (browserPage == reviewPage && withOriginalItem)
+            await browserPage.RouteAsync(new System.Text.RegularExpressions.Regex("/operational-opening-successors/[0-9a-f-]{36}$"), async route =>
+            {
+              if (delayedReviewerProof) { await route.ContinueAsync(); return; }
+              delayedReviewerProof = true;
+              var response = await route.FetchAsync();
+              Assert.Equal(200, response.Status);
+              await Task.Delay(TimeSpan.FromSeconds(8)); // A valid proof read may finish after the catalogue renders.
+              await route.FulfillAsync(new() { Response = response });
+            });
+          await browserPage.GetByLabel("Opening period", new() { Exact = true }).SelectOptionAsync(targetId.ToString());
+        });
       Assert.True(catalogue.Status == 200, $"Catalogue HTTP {catalogue.Status}: {catalogue.Body}");
       await browserPage.GetByRole(AriaRole.Button, new() { Name = "Native predecessor opening", Exact = true }).ClickAsync();
       await Assertions.Expect(browserPage.GetByRole(AriaRole.Heading, new() { Name = "Exact native successor opening", Exact = true })).ToBeVisibleAsync();
@@ -458,7 +472,10 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
       Assert.Equal(tb.DatasetId, proof.SourceDatasetId); Assert.Equal(original.RootElement.GetProperty("requestId").GetGuid(), proof.RequestId);
     }
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Approve exact successor proof and opening", Exact = true })).ToHaveCountAsync(0);
-    await OpenAsync(reviewPage, reviewerOrigin);
+    var retainedProof = await reviewPage.RunAndWaitForResponseAsync(() => OpenAsync(reviewPage, reviewerOrigin),
+      response => response.Request.Method == "GET" && response.Url.EndsWith($"/operational-opening-successors/{successorId:D}", StringComparison.Ordinal));
+    Assert.Equal(200, retainedProof.Status);
+    Assert.Null(await retainedProof.FinishedAsync());
     var approve = reviewPage.GetByRole(AriaRole.Button, new() { Name = "Approve exact successor proof and opening", Exact = true });
     await Assertions.Expect(approve).ToBeDisabledAsync();
     await reviewPage.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact successor proof and opening manifest, original source, carried original items and account population.", Exact = true }).CheckAsync();

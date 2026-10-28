@@ -17,6 +17,8 @@ For changed Angular workflows, use the scoped [rendered accessibility checklist]
 
 Full regression jobs stream per-test console progress and retain TRX/blame sequence evidence. A single case stalled for 15 minutes terminates its test host and fails the gate; memory dumps are disabled. An interrupted run is incomplete and cannot establish full regression acceptance.
 
+A catalogue response does not establish that dependent retained evidence has loaded. Native successor reviewer journeys must observe the exact authorized proof GET and completed response before asserting approval controls; keep unchecked assent, independent authority and exact retained hashes as separate assertions. Controlled response delay may exercise that ordering without changing application deadlines or expected results.
+
 **Efficiency rule:** Local agents must **not** run full `.NET` solution tests, all Angular specs or all E2E by default; use the narrowest credible proving tests after a coherent slice. The combined unfiltered Domain/API/PostgreSQL/browser release gate belongs in `.github/workflows/release-verification.yml` (fast `ci.yml` also runs the full Angular spec suite), against that workflow's resolved immutable commit SHA; do not run full suites locally. Cached restore/build artifacts may be reused when sound. Fast CI is deliberately not expanded into full PostgreSQL/E2E for every PR.
 
 Angular ESLint is a separate static check in the existing fast and full CI
