@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Fee-settlement posting selector follow-up
+
+Exact-source CI exposed a fee-settlement journey still selecting the obsolete invoice-posting label. The unchanged named journey reproduced that timeout; aligning its single exact selector with the published billing-freeze label passed the original settlement workflow. Payment totals, retained invoice identity, recovery, role separation, revoked access, database, viewport and keyboard assertions remain intact. No runtime code, timeout or permission changed, and no new built-in acceptance is claimed.
+
+The preceding suite also aborted after inactivity. Its partial results and incomplete-case sequence remain retained; that cause is unconfirmed and is not fixed by the selector correction. The new test/documentation successor requires its own exact-source gates. See [status.json](status.json); earlier assignment scopes and qualified acceptance leaves remain independent.
+
 ## Technical Stories adoption and integration
 
 All supplied stories now have explicit suitability, implementation and dependency records in the [Technical Stories register](auditsphere-execution-technical-stories-current.md). The repair stories have focused implementations; broader feature/professional/provider acceptance remains separate. Current dimension-publication and confirmation batch/critical-case checks passed without adding duplicate workflows. Their source cards now distinguish existing backend behavior from missing handoffs and required evidence bindings.

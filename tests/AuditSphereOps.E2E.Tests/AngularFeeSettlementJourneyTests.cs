@@ -212,7 +212,7 @@ public sealed class AngularFeeSettlementJourneyTests
     await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Approve invoice", Exact = true }).ClickAsync();
     await Assertions.Expect(reviewerPage.GetByText("Posting requires an authorized FinanceManager and an approved firm finance profile in the invoice currency.", new() { Exact = true })).ToBeVisibleAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Refresh invoice", Exact = true }).ClickAsync();
-    await page.GetByRole(AriaRole.Button, new() { Name = "Post invoice (freeze & emit ledger event)", Exact = true }).ClickAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Post invoice (freeze billing record)", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Mark sent to client", Exact = true })).ToBeVisibleAsync();
     // The same recovery action remains usable after an independent invoice workflow has posted
     // an otherwise exact retained source; it must preserve its ID and posted history.
