@@ -468,9 +468,14 @@ public static class RecordsArchiveService
     if (activeHold)
       return CommandResult.Fail(ErrorCodes.GateBlocked,
         "An active legal hold prevents archive verification. Release the hold before proceeding.");
-    var action = await db.RecordsActions.AsNoTracking().SingleOrDefaultAsync(x => x.ArchiveId == archive.Id, ct);
-    var manifest = await db.ArchiveManifests.AsNoTracking().SingleOrDefaultAsync(x => x.ArchiveId == archive.Id, ct);
-    if (action?.State != "OBSERVED" || manifest?.CompletenessStatus != "COMPLETE")
+    var action = await db.RecordsActions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == archive.FirmId &&
+      x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId && x.ArchiveId == archive.Id, ct);
+    var manifest = action is null ? null : await db.ArchiveManifests.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId &&
+      x.ArchiveId == archive.Id && x.Id == action.ArchiveManifestId, ct);
+    if (action?.State != "OBSERVED" || manifest?.CompletenessStatus != "COMPLETE" ||
+        manifest.Status != "REVIEWED" || manifest.ReviewedAt is null || manifest.ReviewedByUserId is null ||
+        manifest.SupersededByManifestId is not null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "A complete manifest and observed protection are required.");
     await db.Archives.Where(x => x.Id == archive.Id && x.FirmId == archive.FirmId)
       .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, ArchiveStates.ArchiveVerified), ct);

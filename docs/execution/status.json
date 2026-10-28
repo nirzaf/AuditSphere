@@ -1129,28 +1129,22 @@
     },
     "technicalStoriesEffectiveSampling20261028": {
       "status": "FOCUSED_VERIFIED_EXACT_CI_REQUIRED",
-      "evidence": ".local/autonomous/evidence/technical-stories-all-20261028/R02-R08-review.json",
-      "scope": "R02 effective latest test/serialized review/current generation and substantive result shared across readback/completion/SRM; R08 required semantic evidence references at Application and HTTP boundary. Actual UTC/legacy rows preserved; no role, professional-policy or API-shape change.",
-      "testValue": "Original completionRED5/control1; equal-count SRM digestRED1; original referenceRED3/control2. Final sequenced cohort12PASS/one guard assertion wrapper error; corrected migration case1PASS. Ignored-sequence query faultRED1/restoredGREEN1. Actual omitted/null/blank HTTP binding1PASS.",
-      "schema": {
-        "count": 294,
-        "latest": "20261028154245_ItemTestReviewSequence",
-        "modelDrift": "PASS",
-        "upgrade": "Legacy values exact; no backfill; new insert sequence required; retained sequence prevents downgrade."
-      },
-      "cleanup": "Independent exact owned datadir/root/listener/postmaster absence PASS, no owned test DB/connections; original5433 untouched.",
-      "remaining": "Existing E2E fixture sequence adaptation, current-source CI and qualified/live acceptance remain separate; all-story assignment active."
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.technicalStoriesEffectiveSampling20261028BeforeSnapshotArchive20261028"
     },
     "technicalStoriesResponseAuthority20261028": {
       "status": "FOCUSED_HTTP_PASS_EXACT_CI_REQUIRED",
-      "scope": "R04 PBC final current session/scope/trusted-state/exact-source check before headers/body, retaining verified streaming/spool cleanup; R11 current finance posting authority before target lookup and replay. No roles/grants/provider/API shape change.",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.technicalStoriesResponseAuthority20261028BeforeSnapshotArchive20261028"
+    },
+    "technicalStoriesSnapshotArchive20261028": {
+      "status": "FOCUSED_PG_PASS_EXACT_CI_REQUIRED",
+      "scope": "R05 one committed receivables snapshot, fresh access check after commit; R07 exact current action-bound reviewed manifest verification with retained versions. No recognition, retention or provider policy change.",
       "evidence": [
-        ".local/autonomous/evidence/technical-stories-all-20261028/R04-review.json",
-        ".local/autonomous/evidence/technical-stories-all-20261028/R11-review.json"
+        ".local/autonomous/evidence/technical-stories-all-20261028/R05-review.json",
+        ".local/autonomous/evidence/technical-stories-all-20261028/R07-review.json"
       ],
-      "testValue": "Original PBC revocation/source-changeRED2; valid expense unauthorized replayRED1. Corrected combinedHTTP5PASS/0FAIL/0skip including unchanged local bytes/headers, remote verification and authorized same-posting replay. Initial invalid expense request setup excluded.",
-      "cleanup": "Owned PG18.6/HTTP manifests cleaned, owned DBs/connections/processes absent; exact datadir stopped/root/listener absent; original5433 untouched.",
-      "remaining": "Full final-source CI and qualified/live acceptance; no new built-in claim."
+      "results": "Original impossible outstanding150 (expected100) and multi-manifest exception reproduced. Corrected focusedGREEN7/0FAIL/0skip: snapshot, post-snapshot revocation, existing as-of/currency/terms, v2 lineage, single-version and hold/request controls. Initial barrier and error-code fixture errors excluded.",
+      "cleanup": "Independently verified owned PG18.6 exact root/listener/postmaster absent; no test DB/connections; original5433 untouched.",
+      "remaining": "Final exact-source CI and qualified acceptance."
     }
   },
   "externalGates": [

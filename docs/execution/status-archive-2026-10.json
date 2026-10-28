@@ -27376,6 +27376,31 @@
       "integration": "Existing reviewed preview/run/retained-readback fixtureGREEN1/0FAIL/0skip. Owned PG18.6 cleaned; exact datadir/DB/connections/root/listener/postmaster absence independently verified. Original5433 untouched.",
       "remaining": "Other attached stories remain proposals requiring current assessment. No new built-in/live/professional acceptance or exact final-source CI/release PASS.",
       "evidence": ".local/autonomous/evidence/technical-stories-20261028/R03-review.json"
+    },
+    "technicalStoriesEffectiveSampling20261028BeforeSnapshotArchive20261028": {
+      "status": "FOCUSED_VERIFIED_EXACT_CI_REQUIRED",
+      "evidence": ".local/autonomous/evidence/technical-stories-all-20261028/R02-R08-review.json",
+      "scope": "R02 effective latest test/serialized review/current generation and substantive result shared across readback/completion/SRM; R08 required semantic evidence references at Application and HTTP boundary. Actual UTC/legacy rows preserved; no role, professional-policy or API-shape change.",
+      "testValue": "Original completionRED5/control1; equal-count SRM digestRED1; original referenceRED3/control2. Final sequenced cohort12PASS/one guard assertion wrapper error; corrected migration case1PASS. Ignored-sequence query faultRED1/restoredGREEN1. Actual omitted/null/blank HTTP binding1PASS.",
+      "schema": {
+        "count": 294,
+        "latest": "20261028154245_ItemTestReviewSequence",
+        "modelDrift": "PASS",
+        "upgrade": "Legacy values exact; no backfill; new insert sequence required; retained sequence prevents downgrade."
+      },
+      "cleanup": "Independent exact owned datadir/root/listener/postmaster absence PASS, no owned test DB/connections; original5433 untouched.",
+      "remaining": "Existing E2E fixture sequence adaptation, current-source CI and qualified/live acceptance remain separate; all-story assignment active."
+    },
+    "technicalStoriesResponseAuthority20261028BeforeSnapshotArchive20261028": {
+      "status": "FOCUSED_HTTP_PASS_EXACT_CI_REQUIRED",
+      "scope": "R04 PBC final current session/scope/trusted-state/exact-source check before headers/body, retaining verified streaming/spool cleanup; R11 current finance posting authority before target lookup and replay. No roles/grants/provider/API shape change.",
+      "evidence": [
+        ".local/autonomous/evidence/technical-stories-all-20261028/R04-review.json",
+        ".local/autonomous/evidence/technical-stories-all-20261028/R11-review.json"
+      ],
+      "testValue": "Original PBC revocation/source-changeRED2; valid expense unauthorized replayRED1. Corrected combinedHTTP5PASS/0FAIL/0skip including unchanged local bytes/headers, remote verification and authorized same-posting replay. Initial invalid expense request setup excluded.",
+      "cleanup": "Owned PG18.6/HTTP manifests cleaned, owned DBs/connections/processes absent; exact datadir stopped/root/listener absent; original5433 untouched.",
+      "remaining": "Full final-source CI and qualified/live acceptance; no new built-in claim."
     }
   },
   "lastUpdatedOn": "2026-10-28"

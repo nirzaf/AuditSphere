@@ -270,6 +270,24 @@ public sealed class RecordsArchiveTests
     var reviewSuperseded = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId, manifest1.Id);
     Assert.False(reviewSuperseded.Succeeded);
     Assert.Equal(ErrorCodes.ProtectedState, reviewSuperseded.ErrorCode);
+    var retainedDigest = manifest2.ManifestDigest;
+    Assert.True((await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId, manifest2.Id)).Succeeded);
+    var exported = await RecordsArchiveService.ExportReviewedArchiveAsync(db, scope.Actor, archiveId);
+    Assert.True(exported.Succeeded, exported.Message);
+    var requested = await RecordsArchiveService.RequestRecordsActionAsync(db, scope.Actor,
+      new(archiveId, "synthetic-v2-protection-request"));
+    Assert.True(requested.Succeeded, requested.Message);
+    Assert.True((await RecordsArchiveService.ObserveRecordsActionAsync(db, scope.Actor,
+      new(archiveId, "label-test-audit-record", "RECORD_LOCKED", "synthetic-records-owner", "synthetic-v2-observation"))).Succeeded);
+    var verified = await RecordsArchiveService.VerifyArchiveAsync(db, scope.Actor, archiveId);
+    Assert.True(verified.Succeeded, verified.Message);
+    Assert.Equal(ArchiveStates.ArchiveVerified, (await db.Archives.AsNoTracking().SingleAsync(x => x.Id == archiveId)).Status);
+    Assert.Equal(manifest2.Id, (await db.RecordsActions.AsNoTracking().SingleAsync(x => x.ArchiveId == archiveId)).ArchiveManifestId);
+    Assert.All(await db.RecordsActionEvidences.AsNoTracking().Where(x => x.ArchiveId == archiveId).ToArrayAsync(),
+      x => Assert.Equal(manifest2.Id, x.ArchiveManifestId));
+    Assert.Equal(retainedDigest, (await db.ArchiveManifests.AsNoTracking().SingleAsync(x => x.Id == manifest2.Id)).ManifestDigest);
+    Assert.Equal(2, await db.ArchiveManifests.CountAsync(x => x.ArchiveId == archiveId));
+    Assert.Equal(manifest1.Id, (await db.ArchiveManifests.AsNoTracking().SingleAsync(x => x.Id == manifest2.Id)).PredecessorManifestId);
   }
 
   [Fact]

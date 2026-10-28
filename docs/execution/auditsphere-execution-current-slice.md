@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Consistent receivables and exact archive verification
+
+Firm ageing and CSV read one committed financial population and then recheck current access outside that snapshot. Archive verification uses the observed action's exact reviewed manifest and retains rebuild history. Focused concurrency, revocation, as-of and archive lifecycle checks passed; see [status.json](status.json). Recognition policy, provider protection and qualified acceptance remain separate.
+
 ## Effective sampled-item evidence and source currentness
 
 Sample readback, completion and SRM now use the same current test and effective independent review. Pending results do not complete a sample. New decisions are serialized under existing scope locks and retain actual observation timestamps; legacy evidence is unchanged and ambiguous timestamp ties fail conservatively. The additive migration preserves legacy rows and refuses removal of retained sequence history. Exact item/review changes invalidate dependent evidence even when aggregate unresolved counts remain equal.

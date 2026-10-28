@@ -1,3 +1,6 @@
+using System.Data.Common;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
@@ -8,6 +11,109 @@ namespace AuditSphereOps.Domain.Tests;
 
 public sealed class FirmReceivablesAgingQueryTests
 {
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task ConcurrentAllocationAndReversal_UseOneSnapshotAndRecheckCurrentAuthority(bool revoke)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var manager = PbcSeed.Actor(seed.Admin, "FinanceManager");
+    var reviewer = PbcSeed.Actor(seed.Reviewer, "FinanceReviewer");
+    Guid invoiceId, receiptId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.RoleGrants.AddRange(PbcSeed.Grant(seed.FirmId, seed.Admin, "FinanceManager"),
+        PbcSeed.Grant(seed.FirmId, seed.Reviewer, "FinanceReviewer"));
+      setup.FirmFinanceProfiles.Add(new FirmFinanceProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, FunctionalCurrency = "QAR",
+        ProfileKind = BillingStates.TestProfile, Approved = true, ApprovedByUserId = seed.Reviewer.Id,
+        ApprovedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await setup.SaveChangesAsync();
+      var account = await BillingService.CreateBillingAccountAsync(setup, manager, new(seed.ClientId, "QAR"));
+      Assert.True(account.Succeeded, account.Message);
+      var invoice = await BillingService.CreateInvoiceDraftAsync(setup, manager,
+        new(account.Value, "SNAPSHOT-100", [new("Synthetic services", 1m, 100m)]));
+      Assert.True(invoice.Succeeded, invoice.Message);
+      invoiceId = invoice.Value;
+      Assert.True((await BillingService.SubmitInvoiceAsync(setup, manager, invoiceId)).Succeeded);
+      Assert.True((await BillingService.ApproveInvoiceAsync(setup, reviewer, invoiceId)).Succeeded);
+      Assert.True((await BillingService.PostInvoiceAsync(setup, manager, invoiceId)).Succeeded);
+      var receipt = await BillingService.RecordReceiptAsync(setup, manager,
+        new(account.Value, 50m, "SYN-SNAPSHOT-BANK", RequestId: Guid.CreateVersion7()));
+      Assert.True(receipt.Succeeded, receipt.Message);
+      receiptId = receipt.Value;
+    }
+    var barrier = new AllocationReadBarrier(async () =>
+    {
+      await using var writer = new AuditSphereDbContext(pg.Options);
+      var allocated = await BillingService.AllocateReceiptCommandAsync(writer, manager,
+        new(receiptId, invoiceId, 50m, Guid.CreateVersion7()));
+      Assert.True(allocated.Succeeded, allocated.Message);
+      var requested = await ReceiptAllocationReversalService.SubmitAsync(writer, manager, allocated.Value!.AllocationId,
+        new(50m, "SYN-SNAPSHOT-CORRECTION", "Independent allocation correction.", 0, true));
+      Assert.True(requested.Succeeded, requested.Message);
+      var approved = await ReceiptAllocationReversalService.ReviewAsync(writer, reviewer, requested.Value,
+        new(true, "Verified the exact correction.", true));
+      Assert.True(approved.Succeeded, approved.Message);
+      if (revoke)
+      {
+        var grant = await writer.RoleGrants.AsNoTracking().SingleAsync(x => x.FirmId == seed.FirmId &&
+          x.UserId == seed.Admin.Id && x.Role == "FinanceManager" && x.RevokedAt == null);
+        var removed = await RoleAdministrationService.RevokeRoleGrantAsync(writer,
+          PbcSeed.Actor(seed.Admin, "Administrator"), new(grant.Id));
+        Assert.True(removed.Succeeded, removed.Message);
+      }
+    });
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>().UseNpgsql(pg.ConnectionString)
+      .AddInterceptors(barrier).Options;
+    var asOf = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+    await using var reader = new AuditSphereDbContext(options);
+    var report = await FirmReceivablesAgingQuery.GetAsync(reader, manager, asOf);
+    Assert.True(barrier.Invoked, report.ErrorCode + ": " + report.Message);
+    Assert.Null(reader.Database.CurrentTransaction);
+    if (revoke)
+    {
+      Assert.False(report.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, report.ErrorCode);
+      return;
+    }
+    Assert.True(report.Succeeded, report.Message);
+    var row = Assert.Single(report.Value!.Rows);
+    Assert.Equal(100m, row.Outstanding);
+    Assert.Equal(0m, row.AppliedReceipts);
+    Assert.Equal(0m, row.ReversedReceipts);
+    Assert.Equal(100m, Assert.Single(report.Value.CurrencySubtotals).Outstanding);
+    var subsequent = await FirmReceivablesAgingQuery.GetAsync(reader, manager, asOf);
+    Assert.True(subsequent.Succeeded, subsequent.Message);
+    var current = Assert.Single(subsequent.Value!.Rows);
+    Assert.Equal(50m, current.AppliedReceipts);
+    Assert.Equal(50m, current.ReversedReceipts);
+    Assert.Equal(100m, current.Outstanding);
+    Assert.True((await FirmReceivablesAgingQuery.ExportAsync(reader, manager, asOf)).Succeeded);
+    await using var ambient = await reader.Database.BeginTransactionAsync();
+    var refused = await FirmReceivablesAgingQuery.GetAsync(reader, manager, asOf);
+    Assert.False(refused.Succeeded);
+    Assert.Same(ambient, reader.Database.CurrentTransaction);
+    await ambient.RollbackAsync();
+  }
+
+  private sealed class AllocationReadBarrier(Func<Task> write) : DbCommandInterceptor
+  {
+    private int invoked;
+    public bool Invoked => Volatile.Read(ref invoked) != 0;
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,
+      CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("FROM allocations AS", StringComparison.Ordinal) &&
+          !command.CommandText.Contains("receipt_allocation_reversals", StringComparison.Ordinal) &&
+          Interlocked.CompareExchange(ref invoked, 1, 0) == 0) await write();
+      return result;
+    }
+  }
+
   [Fact]
   public async Task ReportUsesApprovedTermsAndOnlyReceiptsCreditsAndAllocationsEffectiveByUtcAsOfDate()
   {

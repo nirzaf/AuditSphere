@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using System.Text;
 using AuditSphereOps.Application.Abstractions;
@@ -48,6 +49,11 @@ public static class FirmReceivablesAgingQuery
       return CommandResult<FirmReceivablesAgingReport>.Fail("finance.as-of-invalid", "Choose a valid report date.");
     var auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<FirmReceivablesAgingReport>.Fail(auth.ErrorCode!, auth.Message!);
+
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<FirmReceivablesAgingReport>.Fail(ErrorCodes.GateBlocked,
+        "Open this report in a separate read context so its source snapshot and current access can be verified.");
+    await using var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
 
     var cutoff = new DateTimeOffset(asOfDate.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
     var invoiceRows = await (from invoice in db.Invoices.AsNoTracking()
@@ -208,6 +214,8 @@ public static class FirmReceivablesAgingQuery
     var currencySubtotals = rows.GroupBy(x => x.Currency).OrderBy(g => g.Key, StringComparer.Ordinal)
       .Select(g => Subtotal(null, null, null, null, g.Key, g)).ToArray();
 
+    // End the financial snapshot before rechecking access; a committed revocation must remain visible.
+    await snapshot.CommitAsync(ct);
     auth = await AuthorizeAsync(db, actor, ct);
     return auth.Succeeded
       ? CommandResult<FirmReceivablesAgingReport>.Ok(new FirmReceivablesAgingReport(asOfDate,
