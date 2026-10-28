@@ -207,7 +207,7 @@ export class FindingRecord {
           @else { <button matButton="outlined" (click)="set(r.id, false)" [disabled]="!flow.canPrepare('REOPEN')">Preview reopening review point</button> }
           } <a matButton [routerLink]="['/app/engagements', r.engagementId]">Back to engagement</a></p></section>
     }
-    @if (rec.data()) { <audit-review-point-command-review [flow]="flow" /> }
+    @if (rec.data() || flow.receipt() && rec.loading()) { <audit-review-point-command-review [flow]="flow" /> }
   `,
 })
 export class ReviewPointRecord {

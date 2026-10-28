@@ -14,15 +14,13 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
-## Sibling isolation snapshot completion
+## Verified review-point receipt during refresh
 
-Sibling-group snapshots now await the initial own-portfolio progress response before comparing full rendered text. A controlled slow read reproduced the earlier false difference; marker, exact-text, opaque-detail and responsive assertions are retained. Runtime authorization is unchanged. Focused checks passed; exact-source release CI remains required. See [status.json](status.json).
+The review-point command panel now retains its exact verified receipt while the independent detail read reloads. A focused regression reproduced the hidden confirmation; direct success and recovered outcomes now retain the same panel, while confirmed scope denial still removes it. Existing command checks and browser cases are unchanged. Focused checks and an owned canonical built-in workflow passed; exact-source CI, retention/reviewer acceptance and release gates remain open. See [status.json](status.json).
 
-## User types and privileges reconciled
+Earlier sibling snapshot evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#review-point-receipt-refresh-handoff-transfer).
 
-README and the current roles reference now match the assignment catalogue, scoped finance/accounting guards, registered Administrator oversight reads and independent conditional-task decisions. Existing README expansion is preserved. Source consistency and documentation checks passed; runtime and grants are unchanged. Retention/reviewer and EQR policies remain open, and exact-source release verification continues separately. See [status.json](status.json).
-
-Earlier navigation verification is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#user-privilege-documentation-handoff-transfer).
+The completed user-type documentation reconciliation is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#user-types-before-review-point-refresh).
 
 ## Source-bound conditional task applicability
 

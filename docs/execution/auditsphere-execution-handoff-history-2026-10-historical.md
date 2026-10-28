@@ -396,3 +396,20 @@ The route sweep and keyboard journey now assert the adopted lifecycle sections a
 Older portal recovery and scoped-FK notes are retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#pre-navigation-verification-handoff-transfer).
 
 <!-- End of verbatim handoff transfer. -->
+
+## Review-point receipt refresh handoff transfer
+
+## Sibling isolation snapshot completion
+
+Sibling-group snapshots now await the initial own-portfolio progress response before comparing full rendered text. A controlled slow read reproduced the earlier false difference; marker, exact-text, opaque-detail and responsive assertions are retained. Runtime authorization is unchanged. Focused checks passed; exact-source release CI remains required. See [status.json](status.json).
+
+
+## User types before review-point refresh
+
+## User types and privileges reconciled
+
+README and the current roles reference now match the assignment catalogue, scoped finance/accounting guards, registered Administrator oversight reads and independent conditional-task decisions. Existing README expansion is preserved. Source consistency and documentation checks passed; runtime and grants are unchanged. Retention/reviewer and EQR policies remain open, and exact-source release verification continues separately. See [status.json](status.json).
+
+Earlier navigation verification is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#user-privilege-documentation-handoff-transfer).
+
+Archive transfer preserves the source sections verbatim.

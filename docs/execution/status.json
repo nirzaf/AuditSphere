@@ -1125,21 +1125,22 @@
     },
     "userTypesPrivileges20261028": {
       "status": "SOURCE_RECONCILED_DOCS_VERIFIED",
-      "sourceBaseCommit": "49bea18914c15d644aa8ecc8f419b6db17c8c84a",
-      "scope": "Preserve committed README expansion; align two human user kinds and eleven assignable roles, accounting versus finance scopes, registered oversight reads and conditional-task independent decisions with current guards.",
-      "verification": "Role-matrix/catalogue equality and exact13operation inventory PASS; documentation health/narrative/diff checks PASS. Runtime/grants unchanged; behavioral tests/browser NOT_RUN for docs-only work.",
-      "limits": "D-OV04 and D-EQR01..04 remain open; no whole-assignment or release acceptance.",
-      "evidence": ".local/autonomous/evidence/user-types-privileges-20261028/source-consistency.json"
+      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.userTypesPrivileges20261028BeforeReviewPointRefresh20261028"
     },
     "siblingGroupSnapshotCi20261028": {
       "status": "TEST_ONLY_TRUE_RED1_GREEN3_CURRENT_EXACT_CI_REQUIRED",
-      "sourceBaseCommit": "c6333ebf250e3be4a81763f3b088fe0467a12072",
-      "failure": "Precedingf485 full40618488703 E2Ejob122587224928:338PASS/1FAIL/0skip, actualcheckoutMATCH; TRXartifact12791646650 digest7ed3f5b7f36eddf1b04f08a78e28b209683583e641923ddd88384f43bb78796b verified. Own portfolio progress was absent in baseline and present later.",
-      "change": "Snapshot awaits first real authorized portfolio progress response before unchanged settling/comparison. Existing group test delays first read11s within API20s deadline; all original text/marker/opaque-detail/responsive assertions retained. Runtime/roles/grants unchanged.",
-      "verification": "Unchanged namedGREEN1; controlled old-helperRED1 reproduced exact own-progress difference; fixed helperGREEN3 covers group and existing CLIENT/ENGAGEMENT theories. Same fixture/assertions, only helper differs. No existing timeout changed or retry added.",
-      "evidence": ".local/autonomous/evidence/user-types-privileges-20261028/sibling-isolation-review.json",
-      "limits": "Test-only; existing headless cohort, no new built-in/live/professional/whole-assignment acceptance.",
-      "cleanup": "OwnedPG18.6port57931 exact data-dir/stop/root/listener absence independently verified; original5433 untouched."
+      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.siblingGroupSnapshotCi20261028BeforeReviewPointRefresh20261028"
+    },
+    "reviewPointReceiptRefreshCi20261028": {
+      "status": "TRUE_RED2_FOCUSED_AND_BUILTIN_PASS_CURRENT_EXACT_CI_REQUIRED",
+      "sourceBaseCommit": "506cb33fb567604c50e1bfba7819bdac929cb57a",
+      "failure": "Precedingc633 full40627322002 E2Ejob122615809391:338PASS/1FAIL/0skip, actualcheckoutMATCH; TRXartifact12794826771 digestf6d0092f6e62bff31f208a0fb9fbdae38291cbcbda9c6c952e82353ec0800ca6 verified. REOPEN lost-committed receipt hidden during independent detail refresh.",
+      "change": "Keep the exact verified receipt panel mounted during detail loading. Detail content still clears while loading; completed403 hides receipt. Current authority, original assertions, receipt validation and commands unchanged.",
+      "verification": "Same new detail composition tests old-sourceRED2/7PASS -> fixedGREEN9; existingstate30PASS. Existing six-case CLEAR/REOPEN success/lost-committed/lost-uncommitted E2E6PASS/0FAIL/0skip. PinnedNode26.8.1 productionbuild/lintPASS with existing style warnings.",
+      "browser": "Fresh canonical main-R4OXDNL4; actual built-in synthetic CLEAR and REOPEN each unchecked-assent/one-command/exactreceipt/explicitrefresh retention PASS; DB2receipts/2events/revision3/target9007199254740993 unchanged. Desktop1018px nooverflow/duplicateIDs0/console[].",
+      "cleanup": "OwnedPG18.6port58367 exactdata-dir/stop/root/listener/API/database/manifest absence independently verified; temporary launcher restored byte-exact; ownedtab28closed/original5433andEntra1untouched.",
+      "evidence": ".local/autonomous/evidence/user-types-privileges-20261028/review-point-refresh-review.json",
+      "limits": "Lost-response/denial/session evidence is automated, not built-in branches; no professional/provider/live acceptance. Failed screenshot captures excluded. New exact gates and D-OV04 remain required."
     }
   },
   "externalGates": [
@@ -1624,12 +1625,12 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "c6333ebf250e3be4a81763f3b088fe0467a12072",
-    "sourceRole": "TEST_ONLY_INITIAL_PORTFOLIO_PROGRESS_SNAPSHOT_CORRECTION",
-    "releaseVerification": "Preceding c633 full40627322002 sourceMATCH Angular/Verify/Domain1825PASS; API/E2E pending. Following test/docs source needs new exact gates.",
-    "imagePublication": "c633 fast/images actual6checkouts/digests/cache/schema293rehearsal/independentcleanup/defaultguard PASS; predecessor only for following source.",
-    "cutoverStatus": "NOT_PERFORMED. Current exact gates, baseline-bound receipt/QUIESCED backup, D-OV04 acceptance and origin/public browser acceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeSiblingSnapshot20261028"
+    "sourceBaseCommit": "506cb33fb567604c50e1bfba7819bdac929cb57a",
+    "sourceRole": "REVIEW_POINT_VERIFIED_RECEIPT_REFRESH_VISIBILITY_REPAIR",
+    "releaseVerification": "Preceding506c full40633235431 sourceMATCH Angular/Verify/Domain1825PASS; API/E2E active at05:49UTC. Following source requires new exact gates.",
+    "imagePublication": "506c fast/images actual6checkouts/digests/cache/schema293rehearsal/cleanup/defaultguards PASS; predecessor only after this repair.",
+    "cutoverStatus": "NOT_PERFORMED. Current exact gates, baseline-bound receipt/QUIESCED backups, actual D-OV04 policy and origin/public acceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeReviewPointRefresh20261028"
   },
-  "updatedAtUtc": "2026-10-28T04:34:04.089734+00:00"
+  "updatedAtUtc": "2026-10-28T05:57:08.320589+00:00"
 }

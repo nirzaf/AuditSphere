@@ -5,7 +5,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { BehaviorSubject } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { ReviewPointRecord } from './records';
-import { reviewPointTestId as id, reviewPointTestRecord as record, reviewPointTestState as state, reviewPointTestPreview as preview } from './review-point-command-test-data';
+import { reviewPointTestId as id, reviewPointTestRecord as record, reviewPointTestState as state, reviewPointTestPreview as preview, reviewPointTestReceipt as receipt } from './review-point-command-test-data';
 
 describe('Review point detail scope, refresh and disposition controls', () => {
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>, http: HttpTestingController;
@@ -39,6 +39,35 @@ describe('Review point detail scope, refresh and disposition controls', () => {
     expect(page.flow.reviewed()).toBe(false); expect(page.flow.preview()).toBeNull();
     page.rec.reload(); TestBed.tick(); http.expectOne(url()).flush({}, { status: 403, statusText: 'Forbidden' }); TestBed.tick();
     expect(page.rec.data()).toBeNull(); expect(f.nativeElement.textContent).not.toContain('Synthetic original review comment'); http.expectNone(r => r.url.endsWith('/actions'));
+  });
+  it.each(['success', 'lost-committed'])('keeps the exact verified %s receipt visible during refresh, then hides it on scope denial', async mode => {
+    const f = open(record('REOPEN')), page = f.componentInstance;
+    page.set(id(1), false); http.expectOne(url() + '/commands/state').flush(state('REOPEN')); await settle();
+    const prepare = http.expectOne(url() + '/commands/preview'), p = preview(prepare.request.body);
+    prepare.flush(p); await settle(); page.flow.reviewed.set(true); const execute = page.flow.execute();
+    const command = http.expectOne(url() + '/commands/actions'), result = receipt(p);
+    if (mode === 'success') command.flush(result);
+    else command.flush({}, { status: 500, statusText: 'Lost committed response' });
+    await execute; await settle();
+    if (mode === 'lost-committed') {
+      const recover = page.flow.reconcile('REOPEN');
+      http.expectOne(url() + `/commands/receipts/${p.requestId}?requestHash=${p.requestHash}`).flush({ found: true, receipt: result }); await settle();
+      http.expectOne(url() + '/commands/state').flush({ ...state(), reviewPoint: result.dispositionEvent.after });
+      await recover; await settle();
+    }
+    const refresh = http.expectOne(url());
+    expect(page.rec.loading()).toBe(true); expect(page.rec.data()).toBeNull();
+    expect(page.flow.receipt()?.requestId).toBe(p.requestId);
+    const panel = f.nativeElement.querySelector('[aria-label="Verified review point receipt"]');
+    expect(panel).not.toBeNull(); expect(panel.textContent).toContain('REOPEN'); expect(panel.textContent).toContain(p.requestId);
+    expect(f.nativeElement.querySelector('#context-heading')).toBeNull();
+    refresh.flush({ ...record(), dispositionRevision: '12' }); TestBed.tick();
+    expect(f.nativeElement.querySelector('[aria-label="Verified review point receipt"]')).toBe(panel);
+    page.rec.reload(); TestBed.tick();
+    expect(f.nativeElement.querySelector('[aria-label="Verified review point receipt"]')).toBe(panel);
+    http.expectOne(url()).flush({}, { status: 403, statusText: 'Forbidden' }); TestBed.tick();
+    expect(f.nativeElement.querySelector('[aria-label="Verified review point receipt"]')).toBeNull();
+    http.expectNone(r => r.method === 'POST');
   });
   it('cancels previous A/B reads and prevents commands against an old point', () => {
     const f = TestBed.createComponent(ReviewPointRecord); f.detectChanges(); TestBed.tick(); const a = http.expectOne(url());
