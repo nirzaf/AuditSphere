@@ -15,7 +15,7 @@ AuditSphere has **explicit role grants, not a universal superuser hierarchy**. A
 
 These are the two human `UserKind` values. Microsoft directory member/guest identities supply authentication evidence, identified by tenant and immutable object/subject ID; directory membership, invitation and sign-in alone grant no application role. Workers and capability-specific provider identities execute only their configured operations and verified capability. They are not additional human user types, interactive administrators or professional approvers.
 
-Disabled users, revoked grants, expired access and stale sessions are access states, not additional user types. Revocation and session-epoch checks prevent an old session from retaining earlier access.
+Disabled users, revoked grants, expired access and stale sessions are access states, not additional user types. Revocation and session-epoch checks prevent an old session from retaining earlier access. Invoice submission, approval, posting and send, firm-journal submission, approval and posting, period close/reopen and rate-card revision/approval recheck current authority after their mutation locks. A role revocation committed while one of these commands waits is enforced before mutation or successful replay.
 
 The staff workspace's **My profile** page lets the signed-in person view their account and update supported optional personal details. Full name and email remain identity-provider values; editing a position or contact detail does not change roles, staffing or access. The [profile service](../../src/AuditSphereOps.Application/Security/UserProfileService.cs) acts only on the current user and accepts no target-user identifier.
 

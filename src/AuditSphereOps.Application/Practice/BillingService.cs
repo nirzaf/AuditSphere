@@ -553,6 +553,9 @@ public static class BillingService
     var lockedAccount = await LoadBillingAccountForUpdateAsync(db, actor.FirmId, account.Id, ct);
     var lockedInvoice = await LoadInvoiceForUpdateAsync(db, actor.FirmId, invoiceId, ct);
     if (lockedAccount is null || lockedInvoice is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    // Access changes share the firm fence; refresh authority before mutation or replay.
+    auth = await AuthorizeBillingAsync(db, actor, lockedAccount.PracticeClientId, ManagerRoles, ct);
+    if (!auth.Succeeded) return auth;
     if (lockedInvoice.Status == BillingStates.InvoicePosted) return CommandResult.Ok();
     if (lockedInvoice.Status != BillingStates.InvoiceApproved)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only an approved invoice can be posted.");
@@ -583,6 +586,9 @@ public static class BillingService
     var lockedAccount = await LoadBillingAccountForUpdateAsync(db, actor.FirmId, account.Id, ct);
     var lockedInvoice = await LoadInvoiceForUpdateAsync(db, actor.FirmId, invoiceId, ct);
     if (lockedAccount is null || lockedInvoice is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    // Access changes share the firm fence; refresh authority before mutation or replay.
+    auth = await AuthorizeBillingAsync(db, actor, lockedAccount.PracticeClientId, roles, ct);
+    if (!auth.Succeeded) return auth;
     if (lockedInvoice.Status == next) return CommandResult.Ok();
     if (lockedInvoice.Status != expected)
       return CommandResult.Fail(ErrorCodes.ProtectedState, $"Only an invoice in {expected} can enter {next}.");

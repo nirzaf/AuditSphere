@@ -669,6 +669,9 @@ public static partial class PracticeTimeService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ApprovalRoles, InternalOnly: true, RequireFirmWide: true), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var role = request.Role.Trim();
     var activity = request.Activity.Trim();
     var currency = request.Currency.Trim().ToUpperInvariant();
@@ -705,6 +708,9 @@ public static partial class PracticeTimeService
       $"SELECT * FROM rate_card_versions WHERE id = {rateCardId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (card is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ApprovalRoles, InternalOnly: true, RequireFirmWide: true), ct);
+    if (!auth.Succeeded) return auth;
     if (card.Status == PracticeTimeStates.RateApproved) return CommandResult.Ok();
     if (card.Status != PracticeTimeStates.RateDraft)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft rate card can be approved.");

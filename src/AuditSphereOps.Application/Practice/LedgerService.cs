@@ -238,6 +238,9 @@ public static partial class LedgerService
     var period = await LoadPeriodForUpdateAsync(db, actor.FirmId, journal.PeriodId, ct);
     var lockedJournal = await LoadJournalForUpdateAsync(db, actor.FirmId, journalId, ct);
     if (period is null || lockedJournal is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    // Re-evaluate current grants and session after all mutation locks, including replay.
+    auth = await AuthorizeFirmAsync(db, actor, ManagerRoles, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (lockedJournal.Status == LedgerStates.JournalPosted)
     {
       var existing = await db.FirmPostings.SingleAsync(x => x.FirmId == actor.FirmId && x.JournalId == journalId, ct);
@@ -404,6 +407,9 @@ public static partial class LedgerService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var period = await LoadPeriodForUpdateAsync(db, actor.FirmId, periodId, ct);
     if (period is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    // Re-evaluate current grants and session after all mutation locks, including replay.
+    auth = await AuthorizeFirmAsync(db, actor, ReviewerRoles, ct);
+    if (!auth.Succeeded) return auth;
     if (period.Status == LedgerStates.PeriodClosed) return CommandResult.Ok();
     if (period.Status != LedgerStates.PeriodOpen)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only an open period can be closed.");
@@ -442,6 +448,9 @@ public static partial class LedgerService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var period = await LoadPeriodForUpdateAsync(db, actor.FirmId, periodId, ct);
     if (period is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    // Re-evaluate current grants and session after all mutation locks, including replay.
+    auth = await AuthorizeFirmAsync(db, actor, ManagerRoles, ct);
+    if (!auth.Succeeded) return auth;
     if (period.Status == LedgerStates.PeriodOpen) return CommandResult.Ok();
     if (period.Status != LedgerStates.PeriodClosed)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a closed period can be reopened.");
@@ -479,6 +488,9 @@ public static partial class LedgerService
     var period = await LoadPeriodForUpdateAsync(db, actor.FirmId, journal.PeriodId, ct);
     var locked = await LoadJournalForUpdateAsync(db, actor.FirmId, journalId, ct);
     if (period is null || locked is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    // Re-evaluate current grants and session after all mutation locks, including replay.
+    auth = await AuthorizeFirmAsync(db, actor, roles, ct);
+    if (!auth.Succeeded) return auth;
     if (locked.Status == next) return CommandResult.Ok();
     if (period.Status != LedgerStates.PeriodOpen || locked.Status != expected)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "The journal or period is not in the required state.");

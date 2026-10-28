@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Finance authority after lock waits
+
+Selected technical-review story R01 now rechecks current database authority after the existing mutation locks for invoice transitions/posting, journal transitions/posting, period close/reopen and rate revision/approval. The real role-revocation interleaving reproduced stale authority; the corrected paths refuse before changing business records or returning replay success. Unchanged authority and exact retries retain their original results. Role scopes, independent approval and accounting boundaries are unchanged. Focused evidence is in [status.json](status.json); other attached stories, exact-source CI and release/professional acceptance remain separate.
+
 ## Native successor reviewer proof read
 
 The native successor reviewer journey now distinguishes catalogue availability from the dependent retained proof read. Its approval assertions wait for the exact successful proof response; unchecked assent, independent approval, retained source hashes and persistence assertions remain intact. A controlled first-response delay reproduces the original missing-control observation. This is test synchronization only; application permissions, deadlines and professional decisions are unchanged. Exact paired results and incomplete CI boundaries are recorded in [status.json](status.json); the separate sibling-client inactivity abort remains unconfirmed.
