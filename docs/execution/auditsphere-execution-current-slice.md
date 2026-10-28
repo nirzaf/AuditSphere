@@ -14,9 +14,13 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
-## Bounded monetary-unit sampling
+## Effective sampled-item evidence and source currentness
 
-Selected technical-review story R03 replaces repeated interval additions with bounded arithmetic per population row, retaining selection order, absolute exposure, first-crossing explanations and the existing engine identity. Final maximum-value crossings succeed without creating a needless next point; unsupported decimal totals or precision fail through the existing validation contract. Focused arithmetic and integration evidence is recorded in [status.json](status.json). This establishes no sampling-methodology policy or professional acceptance; exact-source CI and release gates remain separate.
+Sample readback, completion and SRM now use the same current test and effective independent review. Pending results do not complete a sample. New decisions are serialized under existing scope locks and retain actual observation timestamps; legacy evidence is unchanged and ambiguous timestamp ties fail conservatively. The additive migration preserves legacy rows and refuses removal of retained sequence history. Exact item/review changes invalidate dependent evidence even when aggregate unresolved counts remain equal.
+
+Application and HTTP boundaries require meaningful references for substantive sample and cut-off results. Physical references remain supported; pending/limitation follow-up is distinct. Focused causal, concurrency, migration and HTTP checks passed as recorded in [status.json](status.json). Existing UI fixtures supply the required new-review sequence; no new interactive acceptance is claimed. The [Technical Stories register](auditsphere-execution-technical-stories-current.md) tracks the broader continuing assignment and qualified dependencies.
+
+The preceding monetary-unit sampling handoff is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md).
 
 ## Finance authority after lock waits
 

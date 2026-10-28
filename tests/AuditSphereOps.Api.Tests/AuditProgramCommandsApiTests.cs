@@ -5,6 +5,7 @@ using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Api.Ui;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
@@ -14,6 +15,63 @@ namespace AuditSphereOps.Api.Tests;
 
 public sealed class AuditProgramCommandsApiTests
 {
+  [Fact]
+  public async Task SamplingEvidenceBinding_RejectsOmittedNullAndBlankReferencesWithoutWriting()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("SAMPLING-EVIDENCE-BINDING");
+    var f = await PbcSeed.SeedAsync(pg);
+    var maker = PbcSeed.Actor(f.Staff, "Partner");
+    var reviewer = PbcSeed.Actor(f.Reviewer, "Partner");
+    Guid itemId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, f.Staff, "Partner"), PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner"));
+      await db.SaveChangesAsync();
+      var draft = await AuditProgramService.PrepareControlledAuditProgramAsync(db, maker, new("2026.1", AuditProgramCatalog.SourceHash));
+      Assert.True(draft.Succeeded, draft.Message);
+      var published = await AuditProgramService.ReviewControlledAuditProgramPublicationAsync(db, reviewer,
+        new(draft.Value!.ProgramVersionId, draft.Value.ContentDigest!, "sampling-binding-methodology-fixture"));
+      Assert.True(published.Succeeded, published.Message);
+      Assert.True((await AuditProgramService.AdoptAsync(db, maker,
+        new(f.EngagementId, published.Value!.ProgramVersionId, AuditProgramCatalog.SourceHash, published.Value.ContentDigest))).Succeeded);
+      await PlanningBasisSeed.EstablishAsync(db, f.FirmId, f.ClientId, f.EngagementId, maker, reviewer);
+      var procedure = await db.AuditProcedures.SingleAsync(x => x.EngagementId == f.EngagementId && x.SourceProcedureId == "AWP-01-01");
+      Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, maker,
+        new(procedure.Id, AuditApplicabilityActions.Applicable, "Synthetic sampled evidence", procedure.CurrentApplicabilityRevision,
+          procedure.CurrentDefinitionRevision, Guid.CreateVersion7()))).Succeeded);
+      var schedule = await AuditFieldworkService.CreateScheduleAsync(db, maker, new(f.EngagementId, "RECEIVABLES_LEAD", "sample-ledger", "sample-receipt",
+        DateTimeOffset.UtcNow, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "QAR", "Debit positive", Hashing.Sha256Hex("sample"), 10m,
+        [new("sample", 1, "1000", "Sample", 10m, "QAR", null, new(2026, 12, 20), null, null, "{}")]));
+      Assert.True(schedule.Succeeded, schedule.Message);
+      Assert.True((await AuditFieldworkService.ReviewScheduleAsync(db, reviewer, new(schedule.Value!.ScheduleId, "Independent population review", true))).Succeeded);
+      var selection = await AuditFieldworkService.CreateSelectionAsync(db, maker, new(f.EngagementId, procedure.Id, schedule.Value.ScheduleId,
+        null, "KEY_ITEM", "Exact identified row", [new("sample", 10m, "QAR", "Selected exact row")]));
+      Assert.True(selection.Succeeded, selection.Message);
+      Assert.True((await AuditFieldworkService.ReviewSelectionAsync(db, reviewer, new(selection.Value!.SelectionId, "REVIEWED", null))).Succeeded);
+      itemId = await db.AuditSelectionItems.Where(x => x.SelectionId == selection.Value.SelectionId).Select(x => x.Id).SingleAsync();
+    }
+    using var factory = Factory(pg, f.Staff);
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    var csrf = await SignIn(client);
+    foreach (var route in new[] { "tests", "cut-off-test" })
+    {
+      foreach (var variant in new[] { "omitted", "null", "blank" })
+      {
+        var body = new Dictionary<string, object?>
+        {
+          ["workPerformed"] = "Reviewed retained sampled evidence", ["result"] = "PASS",
+          ["periodEndDate"] = "2026-12-31", ["transactionDate"] = "2026-12-20"
+        };
+        if (variant != "omitted") body["evidenceReferences"] = variant == "null" ? null : new[] { " \t " };
+        using var rejected = await Post(client, csrf, $"/api/ui/selection-items/{itemId:D}/{route}", body);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+      }
+    }
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await proof.AuditItemTests.ToListAsync());
+    Assert.Empty(await proof.AuditCutOffTestRecords.ToListAsync());
+  }
+
   [Fact]
   public async Task PublicationRequiresAntiforgeryAndAnIndependentFirmWideReviewer()
   {

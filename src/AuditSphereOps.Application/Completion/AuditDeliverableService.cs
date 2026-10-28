@@ -59,7 +59,7 @@ public static partial class AuditDeliverableService
     IReadOnlyList<object> Procedures, int OpenReviewNotes, IReadOnlyList<Finding> Findings,
     IReadOnlyList<DifferenceCurrencySummary> UnadjustedDifferences, int ConfirmationsOutstanding, int ConfirmationsCriticalOutstanding,
     IReadOnlyList<object> Confirmations, object? GoingConcern, IReadOnlyList<UnresolvedVariance> UnresolvedVariances,
-    IReadOnlyList<string> Blockers, IReadOnlyList<AdjustmentLine> Adjustments);
+    IReadOnlyList<string> Blockers, IReadOnlyList<AdjustmentLine> Adjustments, string? SamplingEvidenceDigest);
 
   private static async Task<Facts> FactsAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
   {
@@ -136,7 +136,8 @@ public static partial class AuditDeliverableService
       differenceRows.Where(x => x.CorrectionState is not null || x.ProposedJournalId is not null)
         .OrderBy(x => x.Currency, StringComparer.Ordinal).ThenBy(x => x.Id)
         .Select(x => new AdjustmentLine(x.Currency.ToUpperInvariant(), MoneyPolicy.Normalize(x.Amount), x.CorrectionState ?? "NOT_RECORDED",
-          x.ProposedJournalId, x.ProposedJournalRevision)).ToList());
+          x.ProposedJournalId, x.ProposedJournalRevision)).ToList(),
+      await AuditSamplingEvidence.DigestAsync(db, actor.FirmId, engagement.PracticeClientId, engagementId, ct));
   }
 
   private static string Digest(object value) => Hashing.Sha256Hex(JsonSerializer.Serialize(value));
@@ -151,10 +152,14 @@ public static partial class AuditDeliverableService
     return critical.Count == 0 ? (null, 0) : (Digest(critical.Select(c => new { c.CaseId, c.Status })), critical.Count);
   }
 
-  private static string FactsDigest(Facts facts) => Digest(new { facts.Materiality, facts.Risks, facts.RedAreas, facts.Procedures, facts.OpenReviewNotes,
-    Findings = facts.Findings.Select(f => new { f.Id, f.FindingType, f.Corrected, f.MonetaryAmount, f.ManagementResponse, f.Status,
-      f.LetterDesignatedAt, f.LetterRecommendation }),
-    facts.UnadjustedDifferences, facts.UnresolvedVariances, facts.Confirmations, facts.GoingConcern, facts.Blockers });
+  private static string FactsDigest(Facts facts)
+  {
+    var basis = new { facts.Materiality, facts.Risks, facts.RedAreas, facts.Procedures, facts.OpenReviewNotes,
+      Findings = facts.Findings.Select(f => new { f.Id, f.FindingType, f.Corrected, f.MonetaryAmount, f.ManagementResponse, f.Status,
+        f.LetterDesignatedAt, f.LetterRecommendation }),
+      facts.UnadjustedDifferences, facts.UnresolvedVariances, facts.Confirmations, facts.GoingConcern, facts.Blockers };
+    return facts.SamplingEvidenceDigest is null ? Digest(basis) : Digest(new { basis, facts.SamplingEvidenceDigest });
+  }
 
   /// <summary>True while the facts a deliverable was generated from are unchanged (a signed copy follows its source).</summary>
   public static async Task<bool> IsCurrentAsync(IAuditSphereDbContext db, ActorContext actor, AuditDeliverable deliverable, CancellationToken ct = default)

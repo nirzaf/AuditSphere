@@ -447,3 +447,7 @@ Current Markdown guidance now describes conditional-task and oversight evidence,
 The review-point command panel now retains its exact verified receipt while the independent detail read reloads. A focused regression reproduced the hidden confirmation; direct success and recovered outcomes now retain the same panel, while confirmed scope denial still removes it. Existing command checks and browser cases are unchanged. Focused checks and an owned canonical built-in workflow passed; exact-source CI, retention/reviewer acceptance and release gates remain open. See [status.json](status.json).
 
 Current continuation: [active handoff](auditsphere-execution-current-slice.md).
+
+## Bounded monetary-unit sampling
+
+Selected technical-review story R03 replaces repeated interval additions with bounded arithmetic per population row, retaining selection order, absolute exposure, first-crossing explanations and the existing engine identity. Final maximum-value crossings succeed without creating a needless next point; unsupported decimal totals or precision fail through the existing validation contract. Focused arithmetic and integration evidence is recorded in [status.json](status.json). This establishes no sampling-methodology policy or professional acceptance; exact-source CI and release gates remain separate.

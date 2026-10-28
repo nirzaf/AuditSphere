@@ -393,7 +393,7 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
         {
             Id = Guid.NewGuid(), FirmId = scope.FirmId, ClientId = scope.ClientId,
             EngagementId = scope.EngagementId, SelectionItemId = itemId,
-            AuditItemTestId = itemTestId, TestRevision = 1,
+            AuditItemTestId = itemTestId, TestRevision = 1, ReviewSequence = 1,
             Decision = AuditItemTestReviewDecisions.Reviewed,
             ReviewerUserId = scope.Reviewer.Id, CreatedAt = now
         });

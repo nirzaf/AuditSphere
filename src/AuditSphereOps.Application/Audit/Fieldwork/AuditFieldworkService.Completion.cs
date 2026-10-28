@@ -66,7 +66,7 @@ public static partial class AuditFieldworkService
       .Select(x => $"selection:{x.Id}:unreviewed").ToListAsync(ct));
     var selections = await db.AuditSelections.AsNoTracking().Where(x =>
       x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId)
-      .Select(x => new { x.Id, x.ScheduleId, x.Status }).ToArrayAsync(ct);
+      .Select(x => new { x.Id, x.ScheduleId, x.Status, x.InputGeneration }).ToArrayAsync(ct);
     var typedScheduleIds = selections.Where(x => x.ScheduleId.HasValue).Select(x => x.ScheduleId!.Value).Distinct().ToArray();
     var capturedScheduleIds = typedScheduleIds.Length == 0 ? [] : await db.AuditScheduleSourceCaptures.AsNoTracking()
       .Where(x => x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId &&
@@ -88,13 +88,13 @@ public static partial class AuditFieldworkService
       x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && reviewedSelections.Contains(x.SelectionId))
       .Select(x => x.Id).ToArrayAsync(ct);
     var currentGeneration = await CurrentGenerationAsync(db, clientId, firmId, ct);
-    var testedItemIds = await db.AuditItemTests.AsNoTracking().Where(x =>
-      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && selectedItemIds.Contains(x.SelectionItemId) &&
-      x.InputGeneration == currentGeneration &&
-      !db.AuditItemTests.Any(newer => newer.FirmId == x.FirmId && newer.SelectionItemId == x.SelectionItemId && newer.Revision > x.Revision))
-      .Where(x => db.AuditItemTestReviews.Any(review => review.FirmId == firmId && review.AuditItemTestId == x.Id &&
-        review.TestRevision == x.Revision && review.Decision == AuditItemTestReviewDecisions.Reviewed))
-      .Select(x => x.SelectionItemId).Distinct().ToArrayAsync(ct);
+    var latestTests = await AuditSamplingEvidence.LatestTestsAsync(db, firmId, clientId, engagementId, selectedItemIds, ct);
+    var effectiveReviews = await AuditSamplingEvidence.EffectiveReviewsAsync(db, firmId, clientId, engagementId,
+      latestTests.Select(x => x.Id).ToArray(), ct);
+    var selectionGenerations = selections.ToDictionary(x => x.Id, x => x.InputGeneration);
+    var testedItemIds = latestTests.Where(test => AuditSamplingEvidence.IsComplete(test,
+        effectiveReviews.GetValueOrDefault(test.Id), currentGeneration, selectionGenerations.GetValueOrDefault(test.SelectionId)))
+      .Select(x => x.SelectionItemId).ToArray();
     var unreviewedItemCount = selectedItemIds.Except(testedItemIds).Count();
     if (unreviewedItemCount > 0)
       blockers.Add($"item-tests:{unreviewedItemCount}:unreviewed");

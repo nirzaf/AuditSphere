@@ -56,8 +56,9 @@ public static class AuditSamplingService
     IClientAccountingDbContext db, ActorContext actor, CutOffTestRequest request,
     CancellationToken ct = default)
   {
+    var evidenceReferences = request.EvidenceReferences?.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray();
     if (request.SelectionItemId == Guid.Empty || string.IsNullOrWhiteSpace(request.WorkPerformed) ||
-        request.WorkPerformed.Trim().Length > 20000 || request.EvidenceReferences is null ||
+        request.WorkPerformed.Trim().Length > 20000 || evidenceReferences is null or { Length: 0 } ||
         request.ExpectedRevision < 0 || request.ExpectedRevision == long.MaxValue)
       return CommandResult<CutOffTestValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A cut-off test needs the sampled item, work performed and evidence references.");
@@ -131,8 +132,7 @@ public static class AuditSamplingService
       ShipReceiveDate = request.ShipReceiveDate, PeriodEndIndicator = indicator, IsCutOffException = isException,
       WorkPerformed = request.WorkPerformed.Trim(), Revision = request.ExpectedRevision + 1,
       RecordedByUserId = actor.UserId, RecordedAt = DateTimeOffset.UtcNow,
-      EvidenceReferencesJson = JsonSerializer.Serialize(
-        request.EvidenceReferences.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray())
+      EvidenceReferencesJson = JsonSerializer.Serialize(evidenceReferences)
     };
     db.AuditCutOffTestRecords.Add(revision);
     await db.SaveChangesAsync(ct);
@@ -275,16 +275,12 @@ public static class AuditSamplingService
       .Skip((page - 1) * pageSize).Take(pageSize)
       .ToListAsync(ct);
     var itemIds = pageItems.Select(x => x.Id).ToArray();
-    var latestTests = await db.AuditItemTests.AsNoTracking()
-      .Where(test => test.FirmId == actor.FirmId && test.SelectionId == selection.Id &&
-        test.Revision == db.AuditItemTests.Where(previous => previous.FirmId == actor.FirmId && previous.SelectionItemId == test.SelectionItemId)
-          .Max(previous => previous.Revision))
-      .Where(x => itemIds.Contains(x.SelectionItemId))
-      .ToListAsync(ct);
-    var latestTestIds = latestTests.Select(x => x.Id).ToArray();
-    var testReviews = await db.AuditItemTestReviews.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && latestTestIds.Contains(x.AuditItemTestId))
-      .OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
+    var latestTests = await AuditSamplingEvidence.LatestTestsAsync(db, selection.FirmId, selection.ClientId,
+      selection.EngagementId, itemIds, ct);
+    var testReviews = await AuditSamplingEvidence.EffectiveReviewsAsync(db, selection.FirmId, selection.ClientId,
+      selection.EngagementId, latestTests.Select(x => x.Id).ToArray(), ct);
+    var generation = await db.ClientSafetyStates.AsNoTracking().Where(x => x.FirmId == selection.FirmId && x.Id == selection.ClientId)
+      .Select(x => x.InputGeneration).SingleAsync(ct);
     var reviewAuthorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(selection.FirmId, selection.ClientId, selection.EngagementId,
         ["Reviewer", "Manager", "Partner", "Administrator"], InternalOnly: true), ct);
@@ -309,7 +305,7 @@ public static class AuditSamplingService
     var views = pageItems.Select(item =>
     {
       var test = latestTests.FirstOrDefault(x => x.SelectionItemId == item.Id);
-      var review = test is null ? null : testReviews.FirstOrDefault(x => x.AuditItemTestId == test.Id && x.TestRevision == test.Revision);
+      var review = test is null ? null : testReviews.GetValueOrDefault(test.Id);
       IReadOnlyList<string> evidenceReferences = [];
       if (!string.IsNullOrWhiteSpace(test?.EvidenceReferencesJson))
       {
@@ -323,7 +319,7 @@ public static class AuditSamplingService
         test?.Result ?? AuditItemTestResults.Pending, test?.Revision ?? 0, test?.ExceptionAmount,
         cutOff?.Id, cutOff?.PeriodEndIndicator, cutOff?.IsCutOffException, cutOff?.Revision ?? 0,
         match?.Id, match?.State, match?.MatchedAmount, match?.Revision ?? 0, test?.Id, test?.WorkPerformed, evidenceReferences,
-        test?.ContradictoryEvidence, test?.FollowUp, review?.Decision == AuditItemTestReviewDecisions.Reviewed,
+        test?.ContradictoryEvidence, test?.FollowUp, AuditSamplingEvidence.IsComplete(test, review, generation, selection.InputGeneration),
         review?.Decision, review?.Comment, test is not null && canReviewTests && test.TestedByUserId != actor.UserId && review is null);
     }).ToList();
 

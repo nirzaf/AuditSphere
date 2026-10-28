@@ -163,10 +163,12 @@ public sealed partial class AuditSphereDbContext
 
     var itemTestReview = b.Entity<AuditItemTestReview>();
     itemTestReview.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_audit_item_test_reviews_firm_id_id");
+    itemTestReview.HasIndex(x => new { x.FirmId, x.AuditItemTestId, x.ReviewSequence })
+      .IsUnique().HasDatabaseName("ux_item_test_review_sequence").HasFilter("review_sequence IS NOT NULL");
     itemTestReview.Property(x => x.Decision).HasMaxLength(30);
     itemTestReview.Property(x => x.Comment).HasMaxLength(20000);
     itemTestReview.ToTable("audit_item_test_reviews", t => t.HasCheckConstraint("ck_audit_item_test_review_values",
-      "test_revision > 0 AND decision IN ('REVIEWED','CHANGES_REQUIRED')"));
+      "test_revision > 0 AND decision IN ('REVIEWED','CHANGES_REQUIRED') AND (review_sequence IS NULL OR review_sequence > 0)"));
     ScopeToEngagement(itemTestReview, nameof(AuditItemTestReview.FirmId), nameof(AuditItemTestReview.ClientId), nameof(AuditItemTestReview.EngagementId));
     itemTestReview.HasOne<AuditItemTest>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditItemTestId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);

@@ -1122,24 +1122,24 @@
       "archive": "status-archive-2026-10.json#archivedTargetedVerification.nativeSuccessorProofReadCi20261028BeforeTechnicalStoriesR0320261028"
     },
     "technicalStoriesFinanceAuthority20261028": {
-      "attachmentSha256": "94d629586b4aa45975f289e7138cc0eabd7bff63e27dd4c3ae10635b8e4256df",
-      "cleanup": "Owned isolated PG18.6 databases/connections absent; exact datadir stopped/root/listener absent. Original5433 untouched.",
-      "evidence": ".local/autonomous/evidence/technical-stories-20261028/R01-review.json",
-      "preservation": "Existing billing/ledger/firm-rate scope/time workflow checks GREEN4/0FAIL/0skip; no local full suite.",
-      "remaining": "No new exact-source fast/full/images PASS or deployment. D-OV04 and professional/provider/whole-assignment acceptance remain open.",
-      "scope": "R01:11 named invoice/journal/period/rate command paths reauthorize current database user/session/grants after mutation locks and before mutation or replay. Other story and prior scope ledgers remain independent.",
-      "sourceBaseCommit": "6b82b4b8ebe8bd7f08a3fc0101ce96079c010652",
-      "status": "FOCUSED_PASS_EXACT_CI_PENDING",
-      "testValue": "Actual original source RED11/11controlPASS; identical tests correctedGREEN22/0FAIL/0skip. Supported revoker increments epoch under shared firm fence; no denied business writes; unchanged-authority exact outcomes and retries preserved."
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.technicalStoriesFinanceAuthority20261028BeforeEffectiveSampling20261028"
     },
     "technicalStoriesMonetaryUnit20261028": {
-      "status": "FOCUSED_PASS_EXACT_CI_PENDING",
-      "sourceBaseCommit": "aef4a075d211b3335b73276605252c9669ed9bd4",
-      "scope": "R03 bounded interval advancement per population row; preserves row order/absolute exposure/one selection per row/first-crossing explanations/engine version. No methodology interval cap.",
-      "testValue": "Safe actual original RED2/control1PASS for final-point/total overflow; corrected sampling engineGREEN17/0FAIL/0skip. Trillion-crossing and unsupported-next-point precision cases run only on bounded code.",
-      "integration": "Existing reviewed preview/run/retained-readback fixtureGREEN1/0FAIL/0skip. Owned PG18.6 cleaned; exact datadir/DB/connections/root/listener/postmaster absence independently verified. Original5433 untouched.",
-      "remaining": "Other attached stories remain proposals requiring current assessment. No new built-in/live/professional acceptance or exact final-source CI/release PASS.",
-      "evidence": ".local/autonomous/evidence/technical-stories-20261028/R03-review.json"
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.technicalStoriesMonetaryUnit20261028BeforeEffectiveSampling20261028"
+    },
+    "technicalStoriesEffectiveSampling20261028": {
+      "status": "FOCUSED_VERIFIED_EXACT_CI_REQUIRED",
+      "evidence": ".local/autonomous/evidence/technical-stories-all-20261028/R02-R08-review.json",
+      "scope": "R02 effective latest test/serialized review/current generation and substantive result shared across readback/completion/SRM; R08 required semantic evidence references at Application and HTTP boundary. Actual UTC/legacy rows preserved; no role, professional-policy or API-shape change.",
+      "testValue": "Original completionRED5/control1; equal-count SRM digestRED1; original referenceRED3/control2. Final sequenced cohort12PASS/one guard assertion wrapper error; corrected migration case1PASS. Ignored-sequence query faultRED1/restoredGREEN1. Actual omitted/null/blank HTTP binding1PASS.",
+      "schema": {
+        "count": 294,
+        "latest": "20261028154245_ItemTestReviewSequence",
+        "modelDrift": "PASS",
+        "upgrade": "Legacy values exact; no backfill; new insert sequence required; retained sequence prevents downgrade."
+      },
+      "cleanup": "Independent exact owned datadir/root/listener/postmaster absence PASS, no owned test DB/connections; original5433 untouched.",
+      "remaining": "Existing E2E fixture sequence adaptation, current-source CI and qualified/live acceptance remain separate; all-story assignment active."
     }
   },
   "externalGates": [

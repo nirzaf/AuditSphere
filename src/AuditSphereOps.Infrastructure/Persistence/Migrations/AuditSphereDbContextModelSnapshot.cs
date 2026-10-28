@@ -14596,6 +14596,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("firm_id");
 
+                    b.Property<long?>("ReviewSequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("review_sequence");
+
                     b.Property<Guid>("ReviewerUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("reviewer_user_id");
@@ -14615,13 +14619,18 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ReviewerUserId");
 
+                    b.HasIndex("FirmId", "AuditItemTestId", "ReviewSequence")
+                        .IsUnique()
+                        .HasDatabaseName("ux_item_test_review_sequence")
+                        .HasFilter("review_sequence IS NOT NULL");
+
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "AuditItemTestId");
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "SelectionItemId");
 
                     b.ToTable("audit_item_test_reviews", null, t =>
                         {
-                            t.HasCheckConstraint("ck_audit_item_test_review_values", "test_revision > 0 AND decision IN ('REVIEWED','CHANGES_REQUIRED')");
+                            t.HasCheckConstraint("ck_audit_item_test_review_values", "test_revision > 0 AND decision IN ('REVIEWED','CHANGES_REQUIRED') AND (review_sequence IS NULL OR review_sequence > 0)");
                         });
                 });
 

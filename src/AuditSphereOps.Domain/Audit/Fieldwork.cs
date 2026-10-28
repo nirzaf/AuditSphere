@@ -206,6 +206,8 @@ public sealed class AuditItemTestReview
   public Guid SelectionItemId { get; set; }
   public Guid AuditItemTestId { get; set; }
   public long TestRevision { get; set; }
+  /// <summary>Null preserves legacy event history; new decisions use a scope-serialized append-only sequence.</summary>
+  public long? ReviewSequence { get; set; }
   public string Decision { get; set; } = AuditItemTestReviewDecisions.ChangesRequired;
   public string? Comment { get; set; }
   public Guid ReviewerUserId { get; set; }
