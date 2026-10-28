@@ -11,6 +11,73 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class TenantAdministrationTests
 {
+  [Theory]
+  [InlineData("retire")]
+  [InlineData("disable")]
+  [InlineData("revoke")]
+  public async Task GroupDispatchRechecksChangesCommittedDuringMembershipPreflight(string change)
+  {
+    await using var f = await TenantAdministrationFixture.CreateAsync();
+    await f.ConnectAndVerifyAsync();
+    await using var db = f.Db();
+    var approved = await ManagedGroupService.ApproveGroupAsync(db, f.AdminActor, f.Microsoft, f.Options,
+      f.GroupObjectId, "Synthetic team", "Synthetic reviewed collaboration", DateTimeOffset.UtcNow);
+    Assert.True(approved.Succeeded, approved.Message);
+    var member = await DirectoryUserBindingService.BindMemberAsync(db, f.AdminActor, f.Microsoft, f.TenantId,
+      Guid.Parse(f.MemberObjectId));
+    Assert.True(member.Succeeded, member.Message);
+    var actor = f.AdminActor;
+    var provider = new MembershipPreflightBarrier(f.Microsoft, async () =>
+    {
+      await using var writer = f.Db();
+      if (change == "retire")
+        Assert.True((await ManagedGroupService.RetireGroupAsync(writer, f.SecondAdminActor, approved.Value,
+          "Synthetic allowlist retirement", DateTimeOffset.UtcNow)).Succeeded);
+      else if (change == "disable")
+        await writer.Users.Where(x => x.FirmId == f.FirmId && x.Id == member.Value)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.Disabled, true));
+      else
+      {
+        var grant = await writer.RoleGrants.AsNoTracking().SingleAsync(x => x.FirmId == f.FirmId &&
+          x.UserId == actor.UserId && x.Role == "Administrator" && x.RevokedAt == null);
+        Assert.True((await RoleAdministrationService.RevokeRoleGrantAsync(writer, f.SecondAdminActor, new(grant.Id))).Succeeded);
+      }
+    });
+    var result = await ManagedGroupService.ChangeMembershipAsync(db, actor, provider, f.Options,
+      new(TenantAdministrationFixture.Key(), approved.Value, member.Value, true, "Synthetic reviewed addition", false), DateTimeOffset.UtcNow);
+    Assert.True(provider.Invoked);
+    Assert.False(result.Succeeded);
+    Assert.Equal(0, provider.Mutations);
+    Assert.False(await f.Microsoft.IsMemberAsync(f.TenantId, f.GroupObjectId, f.MemberObjectId, default));
+    Assert.False(await db.Microsoft365ExternalOperations.AsNoTracking().AnyAsync(x => x.DispatchedAt != null));
+  }
+
+  private sealed class MembershipPreflightBarrier(IMicrosoftGroupMembershipProvider inner, Func<Task> change)
+    : IMicrosoftGroupMembershipProvider
+  {
+    public bool IsConfigured => inner.IsConfigured;
+    public bool Invoked { get; private set; }
+    public int Mutations { get; private set; }
+    public bool LoseMutationResponse { get; init; }
+    public Task<DirectoryGroupRecord> GetGroupAsync(string tenant, string group, CancellationToken ct) => inner.GetGroupAsync(tenant, group, ct);
+    public Task<DirectoryGroupMemberPage> ListMembersAsync(string tenant, string group, string? token, CancellationToken ct) => inner.ListMembersAsync(tenant, group, token, ct);
+    public async Task<bool> IsMemberAsync(string tenant, string group, string member, CancellationToken ct)
+    {
+      var existing = await inner.IsMemberAsync(tenant, group, member, ct);
+      Invoked = true;
+      await change();
+      return existing;
+    }
+    public async Task<ProviderMutationResult> AddMemberAsync(string tenant, string group, string member, CancellationToken ct)
+    {
+      Mutations++;
+      var outcome = await inner.AddMemberAsync(tenant, group, member, ct);
+      return LoseMutationResponse ? ProviderMutationResult.Unknown() : outcome;
+    }
+    public Task<ProviderMutationResult> RemoveMemberAsync(string tenant, string group, string member, CancellationToken ct)
+    { Mutations++; return inner.RemoveMemberAsync(tenant, group, member, ct); }
+  }
+
   // ---- Tenant consent identity leg (§3, §18: CSRF, replay, wrong tenant, forged identity) ----
 
   [Fact]
@@ -380,6 +447,21 @@ public sealed class TenantAdministrationTests
     var unknownGroup = await ManagedGroupService.ChangeMembershipAsync(db, f.AdminActor, f.Microsoft, f.Options,
       new(TenantAdministrationFixture.Key(), Guid.NewGuid(), member.Value, true, "Unlisted group"), DateTimeOffset.UtcNow);
     Assert.Equal(ErrorCodes.ScopeDenied, unknownGroup.ErrorCode);
+
+    var lost = new MembershipPreflightBarrier(f.Microsoft, () => Task.CompletedTask) { LoseMutationResponse = true };
+    var unknown = await ManagedGroupService.ChangeMembershipAsync(db, f.AdminActor, lost, f.Options,
+      new(TenantAdministrationFixture.Key(), approved.Value, member.Value, true, "Synthetic lost response after admission", false), DateTimeOffset.UtcNow);
+    Assert.True(unknown.Succeeded, unknown.Message);
+    Assert.Equal(ExternalOperationStates.Unknown, unknown.Value!.State);
+    Assert.True((await ManagedGroupService.RetireGroupAsync(db, f.SecondAdminActor, approved.Value,
+      "Retire after the admitted operation", DateTimeOffset.UtcNow)).Succeeded);
+    var reconciled = await DirectoryProvisioningService.ResumeAsync(db, f.AdminActor, unknown.Value.OperationId!.Value,
+      new(null, null, f.Microsoft), f.Options, DateTimeOffset.UtcNow);
+    Assert.True(reconciled.Succeeded, reconciled.Message);
+    Assert.Equal(ExternalOperationStates.Reconciled, reconciled.Value!.State);
+    Assert.Equal(1, lost.Mutations);
+    Assert.True(await f.Microsoft.IsMemberAsync(f.TenantId, f.GroupObjectId, f.MemberObjectId, default));
+    Assert.Equal(grantsBefore, await db.RoleGrants.CountAsync());
   }
 
   // ---- Cross-firm isolation and nondisclosure (§18) ----

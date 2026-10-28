@@ -94,12 +94,14 @@ public static class ManagedGroupService
     if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length < 5) return CommandResult.Fail("m365.group.invalid", "A reason is required.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied();
-    var group = await db.ManagedDirectoryGroups.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == managedGroupId, ct);
-    if (group is null) return TenantAdministration.Denied();
+    var group = await db.ManagedDirectoryGroups.FromSqlInterpolated(
+      $"SELECT * FROM m365_managed_directory_groups WHERE firm_id={actor.FirmId} AND id={managedGroupId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    if (group is null || !await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied();
     if (group.RetiredAt is null)
     {
-      group.RetiredAt = now;
-      group.RetiredByUserId = actor.UserId;
+      await db.ManagedDirectoryGroups.Where(x => x.FirmId == actor.FirmId && x.Id == managedGroupId)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.RetiredAt, now).SetProperty(x => x.RetiredByUserId, actor.UserId), ct);
       TenantAdministration.AddEvent(db, actor, "MANAGED_GROUP_RETIRED", now, oldState: "MANAGED", newState: "RETIRED",
         reason: reason, result: "APPLIED", targetTenantId: group.TenantId, targetObjectId: group.GroupObjectId);
       await db.SaveChangesAsync(ct);
@@ -164,11 +166,33 @@ public static class ManagedGroupService
     }
     if (request.ExpectedExistingMembership is { } expected && existing != expected)
       return Fail(ErrorCodes.StaleRevision, "Microsoft membership changed after review. Refresh and review the current membership.");
+    // Retirement and dispatch admission serialize on the same allowlist row. Hold the target
+    // identity through admission too; all Microsoft I/O remains outside this transaction.
+    async Task<bool> CurrentMembershipTargetAsync()
+    {
+      var currentGroup = await db.ManagedDirectoryGroups.FromSqlInterpolated(
+        $"SELECT * FROM m365_managed_directory_groups WHERE firm_id={actor.FirmId} AND id={group.Id} FOR UPDATE")
+        .AsNoTracking().SingleOrDefaultAsync(ct);
+      var currentUser = await db.Users.FromSqlInterpolated(
+        $"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={user.Id} FOR SHARE")
+        .AsNoTracking().SingleOrDefaultAsync(ct);
+      if (currentGroup is null || currentGroup.RetiredAt is not null || currentUser is null ||
+          request.Add && currentUser.Disabled ||
+          !string.Equals(currentGroup.TenantId, group.TenantId, StringComparison.OrdinalIgnoreCase) ||
+          !string.Equals(currentGroup.GroupObjectId, group.GroupObjectId, StringComparison.OrdinalIgnoreCase) ||
+          !string.Equals(currentUser.TenantId, group.TenantId, StringComparison.OrdinalIgnoreCase) ||
+          !Guid.TryParse(currentUser.Subject, out var currentMember) || currentMember != member)
+        return false;
+      return (await TenantCapabilityService.RequireVerifiedAsync(db, actor.FirmId, options,
+        Microsoft365Capabilities.GroupMembership, DateTimeOffset.UtcNow, ct)).Succeeded && groups.IsConfigured;
+    }
+    now = DateTimeOffset.UtcNow; // Preflight may have consumed the prior capability freshness window.
     var kind = request.Add ? ExternalOperationKinds.AddGroupMember : ExternalOperationKinds.RemoveGroupMember;
     if (existing == request.Add)
     {
       await using var noop = await db.Database.BeginTransactionAsync(ct);
-      if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<GroupMembershipChangeResult>();
+      if (!await CurrentMembershipTargetAsync() || !await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))
+        return TenantAdministration.Denied<GroupMembershipChangeResult>();
       TenantAdministration.AddEvent(db, actor, kind + "_NO_CHANGE", now,
         oldState: existing ? "MEMBER" : "NOT_MEMBER", newState: existing ? "MEMBER" : "NOT_MEMBER",
         reason: request.Reason, result: "NO_CHANGE", targetTenantId: group.TenantId, targetObjectId: memberId,
@@ -188,7 +212,7 @@ public static class ManagedGroupService
     if (operation.State != ExternalOperationStates.Authorized)
       return CommandResult<GroupMembershipChangeResult>.Ok(new(operation.Id, operation.State, existing,
         "This request was already submitted; reconcile it from the operations list if its result is unknown.", operation.ProviderCorrelationId));
-    if (!await DirectoryProvisioningService.MarkDispatchingAsync(db, actor, operation.Id, now, ct))
+    if (!await DirectoryProvisioningService.MarkDispatchingAsync(db, actor, operation.Id, now, ct, CurrentMembershipTargetAsync))
       return TenantAdministration.Denied<GroupMembershipChangeResult>();
     ProviderMutationResult outcome;
     try

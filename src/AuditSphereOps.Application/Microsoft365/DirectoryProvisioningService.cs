@@ -487,7 +487,7 @@ public static partial class DirectoryProvisioningService
   }
 
   internal static async Task<bool> MarkDispatchingAsync(IAuditSphereDbContext db, ActorContext actor, Guid operationId,
-    DateTimeOffset now, CancellationToken ct)
+    DateTimeOffset now, CancellationToken ct, Func<Task<bool>>? admissionCheck = null)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var operation = await db.Microsoft365ExternalOperations.FromSqlInterpolated($"""
@@ -495,6 +495,7 @@ public static partial class DirectoryProvisioningService
       """).SingleOrDefaultAsync(ct);
     // Re-check authority immediately before the external side effect.
     if (operation is null || operation.State != ExternalOperationStates.Authorized ||
+        admissionCheck is not null && !await admissionCheck() ||
         !await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))
       return false;
     operation.State = ExternalOperationStates.Dispatching;

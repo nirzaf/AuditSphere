@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Managed-group dispatch admission
+
+Membership dispatch now rechecks current allowlist, target identity, capability and actor after provider preflight, under the shared retirement/admission fence. Focused tests reproduced retirement and disablement races, then passed with the correction. A lost committed response remains reconcilable after retirement without resending or changing application grants. See [status.json](status.json); genuine tenant acceptance is separate.
+
 ## Consistent receivables and exact archive verification
 
 Firm ageing and CSV read one committed financial population and then recheck current access outside that snapshot. Archive verification uses the observed action's exact reviewed manifest and retains rebuild history. Focused concurrency, revocation, as-of and archive lifecycle checks passed; see [status.json](status.json). Recognition policy, provider protection and qualified acceptance remain separate.
