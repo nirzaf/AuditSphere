@@ -357,3 +357,11 @@ Primary role-catalogue and oversight evidence is retained in the [handoff histor
 Administrator replacement safety evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#administrator-replacement-safety).
 
 <!-- End of firm books predecessor archive. -->
+
+## Release-candidate replay
+
+The administrator-expiry regression now uses the existing microsecond-aligned clock fixture; its exact equality and rotation/refusal assertions are unchanged. See [status.json](status.json).
+
+An existing candidate is no longer returned before current authority is checked. Replay uses the ordinary release service and retains its approval identity. Candidate publication rechecks the existing independent package-review prerequisite under release locks, so a returned cash-flow review blocks preparation as shown in the workspace. Focused replay and unchanged historical projection checks passed; remaining release acceptance stays open. See [status.json](status.json).
+
+> The preceding section was moved verbatim from the active handoff during the ownership oversight test correction.

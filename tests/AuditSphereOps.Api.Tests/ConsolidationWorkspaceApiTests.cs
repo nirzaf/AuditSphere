@@ -297,13 +297,40 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.False(readOnly.GetProperty("canAddOwnership").GetBoolean());
     using var deniedWrite = await Post(reader, readerCsrf, url, Intent(fixture.ChildClientId, fixture.Seed.ClientId));
     Assert.Equal(HttpStatusCode.Forbidden, deniedWrite.StatusCode);
-    using var ungrantedFactory = Factory(pg, fixture.Seed.Admin);
+    // Firm-wide Administrator oversight is a registered, audited read; it does not grant group commands.
+    using var oversightFactory = Factory(pg, fixture.Seed.Admin);
+    using var oversight = oversightFactory.CreateClient();
+    var oversightCsrf = await SignIn(oversight);
+    var oversightRead = await Read(oversight, url);
+    Assert.Equal("READ_ONLY", oversightRead.GetProperty("accessMode").GetString());
+    Assert.False(oversightRead.GetProperty("canAddOwnership").GetBoolean());
+    Assert.Equal(fixture.ScopeId, oversightRead.GetProperty("scopeId").GetGuid());
+    using var deniedOversightWrite = await Post(oversight, oversightCsrf, url, Intent(fixture.ChildClientId, fixture.Seed.ClientId));
+    Assert.Equal(HttpStatusCode.Forbidden, deniedOversightWrite.StatusCode);
+    var ungrantedUser = new AppUser
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.Seed.FirmId, Email = "ownership-ungranted@auditsphere.test",
+      DisplayName = "Synthetic ungranted staff", TenantId = "tenant-001", Subject = "ownership-ungranted-staff"
+    };
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.Users.Add(ungrantedUser);
+      await setup.SaveChangesAsync();
+    }
+    using var ungrantedFactory = Factory(pg, ungrantedUser);
     using var ungranted = ungrantedFactory.CreateClient();
-    await SignIn(ungranted);
+    var ungrantedCsrf = await SignIn(ungranted);
     using var deniedRead = await ungranted.GetAsync(url);
     Assert.Equal(HttpStatusCode.Forbidden, deniedRead.StatusCode);
+    using var deniedUngrantableWrite = await Post(ungranted, ungrantedCsrf, url, Intent(fixture.ChildClientId, fixture.Seed.ClientId));
+    Assert.Equal(HttpStatusCode.Forbidden, deniedUngrantableWrite.StatusCode);
     await using var proof = new AuditSphereDbContext(pg.Options);
     Assert.Equal(2, await proof.OwnershipInterestVersions.CountAsync(x => x.ScopeVersionId == fixture.ScopeId));
+    var disclosure = Assert.Single(await proof.AdministratorOversightAccessEvents.Where(x => x.Operation == "ownership.read").ToListAsync());
+    Assert.Equal(fixture.Seed.Admin.Id, disclosure.ActorUserId);
+    Assert.Equal("CONSOLIDATION_SCOPE", disclosure.ResourceKind);
+    Assert.Equal(fixture.ScopeId, disclosure.ResourceId);
+    Assert.Equal("DISCLOSURE_AUTHORIZED", disclosure.Outcome);
   }
 
   [Fact]

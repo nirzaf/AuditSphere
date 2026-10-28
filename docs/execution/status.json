@@ -1111,15 +1111,8 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.rolesInvoiceOversight20261027BeforeOversightAccess20261027"
     },
     "roleAuthorizationEqrAccess20261027": {
-      "status": "FOCUSED_AND_BUILTIN_PASS_CURRENT_CI_REQUIRED",
-      "evidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/review.json",
-      "scope": "Registered oversight GET audit evidence/history and same-firm invoice search; no EQR professional activation.",
-      "verification": "PostgreSQL Domain audit2 plus final history/FK1 PASS; invoice search RED1 then GREEN2; extended API1 PASS (503 withholding, exact request/resource, ordinary finance, history, no search phrase); Angular3/build/lint/model/OpenAPI PASS. Builtin ledger->search->invoice->history3rows, refresh unchanged,390px fit, console[].",
-      "environment": "Original shared PostgreSQL lost global/pg_filenode.map; two connection failures excluded. Final checks used owned PG18.6 port49841; owned fixture/cluster cleaned, source restored. Invalid temporary period seed corrected; launcher1PASS.",
-      "boundary": "No command permission widening, business writes in browser, raw documents, exports, freeze exceptions or live deployment. D-OV04retention/reviewer and D-EQR01..04professional decisions remain open; eleven roles preserved.",
-      "ciFollowup": "Exact95ae fast40585165614 failed named boundary-contract check; RED1 reproduced. SharedApiError503 restored; focused contract1PASS and API1PASS after diagnosticID counterexample/fix, payloadwithheld and ordinaryFinance unaffected. OwnedPG cleaned; no guard weakened. New exact-source CI required.",
-      "ciFollowupEvidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/boundary-failure-review.json",
-      "expiryPrecisionCiFollowup": "Exact098d full Domain1821PASS/1FAIL: expiry timestamp equality lost sub-microsecond ticks. Deterministic RED1, representable fixture clock GREEN2; all equality/rotation/refusal assertions unchanged. No runtime change. Evidence: .local/autonomous/evidence/role-authorization-eqr-20261027/expiry-review.json"
+      "result": "PARTIAL_OVERSIGHT_IMPLEMENTED_EQR_POLICY_OPEN",
+      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.roleAuthorizationEqrAccess20261027"
     },
     "releaseCandidateReplay20261027": {
       "status": "FOCUSED_PASS_CURRENT_CI_REQUIRED",
@@ -1127,6 +1120,13 @@
       "evidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/replay-review.json",
       "verification": "True forged-role replay RED1 and returned-source currentness RED1; final regression plus unchanged completion projection GREEN2. Exact candidate replay retains approval count; stale session and source refusals retain empty identifiers. Existing workpaper and financial-package release dependencies PASS2; owned PG18.6 cleaned.",
       "boundary": "Initial test fixture used a different released manifest; subsequent extra candidate changed the old projection fixture. A separate new regression preserves the original test unchanged; stale-session expected code uses the existing ordinary authorizer. No live action or new approval rule; current package review is reused at publication."
+    },
+    "ownershipOversightCi20261028": {
+      "status": "FOCUSED_PASS_FULL_CI_BLOCKED",
+      "sourceBaseCommit": "5108555076f6f7555d71dbe9614fc5d8babd9fcf",
+      "evidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/ownership-oversight-ci-review.json",
+      "verification": "Exact API job122515917721 has one observed stale Administrator403 assertion and terminal runner shutdown143, no finalTRX. Named unchanged RED1/corrected GREEN1; current READ_ONLY/audit event and denied commands/ungranted Staff403 verified. Runtime unchanged.",
+      "boundary": "Current full40596945111 not PASS; E2E pending. Unpublished Task03 feature/browser acceptance separate. No cutover."
     }
   },
   "externalGates": [
@@ -1611,13 +1611,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "098d3ea85be662b0d0609524258ec27216c4cd46",
-    "sourceRole": "ADMIN_EXPIRY_TEST_FIXTURE_TIMESTAMP_PRECISION",
-    "fastCi": "Preceding098d fast40591574750 actual3checkouts PASS; new exact source requires current proof.",
-    "releaseVerification": "Preceding098d full40591646605 MATCH: Domain1821PASS/1FAIL in expiry assertion; API/E2E still running. Focused correction verified; no full acceptance.",
-    "imagePublication": "Preceding098d exactimages40591574870/readback/rehearsal PASS; new exactsource images/rehearsal required.",
-    "cutoverStatus": "NOT_PERFORMED; retention/professional acceptance and exact-source release requirements remain separate.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeExpiryPrecision20261027"
+    "sourceBaseCommit": "5108555076f6f7555d71dbe9614fc5d8babd9fcf",
+    "sourceRole": "OWNERSHIP_OVERSIGHT_AUTHORIZATION_TEST_CORRECTION",
+    "fastCi": "Exact5108 fast40596869486 PASS with actual3checkouts. New test/doc source requires new exact proof.",
+    "releaseVerification": "Exact5108 full40596945111 MATCH: Angular/Verify/Domain1822PASS; API terminal143 and observed stale ownership-read assertion. Named correction verified locally; E2E pending, no full PASS.",
+    "imagePublication": "Exact5108 images40597005023/checkouts/digests/readback/rehearsal PASS; predecessor only after next publication.",
+    "cutoverStatus": "NOT_PERFORMED; whole Task03 runtime/UI/browsing and retention/professional/current release requirements remain separate.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeOwnershipOversight20261028"
   },
-  "updatedAtUtc": "2026-10-27T22:41:41.482714+00:00"
+  "updatedAtUtc": "2026-10-28T00:41:45.314355+00:00"
 }
