@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Sibling isolation snapshot completion
+
+Sibling-group snapshots now await the initial own-portfolio progress response before comparing full rendered text. A controlled slow read reproduced the earlier false difference; marker, exact-text, opaque-detail and responsive assertions are retained. Runtime authorization is unchanged. Focused checks passed; exact-source release CI remains required. See [status.json](status.json).
+
 ## User types and privileges reconciled
 
 README and the current roles reference now match the assignment catalogue, scoped finance/accounting guards, registered Administrator oversight reads and independent conditional-task decisions. Existing README expansion is preserved. Source consistency and documentation checks passed; runtime and grants are unchanged. Retention/reviewer and EQR policies remain open, and exact-source release verification continues separately. See [status.json](status.json).

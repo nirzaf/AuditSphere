@@ -183,8 +183,34 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
     await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString("/app/consolidation")}");
     await page.Locator("h1").First.WaitForAsync(new() { Timeout = 15000 });
     string[] groupRoutes = ["/app/consolidation", $"/app/consolidation/advanced/{ownScopeId:D}", "/app"];
+    // Keep the real authorized progress response inside the API's supported timeout but
+    // beyond SettleAsync's ten-second fallback. Both isolation snapshots must include it.
+    const string progressPattern = "**/api/ui/portfolio/progress";
+    var delayFirstProgress = true;
+    await page.RouteAsync(progressPattern, async route =>
+    {
+      if (delayFirstProgress)
+      {
+        delayFirstProgress = false;
+        await Task.Delay(TimeSpan.FromSeconds(11));
+      }
+      await route.ContinueAsync();
+    });
     var before = new Dictionary<string, string>();
-    foreach (var route in groupRoutes) before[route] = await SnapshotAsync(page, origin + route);
+    foreach (var route in groupRoutes)
+    {
+      if (route == "/app")
+      {
+        var progressResponse = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
+          new Uri(response.Url).AbsolutePath == "/api/ui/portfolio/progress");
+        before[route] = await SnapshotAsync(page, origin + route);
+        Assert.Equal(200, (await progressResponse).Status);
+        await Assertions.Expect(page.GetByRole(AriaRole.Table,
+          new() { Name = "Engagement progress across your portfolio", Exact = true })).ToBeVisibleAsync();
+      }
+      else before[route] = await SnapshotAsync(page, origin + route);
+    }
+    await page.UnrouteAsync(progressPattern);
 
     var siblingGroupId = Guid.NewGuid();
     var siblingScopeId = Guid.NewGuid();
@@ -347,7 +373,16 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
   /// <summary>Visible main text once rendering has settled (two equal reads with no loading indicator).</summary>
   private static async Task<string> SnapshotAsync(IPage page, string url)
   {
-    await page.GotoAsync(url);
+    if (new Uri(url).AbsolutePath is "/app" or "/ui/app")
+    {
+      // Portfolio progress starts only after the parent workspace mounts. Two equal
+      // main-text reads do not establish that this independent read has completed.
+      var progress = await page.RunAndWaitForResponseAsync(() => page.GotoAsync(url), response =>
+        response.Request.Method == "GET" && new Uri(response.Url).AbsolutePath == "/api/ui/portfolio/progress");
+      Assert.Equal(200, progress.Status);
+      await progress.FinishedAsync();
+    }
+    else await page.GotoAsync(url);
     return await SettleAsync(page);
   }
 

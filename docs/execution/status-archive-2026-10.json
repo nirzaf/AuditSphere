@@ -25986,6 +25986,22 @@
       "imagePublication": "d8b8 pinned cache readback and owned rehearsal schema288to293/five migrations/380originalprojections unchanged with independent cleanup PASS; predecessor only for following source.",
       "cutoverStatus": "NOT_PERFORMED. Fresh exact-source gates, current rehearsal/plan/receipt, QUIESCED backup, retention acceptance and actual origin/public browser acceptance remain required.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeNavigationCi20261028"
+    },
+    "targetedVerification.task03ScopedApplicabilityBeforeSiblingSnapshot20261028": {
+      "result": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_REQUIRED",
+      "sourceBaseCommit": "662aee2f8b1122856f2c185867a40501b7b1b512",
+      "evidence": ".local/autonomous/evidence/claude-completion-20261027/task03-final-review.json",
+      "scope": "Immutable scoped conditional-task proposal/APPROVE/RETURN/REVOKE with exact accepted PBC/task/template/profile/period basis, current authority and owner recovery; no task-state or professional waiver. Additive migration293.",
+      "verification": "Focused source/commands/race/reads/history/progress/professional-conjunction proofs retained. Batch1PASS:100 mixed-scope source reads,101-task projection, own-client staleness/foreign receipt refusal. API boundary1/schema2PASS; Angular6/workqueue37/build/lintPASS. Model unchanged from verified EF drift. Built-in canonical maker/checker/stale-source progress/withdrawal, fresh final canonical receipt persistence, history and390px rendering verified; console empty. Owned clusters/hosts/staging cleaned, launcher restored exactly.",
+      "boundary": "UNKNOWN/mismatched-receipt branches are component evidence; history25+1 and separate professional applicability are backend evidence. No whole-assignment, live-provider or professional acceptance; current-candidate full CI/images/rehearsal/deployment remain required."
+    },
+    "currentSourceCiBeforeSiblingSnapshot20261028": {
+      "sourceBaseCommit": "49bea18914c15d644aa8ecc8f419b6db17c8c84a",
+      "sourceRole": "DOCS_ONLY_USER_TYPES_PRIVILEGES_RECONCILIATION",
+      "releaseVerification": "Runtime predecessor f485 full40618488703 sourceMATCH remains running with Domain/Angular/Verify PASS; API/E2E pending at observation. Docs descendants need their own exact-source gates; predecessor acceptance is not inherited.",
+      "imagePublication": "Predecessor f485 fast/images actual checkouts, pinned cache/rehearsal schema293 and cleanup PASS. New candidate image/default/rehearsal bindings are not prepared.",
+      "cutoverStatus": "NOT_PERFORMED. Current exact gates, fresh baseline/receipt, QUIESCED backup and D-OV04 acceptance still required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeRolesDocumentation20261028"
     }
   },
   "archivedTargetedVerification": {

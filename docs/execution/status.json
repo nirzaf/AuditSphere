@@ -1117,11 +1117,7 @@
     },
     "task03ScopedApplicability20261028": {
       "result": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_REQUIRED",
-      "sourceBaseCommit": "662aee2f8b1122856f2c185867a40501b7b1b512",
-      "evidence": ".local/autonomous/evidence/claude-completion-20261027/task03-final-review.json",
-      "scope": "Immutable scoped conditional-task proposal/APPROVE/RETURN/REVOKE with exact accepted PBC/task/template/profile/period basis, current authority and owner recovery; no task-state or professional waiver. Additive migration293.",
-      "verification": "Focused source/commands/race/reads/history/progress/professional-conjunction proofs retained. Batch1PASS:100 mixed-scope source reads,101-task projection, own-client staleness/foreign receipt refusal. API boundary1/schema2PASS; Angular6/workqueue37/build/lintPASS. Model unchanged from verified EF drift. Built-in canonical maker/checker/stale-source progress/withdrawal, fresh final canonical receipt persistence, history and390px rendering verified; console empty. Owned clusters/hosts/staging cleaned, launcher restored exactly.",
-      "boundary": "UNKNOWN/mismatched-receipt branches are component evidence; history25+1 and separate professional applicability are backend evidence. No whole-assignment, live-provider or professional acceptance; current-candidate full CI/images/rehearsal/deployment remain required."
+      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.task03ScopedApplicabilityBeforeSiblingSnapshot20261028"
     },
     "shellNavigationCi20261028": {
       "result": "TEST_ONLY_NAMED_GREEN4_FULL_CI_REQUIRED",
@@ -1134,6 +1130,16 @@
       "verification": "Role-matrix/catalogue equality and exact13operation inventory PASS; documentation health/narrative/diff checks PASS. Runtime/grants unchanged; behavioral tests/browser NOT_RUN for docs-only work.",
       "limits": "D-OV04 and D-EQR01..04 remain open; no whole-assignment or release acceptance.",
       "evidence": ".local/autonomous/evidence/user-types-privileges-20261028/source-consistency.json"
+    },
+    "siblingGroupSnapshotCi20261028": {
+      "status": "TEST_ONLY_TRUE_RED1_GREEN3_CURRENT_EXACT_CI_REQUIRED",
+      "sourceBaseCommit": "c6333ebf250e3be4a81763f3b088fe0467a12072",
+      "failure": "Precedingf485 full40618488703 E2Ejob122587224928:338PASS/1FAIL/0skip, actualcheckoutMATCH; TRXartifact12791646650 digest7ed3f5b7f36eddf1b04f08a78e28b209683583e641923ddd88384f43bb78796b verified. Own portfolio progress was absent in baseline and present later.",
+      "change": "Snapshot awaits first real authorized portfolio progress response before unchanged settling/comparison. Existing group test delays first read11s within API20s deadline; all original text/marker/opaque-detail/responsive assertions retained. Runtime/roles/grants unchanged.",
+      "verification": "Unchanged namedGREEN1; controlled old-helperRED1 reproduced exact own-progress difference; fixed helperGREEN3 covers group and existing CLIENT/ENGAGEMENT theories. Same fixture/assertions, only helper differs. No existing timeout changed or retry added.",
+      "evidence": ".local/autonomous/evidence/user-types-privileges-20261028/sibling-isolation-review.json",
+      "limits": "Test-only; existing headless cohort, no new built-in/live/professional/whole-assignment acceptance.",
+      "cleanup": "OwnedPG18.6port57931 exact data-dir/stop/root/listener absence independently verified; original5433 untouched."
     }
   },
   "externalGates": [
@@ -1618,12 +1624,12 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "49bea18914c15d644aa8ecc8f419b6db17c8c84a",
-    "sourceRole": "DOCS_ONLY_USER_TYPES_PRIVILEGES_RECONCILIATION",
-    "releaseVerification": "Runtime predecessor f485 full40618488703 sourceMATCH remains running with Domain/Angular/Verify PASS; API/E2E pending at observation. Docs descendants need their own exact-source gates; predecessor acceptance is not inherited.",
-    "imagePublication": "Predecessor f485 fast/images actual checkouts, pinned cache/rehearsal schema293 and cleanup PASS. New candidate image/default/rehearsal bindings are not prepared.",
-    "cutoverStatus": "NOT_PERFORMED. Current exact gates, fresh baseline/receipt, QUIESCED backup and D-OV04 acceptance still required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeRolesDocumentation20261028"
+    "sourceBaseCommit": "c6333ebf250e3be4a81763f3b088fe0467a12072",
+    "sourceRole": "TEST_ONLY_INITIAL_PORTFOLIO_PROGRESS_SNAPSHOT_CORRECTION",
+    "releaseVerification": "Preceding c633 full40627322002 sourceMATCH Angular/Verify/Domain1825PASS; API/E2E pending. Following test/docs source needs new exact gates.",
+    "imagePublication": "c633 fast/images actual6checkouts/digests/cache/schema293rehearsal/independentcleanup/defaultguard PASS; predecessor only for following source.",
+    "cutoverStatus": "NOT_PERFORMED. Current exact gates, baseline-bound receipt/QUIESCED backup, D-OV04 acceptance and origin/public browser acceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeSiblingSnapshot20261028"
   },
-  "updatedAtUtc": "2026-10-28T03:30:24.445627+00:00"
+  "updatedAtUtc": "2026-10-28T04:34:04.089734+00:00"
 }
