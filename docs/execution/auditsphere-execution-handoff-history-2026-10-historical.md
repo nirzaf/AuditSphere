@@ -451,3 +451,19 @@ Current continuation: [active handoff](auditsphere-execution-current-slice.md).
 ## Bounded monetary-unit sampling
 
 Selected technical-review story R03 replaces repeated interval additions with bounded arithmetic per population row, retaining selection order, absolute exposure, first-crossing explanations and the existing engine identity. Final maximum-value crossings succeed without creating a needless next point; unsupported decimal totals or precision fail through the existing validation contract. Focused arithmetic and integration evidence is recorded in [status.json](status.json). This establishes no sampling-methodology policy or professional acceptance; exact-source CI and release gates remain separate.
+
+## Finance authority after lock waits
+
+Selected technical-review story R01 now rechecks current database authority after the existing mutation locks for invoice transitions/posting, journal transitions/posting, period close/reopen and rate revision/approval. The real role-revocation interleaving reproduced stale authority; the corrected paths refuse before changing business records or returning replay success. Unchanged authority and exact retries retain their original results. Role scopes, independent approval and accounting boundaries are unchanged. Focused evidence is in [status.json](status.json); other attached stories, exact-source CI and release/professional acceptance remain separate.
+
+Earlier native-proof synchronization, documentation reconciliation and review-point refresh evidence is retained verbatim in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#technical-story-handoff-transfer).
+
+Earlier sibling snapshot evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#review-point-receipt-refresh-handoff-transfer).
+
+The completed user-type documentation reconciliation is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#user-types-before-review-point-refresh).
+
+## Source-bound conditional task applicability
+
+Conditional tasks now have immutable source-pinned proposals and independent reviewed dispositions. Current authorization, exact accepted evidence and separate professional applicability govern exclusion; stale, returned, revoked or held work stays required. Task status and task-completed dependencies are preserved. The work queue provides reviewed source selection, assent, history and owner-only receipt recovery. Focused checks and owned built-in workflows passed; full release and professional acceptance remain separate. See [status.json](status.json).
+
+Prior ownership authorization evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#ownership-oversight-authorization-test).

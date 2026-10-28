@@ -73,7 +73,11 @@ public sealed record PbcMessageRequest(Guid PbcRequestId, string Body, string Pu
 /// <summary>A prepared download: the exact registered remote version once remote reads are activated, otherwise
 /// the verified pre-cutover staged chunks. Exactly one of <see cref="ChunkPaths"/> or <see cref="Remote"/> is used.</summary>
 public sealed record PbcDownload(string FileName, string ContentType, long ByteCount,
-  IReadOnlyList<string> ChunkPaths, PbcRemoteSource? Remote = null);
+  IReadOnlyList<string> ChunkPaths, PbcRemoteSource? Remote = null)
+{
+  // Opaque prepared-source identity, never part of the public download response.
+  internal string? VerifiedSourceIdentity { get; init; }
+}
 
 /// <summary>
 /// Local PBC and upload boundary. It records bounded transfer intent/chunk receipts
@@ -338,15 +342,49 @@ public static partial class PbcService
     var remote = await ResolveReadSourceAsync(db, intent, ct);
     if (remote.Error is not null)
       return CommandResult<PbcDownload>.Fail(remote.Error, "The registered SharePoint source no longer matches this upload.");
+    var sourceIdentity = await DownloadSourceIdentityAsync(db, intent, remote.Source, ct);
     if (remote.Source is not null)
-      return CommandResult<PbcDownload>.Ok(new(intent.FileName, intent.ContentType, intent.DeclaredByteCount, [], remote.Source));
+      return CommandResult<PbcDownload>.Ok(new(intent.FileName, intent.ContentType, intent.DeclaredByteCount, [], remote.Source)
+        { VerifiedSourceIdentity = sourceIdentity });
     var verified = await VerifyStagedChunksAsync(db, actor.FirmId, intent, ct);
     if (verified.Error is not null)
       return CommandResult<PbcDownload>.Fail(verified.Error, verified.Message);
     var paths = await db.PbcUploadChunks.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.PbcUploadIntentId == intent.Id)
       .OrderBy(x => x.ChunkIndex).Select(x => x.StagedPath!).ToListAsync(ct);
-    return CommandResult<PbcDownload>.Ok(new(intent.FileName, intent.ContentType, intent.DeclaredByteCount, paths));
+    return CommandResult<PbcDownload>.Ok(new(intent.FileName, intent.ContentType, intent.DeclaredByteCount, paths)
+      { VerifiedSourceIdentity = sourceIdentity });
+  }
+
+  /// <summary>Final response-release check; validates current authority and the exact already-verified source without rehashing content.</summary>
+  public static async Task<CommandResult> RevalidateDownloadAsync(IAuditSphereDbContext db, ActorContext actor,
+    Guid uploadId, PbcDownload prepared, CancellationToken ct = default)
+  {
+    var intent = await db.PbcUploadIntents.AsNoTracking().SingleOrDefaultAsync(x => x.Id == uploadId && x.FirmId == actor.FirmId, ct);
+    if (intent is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeStaffAsync(db, actor, intent.ClientId, intent.EngagementId, ct);
+    if (!auth.Succeeded) return auth;
+    if (intent.State is not (PbcUploadStates.Staged or PbcUploadStates.Received))
+      return CommandResult.Fail("pbc.download-state", "The upload has not passed trusted completion.");
+    var source = await ResolveReadSourceAsync(db, intent, ct);
+    if (source.Error is not null || prepared.VerifiedSourceIdentity is null ||
+        prepared.VerifiedSourceIdentity != await DownloadSourceIdentityAsync(db, intent, source.Source, ct))
+      return CommandResult.Fail("pbc.download-source-changed", "The verified source changed while it was being prepared; retry.");
+    return CommandResult.Ok();
+  }
+
+  private static async Task<string> DownloadSourceIdentityAsync(IAuditSphereDbContext db, PbcUploadIntent intent,
+    PbcRemoteSource? remote, CancellationToken ct)
+  {
+    var chunks = remote is not null ? [] : await db.PbcUploadChunks.AsNoTracking().Where(x =>
+      x.FirmId == intent.FirmId && x.PbcUploadIntentId == intent.Id).OrderBy(x => x.ChunkIndex)
+      .Select(x => new { x.Id, x.ChunkIndex, x.Offset, x.ByteCount, x.Sha256Hex, x.StagedPath }).ToArrayAsync(ct);
+    return Hashing.Sha256Hex(JsonSerializer.Serialize(new
+    {
+      intent.Id, intent.FirmId, intent.ClientId, intent.EngagementId, intent.PbcRequestId,
+      intent.FileName, intent.ContentType, intent.DeclaredByteCount, intent.DeclaredSha256Hex, intent.FinalSha256Hex,
+      Remote = remote, Chunks = chunks
+    }));
   }
 
   /// <summary>Verifies the accepted source bytes for an already-authorized scoped source consumer: the immutable

@@ -643,6 +643,8 @@ public static class FirmExpenseService
 
   public static async Task<CommandResult<Guid>> PostAsync(IClientAccountingDbContext db, ActorContext actor, Guid expenseId, CancellationToken ct = default)
   {
+    var auth = await AuthorizeAsync(db, actor, Preparers, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var expense = await db.FirmExpenses.AsNoTracking().SingleOrDefaultAsync(x => x.Id == expenseId && x.FirmId == actor.FirmId, ct);
     if (expense is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (expense.Status == FirmExpenseStates.Posted) return CommandResult<Guid>.Ok(expense.PostingId!.Value);

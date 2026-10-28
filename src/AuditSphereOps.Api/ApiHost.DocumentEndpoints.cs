@@ -171,11 +171,11 @@ public static partial class ApiHost
         var current = await actorResolver.ResolveAsync(http.User, ct);
         if (current is null) return Results.Unauthorized();
         await using var recheckDb = await dbFactory.CreateDbContextAsync(ct);
-        var recheck = await PbcService.PrepareDownloadAsync(recheckDb, current, uploadId, ct);
+        var recheck = await PbcService.RevalidateDownloadAsync(recheckDb, current, uploadId, download, ct);
         if (!recheck.Succeeded)
           return recheck.ErrorCode == ErrorCodes.ScopeDenied ? Results.Forbid() :
             Results.Problem(recheck.Message, statusCode: StatusCodes.Status409Conflict);
-        if (recheck.Value!.Remote != remote || content.Length != download.ByteCount)
+        if (content.Length != download.ByteCount)
           return Results.Problem("The registered source changed while it was being read; retry.",
             statusCode: StatusCodes.Status409Conflict);
         http.Response.StatusCode = StatusCodes.Status200OK;
@@ -192,6 +192,14 @@ public static partial class ApiHost
       var rootPrefix = stagingRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
       if (download.ChunkPaths.Any(path => !Path.GetFullPath(path).StartsWith(rootPrefix, StringComparison.Ordinal)))
         return Results.Forbid();
+
+      var currentLocal = await actorResolver.ResolveAsync(http.User, ct);
+      if (currentLocal is null) return Results.Unauthorized();
+      await using var currentLocalDb = await dbFactory.CreateDbContextAsync(ct);
+      var localRecheck = await PbcService.RevalidateDownloadAsync(currentLocalDb, currentLocal, uploadId, download, ct);
+      if (!localRecheck.Succeeded)
+        return localRecheck.ErrorCode == ErrorCodes.ScopeDenied ? Results.Forbid() :
+          Results.Problem(localRecheck.Message, statusCode: StatusCodes.Status409Conflict);
 
       http.Response.StatusCode = StatusCodes.Status200OK;
       http.Response.ContentType = download.ContentType;

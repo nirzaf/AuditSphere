@@ -43,14 +43,14 @@ Pending assessment is a work state, not a conclusion that code is missing. An im
 | R01 | Revalidate finance command authority after lock waits | IMPLEMENT | PUBLISHED; FOCUSED_PASS_EXACT_CI_PENDING |
 | R02 | Make sampled-item completion and dependent currentness use the same effective review | ADAPT | Shared current sampling evidence and required references implemented; focused checks passed, final-source CI pending |
 | R03 | Bound monetary-unit sampling work without changing the sampling methodology | IMPLEMENT | PUBLISHED; FOCUSED_PASS_EXACT_CI_PENDING |
-| R04 | Preserve current authority at local PBC response release | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |
+| R04 | Preserve current authority at local PBC response release | IMPLEMENT | Deterministic original failure and corrected authenticated HTTP checks; final-source CI pending |
 | R05 | Calculate firm receivables ageing from one committed snapshot | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |
 | R06 | Prevent optional fee-invoice discovery from starving eligible milestones | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |
 | R07 | Verify the exact action-bound archive manifest after a legitimate rebuild | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |
 | R08 | Enforce meaningful sampling evidence references at the application boundary | IMPLEMENT | Shared current sampling evidence and required references implemented; focused checks passed, final-source CI pending |
 | R09 | Revalidate managed-group eligibility at dispatch admission | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |
 | R10 | Describe invoice posting according to its actual accounting effect | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |
-| R11 | Authorize already-posted expense replay before returning metadata | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |
+| R11 | Authorize already-posted expense replay before returning metadata | IMPLEMENT | Deterministic original failure and corrected authenticated HTTP checks; final-source CI pending |
 | S00 | Reconcile the requirements baseline and establish a current completion register | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |
 | S99 | Close selected engineering work with evidence from one source and environment | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |
 | V01 | Establish opening-CTA reachability and the balance invariant before selecting a financial change | Pending assessment | PENDING_ASSESSMENT; NOT_RUN |

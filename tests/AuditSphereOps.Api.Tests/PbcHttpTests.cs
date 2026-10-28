@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Data.Common;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Tests;
@@ -13,7 +15,9 @@ using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 
@@ -22,6 +26,70 @@ namespace AuditSphereOps.Api.Tests;
 [Trait("Category", "ClientDocuments")]
 public sealed class PbcHttpTests
 {
+  [Theory]
+  [InlineData("revoke")]
+  [InlineData("source")]
+  public async Task LocalDownloadRechecksAuthorityAndExactSourceBeforeReleasingContent(string change)
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("PBC-LOCAL-RELEASE-FENCE");
+    var fixture = await PbcSeed.SeedAsync(pg);
+    using var ownedRoot = new OwnedApiRoot();
+    var bytes = "%PDF-1.7 local release-boundary fixture"u8.ToArray();
+    var (uploadId, _) = await ArrangeRegisteredUploadAsync(pg, fixture, ownedRoot.Path, bytes);
+    var barrier = new LocalDownloadReadBarrier(async () =>
+    {
+      await using var writer = new AuditSphereDbContext(pg.Options);
+      if (change == "revoke")
+      {
+        var grantId = await writer.RoleGrants.Where(x => x.FirmId == fixture.FirmId &&
+          x.UserId == fixture.Staff.Id && x.Role == "Staff" && x.RevokedAt == null).Select(x => x.Id).SingleAsync();
+        var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(writer,
+          PbcSeed.Actor(fixture.Admin, "Administrator"), new(grantId));
+        Assert.True(revoked.Succeeded, revoked.Message);
+      }
+      else
+      {
+        var registration = await writer.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == uploadId);
+        var activated = await PbcService.ActivateRemoteReadAsync(writer, PbcSeed.Actor(fixture.Admin, "Administrator"),
+          new(uploadId, registration.Id, 0, "Synthetic release-boundary source change"));
+        Assert.True(activated.Succeeded, activated.Message);
+      }
+    });
+    using var factory = CreateFactory(pg.ConnectionString, fixture.Staff, ownedRoot.Path, configureServices: services =>
+    {
+      services.RemoveAll<IDbContextFactory<AuditSphereDbContext>>();
+      services.RemoveAll<DbContextOptions<AuditSphereDbContext>>();
+      services.AddDbContextFactory<AuditSphereDbContext>(options => options.UseNpgsql(pg.ConnectionString).AddInterceptors(barrier));
+    });
+    using var client = await SignInAsync(factory, fixture.Staff);
+    var url = $"/api/pbc/uploads/{uploadId:D}/download";
+    using (var unchanged = await client.GetAsync(url))
+    {
+      Assert.Equal(HttpStatusCode.OK, unchanged.StatusCode);
+      Assert.Equal(bytes, await unchanged.Content.ReadAsByteArrayAsync());
+    }
+    barrier.Enabled = true;
+    using var refused = await client.GetAsync(url);
+    Assert.True(barrier.Invoked);
+    Assert.Equal(change == "revoke" ? HttpStatusCode.Unauthorized : HttpStatusCode.Conflict, refused.StatusCode);
+    Assert.Null(refused.Content.Headers.ContentDisposition);
+    Assert.DoesNotContain("local release-boundary fixture", await refused.Content.ReadAsStringAsync());
+  }
+
+  private sealed class LocalDownloadReadBarrier(Func<Task> change) : DbCommandInterceptor
+  {
+    public bool Enabled { get; set; }
+    private int invoked;
+    public bool Invoked => Volatile.Read(ref invoked) != 0;
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,
+      CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (Enabled && command.CommandText.Contains("pbc_upload_chunks", StringComparison.Ordinal) &&
+          Interlocked.CompareExchange(ref invoked, 1, 0) == 0) await change();
+      return result;
+    }
+  }
+
   [Fact]
   [Trait("CaseId", "PROP-API-01")]
   public async Task UnauthenticatedAndForgedOriginRequestsHaveNoTransferEffect()

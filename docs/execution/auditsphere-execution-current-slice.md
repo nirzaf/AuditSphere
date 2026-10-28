@@ -22,21 +22,11 @@ Application and HTTP boundaries require meaningful references for substantive sa
 
 The preceding monetary-unit sampling handoff is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md).
 
-## Finance authority after lock waits
+## Protected response and expense replay authority
 
-Selected technical-review story R01 now rechecks current database authority after the existing mutation locks for invoice transitions/posting, journal transitions/posting, period close/reopen and rate revision/approval. The real role-revocation interleaving reproduced stale authority; the corrected paths refuse before changing business records or returning replay success. Unchanged authority and exact retries retain their original results. Role scopes, independent approval and accounting boundaries are unchanged. Focused evidence is in [status.json](status.json); other attached stories, exact-source CI and release/professional acceptance remain separate.
+Local and remote PBC responses now re-resolve the current session and exact verified source before successful headers/body. Revocation denies release; a source cutover conflicts without fallback. Expense posting checks the existing finance command authority before target lookup or replay disclosure. Authorized replay retains its original posting. Deterministic original failures and corrected actual HTTP checks are recorded in [status.json](status.json); provider and broader release acceptance remain separate.
 
-Earlier native-proof synchronization, documentation reconciliation and review-point refresh evidence is retained verbatim in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#technical-story-handoff-transfer).
-
-Earlier sibling snapshot evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#review-point-receipt-refresh-handoff-transfer).
-
-The completed user-type documentation reconciliation is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#user-types-before-review-point-refresh).
-
-## Source-bound conditional task applicability
-
-Conditional tasks now have immutable source-pinned proposals and independent reviewed dispositions. Current authorization, exact accepted evidence and separate professional applicability govern exclusion; stale, returned, revoked or held work stays required. Task status and task-completed dependencies are preserved. The work queue provides reviewed source selection, assent, history and owner-only receipt recovery. Focused checks and owned built-in workflows passed; full release and professional acceptance remain separate. See [status.json](status.json).
-
-Prior ownership authorization evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#ownership-oversight-authorization-test).
+Earlier finance-authority and task-applicability handoff details are retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md).
 
 ## Oversight access evidence and specification suitability
 

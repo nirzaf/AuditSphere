@@ -1140,6 +1140,17 @@
       },
       "cleanup": "Independent exact owned datadir/root/listener/postmaster absence PASS, no owned test DB/connections; original5433 untouched.",
       "remaining": "Existing E2E fixture sequence adaptation, current-source CI and qualified/live acceptance remain separate; all-story assignment active."
+    },
+    "technicalStoriesResponseAuthority20261028": {
+      "status": "FOCUSED_HTTP_PASS_EXACT_CI_REQUIRED",
+      "scope": "R04 PBC final current session/scope/trusted-state/exact-source check before headers/body, retaining verified streaming/spool cleanup; R11 current finance posting authority before target lookup and replay. No roles/grants/provider/API shape change.",
+      "evidence": [
+        ".local/autonomous/evidence/technical-stories-all-20261028/R04-review.json",
+        ".local/autonomous/evidence/technical-stories-all-20261028/R11-review.json"
+      ],
+      "testValue": "Original PBC revocation/source-changeRED2; valid expense unauthorized replayRED1. Corrected combinedHTTP5PASS/0FAIL/0skip including unchanged local bytes/headers, remote verification and authorized same-posting replay. Initial invalid expense request setup excluded.",
+      "cleanup": "Owned PG18.6/HTTP manifests cleaned, owned DBs/connections/processes absent; exact datadir stopped/root/listener absent; original5433 untouched.",
+      "remaining": "Full final-source CI and qualified/live acceptance; no new built-in claim."
     }
   },
   "externalGates": [

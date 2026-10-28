@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
@@ -36,6 +37,76 @@ public sealed class UiWorkbenchContractTests
     using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
     if (proof is not null) request.Headers.Add("X-XSRF-TOKEN", proof);
     return await client.SendAsync(request);
+  }
+
+  [Fact]
+  public async Task PostedExpenseReplay_RequiresCurrentFinanceAuthorityBeforeReturningMetadata()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("FIRM-EXPENSE-REPLAY-AUTHORITY");
+    var seed = await PbcSeed.SeedAsync(pg);
+    var financeUser = new AppUser
+    {
+      Id = Guid.CreateVersion7(), FirmId = seed.FirmId, TenantId = seed.Admin.TenantId,
+      Subject = "expense-finance-" + Guid.NewGuid().ToString("N"), Email = "expense-finance@example.test",
+      DisplayName = "Expense finance", UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+    };
+    var finance = PbcSeed.Actor(financeUser, "FinanceManager");
+    Guid expenseId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(financeUser);
+      db.RoleGrants.AddRange(PbcSeed.Grant(seed.FirmId, financeUser, "FinanceManager"),
+        PbcSeed.Grant(seed.FirmId, seed.Reviewer, "FinanceReviewer"));
+      db.FirmFinanceProfiles.Add(new FirmFinanceProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, FunctionalCurrency = "QAR", ProfileKind = BillingStates.TestProfile,
+        Approved = true, ApprovedByUserId = seed.Reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      var cash = await LedgerService.CreateFirmAccountAsync(db, finance, new("1000", "Bank", LedgerStates.AccountAsset, LedgerStates.Debit));
+      var rent = await LedgerService.CreateFirmAccountAsync(db, finance, new("6100", "Rent", LedgerStates.AccountExpense, LedgerStates.Debit));
+      Assert.True(cash.Succeeded, cash.Message);
+      Assert.True(rent.Succeeded, rent.Message);
+      Assert.True((await LedgerService.CreateFirmPeriodAsync(db, finance, new("2026-10"))).Succeeded);
+      var request = new RecordFirmExpenseRequest(new(2026, 10, 20), FirmExpenseCategories.Rent,
+        "Synthetic landlord", "Synthetic office rent", 125.12m, "QAR", rent.Value, cash.Value,
+        "receipt.pdf", "application/pdf", "%PDF synthetic receipt"u8.ToArray(), Guid.CreateVersion7());
+      var draft = await FirmExpenseService.RecordAsync(db, finance,
+        request with { RequestHash = FirmExpenseService.CreateRequestHash(finance, request) });
+      Assert.True(draft.Succeeded, draft.Message);
+      expenseId = draft.Value;
+      Assert.True((await FirmExpenseService.SubmitAsync(db, finance, expenseId)).Succeeded);
+      var reviewed = await FirmExpenseService.ReviewAsync(db, PbcSeed.Actor(seed.Reviewer, "FinanceReviewer"), expenseId, true, "Independent source review");
+      Assert.True(reviewed.Succeeded, reviewed.Message);
+    }
+    using var financeFactory = Factory(pg.ConnectionString, financeUser.Subject, financeUser.TenantId);
+    using var authorized = financeFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var financeCsrf = await SignInAsync(authorized);
+    var url = $"/api/ui/finance/books/expenses/{expenseId:D}/post";
+    using var first = await PostAsync(authorized, url, JsonContent.Create(new { }), financeCsrf);
+    Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+    var posting = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetGuid();
+    using var replay = await PostAsync(authorized, url, JsonContent.Create(new { }), financeCsrf);
+    Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+    Assert.Equal(posting, (await replay.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetGuid());
+    foreach (var user in new[] { seed.Staff, seed.Admin })
+    {
+      using var factory = Factory(pg.ConnectionString, user.Subject, user.TenantId);
+      using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+      var csrf = await SignInAsync(client);
+      foreach (var target in new[] { expenseId, Guid.CreateVersion7() })
+      {
+        using var denied = await PostAsync(client, $"/api/ui/finance/books/expenses/{target:D}/post", JsonContent.Create(new { }), csrf);
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        var body = await denied.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("scope.denied", body.GetProperty("code").GetString());
+        Assert.DoesNotContain(posting.ToString("D"), body.ToString());
+      }
+    }
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Single(await proof.FirmPostings.ToListAsync());
+    Assert.Single(await proof.LedgerPostingReceipts.ToListAsync());
+    Assert.Equal(posting, (await proof.FirmExpenses.SingleAsync()).PostingId);
   }
 
   [Fact]
