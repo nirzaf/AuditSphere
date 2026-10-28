@@ -20,7 +20,7 @@ The repository ships Angular as the canonical staff/client presentation. The leg
 | Data, schema and HTTP contracts | [Data model](architecture/auditsphere-architecture-contract-data-model-current.md) · [HTTP boundary](architecture/auditsphere-architecture-http-boundary-and-contract-current.md) · [OpenAPI artifact](../contracts/auditsphere-openapi.json) |
 | Approved decisions and deviations | [ADR register](architecture/adr/auditsphere-architecture-index-adr-register-current.md) |
 | User types, roles and privileges | [Role hierarchy, capabilities and access scopes](architecture/auditsphere-architecture-user-roles-and-privileges-current.md) |
-| Product requirements | [STE v2.2 requirements](requirements/auditsphere-accounting-module-requirements-current.md) |
+| Product requirements and adoption boundary | [v2.3 proposal](requirements/auditsphere-accounting-module-requirements-current.md) · [preserved v2.2 source](requirements/auditsphere-requirements-source-ste-audit-management-specification-v22.md) · [approved ADRs](architecture/adr/auditsphere-architecture-index-adr-register-current.md) |
 | Audit programme execution | [Atomic specification](task_breakdown/source/auditsphere-audit-specification-working-process-atomic-proposed.md) · [Extracted 165-procedure source](task_breakdown/source/auditsphere-audit-working-process-procedures-source.md) |
 | Current state and evidence | [status.json](execution/status.json) · [Current-slice handoff](execution/auditsphere-execution-current-slice.md) · [Pending work](execution/auditsphere-execution-pending-tasks.md) |
 | API and Angular parity work | [Implementation tracker](execution/auditsphere-execution-tracker-api-angular-parity-current.md) · `apiAngularParity` in [status.json](execution/status.json) |
@@ -144,7 +144,7 @@ When two documents appear to conflict or contain differing detail, precedence is
 
 |---|---|---|
 
-| [`docs/requirements/auditsphere-accounting-module-requirements-current.md`](requirements/auditsphere-accounting-module-requirements-current.md) | Current STE functional requirements (v2.2): commercial, onboarding, planning, fieldwork, completion, records and firm operations, plus the seven-phase workflow experience layer and enhanced Dual-Key Acceptance. | `CURRENT` |
+| [`docs/requirements/auditsphere-accounting-module-requirements-current.md`](requirements/auditsphere-accounting-module-requirements-current.md) | STE v2.3 proposal, preserving source-reported v2.2 overlays. The filename does not establish adoption; checked-in approved ADRs and executed contracts control implementation. | `PROPOSED` |
 
 | [`docs/requirements/auditsphere-requirements-source-ste-audit-management-specification-v22.md`](requirements/auditsphere-requirements-source-ste-audit-management-specification-v22.md) | Upstream STE Audit Management requirements, version 2.2, as supplied by the owner. Source text: the requirements copy above is the implementation authority, and recorded deviations are in the ADR register. | `CURRENT` |
 
@@ -239,6 +239,7 @@ The Record-to-Report workstream covers Modules 20–26 under `docs/task_breakdow
 | [Trial balance-to-report delta review](execution/auditsphere-execution-tracker-trial-balance-report-current.md) | Source-checked intake, existing task mappings, technical corrections and unresolved reporting acceptance. | Execution review; no policy approval |
 | [`docs/execution/auditsphere-execution-index-deduplicated-backlog-current.md`](execution/auditsphere-execution-index-deduplicated-backlog-current.md) | **Prioritized execution queue**: deduplicates overlapping task IDs and labels each next action as code, test/evidence, owner decision, governance or external acceptance. | `CURRENT` |
 | [`docs/execution/auditsphere-execution-report-task-codebase-audit-current.json`](execution/auditsphere-execution-report-task-codebase-audit-current.json) | Codebase audit record behind the board: each item's requests, tests, gaps and reviewer outcome, at commit `13407156`. | `CURRENT` |
+| [`docs/execution/auditsphere-execution-technical-stories-current.md`](execution/auditsphere-execution-technical-stories-current.md) | Current technical-story suitability, implementation, verification and dependency register; historical manifest traces remain pinned to their own source. | `CURRENT` |
 | [`docs/execution/status.json`](execution/status.json) | **Machine-Readable Ledger** — authoritative record of verified commit SHA, test counts, migration counts, external gates, and active slice. | `CURRENT` (Metrics authority) |
 
 | [`docs/execution/auditsphere-execution-current-slice.md`](execution/auditsphere-execution-current-slice.md) | **Active Slice Handoff** — summary of the active vertical slice, recent changes, local verification state, and next actions. | `CURRENT` |

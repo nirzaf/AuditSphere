@@ -3,9 +3,12 @@
   "sourceSha": "d210d301dd98590ab0ce6606b0336f3d448726b6",
   "authority": {
     "path": "docs/requirements/auditsphere-accounting-module-requirements-current.md",
-    "status": "CURRENT",
+    "status": "HISTORICAL_SOURCE",
+    "sourceCommit": "d210d301dd98590ab0ce6606b0336f3d448726b6",
+    "currentness": "All sourceLine/sourceTextSha256/authorityStatus values below describe the pinned sourceCommit, not the present contents of the same path. Current v2.3 requirements at that path are PROPOSED; checked-in APPROVED ADRs and executed contracts remain controlling.",
     "overlays": "Approved deviations section (ADR-0002\u2026ADR-0018) controls interpretation"
   },
+  "currentCompletionRegister": "docs/execution/auditsphere-execution-technical-stories-current.md",
   "statusLegend": {
     "UNVERIFIED": "Not yet traced to UI/API/service/data/tests at this source",
     "SOURCE_TRACED": "Owning UI/API/service/data/test files resolved at sourceSha from the current code map; behavior, current CI and professional/live acceptance are NOT established by this status"
