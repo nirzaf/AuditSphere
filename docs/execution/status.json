@@ -1124,14 +1124,16 @@
       "boundary": "UNKNOWN/mismatched-receipt branches are component evidence; history25+1 and separate professional applicability are backend evidence. No whole-assignment, live-provider or professional acceptance; current-candidate full CI/images/rehearsal/deployment remain required."
     },
     "shellNavigationCi20261028": {
-      "status": "TEST_ONLY_NAMED_RED3_GREEN4_FULL_CI_REQUIRED",
-      "sourceBaseCommit": "d8b8e564c461e8270c7f528dee47ed0ef64ef873",
-      "failure": "Preceding5108 full40596945111 E2Ejob122515917737:334PASS/5FAIL/0skips; actualcheckout5108 MATCH; TRXartifact12782999615 digest verified. Navigation labels and final focus target were obsolete.",
-      "local": "Unchanged affected cohort RED3 plus native-opening variants GREEN2. Navigation correction GREEN4 includes exact section/current-link/role-denial checks, six viewport matrix and both canonical/preview focus/revocation journeys. No assertion removed; runtime unchanged.",
-      "timeout": "Prior native-opening preview timeout not reproduced; both variants passed unchanged. No speculative fix, longer timeout or retry; current full result remains required.",
-      "evidence": ".local/autonomous/evidence/role-authorization-eqr-20261027/e2e-5108-terminal-review.json",
-      "cleanup": "OwnedPG18.6port56219 exactstop/root/listener absence verified; original5433 untouched.",
-      "limits": "Existing headless Playwright cohort only; no new built-in browser or whole-assignment/release acceptance."
+      "result": "TEST_ONLY_NAMED_GREEN4_FULL_CI_REQUIRED",
+      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.shellNavigationBeforeRolesDocumentation20261028"
+    },
+    "userTypesPrivileges20261028": {
+      "status": "SOURCE_RECONCILED_DOCS_VERIFIED",
+      "sourceBaseCommit": "49bea18914c15d644aa8ecc8f419b6db17c8c84a",
+      "scope": "Preserve committed README expansion; align two human user kinds and eleven assignable roles, accounting versus finance scopes, registered oversight reads and conditional-task independent decisions with current guards.",
+      "verification": "Role-matrix/catalogue equality and exact13operation inventory PASS; documentation health/narrative/diff checks PASS. Runtime/grants unchanged; behavioral tests/browser NOT_RUN for docs-only work.",
+      "limits": "D-OV04 and D-EQR01..04 remain open; no whole-assignment or release acceptance.",
+      "evidence": ".local/autonomous/evidence/user-types-privileges-20261028/source-consistency.json"
     }
   },
   "externalGates": [
@@ -1616,13 +1618,12 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "d8b8e564c461e8270c7f528dee47ed0ef64ef873",
-    "sourceRole": "TEST_ONLY_CURRENT_NAVIGATION_CONTRACT_CORRECTION",
-    "fastCi": "Preceding d8b8 fast40613988509/images40613988520 PASS all6actualcheckouts and immutable manifests; following test/docs commit needs new exact gates.",
-    "releaseVerification": "Preceding d8b8 full40614045400 sourceMATCH remains running; Angular/VerifyPASS, Domain/API/E2E active at last observation. Not full acceptance.",
-    "imagePublication": "d8b8 pinned cache readback and owned rehearsal schema288to293/five migrations/380originalprojections unchanged with independent cleanup PASS; predecessor only for following source.",
-    "cutoverStatus": "NOT_PERFORMED. Fresh exact-source gates, current rehearsal/plan/receipt, QUIESCED backup, retention acceptance and actual origin/public browser acceptance remain required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeNavigationCi20261028"
+    "sourceBaseCommit": "49bea18914c15d644aa8ecc8f419b6db17c8c84a",
+    "sourceRole": "DOCS_ONLY_USER_TYPES_PRIVILEGES_RECONCILIATION",
+    "releaseVerification": "Runtime predecessor f485 full40618488703 sourceMATCH remains running with Domain/Angular/Verify PASS; API/E2E pending at observation. Docs descendants need their own exact-source gates; predecessor acceptance is not inherited.",
+    "imagePublication": "Predecessor f485 fast/images actual checkouts, pinned cache/rehearsal schema293 and cleanup PASS. New candidate image/default/rehearsal bindings are not prepared.",
+    "cutoverStatus": "NOT_PERFORMED. Current exact gates, fresh baseline/receipt, QUIESCED backup and D-OV04 acceptance still required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeRolesDocumentation20261028"
   },
-  "updatedAtUtc": "2026-10-28T01:58:58.356395+00:00"
+  "updatedAtUtc": "2026-10-28T03:30:24.445627+00:00"
 }

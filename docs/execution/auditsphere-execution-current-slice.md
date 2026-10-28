@@ -14,11 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
-## Current navigation verification contract
+## User types and privileges reconciled
 
-The route sweep and keyboard journey now assert the adopted lifecycle sections and the final Operations destination. Exact section ownership, focus wrapping, role-specific context, revocation and responsive checks remain enforced. The named correction passed headless verification; runtime behavior is unchanged. An earlier native-opening preview timeout was not reproduced by either unchanged variant and remains an exact-source CI concern. See [status.json](status.json).
+README and the current roles reference now match the assignment catalogue, scoped finance/accounting guards, registered Administrator oversight reads and independent conditional-task decisions. Existing README expansion is preserved. Source consistency and documentation checks passed; runtime and grants are unchanged. Retention/reviewer and EQR policies remain open, and exact-source release verification continues separately. See [status.json](status.json).
 
-Older portal recovery and scoped-FK notes are retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#pre-navigation-verification-handoff-transfer).
+Earlier navigation verification is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#user-privilege-documentation-handoff-transfer).
 
 ## Source-bound conditional task applicability
 

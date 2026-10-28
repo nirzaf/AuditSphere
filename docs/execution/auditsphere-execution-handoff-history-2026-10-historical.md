@@ -385,3 +385,14 @@ The existing upload-recovery Playwright journey now drops the response after the
 ## WU-004 scoped foreign-key classifier
 
 The earlier scoped classifier evidence is preserved in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#wu-004-scoped-foreign-key-classifier); WU-004 remains partial.
+
+
+## User privilege documentation handoff transfer
+
+## Current navigation verification contract
+
+The route sweep and keyboard journey now assert the adopted lifecycle sections and the final Operations destination. Exact section ownership, focus wrapping, role-specific context, revocation and responsive checks remain enforced. The named correction passed headless verification; runtime behavior is unchanged. An earlier native-opening preview timeout was not reproduced by either unchanged variant and remains an exact-source CI concern. See [status.json](status.json).
+
+Older portal recovery and scoped-FK notes are retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#pre-navigation-verification-handoff-transfer).
+
+<!-- End of verbatim handoff transfer. -->
