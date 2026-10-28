@@ -55,6 +55,8 @@ A **PR** is CI-verified only when actual fast `ci.yml` checks pass for the PR SH
 6. **No blind deletion:** an existing test may be consolidated only if equivalence, same invariant protection and risk of regressions are demonstrated in review. Never delete, disable, skip or weaken tests to satisfy a numeric target, suppress a bug or make CI green.
 7. **No rerun storms:** after a coherent change run selected tests once; after a fix rerun failing/affected cases; expand only for a new plausible regression. Full suite runs in CI. A newly created test must actually execute and assert expected behavior from approved requirements, not implementation-derived expectations.
 
+Session-revocation journeys must account for the shell clearing protected controls during session refresh. Revalidate the protected route when those controls may already be gone, and retain denial, private-data removal and direct API refusal assertions. A controlled reproduction must preserve the original assertions and exclude temporary fixtures from publication.
+
 **Example lean sets:** docs typo → zero application tests; a pure rounding rule → existing boundary theory; a scoped journal posting change → selected DB-backed permission, balance, stale/replay and rollback cases, often grouped in one fixture; a decoder change → one targeted Angular spec using parameterized invalid payloads; a new multi-actor approval path → a relevant existing integration journey, or one new one only if not otherwise proved.
 
 ## 4. Existing testing infrastructure

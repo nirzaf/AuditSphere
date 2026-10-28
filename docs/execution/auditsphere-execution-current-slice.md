@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Financial-package revocation interaction follow-up
+
+The package review/download journey now reloads the protected route after revocation. A periodic or focus-driven session check can correctly remove its controls before a manual refresh click. A controlled real session refusal reproduced the original missing-button timeout; the same fixture and the final change passed with all original package, artifact-byte/hash, review, persistence, data-removal and revoked-request assertions retained. The temporary fixture is excluded from the delivered test. Runtime code, permissions and timeouts are unchanged.
+
+Separate CI runner interruptions and inactivity remain unexplained. Focused automated evidence does not establish a full-suite pass or new built-in acceptance. The exact successor needs its own CI/images and release gates; see [status.json](status.json). Earlier scopes and qualified decisions remain independent.
+
 ## Fee-settlement posting selector follow-up
 
 Exact-source CI exposed a fee-settlement journey still selecting the obsolete invoice-posting label. The unchanged named journey reproduced that timeout; aligning its single exact selector with the published billing-freeze label passed the original settlement workflow. Payment totals, retained invoice identity, recovery, role separation, revoked access, database, viewport and keyboard assertions remain intact. No runtime code, timeout or permission changed, and no new built-in acceptance is claimed.

@@ -179,7 +179,8 @@ public sealed class AngularFinancialArtifactParityJourneyTests
       }
     }
 
-    await staffPage.GetByRole(AriaRole.Button, new() { Name = "Refresh package", Exact = true }).ClickAsync();
+    // The session poll may already have removed the revoked user's package controls.
+    await staffPage.ReloadAsync();
     await staffPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })
       .WaitForAsync(new() { Timeout = 15000 });
     var deniedBody = await staffPage.Locator("body").InnerTextAsync();
