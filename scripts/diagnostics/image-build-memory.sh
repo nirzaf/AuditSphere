@@ -66,7 +66,7 @@ sample() {
 }
 
 sample_periodically() {
-  local sleeper='' counter_pid='' count=0 running
+  local sleeper='' counter_pid='' count=0 running preparation_attempted=false
   stop_sampler() {
     for running in $(jobs -pr); do
       if [[ $running == "$sleeper" || $running == "$counter_pid" ]]; then
@@ -85,6 +85,17 @@ sample_periodically() {
     wait "$sleeper" 2>/dev/null || :
     sleeper=''
     sample periodic
+    if [[ $preparation_attempted == false ]] &&
+       command -v python3 >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 &&
+       awk '/^IMAGE_MEMORY_SAMPLE / { ready=0 } /^builder_running=true / { ready=1 } END { exit !ready }' "$trace_file"; then
+      # Buildx starts its container lazily during the unchanged build command.
+      # Prepare once, only after a current read-only sample observes it running.
+      preparation_attempted=true
+      timeout -k 1s 60s python3 "$script_dir/image-build-counters.py" prepare "$counter_dir" "$builder_container" >> "$trace_file" 2>/dev/null &
+      counter_pid=$!
+      if wait "$counter_pid" 2>/dev/null; then counter_ready=true; fi
+      counter_pid=''
+    fi
     if [[ $counter_ready == true ]]; then
       # At most four growth-stage attempts. Capture failure never replaces the build result.
       python3 "$script_dir/image-build-counters.py" capture "$counter_dir" "$trace_file" >> "$trace_file" 2>/dev/null &
@@ -127,12 +138,6 @@ if [[ -n $trace_dir ]]; then
   if [[ ! $source_identity =~ ^[a-fA-F0-9]{40,64}$ ]]; then source_identity=unavailable; fi
   printf 'IMAGE_MEMORY_SOURCE sha=%s\n' "$source_identity" > "$trace_file"
   sample start
-  if command -v python3 >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
-    # Preparation is optional and bounded; keep the existing 45-minute build/job limit.
-    if timeout -k 1s 60s python3 "$script_dir/image-build-counters.py" prepare "$counter_dir" "$builder_container" >> "$trace_file" 2>/dev/null; then
-      counter_ready=true
-    fi
-  fi
   sample_periodically &
   sampler_pid=$!
 else

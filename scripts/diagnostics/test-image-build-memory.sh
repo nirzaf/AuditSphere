@@ -20,7 +20,9 @@ cat > "$fixture/bin/docker" <<'SH'
 printf '%s\n' "$1" >> "$DIAGNOSTIC_CALLS"
 if [[ ${DIAGNOSTIC_PROBE_FAILURE:-0} == 1 ]]; then exit 125; fi
 case $1 in
-  inspect) printf 'builder_running=true builder_oom_killed=false builder_limit_bytes=1048576 builder_swap_limit_bytes=2097152\n' ;;
+  inspect)
+    if [[ ${DIAGNOSTIC_LAZY_BUILDER:-0} == 1 && ! -s $BUILD_CALLS ]]; then exit 1; fi
+    printf 'builder_running=true builder_oom_killed=false builder_limit_bytes=1048576 builder_swap_limit_bytes=2097152\n' ;;
   stats) printf 'builder_memory=512KiB/1MiB builder_memory_percent=50\n' ;;
   exec)
     if [[ ${2:-} == -i ]]; then
@@ -118,12 +120,29 @@ echo 'PASS process-parser-invalid-fields-not-emitted'
 # Keep all earlier cases intact; exercise owning-sampler cancellation with optional capture active.
 cp "$DIAGNOSTIC_PROC_FIXTURE/102/stat" "$DIAGNOSTIC_PROC_FIXTURE/101/stat"
 cp "$DIAGNOSTIC_PROC_FIXTURE/102/status" "$DIAGNOSTIC_PROC_FIXTURE/101/status"
+# The active-capture contract needs one compiler; the preceding eight-process bound is already checked.
+mkdir "$fixture/active-proc"
+cp -R "$DIAGNOSTIC_PROC_FIXTURE/101" "$fixture/active-proc/101"
+export DIAGNOSTIC_PROC_FIXTURE="$fixture/active-proc"
 export RUNNER_TEMP="$fixture/temp"
 export COUNTER_CHILD_RECORD="$fixture/counter-child"
 cat > "$fixture/bin/python3" <<'SH'
 #!/usr/bin/env bash
 case ${2:-} in
-  prepare) mkdir "$3"; printf 'IMAGE_MANAGED_COUNTERS {"status":"ready_fixture"}\n' ;;
+  prepare)
+    if [[ ${DIAGNOSTIC_LAZY_BUILDER:-0} == 1 ]]; then
+      if [[ ! -s $BUILD_CALLS ]]; then printf 'early\n' >> "$PREPARATION_CALLS"; exit 1; fi
+      printf 'during-build\n' >> "$PREPARATION_CALLS"
+    fi
+    mkdir "$3"
+    if [[ ${COUNTER_PREPARATION_BLOCK:-0} == 1 ]]; then
+      sleep 20 &
+      child=$!
+      printf '%s\n' "$child" > "$COUNTER_CHILD_RECORD"
+      trap 'kill "$child" 2>/dev/null || :; wait "$child" 2>/dev/null || :; echo COUNTER_PREPARATION_CLEANED; exit 1' TERM INT
+      wait "$child"
+    fi
+    printf 'IMAGE_MANAGED_COUNTERS {"status":"ready_fixture"}\n' ;;
   capture)
     if [[ ${COUNTER_FAKE_FAILURE:-0} == 1 ]]; then
       printf 'IMAGE_MANAGED_COUNTERS {"status":"unavailable","reason":"fixture_failed"}\n'; exit 1
@@ -159,3 +178,14 @@ done
 export COUNTER_FAKE_FAILURE=1
 assert_case 102 optional-counter-failure-does-not-mask-build "$fixture/timed-build" 102
 grep -q '"status":"unavailable","reason":"fixture_failed"' "$fixture/output"
+unset COUNTER_FAKE_FAILURE
+export DIAGNOSTIC_LAZY_BUILDER=1 PREPARATION_CALLS="$fixture/preparation-calls"
+: > "$PREPARATION_CALLS"
+assert_case 0 lazy-builder-preparation-after-observed-start "$fixture/timed-build" 0
+[[ $(cat "$PREPARATION_CALLS") == during-build ]] || { echo 'FAIL lazy builder: preparation must run exactly once during the build'; exit 1; }
+grep -q COUNTER_FIXTURE_CLEANED "$fixture/output" || { echo 'FAIL lazy builder: counter never started after readiness'; exit 1; }
+unset DIAGNOSTIC_LAZY_BUILDER
+export COUNTER_PREPARATION_BLOCK=1
+assert_case 102 active-preparation-owned-cleanup "$fixture/timed-build" 102
+grep -q COUNTER_PREPARATION_CLEANED "$fixture/output" || { echo 'FAIL owned preparation cleanup not observed'; exit 1; }
+if kill -0 "$(cat "$COUNTER_CHILD_RECORD")" 2>/dev/null; then echo 'FAIL owned preparation child remains'; exit 1; fi
