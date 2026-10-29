@@ -15754,6 +15754,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "EngagementId", "CreatedAt");
 
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SelectionId");
+
                     b.ToTable("audit_sampling_runs", null, t =>
                         {
                             t.HasCheckConstraint("ck_audit_sampling_run_values", "method IN ('MUS','KEY_ITEM','RANDOM','SYSTEMATIC','STRATIFIED','ATTRIBUTE_STRATA') AND selected_count > 0 AND selected_count <= population_count AND length(source_digest) = 64 AND length(selection_digest) = 64 AND (preview_digest IS NULL OR length(preview_digest) = 64)");
@@ -36582,9 +36584,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("AuditSphereOps.Domain.Audit.AuditSelection", null)
                         .WithMany()
-                        .HasForeignKey("SelectionId")
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "SelectionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_audit_sampling_run_selection_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditSchedule", b =>

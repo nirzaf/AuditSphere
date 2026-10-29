@@ -14,7 +14,11 @@ public sealed partial class AuditSphereDbContext
       e.HasIndex(x => new { x.FirmId, x.SelectionId }).IsUnique();
       e.HasIndex(x => new { x.FirmId, x.EngagementId, x.CreatedAt });
       e.HasIndex(x => new { x.FirmId, x.PreviewDigest }).IsUnique().HasFilter("preview_digest IS NOT NULL");
-      e.HasOne<AuditSelection>().WithMany().HasForeignKey(x => x.SelectionId).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => x.SelectionId);
+      e.HasOne<AuditSelection>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SelectionId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_audit_sampling_run_selection_scope");
       e.Property(x => x.PreviewDigest).HasMaxLength(64);
       e.Property(x => x.OrderingPolicy).HasMaxLength(80);
       foreach (var p in new[] { nameof(AuditSamplingRun.Interval), nameof(AuditSamplingRun.KeyItemThreshold), nameof(AuditSamplingRun.PopulationAbsoluteTotal), nameof(AuditSamplingRun.SelectedAbsoluteTotal) })

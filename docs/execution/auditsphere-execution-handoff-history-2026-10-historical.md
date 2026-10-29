@@ -610,3 +610,17 @@ The focused lazy-start control detects the original early attempt and verifies o
 
 
 <!-- End of verbatim lazy readiness record. -->
+
+
+## Collector failure diagnostics
+
+Current image jobs prepared the observer successfully, but collection attempts remained unavailable without client failure details. The diagnostic now drains client output with a bounded memory prefix, discards excess and reports only fixed message categories, numeric exit or timeout information and independently read state from the exact owned observer. Raw messages stay outside reports and saved evidence. Client cancellation, failed initialization and byte limits have focused checks; original build arguments, capture deadline, target permissions and cleanup boundaries remain intact.
+
+A message category is an observation, not proof of a transport policy or memory cause. Actual successor-source collection remains pending; missing state never becomes zero or a successful heap observation. Compiler OOM and older shutdown/inactivity causes remain separate; see [status.json](status.json).
+
+
+## Financial-package revocation interaction follow-up
+
+The package review/download journey now reloads the protected route after revocation. A periodic or focus-driven session check can correctly remove its controls before a manual refresh click. A controlled real session refusal reproduced the original missing-button timeout; the same fixture and the final change passed with all original package, artifact-byte/hash, review, persistence, data-removal and revoked-request assertions retained. The temporary fixture is excluded from the delivered test. Runtime code, permissions and timeouts are unchanged.
+
+Separate CI runner interruptions and inactivity remain unexplained. Focused automated evidence does not establish a full-suite pass or new built-in acceptance. The exact successor needs its own CI/images and release gates; see [status.json](status.json). Earlier scopes and qualified decisions remain independent.

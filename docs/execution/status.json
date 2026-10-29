@@ -921,17 +921,12 @@
       "archive": "status-archive-2026-10.json#archivedTargetedVerification.axelorResponsiveFacts20261026"
     },
     "axelorReceiptRace20261026": {
-      "status": "PRECEDING63C9_LOCAL_AND_DOMAIN_AC39_PASS_NOT_NEW_RELEASE_ACCEPTANCE",
-      "source": "63c96a085e10a1cd77dd855ef1d77cb6e2b2e085",
-      "history": "status-archive-2026-10.json#archivedTargetedVerification.axelorReceiptRaceBeforeProfileRefreshFixtureCorrection20261026",
-      "scope": "Receipt contention/revocation/no-clamp assertions passed locally and in exact1749Domain suite; later E2E fixture correction requires new release gates."
+      "status": "Earlier focused evidence retained; acceptance remains separate.",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeSamplingSelectionScope20261029_axelorReceiptRace20261026"
     },
     "accountingProfileRefreshCapture20261026": {
-      "status": "PRECEDING_FULL_API400PASS2_CANCELLATION_FAILURES_E2E339PASS",
-      "source": "b9695b7b70515d30cad2d19ee7813978e1162893",
-      "history": "status-archive-2026-10.json#archivedTargetedVerification.accountingProfileRefreshBeforePracticeCompletionAudit20261026",
-      "current": "currentSourceCi",
-      "boundary": "Both exact failed API methods passed unchanged locally; underlying CI stalls remain unproven. No full current-source acceptance."
+      "status": "Earlier focused evidence retained; acceptance remains separate.",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeSamplingSelectionScope20261029_accountingProfileRefreshCapture20261026"
     },
     "currentAccountProfile20261026": {
       "status": "PUBLISHED_SCOPED_EVIDENCE_HISTORY_CURRENT_GATES_SEPARATE",
@@ -1173,14 +1168,19 @@
       "archive": "status-archive-2026-10.json#archivedTargetedVerification.lazyBuildkitCounterReadiness20261029"
     },
     "collectorExecutionDiagnostics20261029": {
-      "status": "FOCUSED_FAILURE_DIAGNOSTICS_VERIFIED_ACTUAL_COLLECTOR_CAUSE_PENDING",
-      "base": "4a1b4994bdbbd3bbef6a1e325527ed9e8c7d1652",
-      "schema": "301_UNCHANGED",
-      "observed": "Both4a1bimagejobs prepareREADY thenall8growthcaptures unavailable/collector_execution; noheapframes orretainedCLIexit/state/details. Knowncompiler137/OOM remains.",
-      "change": "Boundedmemory-only reader drains/discards excess, closedmessagecategories/numericCLIexit/timeout/exactownedobserverexitOOMrunning metadata; no rawtooltext emitted/evidencepersisted. No transport/privilege/resource/GC/SDK/argv/timeout/retrypolicyfix.",
-      "verification": "Python14PASS inclactual1MiBdrain/exit7, real12sdeadline+ownedreap, earlyselector-cancel cleanup; all9oldmethods retained. Counterfactuals detect discardedcategory/unboundedprefix/missingguard.",
-      "review": ".local/autonomous/evidence/collector-execution-diagnostics-20261029/review.json",
-      "remaining": "ActualsuccessorCLI/category/state andheapcapture; categories arenotcause/policyproof. Currentgates/full/rehearsal/realDOV04/release/qualifiedleaves remainopen."
+      "status": "Earlier focused evidence retained; acceptance remains separate.",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeSamplingSelectionScope20261029_collectorExecutionDiagnostics20261029"
+    },
+    "wu004SamplingSelectionScope20261029": {
+      "status": "FOCUSED_SCOPE_VERIFIED_SUCCESSOR_CI_REQUIRED",
+      "base": "6d1160c1d38e8e22cd7f73dfc5052e5cf20cabcd",
+      "migration": "20261029104522_SamplingRunSelectionScope",
+      "schema": 302,
+      "defect": "Original global selectionFK accepted foreignselection/wrongclient/wrongengagement after native100QAR/RANDOM1/seed73/independentreview/reperformance/commanddenials/validnonduplicatingSQLcontrol/exactbytes.",
+      "verification": "Original3case RED1; IDENTICALmethod GREEN1 in focusedGREEN2; addedisolatedfirm-onlyprobe finalGREEN1. Earlier42703snapshotfixturetypo excluded. Actual301->302->301 exactrows/indexes/FKs; inconsistentretainedsource23503atomicrefusal. APIRelease/EFdriftPASS.",
+      "change": "Restrictivefullfirm/client/engagement/selection reference usesexistingparentkey; alloldindexesretained. No history/data/formula/command/role/SDK/resourcepolicychange.",
+      "review": ".local/autonomous/evidence/wu004-sampling-selection-scope-20261029/review.json",
+      "remaining": "APIRelease/EFdrift/indexmeasurementPASS; readonlyreviewclosed/nofindings.37originalcatalogcandidates remain; wholeassignment incomplete. Exactsuccessorgates/full/rehearsal/realDOV04/qualifiedacceptance remainrequired."
     }
   },
   "externalGates": [
@@ -1665,13 +1665,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "4a1b4994bdbbd3bbef6a1e325527ed9e8c7d1652",
-    "sourceRole": "OPTIONAL_COLLECTOR_FAILURE_DIAGNOSTICS",
-    "status": "FOCUSED_FAILURE_DIAGNOSTICS_EXACT_SUCCESSOR_GATES_REQUIRED",
-    "predecessor": "4a1bfast40850977936 PASS/all3actualcheckouts. Images40850977802 FAIL API123370058563+worker123370057874 knowncompiler137/OOM; migration123370058420 actualpinPASS/summary123374650037SKIPPED. All6actualcheckouts/loghashes retained. PrepareREADY/all8collector_execution unavailable/noheapframes; no rerun/cancel.",
-    "full": "NOT_DISPATCHED; coherent diagnostics/sourcebatch precede finalfreeze.",
-    "cutover": "NOT_PERFORMED; currentgates/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeCollectorExecutionDiagnostics20261029"
+    "sourceBaseCommit": "6d1160c1d38e8e22cd7f73dfc5052e5cf20cabcd",
+    "sourceRole": "SAMPLING_SELECTION_SCOPE_REPAIR",
+    "status": "FOCUSED_SCOPE_VERIFIED_EXACT_SUCCESSOR_GATES_REQUIRED",
+    "predecessor": "6dfast40857037776FAIL: Docs15+14/Angular1737/189actualPASS; Release123391382924shutdown10:37UTC, causeUNPROVEN. Images40857037597FAIL: API123390482387knowncsc137/OOM/102, optionalruntimepulltimeout; worker123390482316+migrations123390482055actualpinsPASS/summary123395666645SKIPPED. Worker4collector-exit1/observer-exit1/nonOOM/permission-message-category/noheapframes; no transport/policycause inferred. All6actualcheckout/loghash/check/annotation/artifactmetadata retained; no cancel/rerun/redownload.",
+    "full": "NOT_DISPATCHED during coherent sourcebatch/causaldiagnostics; currenthelper/receipt/rehearsal absent.",
+    "cutover": "NOT_PERFORMED; exactgates/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeSamplingSelectionScope20261029"
   },
-  "updatedAtUtc": "2026-10-29T10:18:50.093326+00:00"
+  "updatedAtUtc": "2026-10-29T10:52:28.664229+00:00"
 }

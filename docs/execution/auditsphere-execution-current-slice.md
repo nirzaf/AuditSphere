@@ -14,11 +14,19 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Sampling-run selection scope
+
+Retained sampling runs now bind their selection to the exact firm, client and engagement. The restrictive reference reuses the existing parent key and preserves original unique and lookup indexes. Native preview, run, re-performance, amounts, seed and digests remain unchanged.
+
+Focused evidence reproduced foreign-selection and mismatched-child acceptance after valid native controls and current command denials. The identical regression passed with the repair; a stronger isolated firm mismatch also passed. Clean upgrade and downgrade preserve exact source, selection, item and run history and original index/constraint definitions. Inconsistent retained references refuse upgrade atomically without automatic repair or deletion.
+
+Broader actor, procedure, schedule and engine authenticity, mutation/restricted-role checks, exact-source CI and professional acceptance remain separate. See [status.json](status.json).
+
 ## Collector failure diagnostics
 
-Current image jobs prepared the observer successfully, but collection attempts remained unavailable without client failure details. The diagnostic now drains client output with a bounded memory prefix, discards excess and reports only fixed message categories, numeric exit or timeout information and independently read state from the exact owned observer. Raw messages stay outside reports and saved evidence. Client cancellation, failed initialization and byte limits have focused checks; original build arguments, capture deadline, target permissions and cleanup boundaries remain intact.
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#collector-failure-diagnostics).
 
-A message category is an observation, not proof of a transport policy or memory cause. Actual successor-source collection remains pending; missing state never becomes zero or a successful heap observation. Compiler OOM and older shutdown/inactivity causes remain separate; see [status.json](status.json).
+Actual worker observations now retain client and observer failure metadata with a permission-message category. The API observer could not finish its optional runtime preparation. Neither result supplies heap frames or establishes a path, transport policy or memory cause. Resource and security settings remain unchanged; see [status.json](status.json).
 
 ## Lazy BuildKit counter readiness
 
@@ -74,9 +82,7 @@ Focused evidence and its limits moved verbatim to the [historical handoff](audit
 
 ## Financial-package revocation interaction follow-up
 
-The package review/download journey now reloads the protected route after revocation. A periodic or focus-driven session check can correctly remove its controls before a manual refresh click. A controlled real session refusal reproduced the original missing-button timeout; the same fixture and the final change passed with all original package, artifact-byte/hash, review, persistence, data-removal and revoked-request assertions retained. The temporary fixture is excluded from the delivered test. Runtime code, permissions and timeouts are unchanged.
-
-Separate CI runner interruptions and inactivity remain unexplained. Focused automated evidence does not establish a full-suite pass or new built-in acceptance. The exact successor needs its own CI/images and release gates; see [status.json](status.json). Earlier scopes and qualified decisions remain independent.
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#financial-package-revocation-interaction-follow-up).
 
 ## Fee-settlement posting selector follow-up
 

@@ -51,6 +51,8 @@ Conditional task applicability uses `workflow_task_applicability_proposals` and 
 
 `adjustment_journals` and `adjustment_plans` bind `(firm_id, client_id, engagement_id, base_dataset_id)` to their source dataset's `(firm_id, client_id, engagement_id, id)`. `AdjustmentSourceDatasetScope` retains original unique/lookup indexes and all journal, plan, line and source rows. Clean upgrade/downgrade preserve exact financial evidence and original indexes/constraints. An inconsistent retained journal source refuses upgrade atomically, leaving prior history and constraints intact without reassignment or deletion. Native authorization, exact amounts, posting and calculation policy remain unchanged. These relational checks do not establish financial methodology, source authenticity or professional approval.
 
+`audit_sampling_runs` binds `(firm_id, client_id, engagement_id, selection_id)` to its selection's `(firm_id, client_id, engagement_id, id)` through `fk_audit_sampling_run_selection_scope`. `SamplingRunSelectionScope` preserves the original firm/selection and preview uniqueness and lookup indexes. Clean upgrade/downgrade preserve exact source, selection, item and run history and original index/constraint definitions; inconsistent retained selection scope refuses upgrade atomically without reassignment or deletion. Native commands, sampling amounts, seed, digests and re-performance are unchanged. This parent reference does not establish actor, procedure, schedule or engine authenticity, statistical adequacy or professional approval.
+
 ## 3. Changing the schema
 
 1. Edit the Domain class and the matching `Configure<Module>` partial only.
