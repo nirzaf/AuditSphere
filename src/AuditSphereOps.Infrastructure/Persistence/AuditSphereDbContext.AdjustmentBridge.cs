@@ -65,10 +65,13 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.EngagementId })
       .HasPrincipalKey(e => new { e.FirmId, e.Id })
       .OnDelete(DeleteBehavior.Restrict);
+    b.Entity<AdjustmentPlan>().HasIndex(x => x.BaseDatasetId);
     b.Entity<AdjustmentPlan>()
       .HasOne<TrialBalanceDataset>().WithMany()
-      .HasForeignKey(x => x.BaseDatasetId)
-      .OnDelete(DeleteBehavior.Restrict);
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.BaseDatasetId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict)
+      .HasConstraintName("fk_adjustment_plan_source_scope");
     b.Entity<AdjustmentPlan>().HasAlternateKey(x => new { x.FirmId, x.Id })
       .HasName("AK_adjustment_plans_firm_id_id");
     b.Entity<AdjustmentPlanLine>().ToTable("adjustment_plan_lines", t =>

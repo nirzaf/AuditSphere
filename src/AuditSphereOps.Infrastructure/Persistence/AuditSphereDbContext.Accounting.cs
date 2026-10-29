@@ -121,10 +121,13 @@ public sealed partial class AuditSphereDbContext
       .HasOne<TrialBalanceDataset>().WithMany()
       .HasForeignKey(x => x.DatasetId)
       .OnDelete(DeleteBehavior.Restrict);
+    journal.HasIndex(x => x.BaseDatasetId);
     journal
       .HasOne<TrialBalanceDataset>().WithMany()
-      .HasForeignKey(x => x.BaseDatasetId)
-      .OnDelete(DeleteBehavior.Restrict);
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.BaseDatasetId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict)
+      .HasConstraintName("fk_adjustment_journal_source_scope");
     journal
       .HasOne<Engagement>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.EngagementId })

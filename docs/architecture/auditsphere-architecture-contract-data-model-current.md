@@ -49,6 +49,8 @@ Conditional task applicability uses `workflow_task_applicability_proposals` and 
 
 `ad_hoc_procedure_insertions` binds `(firm_id, client_id, engagement_id, procedure_id)` to its procedure's matching scope; `ad_hoc_procedure_revisions` binds `(firm_id, procedure_id)` to the procedure's firm and identity. `AdHocProcedureHistoryScope` retains original unique/lookup indexes, insertion/revision rows and native Insert/Edit authorization. Clean upgrade/downgrade preserve exact history and original indexes. Inconsistent retained insertion parents refuse upgrade atomically, retaining prior constraints and migration history without reassignment or deletion. Programme/baseline/risk/actor lineage, mutation enforcement and professional acceptance remain separate.
 
+`adjustment_journals` and `adjustment_plans` bind `(firm_id, client_id, engagement_id, base_dataset_id)` to their source dataset's `(firm_id, client_id, engagement_id, id)`. `AdjustmentSourceDatasetScope` retains original unique/lookup indexes and all journal, plan, line and source rows. Clean upgrade/downgrade preserve exact financial evidence and original indexes/constraints. An inconsistent retained journal source refuses upgrade atomically, leaving prior history and constraints intact without reassignment or deletion. Native authorization, exact amounts, posting and calculation policy remain unchanged. These relational checks do not establish financial methodology, source authenticity or professional approval.
+
 ## 3. Changing the schema
 
 1. Edit the Domain class and the matching `Configure<Module>` partial only.

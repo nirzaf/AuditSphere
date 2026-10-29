@@ -14,13 +14,17 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Adjustment source scope
+
+Native draft/post/plan controls reproduced journals and plans referencing another firm's dataset or a mismatched client. Exact source-scope constraints now refuse those inserts while retaining command authorization, exact amounts, journal/plan/source evidence and original indexes. The unchanged regression and migration safety checks pass. Inconsistent retained sources refuse upgrade without repair or deletion. Wider accounting methodology, restricted-role, mutation and release acceptance remain separate; see [status.json](status.json).
+
 ## Ad hoc procedure history scope
 
-Native insertion/edit controls reproduced foreign procedure references in retained insertion and wording-revision history, plus inconsistent insertion client/engagement fields. Scoped parent constraints now refuse those inserts while retaining native authorization, revision wording, original indexes and exact history bytes. The unchanged regression and migration safety checks pass. Inconsistent retained parents refuse upgrade without repair or deletion. Wider lineage, restricted-role, mutation and release acceptance remain separate; see [status.json](status.json).
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#ad-hoc-procedure-history-scope).
 
 ## Procedure client-evidence scope
 
-Native synthetic received-transfer/link controls reproduced foreign procedure/upload references and mismatched client/engagement/request fields. Exact-scope procedure and request/upload constraints now refuse those inserts. The unchanged regression and migration safety checks pass, retaining received hashes, native command denials, exact link/upload bytes and original indexes. Inconsistent retained history refuses upgrade without repair or deletion. Wider relational, restricted-role, custody and release acceptance remain separate; see [status.json](status.json).
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#procedure-client-evidence-scope).
 
 ## Image compiler process diagnostics
 

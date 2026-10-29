@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Domain.Accounting;
@@ -86,6 +88,180 @@ public sealed class AdjustmentEligibilityQueryTests
       Assert.Equal(ReflectionStates.Unknown, missing.Value!.Journals.Single(x => x.JournalNumber == "AJ-ELIG-1").ReflectionState);
       Assert.Equal(1, missing.Value.BlockedCount);
     }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task AdjustmentSources_RejectForeignDatasetsAndPreserveExactFinancialEvidence()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    async Task<(Guid Draft, Guid Plan)> CreateNativeAsync(Fixture fixture)
+    {
+      var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+      var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+      var draft = await AdjustmentJournalService.CreateDraftAsync(db, preparer, fixture.DatasetId, "AJ-SCOPE-DRAFT",
+        [("1000", 10m, 0m), ("4000", 0m, 10m)]);
+      var posted = await AdjustmentJournalService.CreateDraftAsync(db, preparer, fixture.DatasetId, "AJ-SCOPE-POSTED",
+        [("1000", 5m, 0m), ("4000", 0m, 5m)]);
+      Assert.True(draft.Succeeded, draft.Message);
+      Assert.True(posted.Succeeded, posted.Message);
+      var result = await AdjustmentJournalService.PostAsync(db, reviewer, posted.Value);
+      Assert.True(result.Succeeded, result.Message);
+      var plan = await AdjustmentPlanService.CreatePlanAsync(db, preparer, fixture.DatasetId, [new PlanLineInput("AJ-SCOPE-POSTED", 1)]);
+      Assert.True(plan.Succeeded, plan.Message);
+      return (draft.Value, plan.Value);
+    }
+    var ownRecords = await CreateNativeAsync(own);
+    await CreateNativeAsync(foreign);
+    var actor = Actor(own.Preparer, "AccountingPreparer");
+    Assert.Equal(ErrorCodes.ScopeDenied, (await AdjustmentJournalService.CreateDraftAsync(db, actor, foreign.DatasetId,
+      "AJ-FOREIGN-DENIED", [("1000", 10m, 0m), ("4000", 0m, 10m)])).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await AdjustmentPlanService.CreatePlanAsync(db, actor, foreign.DatasetId,
+      [new PlanLineInput("AJ-SCOPE-POSTED", 1)])).ErrorCode);
+    Assert.Equal(new[] { 100m, -100m }, await db.TrialBalanceRows.Where(x => x.DatasetId == own.DatasetId)
+      .OrderBy(x => x.AccountCode).Select(x => x.Amount).ToArrayAsync());
+    async Task<string[]> ReadHeadersAsync() => await db.Database.SqlQueryRaw<string>("""
+      SELECT ('journal:' || to_jsonb(j)::text) AS "Value" FROM adjustment_journals j
+      UNION ALL SELECT ('plan:' || to_jsonb(p)::text) AS "Value" FROM adjustment_plans p
+      UNION ALL SELECT ('dataset:' || to_jsonb(d)::text) AS "Value" FROM trial_balance_datasets d
+      ORDER BY "Value"
+      """).ToArrayAsync();
+    var retained = await ReadHeadersAsync();
+    var lines = System.Text.Json.JsonSerializer.Serialize(await db.AdjustmentLines.AsNoTracking().OrderBy(x => x.Id).ToArrayAsync());
+    var planLines = System.Text.Json.JsonSerializer.Serialize(await db.AdjustmentPlanLines.AsNoTracking().OrderBy(x => x.Id).ToArrayAsync());
+    await using var connection = new Npgsql.NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+    async Task<int> InsertAsync(bool journal, Guid dataset, Guid client, Guid engagement)
+    {
+      var table = journal ? "adjustment_journals" : "adjustment_plans";
+      await using var command = new Npgsql.NpgsqlCommand($"""
+        INSERT INTO {table}
+        SELECT (jsonb_populate_record(NULL::{table}, to_jsonb(h) || jsonb_build_object(
+          'id', @id, 'base_dataset_id', @dataset, 'client_id', @client, 'engagement_id', @engagement,
+          'journal_number', 'AJ-SQL-CONTROL'))).*
+        FROM {table} h WHERE h.id = @source
+        """, connection, transaction);
+      command.Parameters.AddWithValue("id", Guid.NewGuid());
+      command.Parameters.AddWithValue("dataset", dataset);
+      command.Parameters.AddWithValue("client", client);
+      command.Parameters.AddWithValue("engagement", engagement);
+      command.Parameters.AddWithValue("source", journal ? ownRecords.Draft : ownRecords.Plan);
+      return await command.ExecuteNonQueryAsync();
+    }
+    await new Npgsql.NpgsqlCommand("SAVEPOINT adjustment_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    Assert.Equal(1, await InsertAsync(true, own.DatasetId, own.ClientId, own.EngagementId));
+    Assert.Equal(1, await InsertAsync(false, own.DatasetId, own.ClientId, own.EngagementId));
+    await new Npgsql.NpgsqlCommand("ROLLBACK TO SAVEPOINT adjustment_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    var accepted = new List<string>();
+    foreach (var (name, journal, dataset, client, engagement) in new[]
+    {
+      ("journal dataset", true, foreign.DatasetId, own.ClientId, own.EngagementId),
+      ("plan dataset", false, foreign.DatasetId, own.ClientId, own.EngagementId),
+      ("journal client", true, own.DatasetId, foreign.ClientId, own.EngagementId),
+      ("plan client", false, own.DatasetId, foreign.ClientId, own.EngagementId)
+    })
+    {
+      try
+      {
+        Assert.Equal(1, await InsertAsync(journal, dataset, client, engagement));
+        accepted.Add(name);
+      }
+      catch (Npgsql.PostgresException exception)
+      {
+        Assert.Contains(exception.SqlState, new[] { "23503", "23514" });
+        Assert.False(string.IsNullOrWhiteSpace(exception.ConstraintName));
+        Console.WriteLine($"SCOPED_SOURCE_DENIAL {name}: {exception.SqlState}/{exception.ConstraintName}");
+      }
+      await new Npgsql.NpgsqlCommand("ROLLBACK TO SAVEPOINT adjustment_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    }
+    await transaction.RollbackAsync();
+    Assert.Equal(retained, await ReadHeadersAsync());
+    Assert.Equal(lines, System.Text.Json.JsonSerializer.Serialize(await db.AdjustmentLines.AsNoTracking().OrderBy(x => x.Id).ToArrayAsync()));
+    Assert.Equal(planLines, System.Text.Json.JsonSerializer.Serialize(await db.AdjustmentPlanLines.AsNoTracking().OrderBy(x => x.Id).ToArrayAsync()));
+    Assert.True(accepted.Count == 0, "Cross-scope adjustment source references accepted: " + string.Join(", ", accepted));
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task AdjustmentSourceScopeUpgrade_PreservesFinancialEvidenceAndRefusesInconsistentParents()
+  {
+    const string baseline = "20261029065958_AdHocProcedureHistoryScope";
+    const string scopedSource = "20261029072350_AdjustmentSourceDatasetScope";
+    await using var pg = await PgTestSchema.CreateAsync(baseline);
+    var own = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    async Task<(Guid Draft, Guid Plan)> CreateNativeAsync(Fixture fixture)
+    {
+      var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+      var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+      var draft = await AdjustmentJournalService.CreateDraftAsync(db, preparer, fixture.DatasetId, "AJ-SCOPE-DRAFT",
+        [("1000", 10m, 0m), ("4000", 0m, 10m)]);
+      var posted = await AdjustmentJournalService.CreateDraftAsync(db, preparer, fixture.DatasetId, "AJ-SCOPE-POSTED",
+        [("1000", 5m, 0m), ("4000", 0m, 5m)]);
+      Assert.True(draft.Succeeded, draft.Message);
+      Assert.True(posted.Succeeded, posted.Message);
+      var result = await AdjustmentJournalService.PostAsync(db, reviewer, posted.Value);
+      Assert.True(result.Succeeded, result.Message);
+      var plan = await AdjustmentPlanService.CreatePlanAsync(db, preparer, fixture.DatasetId, [new PlanLineInput("AJ-SCOPE-POSTED", 1)]);
+      Assert.True(plan.Succeeded, plan.Message);
+      return (draft.Value, plan.Value);
+    }
+    var ownRecords = await CreateNativeAsync(own);
+    await CreateNativeAsync(foreign);
+    async Task<string[]> ReadHeadersAsync() => await db.Database.SqlQueryRaw<string>("""
+      SELECT ('journal:' || to_jsonb(j)::text) AS "Value" FROM adjustment_journals j
+      UNION ALL SELECT ('plan:' || to_jsonb(p)::text) AS "Value" FROM adjustment_plans p
+      UNION ALL SELECT ('dataset:' || to_jsonb(d)::text) AS "Value" FROM trial_balance_datasets d
+      ORDER BY "Value"
+      """).ToArrayAsync();
+    async Task<string> ReadEvidenceAsync() => System.Text.Json.JsonSerializer.Serialize(new
+    {
+      Headers = await ReadHeadersAsync(),
+      JournalLines = await db.AdjustmentLines.AsNoTracking().OrderBy(x => x.Id).ToArrayAsync(),
+      PlanLines = await db.AdjustmentPlanLines.AsNoTracking().OrderBy(x => x.Id).ToArrayAsync()
+    });
+    async Task<string[]> ReadIndexesAsync() => await db.Database.SqlQueryRaw<string>("""
+      SELECT (tablename || ':' || indexname || ':' || indexdef)::text AS "Value" FROM pg_indexes
+      WHERE tablename IN ('adjustment_journals','adjustment_plans') ORDER BY "Value"
+      """).ToArrayAsync();
+    async Task<string[]> ReadConstraintsAsync() => await db.Database.SqlQueryRaw<string>("""
+      SELECT (conname || ':' || pg_get_constraintdef(oid))::text AS "Value" FROM pg_constraint
+      WHERE contype = 'f' AND conrelid IN ('adjustment_journals'::regclass,'adjustment_plans'::regclass)
+      ORDER BY "Value"
+      """).ToArrayAsync();
+    var retained = await ReadEvidenceAsync();
+    var indexes = await ReadIndexesAsync();
+    var constraints = await ReadConstraintsAsync();
+    var migrator = db.GetService<IMigrator>();
+    await migrator.MigrateAsync(scopedSource);
+    Assert.Equal(scopedSource, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    Assert.Equal(retained, await ReadEvidenceAsync());
+    var upgradedIndexes = await ReadIndexesAsync();
+    Assert.All(indexes, index => Assert.Contains(index, upgradedIndexes));
+    await migrator.MigrateAsync(baseline);
+    Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    Assert.Equal(retained, await ReadEvidenceAsync());
+    Assert.Equal(indexes, await ReadIndexesAsync());
+    Assert.Equal(constraints, await ReadConstraintsAsync());
+    Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO adjustment_journals
+      SELECT (jsonb_populate_record(NULL::adjustment_journals, to_jsonb(j) || jsonb_build_object(
+        'id', {Guid.NewGuid()}, 'base_dataset_id', {foreign.DatasetId}, 'journal_number', 'AJ-INCONSISTENT-HISTORY'))).*
+      FROM adjustment_journals j WHERE j.id = {ownRecords.Draft}
+      """));
+    var inconsistent = await ReadEvidenceAsync();
+    var exception = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => migrator.MigrateAsync(scopedSource));
+    Assert.Equal("23503", exception.SqlState);
+    Assert.Equal("fk_adjustment_journal_source_scope", exception.ConstraintName);
+    Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    Assert.Equal(inconsistent, await ReadEvidenceAsync());
+    Assert.Equal(indexes, await ReadIndexesAsync());
+    Assert.Equal(constraints, await ReadConstraintsAsync());
   }
 
   private sealed record Fixture(Guid FirmId, Guid ClientId, Guid EngagementId, Guid DatasetId,

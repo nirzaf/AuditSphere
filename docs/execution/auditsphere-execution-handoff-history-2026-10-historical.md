@@ -552,3 +552,13 @@ An isolated native Register/Move fixture reproduced a movement referencing anoth
 A focused native registration/link fixture and valid same-firm SQL insertion reproduced foreign procedure/item references and inconsistent retained client/engagement fields. Restrictive full-scope parent references now refuse those inserts while retaining original command authorization and lookup indexes. The same regression passes; clean upgrade/downgrade preserve exact link rows and existing indexes, and inconsistent history refuses upgrade without repair or deletion. Added FK-support indexes receive a bounded owned-schema plan/write review. Wider relational, restricted-role, mutation and custody acceptance remain separate; see [status.json](status.json).
 
 <!-- End of verbatim procedure physical-link scope record. -->
+
+## Ad hoc procedure history scope
+
+Native insertion/edit controls reproduced foreign procedure references in retained insertion and wording-revision history, plus inconsistent insertion client/engagement fields. Scoped parent constraints now refuse those inserts while retaining native authorization, revision wording, original indexes and exact history bytes. The unchanged regression and migration safety checks pass. Inconsistent retained parents refuse upgrade without repair or deletion. Wider lineage, restricted-role, mutation and release acceptance remain separate; see [status.json](status.json).
+
+## Procedure client-evidence scope
+
+Native synthetic received-transfer/link controls reproduced foreign procedure/upload references and mismatched client/engagement/request fields. Exact-scope procedure and request/upload constraints now refuse those inserts. The unchanged regression and migration safety checks pass, retaining received hashes, native command denials, exact link/upload bytes and original indexes. Inconsistent retained history refuses upgrade without repair or deletion. Wider relational, restricted-role, custody and release acceptance remain separate; see [status.json](status.json).
+
+<!-- End of verbatim ad-hoc and client-evidence scope records. -->

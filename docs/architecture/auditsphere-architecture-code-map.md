@@ -118,7 +118,7 @@ account-exact; source acceptance binds sealed sources and bumps generation.
 
 - Application: `Application/Accounting/AdjustmentJournalService.cs`, `AdjustmentPlanService.cs`, `AdjustmentEligibilityQuery.cs`, `AdjustmentPlanWorkspace.cs`, `AdjustmentPlanWorkspace.Commands.cs`, `CurrencyRemeasurementService.cs`
 
-- Persistence: `AuditSphereDbContext.AdjustmentBridge.cs`, `AuditSphereDbContext.AdjustmentPlanActions.cs`; retained native command evidence: `Domain/Accounting/AdjustmentPlanAction.cs`
+- Persistence: `AuditSphereDbContext.Accounting.cs`, `AuditSphereDbContext.AdjustmentBridge.cs`, `AuditSphereDbContext.AdjustmentPlanActions.cs`; retained native command evidence: `Domain/Accounting/AdjustmentPlanAction.cs`. `AdjustmentSourceDatasetScope` binds journal and plan base datasets to the exact firm/client/engagement. Original lookup indexes and retained financial evidence remain; inconsistent source references refuse upgrade without repair or deletion.
 
 - Current Angular workspaces: `src/AuditSphereOps.Ui/src/app/features/accounting/journal.ts`, `journal-management.ts`, and `remeasurement.ts`.
 - Historical Blazor screens (pinned pre-removal source only): `Journals.razor`, `CurrencyRemeasurement.razor`.

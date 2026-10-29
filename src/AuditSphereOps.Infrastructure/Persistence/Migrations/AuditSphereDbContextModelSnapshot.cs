@@ -1584,6 +1584,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ClientId", "PeriodId");
 
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "BaseDatasetId");
+
                     b.HasIndex("FirmId", "EngagementId", "BaseDatasetId", "JournalNumber")
                         .IsUnique();
 
@@ -1872,6 +1874,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("BaseDatasetId");
 
                     b.HasIndex("FirmId", "EngagementId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "BaseDatasetId");
 
                     b.ToTable("adjustment_plans", null, t =>
                         {
@@ -33349,12 +33353,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AdjustmentJournal", b =>
                 {
-                    b.HasOne("AuditSphereOps.Domain.Accounting.TrialBalanceDataset", null)
-                        .WithMany()
-                        .HasForeignKey("BaseDatasetId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "EngagementId")
@@ -33373,6 +33371,14 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "ClientId", "PeriodId")
                         .HasPrincipalKey("FirmId", "ClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.TrialBalanceDataset", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "BaseDatasetId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_adjustment_journal_source_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AdjustmentJournalAction", b =>
@@ -33427,18 +33433,20 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AdjustmentPlan", b =>
                 {
-                    b.HasOne("AuditSphereOps.Domain.Accounting.TrialBalanceDataset", null)
-                        .WithMany()
-                        .HasForeignKey("BaseDatasetId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "EngagementId")
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.TrialBalanceDataset", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "BaseDatasetId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_adjustment_plan_source_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AdjustmentPlanAction", b =>
