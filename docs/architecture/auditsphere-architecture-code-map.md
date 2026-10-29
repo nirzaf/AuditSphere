@@ -708,7 +708,7 @@ Every Angular page inherits these behaviours from `core/`; page code adds only i
 - Application: `Practice/StaffingChangeWorkspace.cs` owns preview, reviewed execution and receipt lookup; `StaffingService.cs` retains rank, certification, grant and session-epoch rules.
 - API: `Ui/UiEndpoints.StaffingChange.cs` exposes CSRF-protected preview/execute and current-authorized receipt reads. Native UI adoption remains pending.
 - Persistence: `AuditSphereDbContext.StaffingChanges.cs` and native staffing review migration enforce retained evidence and deferred assignment linkage.
-- Tests: `StaffingChangeReviewTests.cs` covers concurrent exact replay, immutable receipts, scope, identity and stale context.
+- Tests: `StaffingChangeReviewTests.cs` covers concurrent exact replay, immutable receipts, scope, identity and stale context. `CompletionSchemaInvariantTests.StaffingChangeReceipts_RejectForeignFirmParentsBeforePublication` exercises the existing database publication guard with a same-firm control, both foreign parent references and retained receipt bytes after rollback.
 
 ## Reviewed prospect-to-client conversion
 

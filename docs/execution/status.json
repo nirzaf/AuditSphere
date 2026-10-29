@@ -1149,12 +1149,16 @@
     },
     "technicalStoriesPackageRevocation20261028": {
       "status": "CONTROLLED_ORIGINAL_RED1_CORRECTED_GREEN1_FINAL_GREEN1_SUCCESSOR_GATES_REQUIRED",
-      "base": "b89ce4c31a05b687b8a944efea8605b447847f53",
-      "scope": "Test-only route reload after revocation; original package/review/exact four-format bytes and hashes/persistence/private-clearing/API401/direct DB assertions and timeouts retained. Temporary real-focus/session401 fixture excluded. No runtime/role/grant/API change.",
-      "ci": "b89c full40750303316 attempt2 E2E123117671158 actualcheckoutMATCH:335partialPASS/1Refresh-package-click timeout/0skip then15mininactivityabort, summaryFAILED. TRX12858654265 sha256:ff354951a82bf8cbb8b805dcc40e825e11fc8e93c4051ca3d96d9ef3bc6ef3b5 verified. API123117671057 shutdown143/365partialPASS/noassertFAIL/no summary/TRX; actor/causeunproven.",
-      "verification": "Unchanged original GREEN1; real focus/sessionGET401+Finished/cleared-page fixture original RED1 at same exact missing button, identical corrected GREEN1; fixture removed/final exact source GREEN1. All zero skipped. OwnedPG18.6 ports55081/55252/55378/55526 datadirs/roots/listeners/APIs/DB/connections/processes independently absent, original5433untouched.",
-      "review": ".local/autonomous/evidence/technical-stories-all-20261028/package-revocation-review.json",
-      "limits": "No full local suite/new built-in/live/professional acceptance. Separate siblingCLIENT/native inactivity and runner causes remain unconfirmed; no automatic retry loop."
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.technicalStoriesPackageRevocation20261028"
+    },
+    "wu004StaffingReceiptScope20261029": {
+      "status": "TEST_ONLY_EXISTING_GUARD_GREEN1_RED1_GREEN1_SCOPE_PARTIAL",
+      "base": "015373c24b2e93f75684854fcbe646bb6270d7f8",
+      "scope": "Existing staffing publication guard: valid same-firm receipt control, foreign engagement/assignment refusals SQLSTATE23514, exact retained receipt bytes after rollback.",
+      "verification": "Named method GREEN1/0FAIL/0skip; identical source/assertions with only owned template trigger disabled RED0PASS/1FAIL/0skip (foreign reference accepted/no exception); guard restored GREEN1/0FAIL/0skip. OwnedPG18.6 port59252/root/listener/processes/DBconnections independently absent; original5433 untouched.",
+      "testSourceSha256": "6f0b8a27e632d7fd7489464619515b7706c951c56bb9116292affe767a3c7fdb",
+      "review": ".local/autonomous/evidence/wu004-staffing-scope-20261029/review.json",
+      "limits": "No runtime/migration/permission change or new product defect.48 other catalog links, restricted-role/mutation/upgrade and exact-source full release acceptance remain open."
     }
   },
   "externalGates": [
@@ -1639,13 +1643,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "b89ce4c31a05b687b8a944efea8605b447847f53",
-    "sourceRole": "TEST_ONLY_PACKAGE_REVOCATION_REVALIDATION_AFTER_PUBLISHED_R01_R11",
-    "status": "PENDING_REPAIR_PUBLICATION_EXACT_SUCCESSOR_GATES",
-    "releaseVerification": "b89c full40750303316 attempt2 terminalFAILURE: APIshutdown143/E2E335partialPASS1clickFAIL theninactivity; aggregate refused. One original dispatch/one failed-jobs-only rerun retained. No successor fullPASS.",
-    "imagePublication": "b89c fast/images/actualcheckouts/pins/cache/schema294 restored-copy rehearsal/cleanup/runtime proofs are predecessor-only for this test/doc successor.",
-    "cutoverStatus": "NOT_PERFORMED; exact current gates, genuineD-OV04, freshbaseline/QUIESCEDprivatebackups and publicauthenticatedacceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforePackageRevocation20261028"
+    "sourceBaseCommit": "015373c24b2e93f75684854fcbe646bb6270d7f8",
+    "sourceRole": "TEST_ONLY_EXISTING_STAFFING_RECEIPT_SCOPE_GUARD_COVERAGE",
+    "status": "FOCUSED_PROOF_PASS_PUBLICATION_EXACT_SUCCESSOR_GATES_REQUIRED",
+    "releaseVerification": "Base0153 full40788815332 attempt1 failed: API382partialPASS/shutdown143/no summary or TRX; E2E336partialPASS/0assertFAIL/summaryFAILED/nativeFalseinactivity. Aggregate123221199261 refused; no rerun. Angular1737/Domain1868/Verify passed with exact source and accepted evidence.",
+    "imagePublication": "Base0153 fast/images/current-image rehearsal/schema294/cleanup/runtime proof passed; predecessor-only for this test/docs successor.",
+    "cutoverStatus": "NOT_PERFORMED; exact final gates, genuineD-OV04, fresh baseline/QUIESCEDbackups and public authenticated acceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeWu004StaffingScope20261029"
   },
-  "updatedAtUtc": "2026-10-28T23:35:24.490567+00:00"
+  "updatedAtUtc": "2026-10-29T02:49:09.555024+00:00"
 }

@@ -26118,6 +26118,15 @@
       "imagePublication": "Parentda1b fast/images/all6actualcheckouts/immutablepins/cache/ownedrestoredcopy288to294 sixmigrations380originalprojections/API+UI200/cleanup/runtimeguardPASS retained as predecessor evidence, not successor acceptance.",
       "cutoverStatus": "NOT_PERFORMED; current exact gates, genuineD-OV04, freshbaseline/QUIESCEDprivatebackups and publicauthenticatedacceptance required.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeFeeLabelSelector20261028"
+    },
+    "currentSourceCiBeforeWu004StaffingScope20261029": {
+      "sourceBaseCommit": "b89ce4c31a05b687b8a944efea8605b447847f53",
+      "sourceRole": "TEST_ONLY_PACKAGE_REVOCATION_REVALIDATION_AFTER_PUBLISHED_R01_R11",
+      "status": "PENDING_REPAIR_PUBLICATION_EXACT_SUCCESSOR_GATES",
+      "releaseVerification": "b89c full40750303316 attempt2 terminalFAILURE: APIshutdown143/E2E335partialPASS1clickFAIL theninactivity; aggregate refused. One original dispatch/one failed-jobs-only rerun retained. No successor fullPASS.",
+      "imagePublication": "b89c fast/images/actualcheckouts/pins/cache/schema294 restored-copy rehearsal/cleanup/runtime proofs are predecessor-only for this test/doc successor.",
+      "cutoverStatus": "NOT_PERFORMED; exact current gates, genuineD-OV04, freshbaseline/QUIESCEDprivatebackups and publicauthenticatedacceptance required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforePackageRevocation20261028"
     }
   },
   "archivedTargetedVerification": {
@@ -27508,7 +27517,16 @@
       "trxArtifact": "12843465697 sha256:f51a4f9e746567bd2514c68c288335d9e64b71497f8042acdf01785ca9c743ae verified",
       "verification": "Exact unchanged named method RED1 at oldlabel; identical method with one selector correction GREEN1/0FAIL/0skip. Original assertions/timeouts retained; ownedPG18.6 roots/datadirs/listeners/API/DB/connections/processes independently absent. No full local suite/new built-in claim.",
       "review": ".local/autonomous/evidence/technical-stories-all-20261028/fee-label-selector-review.json"
+    },
+    "technicalStoriesPackageRevocation20261028": {
+      "status": "CONTROLLED_ORIGINAL_RED1_CORRECTED_GREEN1_FINAL_GREEN1_SUCCESSOR_GATES_REQUIRED",
+      "base": "b89ce4c31a05b687b8a944efea8605b447847f53",
+      "scope": "Test-only route reload after revocation; original package/review/exact four-format bytes and hashes/persistence/private-clearing/API401/direct DB assertions and timeouts retained. Temporary real-focus/session401 fixture excluded. No runtime/role/grant/API change.",
+      "ci": "b89c full40750303316 attempt2 E2E123117671158 actualcheckoutMATCH:335partialPASS/1Refresh-package-click timeout/0skip then15mininactivityabort, summaryFAILED. TRX12858654265 sha256:ff354951a82bf8cbb8b805dcc40e825e11fc8e93c4051ca3d96d9ef3bc6ef3b5 verified. API123117671057 shutdown143/365partialPASS/noassertFAIL/no summary/TRX; actor/causeunproven.",
+      "verification": "Unchanged original GREEN1; real focus/sessionGET401+Finished/cleared-page fixture original RED1 at same exact missing button, identical corrected GREEN1; fixture removed/final exact source GREEN1. All zero skipped. OwnedPG18.6 ports55081/55252/55378/55526 datadirs/roots/listeners/APIs/DB/connections/processes independently absent, original5433untouched.",
+      "review": ".local/autonomous/evidence/technical-stories-all-20261028/package-revocation-review.json",
+      "limits": "No full local suite/new built-in/live/professional acceptance. Separate siblingCLIENT/native inactivity and runner causes remain unconfirmed; no automatic retry loop."
     }
   },
-  "lastUpdatedOn": "2026-10-28"
+  "lastUpdatedOn": "2026-10-29"
 }

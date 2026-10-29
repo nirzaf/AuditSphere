@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Text.Json;
 using Npgsql;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
@@ -166,6 +167,79 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       $"accepted cross-firm {accepted.Count}; no fixture row {notProbed.Count}; unexpected refusal {unexpectedRefusals.Count}");
     Assert.True(accepted.Count == 0, "Cross-firm references accepted: " + string.Join(", ", accepted));
     Assert.True(unexpectedRefusals.Count == 0, "Probe blocked before the target FK: " + string.Join("; ", unexpectedRefusals));
+  }
+
+  [Fact]
+  public async Task StaffingChangeReceipts_RejectForeignFirmParentsBeforePublication()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    async Task<(StaffingChange Row, StaffingChangePreview Probe)> AssignAsync(PbcSeed.Fixture fixture)
+    {
+      var actor = PbcSeed.Actor(fixture.Admin, "Administrator");
+      var request = new StaffingChangeRequest(Guid.NewGuid(),
+        new("ASSIGN", fixture.Reviewer.Id, StaffingLevels.StaffAssociate));
+      var preview = await StaffingChangeWorkspace.PreviewAsync(db, actor, fixture.EngagementId, request);
+      Assert.True(preview.Succeeded, preview.Message);
+      var probe = await StaffingChangeWorkspace.PreviewAsync(db, actor, fixture.EngagementId,
+        request with { RequestId = Guid.NewGuid() });
+      Assert.True(probe.Succeeded, probe.Message);
+      var published = await StaffingChangeWorkspace.ExecuteAsync(db, actor, fixture.EngagementId,
+        request with { Reviewed = true, RequestHash = preview.Value!.RequestHash, ReviewBasis = preview.Value.ReviewBasis });
+      Assert.True(published.Succeeded, published.Message);
+      return (await db.StaffingChanges.AsNoTracking().SingleAsync(x => x.Id == published.Value!.Id), probe.Value!);
+    }
+
+    var original = await AssignAsync(own);
+    var other = await AssignAsync(foreign);
+    var before = JsonSerializer.Serialize(await db.StaffingChanges.AsNoTracking().OrderBy(x => x.Id).ToListAsync());
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+    await new NpgsqlCommand("SET CONSTRAINTS ALL IMMEDIATE", connection, transaction).ExecuteNonQueryAsync();
+
+    async Task<int> InsertAsync(Guid engagementId, Guid assignmentId)
+    {
+      await using var command = new NpgsqlCommand("""
+        INSERT INTO staffing_changes
+        SELECT (jsonb_populate_record(NULL::staffing_changes, to_jsonb(c) || jsonb_build_object(
+          'id', @id, 'request_id', @request_id, 'request_hash', @request_hash,
+          'review_basis', @review_basis, 'engagement_id', @engagement_id,
+          'assignment_id', @assignment_id, 'preview_json', @preview_json))).*
+        FROM staffing_changes c WHERE c.id = @source_id
+        """, connection, transaction);
+      command.Parameters.AddWithValue("id", Guid.NewGuid());
+      command.Parameters.AddWithValue("request_id", original.Probe.RequestId);
+      command.Parameters.AddWithValue("request_hash", original.Probe.RequestHash);
+      command.Parameters.AddWithValue("review_basis", original.Probe.ReviewBasis);
+      command.Parameters.AddWithValue("engagement_id", engagementId);
+      command.Parameters.AddWithValue("assignment_id", assignmentId);
+      command.Parameters.AddWithValue("preview_json", JsonSerializer.Serialize(original.Probe with { EngagementId = engagementId }));
+      command.Parameters.AddWithValue("source_id", original.Row.Id);
+      return await command.ExecuteNonQueryAsync();
+    }
+
+    await new NpgsqlCommand("SAVEPOINT staffing_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    Assert.Equal(1, await InsertAsync(own.EngagementId, original.Row.AssignmentId));
+    output.WriteLine("SAME_FIRM_CURRENT_ASSIGNMENT: ACCEPTED rows=1");
+    await new NpgsqlCommand("ROLLBACK TO SAVEPOINT staffing_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    foreach (var (label, engagementId, assignmentId) in new[]
+    {
+      ("FOREIGN_ENGAGEMENT", foreign.EngagementId, original.Row.AssignmentId),
+      ("FOREIGN_ASSIGNMENT", own.EngagementId, other.Row.AssignmentId)
+    })
+    {
+      var exception = await Assert.ThrowsAsync<PostgresException>(() => InsertAsync(engagementId, assignmentId));
+      Assert.Equal("23514", exception.SqlState);
+      Assert.Equal("Staffing change requires exact authorized committed assignment", exception.MessageText);
+      output.WriteLine($"{label}: REFUSED SqlState={exception.SqlState} publication guard");
+      await new NpgsqlCommand("ROLLBACK TO SAVEPOINT staffing_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    }
+    await transaction.RollbackAsync();
+    Assert.Equal(before, JsonSerializer.Serialize(await db.StaffingChanges.AsNoTracking().OrderBy(x => x.Id).ToListAsync()));
   }
 
   private static async Task AssertBudgetReceiptCrossFirmReferenceRefusedAsync(

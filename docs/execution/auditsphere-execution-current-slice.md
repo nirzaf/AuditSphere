@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Staffing receipt scope verification
+
+The existing staffing publication guard now has a focused database test with a valid same-firm control, foreign-firm engagement and assignment refusals, and unchanged retained receipt bytes after rollback. Disabling only that guard in an owned disposable template made the same test detect an accepted foreign reference; restoring it passed both denials. The test and assertions stayed identical across those variants. The isolated PostgreSQL cluster and owned processes were independently closed.
+
+This is additional coverage of an existing guard, with no schema change. The wider relational inventory, restricted-role, append-only mutation and upgrade evidence remain partial. The preceding full regression failed through the already retained runner shutdown and inactivity observations; exact successor CI and qualified release gates remain open. See [status.json](status.json).
+
 ## Financial-package revocation interaction follow-up
 
 The package review/download journey now reloads the protected route after revocation. A periodic or focus-driven session check can correctly remove its controls before a manual refresh click. A controlled real session refusal reproduced the original missing-button timeout; the same fixture and the final change passed with all original package, artifact-byte/hash, review, persistence, data-removal and revoked-request assertions retained. The temporary fixture is excluded from the delivered test. Runtime code, permissions and timeouts are unchanged.
