@@ -11,10 +11,12 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import signal
+import ssl
 import subprocess
 import sys
 import time
 import urllib.request
+import urllib.error
 import uuid
 import zipfile
 
@@ -33,6 +35,34 @@ SPECS = {
     "dotnet.gc.pause.time": ("s / 1 sec", "Rate", set()),
 }
 COUNTERS = "System.Runtime[" + ",".join(SPECS) + "]"
+
+
+class DiagnosticCommandFailure(ValueError):
+    def __init__(self, exit_code):
+        super().__init__("unavailable")
+        self.exit_code = exit_code
+
+
+class PreparationUnavailable(ValueError):
+    def __init__(self, phase, error):
+        super().__init__("unavailable")
+        self.details = {"status": "unavailable", "reason": "preparation_failed", "phase": phase}
+        if isinstance(error, DiagnosticCommandFailure):
+            self.details.update(error_kind="command_exit", command_exit=error.exit_code)
+        elif isinstance(error, urllib.error.HTTPError):
+            self.details.update(error_kind="http_error", http_status=error.code)
+        elif isinstance(error, (subprocess.TimeoutExpired, TimeoutError)):
+            self.details["error_kind"] = "timeout"
+        elif isinstance(error, ssl.SSLError):
+            self.details["error_kind"] = "tls_error"
+        elif isinstance(error, urllib.error.URLError):
+            self.details["error_kind"] = "url_error"
+        elif isinstance(error, FileNotFoundError):
+            self.details["error_kind"] = "required_file_or_command_missing"
+        elif isinstance(error, OSError):
+            self.details["error_kind"] = "io_error"
+        else:
+            self.details["error_kind"] = "validation_or_other"
 
 
 def require(condition):
@@ -98,7 +128,9 @@ def extract_bundle(raw, destination):
 
 def run(args, seconds=3, input_text=None):
     result = subprocess.run(args, input=input_text, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=seconds)
-    require(result.returncode == 0 and len(result.stdout) <= 16384)
+    if result.returncode != 0:
+        raise DiagnosticCommandFailure(result.returncode)
+    require(len(result.stdout) <= 16384)
     return result.stdout.strip()
 
 
@@ -117,27 +149,36 @@ def load(directory):
 
 
 def prepare(directory, builder):
-    directory.mkdir(mode=0o700)
-    builder_id = run(["docker", "inspect", "--format", "{{.Id}}", builder])
-    require(re.fullmatch(r"[a-f0-9]{64}", builder_id) is not None)
-    save(directory, {"owner": uuid.uuid4().hex, "builder_id": builder_id, "stage": -1, "attempt": 0, "observer": None, "observer_id": None, "create_pending": False, "ready": False})
-    started = time.monotonic()
-    with urllib.request.urlopen(PACKAGE_URL, timeout=10) as response:
-        raw = bytearray()
-        while True:
-            block = response.read(65536)
-            if not block:
-                break
-            raw.extend(block)
-            require(len(raw) <= 6689943 and time.monotonic() - started < 20)
-    bundle = directory / "bundle"
-    bundle.mkdir(mode=0o700)
-    extract_bundle(bytes(raw), bundle)
-    # Cache only this public diagnostic runtime; never alter the compiler filesystem.
-    run(["docker", "pull", "--platform", "linux/amd64", OBSERVER_IMAGE], seconds=30)
-    state = load(directory)
-    state["ready"] = True
-    save(directory, state)
+    phase = "builder_identity"
+    try:
+        directory.mkdir(mode=0o700)
+        builder_id = run(["docker", "inspect", "--format", "{{.Id}}", builder])
+        require(re.fullmatch(r"[a-f0-9]{64}", builder_id) is not None)
+        save(directory, {"owner": uuid.uuid4().hex, "builder_id": builder_id, "stage": -1, "attempt": 0, "observer": None, "observer_id": None, "create_pending": False, "ready": False})
+        phase = "tool_download"
+        started = time.monotonic()
+        with urllib.request.urlopen(PACKAGE_URL, timeout=10) as response:
+            raw = bytearray()
+            while True:
+                block = response.read(65536)
+                if not block:
+                    break
+                raw.extend(block)
+                require(len(raw) <= 6689943 and time.monotonic() - started < 20)
+        phase = "tool_bundle"
+        bundle = directory / "bundle"
+        bundle.mkdir(mode=0o700)
+        extract_bundle(bytes(raw), bundle)
+        # Cache only this public diagnostic runtime; never alter the compiler filesystem.
+        phase = "runtime_pull"
+        run(["docker", "pull", "--platform", "linux/amd64", OBSERVER_IMAGE], seconds=30)
+        phase = "preparation_state"
+        state = load(directory)
+        state["ready"] = True
+        save(directory, state)
+    except Exception as error:
+        # Fixed phases and numeric status only; never echo exception messages or tool output.
+        raise PreparationUnavailable(phase, error) from None
     return {"status": "ready", "tool_version": "10.0.750501", "package_sha256": PACKAGE_SHA256, "observer_image": OBSERVER_IMAGE}
 
 
@@ -273,6 +314,9 @@ def main():
         if result is not None:
             print("IMAGE_MANAGED_COUNTERS " + json.dumps(result, separators=(",", ":")))
         return 0
+    except PreparationUnavailable as error:
+        print("IMAGE_MANAGED_COUNTERS " + json.dumps(error.details, separators=(",", ":")))
+        return 1
     except Exception:
         # Never echo paths, provider payloads, process arguments or environment in errors.
         print('IMAGE_MANAGED_COUNTERS {"status":"unavailable","reason":"diagnostic_failed"}')

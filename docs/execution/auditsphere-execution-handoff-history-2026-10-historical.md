@@ -575,3 +575,12 @@ The image-build wrapper preserves the build's exact exit and records bounded hos
 
 
 <!-- End of verbatim image diagnostic records. -->
+
+<!-- Verbatim adjustment-source record moved from current handoff. -->
+
+## Adjustment source scope
+
+Native draft/post/plan controls reproduced journals and plans referencing another firm's dataset or a mismatched client. Exact source-scope constraints now refuse those inserts while retaining command authorization, exact amounts, journal/plan/source evidence and original indexes. The unchanged regression and migration safety checks pass. Inconsistent retained sources refuse upgrade without repair or deletion. Wider accounting methodology, restricted-role, mutation and release acceptance remain separate; see [status.json](status.json).
+
+
+<!-- End of verbatim adjustment-source record. -->

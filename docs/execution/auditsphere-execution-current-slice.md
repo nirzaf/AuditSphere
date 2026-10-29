@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Counter preparation failure reporting
+
+Actual image jobs recorded unavailable counter preparation without identifying its phase. The diagnostic now emits a fixed preparation phase and error kind, with numeric HTTP or command status where available. Exception messages, private paths and raw tool output stay excluded. Existing capture identity, cleanup, tool pins, time bounds and build exits remain unchanged. Focused checks establish reporting and privacy; actual preparation cause and compiler allocation remain unmeasured pending source-bound CI. See [status.json](status.json).
+
 ## Bounded compiler managed counters
 
 The image observer can now collect a small set of managed runtime counters from an existing compiler diagnostic socket using a separate pinned, read-only, network-isolated container. Compiler configuration and files stay untouched. PID/start-tick/socket checks refuse stale or unavailable targets, growth stages cap capture attempts, and output accepts only finite numeric metrics with explicit generation and Rate units. Missing data remains unavailable. Cleanup binds the exact owned container ID and preserves unresolved create identities. Original build output, exit and required gates remain authoritative.
@@ -22,7 +26,7 @@ Owned tiny managed/native fixtures establish transport and filtering, including 
 
 ## Adjustment source scope
 
-Native draft/post/plan controls reproduced journals and plans referencing another firm's dataset or a mismatched client. Exact source-scope constraints now refuse those inserts while retaining command authorization, exact amounts, journal/plan/source evidence and original indexes. The unchanged regression and migration safety checks pass. Inconsistent retained sources refuse upgrade without repair or deletion. Wider accounting methodology, restricted-role, mutation and release acceptance remain separate; see [status.json](status.json).
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#adjustment-source-scope).
 
 ## Ad hoc procedure history scope
 

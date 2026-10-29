@@ -26217,6 +26217,15 @@
       "full": "NOT_DISPATCHED; coherent schema batch and causal diagnostics precede final freeze.",
       "cutover": "NOT_PERFORMED; currentgates/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeAdjustmentSourceScope20261029"
+    },
+    "currentSourceCiBeforeCounterPreparationDiagnosis20261029": {
+      "sourceBaseCommit": "c4d405f385196ba87de521cfe3a6b0af0dbde6e0",
+      "sourceRole": "OPTIONAL_COMPILER_MANAGED_COUNTER_CAPTURE",
+      "status": "FOCUSED_DIAGNOSTIC_CHECKS_EXACT_SUCCESSOR_GATES_REQUIRED",
+      "predecessor": "c4d fast40836743680 FAIL Release shutdown/cause unproven. Images40836743610 FAIL API/worker compiler137/OOM; migrations actualpinPASS/summarySKIPPED. All6actualcheckouts/loghashes retained; no rerun.",
+      "full": "NOT_DISPATCHED; coherent source and causal diagnostics precede final freeze.",
+      "cutover": "NOT_PERFORMED; currentgates/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeManagedCounters20261029"
     }
   },
   "archivedTargetedVerification": {
@@ -27764,6 +27773,15 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.axelorResponsiveFactsBeforeReceiptRace20261026",
       "evidence": ".local/autonomous/evidence/ux-builtin-20261026/release-preparation-b4fe-review.json",
       "remaining": "Its API/E2E remained running at08:11UTC; newer test-only AC39 candidate requires exact-source gates. Not deployed."
+    },
+    "imageManagedCounters20261029": {
+      "status": "FOCUSED_DIAGNOSTIC_CONTRACT_VERIFIED_ACTUAL_COMPILER_CAPTURE_PENDING",
+      "base": "c4d405f385196ba87de521cfe3a6b0af0dbde6e0",
+      "schema": "301_UNCHANGED",
+      "scope": "Optional pinned tool/runtime observer, defaultsocket/PID/starttick guard, four growthstage windows, finite metric/generation/Rate whitelist. Original build argv/output/exit/SDK/limits/gates preserved; no GC/heap/capacity/retry/product policy fix.",
+      "proof": "Owned AMD64 emulated managed/native transport and shipping collector observed5frames; stale identity/defaultsocket/cancel denials preserve target; Python8PASS and wrapper13PASS, zero-fill and ignored-exit counterfactuals detected. First owned shipping capture unavailable retained separately; no inferred cause.",
+      "review": ".local/autonomous/evidence/compiler-managed-memory-20261029/shipping-review.json",
+      "remaining": "Actual source-bound compiler counters; managed/native allocation cause and exact kernel victim unmeasured. Full current-source CI/rehearsal/realDOV04/release acceptance remain open."
     }
   },
   "lastUpdatedOn": "2026-10-29"

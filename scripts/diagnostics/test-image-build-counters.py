@@ -12,6 +12,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import zipfile
+import contextlib
+import urllib.error
 
 source = Path(sys.argv.pop(1)) if len(sys.argv) > 1 else Path(__file__).with_name("image-build-counters.py")
 spec = importlib.util.spec_from_file_location("image_counters", source)
@@ -176,6 +178,39 @@ class CounterTests(unittest.TestCase):
                 counter.remove_observer(directory, state)
             self.assertEqual("auditsphere-counter-" + "a" * 32 + "-1", counter.load(directory)["observer"])
             self.assertTrue(counter.load(directory)["create_pending"])
+
+    def test_preparation_failure_reports_fixed_phase_and_numeric_status_without_private_data(self):
+        cases = [
+            ("builder_identity", counter.DiagnosticCommandFailure(125), None, None, "command_exit", {"command_exit": 125}),
+            ("tool_download", None, urllib.error.HTTPError(PRIVATE, 403, PRIVATE, {}, None), None, "http_error", {"http_status": 403}),
+            ("tool_bundle", None, None, False, "validation_or_other", {}),
+            ("runtime_pull", counter.DiagnosticCommandFailure(125), None, True, "command_exit", {"command_exit": 125}),
+        ]
+        for phase, command_error, download_error, skip_bundle, kind, numeric in cases:
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as root:
+                output = io.StringIO()
+                calls = 0
+
+                def command(_args, **_kwargs):
+                    nonlocal calls
+                    calls += 1
+                    if phase == "builder_identity" or calls == 2:
+                        raise command_error
+                    return BUILDER
+
+                with contextlib.ExitStack() as stack:
+                    stack.enter_context(patch.object(counter, "run", side_effect=command))
+                    stack.enter_context(patch.object(counter.urllib.request, "urlopen", side_effect=download_error) if download_error else patch.object(counter.urllib.request, "urlopen", return_value=io.BytesIO(b"invalid-package")))
+                    if skip_bundle:
+                        stack.enter_context(patch.object(counter, "extract_bundle"))
+                    stack.enter_context(patch.object(counter.signal, "signal"))
+                    stack.enter_context(patch.object(sys, "argv", [str(source), "prepare", str(Path(root) / "owned"), "builder_fixture"]))
+                    stack.enter_context(contextlib.redirect_stdout(output))
+                    code = counter.main()
+                self.assertEqual(1, code)
+                self.assertNotIn(PRIVATE, output.getvalue())
+                expected = {"status": "unavailable", "reason": "preparation_failed", "phase": phase, "error_kind": kind, **numeric}
+                self.assertEqual(expected, json.loads(output.getvalue().removeprefix("IMAGE_MANAGED_COUNTERS ")))
 
 
 if __name__ == "__main__":
