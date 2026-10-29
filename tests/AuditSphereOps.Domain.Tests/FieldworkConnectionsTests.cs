@@ -10,6 +10,8 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -99,6 +101,110 @@ public sealed class FieldworkConnectionsTests
     Assert.Equal(6, split["FY2026"].Split('\n', StringSplitOptions.RemoveEmptyEntries).Length);
     Assert.Throws<InvalidOperationException>(() => MultiPeriodTrialBalanceService.Split(header, [["", "1000", "Cash", "1", "USD", "E1", ""]]));
     Assert.Throws<InvalidOperationException>(() => MultiPeriodTrialBalanceService.ReadTable("tb.xls", [1, 2]));
+  }
+
+  [Fact]
+  public async Task PhysicalMovements_RejectForeignFirmItemsAndPreserveRetainedHistory()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var item = await AuditFieldworkService.RegisterPhysicalItemAsync(db, own.Auditor, own.EngagementId,
+      "SCOPE-1", "Synthetic box", "Synthetic physical scope fixture", "Synthetic origin");
+    var foreignItem = await AuditFieldworkService.RegisterPhysicalItemAsync(db, foreign.Auditor, foreign.EngagementId,
+      "SCOPE-1", "Synthetic box", "Synthetic foreign physical fixture", "Synthetic foreign origin");
+    Assert.True(item.Succeeded, item.Message);
+    Assert.True(foreignItem.Succeeded, foreignItem.Message);
+    var moved = await AuditFieldworkService.MovePhysicalItemAsync(db, own.Auditor, item.Value,
+      "Synthetic archive shelf", "Synthetic scope transfer");
+    Assert.True(moved.Succeeded, moved.Message);
+    var view = (await AuditFieldworkService.PhysicalItemsAsync(db, own.Manager, own.EngagementId)).Single();
+    Assert.Equal(("Synthetic archive shelf", 2), (view.CurrentLocation, view.Movements.Count));
+    var movement = view.Movements.Single(x => x.Reason == "Synthetic scope transfer");
+    async Task<string> ReadHistoryAsync() => await db.Database.SqlQueryRaw<string>("""
+      SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id)::text AS "Value" FROM physical_evidence_movements m
+      """).SingleAsync();
+    var before = await ReadHistoryAsync();
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+    async Task<int> InsertAsync(Guid parent)
+    {
+      await using var command = new NpgsqlCommand("""
+        INSERT INTO physical_evidence_movements
+        SELECT (jsonb_populate_record(NULL::physical_evidence_movements, to_jsonb(m) || jsonb_build_object(
+          'id', @id, 'physical_evidence_item_id', @parent))).*
+        FROM physical_evidence_movements m WHERE m.id = @source_id
+        """, connection, transaction);
+      command.Parameters.AddWithValue("id", Guid.NewGuid());
+      command.Parameters.AddWithValue("parent", parent);
+      command.Parameters.AddWithValue("source_id", movement.Id);
+      return await command.ExecuteNonQueryAsync();
+    }
+    await new NpgsqlCommand("SAVEPOINT physical_parent_probe", connection, transaction).ExecuteNonQueryAsync();
+    Assert.Equal(1, await InsertAsync(item.Value));
+    await new NpgsqlCommand("ROLLBACK TO SAVEPOINT physical_parent_probe", connection, transaction).ExecuteNonQueryAsync();
+    var exception = await Assert.ThrowsAsync<PostgresException>(() => InsertAsync(foreignItem.Value));
+    Assert.Equal("23503", exception.SqlState);
+    Assert.Equal("fk_physical_evidence_movement_item_scope", exception.ConstraintName);
+    await transaction.RollbackAsync();
+    Assert.Equal(before, await ReadHistoryAsync());
+  }
+
+  [Fact]
+  public async Task PhysicalMovementScopeUpgrade_PreservesCleanHistoryAndRefusesInconsistentHistory()
+  {
+    const string baseline = "20261029034738_TechnicalLibraryRetainedMetadata";
+    const string scopedMovement = "20261029040938_PhysicalEvidenceMovementFirmScope";
+    await using var pg = await PgTestSchema.CreateAsync(baseline);
+    var own = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var ownItem = await AuditFieldworkService.RegisterPhysicalItemAsync(db, own.Auditor, own.EngagementId,
+      "UPGRADE-1", "Synthetic box", "Synthetic upgrade fixture", "Synthetic origin");
+    var foreignItem = await AuditFieldworkService.RegisterPhysicalItemAsync(db, foreign.Auditor, foreign.EngagementId,
+      "UPGRADE-1", "Synthetic box", "Synthetic foreign upgrade fixture", "Synthetic foreign origin");
+    Assert.True(ownItem.Succeeded, ownItem.Message);
+    Assert.True(foreignItem.Succeeded, foreignItem.Message);
+    async Task<string> ReadHistoryAsync() => await db.Database.SqlQueryRaw<string>("""
+      SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id)::text AS "Value" FROM physical_evidence_movements m
+      """).SingleAsync();
+    async Task<List<string>> ReadIndexesAsync() => await db.Database.SqlQueryRaw<string>("""
+      SELECT indexname::text AS "Value" FROM pg_indexes
+      WHERE schemaname = 'public' AND tablename = 'physical_evidence_movements' ORDER BY indexname
+      """).ToListAsync();
+    var before = await ReadHistoryAsync();
+    var indexes = await ReadIndexesAsync();
+    var migrator = db.GetService<IMigrator>();
+    await migrator.MigrateAsync(scopedMovement);
+    Assert.Equal(scopedMovement, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    Assert.Equal(before, await ReadHistoryAsync());
+    Assert.Equal(indexes, await ReadIndexesAsync());
+    await migrator.MigrateAsync(baseline);
+    Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    Assert.Equal(before, await ReadHistoryAsync());
+    Assert.Equal(indexes, await ReadIndexesAsync());
+
+    Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO physical_evidence_movements
+      SELECT (jsonb_populate_record(NULL::physical_evidence_movements, to_jsonb(m) || jsonb_build_object(
+        'id', {Guid.NewGuid()}, 'physical_evidence_item_id', {foreignItem.Value}))).*
+      FROM physical_evidence_movements m WHERE m.physical_evidence_item_id = {ownItem.Value}
+      """));
+    var retained = await ReadHistoryAsync();
+    var exception = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(scopedMovement));
+    Assert.Equal("23503", exception.SqlState);
+    Assert.Equal("fk_physical_evidence_movement_item_scope", exception.ConstraintName);
+    Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    Assert.Equal(retained, await ReadHistoryAsync());
+    Assert.Equal(indexes, await ReadIndexesAsync());
+    var constraints = await db.Database.SqlQueryRaw<string>("""
+      SELECT conname::text AS "Value" FROM pg_constraint
+      WHERE conrelid = 'physical_evidence_movements'::regclass AND contype = 'f'
+      """).ToListAsync();
+    Assert.Contains("FK_physical_evidence_movements_physical_evidence_items_physica~", constraints);
+    Assert.DoesNotContain("fk_physical_evidence_movement_item_scope", constraints);
   }
 
   [Fact]

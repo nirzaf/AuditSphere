@@ -728,11 +728,8 @@
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.onboardingSnapshotComposition20261021"
     },
     "timeEntryChanges20261021": {
-      "status": "PASS_FOCUSED_NOT_FULL_RELEASE",
-      "source": "6b72b18d5ee62e0be3183b31f1b712154c48d5a0",
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.timeEntryChanges20261021",
-      "supersededCiHistory": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.timeEntryFullCiBeforeCurrentSource20261021",
-      "currentCi": "targetedVerification.currentSourceCi20261021"
+      "status": "PASS_FOCUSED_NOT_FULL_RELEASE_HISTORY",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.timeEntryChanges20261021"
     },
     "portalFinanceScopeBeforeBound20261021": {
       "status": "PASS_FOCUSED",
@@ -1160,14 +1157,18 @@
       "archive": "status-archive-2026-10.json#archivedTargetedVerification.wu004LibraryVersionFirmScope20261029"
     },
     "wu004LibraryMetadata20261029": {
-      "status": "ORIGINAL_RED1_UNCHANGED_GREEN2_FINAL_UPGRADE_GREEN1_SCOPE_PARTIAL",
-      "base": "4c868ad35f15c8a244689523279a35c8ee53d414",
-      "scope": "Published/superseded version metadata is immutable; only unchanged status or PUBLISHED->SUPERSEDED is allowed. Old guard accepted17 retained metadata/reset mutations.",
-      "verification": "Identical existing lifecycle regression RED1/GREEN1; migration safety GREEN1 and final stronger published-upgrade GREEN1. Draft/published bytes, successful draft-only downgrade and retained-publication downgrade refusal/current function/history checked; zero skips.",
-      "latestMigration": "20261029034738_TechnicalLibraryRetainedMetadata",
-      "cleanup": "OwnedPG18.6 ports60726/60837/60924 exact roots/listeners/controllers/postmasters/connections independently absent; original5433 untouched.",
-      "review": ".local/autonomous/evidence/wu004-library-immutability-20261029/review.json",
-      "limits": "No live mutation or application-role/TRUNCATE claim.47 original catalog links/wider schema and exact-source release acceptance remain open."
+      "status": "PUBLISHED_SCOPE_VERIFIED_HISTORY",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.wu004LibraryMetadata20261029"
+    },
+    "wu004PhysicalMovementScope20261029": {
+      "status": "ORIGINAL_RED1_IDENTICAL_REGRESSION_GREEN1_MIGRATION_GREEN1_SCOPE_PARTIAL",
+      "base": "dce3185c387e07940a2c2a05ddfdfb091dd90115",
+      "scope": "Movement (firm_id,item_id) restrictively references item(firm_id,id); original global FK accepted a foreign-firm item after native Register/Move and same-firm controls passed.",
+      "verification": "Original exact regression RED1/no exception; unchanged method plus clean-upgrade/down/index-preservation and inconsistent-history refusal GREEN2/0FAIL/0skip. APIRelease/EFdrift PASS.",
+      "latestMigration": "20261029040938_PhysicalEvidenceMovementFirmScope",
+      "cleanup": "OwnedPG18.6 ports61195/61398 exactroots/listeners/controllers/postmasters/connections independently absent; original5433 untouched.",
+      "review": ".local/autonomous/evidence/wu004-physical-movement-scope-20261029/review.json",
+      "limits": "No live/custody/restricted-role/TRUNCATE claim.46 ORIGINAL unprobed catalog links/wider schema/release acceptance remain open."
     }
   },
   "externalGates": [
@@ -1652,13 +1653,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "4c868ad35f15c8a244689523279a35c8ee53d414",
-    "sourceRole": "RETAINED_LIBRARY_METADATA_GUARD_AND_SAFE_MIGRATION",
+    "sourceBaseCommit": "dce3185c387e07940a2c2a05ddfdfb091dd90115",
+    "sourceRole": "PHYSICAL_MOVEMENT_FIRM_PARENT_CONSTRAINT",
     "status": "FOCUSED_REPAIR_PASS_EXACT_SUCCESSOR_GATES_REQUIRED",
-    "releaseVerification": "4c868 fast40812526971/images40812526969 PASS all6actualcheckouts/pins. Successor full/images/current frozen schema296 rehearsal required; no full per small slice or retry-until-green. Predecessor recurring shutdown/inactivity cause unresolved.",
-    "imagePublication": "4c868 pins are predecessor-only after this repair; no current cache/rehearsal/receipt.",
-    "cutoverStatus": "NOT_PERFORMED; genuineDOV04, exact gates, fresh baseline/QUIESCEDbackups and public authenticated acceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeLibraryMetadata20261029"
+    "releaseVerification": "dce fast40814914594 PASS/all3actualcheckouts. Images40814914645 terminalFAIL: migration123253615147 csc137/ResourceExhausted/cannot allocate memory; API+worker actualcheckouts/pinsPASS, summarySKIPPED. New distinct resource evidence retained; no rerun/cancel or speculative timeout/source fix.",
+    "imagePublication": "Current successor full/images/frozen schema297 rehearsal required. Predecessor pins do not supply current gates.",
+    "cutoverStatus": "NOT_PERFORMED; genuineDOV04/current gates/fresh bound QUIESCEDbackups/public authenticated acceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforePhysicalMovementScope20261029"
   },
-  "updatedAtUtc": "2026-10-29T03:54:06.511759+00:00"
+  "updatedAtUtc": "2026-10-29T04:20:45.870780+00:00"
 }

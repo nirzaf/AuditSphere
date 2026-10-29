@@ -36980,9 +36980,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("AuditSphereOps.Domain.Audit.PhysicalEvidenceItem", null)
                         .WithMany()
-                        .HasForeignKey("PhysicalEvidenceItemId")
+                        .HasForeignKey("FirmId", "PhysicalEvidenceItemId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_physical_evidence_movement_item_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.PopulationVersion", b =>

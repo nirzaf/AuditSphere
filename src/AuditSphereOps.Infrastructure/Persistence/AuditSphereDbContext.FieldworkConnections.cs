@@ -39,7 +39,10 @@ public sealed partial class AuditSphereDbContext
     b.Entity<PhysicalEvidenceMovement>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.PhysicalEvidenceItemId, x.MovedAt });
-      e.HasOne<PhysicalEvidenceItem>().WithMany().HasForeignKey(x => x.PhysicalEvidenceItemId).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => x.PhysicalEvidenceItemId);
+      e.HasOne<PhysicalEvidenceItem>().WithMany().HasForeignKey(x => new { x.FirmId, x.PhysicalEvidenceItemId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_physical_evidence_movement_item_scope");
       e.ToTable("physical_evidence_movements", t => t.HasCheckConstraint("ck_physical_evidence_movement_values", "length(to_location) > 0 AND length(reason) > 0"));
     });
     b.Entity<ProcedurePhysicalLink>(e =>

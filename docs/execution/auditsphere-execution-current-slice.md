@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Physical movement parent scope
+
+An isolated native Register/Move fixture reproduced a movement referencing another firm's item. The restrictive firm/item reference preserves existing lookup indexes and movement history. Clean upgrade/downgrade and inconsistent-history upgrade refusal have focused checks; no live custody data was changed. Other relational, restricted-role and release acceptance leaves remain open; see [status.json](status.json).
+
 ## Retained library metadata
 
 An isolated native-publication fixture reproduced rewrites of retained version identity, effective date and approval metadata, including a published-to-draft reset. The additive metadata guard freezes non-status fields and permits only unchanged status or `PUBLISHED` → `SUPERSEDED`. Draft and published bytes remain intact across upgrade; draft-only downgrade preserves drafts; retained publications prevent downgrade to the weaker guard. No live data was changed. Wider schema verification and exact-source release gates remain open; see [status.json](status.json).

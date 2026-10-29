@@ -41,6 +41,8 @@ Conditional task applicability uses `workflow_task_applicability_proposals` and 
 
 `technical_library_versions` binds `(firm_id, document_id)` to its document's `(firm_id, id)` through `fk_technical_library_version_document_scope`, configured in `AuditSphereDbContext.FirmOperations.cs`. The additive `TechnicalLibraryVersionFirmScope` migration validates existing references and refuses inconsistent history. It does not repair or delete versions. A failed upgrade must leave retained bytes, the prior migration and its original parent constraint intact; resolving invalid existing references requires an authorized data-review process. The `TechnicalLibraryRetainedMetadata` migration freezes every non-status field once a version is published or superseded. No retained values are rewritten or reconstructed. The guard permits an unchanged row or `PUBLISHED` → `SUPERSEDED`; reverting retained versions to draft is refused. Downgrade refuses to restore the weaker guard while retained publications exist, preserving the current function, migration history and rows.
 
+`physical_evidence_movements` binds `(firm_id, physical_evidence_item_id)` to its item's `(firm_id, id)` through `fk_physical_evidence_movement_item_scope`. `PhysicalEvidenceMovementFirmScope` preserves movement rows and existing child lookup indexes. Inconsistent retained references refuse upgrade; the failed migration must retain the prior constraint and migration history. No movement is repaired or discarded automatically. Application Register/Move authorization and separate custody acceptance remain unchanged.
+
 ## 3. Changing the schema
 
 1. Edit the Domain class and the matching `Configure<Module>` partial only.

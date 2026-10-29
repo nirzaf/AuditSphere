@@ -26145,6 +26145,15 @@
       "imagePublication": "New scoped library migration requires exact current images and frozen-candidate rehearsal;0153 pins/schema294 rehearsal remain predecessor-only.",
       "cutoverStatus": "NOT_PERFORMED; current gates, genuineD-OV04, fresh baseline/QUIESCEDbackups and public authenticated acceptance required.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeLibraryVersionFirmScope20261029"
+    },
+    "currentSourceCiBeforePhysicalMovementScope20261029": {
+      "sourceBaseCommit": "4c868ad35f15c8a244689523279a35c8ee53d414",
+      "sourceRole": "RETAINED_LIBRARY_METADATA_GUARD_AND_SAFE_MIGRATION",
+      "status": "FOCUSED_REPAIR_PASS_EXACT_SUCCESSOR_GATES_REQUIRED",
+      "releaseVerification": "4c868 fast40812526971/images40812526969 PASS all6actualcheckouts/pins. Successor full/images/current frozen schema296 rehearsal required; no full per small slice or retry-until-green. Predecessor recurring shutdown/inactivity cause unresolved.",
+      "imagePublication": "4c868 pins are predecessor-only after this repair; no current cache/rehearsal/receipt.",
+      "cutoverStatus": "NOT_PERFORMED; genuineDOV04, exact gates, fresh baseline/QUIESCEDbackups and public authenticated acceptance required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeLibraryMetadata20261029"
     }
   },
   "archivedTargetedVerification": {
@@ -27563,6 +27572,23 @@
       "cleanup": "OwnedPG18.6 ports59728/59930/60032 exactdatadirs/roots/listeners/controllers/postmasters/connections independently absent; original5433 untouched.",
       "review": ".local/autonomous/evidence/wu004-library-scope-20261029/review.json",
       "limits": "No live migration/history repair.47 other original catalog links and wider scope/immutability/restricted-role/upgrade and exact-source release acceptance remain open."
+    },
+    "wu004LibraryMetadata20261029": {
+      "status": "ORIGINAL_RED1_UNCHANGED_GREEN2_FINAL_UPGRADE_GREEN1_SCOPE_PARTIAL",
+      "base": "4c868ad35f15c8a244689523279a35c8ee53d414",
+      "scope": "Published/superseded version metadata is immutable; only unchanged status or PUBLISHED->SUPERSEDED is allowed. Old guard accepted17 retained metadata/reset mutations.",
+      "verification": "Identical existing lifecycle regression RED1/GREEN1; migration safety GREEN1 and final stronger published-upgrade GREEN1. Draft/published bytes, successful draft-only downgrade and retained-publication downgrade refusal/current function/history checked; zero skips.",
+      "latestMigration": "20261029034738_TechnicalLibraryRetainedMetadata",
+      "cleanup": "OwnedPG18.6 ports60726/60837/60924 exact roots/listeners/controllers/postmasters/connections independently absent; original5433 untouched.",
+      "review": ".local/autonomous/evidence/wu004-library-immutability-20261029/review.json",
+      "limits": "No live mutation or application-role/TRUNCATE claim.47 original catalog links/wider schema and exact-source release acceptance remain open."
+    },
+    "timeEntryChanges20261021": {
+      "status": "PASS_FOCUSED_NOT_FULL_RELEASE",
+      "source": "6b72b18d5ee62e0be3183b31f1b712154c48d5a0",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.timeEntryChanges20261021",
+      "supersededCiHistory": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.timeEntryFullCiBeforeCurrentSource20261021",
+      "currentCi": "targetedVerification.currentSourceCi20261021"
     }
   },
   "lastUpdatedOn": "2026-10-29"
