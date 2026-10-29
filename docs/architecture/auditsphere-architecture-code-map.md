@@ -12,6 +12,10 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 > **Blazor retirement note (2026-10-17):** The legacy Blazor host (`AuditSphereOps.Web`, its `Web/Components/Pages` screens and MudBlazor) was physically retired and merged to `master` as `e7ebe27c`; no `.razor` file remains in the current tree. Every `.razor` or `Web/` entry below is historical lineage preserved only at the pinned pre-removal commit `c3905e07`, not a current UI target or evidence of parity. The canonical presentation is Angular under `src/AuditSphereOps.Ui`, served by `src/AuditSphereOps.Api`.
 
+## Build diagnostics ownership
+
+`scripts/diagnostics/image-build-memory.sh` preserves image build exits while collecting bounded host/cgroup/process samples. `image-build-counters.py` and `image-build-counter-target.sh` own optional pinned runtime-counter observation, exact target validation and owned observer cleanup; their focused adapter/protocol checks run through the existing fast docs job. They do not change compiler or product policy.
+
 ## Current presentation ownership
 
 - **HTTP host and contracts:** `src/AuditSphereOps.Api/` owns authenticated `/api/ui/*` endpoints, session and consent boundaries, protected file transports, health checks, and serving the Angular build. Route ownership is explicit in `src/AuditSphereOps.Api/Ui/AngularRouteOwnership.cs` and the SPA route catalogue.

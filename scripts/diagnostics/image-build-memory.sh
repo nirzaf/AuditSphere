@@ -12,6 +12,8 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 trace_dir=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/auditsphere-image-memory.XXXXXXXX" 2>/dev/null) || trace_dir=''
 trace_file=${trace_dir:+$trace_dir/memory.log}
 sampler_pid=''
+counter_ready=false
+counter_dir=${trace_dir:+$trace_dir/counters}
 
 probe() {
   local label=$1 status
@@ -64,8 +66,18 @@ sample() {
 }
 
 sample_periodically() {
-  local sleeper='' count=0
-  trap 'if [[ -n $sleeper ]]; then kill "$sleeper" 2>/dev/null || :; wait "$sleeper" 2>/dev/null || :; fi; exit 0' TERM INT
+  local sleeper='' counter_pid='' count=0 running
+  stop_sampler() {
+    for running in $(jobs -pr); do
+      if [[ $running == "$sleeper" || $running == "$counter_pid" ]]; then
+        kill "$running" 2>/dev/null || :
+      fi
+    done
+    if [[ -n $sleeper ]]; then wait "$sleeper" 2>/dev/null || :; fi
+    if [[ -n $counter_pid ]]; then wait "$counter_pid" 2>/dev/null || :; fi
+    exit 0
+  }
+  trap stop_sampler TERM INT
   # At most 179 periodic samples, plus start/end, within the existing 45-minute job.
   while [[ $count -lt 179 ]]; do
     sleep 15 &
@@ -73,6 +85,13 @@ sample_periodically() {
     wait "$sleeper" 2>/dev/null || :
     sleeper=''
     sample periodic
+    if [[ $counter_ready == true ]]; then
+      # At most four growth-stage attempts. Capture failure never replaces the build result.
+      python3 "$script_dir/image-build-counters.py" capture "$counter_dir" "$trace_file" >> "$trace_file" 2>/dev/null &
+      counter_pid=$!
+      wait "$counter_pid" 2>/dev/null || :
+      counter_pid=''
+    fi
     count=$((count + 1))
   done
 }
@@ -91,6 +110,9 @@ cleanup() {
   fi
   if [[ -n $trace_dir ]]; then
     sample end
+    if [[ -d $counter_dir ]]; then
+      python3 "$script_dir/image-build-counters.py" cleanup "$counter_dir" >> "$trace_file" 2>/dev/null || :
+    fi
     cat "$trace_file" || :
     rm -f "$trace_file" || :
     rmdir "$trace_dir" 2>/dev/null || :
@@ -105,6 +127,12 @@ if [[ -n $trace_dir ]]; then
   if [[ ! $source_identity =~ ^[a-fA-F0-9]{40,64}$ ]]; then source_identity=unavailable; fi
   printf 'IMAGE_MEMORY_SOURCE sha=%s\n' "$source_identity" > "$trace_file"
   sample start
+  if command -v python3 >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
+    # Preparation is optional and bounded; keep the existing 45-minute build/job limit.
+    if timeout -k 1s 60s python3 "$script_dir/image-build-counters.py" prepare "$counter_dir" "$builder_container" >> "$trace_file" 2>/dev/null; then
+      counter_ready=true
+    fi
+  fi
   sample_periodically &
   sampler_pid=$!
 else

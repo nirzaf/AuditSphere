@@ -562,3 +562,16 @@ Native insertion/edit controls reproduced foreign procedure references in retain
 Native synthetic received-transfer/link controls reproduced foreign procedure/upload references and mismatched client/engagement/request fields. Exact-scope procedure and request/upload constraints now refuse those inserts. The unchanged regression and migration safety checks pass, retaining received hashes, native command denials, exact link/upload bytes and original indexes. Inconsistent retained history refuses upgrade without repair or deletion. Wider relational, restricted-role, custody and release acceptance remain separate; see [status.json](status.json).
 
 <!-- End of verbatim ad-hoc and client-evidence scope records. -->
+
+<!-- Verbatim image diagnostic records moved from current handoff. -->
+
+## Image compiler process diagnostics
+
+The bounded image observer now also reads compiler process identities and whitelisted memory counters. It classifies compiler arguments privately and streams the helper through the existing read-only Docker probe. Owned filesystem fixtures verify missing-counter detection, private-argument rejection, empty/invalid data, bounded output and unchanged build exits. Actual source-bound CI captures a long-lived compiler with dominant resident/anonymous memory before the migration image OOM failure. The separate Release runner shutdown cause remains unproven. Anonymous/file RSS does not establish managed/native heap composition or exact kernel victim identity; no capacity, GC, retry, timeout or product policy changed. See [status.json](status.json).
+
+## Image-build memory diagnostics
+
+The image-build wrapper preserves the build's exact exit and records bounded host, cgroup and BuildKit evidence. Actual migration-build samples now record memory pressure, an OOM event and Docker's OOMKilled flag alongside the compiler failure. Exact victim and managed/native allocation composition remain unmeasured; no heap, capacity, retry or timeout policy changed. Older runner shutdown/inactivity causes remain separate and unconfirmed; see [status.json](status.json).
+
+
+<!-- End of verbatim image diagnostic records. -->

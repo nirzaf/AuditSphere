@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Bounded compiler managed counters
+
+The image observer can now collect a small set of managed runtime counters from an existing compiler diagnostic socket using a separate pinned, read-only, network-isolated container. Compiler configuration and files stay untouched. PID/start-tick/socket checks refuse stale or unavailable targets, growth stages cap capture attempts, and output accepts only finite numeric metrics with explicit generation and Rate units. Missing data remains unavailable. Cleanup binds the exact owned container ID and preserves unresolved create identities. Original build output, exit and required gates remain authoritative.
+
+Owned tiny managed/native fixtures establish transport and filtering, including emulated AMD64, cancellation and missing-socket refusal. The first shipping-prototype unavailable capture remains retained separately. Actual source-bound compiler counter evidence is pending; no heap, GC, capacity, timeout or retry policy fix is claimed. Older runner shutdown/inactivity causes and whole-application acceptance remain separate; see [status.json](status.json).
+
 ## Adjustment source scope
 
 Native draft/post/plan controls reproduced journals and plans referencing another firm's dataset or a mismatched client. Exact source-scope constraints now refuse those inserts while retaining command authorization, exact amounts, journal/plan/source evidence and original indexes. The unchanged regression and migration safety checks pass. Inconsistent retained sources refuse upgrade without repair or deletion. Wider accounting methodology, restricted-role, mutation and release acceptance remain separate; see [status.json](status.json).
@@ -28,7 +34,7 @@ Focused evidence and its limits moved verbatim to the [historical handoff](audit
 
 ## Image compiler process diagnostics
 
-The bounded image observer now also reads compiler process identities and whitelisted memory counters. It classifies compiler arguments privately and streams the helper through the existing read-only Docker probe. Owned filesystem fixtures verify missing-counter detection, private-argument rejection, empty/invalid data, bounded output and unchanged build exits. Actual source-bound CI captures a long-lived compiler with dominant resident/anonymous memory before the migration image OOM failure. The separate Release runner shutdown cause remains unproven. Anonymous/file RSS does not establish managed/native heap composition or exact kernel victim identity; no capacity, GC, retry, timeout or product policy changed. See [status.json](status.json).
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#image-compiler-process-diagnostics).
 
 ## Procedure physical-link parent scope
 
@@ -36,7 +42,7 @@ Focused evidence and its limits moved verbatim to the [historical handoff](audit
 
 ## Image-build memory diagnostics
 
-The image-build wrapper preserves the build's exact exit and records bounded host, cgroup and BuildKit evidence. Actual migration-build samples now record memory pressure, an OOM event and Docker's OOMKilled flag alongside the compiler failure. Exact victim and managed/native allocation composition remain unmeasured; no heap, capacity, retry or timeout policy changed. Older runner shutdown/inactivity causes remain separate and unconfirmed; see [status.json](status.json).
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#image-build-memory-diagnostics).
 
 ## Physical movement parent scope
 

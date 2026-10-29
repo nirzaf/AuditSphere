@@ -492,13 +492,8 @@
       "remaining": "Historical focused evidence only; parent/current-source acceptance remains open."
     },
     "crmAuthorityAndFocus20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "codeCommits": {
-        "authority": "02412412d57daa0007b1ff581b683e311c4d17e5",
-        "ui": "8c1b785252df80158ef0c8f388e3b4263496bd2c"
-      },
-      "archive": "status-archive-2026-10.json#crmAuthorityAndFocusBeforeCoreCrmFences20261019",
-      "limits": "Historical focused opportunity/CRM keyboard evidence. Core writer follow-up is in crmCorePublicationFences20261019; full workflow, human AT and release acceptance remain open."
+      "status": "ARCHIVED_SCOPED_EVIDENCE",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.crmAuthorityAndFocus20261019"
     },
     "crmCorePublicationFences20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
@@ -554,15 +549,8 @@
       "jsonPath": "keys.targetedVerification.workflowHistory20261020.workflowReminderRules20261020"
     },
     "hostingerAcceptanceImages20261020": {
-      "run": "39409873538",
-      "sourceCommit": "9941a9352531299940ca9fb84ff9b91ef3acd399",
-      "result": "PASS",
-      "images": [
-        "migrations",
-        "worker",
-        "API"
-      ],
-      "deployment": "NOT_RUN"
+      "status": "PUBLISHED_FOCUSED_HISTORY_ACCEPTANCE_OPEN",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.hostingerAcceptanceImages20261020"
     },
     "workflowReminderScheduleBound20261020": {
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261020.workflowReminderScheduleBound20261020",
@@ -932,11 +920,8 @@
       "scope": "Separate source-read deadline and dependent Operations eligibility capture; original authorization/recovery assertions retained. Full historical patch/results preserved verbatim."
     },
     "axelorResponsiveFacts20261026": {
-      "status": "PRECEDING_SOURCE_RUNTIME_BROWSER_AND_PARTIAL_RELEASE_GATES_PASSED",
-      "source": "b4fe8cf29533d50139724c3c51e8f58ebafc9be9",
-      "history": "status-archive-2026-10.json#archivedTargetedVerification.axelorResponsiveFactsBeforeReceiptRace20261026",
-      "evidence": ".local/autonomous/evidence/ux-builtin-20261026/release-preparation-b4fe-review.json",
-      "remaining": "Its API/E2E remained running at08:11UTC; newer test-only AC39 candidate requires exact-source gates. Not deployed."
+      "status": "ARCHIVED_SCOPED_EVIDENCE",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.axelorResponsiveFacts20261026"
     },
     "axelorReceiptRace20261026": {
       "status": "PRECEDING63C9_LOCAL_AND_DOMAIN_AC39_PASS_NOT_NEW_RELEASE_ACCEPTANCE",
@@ -1177,14 +1162,17 @@
       "archive": "status-archive-2026-10.json#archivedTargetedVerification.wu004AdHocProcedureHistoryScope20261029"
     },
     "wu004AdjustmentSourceDatasetScope20261029": {
-      "status": "FOCUSED_SCOPE_VERIFIED_ACCEPTANCE_OPEN",
-      "base": "052d852701945db6feefa64a15ccd2d68a05c7a1",
-      "schema": "301:20261029072350_AdjustmentSourceDatasetScope",
-      "proof": "Identical native10/5 draft/post/plan and100/-100 source regression RED1/GREEN1 within GREEN2.300->301->300 preserves exact headers/lines/source/indexes/constraints; inconsistent retainedsource refuses23503 with allpriorhistory intact.",
-      "scope": "Full journal/plan sourceFKs; original unique/lookupindexes retained. No amounts/formulas/commands/roles/API/timeouts/retries or prior migrations changed.",
-      "indexReview": "Owned EF/20firms/20040journals/20020plans; sourceFKlookup buffers93/46->3/3, nativeplanpointlookup unchanged;1000headerrollbackwrite/WAL measured. No productionthreshold.",
-      "review": ".local/autonomous/evidence/wu004-adjustment-source-scope-20261029/review.json",
-      "remaining": "38 original unprobed catalog links; methodology/restricted-role/mutation/upgrade/professional leaves separate, no full rescan."
+      "status": "PUBLISHED_FOCUSED_HISTORY_ACCEPTANCE_OPEN",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.wu004AdjustmentSourceDatasetScope20261029"
+    },
+    "imageManagedCounters20261029": {
+      "status": "FOCUSED_DIAGNOSTIC_CONTRACT_VERIFIED_ACTUAL_COMPILER_CAPTURE_PENDING",
+      "base": "c4d405f385196ba87de521cfe3a6b0af0dbde6e0",
+      "schema": "301_UNCHANGED",
+      "scope": "Optional pinned tool/runtime observer, defaultsocket/PID/starttick guard, four growthstage windows, finite metric/generation/Rate whitelist. Original build argv/output/exit/SDK/limits/gates preserved; no GC/heap/capacity/retry/product policy fix.",
+      "proof": "Owned AMD64 emulated managed/native transport and shipping collector observed5frames; stale identity/defaultsocket/cancel denials preserve target; Python8PASS and wrapper13PASS, zero-fill and ignored-exit counterfactuals detected. First owned shipping capture unavailable retained separately; no inferred cause.",
+      "review": ".local/autonomous/evidence/compiler-managed-memory-20261029/shipping-review.json",
+      "remaining": "Actual source-bound compiler counters; managed/native allocation cause and exact kernel victim unmeasured. Full current-source CI/rehearsal/realDOV04/release acceptance remain open."
     }
   },
   "externalGates": [
@@ -1669,13 +1657,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "052d852701945db6feefa64a15ccd2d68a05c7a1",
-    "sourceRole": "ADJUSTMENT_SOURCE_DATASET_SCOPE_REPAIR",
-    "status": "FOCUSED_GREEN2_EXACT_SUCCESSOR_GATES_REQUIRED",
-    "predecessor": "052d fast40833471272 FAIL Release shutdown/cause unproven. Images40833471305 FAIL worker/migration compiler137/OOM; API actualpinPASS/summarySKIPPED. No rerun.",
-    "full": "NOT_DISPATCHED; coherent schema batch and causal diagnostics precede final freeze.",
+    "sourceBaseCommit": "c4d405f385196ba87de521cfe3a6b0af0dbde6e0",
+    "sourceRole": "OPTIONAL_COMPILER_MANAGED_COUNTER_CAPTURE",
+    "status": "FOCUSED_DIAGNOSTIC_CHECKS_EXACT_SUCCESSOR_GATES_REQUIRED",
+    "predecessor": "c4d fast40836743680 FAIL Release shutdown/cause unproven. Images40836743610 FAIL API/worker compiler137/OOM; migrations actualpinPASS/summarySKIPPED. All6actualcheckouts/loghashes retained; no rerun.",
+    "full": "NOT_DISPATCHED; coherent source and causal diagnostics precede final freeze.",
     "cutover": "NOT_PERFORMED; currentgates/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeAdjustmentSourceScope20261029"
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeManagedCounters20261029"
   },
-  "updatedAtUtc": "2026-10-29T07:34:26.051261+00:00"
+  "updatedAtUtc": "2026-10-29T08:42:11.951213+00:00"
 }

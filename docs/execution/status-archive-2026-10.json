@@ -26208,6 +26208,15 @@
       "full": "NOT_DISPATCHED; coherent schema batch and causal diagnostics precede final freeze.",
       "cutover": "NOT_PERFORMED; current gates/realDOV04/fresh bound backups/receipt/public authenticated acceptance required.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeAdHocProcedureHistoryScope20261029"
+    },
+    "currentSourceCiBeforeManagedCounters20261029": {
+      "sourceBaseCommit": "052d852701945db6feefa64a15ccd2d68a05c7a1",
+      "sourceRole": "ADJUSTMENT_SOURCE_DATASET_SCOPE_REPAIR",
+      "status": "FOCUSED_GREEN2_EXACT_SUCCESSOR_GATES_REQUIRED",
+      "predecessor": "052d fast40833471272 FAIL Release shutdown/cause unproven. Images40833471305 FAIL worker/migration compiler137/OOM; API actualpinPASS/summarySKIPPED. No rerun.",
+      "full": "NOT_DISPATCHED; coherent schema batch and causal diagnostics precede final freeze.",
+      "cutover": "NOT_PERFORMED; currentgates/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeAdjustmentSourceScope20261029"
     }
   },
   "archivedTargetedVerification": {
@@ -27718,6 +27727,43 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.currentAccountProfileBeforeProgressAuthorizationFix20261026",
       "scope": "Top-right persisted account identity/profile and Microsoft-managed profile link; sessionloss clearing verified. Responsive rawCDP request refused; no workaround or external profile changes.",
       "evidence": ".local/autonomous/evidence/user-account-profile-20261026/review.json"
+    },
+    "wu004AdjustmentSourceDatasetScope20261029": {
+      "status": "FOCUSED_SCOPE_VERIFIED_ACCEPTANCE_OPEN",
+      "base": "052d852701945db6feefa64a15ccd2d68a05c7a1",
+      "schema": "301:20261029072350_AdjustmentSourceDatasetScope",
+      "proof": "Identical native10/5 draft/post/plan and100/-100 source regression RED1/GREEN1 within GREEN2.300->301->300 preserves exact headers/lines/source/indexes/constraints; inconsistent retainedsource refuses23503 with allpriorhistory intact.",
+      "scope": "Full journal/plan sourceFKs; original unique/lookupindexes retained. No amounts/formulas/commands/roles/API/timeouts/retries or prior migrations changed.",
+      "indexReview": "Owned EF/20firms/20040journals/20020plans; sourceFKlookup buffers93/46->3/3, nativeplanpointlookup unchanged;1000headerrollbackwrite/WAL measured. No productionthreshold.",
+      "review": ".local/autonomous/evidence/wu004-adjustment-source-scope-20261029/review.json",
+      "remaining": "38 original unprobed catalog links; methodology/restricted-role/mutation/upgrade/professional leaves separate, no full rescan."
+    },
+    "hostingerAcceptanceImages20261020": {
+      "run": "39409873538",
+      "sourceCommit": "9941a9352531299940ca9fb84ff9b91ef3acd399",
+      "result": "PASS",
+      "images": [
+        "migrations",
+        "worker",
+        "API"
+      ],
+      "deployment": "NOT_RUN"
+    },
+    "crmAuthorityAndFocus20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommits": {
+        "authority": "02412412d57daa0007b1ff581b683e311c4d17e5",
+        "ui": "8c1b785252df80158ef0c8f388e3b4263496bd2c"
+      },
+      "archive": "status-archive-2026-10.json#crmAuthorityAndFocusBeforeCoreCrmFences20261019",
+      "limits": "Historical focused opportunity/CRM keyboard evidence. Core writer follow-up is in crmCorePublicationFences20261019; full workflow, human AT and release acceptance remain open."
+    },
+    "axelorResponsiveFacts20261026": {
+      "status": "PRECEDING_SOURCE_RUNTIME_BROWSER_AND_PARTIAL_RELEASE_GATES_PASSED",
+      "source": "b4fe8cf29533d50139724c3c51e8f58ebafc9be9",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.axelorResponsiveFactsBeforeReceiptRace20261026",
+      "evidence": ".local/autonomous/evidence/ux-builtin-20261026/release-preparation-b4fe-review.json",
+      "remaining": "Its API/E2E remained running at08:11UTC; newer test-only AC39 candidate requires exact-source gates. Not deployed."
     }
   },
   "lastUpdatedOn": "2026-10-29"

@@ -18,6 +18,8 @@ on:
       - 'infra/docker/migrations.Dockerfile'
       - 'scripts/diagnostics/image-build-memory.sh'
       - 'scripts/diagnostics/image-build-process-memory.sh'
+      - 'scripts/diagnostics/image-build-counters.py'
+      - 'scripts/diagnostics/image-build-counter-target.sh'
       - 'docs/task_breakdown/tracking/pack_manifest.json'
       - 'docs/task_breakdown/tasks/**'
       - '.dockerignore'

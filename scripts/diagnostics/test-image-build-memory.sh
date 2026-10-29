@@ -8,7 +8,10 @@ trap 'rm -rf "$fixture"' EXIT
 mkdir "$fixture/bin" "$fixture/temp"
 cat > "$fixture/bin/timeout" <<'SH'
 #!/usr/bin/env bash
-[[ $1 == -k && $2 == 1s && $3 == 3s ]] || exit 91
+[[ $1 == -k && $2 == 1s ]] || exit 91
+if [[ $3 != 3s ]]; then
+  [[ $3 == 60s && ${4:-} == python3 && ${5##*/} == image-build-counters.py && ${6:-} == prepare ]] || exit 91
+fi
 shift 3
 exec "$@"
 SH
@@ -111,3 +114,48 @@ if grep -q 'not-a-number\|not-for-telemetry\|private-command-argument-not-for-te
   echo 'FAIL process-parser: untrusted field or arguments disclosed'; exit 1
 fi
 echo 'PASS process-parser-invalid-fields-not-emitted'
+
+# Keep all earlier cases intact; exercise owning-sampler cancellation with optional capture active.
+cp "$DIAGNOSTIC_PROC_FIXTURE/102/stat" "$DIAGNOSTIC_PROC_FIXTURE/101/stat"
+cp "$DIAGNOSTIC_PROC_FIXTURE/102/status" "$DIAGNOSTIC_PROC_FIXTURE/101/status"
+export RUNNER_TEMP="$fixture/temp"
+export COUNTER_CHILD_RECORD="$fixture/counter-child"
+cat > "$fixture/bin/python3" <<'SH'
+#!/usr/bin/env bash
+case ${2:-} in
+  prepare) mkdir "$3"; printf 'IMAGE_MANAGED_COUNTERS {"status":"ready_fixture"}\n' ;;
+  capture)
+    if [[ ${COUNTER_FAKE_FAILURE:-0} == 1 ]]; then
+      printf 'IMAGE_MANAGED_COUNTERS {"status":"unavailable","reason":"fixture_failed"}\n'; exit 1
+    fi
+    sleep 20 &
+    child=$!
+    printf '%s\n' "$child" > "$COUNTER_CHILD_RECORD"
+    trap 'kill "$child" 2>/dev/null || :; wait "$child" 2>/dev/null || :; echo COUNTER_FIXTURE_CLEANED; exit 0' TERM INT
+    wait "$child" ;;
+  cleanup) rmdir "$3"; printf 'IMAGE_MANAGED_COUNTERS {"status":"cleaned_fixture"}\n' ;;
+  *) exit 93 ;;
+esac
+SH
+cat > "$fixture/bin/sleep" <<'SH'
+#!/usr/bin/env bash
+if [[ $1 == 15 ]]; then exec /bin/sleep 0.01; fi
+exec /bin/sleep "$@"
+SH
+cat > "$fixture/timed-build" <<'SH'
+#!/usr/bin/env bash
+printf 'invoked\n' >> "$BUILD_CALLS"
+printf 'BUILD_STDOUT_PRESERVED\n'
+printf 'BUILD_STDERR_PRESERVED\n' >&2
+sleep 0.5
+exit "$1"
+SH
+chmod +x "$fixture/bin/python3" "$fixture/bin/sleep" "$fixture/timed-build"
+for status in 0 102 137; do
+  assert_case "$status" "active-counter-owned-cleanup-$status" "$fixture/timed-build" "$status"
+  grep -q COUNTER_FIXTURE_CLEANED "$fixture/output" || { echo 'FAIL active counter cleanup not observed'; exit 1; }
+  if kill -0 "$(cat "$COUNTER_CHILD_RECORD")" 2>/dev/null; then echo 'FAIL owned counter child remains'; exit 1; fi
+done
+export COUNTER_FAKE_FAILURE=1
+assert_case 102 optional-counter-failure-does-not-mask-build "$fixture/timed-build" 102
+grep -q '"status":"unavailable","reason":"fixture_failed"' "$fixture/output"
