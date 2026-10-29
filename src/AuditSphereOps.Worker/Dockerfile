@@ -15,7 +15,7 @@ COPY src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj src/
 COPY src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj src/AuditSphereOps.Worker/
 RUN dotnet restore src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj --locked-mode
 COPY src/ src/
-RUN dotnet publish src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj \
+RUN DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet publish src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj \
   --configuration Release --no-restore -m:1 -p:BuildInParallel=false \
   -p:UseSharedCompilation=false -o /out \
   && test -f /out/AuditSphereOps.Worker.dll

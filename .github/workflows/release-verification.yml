@@ -285,7 +285,10 @@ jobs:
           --health-interval 10s
           --health-timeout 30s
           --health-retries 10
+    # Bound Roslyn and test-host GC memory while compiling the large EF migration model.
     env:
+      DOTNET_gcServer: '0'
+      DOTNET_GCConserveMemory: '9'
       AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5432;Database=auditsphere_tests;Username=postgres;Password=postgres;Pooling=false
       TEST_PROJECT: ${{ matrix.project }}
       TEST_PROJECT_KEY: ${{ matrix.key }}
@@ -411,6 +414,10 @@ jobs:
     needs: [resolve-ref, angular]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    # Keep Roslyn within the runner memory limit while compiling the migration-heavy projects.
+    env:
+      DOTNET_gcServer: '0'
+      DOTNET_GCConserveMemory: '9'
     defaults:
       run:
         shell: bash

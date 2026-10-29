@@ -77,6 +77,10 @@ jobs:
     name: Build · .NET Release
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # Roslyn defaults to server GC; keep the migration-heavy compile within the runner memory limit.
+    env:
+      DOTNET_gcServer: '0'
+      DOTNET_GCConserveMemory: '9'
     defaults:
       run:
         shell: bash

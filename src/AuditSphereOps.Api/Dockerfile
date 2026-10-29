@@ -30,7 +30,7 @@ COPY src/ src/
 # Finish the Angular build before the memory-intensive .NET compile starts.
 COPY --from=ui /ui/dist/auditsphere-ui/browser/ /ui-assets/
 # The Angular asset set is copied from the ui stage; publishing is backend-only here.
-RUN dotnet publish src/AuditSphereOps.Api/AuditSphereOps.Api.csproj \
+RUN DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet publish src/AuditSphereOps.Api/AuditSphereOps.Api.csproj \
   --configuration Release --no-restore -m:1 -p:BuildInParallel=false \
   -p:UseSharedCompilation=false -p:PublishAngularUi=false -o /out \
   && test -f /out/AuditSphereOps.Api.dll
