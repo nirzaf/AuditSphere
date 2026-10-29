@@ -45,6 +45,8 @@ Conditional task applicability uses `workflow_task_applicability_proposals` and 
 
 `procedure_physical_links` binds both its procedure and physical item using `(firm_id, client_id, engagement_id, parent_id)`. `ProcedurePhysicalLinkScope` adds restrictive parent references and the physical item's matching alternate key, retaining original lookup indexes and link rows. Native Link authorization still requires both parents in the actor's firm and the same engagement. A failed upgrade preserves inconsistent retained rows, the original constraints and migration history; it never repairs history automatically. Clean downgrade preserves link bytes and restores the earlier constraints. Database scope checks do not establish professional custody acceptance.
 
+`procedure_evidence_links` binds its procedure through `(firm_id, client_id, engagement_id, procedure_id)` and its received upload through `(firm_id, client_id, engagement_id, pbc_request_id, pbc_upload_intent_id)`. `ProcedureEvidenceLinkScope` adds restrictive parent references and the upload's matching alternate key. Original parent and child lookup indexes, retained link/upload rows and native command authorization remain. Clean upgrade/downgrade preserve exact rows and original indexes; an inconsistent retained request/upload reference refuses upgrade atomically, retaining prior constraints and migration history. No history is repaired or discarded. These scope constraints do not establish file authenticity or provider/professional acceptance.
+
 ## 3. Changing the schema
 
 1. Edit the Domain class and the matching `Configure<Module>` partial only.

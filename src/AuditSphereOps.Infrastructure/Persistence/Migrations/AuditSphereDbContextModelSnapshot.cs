@@ -17918,6 +17918,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "ProcedureId", "PbcUploadIntentId")
                         .IsUnique();
 
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ProcedureId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcRequestId", "PbcUploadIntentId");
+
                     b.ToTable("procedure_evidence_links", null, t =>
                         {
                             t.HasCheckConstraint("ck_procedure_evidence_link_values", "length(content_sha256) = 64");
@@ -22069,7 +22073,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "PbcRequestId", "CreatedAt");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcRequestId");
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcRequestId")
+                        .HasDatabaseName("IX_pbc_upload_intents_firm_id_client_id_engagement_id_pbc_requ~");
 
                     b.ToTable("pbc_upload_intents", null, t =>
                         {
@@ -37010,17 +37015,21 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.ProcedureEvidenceLink", b =>
                 {
-                    b.HasOne("AuditSphereOps.Domain.Documents.PbcUploadIntent", null)
-                        .WithMany()
-                        .HasForeignKey("PbcUploadIntentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedure", null)
                         .WithMany()
-                        .HasForeignKey("ProcedureId")
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ProcedureId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_procedure_evidence_link_procedure_scope");
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcUploadIntent", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcRequestId", "PbcUploadIntentId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "PbcRequestId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_procedure_evidence_link_upload_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.ProcedurePhysicalLink", b =>

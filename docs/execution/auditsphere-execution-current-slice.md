@@ -14,9 +14,13 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Procedure client-evidence scope
+
+Native synthetic received-transfer/link controls reproduced foreign procedure/upload references and mismatched client/engagement/request fields. Exact-scope procedure and request/upload constraints now refuse those inserts. The unchanged regression and migration safety checks pass, retaining received hashes, native command denials, exact link/upload bytes and original indexes. Inconsistent retained history refuses upgrade without repair or deletion. Wider relational, restricted-role, custody and release acceptance remain separate; see [status.json](status.json).
+
 ## Image compiler process diagnostics
 
-The bounded image observer now also reads compiler process identities and whitelisted memory counters. It classifies compiler arguments privately and streams the helper through the existing read-only Docker probe. Owned filesystem fixtures verify missing-counter detection, private-argument rejection, empty/invalid data, bounded output and unchanged build exits. Actual Linux capture remains pending. Anonymous/file RSS does not establish managed/native heap composition or exact kernel victim identity; no capacity, GC, retry, timeout or product policy changed. See [status.json](status.json).
+The bounded image observer now also reads compiler process identities and whitelisted memory counters. It classifies compiler arguments privately and streams the helper through the existing read-only Docker probe. Owned filesystem fixtures verify missing-counter detection, private-argument rejection, empty/invalid data, bounded output and unchanged build exits. Actual source-bound CI captures a long-lived compiler with dominant resident/anonymous memory before the migration image OOM failure. The separate Release runner shutdown cause remains unproven. Anonymous/file RSS does not establish managed/native heap composition or exact kernel victim identity; no capacity, GC, retry, timeout or product policy changed. See [status.json](status.json).
 
 ## Procedure physical-link parent scope
 
@@ -28,7 +32,7 @@ The image-build wrapper preserves the build's exact exit and records bounded hos
 
 ## Physical movement parent scope
 
-An isolated native Register/Move fixture reproduced a movement referencing another firm's item. The restrictive firm/item reference preserves existing lookup indexes and movement history. Clean upgrade/downgrade and inconsistent-history upgrade refusal have focused checks; no live custody data was changed. Other relational, restricted-role and release acceptance leaves remain open; see [status.json](status.json).
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#physical-movement-parent-scope).
 
 ## Retained library metadata
 

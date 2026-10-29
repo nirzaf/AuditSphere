@@ -886,11 +886,8 @@
       "history": "status-archive-2026-10.json#keys.targetedVerification.findingReceiptRefresh20261025"
     },
     "wu024DeploymentBindings20261025": {
-      "sourceCommit": "02d8b914b780c7c99d672e6024c874cba70c30e0",
-      "status": "PARTIAL_STATIC_BINDINGS_PASS_EXTERNAL_ACCEPTANCE_OPEN",
-      "evidence": ".local/autonomous/evidence/wu024-deployment-bindings-20261025/review.json",
-      "verification": "All-profile synthetic Compose render: 9 services, 6 volumes, no services started. Test/Export envelopes valid INCOMPLETE_EVIDENCE; 25 PASS, 1 outbound-host-policy MISSING, 0 FAIL. Offline script assertions 32/32 PASS.",
-      "remaining": "Runtime environment/mounts, schema, readiness, approved egress policy, rollback and live acceptance remain unobserved."
+      "status": "PUBLISHED_SCOPED_EVIDENCE_HISTORY",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.wu024DeploymentBindings20261025"
     },
     "narrativeMetricsFastCiRepair20261025": {
       "status": "ARCHIVED_HISTORY",
@@ -1170,12 +1167,18 @@
       "archive": "status-archive-2026-10.json#archivedTargetedVerification.wu004ProcedurePhysicalLinkScope20261029"
     },
     "imageProcessMemoryDiagnostics20261029": {
-      "status": "LOCAL_CONTRACT_PASS_ACTUAL_LINUX_PROCESS_CAPTURE_PENDING",
-      "base": "2425e4028f7b202b4122b28c8e50e1ad33c6fa27",
-      "scope": "Bounded whitelist PID/starttick/kind/status/smaps counters through existing readonly Docker probe; private compiler classification, no argv/env/raw process commandline/heap dump. Original build argv/exit/limits retained.",
-      "verification": "Same filesystem-parser/stdin-adapter harness GREEN9; omitRSS RED1; privateargv leak RED1 at earlier shared-sentinel privacy check; restored GREEN9. Empty/invalid/cap8 and original exit/privacy/cleanup cases retained.",
-      "review": ".local/autonomous/evidence/image-process-memory-diagnostics-20261029/review.json",
-      "limits": "Owned fixtures only, Linux capture pending. OS anonymous/file RSS is not managed/native heap composition or exact victim attribution; no resource/GC/retry/timeout/product policy fix."
+      "status": "PUBLISHED_DIAGNOSTIC_CONTRACT_AND_ACTUAL_PROCESS_CAPTURE_HISTORY",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.imageProcessMemoryDiagnostics20261029"
+    },
+    "wu004ProcedureEvidenceLinkScope20261029": {
+      "status": "FOCUSED_SCOPE_VERIFIED_ACCEPTANCE_OPEN",
+      "base": "1abc670151c4b9c76f448f8137e3f50c852fdc60",
+      "schema": "299:20261029062347_ProcedureEvidenceLinkScope",
+      "proof": "Identical regression RED1/GREEN1 within GREEN2; exact native received links/hash/request and command denials retained. Actual298->299->298 preserves links/uploads/indexes; inconsistent retained request/upload refuses23503 with prior history/FKs intact. API Release/EF drift PASS.",
+      "scope": "Full procedure scope and exact upload/request parent FKs; original lookup indexes retained. No data rewrite or command/role/API/timeout/retry change.",
+      "indexReview": "Owned EF schema/20firms/20020links; FK plans and rollback1000-row write/WAL measured. No production threshold.",
+      "review": ".local/autonomous/evidence/wu004-procedure-evidence-scope-20261029/review.json",
+      "remaining": "42 original unprobed catalog links plus separate restricted-role/mutation/upgrade/professional leaves. No full catalog rescan."
     }
   },
   "externalGates": [
@@ -1660,13 +1663,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "2425e4028f7b202b4122b28c8e50e1ad33c6fa27",
-    "sourceRole": "READONLY_IMAGE_COMPILER_PROCESS_DIAGNOSTICS_ONLY",
-    "status": "LOCAL_PARSER_CONTRACT_PASS_EXACT_SUCCESSOR_GATES_REQUIRED",
-    "releaseVerification": "2425 fast40824510761 PASS/all3actualcheckouts. Images40824510796 FAIL migration123284339269: csc137/OOMKilled/oom_kill1; API+worker actualcheckouts/pinsPASS, summary123288008461SKIPPED. Same reported OOM class; no cancel/rerun.",
-    "imagePublication": "New process samples are diagnostic only; actual current checkouts/pins/gates and frozen schema298 rehearsal required. No predecessor image acceptance reused.",
-    "cutoverStatus": "NOT_PERFORMED; realDOV04/current gates/fresh bound backups/public authenticated acceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeImageProcessMemoryDiagnostics20261029"
+    "sourceBaseCommit": "1abc670151c4b9c76f448f8137e3f50c852fdc60",
+    "sourceRole": "PROCEDURE_CLIENT_EVIDENCE_SCOPE_REPAIR",
+    "status": "FOCUSED_GREEN2_EXACT_SUCCESSOR_GATES_REQUIRED",
+    "predecessor": "1abc fast40826702927 FAIL explicit Release runner shutdown/cause unproven. Images40826702886 FAIL migration csc137/OOM; actual csc process RSS captured, managed/native/exact victim unresolved. All6actualcheckouts retained; no rerun.",
+    "full": "NOT_DISPATCHED; coherent schema batch and causal diagnostics precede final freeze.",
+    "cutover": "NOT_PERFORMED; current gates/realDOV04/fresh bound backups/receipt/public authenticated acceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeProcedureEvidenceScope20261029"
   },
-  "updatedAtUtc": "2026-10-29T05:58:35.903340+00:00"
+  "updatedAtUtc": "2026-10-29T06:33:59.994363+00:00"
 }

@@ -540,3 +540,9 @@ Exact-source CI exposed a fee-settlement journey still selecting the obsolete in
 The preceding suite also aborted after inactivity. Its partial results and incomplete-case sequence remain retained; that cause is unconfirmed and is not fixed by the selector correction. The new test/documentation successor requires its own exact-source gates. See [status.json](status.json); earlier assignment scopes and qualified acceptance leaves remain independent.
 
 <!-- Verbatim handoff sections archived; earlier bytes retained. -->
+
+## Physical movement parent scope
+
+An isolated native Register/Move fixture reproduced a movement referencing another firm's item. The restrictive firm/item reference preserves existing lookup indexes and movement history. Clean upgrade/downgrade and inconsistent-history upgrade refusal have focused checks; no live custody data was changed. Other relational, restricted-role and release acceptance leaves remain open; see [status.json](status.json).
+
+<!-- End of verbatim physical-movement scope record. -->

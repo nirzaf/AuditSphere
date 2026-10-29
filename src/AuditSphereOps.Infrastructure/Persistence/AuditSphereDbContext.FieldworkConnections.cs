@@ -26,8 +26,16 @@ public sealed partial class AuditSphereDbContext
     b.Entity<ProcedureEvidenceLink>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.ProcedureId, x.PbcUploadIntentId }).IsUnique();
-      e.HasOne<AuditProcedure>().WithMany().HasForeignKey(x => x.ProcedureId).OnDelete(DeleteBehavior.Restrict);
-      e.HasOne<PbcUploadIntent>().WithMany().HasForeignKey(x => x.PbcUploadIntentId).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => x.ProcedureId);
+      e.HasIndex(x => x.PbcUploadIntentId);
+      e.HasOne<AuditProcedure>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProcedureId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_procedure_evidence_link_procedure_scope");
+      e.HasOne<PbcUploadIntent>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcRequestId, x.PbcUploadIntentId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcRequestId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_procedure_evidence_link_upload_scope");
       e.ToTable("procedure_evidence_links", t => t.HasCheckConstraint("ck_procedure_evidence_link_values", "length(content_sha256) = 64"));
     });
     b.Entity<PhysicalEvidenceItem>(e =>

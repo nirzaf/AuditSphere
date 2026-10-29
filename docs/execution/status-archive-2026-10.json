@@ -26181,6 +26181,15 @@
       "imagePublication": "Current successor gates and frozen schema298 image rehearsal required; predecessor API/worker pins do not supply current imagesPASS. No capacity/heap/timeout/retry policy change.",
       "cutoverStatus": "NOT_PERFORMED; realDOV04/current gates/fresh bound backups/public authenticated acceptance required.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeProcedurePhysicalLinkScope20261029"
+    },
+    "currentSourceCiBeforeProcedureEvidenceScope20261029": {
+      "sourceBaseCommit": "2425e4028f7b202b4122b28c8e50e1ad33c6fa27",
+      "sourceRole": "READONLY_IMAGE_COMPILER_PROCESS_DIAGNOSTICS_ONLY",
+      "status": "LOCAL_PARSER_CONTRACT_PASS_EXACT_SUCCESSOR_GATES_REQUIRED",
+      "releaseVerification": "2425 fast40824510761 PASS/all3actualcheckouts. Images40824510796 FAIL migration123284339269: csc137/OOMKilled/oom_kill1; API+worker actualcheckouts/pinsPASS, summary123288008461SKIPPED. Same reported OOM class; no cancel/rerun.",
+      "imagePublication": "New process samples are diagnostic only; actual current checkouts/pins/gates and frozen schema298 rehearsal required. No predecessor image acceptance reused.",
+      "cutoverStatus": "NOT_PERFORMED; realDOV04/current gates/fresh bound backups/public authenticated acceptance required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeImageProcessMemoryDiagnostics20261029"
     }
   },
   "archivedTargetedVerification": {
@@ -27650,6 +27659,21 @@
       "latestMigration": "20261029052536_ProcedurePhysicalLinkScope",
       "review": ".local/autonomous/evidence/wu004-procedure-physical-scope-20261029/review.json",
       "limits": "44 ORIGINAL catalog candidates and wider restricted-role/append-only/TRUNCATE/upgrade/release gates open; no fresh catalog scan or live/custody acceptance."
+    },
+    "imageProcessMemoryDiagnostics20261029": {
+      "status": "LOCAL_CONTRACT_PASS_ACTUAL_LINUX_PROCESS_CAPTURE_PENDING",
+      "base": "2425e4028f7b202b4122b28c8e50e1ad33c6fa27",
+      "scope": "Bounded whitelist PID/starttick/kind/status/smaps counters through existing readonly Docker probe; private compiler classification, no argv/env/raw process commandline/heap dump. Original build argv/exit/limits retained.",
+      "verification": "Same filesystem-parser/stdin-adapter harness GREEN9; omitRSS RED1; privateargv leak RED1 at earlier shared-sentinel privacy check; restored GREEN9. Empty/invalid/cap8 and original exit/privacy/cleanup cases retained.",
+      "review": ".local/autonomous/evidence/image-process-memory-diagnostics-20261029/review.json",
+      "limits": "Owned fixtures only, Linux capture pending. OS anonymous/file RSS is not managed/native heap composition or exact victim attribution; no resource/GC/retry/timeout/product policy fix."
+    },
+    "wu024DeploymentBindings20261025": {
+      "sourceCommit": "02d8b914b780c7c99d672e6024c874cba70c30e0",
+      "status": "PARTIAL_STATIC_BINDINGS_PASS_EXTERNAL_ACCEPTANCE_OPEN",
+      "evidence": ".local/autonomous/evidence/wu024-deployment-bindings-20261025/review.json",
+      "verification": "All-profile synthetic Compose render: 9 services, 6 volumes, no services started. Test/Export envelopes valid INCOMPLETE_EVIDENCE; 25 PASS, 1 outbound-host-policy MISSING, 0 FAIL. Offline script assertions 32/32 PASS.",
+      "remaining": "Runtime environment/mounts, schema, readiness, approved egress policy, rollback and live acceptance remain unobserved."
     }
   },
   "lastUpdatedOn": "2026-10-29"

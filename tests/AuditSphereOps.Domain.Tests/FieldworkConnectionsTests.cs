@@ -782,6 +782,240 @@ public sealed class FieldworkConnectionsTests
   }
 
   [Fact]
+  public async Task ProcedureEvidenceLinks_RejectForeignParentsAndPreserveRetainedEvidence()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await PbcSeed.CreateTransferHarnessAsync(pg);
+    PbcSeed.TransferHarness? foreign = null;
+    try
+    {
+      Assert.True(await own.Worker.ProcessNextAsync());
+      foreign = await PbcSeed.CreateTransferHarnessAsync(pg);
+      Assert.True(await foreign.Worker.ProcessNextAsync());
+      await using var db = new AuditSphereDbContext(pg.Options);
+      async Task<(Guid Main, Guid Spare)> SeedProceduresAsync(PbcSeed.Fixture fixture)
+      {
+        var now = DateTimeOffset.UtcNow;
+        var version = Guid.NewGuid();
+        var program = Guid.NewGuid();
+        db.AuditProgramVersions.Add(new AuditProgramVersion
+        {
+          Id = version, FirmId = fixture.FirmId, Version = "evidence-scope", SourceHash = Hashing.Sha256Hex("synthetic evidence scope"),
+          Status = AuditProgramStatuses.Published, CreatedByUserId = fixture.Staff.Id, ApprovedByUserId = fixture.Reviewer.Id,
+          CreatedAt = now, ApprovedAt = now
+        });
+        await db.SaveChangesAsync();
+        db.EngagementAuditPrograms.Add(new EngagementAuditProgram
+        {
+          Id = program, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+          ProgramVersionId = version, AdoptedByUserId = fixture.Staff.Id, AdoptedAt = now
+        });
+        AuditProcedure Procedure(string code) => new()
+        {
+          Id = Guid.NewGuid(), FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+          EngagementProgramId = program, SourceProcedureId = code, SourceSectionTitle = "Synthetic evidence",
+          SourceWording = "Inspect received synthetic evidence", Title = "Inspect received synthetic evidence",
+          ApplicabilityStatus = AuditApplicabilityStatuses.Applicable, Status = AuditProcedureStatuses.Planned, CreatedAt = now
+        };
+        var main = Procedure("EVD-01");
+        var spare = Procedure("EVD-02");
+        db.AuditProcedures.AddRange(main, spare);
+        await db.SaveChangesAsync();
+        return (main.Id, spare.Id);
+      }
+      var ownProcedures = await SeedProceduresAsync(own.Fixture);
+      var foreignProcedures = await SeedProceduresAsync(foreign.Fixture);
+      var actor = PbcSeed.Actor(own.Fixture.Staff, "Staff");
+      var link = await AuditFieldworkService.LinkClientEvidenceAsync(db, actor, ownProcedures.Main, own.Staged.UploadIntentId, "Synthetic retained source");
+      var foreignLink = await AuditFieldworkService.LinkClientEvidenceAsync(db, PbcSeed.Actor(foreign.Fixture.Staff, "Staff"),
+        foreignProcedures.Main, foreign.Staged.UploadIntentId, "Synthetic foreign retained source");
+      Assert.True(link.Succeeded, link.Message);
+      Assert.True(foreignLink.Succeeded, foreignLink.Message);
+      var retained = (await AuditFieldworkService.ProcedureEvidenceAsync(db, actor, ownProcedures.Main)).Single();
+      Assert.Equal(own.Staged.UploadIntentId, retained.UploadIntentId);
+      Assert.Equal(own.Staged.DeclaredSha256Hex, retained.ContentSha256);
+      Assert.Equal(ErrorCodes.ScopeDenied,
+        (await AuditFieldworkService.LinkClientEvidenceAsync(db, actor, foreignProcedures.Main, own.Staged.UploadIntentId, null)).ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied,
+        (await AuditFieldworkService.LinkClientEvidenceAsync(db, actor, ownProcedures.Main, foreign.Staged.UploadIntentId, null)).ErrorCode);
+      async Task<string> ReadLinksAsync() => await db.Database.SqlQueryRaw<string>("""
+        SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id)::text AS "Value" FROM procedure_evidence_links l
+        """).SingleAsync();
+      var before = await ReadLinksAsync();
+      await using var connection = new NpgsqlConnection(pg.ConnectionString);
+      await connection.OpenAsync();
+      await using var transaction = await connection.BeginTransactionAsync();
+      async Task<int> InsertAsync(Guid procedure, Guid upload, Guid client, Guid engagement, Guid request)
+      {
+        await using var command = new NpgsqlCommand("""
+          INSERT INTO procedure_evidence_links
+          SELECT (jsonb_populate_record(NULL::procedure_evidence_links, to_jsonb(l) || jsonb_build_object(
+            'id', @id, 'procedure_id', @procedure, 'pbc_upload_intent_id', @upload,
+            'client_id', @client, 'engagement_id', @engagement, 'pbc_request_id', @request))).*
+          FROM procedure_evidence_links l WHERE l.id = @source
+          """, connection, transaction);
+        command.Parameters.AddWithValue("id", Guid.NewGuid());
+        command.Parameters.AddWithValue("procedure", procedure);
+        command.Parameters.AddWithValue("upload", upload);
+        command.Parameters.AddWithValue("client", client);
+        command.Parameters.AddWithValue("engagement", engagement);
+        command.Parameters.AddWithValue("request", request);
+        command.Parameters.AddWithValue("source", link.Value);
+        return await command.ExecuteNonQueryAsync();
+      }
+      await new NpgsqlCommand("SAVEPOINT evidence_parent_probe", connection, transaction).ExecuteNonQueryAsync();
+      Assert.Equal(1, await InsertAsync(ownProcedures.Spare, own.Staged.UploadIntentId, own.Fixture.ClientId, own.Fixture.EngagementId, own.RequestId));
+      await new NpgsqlCommand("ROLLBACK TO SAVEPOINT evidence_parent_probe", connection, transaction).ExecuteNonQueryAsync();
+      var accepted = new List<string>();
+      foreach (var (reference, procedure, upload, client, engagement, request, constraint) in new[]
+      {
+        ("procedure", foreignProcedures.Main, own.Staged.UploadIntentId, own.Fixture.ClientId, own.Fixture.EngagementId, own.RequestId, "fk_procedure_evidence_link_procedure_scope"),
+        ("upload", ownProcedures.Spare, foreign.Staged.UploadIntentId, own.Fixture.ClientId, own.Fixture.EngagementId, own.RequestId, "fk_procedure_evidence_link_upload_scope"),
+        ("client", ownProcedures.Spare, own.Staged.UploadIntentId, foreign.Fixture.ClientId, own.Fixture.EngagementId, own.RequestId, ""),
+        ("engagement", ownProcedures.Spare, own.Staged.UploadIntentId, own.Fixture.ClientId, foreign.Fixture.EngagementId, own.RequestId, ""),
+        ("request", ownProcedures.Spare, own.Staged.UploadIntentId, own.Fixture.ClientId, own.Fixture.EngagementId, foreign.RequestId, "fk_procedure_evidence_link_upload_scope")
+      })
+      {
+        try
+        {
+          Assert.Equal(1, await InsertAsync(procedure, upload, client, engagement, request));
+          accepted.Add(reference);
+        }
+        catch (PostgresException exception)
+        {
+          Assert.Equal("23503", exception.SqlState);
+          if (constraint.Length > 0) Assert.Equal(constraint, exception.ConstraintName);
+          else Assert.Contains(exception.ConstraintName, new[]
+            { "fk_procedure_evidence_link_procedure_scope", "fk_procedure_evidence_link_upload_scope" });
+        }
+        await new NpgsqlCommand("ROLLBACK TO SAVEPOINT evidence_parent_probe", connection, transaction).ExecuteNonQueryAsync();
+      }
+      await transaction.RollbackAsync();
+      Assert.Equal(before, await ReadLinksAsync());
+      Assert.Equal(own.RequestId, await db.ProcedureEvidenceLinks.Where(x => x.Id == link.Value).Select(x => x.PbcRequestId).SingleAsync());
+      Assert.True(accepted.Count == 0, "Cross-scope evidence-link references accepted: " + string.Join(", ", accepted));
+    }
+    finally
+    {
+      PbcSeed.DeleteDirectory(own.Staged.StagingRoot);
+      Assert.False(Directory.Exists(own.Staged.StagingRoot));
+      if (foreign is not null)
+      {
+        PbcSeed.DeleteDirectory(foreign.Staged.StagingRoot);
+        Assert.False(Directory.Exists(foreign.Staged.StagingRoot));
+      }
+    }
+  }
+
+  [Fact]
+  public async Task ProcedureEvidenceLinkScopeUpgrade_PreservesReceiptsAndRefusesInconsistentHistory()
+  {
+    const string baseline = "20261029052536_ProcedurePhysicalLinkScope";
+    const string scopedLinks = "20261029062347_ProcedureEvidenceLinkScope";
+    await using var pg = await PgTestSchema.CreateAsync(baseline);
+    var own = await PbcSeed.CreateTransferHarnessAsync(pg);
+    PbcSeed.TransferHarness? foreign = null;
+    try
+    {
+      Assert.True(await own.Worker.ProcessNextAsync());
+      foreign = await PbcSeed.CreateTransferHarnessAsync(pg);
+      Assert.True(await foreign.Worker.ProcessNextAsync());
+      await using var db = new AuditSphereDbContext(pg.Options);
+      async Task<(Guid Main, Guid Spare)> SeedProceduresAsync(PbcSeed.Fixture fixture)
+      {
+        var now = DateTimeOffset.UtcNow;
+        var version = Guid.NewGuid();
+        var program = Guid.NewGuid();
+        db.AuditProgramVersions.Add(new AuditProgramVersion
+        {
+          Id = version, FirmId = fixture.FirmId, Version = "evidence-scope", SourceHash = Hashing.Sha256Hex("synthetic evidence scope"),
+          Status = AuditProgramStatuses.Published, CreatedByUserId = fixture.Staff.Id, ApprovedByUserId = fixture.Reviewer.Id,
+          CreatedAt = now, ApprovedAt = now
+        });
+        await db.SaveChangesAsync();
+        db.EngagementAuditPrograms.Add(new EngagementAuditProgram
+        {
+          Id = program, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+          ProgramVersionId = version, AdoptedByUserId = fixture.Staff.Id, AdoptedAt = now
+        });
+        AuditProcedure Procedure(string code) => new()
+        {
+          Id = Guid.NewGuid(), FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+          EngagementProgramId = program, SourceProcedureId = code, SourceSectionTitle = "Synthetic evidence",
+          SourceWording = "Inspect received synthetic evidence", Title = "Inspect received synthetic evidence",
+          ApplicabilityStatus = AuditApplicabilityStatuses.Applicable, Status = AuditProcedureStatuses.Planned, CreatedAt = now
+        };
+        var main = Procedure("EVD-01");
+        var spare = Procedure("EVD-02");
+        db.AuditProcedures.AddRange(main, spare);
+        await db.SaveChangesAsync();
+        return (main.Id, spare.Id);
+      }
+      var ownProcedures = await SeedProceduresAsync(own.Fixture);
+      var foreignProcedures = await SeedProceduresAsync(foreign.Fixture);
+      var actor = PbcSeed.Actor(own.Fixture.Staff, "Staff");
+      var link = await AuditFieldworkService.LinkClientEvidenceAsync(db, actor, ownProcedures.Main, own.Staged.UploadIntentId, "Synthetic upgrade source");
+      var foreignLink = await AuditFieldworkService.LinkClientEvidenceAsync(db, PbcSeed.Actor(foreign.Fixture.Staff, "Staff"),
+        foreignProcedures.Main, foreign.Staged.UploadIntentId, "Synthetic foreign upgrade source");
+      Assert.True(link.Succeeded, link.Message);
+      Assert.True(foreignLink.Succeeded, foreignLink.Message);
+      async Task<string> ReadHistoryAsync() => await db.Database.SqlQueryRaw<string>("""
+        SELECT jsonb_build_object(
+          'links', (SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM procedure_evidence_links l),
+          'uploads', (SELECT jsonb_agg(to_jsonb(u) ORDER BY u.id) FROM pbc_upload_intents u))::text AS "Value"
+        """).SingleAsync();
+      async Task<List<string>> ReadIndexesAsync() => await db.Database.SqlQueryRaw<string>("""
+        SELECT indexname AS "Value" FROM pg_indexes WHERE schemaname = current_schema()
+          AND tablename IN ('procedure_evidence_links', 'pbc_upload_intents') ORDER BY indexname
+        """).ToListAsync();
+      var before = await ReadHistoryAsync();
+      var originalIndexes = await ReadIndexesAsync();
+      var migrator = db.GetService<IMigrator>();
+      await migrator.MigrateAsync(scopedLinks);
+      Assert.Equal(before, await ReadHistoryAsync());
+      var upgradedIndexes = await ReadIndexesAsync();
+      Assert.All(originalIndexes, index => Assert.Contains(index, upgradedIndexes));
+      Assert.Equal(scopedLinks, (await db.Database.GetAppliedMigrationsAsync()).Last());
+      await migrator.MigrateAsync(baseline);
+      Assert.Equal(before, await ReadHistoryAsync());
+      Assert.Equal(originalIndexes, await ReadIndexesAsync());
+      Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
+      // Existing inconsistent request provenance refuses upgrade without repairing retained evidence.
+      Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO procedure_evidence_links
+        SELECT (jsonb_populate_record(NULL::procedure_evidence_links, to_jsonb(l) || jsonb_build_object(
+          'id', {Guid.NewGuid()}, 'procedure_id', {ownProcedures.Spare}, 'pbc_request_id', {foreign.RequestId}))).*
+        FROM procedure_evidence_links l WHERE l.id = {link.Value}
+        """));
+      var inconsistent = await ReadHistoryAsync();
+      var exception = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(scopedLinks));
+      Assert.Equal("23503", exception.SqlState);
+      Assert.Equal("fk_procedure_evidence_link_upload_scope", exception.ConstraintName);
+      Assert.Equal(inconsistent, await ReadHistoryAsync());
+      Assert.Equal(originalIndexes, await ReadIndexesAsync());
+      Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
+      Assert.Equal(0, await db.Database.SqlQueryRaw<int>("""
+        SELECT count(*)::int AS "Value" FROM pg_constraint WHERE conrelid = 'procedure_evidence_links'::regclass
+          AND conname IN ('fk_procedure_evidence_link_procedure_scope', 'fk_procedure_evidence_link_upload_scope')
+        """).SingleAsync());
+      Assert.Equal(2, await db.Database.SqlQueryRaw<int>("""
+        SELECT count(*)::int AS "Value" FROM pg_constraint WHERE conrelid = 'procedure_evidence_links'::regclass
+          AND contype = 'f' AND cardinality(conkey) = 1
+        """).SingleAsync());
+    }
+    finally
+    {
+      PbcSeed.DeleteDirectory(own.Staged.StagingRoot);
+      Assert.False(Directory.Exists(own.Staged.StagingRoot));
+      if (foreign is not null)
+      {
+        PbcSeed.DeleteDirectory(foreign.Staged.StagingRoot);
+        Assert.False(Directory.Exists(foreign.Staged.StagingRoot));
+      }
+    }
+  }
+
+  [Fact]
   public async Task ClientEvidence_LinksOnlyTheExactCurrentReceivedVersionOfThisEngagement()
   {
     await using var pg = await PgTestSchema.CreateAsync();
