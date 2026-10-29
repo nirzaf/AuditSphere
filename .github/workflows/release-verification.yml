@@ -4,8 +4,9 @@ run-name: AuditSphere release verification · ${{ inputs.ref || 'default branch'
 # Full release contract on one resolved commit. The fast gate in ci.yml keeps its own triggers and
 # focused jobs; this workflow is separate and never runs on push or pull_request. The complete
 # unfiltered .NET suite runs once per test project, with a separate ephemeral PostgreSQL service for
-# every matrix job. The Angular production bundle is built once and shared with the API/E2E tests.
-# No test project is filtered or omitted, and the aggregate release gate requires every job below.
+# every matrix job. A single Release solution build supplies run- and SHA-bound test binaries to the
+# matrix, and the Angular production bundle is built once and shared with the API/E2E tests. No test
+# project is filtered or omitted, and the aggregate release gate requires every job below.
 #
 # Every verification command runs through scripts/release/run-verification-step.sh, which records
 # its command and exact exit status in the job summary and preserves the full log. Per-project logs
@@ -248,7 +249,7 @@ jobs:
 
   dotnet-tests:
     name: Test · .NET ${{ matrix.name }} (unfiltered)
-    needs: [resolve-ref, angular]
+    needs: [resolve-ref, angular, release-contract]
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     strategy:
@@ -258,12 +259,15 @@ jobs:
           - name: Domain
             key: domain
             project: tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj
+            assembly: AuditSphereOps.Domain.Tests
           - name: API
             key: api
             project: tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj
+            assembly: AuditSphereOps.Api.Tests
           - name: Playwright E2E
             key: e2e
             project: tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj
+            assembly: AuditSphereOps.E2E.Tests
     services:
       # Each matrix child runs on its own runner and receives its own PostgreSQL service/container.
       postgres:
@@ -348,12 +352,56 @@ jobs:
           name: angular-ui-browser
           path: src/AuditSphereOps.Ui/dist/auditsphere-ui/browser
 
+      - name: Download source-bound test build artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-verification-test-build-${{ needs.resolve-ref.outputs.commit }}-${{ github.run_id }}-${{ matrix.key }}
+          path: ${{ runner.temp }}/release-verification-test-build
+
+      - name: Verify artifact provenance and restore Release output
+        env:
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+          TEST_ASSEMBLY: ${{ matrix.assembly }}
+          EXPECTED_BUILD_ARTIFACT: release-verification-test-build-${{ needs.resolve-ref.outputs.commit }}-${{ github.run_id }}-${{ matrix.key }}
+        run: |
+          set -euo pipefail
+          bash scripts/release/run-verification-step.sh "Verify source-bound test build artifact ($TEST_PROJECT_KEY)" bash -c '
+            set -euo pipefail
+            manifest="$RUNNER_TEMP/release-verification-test-build/source.json"
+            binary_root="$RUNNER_TEMP/release-verification-test-build/bin/Release/net10.0"
+            output_root="${TEST_PROJECT%/*}/bin/Release/net10.0"
+            expected_sdk="$(jq -r .sdk.version global.json)"
+            actual_sdk="$(dotnet --version)"
+            test "$actual_sdk" = "$expected_sdk"
+            jq -e \
+              --arg artifact "$EXPECTED_BUILD_ARTIFACT" \
+              --arg repository "$GITHUB_REPOSITORY" \
+              --arg commit "$SOURCE_COMMIT" \
+              --arg project "$TEST_PROJECT" \
+              --arg assembly "$TEST_ASSEMBLY" \
+              --arg sdk "$actual_sdk" \
+              --arg runId "$GITHUB_RUN_ID" \
+              --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+              --arg machine "$(uname -m)" \
+              --arg operatingSystem "$(uname -s)" \
+              ".schemaVersion == 1 and .artifactName == \$artifact and .repository == \$repository and .resolvedCommit == \$commit and .project == \$project and .assembly == \$assembly and .configuration == \"Release\" and .targetFramework == \"net10.0\" and .dotnetSdk == \$sdk and .runId == (\$runId | tonumber) and .runAttempt >= 1 and .runAttempt <= (\$runAttempt | tonumber) and .machine == \$machine and .operatingSystem == \$operatingSystem" \
+              "$manifest" >/dev/null
+            test -s "$binary_root/$TEST_ASSEMBLY.dll"
+            test -s "$binary_root/$TEST_ASSEMBLY.deps.json"
+            test -s "$binary_root/$TEST_ASSEMBLY.runtimeconfig.json"
+            if [ "$TEST_PROJECT_KEY" = e2e ]; then
+              test -s "$binary_root/playwright.ps1"
+              test -s "$binary_root/.playwright/node/linux-x64/node"
+              test -s "$binary_root/.playwright/package/lib/coreBundle.js"
+            fi
+            mkdir -p "$output_root"
+            cp -a "$binary_root/." "$output_root/"
+            echo "Verified $EXPECTED_BUILD_ARTIFACT for $SOURCE_COMMIT, workflow run $GITHUB_RUN_ID, build attempt $(jq -r .runAttempt "$manifest"), SDK $actual_sdk, $TEST_PROJECT."
+          '
+
       - name: Build and run the complete unfiltered test project
         run: |
           set -euo pipefail
-          bash scripts/release/run-verification-step.sh "Release build ($TEST_PROJECT_KEY)" \
-            dotnet build "$TEST_PROJECT" --no-restore --configuration Release --maxcpucount:1 \
-              -p:BuildInParallel=false -p:UseSharedCompilation=false
           if [ "$TEST_PROJECT_KEY" = e2e ]; then
             bash scripts/release/run-verification-step.sh "Playwright Chromium install" \
               pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
@@ -566,6 +614,88 @@ jobs:
             pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-025 -Offline
           bash scripts/release/run-verification-step.sh "UI source discovery drift" \
             python3 scripts/ui/inventory.py --check
+
+      - name: Stage source-bound unfiltered test outputs
+        env:
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          expected_sdk="$(jq -r .sdk.version global.json)"
+          actual_sdk="$(dotnet --version)"
+          test "$actual_sdk" = "$expected_sdk"
+          artifact_root="$RUNNER_TEMP/release-verification-test-build"
+          mkdir -p "$artifact_root"
+          for key in domain api e2e; do
+            case "$key" in
+              domain) project=tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj ;;
+              api) project=tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj ;;
+              e2e) project=tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj ;;
+              *) echo "Unexpected test project key: $key" >&2; exit 2 ;;
+            esac
+            assembly="$(basename "$project" .csproj)"
+            source_output="${project%/*}/bin/Release/net10.0"
+            staging="$artifact_root/$key"
+            test -s "$source_output/$assembly.dll"
+            test -s "$source_output/$assembly.deps.json"
+            test -s "$source_output/$assembly.runtimeconfig.json"
+            if [ "$key" = e2e ]; then
+              test -s "$source_output/playwright.ps1"
+              test -s "$source_output/.playwright/node/linux-x64/node"
+              test -s "$source_output/.playwright/package/lib/coreBundle.js"
+            fi
+            mkdir -p "$staging/bin/Release/net10.0"
+            cp -a "$source_output/." "$staging/bin/Release/net10.0/"
+            ARTIFACT_NAME="release-verification-test-build-${SOURCE_COMMIT}-${GITHUB_RUN_ID}-${key}" \
+              PROJECT="$project" ASSEMBLY="$assembly" DOTNET_SDK="$actual_sdk" \
+              python3 - "$staging/source.json" <<'PY'
+          import json, os, platform, sys
+          json.dump({
+              "schemaVersion": 1,
+              "artifactName": os.environ["ARTIFACT_NAME"],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "runId": int(os.environ["GITHUB_RUN_ID"]),
+              "runAttempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "resolvedCommit": os.environ["SOURCE_COMMIT"],
+              "project": os.environ["PROJECT"],
+              "assembly": os.environ["ASSEMBLY"],
+              "configuration": "Release",
+              "targetFramework": "net10.0",
+              "dotnetSdk": os.environ["DOTNET_SDK"],
+              "operatingSystem": platform.system(),
+              "machine": platform.machine(),
+          }, open(sys.argv[1], "w"), indent=2)
+          PY
+          done
+
+      - name: Upload source-bound Domain test build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-test-build-${{ needs.resolve-ref.outputs.commit }}-${{ github.run_id }}-domain
+          path: ${{ runner.temp }}/release-verification-test-build/domain
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+          include-hidden-files: true
+
+      - name: Upload source-bound API test build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-test-build-${{ needs.resolve-ref.outputs.commit }}-${{ github.run_id }}-api
+          path: ${{ runner.temp }}/release-verification-test-build/api
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+          include-hidden-files: true
+
+      - name: Upload source-bound E2E test build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-test-build-${{ needs.resolve-ref.outputs.commit }}-${{ github.run_id }}-e2e
+          path: ${{ runner.temp }}/release-verification-test-build/e2e
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+          include-hidden-files: true
 
       - name: Upload build and contract verification logs
         if: ${{ always() }}
