@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Image compiler process diagnostics
+
+The bounded image observer now also reads compiler process identities and whitelisted memory counters. It classifies compiler arguments privately and streams the helper through the existing read-only Docker probe. Owned filesystem fixtures verify missing-counter detection, private-argument rejection, empty/invalid data, bounded output and unchanged build exits. Actual Linux capture remains pending. Anonymous/file RSS does not establish managed/native heap composition or exact kernel victim identity; no capacity, GC, retry, timeout or product policy changed. See [status.json](status.json).
+
 ## Procedure physical-link parent scope
 
 A focused native registration/link fixture and valid same-firm SQL insertion reproduced foreign procedure/item references and inconsistent retained client/engagement fields. Restrictive full-scope parent references now refuse those inserts while retaining original command authorization and lookup indexes. The same regression passes; clean upgrade/downgrade preserve exact link rows and existing indexes, and inconsistent history refuses upgrade without repair or deletion. Added FK-support indexes receive a bounded owned-schema plan/write review. Wider relational, restricted-role, mutation and custody acceptance remain separate; see [status.json](status.json).

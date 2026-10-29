@@ -1166,13 +1166,16 @@
       "archive": "status-archive-2026-10.json#archivedTargetedVerification.imageBuildMemoryDiagnostics20261029"
     },
     "wu004ProcedurePhysicalLinkScope20261029": {
-      "status": "ORIGINAL_RED1_IDENTICAL_REGRESSION_GREEN1_MIGRATION_GREEN1_SCOPE_PARTIAL",
-      "base": "c75a2327822bed15b5a1fe12f235481b4b4da6b5",
-      "scope": "Restrictive firm/client/engagement parent references for procedure physical links; existing native commands unchanged. Old global FKs accepted foreign procedure/item and inconsistent child client/engagement after positive controls.",
-      "verification": "Same full-scope regression RED1 then GREEN1; native controls/SQL23503/exact retained bytes. Clean297to298to297 rows/indexes unchanged; inconsistent-history upgrade refuses23503 with prior FK/history/rows intact.",
-      "latestMigration": "20261029052536_ProcedurePhysicalLinkScope",
-      "review": ".local/autonomous/evidence/wu004-procedure-physical-scope-20261029/review.json",
-      "limits": "44 ORIGINAL catalog candidates and wider restricted-role/append-only/TRUNCATE/upgrade/release gates open; no fresh catalog scan or live/custody acceptance."
+      "status": "PUBLISHED_SCOPE_VERIFIED_ACCEPTANCE_OPEN_HISTORY",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.wu004ProcedurePhysicalLinkScope20261029"
+    },
+    "imageProcessMemoryDiagnostics20261029": {
+      "status": "LOCAL_CONTRACT_PASS_ACTUAL_LINUX_PROCESS_CAPTURE_PENDING",
+      "base": "2425e4028f7b202b4122b28c8e50e1ad33c6fa27",
+      "scope": "Bounded whitelist PID/starttick/kind/status/smaps counters through existing readonly Docker probe; private compiler classification, no argv/env/raw process commandline/heap dump. Original build argv/exit/limits retained.",
+      "verification": "Same filesystem-parser/stdin-adapter harness GREEN9; omitRSS RED1; privateargv leak RED1 at earlier shared-sentinel privacy check; restored GREEN9. Empty/invalid/cap8 and original exit/privacy/cleanup cases retained.",
+      "review": ".local/autonomous/evidence/image-process-memory-diagnostics-20261029/review.json",
+      "limits": "Owned fixtures only, Linux capture pending. OS anonymous/file RSS is not managed/native heap composition or exact victim attribution; no resource/GC/retry/timeout/product policy fix."
     }
   },
   "externalGates": [
@@ -1657,13 +1660,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "c75a2327822bed15b5a1fe12f235481b4b4da6b5",
-    "sourceRole": "PROCEDURE_PHYSICAL_LINK_SCOPED_PARENTS",
-    "status": "FOCUSED_REPAIR_PASS_EXACT_SUCCESSOR_GATES_REQUIRED",
-    "releaseVerification": "c75 fast40821493299 PASS/all3actualcheckouts. Images40821493334 FAIL migration123274753560: csc137/exit102 with actual BuildKit OOMKilled/oom_kill1, peak16164192256bytes, minhostavailable57240KiB/minswapfree52KiB. Exact victim/heap composition unmeasured; older143/inactivity separate. No rerun.",
-    "imagePublication": "Current successor gates and frozen schema298 image rehearsal required; predecessor API/worker pins do not supply current imagesPASS. No capacity/heap/timeout/retry policy change.",
+    "sourceBaseCommit": "2425e4028f7b202b4122b28c8e50e1ad33c6fa27",
+    "sourceRole": "READONLY_IMAGE_COMPILER_PROCESS_DIAGNOSTICS_ONLY",
+    "status": "LOCAL_PARSER_CONTRACT_PASS_EXACT_SUCCESSOR_GATES_REQUIRED",
+    "releaseVerification": "2425 fast40824510761 PASS/all3actualcheckouts. Images40824510796 FAIL migration123284339269: csc137/OOMKilled/oom_kill1; API+worker actualcheckouts/pinsPASS, summary123288008461SKIPPED. Same reported OOM class; no cancel/rerun.",
+    "imagePublication": "New process samples are diagnostic only; actual current checkouts/pins/gates and frozen schema298 rehearsal required. No predecessor image acceptance reused.",
     "cutoverStatus": "NOT_PERFORMED; realDOV04/current gates/fresh bound backups/public authenticated acceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeProcedurePhysicalLinkScope20261029"
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeImageProcessMemoryDiagnostics20261029"
   },
-  "updatedAtUtc": "2026-10-29T05:32:42.296793+00:00"
+  "updatedAtUtc": "2026-10-29T05:58:35.903340+00:00"
 }

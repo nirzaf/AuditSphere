@@ -8,6 +8,7 @@ if [[ $# -lt 3 || $2 != -- ]]; then
 fi
 builder_container=$1
 shift 2
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 trace_dir=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/auditsphere-image-memory.XXXXXXXX" 2>/dev/null) || trace_dir=''
 trace_file=${trace_dir:+$trace_dir/memory.log}
 sampler_pid=''
@@ -54,6 +55,11 @@ sample() {
           printf "\n"
         fi
       done'
+    if [[ -r $script_dir/image-build-process-memory.sh ]]; then
+      probe builder_process_memory docker exec -i "$builder_container" sh -s < "$script_dir/image-build-process-memory.sh"
+    else
+      echo 'builder_process_memory=unavailable helper_missing'
+    fi
   } >> "$trace_file" 2>&1 || :
 }
 

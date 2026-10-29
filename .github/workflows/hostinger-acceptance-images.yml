@@ -17,6 +17,7 @@ on:
       - 'src/AuditSphereOps.Worker/**'
       - 'infra/docker/migrations.Dockerfile'
       - 'scripts/diagnostics/image-build-memory.sh'
+      - 'scripts/diagnostics/image-build-process-memory.sh'
       - 'docs/task_breakdown/tracking/pack_manifest.json'
       - 'docs/task_breakdown/tasks/**'
       - '.dockerignore'
