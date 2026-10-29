@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Retained library metadata
+
+An isolated native-publication fixture reproduced rewrites of retained version identity, effective date and approval metadata, including a published-to-draft reset. The additive metadata guard freezes non-status fields and permits only unchanged status or `PUBLISHED` → `SUPERSEDED`. Draft and published bytes remain intact across upgrade; draft-only downgrade preserves drafts; retained publications prevent downgrade to the weaker guard. No live data was changed. Wider schema verification and exact-source release gates remain open; see [status.json](status.json).
+
 ## Technical-library version parent scope
 
 A valid database fixture reproduced a version referencing another firm's document. The version now has a restrictive firm/document parent key. The focused regression retains its same-firm control and original history checks; the existing independent publishing, audience and version-history workflow remains covered. The additive migration refuses inconsistent existing history without repairing or deleting it. Such records require an authorized data-review process before deployment.

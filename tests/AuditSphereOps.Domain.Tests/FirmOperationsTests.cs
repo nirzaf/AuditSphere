@@ -113,6 +113,10 @@ public sealed partial class FirmOperationsTests
     Assert.Contains(global.Hits, x => x.Kind == GlobalSearchQuery.Kinds.Library && x.Href == $"/app/library/{isa.Value:D}");
 
     // A new version supersedes the old one, which stays readable and immutable.
+    var publishedV1 = drafts.Single(x => x.DocumentId == isa.Value);
+    var retainedBeforeSupersession = await db.Database.SqlQuery<string>($"""
+      SELECT (to_jsonb(v) - 'status')::text AS "Value" FROM technical_library_versions v WHERE id = {publishedV1.Id}
+      """).SingleAsync();
     var v2 = await TechnicalLibraryService.DraftVersionAsync(db, manager, isa.Value, "Revised: management's assessment covers at least twelve months from the date of approval.", "ISA 570 (Revised 2024)", new DateOnly(2026, 12, 15));
     Assert.True(v2.Succeeded, v2.Message);
     Assert.Equal(ErrorCodes.ScopeDenied, (await TechnicalLibraryService.PublishAsync(db, staff, v2.Value)).ErrorCode);
@@ -123,6 +127,68 @@ public sealed partial class FirmOperationsTests
     Assert.Contains("ability to continue as a going concern", (await TechnicalLibraryService.OpenAsync(db, staff, isa.Value, 1)).Value!.Version.Body);
     var v1 = entry.History.Single(x => x.Version == 1);
     await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE technical_library_versions SET body = 'changed' WHERE id = {v1.Id}"));
+    Assert.Equal(retainedBeforeSupersession, await db.Database.SqlQuery<string>($"""
+      SELECT (to_jsonb(v) - 'status')::text AS "Value" FROM technical_library_versions v WHERE id = {v1.Id}
+      """).SingleAsync());
+
+    // Neither publication nor supersession permits rewriting retained identity, approval or effective-date metadata.
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+    List<string> acceptedMutations = [];
+    List<string> unexpectedRefusals = [];
+    foreach (var retained in entry.History.OrderBy(x => x.Version))
+    {
+      async Task<string> ReadRetainedAsync()
+      {
+        await using var read = new NpgsqlCommand("SELECT to_jsonb(v)::text FROM technical_library_versions v WHERE id = @id", connection, transaction);
+        read.Parameters.AddWithValue("id", retained.Id);
+        return (string)(await read.ExecuteScalarAsync())!;
+      }
+      var before = await ReadRetainedAsync();
+      await using (var noOp = new NpgsqlCommand("UPDATE technical_library_versions SET status = status WHERE id = @id", connection, transaction))
+      {
+        noOp.Parameters.AddWithValue("id", retained.Id);
+        Assert.Equal(1, await noOp.ExecuteNonQueryAsync());
+      }
+      foreach (var mutation in new[]
+      {
+        "effective_from = effective_from + 1",
+        "prepared_by_user_id = @other_preparer",
+        "prepared_at = prepared_at + interval '1 minute'",
+        "approved_by_user_id = CASE WHEN approved_by_user_id = @publisher1 THEN @publisher2 ELSE @publisher1 END",
+        "published_at = published_at + interval '1 minute'",
+        "version = version + 10",
+        "document_id = @other_document, version = version + 10",
+        "id = @replacement_id",
+        "status = 'DRAFT', approved_by_user_id = NULL, published_at = NULL"
+      })
+      {
+        await new NpgsqlCommand("SAVEPOINT library_metadata_probe", connection, transaction).ExecuteNonQueryAsync();
+        await using var command = new NpgsqlCommand($"UPDATE technical_library_versions SET {mutation} WHERE id = @id", connection, transaction);
+        command.Parameters.AddWithValue("id", retained.Id);
+        command.Parameters.AddWithValue("other_preparer", w.U["staff"].Id);
+        command.Parameters.AddWithValue("publisher1", w.U["partner"].Id);
+        command.Parameters.AddWithValue("publisher2", w.U["partner2"].Id);
+        command.Parameters.AddWithValue("other_document", fee.Value);
+        command.Parameters.AddWithValue("replacement_id", Guid.NewGuid());
+        try
+        {
+          Assert.Equal(1, await command.ExecuteNonQueryAsync());
+          acceptedMutations.Add($"{retained.Status}: {mutation}");
+        }
+        catch (PostgresException exception)
+        {
+          if (exception.SqlState != "P0001" || !exception.MessageText.Contains("immutable", StringComparison.Ordinal))
+            unexpectedRefusals.Add($"{retained.Status}: {mutation}: {exception.SqlState}/{exception.ConstraintName}");
+        }
+        await new NpgsqlCommand("ROLLBACK TO SAVEPOINT library_metadata_probe", connection, transaction).ExecuteNonQueryAsync();
+        Assert.Equal(before, await ReadRetainedAsync());
+      }
+    }
+    await transaction.RollbackAsync();
+    Assert.True(unexpectedRefusals.Count == 0, "Refused before the library immutability guard: " + string.Join("; ", unexpectedRefusals));
+    Assert.True(acceptedMutations.Count == 0, "Retained library metadata was rewritten: " + string.Join("; ", acceptedMutations));
   }
 
   [Fact]

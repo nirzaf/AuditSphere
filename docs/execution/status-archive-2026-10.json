@@ -26136,6 +26136,15 @@
       "imagePublication": "Base0153 fast/images/current-image rehearsal/schema294/cleanup/runtime proof passed; predecessor-only for this test/docs successor.",
       "cutoverStatus": "NOT_PERFORMED; exact final gates, genuineD-OV04, fresh baseline/QUIESCEDbackups and public authenticated acceptance required.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeWu004StaffingScope20261029"
+    },
+    "currentSourceCiBeforeLibraryMetadata20261029": {
+      "sourceBaseCommit": "d182cc1f46e9ff366d611d85ca549a61fc117cda",
+      "sourceRole": "LIBRARY_VERSION_FIRM_PARENT_CONSTRAINT_AND_SAFE_UPGRADE",
+      "status": "FOCUSED_REPAIR_PASS_PUBLICATION_EXACT_SUCCESSOR_GATES_REQUIRED",
+      "releaseVerification": "d182 fast40808780590 all3actualcheckoutsPASS; full/images not dispatched while schema work continues. Last full0153 failed with retained runner-shutdown/native-inactivity evidence; no automatic retry loop or current fullPASS.",
+      "imagePublication": "New scoped library migration requires exact current images and frozen-candidate rehearsal;0153 pins/schema294 rehearsal remain predecessor-only.",
+      "cutoverStatus": "NOT_PERFORMED; current gates, genuineD-OV04, fresh baseline/QUIESCEDbackups and public authenticated acceptance required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeLibraryVersionFirmScope20261029"
     }
   },
   "archivedTargetedVerification": {
@@ -27544,6 +27553,16 @@
       "testSourceSha256": "6f0b8a27e632d7fd7489464619515b7706c951c56bb9116292affe767a3c7fdb",
       "review": ".local/autonomous/evidence/wu004-staffing-scope-20261029/review.json",
       "limits": "No runtime/migration/permission change or new product defect.48 other catalog links, restricted-role/mutation/upgrade and exact-source full release acceptance remain open."
+    },
+    "wu004LibraryVersionFirmScope20261029": {
+      "status": "ORIGINAL_RED1_CORRECTED_GREEN3_UPGRADE_ATOMIC_GREEN1_SCOPE_PARTIAL",
+      "base": "d182cc1f46e9ff366d611d85ca549a61fc117cda",
+      "scope": "Library version (firm_id,document_id) restrictively references document(firm_id,id). Valid same-firm/native publication/history preserved; old global FK accepted a foreign document.",
+      "verification": "Original named regression RED1 (foreign reference accepted); unchanged regression plus existing library lifecycle and upgrade refusal GREEN3. Stricter upgrade check GREEN1 verifies retained bytes, prior migration and original FK after failed upgrade. All zero skipped; targeted API Release/EF model drift PASS.",
+      "latestMigration": "20261029031001_TechnicalLibraryVersionFirmScope",
+      "cleanup": "OwnedPG18.6 ports59728/59930/60032 exactdatadirs/roots/listeners/controllers/postmasters/connections independently absent; original5433 untouched.",
+      "review": ".local/autonomous/evidence/wu004-library-scope-20261029/review.json",
+      "limits": "No live migration/history repair.47 other original catalog links and wider scope/immutability/restricted-role/upgrade and exact-source release acceptance remain open."
     }
   },
   "lastUpdatedOn": "2026-10-29"

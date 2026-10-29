@@ -17,6 +17,7 @@ public sealed partial class AuditSphereDbContext
     });
     b.Entity<TechnicalLibraryVersion>(e =>
     {
+      // Retained metadata is frozen by TechnicalLibraryRetainedMetadata; native publication may supersede status only.
       e.HasIndex(x => new { x.DocumentId, x.Version }).IsUnique();
       e.HasIndex(x => x.DocumentId).IsUnique().HasFilter("status = 'PUBLISHED'").HasDatabaseName("ix_technical_library_versions_single_published");
       e.HasIndex(x => x.DocumentId).IsUnique().HasFilter("status = 'DRAFT'").HasDatabaseName("ix_technical_library_versions_single_draft");

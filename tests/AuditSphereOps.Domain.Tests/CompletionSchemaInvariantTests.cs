@@ -273,6 +273,54 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
   }
 
   [Fact]
+  public async Task TechnicalLibraryMetadataUpgrade_PreservesDraftsAndRefusesDowngradeAfterPublication()
+  {
+    const string baseline = "20261029031001_TechnicalLibraryVersionFirmScope";
+    const string protectedMetadata = "20261029034738_TechnicalLibraryRetainedMetadata";
+    await using var pg = await PgTestSchema.CreateAsync(baseline);
+    var fixture = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var created = await TechnicalLibraryService.CreateAsync(db, PbcSeed.Actor(fixture.Admin, "Administrator"),
+      "METADATA-UPGRADE", "Synthetic retained metadata fixture", TechnicalLibraryCategories.FirmGuidance,
+      TechnicalLibraryAudiences.AllStaff, "Synthetic version for metadata upgrade and downgrade safety.",
+      "test://library-metadata-upgrade", new DateOnly(2026, 1, 1));
+    Assert.True(created.Succeeded, created.Message);
+    var draft = await db.TechnicalLibraryVersions.AsNoTracking().SingleAsync(x => x.DocumentId == created.Value);
+    async Task<string> ReadVersionAsync() => await db.Database.SqlQuery<string>($"""
+      SELECT to_jsonb(v)::text AS "Value" FROM technical_library_versions v WHERE id = {draft.Id}
+      """).SingleAsync();
+    var before = await ReadVersionAsync();
+    var migrator = db.GetService<IMigrator>();
+    await migrator.MigrateAsync(protectedMetadata);
+    Assert.Equal(before, await ReadVersionAsync());
+    await migrator.MigrateAsync(baseline);
+    Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    Assert.Equal(before, await ReadVersionAsync());
+
+    var publisher = PbcSeed.User(fixture.FirmId, "Staff");
+    db.Users.Add(publisher);
+    db.RoleGrants.Add(PbcSeed.AdminGrant(fixture.FirmId, publisher));
+    await db.SaveChangesAsync();
+    var published = await TechnicalLibraryService.PublishAsync(db, PbcSeed.Actor(publisher, "Administrator"), draft.Id);
+    Assert.True(published.Succeeded, published.Message);
+    var retained = await ReadVersionAsync();
+    await migrator.MigrateAsync(protectedMetadata);
+    Assert.Equal(retained, await ReadVersionAsync());
+    var functionBefore = await db.Database.SqlQueryRaw<string>("""
+      SELECT pg_get_functiondef('protect_published_library_versions()'::regprocedure) AS "Value"
+      """).SingleAsync();
+    var exception = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(baseline));
+    Assert.Equal("P0001", exception.SqlState);
+    Assert.Equal("cannot downgrade retained library version protection", exception.MessageText);
+    Assert.Equal(protectedMetadata, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    Assert.Equal(retained, await ReadVersionAsync());
+    Assert.Equal(functionBefore, await db.Database.SqlQueryRaw<string>("""
+      SELECT pg_get_functiondef('protect_published_library_versions()'::regprocedure) AS "Value"
+      """).SingleAsync());
+    output.WriteLine("UPGRADE/DRAFT_DOWN_UP: retained bytes unchanged; PUBLISHED_DOWN: refused with current guard and history intact");
+  }
+
+  [Fact]
   public async Task StaffingChangeReceipts_RejectForeignFirmParentsBeforePublication()
   {
     await using var pg = await PgTestSchema.CreateAsync();
