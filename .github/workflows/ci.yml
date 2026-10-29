@@ -76,7 +76,7 @@ jobs:
     needs: ui-build
     name: Build · .NET Release
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 60
     # Roslyn defaults to server GC; keep the migration-heavy compile within the runner memory limit.
     env:
       DOTNET_gcServer: '0'
@@ -118,7 +118,9 @@ jobs:
           # the Api, so the default parallel solution build races on the Api's output files
           # (runtimeconfig.json and Roslyn satellite DLLs), causing intermittent MSB3026/MSB4018
           # "used by another process" failures.
-          dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1
+          # Match the successful container builds for migration-heavy projects.
+          dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1 \
+            -p:BuildInParallel=false -p:UseSharedCompilation=false
 
       - name: Run fast database-free architecture and rounding guards
         run: |

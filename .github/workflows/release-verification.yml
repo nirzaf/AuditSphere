@@ -352,7 +352,8 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/release/run-verification-step.sh "Release build ($TEST_PROJECT_KEY)" \
-            dotnet build "$TEST_PROJECT" --no-restore --configuration Release --maxcpucount:1
+            dotnet build "$TEST_PROJECT" --no-restore --configuration Release --maxcpucount:1 \
+              -p:BuildInParallel=false -p:UseSharedCompilation=false
           if [ "$TEST_PROJECT_KEY" = e2e ]; then
             bash scripts/release/run-verification-step.sh "Playwright Chromium install" \
               pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
@@ -466,7 +467,8 @@ jobs:
           bash scripts/release/run-verification-step.sh "dotnet restore (locked mode)" \
             dotnet restore AuditSphereOps.slnx --locked-mode
           bash scripts/release/run-verification-step.sh "dotnet build (Release, one MSBuild node)" \
-            dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1
+            dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1 \
+              -p:BuildInParallel=false -p:UseSharedCompilation=false
 
       - name: Capture NuGet operational scan evidence
         env:
