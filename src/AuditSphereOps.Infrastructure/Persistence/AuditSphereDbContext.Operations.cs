@@ -21,6 +21,12 @@ public sealed partial class AuditSphereDbContext
     op.Property(x => x.CancellationDisposition).HasMaxLength(2000);
     op.HasIndex(x => new { x.FirmId, x.IdempotencyKey }).IsUnique().HasDatabaseName("ux_operation_firm_key");
     op.HasIndex(x => new { x.FirmId, x.ExecutionGroup, x.Status, x.NextAttemptAt, x.CreatedAt });
+    op.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId })
+      .HasDatabaseName("IX_durable_operations_firm_id_client_id_engagement_id");
+    // The archive-copy scope FKs reference this unique index in PostgreSQL. An EF principal
+    // alternate key would incorrectly make general operations' optional scope columns required.
+    op.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).IsUnique()
+      .HasDatabaseName("ux_durable_operation_scope_id");
     op.ToTable("durable_operations", t =>
     {
       t.HasCheckConstraint("ck_operation_state", "status IN ('PENDING','CLAIMED','REMOTE_STARTED','VERIFYING','COMPLETED','RETRY_WAIT','AUTHORIZATION_BLOCKED','PROVIDER_BLOCKED','RESULT_UNCERTAIN','DEAD_LETTER','CANCEL_REQUESTED','CANCELLED_WITH_DISPOSITION')");

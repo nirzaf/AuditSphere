@@ -638,3 +638,19 @@ Broader actor, procedure, schedule and engine authenticity, mutation/restricted-
 ## Accurate invoice posting action
 
 Invoice posting now describes freezing the billing record. The command and its role, replay and unknown-outcome controls are unchanged; no ledger-recognition rule is introduced. Targeted Angular, build/lint and existing browser journeys passed. The owned built-in browser verified the approved-state label, workflow jump and keyboard focus before its fixture deadline; a later expired-fixture DOM observation is excluded. The automated continuation confirmed successful posting/replay/send with no firm journal or posting. Exact results and cleanup are in [status.json](status.json).
+
+## Counter access attribution
+
+A collector permission-message category does not identify the failed operation. The optional diagnostic now attempts one separately owned observer after the first such failure, retaining the original client and container failure metadata. It reports fixed proc-root and default-socket stat results and an exclusive create/remove test in its own output directory. Target identity is revalidated; raw errors, paths and process data stay outside reports. Unknown creation outcomes remain retained, and cancellation cannot admit a new observer.
+
+Focused checks cover strict numeric metadata, missing/private output, once-only admission, stale identity and owned cleanup. Controlled denied-user and read-only-output fixtures distinguish filesystem traversal from output creation without changing the compiler. The shell preserves existing nonregular entries through exclusive creation. These checks do not establish native CI policy or compiler memory cause; actual successor-source evidence and all release and qualified acceptance gates remain required. See [status.json](status.json).
+
+## Effective sampled-item evidence and source currentness
+
+Sample readback, completion and SRM now use the same current test and effective independent review. Pending results do not complete a sample. New decisions are serialized under existing scope locks and retain actual observation timestamps; legacy evidence is unchanged and ambiguous timestamp ties fail conservatively. The additive migration preserves legacy rows and refuses removal of retained sequence history. Exact item/review changes invalidate dependent evidence even when aggregate unresolved counts remain equal.
+
+Application and HTTP boundaries require meaningful references for substantive sample and cut-off results. Physical references remain supported; pending/limitation follow-up is distinct. Focused causal, concurrency, migration and HTTP checks passed as recorded in [status.json](status.json). Existing UI fixtures supply the required new-review sequence; no new interactive acceptance is claimed. The [Technical Stories register](auditsphere-execution-technical-stories-current.md) tracks the broader continuing assignment and qualified dependencies.
+
+The preceding monetary-unit sampling handoff is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md).
+
+<!-- Archived verbatim before the archive-copy operation-scope slice on 2026-10-29. -->

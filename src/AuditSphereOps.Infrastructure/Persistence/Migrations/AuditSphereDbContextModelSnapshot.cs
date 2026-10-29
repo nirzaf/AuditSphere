@@ -19390,7 +19390,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_operation_firm_key");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId");
+                    b.HasIndex("FirmId", "ClientId", "EngagementId")
+                        .HasDatabaseName("IX_durable_operations_firm_id_client_id_engagement_id");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "Id")
+                        .IsUnique()
+                        .HasDatabaseName("ux_durable_operation_scope_id");
 
                     b.HasIndex("FirmId", "ExecutionGroup", "Status", "NextAttemptAt", "CreatedAt");
 

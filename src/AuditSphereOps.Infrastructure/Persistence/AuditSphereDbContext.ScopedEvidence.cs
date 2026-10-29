@@ -133,6 +133,8 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     archiveCopyFile.HasOne<DurableOperation>().WithMany()
       .HasForeignKey(x => x.OperationId).HasPrincipalKey(x => x.Id).OnDelete(DeleteBehavior.Restrict);
+    // ArchiveCopyOperationScope also binds firm/client/engagement to the operation's nullable
+    // scope through a PostgreSQL FK; retain this original relationship and lookup indexes.
 
     var archiveCopyPermission = b.Entity<ArchiveCopyPermissionObservation>();
     archiveCopyPermission.Property(x => x.ArchiveManifestSha256).HasMaxLength(64);
@@ -177,6 +179,7 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     archiveCopyPermission.HasOne<DurableOperation>().WithMany()
       .HasForeignKey(x => x.OperationId).HasPrincipalKey(x => x.Id).OnDelete(DeleteBehavior.Restrict);
+    // The additional database scope FK uses the nullable-safe operation scope unique index.
 
     var assignment = b.Entity<EngagementAssignment>();
     assignment.Property(x => x.Role).HasMaxLength(50);

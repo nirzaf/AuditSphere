@@ -1173,14 +1173,23 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeCounterAccessAttribution20261029_wu004SamplingSelectionScope20261029"
     },
     "counterAccessAttribution20261029": {
-      "status": "FOCUSED_OPTIONAL_ACCESS_METADATA_VERIFIED_ACTUAL_CI_CALL_ATTRIBUTION_PENDING",
-      "base": "6a505512196ce306fbe832e64716391050ad2798",
-      "schema": "302_UNCHANGED",
-      "observed": "All3actual6a imagejobs preparedREADY/all12captures client+observerexit1/nonOOM/permission-message/noheapframes; nested tinyprotocol success suppliesno nativeCIcause.",
-      "change": "One failure-only readonly/no-network ownedobserver fixedproc/root/defaultsocket metadata and exclusiveprivateoutputcreate/remove. Closednumeric protocol; persistone-attempt/unknowncreate, exactCIDcleanup. No originalbuild/collectorargv/env/config/security/resource/GC/SDK/timeout/retrychange.",
-      "verification": "Python21PASS/all14oldmethodbytes retained; fiveownedfaultvariantsRED1each. Actualtinyroot/proc-deniedUID/readonly-output/staleguard65 metadata oracles; controllerblanketoutput-denial/stale-shape errors retained/excluded. Shellstdin/filesystemnonregular-entry oracle retained.",
-      "review": ".local/autonomous/evidence/counter-access-attribution-20261029/review.json",
-      "remaining": "Actualsuccessor sourceCI/call metadata/managedheapdata pending. No path/errno/policy/heapcause or resourcefix inferred. Wholeassignment/full/images/rehearsal/realDOV04/release/qualifiedleaves open."
+      "status": "Earlier focused diagnostic proof retained; runtime access attribution and heap-cause acceptance remain separate.",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeArchiveOperationScope20261029_counterAccessAttribution20261029"
+    },
+    "wu004ArchiveCopyOperationScope20261029": {
+      "status": "FOCUSED_SCOPE_MIGRATION_INDEX_VERIFIED_REVIEW_CLOSED_SUCCESSOR_CI_REQUIRED",
+      "sourceBaseCommit": "fb0db5173ba278d6cc96edd91e701383b7b4fe2e",
+      "migration": "303:20261029124914_ArchiveCopyOperationScope",
+      "defect": "Original global operation refs accepted10isolated crossfirm/otherclient/siblingengagement/client-only/firm-wide parent links acrossfile+permission receipts. Twoactualnativefake-provider copy controls/knownsource pins/foreigncommands/nondupSQL/exact16tablebytes established first.",
+      "repair": "Two immediate validated restrictive fullscope PostgreSQL FKs usingordinaryunique parentindex. Generaloperation client/engagement remainnullable; alloldindexes/globalFKs/prior migrations retained. No datarewrite/formula/nativecommand/API/role/provider change.",
+      "pairedTestValue": "Exact final scope method SHA332d25dcaf03360b1b53fb37e6b68ac0caaec23d47252302291c9d75be47b540 originalRED1/identicalGREEN1. Later catalog/migration assertions and explicit fixture pin are stronger separate source, not byteidentical to pair.",
+      "verification": "ExpandedGREEN1/0FAIL0skip actual303->302->303 exactsource/receipt/operation/financial bytes+oldindex/FK/history preserved; retained-invalid302upgrade23503/newnamedFK atomicrefusal leavesalloldrows/defs/history andno newindex/FK. Final migration-specific fixture pin GREEN1/0FAIL0skip. APIRelease0warnings0errors/EFdriftPASS.",
+      "indexReview": "PG18.6 actual303/20syntheticfirms/20000genericheaders/5%firmselectivity. FullscopeFORKEYSHAREusesexistingfirm/idindex3hits+lock1; nativePK3hits.1000rollbackinserts/WAL1396752bytes; newuniqueindex2482176physicalbytesmeasuredafterrollback/mayincludeabortedpages. Requiredreferenceindex, no speed/per-row/productionthreshold claim; oldindexes/constraints kept.",
+      "evidence": ".local/autonomous/evidence/wu004-archive-operation-scope-20261029",
+      "remaining": "35 ORIGINALunprobedcataloglinks aftertwo scope references; broaderWU004PARTIAL. Typedoperation/attempt/sourceauthenticity/restrictedrole/mutation/TRUNCATE/provider/custody/countdown/professional acceptance separate; exactsuccessorfast/full/images/rehearsal/realDOV04/backups/receipt/publicauthenticatedacceptance open.",
+      "finalTestSourceSHA256": "20deebdee9d1f76c8ebf8d2698ac93e250a3ea25a8c915918a2e29b59cd5cb59",
+      "review": "Harvey4oracle/pinfindings fixed/rereadnone/closed; readonlystatic/no independent execution.",
+      "cleanup": "11ownedPGphases exactroots/controllers/postmasters/listeners/connections independentlyabsent; dotnet/compiler/testhostscanempty. Original5433/Entra/Docker/VPS untouched."
     }
   },
   "externalGates": [
@@ -1372,65 +1381,9 @@
   "hostingerAcceptance": {
     "archivedLegacy": "status-archive-2026-10.json#keys.hostingerAcceptanceLegacy20261015",
     "latestReleasePreparation": {
-      "observedAtUtc": "2026-10-26T02:35:24.842028+00:00",
-      "sourceCommit": "a948479b4a2bc688a47018fab06536cdc2268ca9",
-      "implementationCommit": "a4a832298b3918d57347ada5bd67d684ba06876e",
-      "testFixtureCommit": "a948479b4a2bc688a47018fab06536cdc2268ca9",
-      "currentFastRun": 40256796104,
-      "fastStatus": "PASS alljobsactualcheckout",
-      "currentFullRun": 40257054714,
-      "fullStatus": "40257054714 MATCHa948: Angular182files1664PASS, Verify/build/contractsPASS, Domain1748executed/allPASS/0skip; API/E2E RUNNING. No FULL_CI_PASS.",
-      "currentImageBuildRun": 40257057938,
-      "imageStatus": "PASS exactcheckout andimmutablepushes",
-      "imageDigests": {
-        "migrations": "ghcr.io/nirzaf/auditsphere-acceptance-migrations:a948479b4a2bc688a47018fab06536cdc2268ca9@sha256:307d2be015996a5151a84858fb8ea3751f143a791ec4f8c88759bd2523210863",
-        "api": "ghcr.io/nirzaf/auditsphere-acceptance-api:a948479b4a2bc688a47018fab06536cdc2268ca9@sha256:884a9694565e1ecb234412d5170e6f5192188c731d5c05f82c763c86ec29b66f",
-        "worker": "ghcr.io/nirzaf/auditsphere-acceptance-worker:a948479b4a2bc688a47018fab06536cdc2268ca9@sha256:1977c091195344a7af857300ac2280c55cc80f3711372c900626ff4f1b2a43ed"
-      },
-      "currentSourceRehearsal": {
-        "status": "PASS_RESTORED_COPY_LATEST_SOURCE",
-        "report": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/rehearsal-a948.json",
-        "sourceSha": "a948479b4a2bc688a47018fab06536cdc2268ca9",
-        "migrationCountBefore": 286,
-        "migrationCountAfter": 286,
-        "migrationHead": "20261025144831_PbcStorageCommandReceipts",
-        "migrationsApplied": 0,
-        "originalTableCount": 379,
-        "originalRowsAndValuesUnchanged": true,
-        "apiChecks": {
-          "ready": 200,
-          "live": 200,
-          "ui": 200,
-          "uiAngularShellPresent": true,
-          "uiSlash": 200,
-          "uiSlashAngularShellPresent": true
-        },
-        "disposableDatabaseRemoved": true,
-        "ownedContainerRemoved": true,
-        "temporaryEnvironmentFilesRemoved": true,
-        "cleanupProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/rehearsal-a948-cleanup-proof.json",
-        "liveDatabaseChangedByRehearsal": false,
-        "liveContainersChangedByRehearsal": false
-      },
-      "cutoverStatus": "PENDING_CURRENT_FULL_CI_AND_FRESH_QUIESCED_BACKUP",
-      "mailBoundary": "Already paused at observed preflight; remains paused without genuine signed sender authorization.",
-      "liveObserved": {
-        "sourceCheckout": "510394848ff5c2b0780091f99f60e37b8adc3c5a",
-        "imageSource": "510394848ff5c2b0780091f99f60e37b8adc3c5a",
-        "schema": "288:20261026172424_UserProfiles",
-        "coreServices": [
-          "api",
-          "worker-general",
-          "worker-processing",
-          "worker-records"
-        ],
-        "mailRunning": false,
-        "deploymentProvenance": "Owner-authorized release (hostingerAcceptance.ownerAuthorizedDeployment51039484)."
-      },
-      "backupPreparation": "Fresh quiesced private DB dump/catalog, actualDocker-volume storage andprotectedconfig backup required beforelive mutation; rehearsal snapshot is not finalbackup. Preserveoverlay/privateenv androllbackboundaries, no destructiveDBrestore.",
-      "fastSourceProof": "LOCAL_ONLY .local/autonomous/evidence/axelor-final-20261025/fast-source-proof-a948.json",
-      "history": "status-archive-2026-10.json#keys.hostingerPreparationBeforeFixtureDeadlineReadiness20261026",
-      "previousDeploymentEvidence": "status-archive-2026-10.json#keys.hostingerAcceptance.ownerAuthorizedDeploymentE603fadf"
+      "status": "HISTORICAL_SOURCE_BOUND_EVIDENCE_ONLY; do not execute or relabel predecessor images, helpers or rehearsal as current.",
+      "history": "status-archive-2026-10.json#keys.hostingerPreparationBeforeArchiveOperationScope20261029",
+      "current": "See currentSourceCi and ignored current-work.json for actual source/gates; current full/rehearsal/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance remain required."
     },
     "ownerDirectedRoleGrants20261026": {
       "observedAtUtc": "2026-10-26T18:08:13Z",
@@ -1665,13 +1618,14 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "6a505512196ce306fbe832e64716391050ad2798",
-    "sourceRole": "OPTIONAL_FIXED_ACCESS_ATTRIBUTION_DIAGNOSTICS",
-    "status": "FOCUSED_DIAGNOSTICS_VERIFIED_EXACT_SUCCESSOR_GATES_REQUIRED",
-    "predecessor": "6afast40861420666FAIL Release123405926951shutdown11:10UTC/actorcauseUNPROVEN; Docs123405324582+Angular123405325004actualPASS15+14/1737+189. Images40861420612FAIL migration123405324790+API123405325032knowncsc137/OOM/102/no pins; worker123405324887actualpinPASS/summary123412178730SKIPPED. All6actualcheckouts/loghash/check/annotation/artifactMETADATA retained; no cancel/rerun/redownload. All12collectorpermission-message failures/noheapframes; no policycause inferred.",
+    "sourceBaseCommit": "fb0db5173ba278d6cc96edd91e701383b7b4fe2e",
+    "sourceRole": "ARCHIVE_COPY_OPERATION_SCOPE_REPAIR",
+    "status": "FOCUSED_VERIFIED_EXACT_SUCCESSOR_GATES_REQUIRED",
+    "predecessor": "fb0fast40869053204FAIL Release123431958846shutdown12:06UTC/actorcauseUNPROVEN; Docs123431104211+Angular123431104737actualPASS15+21/1737+189. Images40869053184FAIL API123431104151+migrations123431104712knowncsc137/OOM102/no pins; worker123431104639actualpinPASS/summary123437698263SKIPPED. All6actualcheckouts/loghash/check/annotation/artifactMETADATA retainedonce/no currentpendingCI/no cancel/rerun/redownload.",
+    "diagnosticBoundary": "Firstsampledcompiler-only fixedprocroot/socketstatdenied, outputwritable, realUID0/0; laterlargecompilerPIDs differ. No heapframes/exactpolicycause/resourcefix. Alreadyreportedonce; diagnostic/build/workflowbytes unchangedbythisslice.",
     "full": "NOT_DISPATCHED duringcoherentsourcebatch/causaldiagnostics; no currentcache/rehearsal/helper/receipt/privateexecution.",
-    "cutover": "NOT_PERFORMED; exactgates/schema302rehearsal/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeCounterAccessAttribution20261029"
+    "cutover": "NOT_PERFORMED; exactsuccessorgates/schema303rehearsal/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeArchiveOperationScope20261029"
   },
-  "updatedAtUtc": "2026-10-29T11:49:36.541881+00:00"
+  "updatedAtUtc": "2026-10-29T13:11:51.509458+00:00"
 }

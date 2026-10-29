@@ -14,11 +14,17 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Archive-copy operation parent scope
+
+The original global operation references accepted receipts attached to another firm's operation. Independent parent-only probes also accepted another client, a sibling engagement and wider nullable general-operation scopes. A bounded native fake-provider fixture first established exact copy/permission receipts, known source byte pins, current foreign-command denials, valid nonduplicating SQL controls and retained evidence bytes. The same regression then refused those links after the additive repair; later migration assertions remain separately identified from that exact paired proof.
+
+`ArchiveCopyOperationScope` adds restrictive full firm/client/engagement/operation references through an ordinary unique index. General durable operations keep nullable scopes; original keys, global relationships and lookup indexes remain. PostgreSQL catalog checks establish the extra references independently of EF model drift. Clean upgrade/downgrade preserve native evidence and old index/constraint definitions; an upgrade over retained foreign-operation receipts refuses atomically without rewriting rows or migration history.
+
+The fixture keeps the shipping live-operation descriptor with an in-memory provider and owned local checkpoint; it performs no real provider work. Generic pending parent controls and rollback-only attempt clones do not establish operation-kind, attempt or source authenticity. Restricted-role, mutation/TRUNCATE, custody, countdown policy and professional/provider acceptance remain separate. Current source gates, index-cost measurements and cleanup evidence are recorded in [status.json](status.json); the whole assignment remains incomplete.
+
 ## Counter access attribution
 
-A collector permission-message category does not identify the failed operation. The optional diagnostic now attempts one separately owned observer after the first such failure, retaining the original client and container failure metadata. It reports fixed proc-root and default-socket stat results and an exclusive create/remove test in its own output directory. Target identity is revalidated; raw errors, paths and process data stay outside reports. Unknown creation outcomes remain retained, and cancellation cannot admit a new observer.
-
-Focused checks cover strict numeric metadata, missing/private output, once-only admission, stale identity and owned cleanup. Controlled denied-user and read-only-output fixtures distinguish filesystem traversal from output creation without changing the compiler. The shell preserves existing nonregular entries through exclusive creation. These checks do not establish native CI policy or compiler memory cause; actual successor-source evidence and all release and qualified acceptance gates remain required. See [status.json](status.json).
+Earlier source-bound focused evidence is retained verbatim in [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Wider acceptance and exact current-source gates remain separate.
 
 ## Sampling-run selection scope
 
@@ -116,11 +122,7 @@ Firm ageing and CSV read one committed financial population and then recheck cur
 
 ## Effective sampled-item evidence and source currentness
 
-Sample readback, completion and SRM now use the same current test and effective independent review. Pending results do not complete a sample. New decisions are serialized under existing scope locks and retain actual observation timestamps; legacy evidence is unchanged and ambiguous timestamp ties fail conservatively. The additive migration preserves legacy rows and refuses removal of retained sequence history. Exact item/review changes invalidate dependent evidence even when aggregate unresolved counts remain equal.
-
-Application and HTTP boundaries require meaningful references for substantive sample and cut-off results. Physical references remain supported; pending/limitation follow-up is distinct. Focused causal, concurrency, migration and HTTP checks passed as recorded in [status.json](status.json). Existing UI fixtures supply the required new-review sequence; no new interactive acceptance is claimed. The [Technical Stories register](auditsphere-execution-technical-stories-current.md) tracks the broader continuing assignment and qualified dependencies.
-
-The preceding monetary-unit sampling handoff is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md).
+Earlier source-bound focused evidence is retained verbatim in [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Wider acceptance and exact current-source gates remain separate.
 
 ## Protected response and expense replay authority
 
