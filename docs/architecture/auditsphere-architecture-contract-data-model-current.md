@@ -39,6 +39,8 @@ Conditional task applicability uses `workflow_task_applicability_proposals` and 
 
 `administrator_oversight_access_events`, mapped by `AuditSphereDbContext.OversightAccess.cs`, retains the exact firm/actor/session, registered operation, resource, request identity and `DISCLOSURE_AUTHORIZED` outcome. A scoped actor foreign key and unique firm/request identity accompany the `AdministratorOversightAccessEvidence` migration's append-only protections. No automatic expiry or disposal is implemented; retention and independent-history-reviewer policy must be accepted separately before the dependent rollout.
 
+`technical_library_versions` binds `(firm_id, document_id)` to its document's `(firm_id, id)` through `fk_technical_library_version_document_scope`, configured in `AuditSphereDbContext.FirmOperations.cs`. The additive `TechnicalLibraryVersionFirmScope` migration validates existing references and refuses inconsistent history. It does not repair or delete versions. A failed upgrade must leave retained bytes, the prior migration and its original parent constraint intact; resolving invalid existing references requires an authorized data-review process.
+
 ## 3. Changing the schema
 
 1. Edit the Domain class and the matching `Configure<Module>` partial only.

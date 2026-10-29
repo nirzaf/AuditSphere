@@ -5,6 +5,8 @@ using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -167,6 +169,107 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       $"accepted cross-firm {accepted.Count}; no fixture row {notProbed.Count}; unexpected refusal {unexpectedRefusals.Count}");
     Assert.True(accepted.Count == 0, "Cross-firm references accepted: " + string.Join(", ", accepted));
     Assert.True(unexpectedRefusals.Count == 0, "Probe blocked before the target FK: " + string.Join("; ", unexpectedRefusals));
+  }
+
+  [Fact]
+  public async Task TechnicalLibraryVersions_RejectForeignFirmDocumentReferences()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    async Task<Guid> PublishAsync(PbcSeed.Fixture fixture)
+    {
+      var publisher = PbcSeed.User(fixture.FirmId, "Staff");
+      db.Users.Add(publisher);
+      db.RoleGrants.Add(PbcSeed.AdminGrant(fixture.FirmId, publisher));
+      await db.SaveChangesAsync();
+      var created = await TechnicalLibraryService.CreateAsync(db, PbcSeed.Actor(fixture.Admin, "Administrator"),
+        "SCOPE-PROBE", "Synthetic library scope fixture", TechnicalLibraryCategories.FirmGuidance,
+        TechnicalLibraryAudiences.AllStaff, "Synthetic library content for a scoped-parent test.",
+        "test://library-scoped-parent", new DateOnly(2026, 1, 1));
+      Assert.True(created.Succeeded, created.Message);
+      var version = await db.TechnicalLibraryVersions.AsNoTracking().SingleAsync(x => x.DocumentId == created.Value);
+      var published = await TechnicalLibraryService.PublishAsync(db, PbcSeed.Actor(publisher, "Administrator"), version.Id);
+      Assert.True(published.Succeeded, published.Message);
+      return created.Value;
+    }
+
+    var ownDocument = await PublishAsync(own);
+    var foreignDocument = await PublishAsync(foreign);
+    var before = JsonSerializer.Serialize(await db.TechnicalLibraryVersions.AsNoTracking().OrderBy(x => x.Id).ToListAsync());
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+    async Task<int> InsertAsync(Guid documentId)
+    {
+      await using var command = new NpgsqlCommand("""
+        INSERT INTO technical_library_versions
+        SELECT (jsonb_populate_record(NULL::technical_library_versions, to_jsonb(v) || jsonb_build_object(
+          'id', @id, 'document_id', @document_id, 'version', 2, 'status', 'SUPERSEDED'))).*
+        FROM technical_library_versions v WHERE v.document_id = @source_document_id AND v.version = 1
+        """, connection, transaction);
+      command.Parameters.AddWithValue("id", Guid.NewGuid());
+      command.Parameters.AddWithValue("document_id", documentId);
+      command.Parameters.AddWithValue("source_document_id", ownDocument);
+      return await command.ExecuteNonQueryAsync();
+    }
+
+    await new NpgsqlCommand("SAVEPOINT library_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    Assert.Equal(1, await InsertAsync(ownDocument));
+    output.WriteLine("SAME_FIRM_DOCUMENT: ACCEPTED rows=1");
+    await new NpgsqlCommand("ROLLBACK TO SAVEPOINT library_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    var exception = await Assert.ThrowsAsync<PostgresException>(() => InsertAsync(foreignDocument));
+    Assert.Equal("23503", exception.SqlState);
+    Assert.Equal("fk_technical_library_version_document_scope", exception.ConstraintName);
+    output.WriteLine($"FOREIGN_DOCUMENT: REFUSED SqlState={exception.SqlState} Constraint={exception.ConstraintName}");
+    await transaction.RollbackAsync();
+    Assert.Equal(before, JsonSerializer.Serialize(await db.TechnicalLibraryVersions.AsNoTracking().OrderBy(x => x.Id).ToListAsync()));
+  }
+
+  [Fact]
+  public async Task TechnicalLibraryScopeUpgrade_RefusesInconsistentHistoryWithoutChangingIt()
+  {
+    const string baseline = "20261028154245_ItemTestReviewSequence";
+    await using var pg = await PgTestSchema.CreateAsync(baseline);
+    var own = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var created = await TechnicalLibraryService.CreateAsync(db, PbcSeed.Actor(own.Admin, "Administrator"),
+      "UPGRADE-PROBE", "Synthetic retained library draft", TechnicalLibraryCategories.FirmGuidance,
+      TechnicalLibraryAudiences.AllStaff, "Synthetic retained draft for migration refusal.",
+      "test://library-scope-upgrade", new DateOnly(2026, 1, 1));
+    Assert.True(created.Succeeded, created.Message);
+    var foreignDocument = new TechnicalLibraryDocument
+    {
+      Id = Guid.NewGuid(), FirmId = foreign.FirmId, Code = "FOREIGN-PARENT", Title = "Synthetic foreign document",
+      Category = TechnicalLibraryCategories.FirmGuidance, Audience = TechnicalLibraryAudiences.AllStaff,
+      CreatedByUserId = foreign.Admin.Id, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.TechnicalLibraryDocuments.Add(foreignDocument);
+    await db.SaveChangesAsync();
+    Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO technical_library_versions
+      SELECT (jsonb_populate_record(NULL::technical_library_versions, to_jsonb(v) || jsonb_build_object(
+        'id', {Guid.NewGuid()}, 'document_id', {foreignDocument.Id}))).*
+      FROM technical_library_versions v WHERE v.document_id = {created.Value}
+      """));
+    var before = JsonSerializer.Serialize(await db.TechnicalLibraryVersions.AsNoTracking().OrderBy(x => x.Id).ToListAsync());
+
+    var exception = await Assert.ThrowsAsync<PostgresException>(() => db.GetService<IMigrator>()
+      .MigrateAsync("20261029031001_TechnicalLibraryVersionFirmScope"));
+    Assert.Equal("23503", exception.SqlState);
+    Assert.Equal("fk_technical_library_version_document_scope", exception.ConstraintName);
+    Assert.Equal(before, JsonSerializer.Serialize(await db.TechnicalLibraryVersions.AsNoTracking().OrderBy(x => x.Id).ToListAsync()));
+    Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    var constraints = await db.Database.SqlQueryRaw<string>("""
+      SELECT conname AS "Value" FROM pg_constraint
+      WHERE conrelid = 'technical_library_versions'::regclass AND contype = 'f'
+      """).ToListAsync();
+    Assert.Contains("FK_technical_library_versions_technical_library_documents_docu~", constraints);
+    Assert.DoesNotContain("fk_technical_library_version_document_scope", constraints);
+    output.WriteLine("INCONSISTENT_HISTORY: upgrade refused; retained bytes, prior migration and original FK unchanged");
   }
 
   [Fact]

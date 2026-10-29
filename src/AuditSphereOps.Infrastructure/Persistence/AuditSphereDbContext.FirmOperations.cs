@@ -20,7 +20,9 @@ public sealed partial class AuditSphereDbContext
       e.HasIndex(x => new { x.DocumentId, x.Version }).IsUnique();
       e.HasIndex(x => x.DocumentId).IsUnique().HasFilter("status = 'PUBLISHED'").HasDatabaseName("ix_technical_library_versions_single_published");
       e.HasIndex(x => x.DocumentId).IsUnique().HasFilter("status = 'DRAFT'").HasDatabaseName("ix_technical_library_versions_single_draft");
-      e.HasOne<TechnicalLibraryDocument>().WithMany().HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<TechnicalLibraryDocument>().WithMany().HasForeignKey(x => new { x.FirmId, x.DocumentId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_technical_library_version_document_scope");
       e.ToTable("technical_library_versions", t => t.HasCheckConstraint("ck_technical_library_version_values",
         "version >= 1 AND status IN ('DRAFT','PUBLISHED','SUPERSEDED') AND length(content_sha256) = 64 AND length(source_reference) > 0 AND ((status = 'DRAFT') = (approved_by_user_id IS NULL)) AND (approved_by_user_id IS NULL OR approved_by_user_id <> prepared_by_user_id)"));
     });

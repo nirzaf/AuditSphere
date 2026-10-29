@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Technical-library version parent scope
+
+A valid database fixture reproduced a version referencing another firm's document. The version now has a restrictive firm/document parent key. The focused regression retains its same-firm control and original history checks; the existing independent publishing, audience and version-history workflow remains covered. The additive migration refuses inconsistent existing history without repairing or deleting it. Such records require an authorized data-review process before deployment.
+
+This closes the exercised library parent-reference gap within the continuing schema work. Other relational candidates, wider append-only/restricted-role/upgrade evidence, exact-source full CI and qualified release gates remain open. No deployed database was migrated; see [status.json](status.json).
+
 ## Staffing receipt scope verification
 
 The existing staffing publication guard now has a focused database test with a valid same-firm control, foreign-firm engagement and assignment refusals, and unchanged retained receipt bytes after rollback. Disabling only that guard in an owned disposable template made the same test detect an accepted foreign reference; restoring it passed both denials. The test and assertions stayed identical across those variants. The isolated PostgreSQL cluster and owned processes were independently closed.

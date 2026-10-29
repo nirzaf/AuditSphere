@@ -28609,6 +28609,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("DocumentId", "Version")
                         .IsUnique();
 
+                    b.HasIndex("FirmId", "DocumentId");
+
                     b.ToTable("technical_library_versions", null, t =>
                         {
                             t.HasCheckConstraint("ck_technical_library_version_values", "version >= 1 AND status IN ('DRAFT','PUBLISHED','SUPERSEDED') AND length(content_sha256) = 64 AND length(source_reference) > 0 AND ((status = 'DRAFT') = (approved_by_user_id IS NULL)) AND (approved_by_user_id IS NULL OR approved_by_user_id <> prepared_by_user_id)");
@@ -39271,9 +39273,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("AuditSphereOps.Domain.Practice.TechnicalLibraryDocument", null)
                         .WithMany()
-                        .HasForeignKey("DocumentId")
+                        .HasForeignKey("FirmId", "DocumentId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_technical_library_version_document_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.TimeEntry", b =>
