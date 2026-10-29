@@ -14,13 +14,15 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Counter access attribution
+
+A collector permission-message category does not identify the failed operation. The optional diagnostic now attempts one separately owned observer after the first such failure, retaining the original client and container failure metadata. It reports fixed proc-root and default-socket stat results and an exclusive create/remove test in its own output directory. Target identity is revalidated; raw errors, paths and process data stay outside reports. Unknown creation outcomes remain retained, and cancellation cannot admit a new observer.
+
+Focused checks cover strict numeric metadata, missing/private output, once-only admission, stale identity and owned cleanup. Controlled denied-user and read-only-output fixtures distinguish filesystem traversal from output creation without changing the compiler. The shell preserves existing nonregular entries through exclusive creation. These checks do not establish native CI policy or compiler memory cause; actual successor-source evidence and all release and qualified acceptance gates remain required. See [status.json](status.json).
+
 ## Sampling-run selection scope
 
-Retained sampling runs now bind their selection to the exact firm, client and engagement. The restrictive reference reuses the existing parent key and preserves original unique and lookup indexes. Native preview, run, re-performance, amounts, seed and digests remain unchanged.
-
-Focused evidence reproduced foreign-selection and mismatched-child acceptance after valid native controls and current command denials. The identical regression passed with the repair; a stronger isolated firm mismatch also passed. Clean upgrade and downgrade preserve exact source, selection, item and run history and original index/constraint definitions. Inconsistent retained references refuse upgrade atomically without automatic repair or deletion.
-
-Broader actor, procedure, schedule and engine authenticity, mutation/restricted-role checks, exact-source CI and professional acceptance remain separate. See [status.json](status.json).
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#sampling-run-selection-scope).
 
 ## Collector failure diagnostics
 
@@ -98,7 +100,7 @@ The preceding full run is failed, with interruption and aborted-test evidence re
 
 ## Accurate invoice posting action
 
-Invoice posting now describes freezing the billing record. The command and its role, replay and unknown-outcome controls are unchanged; no ledger-recognition rule is introduced. Targeted Angular, build/lint and existing browser journeys passed. The owned built-in browser verified the approved-state label, workflow jump and keyboard focus before its fixture deadline; a later expired-fixture DOM observation is excluded. The automated continuation confirmed successful posting/replay/send with no firm journal or posting. Exact results and cleanup are in [status.json](status.json).
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#accurate-invoice-posting-action).
 
 ## Bounded automatic fee discovery
 

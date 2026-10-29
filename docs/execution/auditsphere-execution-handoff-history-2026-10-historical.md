@@ -624,3 +624,17 @@ A message category is an observation, not proof of a transport policy or memory 
 The package review/download journey now reloads the protected route after revocation. A periodic or focus-driven session check can correctly remove its controls before a manual refresh click. A controlled real session refusal reproduced the original missing-button timeout; the same fixture and the final change passed with all original package, artifact-byte/hash, review, persistence, data-removal and revoked-request assertions retained. The temporary fixture is excluded from the delivered test. Runtime code, permissions and timeouts are unchanged.
 
 Separate CI runner interruptions and inactivity remain unexplained. Focused automated evidence does not establish a full-suite pass or new built-in acceptance. The exact successor needs its own CI/images and release gates; see [status.json](status.json). Earlier scopes and qualified decisions remain independent.
+
+
+## Sampling-run selection scope
+
+Retained sampling runs now bind their selection to the exact firm, client and engagement. The restrictive reference reuses the existing parent key and preserves original unique and lookup indexes. Native preview, run, re-performance, amounts, seed and digests remain unchanged.
+
+Focused evidence reproduced foreign-selection and mismatched-child acceptance after valid native controls and current command denials. The identical regression passed with the repair; a stronger isolated firm mismatch also passed. Clean upgrade and downgrade preserve exact source, selection, item and run history and original index/constraint definitions. Inconsistent retained references refuse upgrade atomically without automatic repair or deletion.
+
+Broader actor, procedure, schedule and engine authenticity, mutation/restricted-role checks, exact-source CI and professional acceptance remain separate. See [status.json](status.json).
+
+
+## Accurate invoice posting action
+
+Invoice posting now describes freezing the billing record. The command and its role, replay and unknown-outcome controls are unchanged; no ledger-recognition rule is introduced. Targeted Angular, build/lint and existing browser journeys passed. The owned built-in browser verified the approved-state label, workflow jump and keyboard focus before its fixture deadline; a later expired-fixture DOM observation is excluded. The automated continuation confirmed successful posting/replay/send with no firm journal or posting. Exact results and cleanup are in [status.json](status.json).

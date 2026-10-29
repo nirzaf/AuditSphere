@@ -814,11 +814,8 @@
       "note": "Closed focused-slice records moved verbatim; no verdict changed."
     },
     "confirmationBankSource20261024": {
-      "status": "FOCUSED_PASS; whole Task18 partial; exact-source CI pending",
-      "checks": "Domain2/API2/Angular19/E2E1, final lint/build/EF PASS; builtin exact retained source readback observed.",
-      "history": "status-archive-2026-10.json#archivedTargetedVerification.confirmationBankSource20261024",
-      "limits": "Legacy/manual unverified; other areas/difference links, concurrency variants and qualified/live acceptance remain.",
-      "sourceCommit": "1c89bdc9abd866e93caaec94e523cac959afcb3b"
+      "status": "Earlier focused proof retained; wider acceptance remains separate.",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeCounterAccessAttribution20261029_confirmationBankSource20261024"
     },
     "t058CutoffProcedureLineage20261024": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
@@ -1172,15 +1169,18 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeSamplingSelectionScope20261029_collectorExecutionDiagnostics20261029"
     },
     "wu004SamplingSelectionScope20261029": {
-      "status": "FOCUSED_SCOPE_VERIFIED_SUCCESSOR_CI_REQUIRED",
-      "base": "6d1160c1d38e8e22cd7f73dfc5052e5cf20cabcd",
-      "migration": "20261029104522_SamplingRunSelectionScope",
-      "schema": 302,
-      "defect": "Original global selectionFK accepted foreignselection/wrongclient/wrongengagement after native100QAR/RANDOM1/seed73/independentreview/reperformance/commanddenials/validnonduplicatingSQLcontrol/exactbytes.",
-      "verification": "Original3case RED1; IDENTICALmethod GREEN1 in focusedGREEN2; addedisolatedfirm-onlyprobe finalGREEN1. Earlier42703snapshotfixturetypo excluded. Actual301->302->301 exactrows/indexes/FKs; inconsistentretainedsource23503atomicrefusal. APIRelease/EFdriftPASS.",
-      "change": "Restrictivefullfirm/client/engagement/selection reference usesexistingparentkey; alloldindexesretained. No history/data/formula/command/role/SDK/resourcepolicychange.",
-      "review": ".local/autonomous/evidence/wu004-sampling-selection-scope-20261029/review.json",
-      "remaining": "APIRelease/EFdrift/indexmeasurementPASS; readonlyreviewclosed/nofindings.37originalcatalogcandidates remain; wholeassignment incomplete. Exactsuccessorgates/full/rehearsal/realDOV04/qualifiedacceptance remainrequired."
+      "status": "Earlier focused proof retained; wider acceptance remains separate.",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeCounterAccessAttribution20261029_wu004SamplingSelectionScope20261029"
+    },
+    "counterAccessAttribution20261029": {
+      "status": "FOCUSED_OPTIONAL_ACCESS_METADATA_VERIFIED_ACTUAL_CI_CALL_ATTRIBUTION_PENDING",
+      "base": "6a505512196ce306fbe832e64716391050ad2798",
+      "schema": "302_UNCHANGED",
+      "observed": "All3actual6a imagejobs preparedREADY/all12captures client+observerexit1/nonOOM/permission-message/noheapframes; nested tinyprotocol success suppliesno nativeCIcause.",
+      "change": "One failure-only readonly/no-network ownedobserver fixedproc/root/defaultsocket metadata and exclusiveprivateoutputcreate/remove. Closednumeric protocol; persistone-attempt/unknowncreate, exactCIDcleanup. No originalbuild/collectorargv/env/config/security/resource/GC/SDK/timeout/retrychange.",
+      "verification": "Python21PASS/all14oldmethodbytes retained; fiveownedfaultvariantsRED1each. Actualtinyroot/proc-deniedUID/readonly-output/staleguard65 metadata oracles; controllerblanketoutput-denial/stale-shape errors retained/excluded. Shellstdin/filesystemnonregular-entry oracle retained.",
+      "review": ".local/autonomous/evidence/counter-access-attribution-20261029/review.json",
+      "remaining": "Actualsuccessor sourceCI/call metadata/managedheapdata pending. No path/errno/policy/heapcause or resourcefix inferred. Wholeassignment/full/images/rehearsal/realDOV04/release/qualifiedleaves open."
     }
   },
   "externalGates": [
@@ -1665,13 +1665,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "6d1160c1d38e8e22cd7f73dfc5052e5cf20cabcd",
-    "sourceRole": "SAMPLING_SELECTION_SCOPE_REPAIR",
-    "status": "FOCUSED_SCOPE_VERIFIED_EXACT_SUCCESSOR_GATES_REQUIRED",
-    "predecessor": "6dfast40857037776FAIL: Docs15+14/Angular1737/189actualPASS; Release123391382924shutdown10:37UTC, causeUNPROVEN. Images40857037597FAIL: API123390482387knowncsc137/OOM/102, optionalruntimepulltimeout; worker123390482316+migrations123390482055actualpinsPASS/summary123395666645SKIPPED. Worker4collector-exit1/observer-exit1/nonOOM/permission-message-category/noheapframes; no transport/policycause inferred. All6actualcheckout/loghash/check/annotation/artifactmetadata retained; no cancel/rerun/redownload.",
-    "full": "NOT_DISPATCHED during coherent sourcebatch/causaldiagnostics; currenthelper/receipt/rehearsal absent.",
-    "cutover": "NOT_PERFORMED; exactgates/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeSamplingSelectionScope20261029"
+    "sourceBaseCommit": "6a505512196ce306fbe832e64716391050ad2798",
+    "sourceRole": "OPTIONAL_FIXED_ACCESS_ATTRIBUTION_DIAGNOSTICS",
+    "status": "FOCUSED_DIAGNOSTICS_VERIFIED_EXACT_SUCCESSOR_GATES_REQUIRED",
+    "predecessor": "6afast40861420666FAIL Release123405926951shutdown11:10UTC/actorcauseUNPROVEN; Docs123405324582+Angular123405325004actualPASS15+14/1737+189. Images40861420612FAIL migration123405324790+API123405325032knowncsc137/OOM/102/no pins; worker123405324887actualpinPASS/summary123412178730SKIPPED. All6actualcheckouts/loghash/check/annotation/artifactMETADATA retained; no cancel/rerun/redownload. All12collectorpermission-message failures/noheapframes; no policycause inferred.",
+    "full": "NOT_DISPATCHED duringcoherentsourcebatch/causaldiagnostics; no currentcache/rehearsal/helper/receipt/privateexecution.",
+    "cutover": "NOT_PERFORMED; exactgates/schema302rehearsal/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeCounterAccessAttribution20261029"
   },
-  "updatedAtUtc": "2026-10-29T10:52:28.664229+00:00"
+  "updatedAtUtc": "2026-10-29T11:49:36.541881+00:00"
 }

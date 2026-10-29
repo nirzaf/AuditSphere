@@ -227,14 +227,16 @@ def observe_collector_state(observer_id):
         match = re.fullmatch(r"([0-9]{1,3}) (true|false) (true|false)", output)
         require(match is not None and int(match[1]) <= 255)
         return {"status": "observed", "exit_code": int(match[1]), "oom_killed": match[2] == "true", "running": match[3] == "true"}
+    except InterruptedError:
+        raise
     except Exception:
         return {"status": "unavailable"}
 
 
-def run_collector(observer_id):
+def run_collector(observer_id, seconds=12):
     args = ["docker", "start", "-a", observer_id]
     retained = bytearray()
-    deadline = time.monotonic() + 12
+    deadline = time.monotonic() + seconds
     process = None
     selector = None
     try:
@@ -244,7 +246,7 @@ def run_collector(observer_id):
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0 or not selector.select(remaining):
-                raise subprocess.TimeoutExpired(args, 12)
+                raise subprocess.TimeoutExpired(args, seconds)
             chunk = os.read(process.stdout.fileno(), 4096)
             if not chunk:
                 break
@@ -293,6 +295,76 @@ def remove_observer(directory, state):
     state["observer_id"] = None
     state["create_pending"] = False
     save(directory, state)
+
+
+def parse_access_metadata(raw, pid, start):
+    require(0 < len(raw) <= 4096)
+    fields = {}
+    for line in raw.decode("ascii").splitlines():
+        key, value = line.split("=", 1)
+        require(key not in fields)
+        fields[key] = value
+    required = {"probe_version", "target_pid", "target_start_ticks", "observer_uid", "target_uid", "output_cleanup"}
+    required |= {prefix + suffix for prefix in ("root_stat", "socket_stat", "output_write") for suffix in ("_exit", "_result")}
+    require(set(fields) == required)
+    require(fields["probe_version"] == "1" and fields["target_pid"] == str(pid) and fields["target_start_ticks"] == str(start))
+    result = {"status": "observed_metadata", "target_pid": pid, "target_start_ticks": start}
+    for key in ("observer_uid", "target_uid"):
+        value = fields[key]
+        require(value == "unavailable" or re.fullmatch(r"[0-9]{1,10}", value) is not None and int(value) <= 4294967295)
+        result[key] = {"status": "unavailable"} if value == "unavailable" else {"status": "observed", "value": int(value)}
+    for prefix in ("root_stat", "socket_stat", "output_write"):
+        code, category = fields[prefix + "_exit"], fields[prefix + "_result"]
+        require(re.fullmatch(r"[0-9]{1,3}", code) is not None and int(code) <= 255)
+        require(category in {"accessible", "permission_denied", "missing", "read_only_filesystem", "other"})
+        require((int(code) == 0) == (category == "accessible"))
+        result[prefix] = {"exit_code": int(code), "result": category}
+    cleanup = fields["output_cleanup"]
+    require(cleanup in {"removed", "not_created", "unavailable"})
+    require((int(fields["output_write_exit"]) != 0) == (cleanup == "not_created"))
+    result["output_cleanup"] = cleanup
+    return result
+
+
+def observe_access_failure(directory, state, pid, start, inner):
+    state["access_probe_attempted"] = True
+    save(directory, state)  # One attempt, including cleanup/create failures and unknown outcomes.
+    phase = "counter_cleanup"
+    try:
+        remove_observer(directory, state)
+        phase = "target_validation"
+        require(validate_target(state["builder_id"], pid, start) == inner)
+        script = Path(__file__).with_name("image-build-counter-access.sh").read_text()
+        name = "auditsphere-counter-" + state["owner"] + "-" + str(state["attempt"])
+        state.update(observer=name, observer_id=None, create_pending=True)
+        save(directory, state)
+        phase = "observer_creation"
+        observer_id = run(["docker", "create", "--platform", "linux/amd64", "--name", name, "--label", OWNER_LABEL + "=" + state["owner"],
+             "--network", "none", "--read-only", "--pids-limit", "64", "--tmpfs", "/tmp:rw,noexec,nosuid,size=32m",
+             "--pid", "container:" + state["builder_id"], "--mount", "type=bind,src=" + str((directory / "output").resolve()) + ",dst=/output",
+             "--entrypoint", "sh", OBSERVER_IMAGE, "-c", script, "counter-access", str(pid), str(start), str(inner)], seconds=3)
+        require(re.fullmatch(r"[a-f0-9]{64}", observer_id) is not None)
+        state.update(observer_id=observer_id, create_pending=False)
+        save(directory, state)
+        require(validate_target(state["builder_id"], pid, start) == inner)
+        phase = "probe_execution"
+        status, raw = run_collector(observer_id, seconds=3)
+        if status != 0:
+            raise DiagnosticCommandFailure(status)
+        phase = "target_final_validation"
+        require(validate_target(state["builder_id"], pid, start) == inner)
+        require(run(["docker", "inspect", "--format", "{{.State.ExitCode}} {{.State.OOMKilled}}", observer_id]) == "0 false")
+        phase = "metadata_validation"
+        return parse_access_metadata(raw, pid, start)
+    except Exception as error:
+        result = {"status": "unavailable", "reason": phase}
+        if isinstance(error, DiagnosticCommandFailure):
+            result.update(error_kind="command_exit", command_exit=error.exit_code)
+        elif isinstance(error, subprocess.TimeoutExpired):
+            result["error_kind"] = "timeout"
+        return result
+    finally:
+        remove_observer(directory, state)
 
 
 def capture(directory, sample_path):
@@ -364,6 +436,8 @@ def capture(directory, sample_path):
                 result["error_kind"] = "io_error"
             else:
                 result["error_kind"] = "validation_or_other"
+            if result["tool_output_category"] == "permission_denied_message" and not state.get("access_probe_attempted", False):
+                result["access_probe"] = observe_access_failure(directory, state, pid, start, inner)
         return result
     finally:
         remove_observer(directory, state)
