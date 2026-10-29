@@ -1006,11 +1006,8 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.accountAndTaskJourneyCorrection20261027BeforeOversightAccess20261027"
     },
     "workflowCompletedWorkCorrection20261027": {
-      "sourceCommit": "c7881511484d02f1188c6167d9e7636beeaeaf4f",
-      "status": "FOCUSED_PASS_FULL_CI_PENDING",
-      "local": "EngagementWorkflowTaskTests reopening+cancellation 2/2 PASS (PostgreSQL 5433); work-queue.spec.ts PASS; OpenAPI drift PASS",
-      "browser": "Owned harness: Completed view showed Reopen task; review panel completed-work text; POST reopen 200; activity kept TASK_COMPLETED rev2 and added TASK_REOPENED rev3 with reason; task OPEN, canComplete",
-      "remaining": "Suspension, missed-period recovery and broader stale-predecessor reconciliation open; current-SHA full CI not run"
+      "status": "PUBLISHED_FOCUSED_HISTORY_ACCEPTANCE_OPEN",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.workflowCompletedWorkCorrection20261027"
     },
     "nonAuditProgressProfile20261027": {
       "status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE",
@@ -1165,12 +1162,17 @@
       "archive": "status-archive-2026-10.json#archivedTargetedVerification.wu004PhysicalMovementScope20261029"
     },
     "imageBuildMemoryDiagnostics20261029": {
-      "status": "LOCAL_CONTRACT_PASS_ACTUAL_LINUX_CAPTURE_PENDING",
-      "base": "2b8564bf101d2b5bebd529c6c9940778c2f580b0",
-      "scope": "Bounded readonly host/cgroup/BuildKit samples around unchanged image-build argv; original build exit retained, unavailable telemetry explicit. No environment/argv/binlog dump.",
-      "verification": "Same focused adapter harness GREEN6; ignore-exit counterfactual RED at expected102/actual0; omit-capture RED at missing start sample; restored GREEN6. Syntax/YAML/exact argv and unchanged existing workflow gates PASS.",
-      "review": ".local/autonomous/evidence/image-memory-diagnostics-20261029/review.json",
-      "limits": "Mocked adapter only; actual Linux limits/peaks/events and source-bound CI still required. No heap/capacity/retry/build-timeout/test/product fix or full pass; schema297 unchanged."
+      "status": "PUBLISHED_FOCUSED_HISTORY_ACCEPTANCE_OPEN",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.imageBuildMemoryDiagnostics20261029"
+    },
+    "wu004ProcedurePhysicalLinkScope20261029": {
+      "status": "ORIGINAL_RED1_IDENTICAL_REGRESSION_GREEN1_MIGRATION_GREEN1_SCOPE_PARTIAL",
+      "base": "c75a2327822bed15b5a1fe12f235481b4b4da6b5",
+      "scope": "Restrictive firm/client/engagement parent references for procedure physical links; existing native commands unchanged. Old global FKs accepted foreign procedure/item and inconsistent child client/engagement after positive controls.",
+      "verification": "Same full-scope regression RED1 then GREEN1; native controls/SQL23503/exact retained bytes. Clean297to298to297 rows/indexes unchanged; inconsistent-history upgrade refuses23503 with prior FK/history/rows intact.",
+      "latestMigration": "20261029052536_ProcedurePhysicalLinkScope",
+      "review": ".local/autonomous/evidence/wu004-procedure-physical-scope-20261029/review.json",
+      "limits": "44 ORIGINAL catalog candidates and wider restricted-role/append-only/TRUNCATE/upgrade/release gates open; no fresh catalog scan or live/custody acceptance."
     }
   },
   "externalGates": [
@@ -1655,13 +1657,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "2b8564bf101d2b5bebd529c6c9940778c2f580b0",
-    "sourceRole": "IMAGE_BUILD_READONLY_MEMORY_DIAGNOSTICS_ONLY",
-    "status": "LOCAL_CAPTURE_CONTRACT_PASS_EXACT_SUCCESSOR_CI_PENDING",
-    "releaseVerification": "2b fast40817396569 PASS/all3actualcheckouts. Images40817396575 FAIL: migration123261585004 repeated csc137/ResourceExhausted; API+worker pinsPASS/summarySKIPPED. Same reported class; capacity/peak/kernel attribution unmeasured; no rerun/cancel.",
-    "imagePublication": "Observer preserves original build argv and mandatory gates. Actual capture is diagnostic evidence, never image/full acceptance. Current source full/images/frozen schema297 rehearsal still required.",
+    "sourceBaseCommit": "c75a2327822bed15b5a1fe12f235481b4b4da6b5",
+    "sourceRole": "PROCEDURE_PHYSICAL_LINK_SCOPED_PARENTS",
+    "status": "FOCUSED_REPAIR_PASS_EXACT_SUCCESSOR_GATES_REQUIRED",
+    "releaseVerification": "c75 fast40821493299 PASS/all3actualcheckouts. Images40821493334 FAIL migration123274753560: csc137/exit102 with actual BuildKit OOMKilled/oom_kill1, peak16164192256bytes, minhostavailable57240KiB/minswapfree52KiB. Exact victim/heap composition unmeasured; older143/inactivity separate. No rerun.",
+    "imagePublication": "Current successor gates and frozen schema298 image rehearsal required; predecessor API/worker pins do not supply current imagesPASS. No capacity/heap/timeout/retry policy change.",
     "cutoverStatus": "NOT_PERFORMED; realDOV04/current gates/fresh bound backups/public authenticated acceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeImageMemoryDiagnostics20261029"
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeProcedurePhysicalLinkScope20261029"
   },
-  "updatedAtUtc": "2026-10-29T05:01:41.518154+00:00"
+  "updatedAtUtc": "2026-10-29T05:32:42.296793+00:00"
 }

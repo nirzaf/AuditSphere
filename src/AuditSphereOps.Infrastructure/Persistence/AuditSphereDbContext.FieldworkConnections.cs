@@ -48,8 +48,16 @@ public sealed partial class AuditSphereDbContext
     b.Entity<ProcedurePhysicalLink>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.ProcedureId, x.PhysicalEvidenceItemId }).IsUnique();
-      e.HasOne<AuditProcedure>().WithMany().HasForeignKey(x => x.ProcedureId).OnDelete(DeleteBehavior.Restrict);
-      e.HasOne<PhysicalEvidenceItem>().WithMany().HasForeignKey(x => x.PhysicalEvidenceItemId).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => x.ProcedureId);
+      e.HasIndex(x => x.PhysicalEvidenceItemId);
+      e.HasOne<AuditProcedure>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProcedureId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_procedure_physical_link_procedure_scope");
+      e.HasOne<PhysicalEvidenceItem>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PhysicalEvidenceItemId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_procedure_physical_link_item_scope");
       e.ToTable("procedure_physical_links");
     });
     b.Entity<AdHocProcedureInsertion>(e =>

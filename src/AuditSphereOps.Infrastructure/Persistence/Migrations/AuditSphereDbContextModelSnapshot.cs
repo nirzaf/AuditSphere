@@ -17968,6 +17968,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "ProcedureId", "PhysicalEvidenceItemId")
                         .IsUnique();
 
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PhysicalEvidenceItemId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ProcedureId");
+
                     b.ToTable("procedure_physical_links", (string)null);
                 });
 
@@ -37023,15 +37027,19 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("AuditSphereOps.Domain.Audit.PhysicalEvidenceItem", null)
                         .WithMany()
-                        .HasForeignKey("PhysicalEvidenceItemId")
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PhysicalEvidenceItemId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_procedure_physical_link_item_scope");
 
                     b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedure", null)
                         .WithMany()
-                        .HasForeignKey("ProcedureId")
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ProcedureId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_procedure_physical_link_procedure_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.RiskBandAssessment", b =>

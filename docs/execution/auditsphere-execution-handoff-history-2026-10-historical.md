@@ -526,3 +526,17 @@ A valid database fixture reproduced a version referencing another firm's documen
 This closes the exercised library parent-reference gap within the continuing schema work. Other relational candidates, wider append-only/restricted-role/upgrade evidence, exact-source full CI and qualified release gates remain open. No deployed database was migrated; see [status.json](status.json).
 
 <!-- End of exact library handoff evidence moved on 2026-10-29. -->
+
+## Staffing receipt scope verification
+
+The existing staffing publication guard now has a focused database test with a valid same-firm control, foreign-firm engagement and assignment refusals, and unchanged retained receipt bytes after rollback. Disabling only that guard in an owned disposable template made the same test detect an accepted foreign reference; restoring it passed both denials. The test and assertions stayed identical across those variants. The isolated PostgreSQL cluster and owned processes were independently closed.
+
+This is additional coverage of an existing guard, with no schema change. The wider relational inventory, restricted-role, append-only mutation and upgrade evidence remain partial. The preceding full regression failed through the already retained runner shutdown and inactivity observations; exact successor CI and qualified release gates remain open. See [status.json](status.json).
+
+## Fee-settlement posting selector follow-up
+
+Exact-source CI exposed a fee-settlement journey still selecting the obsolete invoice-posting label. The unchanged named journey reproduced that timeout; aligning its single exact selector with the published billing-freeze label passed the original settlement workflow. Payment totals, retained invoice identity, recovery, role separation, revoked access, database, viewport and keyboard assertions remain intact. No runtime code, timeout or permission changed, and no new built-in acceptance is claimed.
+
+The preceding suite also aborted after inactivity. Its partial results and incomplete-case sequence remain retained; that cause is unconfirmed and is not fixed by the selector correction. The new test/documentation successor requires its own exact-source gates. See [status.json](status.json); earlier assignment scopes and qualified acceptance leaves remain independent.
+
+<!-- Verbatim handoff sections archived; earlier bytes retained. -->

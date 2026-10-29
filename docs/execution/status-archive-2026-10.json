@@ -26163,6 +26163,15 @@
       "imagePublication": "Current successor full/images/frozen schema297 rehearsal required. Predecessor pins do not supply current gates.",
       "cutoverStatus": "NOT_PERFORMED; genuineDOV04/current gates/fresh bound QUIESCEDbackups/public authenticated acceptance required.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforePhysicalMovementScope20261029"
+    },
+    "currentSourceCiBeforeProcedurePhysicalLinkScope20261029": {
+      "sourceBaseCommit": "2b8564bf101d2b5bebd529c6c9940778c2f580b0",
+      "sourceRole": "IMAGE_BUILD_READONLY_MEMORY_DIAGNOSTICS_ONLY",
+      "status": "LOCAL_CAPTURE_CONTRACT_PASS_EXACT_SUCCESSOR_CI_PENDING",
+      "releaseVerification": "2b fast40817396569 PASS/all3actualcheckouts. Images40817396575 FAIL: migration123261585004 repeated csc137/ResourceExhausted; API+worker pinsPASS/summarySKIPPED. Same reported class; capacity/peak/kernel attribution unmeasured; no rerun/cancel.",
+      "imagePublication": "Observer preserves original build argv and mandatory gates. Actual capture is diagnostic evidence, never image/full acceptance. Current source full/images/frozen schema297 rehearsal still required.",
+      "cutoverStatus": "NOT_PERFORMED; realDOV04/current gates/fresh bound backups/public authenticated acceptance required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeImageMemoryDiagnostics20261029"
     }
   },
   "archivedTargetedVerification": {
@@ -27608,6 +27617,21 @@
       "cleanup": "OwnedPG18.6 ports61195/61398 exactroots/listeners/controllers/postmasters/connections independently absent; original5433 untouched.",
       "review": ".local/autonomous/evidence/wu004-physical-movement-scope-20261029/review.json",
       "limits": "No live/custody/restricted-role/TRUNCATE claim.46 ORIGINAL unprobed catalog links/wider schema/release acceptance remain open."
+    },
+    "imageBuildMemoryDiagnostics20261029": {
+      "status": "LOCAL_CONTRACT_PASS_ACTUAL_LINUX_CAPTURE_PENDING",
+      "base": "2b8564bf101d2b5bebd529c6c9940778c2f580b0",
+      "scope": "Bounded readonly host/cgroup/BuildKit samples around unchanged image-build argv; original build exit retained, unavailable telemetry explicit. No environment/argv/binlog dump.",
+      "verification": "Same focused adapter harness GREEN6; ignore-exit counterfactual RED at expected102/actual0; omit-capture RED at missing start sample; restored GREEN6. Syntax/YAML/exact argv and unchanged existing workflow gates PASS.",
+      "review": ".local/autonomous/evidence/image-memory-diagnostics-20261029/review.json",
+      "limits": "Mocked adapter only; actual Linux limits/peaks/events and source-bound CI still required. No heap/capacity/retry/build-timeout/test/product fix or full pass; schema297 unchanged."
+    },
+    "workflowCompletedWorkCorrection20261027": {
+      "sourceCommit": "c7881511484d02f1188c6167d9e7636beeaeaf4f",
+      "status": "FOCUSED_PASS_FULL_CI_PENDING",
+      "local": "EngagementWorkflowTaskTests reopening+cancellation 2/2 PASS (PostgreSQL 5433); work-queue.spec.ts PASS; OpenAPI drift PASS",
+      "browser": "Owned harness: Completed view showed Reopen task; review panel completed-work text; POST reopen 200; activity kept TASK_COMPLETED rev2 and added TASK_REOPENED rev3 with reason; task OPEN, canComplete",
+      "remaining": "Suspension, missed-period recovery and broader stale-predecessor reconciliation open; current-SHA full CI not run"
     }
   },
   "lastUpdatedOn": "2026-10-29"

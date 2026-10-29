@@ -43,6 +43,8 @@ Conditional task applicability uses `workflow_task_applicability_proposals` and 
 
 `physical_evidence_movements` binds `(firm_id, physical_evidence_item_id)` to its item's `(firm_id, id)` through `fk_physical_evidence_movement_item_scope`. `PhysicalEvidenceMovementFirmScope` preserves movement rows and existing child lookup indexes. Inconsistent retained references refuse upgrade; the failed migration must retain the prior constraint and migration history. No movement is repaired or discarded automatically. Application Register/Move authorization and separate custody acceptance remain unchanged.
 
+`procedure_physical_links` binds both its procedure and physical item using `(firm_id, client_id, engagement_id, parent_id)`. `ProcedurePhysicalLinkScope` adds restrictive parent references and the physical item's matching alternate key, retaining original lookup indexes and link rows. Native Link authorization still requires both parents in the actor's firm and the same engagement. A failed upgrade preserves inconsistent retained rows, the original constraints and migration history; it never repairs history automatically. Clean downgrade preserves link bytes and restores the earlier constraints. Database scope checks do not establish professional custody acceptance.
+
 ## 3. Changing the schema
 
 1. Edit the Domain class and the matching `Configure<Module>` partial only.

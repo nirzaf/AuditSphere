@@ -14,9 +14,13 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Procedure physical-link parent scope
+
+A focused native registration/link fixture and valid same-firm SQL insertion reproduced foreign procedure/item references and inconsistent retained client/engagement fields. Restrictive full-scope parent references now refuse those inserts while retaining original command authorization and lookup indexes. The same regression passes; clean upgrade/downgrade preserve exact link rows and existing indexes, and inconsistent history refuses upgrade without repair or deletion. Added FK-support indexes receive a bounded owned-schema plan/write review. Wider relational, restricted-role, mutation and custody acceptance remain separate; see [status.json](status.json).
+
 ## Image-build memory diagnostics
 
-The image-build wrapper records bounded read-only host, cgroup and BuildKit memory evidence while preserving the build's exact exit status. The focused adapter harness detects ignored failure and missing capture; original build arguments and required gates remain intact. Actual Linux measurements and image acceptance are pending. Older runner shutdown/inactivity causes remain unconfirmed; see [status.json](status.json).
+The image-build wrapper preserves the build's exact exit and records bounded host, cgroup and BuildKit evidence. Actual migration-build samples now record memory pressure, an OOM event and Docker's OOMKilled flag alongside the compiler failure. Exact victim and managed/native allocation composition remain unmeasured; no heap, capacity, retry or timeout policy changed. Older runner shutdown/inactivity causes remain separate and unconfirmed; see [status.json](status.json).
 
 ## Physical movement parent scope
 
@@ -32,9 +36,7 @@ Focused evidence and its limits moved verbatim to the [historical handoff](audit
 
 ## Staffing receipt scope verification
 
-The existing staffing publication guard now has a focused database test with a valid same-firm control, foreign-firm engagement and assignment refusals, and unchanged retained receipt bytes after rollback. Disabling only that guard in an owned disposable template made the same test detect an accepted foreign reference; restoring it passed both denials. The test and assertions stayed identical across those variants. The isolated PostgreSQL cluster and owned processes were independently closed.
-
-This is additional coverage of an existing guard, with no schema change. The wider relational inventory, restricted-role, append-only mutation and upgrade evidence remain partial. The preceding full regression failed through the already retained runner shutdown and inactivity observations; exact successor CI and qualified release gates remain open. See [status.json](status.json).
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#staffing-receipt-scope-verification).
 
 ## Financial-package revocation interaction follow-up
 
@@ -44,9 +46,7 @@ Separate CI runner interruptions and inactivity remain unexplained. Focused auto
 
 ## Fee-settlement posting selector follow-up
 
-Exact-source CI exposed a fee-settlement journey still selecting the obsolete invoice-posting label. The unchanged named journey reproduced that timeout; aligning its single exact selector with the published billing-freeze label passed the original settlement workflow. Payment totals, retained invoice identity, recovery, role separation, revoked access, database, viewport and keyboard assertions remain intact. No runtime code, timeout or permission changed, and no new built-in acceptance is claimed.
-
-The preceding suite also aborted after inactivity. Its partial results and incomplete-case sequence remain retained; that cause is unconfirmed and is not fixed by the selector correction. The new test/documentation successor requires its own exact-source gates. See [status.json](status.json); earlier assignment scopes and qualified acceptance leaves remain independent.
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#fee-settlement-posting-selector-follow-up).
 
 ## Technical Stories adoption and integration
 

@@ -104,6 +104,208 @@ public sealed class FieldworkConnectionsTests
   }
 
   [Fact]
+  public async Task ProcedurePhysicalLinks_RejectForeignParentsAndPreserveRetainedLinks()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    async Task<Guid> SeedProcedureAsync(World world)
+    {
+      var now = DateTimeOffset.UtcNow;
+      var versionId = Guid.NewGuid();
+      var programId = Guid.NewGuid();
+      var procedureId = Guid.NewGuid();
+      db.AuditProgramVersions.Add(new AuditProgramVersion
+      {
+        Id = versionId, FirmId = world.FirmId, Version = "physical-scope", SourceHash = Hashing.Sha256Hex("synthetic physical scope"),
+        Status = AuditProgramStatuses.Published, CreatedByUserId = world.Preparer.Id, ApprovedByUserId = world.Reviewer.Id,
+        CreatedAt = now, ApprovedAt = now
+      });
+      await db.SaveChangesAsync();
+      db.EngagementAuditPrograms.Add(new EngagementAuditProgram
+      {
+        Id = programId, FirmId = world.FirmId, ClientId = world.ClientId, EngagementId = world.EngagementId,
+        ProgramVersionId = versionId, AdoptedByUserId = world.Reviewer.Id, AdoptedAt = now
+      });
+      db.AuditProcedures.Add(new AuditProcedure
+      {
+        Id = procedureId, FirmId = world.FirmId, ClientId = world.ClientId, EngagementId = world.EngagementId,
+        EngagementProgramId = programId, SourceProcedureId = "PHY-01", SourceSectionTitle = "Physical evidence",
+        SourceWording = "Inspect synthetic physical evidence", Title = "Inspect synthetic physical evidence",
+        ApplicabilityStatus = AuditApplicabilityStatuses.Applicable, Status = AuditProcedureStatuses.Planned, CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+      return procedureId;
+    }
+    var procedure = await SeedProcedureAsync(own);
+    var foreignProcedure = await SeedProcedureAsync(foreign);
+    var item = await AuditFieldworkService.RegisterPhysicalItemAsync(db, own.Auditor, own.EngagementId,
+      "LINK-1", "Synthetic box", "Synthetic linked item", "Synthetic origin");
+    var spareItem = await AuditFieldworkService.RegisterPhysicalItemAsync(db, own.Auditor, own.EngagementId,
+      "LINK-2", "Synthetic box", "Synthetic clone control", "Synthetic origin");
+    var foreignItem = await AuditFieldworkService.RegisterPhysicalItemAsync(db, foreign.Auditor, foreign.EngagementId,
+      "LINK-1", "Synthetic foreign box", "Synthetic foreign item", "Synthetic foreign origin");
+    Assert.True(item.Succeeded, item.Message);
+    Assert.True(spareItem.Succeeded, spareItem.Message);
+    Assert.True(foreignItem.Succeeded, foreignItem.Message);
+    var link = await AuditFieldworkService.LinkPhysicalItemAsync(db, own.Auditor, procedure, item.Value);
+    var foreignLink = await AuditFieldworkService.LinkPhysicalItemAsync(db, foreign.Auditor, foreignProcedure, foreignItem.Value);
+    Assert.True(link.Succeeded, link.Message);
+    Assert.True(foreignLink.Succeeded, foreignLink.Message);
+    Assert.Equal(ErrorCodes.ScopeDenied,
+      (await AuditFieldworkService.LinkPhysicalItemAsync(db, own.Auditor, foreignProcedure, item.Value)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied,
+      (await AuditFieldworkService.LinkPhysicalItemAsync(db, own.Auditor, procedure, foreignItem.Value)).ErrorCode);
+    async Task<string> ReadLinksAsync() => await db.Database.SqlQueryRaw<string>("""
+      SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id)::text AS "Value" FROM procedure_physical_links l
+      """).SingleAsync();
+    var before = await ReadLinksAsync();
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+    async Task<int> InsertAsync(Guid procedureId, Guid itemId, Guid clientId, Guid engagementId)
+    {
+      await using var command = new NpgsqlCommand("""
+        INSERT INTO procedure_physical_links
+        SELECT (jsonb_populate_record(NULL::procedure_physical_links, to_jsonb(l) || jsonb_build_object(
+          'id', @id, 'procedure_id', @procedure, 'physical_evidence_item_id', @item,
+          'client_id', @client, 'engagement_id', @engagement))).*
+        FROM procedure_physical_links l WHERE l.id = @source_id
+        """, connection, transaction);
+      command.Parameters.AddWithValue("id", Guid.NewGuid());
+      command.Parameters.AddWithValue("procedure", procedureId);
+      command.Parameters.AddWithValue("item", itemId);
+      command.Parameters.AddWithValue("client", clientId);
+      command.Parameters.AddWithValue("engagement", engagementId);
+      command.Parameters.AddWithValue("source_id", link.Value);
+      return await command.ExecuteNonQueryAsync();
+    }
+    await new NpgsqlCommand("SAVEPOINT physical_link_probe", connection, transaction).ExecuteNonQueryAsync();
+    // The spare same-firm item avoids the retained link's unique triple without bypassing any guard.
+    Assert.Equal(1, await InsertAsync(procedure, spareItem.Value, own.ClientId, own.EngagementId));
+    await new NpgsqlCommand("ROLLBACK TO SAVEPOINT physical_link_probe", connection, transaction).ExecuteNonQueryAsync();
+    var accepted = new List<string>();
+    foreach (var (parent, procedureId, itemId, clientId, engagementId, constraint) in new[]
+    {
+      ("procedure", foreignProcedure, spareItem.Value, own.ClientId, own.EngagementId, "fk_procedure_physical_link_procedure_scope"),
+      ("item", procedure, foreignItem.Value, own.ClientId, own.EngagementId, "fk_procedure_physical_link_item_scope"),
+      ("client", procedure, spareItem.Value, foreign.ClientId, own.EngagementId, ""),
+      ("engagement", procedure, spareItem.Value, own.ClientId, foreign.EngagementId, "")
+    })
+    {
+      try
+      {
+        Assert.Equal(1, await InsertAsync(procedureId, itemId, clientId, engagementId));
+        accepted.Add(parent);
+      }
+      catch (PostgresException exception)
+      {
+        Assert.Equal("23503", exception.SqlState);
+        if (constraint.Length > 0) Assert.Equal(constraint, exception.ConstraintName);
+        else Assert.Contains(exception.ConstraintName, new[]
+          { "fk_procedure_physical_link_procedure_scope", "fk_procedure_physical_link_item_scope" });
+      }
+      await new NpgsqlCommand("ROLLBACK TO SAVEPOINT physical_link_probe", connection, transaction).ExecuteNonQueryAsync();
+    }
+    await transaction.RollbackAsync();
+    Assert.Equal(before, await ReadLinksAsync());
+    Assert.True(accepted.Count == 0, "Cross-scope physical-link references accepted: " + string.Join(", ", accepted));
+  }
+
+  [Fact]
+  public async Task ProcedurePhysicalLinkScopeUpgrade_PreservesLinksAndRefusesInconsistentHistory()
+  {
+    const string baseline = "20261029040938_PhysicalEvidenceMovementFirmScope";
+    const string scopedLinks = "20261029052536_ProcedurePhysicalLinkScope";
+    await using var pg = await PgTestSchema.CreateAsync(baseline);
+    var own = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    async Task<Guid> SeedProcedureAsync(World world)
+    {
+      var now = DateTimeOffset.UtcNow;
+      var versionId = Guid.NewGuid();
+      var programId = Guid.NewGuid();
+      var procedureId = Guid.NewGuid();
+      db.AuditProgramVersions.Add(new AuditProgramVersion
+      {
+        Id = versionId, FirmId = world.FirmId, Version = "physical-scope", SourceHash = Hashing.Sha256Hex("synthetic physical scope"),
+        Status = AuditProgramStatuses.Published, CreatedByUserId = world.Preparer.Id, ApprovedByUserId = world.Reviewer.Id,
+        CreatedAt = now, ApprovedAt = now
+      });
+      await db.SaveChangesAsync();
+      db.EngagementAuditPrograms.Add(new EngagementAuditProgram
+      {
+        Id = programId, FirmId = world.FirmId, ClientId = world.ClientId, EngagementId = world.EngagementId,
+        ProgramVersionId = versionId, AdoptedByUserId = world.Reviewer.Id, AdoptedAt = now
+      });
+      db.AuditProcedures.Add(new AuditProcedure
+      {
+        Id = procedureId, FirmId = world.FirmId, ClientId = world.ClientId, EngagementId = world.EngagementId,
+        EngagementProgramId = programId, SourceProcedureId = "PHY-01", SourceSectionTitle = "Physical evidence",
+        SourceWording = "Inspect synthetic physical evidence", Title = "Inspect synthetic physical evidence",
+        ApplicabilityStatus = AuditApplicabilityStatuses.Applicable, Status = AuditProcedureStatuses.Planned, CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+      return procedureId;
+    }
+    var procedure = await SeedProcedureAsync(own);
+    var foreignProcedure = await SeedProcedureAsync(foreign);
+    var item = await AuditFieldworkService.RegisterPhysicalItemAsync(db, own.Auditor, own.EngagementId,
+      "UPGRADE-1", "Synthetic box", "Synthetic upgrade item", "Synthetic origin");
+    var foreignItem = await AuditFieldworkService.RegisterPhysicalItemAsync(db, foreign.Auditor, foreign.EngagementId,
+      "UPGRADE-1", "Synthetic foreign box", "Synthetic foreign upgrade item", "Synthetic foreign origin");
+    Assert.True(item.Succeeded, item.Message);
+    Assert.True(foreignItem.Succeeded, foreignItem.Message);
+    var link = await AuditFieldworkService.LinkPhysicalItemAsync(db, own.Auditor, procedure, item.Value);
+    var foreignLink = await AuditFieldworkService.LinkPhysicalItemAsync(db, foreign.Auditor, foreignProcedure, foreignItem.Value);
+    Assert.True(link.Succeeded, link.Message);
+    Assert.True(foreignLink.Succeeded, foreignLink.Message);
+    async Task<string> ReadLinksAsync() => await db.Database.SqlQueryRaw<string>("""
+      SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id)::text AS "Value" FROM procedure_physical_links l
+      """).SingleAsync();
+    async Task<List<string>> ReadIndexesAsync() => await db.Database.SqlQueryRaw<string>("""
+      SELECT indexname AS "Value" FROM pg_indexes WHERE schemaname = current_schema()
+        AND tablename IN ('procedure_physical_links', 'physical_evidence_items') ORDER BY indexname
+      """).ToListAsync();
+    var original = await ReadLinksAsync();
+    var originalIndexes = await ReadIndexesAsync();
+    var migrator = db.GetService<IMigrator>();
+    await migrator.MigrateAsync(scopedLinks);
+    Assert.Equal(original, await ReadLinksAsync());
+    var upgradedIndexes = await ReadIndexesAsync();
+    Assert.All(originalIndexes, index => Assert.Contains(index, upgradedIndexes));
+    Assert.Equal(scopedLinks, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    await migrator.MigrateAsync(baseline);
+    Assert.Equal(original, await ReadLinksAsync());
+    Assert.Equal(originalIndexes, await ReadIndexesAsync());
+    Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    // Retained inconsistent history is refused, never silently reassigned or deleted during upgrade.
+    Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO procedure_physical_links
+      SELECT (jsonb_populate_record(NULL::procedure_physical_links, to_jsonb(l) || jsonb_build_object(
+        'id', {Guid.NewGuid()}, 'physical_evidence_item_id', {foreignItem.Value}))).*
+      FROM procedure_physical_links l WHERE l.id = {link.Value}
+      """));
+    var inconsistent = await ReadLinksAsync();
+    var exception = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(scopedLinks));
+    Assert.Equal("23503", exception.SqlState);
+    Assert.Equal("fk_procedure_physical_link_item_scope", exception.ConstraintName);
+    Assert.Equal(inconsistent, await ReadLinksAsync());
+    Assert.Equal(originalIndexes, await ReadIndexesAsync());
+    Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    Assert.Equal(0, await db.Database.SqlQueryRaw<int>("""
+      SELECT count(*)::int AS "Value" FROM pg_constraint WHERE conrelid = 'procedure_physical_links'::regclass
+        AND conname IN ('fk_procedure_physical_link_procedure_scope', 'fk_procedure_physical_link_item_scope')
+      """).SingleAsync());
+    Assert.Equal(2, await db.Database.SqlQueryRaw<int>("""
+      SELECT count(*)::int AS "Value" FROM pg_constraint WHERE conrelid = 'procedure_physical_links'::regclass
+        AND contype = 'f' AND cardinality(conkey) = 1
+      """).SingleAsync());
+  }
+
+  [Fact]
   public async Task PhysicalMovements_RejectForeignFirmItemsAndPreserveRetainedHistory()
   {
     await using var pg = await PgTestSchema.CreateAsync();
