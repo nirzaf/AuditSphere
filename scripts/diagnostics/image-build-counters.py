@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import selectors
 import shutil
 import signal
 import ssl
@@ -202,6 +203,72 @@ def validate_target(builder_id, pid, start):
     return int(match[3])
 
 
+def classify_collector_output(raw):
+    # Raw tool messages remain private and are never included in the report.
+    if len(raw) > 16384:
+        return "unavailable_oversize"
+    value = raw.lower()
+    if not value.strip():
+        return "empty"
+    if any(marker in value for marker in (b"unauthorizedaccessexception", b"permission denied", b"access is denied")):
+        return "permission_denied_message"
+    if any(marker in value for marker in (b"could not connect", b"failed to connect", b"unable to connect", b"no such file or directory", b"does not exist")):
+        return "connection_or_missing_path_message"
+    if any(marker in value for marker in (b"you must install or update .net", b"libhostfxr", b"libicu")):
+        return "runtime_dependency_message"
+    if any(marker in value for marker in (b"unrecognized command", b"unrecognized option", b"required argument")):
+        return "cli_argument_message"
+    return "unclassified"
+
+
+def observe_collector_state(observer_id):
+    try:
+        output = run(["docker", "inspect", "--format", "{{.State.ExitCode}} {{.State.OOMKilled}} {{.State.Running}}", observer_id])
+        match = re.fullmatch(r"([0-9]{1,3}) (true|false) (true|false)", output)
+        require(match is not None and int(match[1]) <= 255)
+        return {"status": "observed", "exit_code": int(match[1]), "oom_killed": match[2] == "true", "running": match[3] == "true"}
+    except Exception:
+        return {"status": "unavailable"}
+
+
+def run_collector(observer_id):
+    args = ["docker", "start", "-a", observer_id]
+    retained = bytearray()
+    deadline = time.monotonic() + 12
+    process = None
+    selector = None
+    try:
+        process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        selector = selectors.DefaultSelector()
+        selector.register(process.stdout, selectors.EVENT_READ)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not selector.select(remaining):
+                raise subprocess.TimeoutExpired(args, 12)
+            chunk = os.read(process.stdout.fileno(), 4096)
+            if not chunk:
+                break
+            # Drain excess so the tool cannot block on a full pipe; retain only the bounded prefix.
+            retained.extend(chunk[:max(0, 16385 - len(retained))])
+        status = process.wait(timeout=max(0, deadline - time.monotonic()))
+        return status, bytes(retained)
+    except subprocess.TimeoutExpired as error:
+        error.output = bytes(retained)
+        raise
+    finally:
+        try:
+            if selector is not None:
+                selector.close()
+        finally:
+            if process is not None:
+                try:
+                    process.stdout.close()
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                        process.wait(timeout=3)
+
+
 def remove_observer(directory, state):
     name = state.get("observer")
     if name is None:
@@ -245,6 +312,7 @@ def capture(directory, sample_path):
     save(directory, state)  # Unavailable attempts consume their growth stage too.
     identity = {"attempt": state["attempt"], "stage": stage, "pid": pid, "start_ticks": start, "sampled_rss_kib": rss}
     phase = "target_validation"
+    collector_output_category = "not_observed"
     try:
         require(run(["docker", "inspect", "--format", "{{.Id}} {{.State.Running}}", state["builder_id"]]) == state["builder_id"] + " true")
         inner = validate_target(state["builder_id"], pid, start)
@@ -270,7 +338,10 @@ def capture(directory, sample_path):
         # Recheck after creation and after collection; never label a stale PID as observed.
         require(validate_target(state["builder_id"], pid, start) == inner)
         phase = "collector_execution"
-        subprocess.run(["docker", "start", "-a", observer_id], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=12, check=True)
+        status, diagnostic_output = run_collector(observer_id)
+        collector_output_category = classify_collector_output(diagnostic_output)
+        if status != 0:
+            raise subprocess.CalledProcessError(status, ["docker", "start", "-a", observer_id])
         phase = "target_final_validation"
         require(validate_target(state["builder_id"], pid, start) == inner)
         require(run(["docker", "inspect", "--format", "{{.State.ExitCode}} {{.State.OOMKilled}}", observer_id]) == "0 false")
@@ -278,8 +349,22 @@ def capture(directory, sample_path):
         with csv_path.open("rb") as counters_file:
             parsed = parse_counters(counters_file.read(65537))
         return {**identity, **parsed}
-    except Exception:
-        return {**identity, "status": "unavailable", "reason": phase}
+    except Exception as error:
+        result = {**identity, "status": "unavailable", "reason": phase}
+        if phase == "collector_execution":
+            result["tool_output_category"] = collector_output_category
+            result["collector_container"] = observe_collector_state(observer_id)
+            if isinstance(error, subprocess.CalledProcessError):
+                result.update(error_kind="command_exit", command_exit=error.returncode)
+            elif isinstance(error, subprocess.TimeoutExpired):
+                result["error_kind"] = "timeout"
+                if error.output is not None:
+                    result["tool_output_category"] = classify_collector_output(error.output)
+            elif isinstance(error, OSError):
+                result["error_kind"] = "io_error"
+            else:
+                result["error_kind"] = "validation_or_other"
+        return result
     finally:
         remove_observer(directory, state)
         (directory / "output" / "counters.csv").unlink(missing_ok=True)

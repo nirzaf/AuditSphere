@@ -92,7 +92,7 @@ class CounterTests(unittest.TestCase):
                 counter.extract_bundle(raw, destination)
             self.assertEqual([], list(Path(root).rglob("*"))[1:])
 
-    def exercise_capture(self, *, stale=False, failed=False, wrong_owner=False):
+    def exercise_capture(self, *, stale=False, failed=False, wrong_owner=False, timed_out=False, state_unavailable=False):
         with tempfile.TemporaryDirectory() as root:
             directory = Path(root) / "owned"
             directory.mkdir()
@@ -111,29 +111,44 @@ class CounterTests(unittest.TestCase):
                         output = BUILDER + " true"
                     elif "Labels" in args[3]:
                         output = "c" * 64 + " " + ("f" * 32 if wrong_owner else "a" * 32)
+                    elif "Running" in args[3]:
+                        output, code = ("", 1) if state_unavailable else ("1 false false", 0)
                     else:
                         output = "0 false"
                 elif args[1] == "exec":
                     output = f"counter_target pid=101 start_ticks={7002 if stale else 7001} inner_pid=7 uid=0"
                 elif args[1] == "create":
                     output = "c" * 64
-                elif args[1] == "start":
-                    code = 1 if failed else 0
-                    (directory / "output" / "counters.csv").write_bytes(csv_bytes())
                 elif args[1] != "rm":
                     raise AssertionError("Unexpected Docker operation")
                 if kwargs.get("check") and code:
                     raise subprocess.CalledProcessError(code, ["private-not-emitted"])
                 return subprocess.CompletedProcess(args, code, output, "")
 
-            with patch.object(counter.subprocess, "run", side_effect=docker):
+            def collector(observer_id):
+                calls.append(["docker", "start", "-a", observer_id])
+                (directory / "output" / "counters.csv").write_bytes(csv_bytes())
+                if timed_out:
+                    raise subprocess.TimeoutExpired([PRIVATE], 12, output=PRIVATE.encode())
+                return (1, b"System.UnauthorizedAccessException: " + PRIVATE.encode()) if failed else (0, b"")
+
+            with patch.object(counter.subprocess, "run", side_effect=docker), patch.object(counter, "run_collector", side_effect=collector):
                 if wrong_owner:
                     with self.assertRaises(Exception):
                         counter.capture(directory, sample)
                     self.assertFalse(any(args[1] == "rm" for args in calls))
                     return
                 result = counter.capture(directory, sample)
-                self.assertEqual("unavailable" if stale or failed else "observed", result["status"])
+                self.assertEqual("unavailable" if stale or failed or timed_out else "observed", result["status"])
+                if failed:
+                    self.assertEqual("permission_denied_message", result["tool_output_category"])
+                    self.assertEqual("command_exit", result["error_kind"])
+                    self.assertEqual(1, result["command_exit"])
+                    self.assertEqual({"status": "observed", "exit_code": 1, "oom_killed": False, "running": False}, result["collector_container"])
+                if timed_out:
+                    self.assertEqual("timeout", result["error_kind"])
+                    self.assertEqual("unclassified", result["tool_output_category"])
+                    self.assertEqual({"status": "unavailable"}, result["collector_container"])
                 self.assertEqual(1, counter.load(directory)["attempt"])
                 self.assertIsNone(counter.capture(directory, sample))
                 exhausted = counter.load(directory)
@@ -211,6 +226,74 @@ class CounterTests(unittest.TestCase):
                 self.assertNotIn(PRIVATE, output.getvalue())
                 expected = {"status": "unavailable", "reason": "preparation_failed", "phase": phase, "error_kind": kind, **numeric}
                 self.assertEqual(expected, json.loads(output.getvalue().removeprefix("IMAGE_MANAGED_COUNTERS ")))
+
+    def test_collector_messages_reduce_to_fixed_categories_without_private_payloads(self):
+        cases = [
+            (b"System.UnauthorizedAccessException " + PRIVATE.encode(), "permission_denied_message"),
+            (b"Failed to connect " + PRIVATE.encode(), "connection_or_missing_path_message"),
+            (b"You must install or update .NET " + PRIVATE.encode(), "runtime_dependency_message"),
+            (b"Unrecognized command " + PRIVATE.encode(), "cli_argument_message"),
+            (PRIVATE.encode(), "unclassified"),
+            (b"", "empty"),
+            (b"x" * 16385, "unavailable_oversize"),
+        ]
+        for raw, expected in cases:
+            with self.subTest(category=expected):
+                self.assertEqual(expected, counter.classify_collector_output(raw))
+                self.assertNotIn(PRIVATE, counter.classify_collector_output(raw))
+
+    def test_timed_out_collector_and_unavailable_container_state_do_not_become_zero_or_success(self):
+        self.exercise_capture(timed_out=True, state_unavailable=True)
+
+    def test_collector_pipe_drains_noisy_output_with_bounded_retention_and_preserves_exit(self):
+        real_popen = subprocess.Popen
+        child = None
+
+        def owned_child(_args, **kwargs):
+            nonlocal child
+            child = real_popen([sys.executable, "-c", "import sys;sys.stdout.buffer.write(b'x'*1048576);sys.stdout.flush();sys.exit(7)"], **kwargs)
+            return child
+
+        with patch.object(counter.subprocess, "Popen", side_effect=owned_child):
+            status, raw = counter.run_collector("c" * 64)
+        self.assertEqual(7, status)
+        self.assertEqual(16385, len(raw))
+        self.assertEqual("unavailable_oversize", counter.classify_collector_output(raw))
+        self.assertEqual(7, child.poll())
+
+    def test_collector_deadline_reaps_only_the_owned_client_and_caps_timeout_output(self):
+        real_popen = subprocess.Popen
+        child = None
+
+        def owned_child(_args, **kwargs):
+            nonlocal child
+            child = real_popen([sys.executable, "-c", "import sys,time;sys.stdout.buffer.write(b'x'*1048576);sys.stdout.flush();time.sleep(30)"], **kwargs)
+            return child
+
+        with patch.object(counter.subprocess, "Popen", side_effect=owned_child), self.assertRaises(subprocess.TimeoutExpired) as failure:
+            counter.run_collector("c" * 64)
+        self.assertEqual(12, failure.exception.timeout)
+        self.assertEqual(16385, len(failure.exception.output))
+        self.assertIsNotNone(child.poll())
+
+    def test_selector_initialization_cancellation_still_reaps_the_owned_client(self):
+        real_popen = subprocess.Popen
+        child = None
+
+        def owned_child(_args, **kwargs):
+            nonlocal child
+            child = real_popen([sys.executable, "-c", "import time;time.sleep(30)"], **kwargs)
+            return child
+
+        try:
+            with patch.object(counter.subprocess, "Popen", side_effect=owned_child), patch.object(counter.selectors, "DefaultSelector", side_effect=InterruptedError(PRIVATE)), self.assertRaises(InterruptedError):
+                counter.run_collector("c" * 64)
+            self.assertIsNotNone(child.poll())
+        finally:
+            # The deliberate missing-guard counterfactual must also leave no owned child behind.
+            if child is not None and child.poll() is None:
+                child.kill()
+                child.wait(timeout=3)
 
 
 if __name__ == "__main__":

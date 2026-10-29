@@ -974,10 +974,8 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.consolidationFormButtonsBeforeProgressSnapshot20261027"
     },
     "progressContractTrace20261026": {
-      "status": "FOCUSED_BUILTIN_PASS_CI_PENDING",
-      "verification": "Preceding API trace RED1, focused GREEN1; Angular progress 10 PASS; canonical and legacy E2E 2 PASS. Synthetic built-in client progress page1/page2/back retained focus; no writes.",
-      "boundary": "Preceding runner shutdown cause unproven; no full local suite or current-source release claim.",
-      "evidence": ".local/autonomous/evidence/ledger-ui-20261026/contract-trace-fix-review.json"
+      "status": "ARCHIVED_FOCUSED_EVIDENCE_ACCEPTANCE_SEPARATE",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.progressContractTrace20261026"
     },
     "accountAndTaskJourneyCorrection20261027": {
       "history": "status-archive-2026-10.json#archivedTargetedVerification.accountAndTaskJourneyCorrection20261027BeforeOversightAccess20261027"
@@ -1171,14 +1169,18 @@
       "archive": "status-archive-2026-10.json#archivedTargetedVerification.counterPreparationDiagnostics20261029"
     },
     "lazyBuildkitCounterReadiness20261029": {
-      "status": "GENUINE_READINESS_DEFECT_FOCUSED_VERIFIED_ACTUAL_SUCCESSOR_CAPTURE_PENDING",
-      "base": "34b93eff746f88dd71da1de075cb97a0e0754220",
+      "status": "ARCHIVED_FOCUSED_EVIDENCE_ACCEPTANCE_SEPARATE",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.lazyBuildkitCounterReadiness20261029"
+    },
+    "collectorExecutionDiagnostics20261029": {
+      "status": "FOCUSED_FAILURE_DIAGNOSTICS_VERIFIED_ACTUAL_COLLECTOR_CAUSE_PENDING",
+      "base": "4a1b4994bdbbd3bbef6a1e325527ed9e8c7d1652",
       "schema": "301_UNCHANGED",
-      "observed": "Actual34b migration/worker preparebuilder_identity exit1 beforelazyBuildKitstartup; sourceworkflowcreate has no bootstrap/startsampleabsent/endrunning. No managedheapframes.",
-      "change": "Prepareonce aftercurrentperiodicreadonly running-builder observation; trackownedpreparationtimeoutchild. No buildargv/probe/toolpin/timeouts/retries/bootstrap/resource/GC/security/productpolicychange.",
-      "verification": "Identical lazyfixture original34bRED atduring-build/exactlyonce assertion; shippingGREEN15/restoredGREEN15/allprior13 exit/privacy/cleanup controls plusownedpreparation-cancel retained. Initialmarkerfailure retained, onecompiler activefixture afterseparate8processbound; original0.5sec/assertions unchanged.",
-      "review": ".local/autonomous/evidence/lazy-buildkit-counter-readiness-20261029/review.json",
-      "remaining": "ActualsuccessorLinuxpreparation/heapcapture, currentgates/full/schema301rehearsal/realDOV04/release/professional/provider leaves."
+      "observed": "Both4a1bimagejobs prepareREADY thenall8growthcaptures unavailable/collector_execution; noheapframes orretainedCLIexit/state/details. Knowncompiler137/OOM remains.",
+      "change": "Boundedmemory-only reader drains/discards excess, closedmessagecategories/numericCLIexit/timeout/exactownedobserverexitOOMrunning metadata; no rawtooltext emitted/evidencepersisted. No transport/privilege/resource/GC/SDK/argv/timeout/retrypolicyfix.",
+      "verification": "Python14PASS inclactual1MiBdrain/exit7, real12sdeadline+ownedreap, earlyselector-cancel cleanup; all9oldmethods retained. Counterfactuals detect discardedcategory/unboundedprefix/missingguard.",
+      "review": ".local/autonomous/evidence/collector-execution-diagnostics-20261029/review.json",
+      "remaining": "ActualsuccessorCLI/category/state andheapcapture; categories arenotcause/policyproof. Currentgates/full/rehearsal/realDOV04/release/qualifiedleaves remainopen."
     }
   },
   "externalGates": [
@@ -1663,13 +1665,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "34b93eff746f88dd71da1de075cb97a0e0754220",
-    "sourceRole": "LAZY_BUILDKIT_COUNTER_READINESS_REPAIR",
-    "status": "FOCUSED_READINESS_GREEN14_EXACT_SUCCESSOR_GATES_REQUIRED",
-    "predecessor": "34b fast40847777634 FAIL Release123360266161 shutdown/causeunproven; Docs/AngularactualPASS. Images40847777709 FAIL API123359406009+worker123359405979 compiler137/OOM; migration123359405652 actualpinPASS/summary123367042775SKIPPED. All6actualcheckouts/loghashes retained; all3preparebuilder_identity1/noheapframes. No rerun/cancel.",
+    "sourceBaseCommit": "4a1b4994bdbbd3bbef6a1e325527ed9e8c7d1652",
+    "sourceRole": "OPTIONAL_COLLECTOR_FAILURE_DIAGNOSTICS",
+    "status": "FOCUSED_FAILURE_DIAGNOSTICS_EXACT_SUCCESSOR_GATES_REQUIRED",
+    "predecessor": "4a1bfast40850977936 PASS/all3actualcheckouts. Images40850977802 FAIL API123370058563+worker123370057874 knowncompiler137/OOM; migration123370058420 actualpinPASS/summary123374650037SKIPPED. All6actualcheckouts/loghashes retained. PrepareREADY/all8collector_execution unavailable/noheapframes; no rerun/cancel.",
     "full": "NOT_DISPATCHED; coherent diagnostics/sourcebatch precede finalfreeze.",
-    "cutover": "NOT_PERFORMED; exactcurrentgates/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeLazyBuildkitReadiness20261029"
+    "cutover": "NOT_PERFORMED; currentgates/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeCollectorExecutionDiagnostics20261029"
   },
-  "updatedAtUtc": "2026-10-29T09:28:53.693005+00:00"
+  "updatedAtUtc": "2026-10-29T10:18:50.093326+00:00"
 }

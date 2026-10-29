@@ -14,11 +14,15 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Collector failure diagnostics
+
+Current image jobs prepared the observer successfully, but collection attempts remained unavailable without client failure details. The diagnostic now drains client output with a bounded memory prefix, discards excess and reports only fixed message categories, numeric exit or timeout information and independently read state from the exact owned observer. Raw messages stay outside reports and saved evidence. Client cancellation, failed initialization and byte limits have focused checks; original build arguments, capture deadline, target permissions and cleanup boundaries remain intact.
+
+A message category is an observation, not proof of a transport policy or memory cause. Actual successor-source collection remains pending; missing state never becomes zero or a successful heap observation. Compiler OOM and older shutdown/inactivity causes remain separate; see [status.json](status.json).
+
 ## Lazy BuildKit counter readiness
 
-A current image run showed optional counter preparation preceding Buildx's lazy container startup. Preparation now begins once an existing periodic read-only sample observes the builder running. The sampler tracks and drains only its own preparation or capture child. Tool pins, probes, deadlines, command arguments, build output and exit remain unchanged; short cached builds can finish before preparation is needed.
-
-The focused lazy-start control detects the original early attempt and verifies one preparation during the build while retaining exit, privacy and cleanup checks. Actual successor-source managed-counter capture remains pending. This observer correction does not establish compiler allocation composition or resolve the separate OOM and runner-shutdown causes; see [status.json](status.json).
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#lazy-buildkit-counter-readiness).
 
 ## Counter preparation failure reporting
 

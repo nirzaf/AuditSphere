@@ -599,3 +599,14 @@ Owned tiny managed/native fixtures establish transport and filtering, including 
 
 
 <!-- End of verbatim counter diagnostic records. -->
+
+<!-- Verbatim lazy BuildKit readiness record. -->
+
+## Lazy BuildKit counter readiness
+
+A current image run showed optional counter preparation preceding Buildx's lazy container startup. Preparation now begins once an existing periodic read-only sample observes the builder running. The sampler tracks and drains only its own preparation or capture child. Tool pins, probes, deadlines, command arguments, build output and exit remain unchanged; short cached builds can finish before preparation is needed.
+
+The focused lazy-start control detects the original early attempt and verifies one preparation during the build while retaining exit, privacy and cleanup checks. Actual successor-source managed-counter capture remains pending. This observer correction does not establish compiler allocation composition or resolve the separate OOM and runner-shutdown causes; see [status.json](status.json).
+
+
+<!-- End of verbatim lazy readiness record. -->
