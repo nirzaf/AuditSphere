@@ -1161,14 +1161,16 @@
       "archive": "status-archive-2026-10.json#archivedTargetedVerification.wu004LibraryMetadata20261029"
     },
     "wu004PhysicalMovementScope20261029": {
-      "status": "ORIGINAL_RED1_IDENTICAL_REGRESSION_GREEN1_MIGRATION_GREEN1_SCOPE_PARTIAL",
-      "base": "dce3185c387e07940a2c2a05ddfdfb091dd90115",
-      "scope": "Movement (firm_id,item_id) restrictively references item(firm_id,id); original global FK accepted a foreign-firm item after native Register/Move and same-firm controls passed.",
-      "verification": "Original exact regression RED1/no exception; unchanged method plus clean-upgrade/down/index-preservation and inconsistent-history refusal GREEN2/0FAIL/0skip. APIRelease/EFdrift PASS.",
-      "latestMigration": "20261029040938_PhysicalEvidenceMovementFirmScope",
-      "cleanup": "OwnedPG18.6 ports61195/61398 exactroots/listeners/controllers/postmasters/connections independently absent; original5433 untouched.",
-      "review": ".local/autonomous/evidence/wu004-physical-movement-scope-20261029/review.json",
-      "limits": "No live/custody/restricted-role/TRUNCATE claim.46 ORIGINAL unprobed catalog links/wider schema/release acceptance remain open."
+      "status": "PUBLISHED_SCOPE_VERIFIED_HISTORY",
+      "archive": "status-archive-2026-10.json#archivedTargetedVerification.wu004PhysicalMovementScope20261029"
+    },
+    "imageBuildMemoryDiagnostics20261029": {
+      "status": "LOCAL_CONTRACT_PASS_ACTUAL_LINUX_CAPTURE_PENDING",
+      "base": "2b8564bf101d2b5bebd529c6c9940778c2f580b0",
+      "scope": "Bounded readonly host/cgroup/BuildKit samples around unchanged image-build argv; original build exit retained, unavailable telemetry explicit. No environment/argv/binlog dump.",
+      "verification": "Same focused adapter harness GREEN6; ignore-exit counterfactual RED at expected102/actual0; omit-capture RED at missing start sample; restored GREEN6. Syntax/YAML/exact argv and unchanged existing workflow gates PASS.",
+      "review": ".local/autonomous/evidence/image-memory-diagnostics-20261029/review.json",
+      "limits": "Mocked adapter only; actual Linux limits/peaks/events and source-bound CI still required. No heap/capacity/retry/build-timeout/test/product fix or full pass; schema297 unchanged."
     }
   },
   "externalGates": [
@@ -1653,13 +1655,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "dce3185c387e07940a2c2a05ddfdfb091dd90115",
-    "sourceRole": "PHYSICAL_MOVEMENT_FIRM_PARENT_CONSTRAINT",
-    "status": "FOCUSED_REPAIR_PASS_EXACT_SUCCESSOR_GATES_REQUIRED",
-    "releaseVerification": "dce fast40814914594 PASS/all3actualcheckouts. Images40814914645 terminalFAIL: migration123253615147 csc137/ResourceExhausted/cannot allocate memory; API+worker actualcheckouts/pinsPASS, summarySKIPPED. New distinct resource evidence retained; no rerun/cancel or speculative timeout/source fix.",
-    "imagePublication": "Current successor full/images/frozen schema297 rehearsal required. Predecessor pins do not supply current gates.",
-    "cutoverStatus": "NOT_PERFORMED; genuineDOV04/current gates/fresh bound QUIESCEDbackups/public authenticated acceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforePhysicalMovementScope20261029"
+    "sourceBaseCommit": "2b8564bf101d2b5bebd529c6c9940778c2f580b0",
+    "sourceRole": "IMAGE_BUILD_READONLY_MEMORY_DIAGNOSTICS_ONLY",
+    "status": "LOCAL_CAPTURE_CONTRACT_PASS_EXACT_SUCCESSOR_CI_PENDING",
+    "releaseVerification": "2b fast40817396569 PASS/all3actualcheckouts. Images40817396575 FAIL: migration123261585004 repeated csc137/ResourceExhausted; API+worker pinsPASS/summarySKIPPED. Same reported class; capacity/peak/kernel attribution unmeasured; no rerun/cancel.",
+    "imagePublication": "Observer preserves original build argv and mandatory gates. Actual capture is diagnostic evidence, never image/full acceptance. Current source full/images/frozen schema297 rehearsal still required.",
+    "cutoverStatus": "NOT_PERFORMED; realDOV04/current gates/fresh bound backups/public authenticated acceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeImageMemoryDiagnostics20261029"
   },
-  "updatedAtUtc": "2026-10-29T04:20:45.870780+00:00"
+  "updatedAtUtc": "2026-10-29T05:01:41.518154+00:00"
 }

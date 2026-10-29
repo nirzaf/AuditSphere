@@ -16,6 +16,7 @@ on:
       - 'src/AuditSphereOps.Ui/**'
       - 'src/AuditSphereOps.Worker/**'
       - 'infra/docker/migrations.Dockerfile'
+      - 'scripts/diagnostics/image-build-memory.sh'
       - 'docs/task_breakdown/tracking/pack_manifest.json'
       - 'docs/task_breakdown/tasks/**'
       - '.dockerignore'
@@ -73,7 +74,8 @@ jobs:
           DOCKERFILE: ${{ matrix.dockerfile }}
         run: |
           set -euo pipefail
-          docker buildx build --platform linux/amd64 --push \
+          bash scripts/diagnostics/image-build-memory.sh buildx_buildkit_hostinger-acceptance0 -- \
+            docker buildx build --platform linux/amd64 --push \
             --cache-from "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}:buildcache" \
             --cache-to "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}:buildcache,mode=max" \
             --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}:${GITHUB_SHA}" \

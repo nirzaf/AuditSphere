@@ -14,19 +14,21 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Image-build memory diagnostics
+
+The image-build wrapper records bounded read-only host, cgroup and BuildKit memory evidence while preserving the build's exact exit status. The focused adapter harness detects ignored failure and missing capture; original build arguments and required gates remain intact. Actual Linux measurements and image acceptance are pending. Older runner shutdown/inactivity causes remain unconfirmed; see [status.json](status.json).
+
 ## Physical movement parent scope
 
 An isolated native Register/Move fixture reproduced a movement referencing another firm's item. The restrictive firm/item reference preserves existing lookup indexes and movement history. Clean upgrade/downgrade and inconsistent-history upgrade refusal have focused checks; no live custody data was changed. Other relational, restricted-role and release acceptance leaves remain open; see [status.json](status.json).
 
 ## Retained library metadata
 
-An isolated native-publication fixture reproduced rewrites of retained version identity, effective date and approval metadata, including a published-to-draft reset. The additive metadata guard freezes non-status fields and permits only unchanged status or `PUBLISHED` → `SUPERSEDED`. Draft and published bytes remain intact across upgrade; draft-only downgrade preserves drafts; retained publications prevent downgrade to the weaker guard. No live data was changed. Wider schema verification and exact-source release gates remain open; see [status.json](status.json).
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#retained-library-metadata).
 
 ## Technical-library version parent scope
 
-A valid database fixture reproduced a version referencing another firm's document. The version now has a restrictive firm/document parent key. The focused regression retains its same-firm control and original history checks; the existing independent publishing, audience and version-history workflow remains covered. The additive migration refuses inconsistent existing history without repairing or deleting it. Such records require an authorized data-review process before deployment.
-
-This closes the exercised library parent-reference gap within the continuing schema work. Other relational candidates, wider append-only/restricted-role/upgrade evidence, exact-source full CI and qualified release gates remain open. No deployed database was migrated; see [status.json](status.json).
+Focused evidence and its limits moved verbatim to the [historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#technical-library-version-parent-scope).
 
 ## Staffing receipt scope verification
 

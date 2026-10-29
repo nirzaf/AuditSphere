@@ -26154,6 +26154,15 @@
       "imagePublication": "4c868 pins are predecessor-only after this repair; no current cache/rehearsal/receipt.",
       "cutoverStatus": "NOT_PERFORMED; genuineDOV04, exact gates, fresh baseline/QUIESCEDbackups and public authenticated acceptance required.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeLibraryMetadata20261029"
+    },
+    "currentSourceCiBeforeImageMemoryDiagnostics20261029": {
+      "sourceBaseCommit": "dce3185c387e07940a2c2a05ddfdfb091dd90115",
+      "sourceRole": "PHYSICAL_MOVEMENT_FIRM_PARENT_CONSTRAINT",
+      "status": "FOCUSED_REPAIR_PASS_EXACT_SUCCESSOR_GATES_REQUIRED",
+      "releaseVerification": "dce fast40814914594 PASS/all3actualcheckouts. Images40814914645 terminalFAIL: migration123253615147 csc137/ResourceExhausted/cannot allocate memory; API+worker actualcheckouts/pinsPASS, summarySKIPPED. New distinct resource evidence retained; no rerun/cancel or speculative timeout/source fix.",
+      "imagePublication": "Current successor full/images/frozen schema297 rehearsal required. Predecessor pins do not supply current gates.",
+      "cutoverStatus": "NOT_PERFORMED; genuineDOV04/current gates/fresh bound QUIESCEDbackups/public authenticated acceptance required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforePhysicalMovementScope20261029"
     }
   },
   "archivedTargetedVerification": {
@@ -27589,6 +27598,16 @@
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.timeEntryChanges20261021",
       "supersededCiHistory": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.timeEntryFullCiBeforeCurrentSource20261021",
       "currentCi": "targetedVerification.currentSourceCi20261021"
+    },
+    "wu004PhysicalMovementScope20261029": {
+      "status": "ORIGINAL_RED1_IDENTICAL_REGRESSION_GREEN1_MIGRATION_GREEN1_SCOPE_PARTIAL",
+      "base": "dce3185c387e07940a2c2a05ddfdfb091dd90115",
+      "scope": "Movement (firm_id,item_id) restrictively references item(firm_id,id); original global FK accepted a foreign-firm item after native Register/Move and same-firm controls passed.",
+      "verification": "Original exact regression RED1/no exception; unchanged method plus clean-upgrade/down/index-preservation and inconsistent-history refusal GREEN2/0FAIL/0skip. APIRelease/EFdrift PASS.",
+      "latestMigration": "20261029040938_PhysicalEvidenceMovementFirmScope",
+      "cleanup": "OwnedPG18.6 ports61195/61398 exactroots/listeners/controllers/postmasters/connections independently absent; original5433 untouched.",
+      "review": ".local/autonomous/evidence/wu004-physical-movement-scope-20261029/review.json",
+      "limits": "No live/custody/restricted-role/TRUNCATE claim.46 ORIGINAL unprobed catalog links/wider schema/release acceptance remain open."
     }
   },
   "lastUpdatedOn": "2026-10-29"

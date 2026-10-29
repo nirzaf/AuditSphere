@@ -511,3 +511,18 @@ Concurrent work published the profile and progress tracker and recorded an owner
 ## Axelor UX final scoped verification (2026-10-25)
 
 The owner reiterated completion of every applicable story in the attached UX specification. Static prior-action/deep-link parity is recorded separately from executed behavior. Existing journeys now cover ordinary commercial pipeline filtering/refresh, scoped lead/pipeline/invoice denial and unchanged provider/posting intentions. Built-in browser review exercised commercial, denied and independent finance roles; negative monthly P&L, report detail and missing comparator matched the existing accounting basis. No financial, tenant, provider or professional rules changed. Focused results and candidate identities are in `targetedVerification.axelorFinal20261025`; exact final-candidate full CI remains required. Broader human/provider/professional acceptance is not fabricated or silently folded into this bounded UX change.
+
+
+<!-- Focused library evidence moved verbatim on 2026-10-29 from source2b8564bf; no new acceptance claim. -->
+
+## Retained library metadata
+
+An isolated native-publication fixture reproduced rewrites of retained version identity, effective date and approval metadata, including a published-to-draft reset. The additive metadata guard freezes non-status fields and permits only unchanged status or `PUBLISHED` → `SUPERSEDED`. Draft and published bytes remain intact across upgrade; draft-only downgrade preserves drafts; retained publications prevent downgrade to the weaker guard. No live data was changed. Wider schema verification and exact-source release gates remain open; see [status.json](status.json).
+
+## Technical-library version parent scope
+
+A valid database fixture reproduced a version referencing another firm's document. The version now has a restrictive firm/document parent key. The focused regression retains its same-firm control and original history checks; the existing independent publishing, audience and version-history workflow remains covered. The additive migration refuses inconsistent existing history without repairing or deleting it. Such records require an authorized data-review process before deployment.
+
+This closes the exercised library parent-reference gap within the continuing schema work. Other relational candidates, wider append-only/restricted-role/upgrade evidence, exact-source full CI and qualified release gates remain open. No deployed database was migrated; see [status.json](status.json).
+
+<!-- End of exact library handoff evidence moved on 2026-10-29. -->
