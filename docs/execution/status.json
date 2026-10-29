@@ -1177,19 +1177,25 @@
       "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeArchiveOperationScope20261029_counterAccessAttribution20261029"
     },
     "wu004ArchiveCopyOperationScope20261029": {
-      "status": "FOCUSED_SCOPE_MIGRATION_INDEX_VERIFIED_REVIEW_CLOSED_SUCCESSOR_CI_REQUIRED",
-      "sourceBaseCommit": "fb0db5173ba278d6cc96edd91e701383b7b4fe2e",
-      "migration": "303:20261029124914_ArchiveCopyOperationScope",
-      "defect": "Original global operation refs accepted10isolated crossfirm/otherclient/siblingengagement/client-only/firm-wide parent links acrossfile+permission receipts. Twoactualnativefake-provider copy controls/knownsource pins/foreigncommands/nondupSQL/exact16tablebytes established first.",
-      "repair": "Two immediate validated restrictive fullscope PostgreSQL FKs usingordinaryunique parentindex. Generaloperation client/engagement remainnullable; alloldindexes/globalFKs/prior migrations retained. No datarewrite/formula/nativecommand/API/role/provider change.",
-      "pairedTestValue": "Exact final scope method SHA332d25dcaf03360b1b53fb37e6b68ac0caaec23d47252302291c9d75be47b540 originalRED1/identicalGREEN1. Later catalog/migration assertions and explicit fixture pin are stronger separate source, not byteidentical to pair.",
-      "verification": "ExpandedGREEN1/0FAIL0skip actual303->302->303 exactsource/receipt/operation/financial bytes+oldindex/FK/history preserved; retained-invalid302upgrade23503/newnamedFK atomicrefusal leavesalloldrows/defs/history andno newindex/FK. Final migration-specific fixture pin GREEN1/0FAIL0skip. APIRelease0warnings0errors/EFdriftPASS.",
-      "indexReview": "PG18.6 actual303/20syntheticfirms/20000genericheaders/5%firmselectivity. FullscopeFORKEYSHAREusesexistingfirm/idindex3hits+lock1; nativePK3hits.1000rollbackinserts/WAL1396752bytes; newuniqueindex2482176physicalbytesmeasuredafterrollback/mayincludeabortedpages. Requiredreferenceindex, no speed/per-row/productionthreshold claim; oldindexes/constraints kept.",
+      "status": "FOCUSED_VERIFIED_ARCHIVED_ACCEPTANCE_PARTIAL",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeOpinionClearanceScope20261029_wu004ArchiveCopyOperationScope20261029",
       "evidence": ".local/autonomous/evidence/wu004-archive-operation-scope-20261029",
-      "remaining": "35 ORIGINALunprobedcataloglinks aftertwo scope references; broaderWU004PARTIAL. Typedoperation/attempt/sourceauthenticity/restrictedrole/mutation/TRUNCATE/provider/custody/countdown/professional acceptance separate; exactsuccessorfast/full/images/rehearsal/realDOV04/backups/receipt/publicauthenticatedacceptance open.",
-      "finalTestSourceSHA256": "20deebdee9d1f76c8ebf8d2698ac93e250a3ea25a8c915918a2e29b59cd5cb59",
-      "review": "Harvey4oracle/pinfindings fixed/rereadnone/closed; readonlystatic/no independent execution.",
-      "cleanup": "11ownedPGphases exactroots/controllers/postmasters/listeners/connections independentlyabsent; dotnet/compiler/testhostscanempty. Original5433/Entra/Docker/VPS untouched."
+      "boundary": "Native fake-provider scope repair/schema303/focused migration/index/cleanup verified; typedoperation/attempt/sourceauthenticity and provider/professional acceptance separate."
+    },
+    "wu004OpinionClearanceScope20261029": {
+      "status": "FOCUSED_SCOPE_MIGRATION_INDEX_VERIFIED_REVIEW_CLOSED_SUCCESSOR_CI_REQUIRED",
+      "sourceBaseCommit": "33f4807390e9d6eaf3818b7e5d0e0690da130069",
+      "migration": "304:20261029134026_CompletionDecisionParentScope",
+      "defect": "Original global SRM/clearance refs accepted12foreignfirm/otherclient/siblingparent and isolatedchildfirm/client/engagement links. Native2firms/currentreviewedSRM/Partnerclearance/opinion/foreigncommands/validSQL/exact10tablebytes established first.",
+      "repair": "Two explicit immediate validated restrictive fullscope DB FKs plus nonnullable clearance alternatekey; existingglobalEFrefs/alloldindexes/history retained. Measured redundantgeneratedchildindexes removed beforepublication; no data/command/API/role/opinionpolicy change. EF drift alone does not prove extraDBFKs.",
+      "pairedTestValue": "OriginalRED1/IDENTICALGREEN1, testsourceb3579a436a0f37bfcc0912d0f84472a3b015026e35fe4ff4ebaf15a6ba9151de/method0581f52f8d8b2d54ac6d19ead6094e98cad222c5c2c80ec2f913ce3e9b0cfe0e. Later financial/catalog/pin assertions are stronger separate source, NOT byteidentical.",
+      "verification": "FinalGREEN1/0FAIL0skip known100/-100QAR; legacy303catalog/history/exactbytes capturedBEFORE firstUp304, then303->304->303->304 preservation. RetainedforeignSRM+opinion on303 upgrade304refuses23503/opinionFK atomically/leavesalloldrows/catalog/history/no newobjects. SRM upgradefailure notseparatelyisolated. APIRelease0warnings0errors/EFdriftPASS/alloldtestbytesretained.",
+      "indexReview": "ActualEF304/PG18.6/20syntheticfirms/20000headers each/5%firmselectivity. Six FK/native lookups useOLDindexes. OnlyrequirednewAKindex2441216physicalbytes afterrollback/mayincludeabortedpages.1000rollbackrows perchild/WAL661132+536624bytes/0netrows; no controlledgain/productionthreshold claim.",
+      "finalTestSourceSHA256": "6819e0612fc77672c6f8411952ca978f12dcf29dd8b4f55409a6ab831cb6520f",
+      "review": "EpicurusP2pre-upcatalogoracle fixed/rereadnone/closed; readonlystatic/no reviewerexecution.",
+      "cleanup": "8ownedPGphases63045/63098/63636/63827/64151/64483/64798/65506 exactroots/controllers/postmasters/listeners independentlyabsent; compiler/dotnet/testhostscanempty. Original5433/Entra/Docker/VPS untouched.",
+      "evidence": ".local/autonomous/evidence/wu004-opinion-clearance-scope-20261029",
+      "remaining": "33 ORIGINALunprobedcataloglinks; WU004PARTIAL. Typedkind/actor/currentness/restrictedrole/mutation/TRUNCATE/professional acceptance remain separate. Exactsuccessorfast/full/images/schema304rehearsal/realDOV04/backups/receipt/publicauthenticatedacceptance open."
     }
   },
   "externalGates": [
@@ -1618,14 +1624,14 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "fb0db5173ba278d6cc96edd91e701383b7b4fe2e",
-    "sourceRole": "ARCHIVE_COPY_OPERATION_SCOPE_REPAIR",
+    "sourceBaseCommit": "33f4807390e9d6eaf3818b7e5d0e0690da130069",
+    "sourceRole": "COMPLETION_DECISION_PARENT_SCOPE_REPAIR",
     "status": "FOCUSED_VERIFIED_EXACT_SUCCESSOR_GATES_REQUIRED",
-    "predecessor": "fb0fast40869053204FAIL Release123431958846shutdown12:06UTC/actorcauseUNPROVEN; Docs123431104211+Angular123431104737actualPASS15+21/1737+189. Images40869053184FAIL API123431104151+migrations123431104712knowncsc137/OOM102/no pins; worker123431104639actualpinPASS/summary123437698263SKIPPED. All6actualcheckouts/loghash/check/annotation/artifactMETADATA retainedonce/no currentpendingCI/no cancel/rerun/redownload.",
-    "diagnosticBoundary": "Firstsampledcompiler-only fixedprocroot/socketstatdenied, outputwritable, realUID0/0; laterlargecompilerPIDs differ. No heapframes/exactpolicycause/resourcefix. Alreadyreportedonce; diagnostic/build/workflowbytes unchangedbythisslice.",
-    "full": "NOT_DISPATCHED duringcoherentsourcebatch/causaldiagnostics; no currentcache/rehearsal/helper/receipt/privateexecution.",
-    "cutover": "NOT_PERFORMED; exactsuccessorgates/schema303rehearsal/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeArchiveOperationScope20261029"
+    "predecessor": "33ffast40880818717FAIL Release123472527940shutdown13:30UTC/actorcauseUNPROVEN; Docs123471535839+Angular123471535369actualPASS15+21/1737+189. Images40880818504FAIL ALL3actual33f API123471535637/worker123471535697/migrations123471535744csc137/OOM102/no pins; summary123483361892SKIPPED. All6actualcheckouts/loghash/check/annotation/artifactMETADATA retainedonce/no pending33fCI/no cancel/rerun/redownload.",
+    "diagnosticBoundary": "APIoptionalruntime_pulltimeout; worker+migrationfirstprocessprocroot/socketdenied/outputwritable/UID0/0; laterlargecompilerPIDs differ. No heapdata/exactpolicycause/resourcefix. Originaldiagnostic/workflow/buildbytesunchanged. Knownclassnorepeatnotification.",
+    "full": "NOT_DISPATCHED duringcoherentbatch/causaldiagnostics; no currentcache/rehearsal/helper/receipt/privateexecution.",
+    "cutover": "NOT_PERFORMED; exactsuccessorgates/schema304rehearsal/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeOpinionClearanceScope20261029"
   },
-  "updatedAtUtc": "2026-10-29T13:11:51.509458+00:00"
+  "updatedAtUtc": "2026-10-29T14:02:56.615565+00:00"
 }

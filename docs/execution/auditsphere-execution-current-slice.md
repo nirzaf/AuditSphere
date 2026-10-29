@@ -14,13 +14,17 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## SRM, Partner clearance and opinion parent scope
+
+The original global parent references accepted another firm's memorandum or clearance. Parent-only controls also accepted another client or sibling engagement; isolated child scope changes were accepted. A bounded native fixture established current independently reviewed SRM, Partner clearance and opinion records, known balanced source amounts, foreign-command denials and exact evidence bytes. The identical scope regression refused those links after repair. Later strengthened source and migration assertions are separate from the paired proof.
+
+`CompletionDecisionParentScope` adds restrictive full firm/client/engagement references and the clearance's matching nonnullable key. The extra database references are explicit migration constraints. Existing global relationships and indexes remain; measured lookups did not justify additional child indexes. Clean upgrade/downgrade preserve evidence and old definitions. Retained inconsistent links refuse upgrade atomically without rewriting history.
+
+These synthetic decisions and structural rollback controls do not establish a real opinion, document-kind/actor authenticity, methodology or professional acceptance. Exact verification, index costs, cleanup and successor gates are recorded in [status.json](status.json). The whole assignment remains incomplete.
+
 ## Archive-copy operation parent scope
 
-The original global operation references accepted receipts attached to another firm's operation. Independent parent-only probes also accepted another client, a sibling engagement and wider nullable general-operation scopes. A bounded native fake-provider fixture first established exact copy/permission receipts, known source byte pins, current foreign-command denials, valid nonduplicating SQL controls and retained evidence bytes. The same regression then refused those links after the additive repair; later migration assertions remain separately identified from that exact paired proof.
-
-`ArchiveCopyOperationScope` adds restrictive full firm/client/engagement/operation references through an ordinary unique index. General durable operations keep nullable scopes; original keys, global relationships and lookup indexes remain. PostgreSQL catalog checks establish the extra references independently of EF model drift. Clean upgrade/downgrade preserve native evidence and old index/constraint definitions; an upgrade over retained foreign-operation receipts refuses atomically without rewriting rows or migration history.
-
-The fixture keeps the shipping live-operation descriptor with an in-memory provider and owned local checkpoint; it performs no real provider work. Generic pending parent controls and rollback-only attempt clones do not establish operation-kind, attempt or source authenticity. Restricted-role, mutation/TRUNCATE, custody, countdown policy and professional/provider acceptance remain separate. Current source gates, index-cost measurements and cleanup evidence are recorded in [status.json](status.json); the whole assignment remains incomplete.
+Focused evidence and its limits moved verbatim to [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#archive-copy-operation-parent-scope).
 
 ## Counter access attribution
 

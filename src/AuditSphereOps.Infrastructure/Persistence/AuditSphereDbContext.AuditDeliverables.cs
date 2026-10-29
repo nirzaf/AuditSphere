@@ -83,8 +83,12 @@ public sealed partial class AuditSphereDbContext
       e.ToTable("audit_deliverables", t => t.HasCheckConstraint("ck_audit_deliverable_values",
         "kind IN ('SUMMARY_REVIEW_MEMORANDUM','AUDIT_FINDINGS_REPORT','MANAGEMENT_LETTER','INDEPENDENT_AUDITORS_REPORT','HOLDING_LETTER','REPRESENTATION_LETTER') AND version >= 1 AND length(input_digest) = 64 AND length(content_sha256) = 64 AND octet_length(content) > 0"));
     });
+    // CompletionDecisionParentScope adds the full-scope PostgreSQL references explicitly.
+    // Preserve existing parent-ID indexes; measured reference lookups already use them.
     b.Entity<PartnerCompletionClearance>(e =>
     {
+      e.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+        .HasName("ak_partner_clearance_scope_id");
       e.HasIndex(x => new { x.FirmId, x.EngagementId, x.ClearedAt });
       e.HasOne<AuditDeliverable>().WithMany().HasForeignKey(x => x.SummaryReviewMemorandumId).OnDelete(DeleteBehavior.Restrict);
       e.ToTable("partner_completion_clearances", t => t.HasCheckConstraint("ck_partner_completion_clearance_values",

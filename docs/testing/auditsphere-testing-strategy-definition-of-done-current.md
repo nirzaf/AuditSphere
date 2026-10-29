@@ -71,6 +71,8 @@ Archive-copy operation-scope probes isolate the initial native copy and permissi
 
 **Example lean sets:** docs typo → zero application tests; a pure rounding rule → existing boundary theory; a scoped journal posting change → selected DB-backed permission, balance, stale/replay and rollback cases, often grouped in one fixture; a decoder change → one targeted Angular spec using parameterized invalid payloads; a new multi-actor approval path → a relevant existing integration journey, or one new one only if not otherwise proved.
 
+Completion-clearance scope probes stop after native SRM, Partner clearance and opinion commands in independent synthetic firm scopes. Preserve the reviewed source, known balanced amounts, current clearance/opinion identities, foreign-command denials and exact retained bytes. Same-scope rollback clones establish valid insertion; parent-only foreign-firm, other-client and sibling-engagement swaps and isolated child firm/client/engagement changes must refuse. Structural header clones are not further human decisions or generated reports. Pin migration-specific fixtures, preserve old indexes/constraints through clean upgrade/downgrade, and verify atomic refusal over retained inconsistent scope. Keep the exact paired regression distinct from later source and catalog assertions. Database parent scope does not establish document kind, actor authenticity, methodology or genuine professional approval.
+
 ## 4. Existing testing infrastructure
 
 - Restored suites (STE-NXT-001; ADR-0008 `SUPERSEDED`) include `tests/AuditSphereOps.Domain.Tests/`, `tests/AuditSphereOps.Api.Tests/`, `tests/AuditSphereOps.E2E.Tests/`, and Angular specs. Do not run the historical restore-from-deletion command again; it could overwrite later work.

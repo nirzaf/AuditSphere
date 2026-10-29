@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Acceptance;
@@ -12,11 +13,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -999,6 +1003,288 @@ public sealed partial class AuditDeliverablesTests
     var clearResult = await AuditDeliverableService.PartnerClearAsync(db, partner, srm, "Risks reviewed.", "Notes reviewed.");
     Assert.True(clearResult.Succeeded, $"PartnerClearAsync failed: {clearResult.ErrorCode} - {clearResult.Message}");
     return srm;
+  }
+
+  [Fact]
+  public async Task OpinionClearanceParents_RejectForeignScopeAndPreserveExactEvidence()
+  {
+    const string baseline = "20261029124914_ArchiveCopyOperationScope";
+    const string current = "20261029134026_CompletionDecisionParentScope";
+    await using var pg = await PgTestSchema.CreateAsync(baseline);
+    async Task<(World World, Guid Srm, Guid Clearance, Guid Opinion)> CompleteAsync()
+    {
+      var w = await SeedAsync(pg);
+      var srmId = await PartnerClearCurrentSummaryAsync(pg, w);
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var partner = w.A("partner", "Partner");
+      var decided = await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId,
+        AuditOpinionTypes.Unmodified, null, null);
+      Assert.True(decided.Succeeded, decided.Message);
+      var srm = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == srmId);
+      Assert.Equal(DeliverableKinds.SummaryReviewMemorandum, srm.Kind);
+      Assert.Equal((w.FirmId, w.ClientId, w.EngagementId), (srm.FirmId, srm.ClientId, srm.EngagementId));
+      Assert.NotEmpty(srm.Content);
+      Assert.Equal(Hashing.Sha256Hex(srm.Content), srm.ContentSha256);
+      var amounts = await db.TrialBalanceRows.AsNoTracking()
+        .Where(r => db.TrialBalanceDatasets.Any(d => d.Id == r.DatasetId && d.FirmId == w.FirmId && d.EngagementId == w.EngagementId))
+        .OrderByDescending(r => r.Amount).Select(r => new { r.Amount, r.Currency }).ToArrayAsync();
+      Assert.Equal(new[] { 100m, -100m }, amounts.Select(r => r.Amount).ToArray());
+      Assert.All(amounts, r => Assert.Equal("QAR", r.Currency));
+      var clearance = await AuditDeliverableService.CurrentClearanceAsync(db, partner, w.EngagementId);
+      Assert.NotNull(clearance);
+      Assert.Equal(srmId, clearance.SummaryReviewMemorandumId);
+      Assert.Equal(partner.UserId, clearance.PartnerUserId);
+      var opinion = await AuditDeliverableService.CurrentOpinionAsync(db, partner, w.EngagementId);
+      Assert.NotNull(opinion);
+      Assert.Equal(decided.Value, opinion.Id);
+      Assert.Equal(clearance.Id, opinion.PartnerClearanceId);
+      Assert.Equal(AuditOpinionTypes.Unmodified, opinion.OpinionType);
+      Assert.Null(opinion.BasisText);
+      return (w, srmId, clearance.Id, opinion.Id);
+    }
+    var own = await CompleteAsync();
+    var foreign = await CompleteAsync();
+    Assert.NotEqual(own.World.FirmId, foreign.World.FirmId);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      foreach (var (actor, other) in new[]
+      {
+        (own.World.A("partner", "Partner"), foreign), (foreign.World.A("partner", "Partner"), own)
+      })
+      {
+        Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.PartnerClearAsync(db, actor,
+          other.Srm, "Synthetic foreign risk review.", "Synthetic foreign notes review.")).ErrorCode);
+        Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.DecideOpinionAsync(db, actor,
+          other.World.EngagementId, AuditOpinionTypes.Unmodified, null, null)).ErrorCode);
+        Assert.Null(await AuditDeliverableService.CurrentClearanceAsync(db, actor, other.World.EngagementId));
+        Assert.Null(await AuditDeliverableService.CurrentOpinionAsync(db, actor, other.World.EngagementId));
+      }
+
+    var otherClient = Guid.CreateVersion7();
+    var otherClientEngagement = Guid.CreateVersion7();
+    var siblingEngagement = Guid.CreateVersion7();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.PracticeClients.Add(new PracticeClient { Id = otherClient, FirmId = own.World.FirmId,
+        LegalName = "Synthetic clearance scope control", CreatedAt = DateTimeOffset.UtcNow });
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = otherClient, FirmId = own.World.FirmId });
+      db.Engagements.AddRange(
+        new Engagement { Id = otherClientEngagement, FirmId = own.World.FirmId, PracticeClientId = otherClient, CreatedAt = DateTimeOffset.UtcNow },
+        new Engagement { Id = siblingEngagement, FirmId = own.World.FirmId, PracticeClientId = own.World.ClientId, CreatedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+    }
+    async Task<string[]> SnapshotAsync()
+    {
+      var result = new List<string>();
+      await using var connection = new NpgsqlConnection(pg.ConnectionString);
+      await connection.OpenAsync();
+      foreach (var table in new[] { "audit_deliverables", "partner_completion_clearances", "audit_opinion_decisions",
+        "trial_balance_datasets", "trial_balance_rows", "mapping_versions", "audit_procedures",
+        "audit_procedure_results", "audit_procedure_reviews", "materiality_assessments" })
+      {
+        // Identifiers are restricted to the fixed list above.
+        await using var command = new NpgsqlCommand(
+          $"SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.id), '[]'::jsonb)::text FROM {table} r", connection);
+        result.Add((string)(await command.ExecuteScalarAsync())!);
+      }
+      return result.ToArray();
+    }
+    await using var migrationDb = new AuditSphereDbContext(pg.Options);
+    var migrator = migrationDb.GetService<IMigrator>();
+    var priorApplied = (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray();
+    Assert.Equal(baseline, priorApplied[^1]);
+    var oldCatalog = await CatalogAsync(false);
+    await AssertNewScopeAsync(false);
+    var before = await SnapshotAsync();
+    await migrator.MigrateAsync(current);
+    Assert.Equal(priorApplied.Append(current).ToArray(), (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+    Assert.Equal(oldCatalog, await CatalogAsync(false));
+    Assert.Equal(before, await SnapshotAsync());
+    await AssertNewScopeAsync(true);
+    var accepted = new List<string>();
+    await using (var connection = new NpgsqlConnection(pg.ConnectionString))
+    {
+      await connection.OpenAsync();
+      await using var tx = await connection.BeginTransactionAsync();
+      // These rollback-only headers are structural scope controls, not additional human decisions.
+      var parents = new List<(string Label, Guid Srm, Guid Clearance)> { ("foreign-firm parent", foreign.Srm, foreign.Clearance) };
+      foreach (var (label, client, engagement) in new[]
+      {
+        ("same-firm different-client parent", otherClient, otherClientEngagement),
+        ("same-client sibling-engagement parent", own.World.ClientId, siblingEngagement)
+      })
+      {
+        var memo = Guid.CreateVersion7();
+        var clearance = Guid.CreateVersion7();
+        await using var command = new NpgsqlCommand("""
+          INSERT INTO audit_deliverables
+          SELECT (jsonb_populate_record(NULL::audit_deliverables, to_jsonb(r) || jsonb_build_object(
+            'id', @memo, 'client_id', @client, 'engagement_id', @engagement))).*
+          FROM audit_deliverables r WHERE r.id = @sourceMemo;
+          INSERT INTO partner_completion_clearances
+          SELECT (jsonb_populate_record(NULL::partner_completion_clearances, to_jsonb(r) || jsonb_build_object(
+            'id', @clearance, 'client_id', @client, 'engagement_id', @engagement, 'summary_review_memorandum_id', @memo))).*
+          FROM partner_completion_clearances r WHERE r.id = @sourceClearance;
+          """, connection, tx);
+        command.Parameters.AddWithValue("memo", memo);
+        command.Parameters.AddWithValue("clearance", clearance);
+        command.Parameters.AddWithValue("client", client);
+        command.Parameters.AddWithValue("engagement", engagement);
+        command.Parameters.AddWithValue("sourceMemo", own.Srm);
+        command.Parameters.AddWithValue("sourceClearance", own.Clearance);
+        Assert.Equal(2, await command.ExecuteNonQueryAsync());
+        parents.Add((label, memo, clearance));
+      }
+      foreach (var (table, parentColumn, sourceId, ownParent) in new[]
+      {
+        ("partner_completion_clearances", "summary_review_memorandum_id", own.Clearance, own.Srm),
+        ("audit_opinion_decisions", "partner_clearance_id", own.Opinion, own.Clearance)
+      })
+      {
+        async Task<int> InsertAsync(Guid firm, Guid client, Guid engagement, Guid parent)
+        {
+          // Table and parent-column identifiers come only from the fixed pair above.
+          await using var command = new NpgsqlCommand($"""
+            INSERT INTO {table}
+            SELECT (jsonb_populate_record(NULL::{table}, to_jsonb(r) || jsonb_build_object(
+              'id', @id, 'firm_id', @firm, 'client_id', @client, 'engagement_id', @engagement,
+              '{parentColumn}', @parent))).* FROM {table} r WHERE r.id = @source;
+            """, connection, tx);
+          command.Parameters.AddWithValue("id", Guid.CreateVersion7());
+          command.Parameters.AddWithValue("firm", firm);
+          command.Parameters.AddWithValue("client", client);
+          command.Parameters.AddWithValue("engagement", engagement);
+          command.Parameters.AddWithValue("parent", parent);
+          command.Parameters.AddWithValue("source", sourceId);
+          return await command.ExecuteNonQueryAsync();
+        }
+        await tx.SaveAsync("positive");
+        Assert.Equal(1, await InsertAsync(own.World.FirmId, own.World.ClientId, own.World.EngagementId, ownParent));
+        await tx.RollbackAsync("positive");
+        var probes = parents.Select(p => (p.Label, own.World.FirmId, own.World.ClientId, own.World.EngagementId,
+          Parent: table == "partner_completion_clearances" ? p.Srm : p.Clearance)).ToList();
+        probes.Add(("isolated child firm", foreign.World.FirmId, own.World.ClientId, own.World.EngagementId, ownParent));
+        probes.Add(("isolated child client", own.World.FirmId, otherClient, own.World.EngagementId, ownParent));
+        probes.Add(("isolated child engagement", own.World.FirmId, own.World.ClientId, siblingEngagement, ownParent));
+        foreach (var (label, firm, client, engagement, parent) in probes)
+        {
+          await tx.SaveAsync("probe");
+          try
+          {
+            Assert.Equal(1, await InsertAsync(firm, client, engagement, parent));
+            accepted.Add(table + ": " + label);
+          }
+          catch (PostgresException ex) { Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, ex.SqlState); }
+          await tx.RollbackAsync("probe");
+        }
+      }
+      await tx.RollbackAsync();
+    }
+    Assert.Equal(before, await SnapshotAsync());
+    Assert.True(accepted.Count == 0, "Out-of-scope completion parents were accepted: " + string.Join("; ", accepted));
+
+    var applied = (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray();
+    Assert.Equal(current, applied[^1]);
+    async Task<string> CatalogAsync(bool newObjects)
+    {
+      await using var connection = new NpgsqlConnection(pg.ConnectionString);
+      await connection.OpenAsync();
+      await using var command = new NpgsqlCommand("""
+        SELECT jsonb_build_object(
+          'indexes', (SELECT jsonb_agg(jsonb_build_array(indexname,indexdef) ORDER BY indexname)
+            FROM pg_indexes WHERE schemaname=current_schema()
+              AND tablename IN ('audit_deliverables','partner_completion_clearances','audit_opinion_decisions')
+              AND (indexname IN ('ak_partner_clearance_scope_id',
+                'IX_partner_completion_clearances_firm_id_client_id_engagement_~',
+                'IX_audit_opinion_decisions_firm_id_client_id_engagement_id_par~'))=@new),
+          'constraints', (SELECT jsonb_agg(jsonb_build_array(conname,pg_get_constraintdef(oid),convalidated,condeferrable) ORDER BY conname)
+            FROM pg_constraint WHERE connamespace=current_schema()::regnamespace
+              AND conrelid IN ('audit_deliverables'::regclass,'partner_completion_clearances'::regclass,'audit_opinion_decisions'::regclass)
+              AND (conname IN ('ak_partner_clearance_scope_id','fk_partner_clearance_srm_scope','fk_audit_opinion_clearance_scope'))=@new))::text
+        """, connection);
+      command.Parameters.AddWithValue("new", newObjects);
+      return (string)(await command.ExecuteScalarAsync())!;
+    }
+    async Task AssertNewScopeAsync(bool present)
+    {
+      using var catalog = JsonDocument.Parse(await CatalogAsync(true));
+      var constraints = catalog.RootElement.GetProperty("constraints");
+      var indexes = catalog.RootElement.GetProperty("indexes");
+      if (!present)
+      {
+        Assert.Equal(JsonValueKind.Null, constraints.ValueKind);
+        Assert.Equal(JsonValueKind.Null, indexes.ValueKind);
+        return;
+      }
+      Assert.Equal(3, constraints.GetArrayLength());
+      var keyIndex = Assert.Single(indexes.EnumerateArray());
+      Assert.Equal("ak_partner_clearance_scope_id", keyIndex[0].GetString());
+      Assert.Contains("CREATE UNIQUE INDEX", keyIndex[1].GetString());
+      Assert.Contains("(firm_id, client_id, engagement_id, id)", keyIndex[1].GetString());
+      foreach (var row in constraints.EnumerateArray())
+      {
+        Assert.True(row[2].GetBoolean());
+        Assert.False(row[3].GetBoolean());
+        var definition = row[1].GetString()!;
+        switch (row[0].GetString())
+        {
+          case "ak_partner_clearance_scope_id":
+            Assert.Equal("UNIQUE (firm_id, client_id, engagement_id, id)", definition);
+            break;
+          case "fk_partner_clearance_srm_scope":
+            Assert.Equal("FOREIGN KEY (firm_id, client_id, engagement_id, summary_review_memorandum_id) REFERENCES audit_deliverables(firm_id, client_id, engagement_id, id) ON DELETE RESTRICT", definition);
+            break;
+          case "fk_audit_opinion_clearance_scope":
+            Assert.Equal("FOREIGN KEY (firm_id, client_id, engagement_id, partner_clearance_id) REFERENCES partner_completion_clearances(firm_id, client_id, engagement_id, id) ON DELETE RESTRICT", definition);
+            break;
+          default: Assert.Fail("Unexpected completion scope constraint."); break;
+        }
+      }
+    }
+    await AssertNewScopeAsync(true);
+    Assert.Contains("FOREIGN KEY (summary_review_memorandum_id)", oldCatalog);
+    Assert.Contains("FOREIGN KEY (partner_clearance_id)", oldCatalog);
+    var retained = await SnapshotAsync();
+    await migrator.MigrateAsync(baseline);
+    Assert.Equal(applied[..^1], (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+    Assert.Equal(oldCatalog, await CatalogAsync(false));
+    Assert.Equal(retained, await SnapshotAsync());
+    await AssertNewScopeAsync(false);
+    await migrator.MigrateAsync(current);
+    Assert.Equal(applied, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+    Assert.Equal(oldCatalog, await CatalogAsync(false));
+    Assert.Equal(retained, await SnapshotAsync());
+    await AssertNewScopeAsync(true);
+
+    // Invalid retained old-schema links must refuse upgrade atomically, never repair history.
+    await migrator.MigrateAsync(baseline);
+    await using (var connection = new NpgsqlConnection(pg.ConnectionString))
+    {
+      await connection.OpenAsync();
+      foreach (var (table, column, source, parent) in new[]
+      {
+        ("partner_completion_clearances", "summary_review_memorandum_id", own.Clearance, foreign.Srm),
+        ("audit_opinion_decisions", "partner_clearance_id", own.Opinion, foreign.Clearance)
+      })
+      {
+        await using var command = new NpgsqlCommand($"""
+          INSERT INTO {table}
+          SELECT (jsonb_populate_record(NULL::{table}, to_jsonb(r) || jsonb_build_object(
+            'id', @id, '{column}', @parent))).* FROM {table} r WHERE r.id=@source;
+          """, connection);
+        command.Parameters.AddWithValue("id", Guid.CreateVersion7());
+        command.Parameters.AddWithValue("parent", parent);
+        command.Parameters.AddWithValue("source", source);
+        Assert.Equal(1, await command.ExecuteNonQueryAsync());
+      }
+    }
+    var invalidRetained = await SnapshotAsync();
+    var refused = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(current));
+    Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, refused.SqlState);
+    Assert.Equal("fk_audit_opinion_clearance_scope", refused.ConstraintName);
+    Assert.Equal(invalidRetained, await SnapshotAsync());
+    Assert.Equal(oldCatalog, await CatalogAsync(false));
+    Assert.Equal(applied[..^1], (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+    await AssertNewScopeAsync(false);
   }
 
   [Fact]

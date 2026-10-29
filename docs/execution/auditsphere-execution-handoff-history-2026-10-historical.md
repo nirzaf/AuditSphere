@@ -654,3 +654,13 @@ Application and HTTP boundaries require meaningful references for substantive sa
 The preceding monetary-unit sampling handoff is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md).
 
 <!-- Archived verbatim before the archive-copy operation-scope slice on 2026-10-29. -->
+
+## Archive-copy operation parent scope
+
+The original global operation references accepted receipts attached to another firm's operation. Independent parent-only probes also accepted another client, a sibling engagement and wider nullable general-operation scopes. A bounded native fake-provider fixture first established exact copy/permission receipts, known source byte pins, current foreign-command denials, valid nonduplicating SQL controls and retained evidence bytes. The same regression then refused those links after the additive repair; later migration assertions remain separately identified from that exact paired proof.
+
+`ArchiveCopyOperationScope` adds restrictive full firm/client/engagement/operation references through an ordinary unique index. General durable operations keep nullable scopes; original keys, global relationships and lookup indexes remain. PostgreSQL catalog checks establish the extra references independently of EF model drift. Clean upgrade/downgrade preserve native evidence and old index/constraint definitions; an upgrade over retained foreign-operation receipts refuses atomically without rewriting rows or migration history.
+
+The fixture keeps the shipping live-operation descriptor with an in-memory provider and owned local checkpoint; it performs no real provider work. Generic pending parent controls and rollback-only attempt clones do not establish operation-kind, attempt or source authenticity. Restricted-role, mutation/TRUNCATE, custody, countdown policy and professional/provider acceptance remain separate. Current source gates, index-cost measurements and cleanup evidence are recorded in [status.json](status.json); the whole assignment remains incomplete.
+
+<!-- Archive-copy operation scope record retained verbatim. -->

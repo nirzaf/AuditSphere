@@ -19828,6 +19828,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("ak_partner_clearance_scope_id");
+
                     b.HasIndex("SummaryReviewMemorandumId");
 
                     b.HasIndex("FirmId", "EngagementId", "ClearedAt");
@@ -37236,6 +37239,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "AffectedTaxonomyNodeId")
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.ClientBundleAcknowledgement", b =>
@@ -37453,6 +37457,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("SummaryReviewMemorandumId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.ProcedureReviewNote", b =>
