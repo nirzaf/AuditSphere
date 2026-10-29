@@ -410,6 +410,197 @@ public sealed class FieldworkConnectionsTests
   }
 
   [Fact]
+  public async Task AdHocProcedureHistory_RejectsForeignProceduresAndPreservesRetainedRevisions()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    async Task<Guid> SeedProgramAsync(World world)
+    {
+      var now = DateTimeOffset.UtcNow;
+      var version = Guid.NewGuid();
+      var program = Guid.NewGuid();
+      var spareProcedure = Guid.NewGuid();
+      db.AuditProgramVersions.Add(new AuditProgramVersion
+      {
+        Id = version, FirmId = world.FirmId, Version = "ad-hoc-scope", SourceHash = Hashing.Sha256Hex("synthetic ad hoc scope"),
+        Status = AuditProgramStatuses.Published, CreatedByUserId = world.Preparer.Id, ApprovedByUserId = world.Reviewer.Id,
+        CreatedAt = now, ApprovedAt = now
+      });
+      await db.SaveChangesAsync();
+      db.EngagementAuditPrograms.Add(new EngagementAuditProgram
+      {
+        Id = program, FirmId = world.FirmId, ClientId = world.ClientId, EngagementId = world.EngagementId,
+        ProgramVersionId = version, AdoptedByUserId = world.Reviewer.Id, AdoptedAt = now
+      });
+      db.AuditProcedures.Add(new AuditProcedure
+      {
+        Id = spareProcedure, FirmId = world.FirmId, ClientId = world.ClientId, EngagementId = world.EngagementId,
+        EngagementProgramId = program, SourceProcedureId = "ADHOC-CONTROL", SourceSectionTitle = "Synthetic ad hoc scope",
+        SourceWording = "Synthetic control", Title = "Synthetic control", ApplicabilityStatus = AuditApplicabilityStatuses.Applicable,
+        Status = AuditProcedureStatuses.Planned, CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+      return spareProcedure;
+    }
+    var spare = await SeedProgramAsync(own);
+    var foreignSpare = await SeedProgramAsync(foreign);
+    var inserted = await AuditFieldworkService.InsertAdHocProcedureAsync(db, own.Auditor,
+      new(own.EngagementId, "Inspect synthetic transaction", "Original synthetic wording", "Synthetic unusual transaction", null, null));
+    var foreignInserted = await AuditFieldworkService.InsertAdHocProcedureAsync(db, foreign.Auditor,
+      new(foreign.EngagementId, "Inspect foreign synthetic transaction", "Foreign synthetic wording", "Synthetic unusual transaction", null, null));
+    Assert.True(inserted.Succeeded, inserted.Message);
+    Assert.True(foreignInserted.Succeeded, foreignInserted.Message);
+    Assert.True((await AuditFieldworkService.EditAdHocProcedureAsync(db, own.Auditor, inserted.Value, "Revised synthetic wording")).Succeeded);
+    Assert.Equal(new[] { "Original synthetic wording", "Revised synthetic wording" }, await db.AdHocProcedureRevisions
+      .Where(x => x.ProcedureId == inserted.Value).OrderBy(x => x.Revision).Select(x => x.Wording).ToArrayAsync());
+    Assert.Equal(ErrorCodes.ScopeDenied, (await AuditFieldworkService.EditAdHocProcedureAsync(db, own.Auditor, foreignInserted.Value, "Foreign edit refused")).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await AuditFieldworkService.InsertAdHocProcedureAsync(db, own.Auditor,
+      new(foreign.EngagementId, "Foreign insertion refused", "Synthetic", "Synthetic reason", null, null))).ErrorCode);
+    async Task<string[]> ReadHistoryAsync() => await db.Database.SqlQueryRaw<string>("""
+      SELECT ('insertion:' || to_jsonb(i)::text) AS "Value" FROM ad_hoc_procedure_insertions i
+      UNION ALL SELECT ('revision:' || to_jsonb(r)::text) AS "Value" FROM ad_hoc_procedure_revisions r
+      ORDER BY "Value"
+      """).ToArrayAsync();
+    var retained = await ReadHistoryAsync();
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+    async Task<int> InsertAsync(bool revision, Guid procedure, Guid client, Guid engagement)
+    {
+      var table = revision ? "ad_hoc_procedure_revisions" : "ad_hoc_procedure_insertions";
+      await using var command = new NpgsqlCommand($"""
+        INSERT INTO {table}
+        SELECT (jsonb_populate_record(NULL::{table}, to_jsonb(h) || jsonb_build_object(
+          'id', @id, 'procedure_id', @procedure, 'client_id', @client, 'engagement_id', @engagement, 'revision', 1000))).*
+        FROM {table} h WHERE h.procedure_id = @source AND {(revision ? "h.revision = 1" : "true")}
+        """, connection, transaction);
+      command.Parameters.AddWithValue("id", Guid.NewGuid());
+      command.Parameters.AddWithValue("procedure", procedure);
+      command.Parameters.AddWithValue("client", client);
+      command.Parameters.AddWithValue("engagement", engagement);
+      command.Parameters.AddWithValue("source", inserted.Value);
+      return await command.ExecuteNonQueryAsync();
+    }
+    await new NpgsqlCommand("SAVEPOINT ad_hoc_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    Assert.Equal(1, await InsertAsync(false, spare, own.ClientId, own.EngagementId));
+    Assert.Equal(1, await InsertAsync(true, inserted.Value, own.ClientId, own.EngagementId));
+    await new NpgsqlCommand("ROLLBACK TO SAVEPOINT ad_hoc_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    var accepted = new List<string>();
+    foreach (var (name, revision, procedure, client, engagement, constraint) in new[]
+    {
+      ("insertion procedure", false, foreignSpare, own.ClientId, own.EngagementId, "fk_ad_hoc_insertion_procedure_scope"),
+      ("revision procedure", true, foreignInserted.Value, own.ClientId, own.EngagementId, "fk_ad_hoc_revision_procedure_scope"),
+      ("insertion client", false, spare, foreign.ClientId, own.EngagementId, "fk_ad_hoc_insertion_procedure_scope"),
+      ("insertion engagement", false, spare, own.ClientId, foreign.EngagementId, "fk_ad_hoc_insertion_procedure_scope")
+    })
+    {
+      try
+      {
+        Assert.Equal(1, await InsertAsync(revision, procedure, client, engagement));
+        accepted.Add(name);
+      }
+      catch (PostgresException exception)
+      {
+        Assert.Equal("23503", exception.SqlState);
+        Assert.Equal(constraint, exception.ConstraintName);
+      }
+      await new NpgsqlCommand("ROLLBACK TO SAVEPOINT ad_hoc_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    }
+    await transaction.RollbackAsync();
+    Assert.Equal(retained, await ReadHistoryAsync());
+    Assert.True(accepted.Count == 0, "Cross-scope ad hoc history references accepted: " + string.Join(", ", accepted));
+  }
+
+  [Fact]
+  public async Task AdHocProcedureHistoryScopeUpgrade_PreservesHistoryAndRefusesInconsistentParents()
+  {
+    const string baseline = "20261029062347_ProcedureEvidenceLinkScope";
+    const string scopedHistory = "20261029065958_AdHocProcedureHistoryScope";
+    await using var pg = await PgTestSchema.CreateAsync(baseline);
+    var own = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    async Task<Guid> SeedProgramAsync(World world)
+    {
+      var now = DateTimeOffset.UtcNow;
+      var version = Guid.NewGuid();
+      var program = Guid.NewGuid();
+      var spareProcedure = Guid.NewGuid();
+      db.AuditProgramVersions.Add(new AuditProgramVersion
+      {
+        Id = version, FirmId = world.FirmId, Version = "ad-hoc-scope", SourceHash = Hashing.Sha256Hex("synthetic ad hoc scope"),
+        Status = AuditProgramStatuses.Published, CreatedByUserId = world.Preparer.Id, ApprovedByUserId = world.Reviewer.Id,
+        CreatedAt = now, ApprovedAt = now
+      });
+      await db.SaveChangesAsync();
+      db.EngagementAuditPrograms.Add(new EngagementAuditProgram
+      {
+        Id = program, FirmId = world.FirmId, ClientId = world.ClientId, EngagementId = world.EngagementId,
+        ProgramVersionId = version, AdoptedByUserId = world.Reviewer.Id, AdoptedAt = now
+      });
+      db.AuditProcedures.Add(new AuditProcedure
+      {
+        Id = spareProcedure, FirmId = world.FirmId, ClientId = world.ClientId, EngagementId = world.EngagementId,
+        EngagementProgramId = program, SourceProcedureId = "ADHOC-CONTROL", SourceSectionTitle = "Synthetic ad hoc scope",
+        SourceWording = "Synthetic control", Title = "Synthetic control", ApplicabilityStatus = AuditApplicabilityStatuses.Applicable,
+        Status = AuditProcedureStatuses.Planned, CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+      return spareProcedure;
+    }
+    await SeedProgramAsync(own);
+    var foreignProcedure = await SeedProgramAsync(foreign);
+    var inserted = await AuditFieldworkService.InsertAdHocProcedureAsync(db, own.Auditor,
+      new(own.EngagementId, "Synthetic retained step", "Original retained wording", "Synthetic unusual transaction", null, null));
+    Assert.True(inserted.Succeeded, inserted.Message);
+    Assert.True((await AuditFieldworkService.EditAdHocProcedureAsync(db, own.Auditor, inserted.Value, "Revised retained wording")).Succeeded);
+    async Task<string[]> ReadHistoryAsync() => await db.Database.SqlQueryRaw<string>("""
+      SELECT ('insertion:' || to_jsonb(i)::text) AS "Value" FROM ad_hoc_procedure_insertions i
+      UNION ALL SELECT ('revision:' || to_jsonb(r)::text) AS "Value" FROM ad_hoc_procedure_revisions r
+      ORDER BY "Value"
+      """).ToArrayAsync();
+    async Task<string[]> ReadIndexesAsync() => await db.Database.SqlQueryRaw<string>("""
+      SELECT (tablename || ':' || indexname || ':' || indexdef)::text AS "Value" FROM pg_indexes
+      WHERE tablename IN ('ad_hoc_procedure_insertions','ad_hoc_procedure_revisions') ORDER BY "Value"
+      """).ToArrayAsync();
+    var retained = await ReadHistoryAsync();
+    var indexes = await ReadIndexesAsync();
+    var migrator = db.GetService<IMigrator>();
+    await migrator.MigrateAsync(scopedHistory);
+    Assert.Equal(scopedHistory, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    Assert.Equal(retained, await ReadHistoryAsync());
+    var upgradedIndexes = await ReadIndexesAsync();
+    Assert.All(indexes, index => Assert.Contains(index, upgradedIndexes));
+    await migrator.MigrateAsync(baseline);
+    Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    Assert.Equal(retained, await ReadHistoryAsync());
+    Assert.Equal(indexes, await ReadIndexesAsync());
+    Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO ad_hoc_procedure_insertions
+      SELECT (jsonb_populate_record(NULL::ad_hoc_procedure_insertions, to_jsonb(i) || jsonb_build_object(
+        'id', {Guid.NewGuid()}, 'procedure_id', {foreignProcedure}))).*
+      FROM ad_hoc_procedure_insertions i WHERE i.procedure_id = {inserted.Value}
+      """));
+    var inconsistent = await ReadHistoryAsync();
+    var exception = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(scopedHistory));
+    Assert.Equal("23503", exception.SqlState);
+    Assert.Equal("fk_ad_hoc_insertion_procedure_scope", exception.ConstraintName);
+    Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
+    Assert.Equal(inconsistent, await ReadHistoryAsync());
+    Assert.Equal(indexes, await ReadIndexesAsync());
+    var constraints = await db.Database.SqlQueryRaw<string>("""
+      SELECT conname::text AS "Value" FROM pg_constraint WHERE contype = 'f'
+      AND conrelid IN ('ad_hoc_procedure_insertions'::regclass,'ad_hoc_procedure_revisions'::regclass)
+      """).ToArrayAsync();
+    Assert.Contains("FK_ad_hoc_procedure_insertions_audit_procedures_procedure_id", constraints);
+    Assert.Contains("FK_ad_hoc_procedure_revisions_audit_procedures_procedure_id", constraints);
+    Assert.DoesNotContain("fk_ad_hoc_insertion_procedure_scope", constraints);
+    Assert.DoesNotContain("fk_ad_hoc_revision_procedure_scope", constraints);
+  }
+
+  [Fact]
   public async Task MultiPeriodIntake_MappingMemory_AndCurrencyReview()
   {
     await using var pg = await PgTestSchema.CreateAsync();

@@ -26190,6 +26190,15 @@
       "imagePublication": "New process samples are diagnostic only; actual current checkouts/pins/gates and frozen schema298 rehearsal required. No predecessor image acceptance reused.",
       "cutoverStatus": "NOT_PERFORMED; realDOV04/current gates/fresh bound backups/public authenticated acceptance required.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeImageProcessMemoryDiagnostics20261029"
+    },
+    "currentSourceCiBeforeAdHocProcedureHistoryScope20261029": {
+      "sourceBaseCommit": "1abc670151c4b9c76f448f8137e3f50c852fdc60",
+      "sourceRole": "PROCEDURE_CLIENT_EVIDENCE_SCOPE_REPAIR",
+      "status": "FOCUSED_GREEN2_EXACT_SUCCESSOR_GATES_REQUIRED",
+      "predecessor": "1abc fast40826702927 FAIL explicit Release runner shutdown/cause unproven. Images40826702886 FAIL migration csc137/OOM; actual csc process RSS captured, managed/native/exact victim unresolved. All6actualcheckouts retained; no rerun.",
+      "full": "NOT_DISPATCHED; coherent schema batch and causal diagnostics precede final freeze.",
+      "cutover": "NOT_PERFORMED; current gates/realDOV04/fresh bound backups/receipt/public authenticated acceptance required.",
+      "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeProcedureEvidenceScope20261029"
     }
   },
   "archivedTargetedVerification": {
@@ -27674,6 +27683,16 @@
       "evidence": ".local/autonomous/evidence/wu024-deployment-bindings-20261025/review.json",
       "verification": "All-profile synthetic Compose render: 9 services, 6 volumes, no services started. Test/Export envelopes valid INCOMPLETE_EVIDENCE; 25 PASS, 1 outbound-host-policy MISSING, 0 FAIL. Offline script assertions 32/32 PASS.",
       "remaining": "Runtime environment/mounts, schema, readiness, approved egress policy, rollback and live acceptance remain unobserved."
+    },
+    "wu004ProcedureEvidenceLinkScope20261029": {
+      "status": "FOCUSED_SCOPE_VERIFIED_ACCEPTANCE_OPEN",
+      "base": "1abc670151c4b9c76f448f8137e3f50c852fdc60",
+      "schema": "299:20261029062347_ProcedureEvidenceLinkScope",
+      "proof": "Identical regression RED1/GREEN1 within GREEN2; exact native received links/hash/request and command denials retained. Actual298->299->298 preserves links/uploads/indexes; inconsistent retained request/upload refuses23503 with prior history/FKs intact. API Release/EF drift PASS.",
+      "scope": "Full procedure scope and exact upload/request parent FKs; original lookup indexes retained. No data rewrite or command/role/API/timeout/retry change.",
+      "indexReview": "Owned EF schema/20firms/20020links; FK plans and rollback1000-row write/WAL measured. No production threshold.",
+      "review": ".local/autonomous/evidence/wu004-procedure-evidence-scope-20261029/review.json",
+      "remaining": "42 original unprobed catalog links plus separate restricted-role/mutation/upgrade/professional leaves. No full catalog rescan."
     }
   },
   "lastUpdatedOn": "2026-10-29"

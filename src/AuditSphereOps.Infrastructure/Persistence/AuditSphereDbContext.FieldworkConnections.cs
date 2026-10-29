@@ -71,13 +71,21 @@ public sealed partial class AuditSphereDbContext
     b.Entity<AdHocProcedureInsertion>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.ProcedureId }).IsUnique();
-      e.HasOne<AuditProcedure>().WithMany().HasForeignKey(x => x.ProcedureId).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => x.ProcedureId);
+      e.HasOne<AuditProcedure>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProcedureId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_ad_hoc_insertion_procedure_scope");
       e.ToTable("ad_hoc_procedure_insertions", t => t.HasCheckConstraint("ck_ad_hoc_procedure_insertion_values", "length(reason) > 0"));
     });
     b.Entity<AdHocProcedureRevision>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.ProcedureId, x.Revision }).IsUnique();
-      e.HasOne<AuditProcedure>().WithMany().HasForeignKey(x => x.ProcedureId).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => x.ProcedureId);
+      e.HasOne<AuditProcedure>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.ProcedureId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_ad_hoc_revision_procedure_scope");
       e.ToTable("ad_hoc_procedure_revisions", t => t.HasCheckConstraint("ck_ad_hoc_procedure_revision_values", "revision >= 1 AND length(wording) > 0"));
     });
   }

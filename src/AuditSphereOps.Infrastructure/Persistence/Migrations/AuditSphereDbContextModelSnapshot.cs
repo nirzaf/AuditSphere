@@ -13226,6 +13226,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "ProcedureId")
                         .IsUnique();
 
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ProcedureId");
+
                     b.ToTable("ad_hoc_procedure_insertions", null, t =>
                         {
                             t.HasCheckConstraint("ck_ad_hoc_procedure_insertion_values", "length(reason) > 0");
@@ -35881,18 +35883,22 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedure", null)
                         .WithMany()
-                        .HasForeignKey("ProcedureId")
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ProcedureId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_ad_hoc_insertion_procedure_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.AdHocProcedureRevision", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedure", null)
                         .WithMany()
-                        .HasForeignKey("ProcedureId")
+                        .HasForeignKey("FirmId", "ProcedureId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_ad_hoc_revision_procedure_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.AnalyticalReviewVarianceInvestigation", b =>

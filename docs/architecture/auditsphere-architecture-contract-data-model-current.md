@@ -47,6 +47,8 @@ Conditional task applicability uses `workflow_task_applicability_proposals` and 
 
 `procedure_evidence_links` binds its procedure through `(firm_id, client_id, engagement_id, procedure_id)` and its received upload through `(firm_id, client_id, engagement_id, pbc_request_id, pbc_upload_intent_id)`. `ProcedureEvidenceLinkScope` adds restrictive parent references and the upload's matching alternate key. Original parent and child lookup indexes, retained link/upload rows and native command authorization remain. Clean upgrade/downgrade preserve exact rows and original indexes; an inconsistent retained request/upload reference refuses upgrade atomically, retaining prior constraints and migration history. No history is repaired or discarded. These scope constraints do not establish file authenticity or provider/professional acceptance.
 
+`ad_hoc_procedure_insertions` binds `(firm_id, client_id, engagement_id, procedure_id)` to its procedure's matching scope; `ad_hoc_procedure_revisions` binds `(firm_id, procedure_id)` to the procedure's firm and identity. `AdHocProcedureHistoryScope` retains original unique/lookup indexes, insertion/revision rows and native Insert/Edit authorization. Clean upgrade/downgrade preserve exact history and original indexes. Inconsistent retained insertion parents refuse upgrade atomically, retaining prior constraints and migration history without reassignment or deletion. Programme/baseline/risk/actor lineage, mutation enforcement and professional acceptance remain separate.
+
 ## 3. Changing the schema
 
 1. Edit the Domain class and the matching `Configure<Module>` partial only.

@@ -546,3 +546,9 @@ The preceding suite also aborted after inactivity. Its partial results and incom
 An isolated native Register/Move fixture reproduced a movement referencing another firm's item. The restrictive firm/item reference preserves existing lookup indexes and movement history. Clean upgrade/downgrade and inconsistent-history upgrade refusal have focused checks; no live custody data was changed. Other relational, restricted-role and release acceptance leaves remain open; see [status.json](status.json).
 
 <!-- End of verbatim physical-movement scope record. -->
+
+## Procedure physical-link parent scope
+
+A focused native registration/link fixture and valid same-firm SQL insertion reproduced foreign procedure/item references and inconsistent retained client/engagement fields. Restrictive full-scope parent references now refuse those inserts while retaining original command authorization and lookup indexes. The same regression passes; clean upgrade/downgrade preserve exact link rows and existing indexes, and inconsistent history refuses upgrade without repair or deletion. Added FK-support indexes receive a bounded owned-schema plan/write review. Wider relational, restricted-role, mutation and custody acceptance remain separate; see [status.json](status.json).
+
+<!-- End of verbatim procedure physical-link scope record. -->
