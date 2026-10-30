@@ -476,7 +476,7 @@ const queueViews: { key: QueueView; label: string }[] = [
         }
       }
       @if (display() === 'LIST') {
-      <div class="table-scroll" role="region" aria-label="Operational task list" aria-describedby="work-table-scroll-instructions" tabindex="0" (keydown)="scrollWorkTable($event)"><table>
+      <div class="table-scroll" role="region" aria-label="Operational task list" aria-describedby="work-table-scroll-instructions" tabindex="0" (keydown)="scrollWorkTable($event)"><table class="work-task-table">
         <caption>{{ labelFor(result.view) }} — workflow tasks</caption>
         <thead><tr><th scope="col">Due</th><th scope="col">Client / engagement</th><th scope="col">Task</th><th scope="col">Owner</th><th scope="col">Operational status</th><th scope="col">Prerequisites</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>

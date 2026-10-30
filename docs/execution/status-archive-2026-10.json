@@ -26434,6 +26434,23 @@
       ],
       "history": "status-archive-2026-10.json#targetedVerification.uxWorkflow20261030.beforeReviewNoteParentScope20261030",
       "boundary": "Other packets, current-source role/browser and full acceptance remain open."
+    },
+    "targetedVerification.uxWorkflow20261030.beforeTaskColumn20261030": {
+      "status": "U01_IMPLEMENTED_FOCUSED_VERIFIED_INTEGRATED_ACCEPTANCE_OPEN",
+      "previous": "status-archive-2026-10.json#targetedVerification.uxWorkflow20261030.beforeU01Availability20261030",
+      "sourceBase": "92dfb98fbd979cd8e6454d64f1232abfe73a0070",
+      "implementation": "Server-projected navigation and independent task/review availability, short expiry and session invalidation; current destination reads and commands retain authorization. Session-scoped task recovery preserves unresolved outcomes.",
+      "verification": "Focused native authorization matrix 1 pass; Angular eight specs 161 pass, subsequent affected three 134 pass, navigation/display 17 pass; OpenAPI drift verification and Angular production build passed with two stylesheet budget warnings.",
+      "browser": "Isolated synthetic staff account: team task, assignment review and cancellation, empty saved receipt search, mobile navigation and Escape focus; console errors empty. Fixture and its owned resources cleaned.",
+      "boundary": "Current-source CI, real interrupted-command and other role journeys, integrated acceptance, human accessibility and professional/live acceptance remain open."
+    },
+    "currentSourceCi.beforeTaskColumn20261030": {
+      "sourceBase": "92dfb98fbd979cd8e6454d64f1232abfe73a0070",
+      "status": "PREDECESSOR_FOR_UNCOMMITTED_U01",
+      "fast": "PASS actual checkouts",
+      "images": "TERMINAL_CANCELLED worker 45-minute limit, no worker pin; API and migration pins passed; cause unconfirmed",
+      "full": "NOT_DISPATCHED",
+      "boundary": "No prior image or workflow result establishes a pass for U01; all current-source release gates remain required."
     }
   },
   "archivedTargetedVerification": {

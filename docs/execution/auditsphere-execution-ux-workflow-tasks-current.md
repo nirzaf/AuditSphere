@@ -57,7 +57,7 @@ The earlier U13 command recovery change distinguishes request-identity conflicts
 
 Use **Check older packages** while continuation is available, including when the current candidate window has no eligible rows. The displayed row count is page-local. Moving pages clears current selection; saved IDs can be restored only when present in the freshly authorized current page. Refresh restarts at the newest window. Open each package for current authorized review actions.
 
-Task source details retains source/template/mapping identities. More task actions retains activity, ordering and authorized recovery/assignment controls. Opening a disclosure records no task decision. The visible blocker and eligible primary action remain outside secondary actions. Closing a recovery panel after changing display reveals the current task action before restoring focus.
+The task table preserves a readable task column while retaining horizontal keyboard scrolling. Task source details retains source/template/mapping identities. More task actions retains activity, ordering and authorized recovery/assignment controls. Opening a disclosure records no task decision. The visible blocker and eligible primary action remain outside secondary actions. Closing a recovery panel after changing display reveals the current task action before restoring focus.
 
 ## Remaining acceptance
 

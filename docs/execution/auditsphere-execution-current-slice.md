@@ -16,7 +16,11 @@ newer exact-source CI and slice evidence live under `targetedVerification`.
 
 ## Workspace availability and task recovery
 
-Navigation and My Work sections use short-lived server-projected availability hints. Destination reads and commands retain their own authorization. Task and review availability are independent; session changes and expiry clear stale presentation. Task recovery retains unresolved requests and requires current authorized observations before details or explicit recovery; a storage check does not establish an earlier command outcome. Focused native, Angular, contract and synthetic built-in browser evidence is recorded in [status.json](status.json). Other roles, interrupted-command browser journeys, integrated CI, human accessibility and professional acceptance remain open.
+Focused evidence and acceptance limits are preserved in [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#workspace-availability-and-task-recovery).
+
+## Task table layout
+
+The task table retains a readable task column and keyboard scrolling.
 
 ## Review-note parent scope
 

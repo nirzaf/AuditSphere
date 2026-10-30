@@ -1,6 +1,7 @@
 :host { display: block; }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
+.work-task-table th:nth-child(3), .work-task-table td:nth-child(3) { min-width: 12rem; }
 th, td { padding: .7rem; border-bottom: 1px solid var(--line, #d7dfeb); text-align: left; vertical-align: top; }
 td small { display: block; color: var(--muted, #52627a); margin-top: .2rem; }
 .due-date-editor { display: grid; justify-items: start; gap: .25rem; margin-top: .4rem; }
