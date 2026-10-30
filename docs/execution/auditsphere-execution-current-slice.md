@@ -14,11 +14,13 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## Review-note parent scope
+
+Review notes now bind their result to the same firm, client and engagement; note events bind their note to the same firm. The additive PostgreSQL migration retains existing relationships, indexes and history. Actual native review threads and foreign-command denials supplied the controls; a focused original regression exposed wrong-scope links and the repaired regression refused them. Clean migration transitions and separately isolated inconsistent-history upgrade refusals preserve existing evidence. Synthetic PostgreSQL index review measured existing lookups and the required parent key; it does not establish production performance. See [status.json](status.json) for exact verification. Actor, currentness, revision authenticity and professional acceptance remain separate.
+
 ## UX workflow discovery, disclosure and recovery
 
-The [UX workflow register](auditsphere-execution-ux-workflow-tasks-current.md) separates the attached proposal packets from current authority and acceptance. Published package-preview and typed-conflict guidance remain. Package review discovery now has an additive bounded continuation contract, stable timestamp/identity ordering, authorized client/service labels and truthful empty-window guidance. Current scope is checked independently of cursors; invalidation resets paging and selection.
-
-Task source identities and secondary actions use labelled native disclosures; task facts and blockers stay visible. Existing capabilities remain, blocked/held completion is disabled, and recovery focus reveals the current disclosure before returning to its action. Focused native and Angular regressions, production compilation, contract checks and read-only technical review are recorded in [status.json](status.json). Isolated built-in browser checks covered keyboard disclosure, responsive views and final recovery focus across a display change. Exact successor fast, image and full gates remain separate from these scoped results. Other packets, integrated role journeys and all qualified release gates remain open.
+The prior scoped UX handoff is preserved verbatim in [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#ux-workflow-discovery-disclosure-and-recovery). The independent [UX register](auditsphere-execution-ux-workflow-tasks-current.md) retains remaining packets and acceptance boundaries.
 
 ## API source-scope fixture correction
 

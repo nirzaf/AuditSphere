@@ -61,8 +61,11 @@ public sealed partial class AuditSphereDbContext
         "AND ((financial_statement_composition_id IS NULL AND composition_manifest_digest IS NULL) OR " +
         "(financial_statement_composition_id IS NOT NULL AND composition_manifest_digest ~ '^[0-9a-f]{64}$'))"));
     });
+    // ReviewNoteParentScope adds restrictive PostgreSQL references explicitly, preserving
+    // the original global relationships and their existing parent-ID indexes.
     b.Entity<ProcedureReviewNote>(e =>
     {
+      e.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("ak_procedure_review_note_firm_id");
       e.HasIndex(x => new { x.FirmId, x.ProcedureId, x.CreatedAt });
       e.HasOne<AuditProcedureResult>().WithMany().HasForeignKey(x => x.ResultId).OnDelete(DeleteBehavior.Restrict);
       e.ToTable("procedure_review_notes", t => t.HasCheckConstraint("ck_procedure_review_note_values",

@@ -692,3 +692,11 @@ Focused regression checks and the Angular production build passed; the build ret
 ### Subsequent UX discovery and disclosure work
 
 The preceding preview and recovery observation remains source-bound. Additional packets are tracked independently in the current UX register.
+
+## UX workflow discovery, disclosure and recovery
+
+The [UX workflow register](auditsphere-execution-ux-workflow-tasks-current.md) separates the attached proposal packets from current authority and acceptance. Published package-preview and typed-conflict guidance remain. Package review discovery now has an additive bounded continuation contract, stable timestamp/identity ordering, authorized client/service labels and truthful empty-window guidance. Current scope is checked independently of cursors; invalidation resets paging and selection.
+
+Task source identities and secondary actions use labelled native disclosures; task facts and blockers stay visible. Existing capabilities remain, blocked/held completion is disabled, and recovery focus reveals the current disclosure before returning to its action. Focused native and Angular regressions, production compilation, contract checks and read-only technical review are recorded in [status.json](status.json). Isolated built-in browser checks covered keyboard disclosure, responsive views and final recovery focus across a display change. Exact successor fast, image and full gates remain separate from these scoped results. Other packets, integrated role journeys and all qualified release gates remain open.
+
+The preceding section is retained at its original evidence boundary.

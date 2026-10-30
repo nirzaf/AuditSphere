@@ -1188,31 +1188,27 @@
       "boundary": "Published schema304 parent scope/migration/index evidence retained; broader WU004 and final-source release acceptance open."
     },
     "uxWorkflow20261030": {
-      "baseSource": "c7c954309105fa371ec015d081d4e5e399d01361",
+      "status": "FOUR_PACKETS_SCOPED_VERIFIED_ACCEPTANCE_OPEN",
       "packets": [
+        "U05",
         "U06",
+        "U10",
         "U13"
       ],
-      "status": "SCOPED_U05_U06_U10_U13_VERIFIED_EXACT_SUCCESSOR_CI_PENDING",
-      "pairedRegression": "Original 5FAIL/30PASS; identical tests corrected 35PASS/0FAIL",
-      "build": "Angular production PASS; two pre-existing stylesheet budget warnings",
-      "lint": "Production files PASS; initial spec ignore warnings retained",
-      "review": "Herschel read-only twoU05P2 and oneU10P2 fixed; finalrereads noactionablefindings; no independentexecution",
-      "evidence": ".local/autonomous/evidence/ux-workflow-20261030/u05-u10-final-review.json",
-      "remaining": "Other UX packets, final-source populated/restricted-role V01 and CI, professional/external release gates remain open",
-      "publishedSource": "e5f2be16a01eb3f3ee7fe4606e011a472738490f",
-      "localPackets": [
-        "U05",
-        "U10"
-      ],
-      "native": "U05 corrected focused1PASS; expired-scope draftRED1/identicalstrongerGREEN1; original terminal window hides all older eligible work, stable paged traversal exposes105eligible queryidentities. Structural headers are not native reports.",
-      "angular": "U05 expanded8PASS; U10 displayexpanded5PASS, existingworkqueue37PASS; original3testpairRED1/GREEN3, laterfocusRED1/GREEN5. Strongerfinaltests differ from first pair.",
-      "contracts": "OpenAPI PASS; old paths/schemas unchanged; one additivepage path and three schemas",
-      "setupExclusions": "CS8361 test interpolation, invalid expiry beforeGrantedAt constraint, optionalGuiddefault OpenAPI failure, TS2353 expanded fixture types, existing lowercase mapping label restored; no test weakening",
-      "browser": "Actual local1280/390 List/Board/Calendar/Grouped and keyboarddisclosuresPASS; finalsource Cancelreview->displaychange->close revealscorrecttaskdisclosure/focusPASS; nativeemptyreviewpagePASS. No populatedbrowserpaging/fullrolematrix/HumanAT.",
-      "localU05Commit": "b5a1b06c",
-      "localU10Commit": "056b8386",
-      "cleanup": "Both bounded nativebrowserfixtures and all seven isolatedPGphases independently absent; temporaryharnessbytes restored; ownedtabsclosed and viewportreset; compiler shutdown."
+      "history": "status-archive-2026-10.json#targetedVerification.uxWorkflow20261030.beforeReviewNoteParentScope20261030",
+      "boundary": "Other packets, current-source role/browser and full acceptance remain open."
+    },
+    "wu004ReviewNoteParentScope20261030": {
+      "status": "FOCUSED_SCOPE_VERIFIED_EXACT_SUCCESSOR_CI_PENDING",
+      "sourceBase": "46ba5d5d280948f0884da09cde641f8b4283eb90",
+      "migration": "20261030104042_ReviewNoteParentScope",
+      "pair": "Original RED1 accepted six mismatched links; identical test GREEN1 refused them; two mismatched events reopened a visible closed thread before repair.",
+      "migrationVerification": "Expanded GREEN1: exact 304 catalog/12-table data before first up, 304/305/304/305 preservation and two separately isolated invalid-history upgrades refusing 23503 atomically.",
+      "build": "API Release 0 warnings/0 errors; EF model drift passed.",
+      "review": "Independent static reviewer found no remaining actionable findings; did not execute tests.",
+      "indexReview": "PostgreSQL18.6 canonical305, 20 synthetic firms/20,000 rows per table; six measured reference/queue equivalents use existing indexes except required new parent key. 1,000 rollback rows per child, zero net rows; no production performance claim.",
+      "evidence": ".local/autonomous/evidence/wu004-review-note-scope-20261030/paired-red-green-review.json and final-migration-review.json",
+      "boundary": "No procedure/revision authenticity, actor permission, professional or whole application acceptance implied."
     }
   },
   "externalGates": [
@@ -1641,12 +1637,12 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "implementationSource": "056b838686bab7d131040df8b4dac3a11d2e9a57",
-    "status": "EXACT_SUCCESSOR_GATES_PENDING",
-    "fast": "NOT_DISPATCHED_ON_PUBLICATION_PREPARATION",
-    "images": "NOT_DISPATCHED_ON_PUBLICATION_PREPARATION",
-    "full": "NOT_DISPATCHED_DURING_UX_BATCH",
-    "boundary": "Predecessor CI and image proofs do not transfer. Exact automatic successor identities are maintained in the ignored checkpoint until the next coherent source update."
+    "sourceBase": "46ba5d5d280948f0884da09cde641f8b4283eb90",
+    "status": "REVIEW_NOTE_SCOPE_SUCCESSOR_CI_PENDING",
+    "fast": "Predecessor exact-source fast PASS",
+    "images": "Predecessor exact-source images PASS",
+    "full": "NOT_DISPATCHED for local successor",
+    "boundary": "Predecessor gates and pins do not transfer to the new source; no release acceptance implied."
   },
   "updatedAtUtc": "2026-10-30T07:07:03.764194+00:00"
 }

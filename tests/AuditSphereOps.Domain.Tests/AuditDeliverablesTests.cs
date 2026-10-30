@@ -166,6 +166,228 @@ public sealed partial class AuditDeliverablesTests
   }
 
   [Fact]
+  public async Task ReviewNoteParents_RejectCrossScopeLinksAndPreserveExactAnchors()
+  {
+    const string baseline = "20261029134026_CompletionDecisionParentScope";
+    const string current = "20261030104042_ReviewNoteParentScope";
+    await using var pg = await PgTestSchema.CreateAsync(baseline);
+    var own = await SeedAsync(pg);
+    var foreign = await SeedAsync(pg);
+    Guid ownNote;
+    Guid foreignNote;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      async Task<Guid> NativeThreadAsync(World world)
+      {
+        var added = await ReviewNotesService.AddNoteAsync(db, world.A("senior", "Senior"),
+          new(world.ResultId, "WORK_PERFORMED", "25 invoices", "Explain the selected invoices."));
+        Assert.True(added.Succeeded, added.Message);
+        Assert.True((await ReviewNotesService.RespondAsync(db, world.A("associate", "Staff"), added.Value,
+          "The selected source invoices are retained with this work.")).Succeeded);
+        Assert.True((await ReviewNotesService.ResolveAsync(db, world.A("senior", "Senior"), added.Value,
+          "The response addresses this exact excerpt.")).Succeeded);
+        var view = Assert.Single(await ReviewNotesService.ListAsync(db, world.A("manager", "Manager"), world.ProcedureId));
+        Assert.Equal((added.Value, 1L, "WORK_PERFORMED", "25 invoices", 9, false),
+          (view.NoteId, view.ResultRevision, view.Field, view.Excerpt, view.StartOffset, view.Open));
+        Assert.Equal(new[] { ReviewNoteEventKinds.Response, ReviewNoteEventKinds.Resolved }, view.Events.Select(x => x.Kind));
+        var note = await db.ProcedureReviewNotes.AsNoTracking().SingleAsync(x => x.Id == added.Value);
+        Assert.Equal((world.FirmId, world.ClientId, world.EngagementId, world.ProcedureId, world.ResultId),
+          (note.FirmId, note.ClientId, note.EngagementId, note.ProcedureId, note.ResultId));
+        var source = await db.AuditProcedureResults.AsNoTracking().SingleAsync(x => x.Id == world.ResultId);
+        Assert.Equal("Selected 25 invoices around year end and agreed them to dispatch notes.", source.WorkPerformed);
+        Assert.Equal(1L, source.Revision);
+        var datasetIds = db.TrialBalanceDatasets.Where(x => x.FirmId == world.FirmId && x.EngagementId == world.EngagementId).Select(x => x.Id);
+        Assert.Equal(new[] { -100m, 100m }, await db.TrialBalanceRows.Where(x => datasetIds.Contains(x.DatasetId)).OrderBy(x => x.Amount).Select(x => x.Amount).ToArrayAsync());
+        return added.Value;
+      }
+      ownNote = await NativeThreadAsync(own);
+      foreignNote = await NativeThreadAsync(foreign);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await ReviewNotesService.AddNoteAsync(db, own.A("senior", "Senior"),
+        new(foreign.ResultId, "WORK_PERFORMED", "25 invoices", "Foreign attempt."))).ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await ReviewNotesService.RespondAsync(db, own.A("associate", "Staff"), foreignNote, "Foreign attempt.")).ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await ReviewNotesService.ResolveAsync(db, own.A("senior", "Senior"), foreignNote, "Foreign attempt.")).ErrorCode);
+    }
+    var otherClient = Guid.NewGuid();
+    var siblingEngagement = Guid.NewGuid();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.PracticeClients.Add(new PracticeClient { Id = otherClient, FirmId = own.FirmId, LegalName = "Other scope control", CreatedAt = DateTimeOffset.UtcNow });
+      db.Engagements.Add(new Engagement { Id = siblingEngagement, FirmId = own.FirmId, PracticeClientId = own.ClientId, CreatedAt = DateTimeOffset.UtcNow });
+      await db.SaveChangesAsync();
+    }
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    async Task<string[]> SnapshotAsync(NpgsqlTransaction? transaction = null, NpgsqlConnection? target = null)
+    {
+      var rows = new List<string>();
+      foreach (var table in new[] { "trial_balance_datasets", "trial_balance_rows", "mapping_versions", "mapping_allocations",
+        "audit_procedures", "audit_procedure_results", "audit_procedure_reviews", "procedure_review_notes",
+        "procedure_review_note_events", "materiality_assessments", "practice_clients", "engagements" })
+      {
+        await using var command = new NpgsqlCommand($"SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.id), '[]'::jsonb)::text FROM {table} r", target ?? connection, transaction);
+        rows.Add((string)(await command.ExecuteScalarAsync())!);
+      }
+      return rows.ToArray();
+    }
+    async Task<string[]> CatalogAsync(NpgsqlConnection? target = null)
+    {
+      await using var command = new NpgsqlCommand("""
+        SELECT 'constraint:' || conname || ':' || pg_get_constraintdef(oid) || ':' || convalidated::text
+        FROM pg_constraint WHERE connamespace=current_schema()::regnamespace
+          AND conrelid IN ('procedure_review_notes'::regclass,'procedure_review_note_events'::regclass,'audit_procedure_results'::regclass)
+        UNION ALL SELECT 'index:' || indexname || ':' || indexdef FROM pg_indexes WHERE schemaname=current_schema()
+          AND tablename IN ('procedure_review_notes','procedure_review_note_events','audit_procedure_results') ORDER BY 1
+        """, target ?? connection);
+      var rows = new List<string>();
+      await using var reader = await command.ExecuteReaderAsync();
+      while (await reader.ReadAsync()) rows.Add(reader.GetString(0));
+      return rows.ToArray();
+    }
+    var before = await SnapshotAsync();
+    var oldCatalog = await CatalogAsync(); // Actual legacy catalog captured BEFORE the first upgrade.
+    Assert.Contains(oldCatalog, x => x.Contains("FOREIGN KEY (result_id)", StringComparison.Ordinal));
+    Assert.Contains(oldCatalog, x => x.Contains("FOREIGN KEY (note_id)", StringComparison.Ordinal));
+    await using (var migrationDb = new AuditSphereDbContext(pg.Options))
+      await migrationDb.GetService<IMigrator>().MigrateAsync();
+    Assert.Equal(before, await SnapshotAsync());
+    var upgraded = await CatalogAsync();
+    Assert.All(oldCatalog, row => Assert.Contains(row, upgraded));
+    Guid templateEvent;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      templateEvent = await db.ProcedureReviewNoteEvents.Where(x => x.NoteId == ownNote && x.Kind == ReviewNoteEventKinds.Resolved).Select(x => x.Id).SingleAsync();
+    var accepted = new List<string>();
+    await using (var transaction = await connection.BeginTransactionAsync())
+    {
+      async Task<Guid> CloneAsync(string table, Guid source, Dictionary<string, object?> changes)
+      {
+        Assert.Contains(table, new[] { "procedure_review_notes", "procedure_review_note_events" });
+        var id = Guid.CreateVersion7();
+        var patch = new Dictionary<string, object?> { ["id"] = id, ["body"] = "Structural rollback scope control." };
+        if (table == "procedure_review_note_events")
+        {
+          patch["kind"] = ReviewNoteEventKinds.Reopened;
+          patch["created_at"] = DateTimeOffset.UtcNow.AddMinutes(1);
+        }
+        foreach (var item in changes) patch[item.Key] = item.Value;
+        await using var command = new NpgsqlCommand($"""
+          INSERT INTO {table} SELECT (jsonb_populate_record(NULL::{table}, to_jsonb(source) || CAST(@patch AS jsonb))).*
+          FROM {table} source WHERE source.id=@source
+          """, connection, transaction);
+        command.Parameters.AddWithValue("patch", JsonSerializer.Serialize(patch));
+        command.Parameters.AddWithValue("source", source);
+        Assert.Equal(1, await command.ExecuteNonQueryAsync());
+        return id;
+      }
+      foreach (var (table, source) in new[] { ("procedure_review_notes", ownNote), ("procedure_review_note_events", templateEvent) })
+      {
+        await transaction.SaveAsync("valid_scope");
+        var control = await CloneAsync(table, source, []);
+        Assert.NotEqual(source, control);
+        await transaction.RollbackAsync("valid_scope");
+        Assert.Equal(before, await SnapshotAsync(transaction));
+      }
+      var probes = new (string Name, string Table, Guid Source, Dictionary<string, object?> Changes)[]
+      {
+        ("note foreign result parent only", "procedure_review_notes", ownNote, new() { ["result_id"] = foreign.ResultId }),
+        ("note isolated child firm", "procedure_review_notes", ownNote, new() { ["firm_id"] = foreign.FirmId }),
+        ("note isolated child client", "procedure_review_notes", ownNote, new() { ["client_id"] = otherClient }),
+        ("note isolated child engagement", "procedure_review_notes", ownNote, new() { ["engagement_id"] = siblingEngagement }),
+        ("event foreign note parent only", "procedure_review_note_events", templateEvent, new() { ["note_id"] = foreignNote }),
+        ("event isolated child firm", "procedure_review_note_events", templateEvent, new() { ["firm_id"] = foreign.FirmId })
+      };
+      foreach (var probe in probes)
+      {
+        await transaction.SaveAsync("bad_scope");
+        try
+        {
+          await CloneAsync(probe.Table, probe.Source, probe.Changes);
+          var wrongThread = false;
+          if (probe.Table == "procedure_review_note_events")
+          {
+            var world = probe.Name == "event foreign note parent only" ? foreign : own;
+            await using var readDb = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>().UseNpgsql(connection).Options);
+            await readDb.Database.UseTransactionAsync(transaction);
+            wrongThread = Assert.Single(await ReviewNotesService.ListAsync(readDb, world.A("manager", "Manager"), world.ProcedureId)).Open;
+          }
+          accepted.Add(probe.Name + (wrongThread ? " (wrong-scope event reopened the visible thread)" : ""));
+        }
+        catch (PostgresException ex) { Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, ex.SqlState); }
+        await transaction.RollbackAsync("bad_scope");
+        Assert.Equal(before, await SnapshotAsync(transaction));
+      }
+      await transaction.RollbackAsync();
+    }
+    Assert.Equal(before, await SnapshotAsync());
+    Assert.True(accepted.Count == 0, "Out-of-scope review-note links accepted: " + string.Join("; ", accepted));
+
+    Assert.Contains(upgraded, x => x.StartsWith("constraint:fk_procedure_review_note_result_scope:", StringComparison.Ordinal) &&
+      x.Contains("FOREIGN KEY (firm_id, client_id, engagement_id, result_id)", StringComparison.Ordinal) && x.Contains("ON DELETE RESTRICT:true", StringComparison.Ordinal));
+    Assert.Contains(upgraded, x => x.StartsWith("constraint:fk_procedure_review_event_note_scope:", StringComparison.Ordinal) &&
+      x.Contains("FOREIGN KEY (firm_id, note_id)", StringComparison.Ordinal) && x.Contains("ON DELETE RESTRICT:true", StringComparison.Ordinal));
+    await using (var migrationDb = new AuditSphereDbContext(pg.Options))
+    {
+      var migrator = migrationDb.GetService<IMigrator>();
+      var applied = (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray();
+      Assert.Equal(current, applied[^1]);
+      await migrator.MigrateAsync(baseline);
+      Assert.Equal(applied[..^1], (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+      Assert.Equal(oldCatalog, await CatalogAsync());
+      Assert.Equal(before, await SnapshotAsync());
+      await migrator.MigrateAsync(current);
+      Assert.Equal(applied, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+      Assert.Equal(upgraded, await CatalogAsync());
+      Assert.Equal(before, await SnapshotAsync());
+    }
+
+    // Isolate each retained invalid baseline: neither FK may hide the other's refusal.
+    // Guarded notes/events are never deleted or rewritten to repair the test history.
+    foreach (var eventProbe in new[] { false, true })
+    {
+      await using var invalidPg = await PgTestSchema.CreateAsync(baseline);
+      var world = await SeedAsync(invalidPg);
+      var (foreignFirm, _, _) = await invalidPg.SeedScopeAsync();
+      Guid source;
+      await using (var db = new AuditSphereDbContext(invalidPg.Options))
+      {
+        var note = await ReviewNotesService.AddNoteAsync(db, world.A("senior", "Senior"),
+          new(world.ResultId, "WORK_PERFORMED", "25 invoices", "Retained upgrade control."));
+        Assert.True(note.Succeeded, note.Message);
+        var response = await ReviewNotesService.RespondAsync(db, world.A("associate", "Staff"), note.Value,
+          "Retained response to the exact excerpt.");
+        Assert.True(response.Succeeded, response.Message);
+        source = eventProbe
+          ? await db.ProcedureReviewNoteEvents.Where(x => x.NoteId == note.Value).Select(x => x.Id).SingleAsync()
+          : note.Value;
+      }
+      await using var invalidConnection = new NpgsqlConnection(invalidPg.ConnectionString);
+      await invalidConnection.OpenAsync();
+      var table = eventProbe ? "procedure_review_note_events" : "procedure_review_notes";
+      await using (var insert = new NpgsqlCommand($"""
+        INSERT INTO {table}
+        SELECT (jsonb_populate_record(NULL::{table}, to_jsonb(r) || jsonb_build_object(
+          'id', @id, 'firm_id', @firm))).* FROM {table} r WHERE r.id=@source
+        """, invalidConnection))
+      {
+        insert.Parameters.AddWithValue("id", Guid.CreateVersion7());
+        insert.Parameters.AddWithValue("firm", foreignFirm);
+        insert.Parameters.AddWithValue("source", source);
+        Assert.Equal(1, await insert.ExecuteNonQueryAsync());
+      }
+      var invalidRetained = await SnapshotAsync(target: invalidConnection);
+      var invalidCatalog = await CatalogAsync(invalidConnection);
+      await using var migrationDb = new AuditSphereDbContext(invalidPg.Options);
+      var applied = (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray();
+      Assert.Equal(baseline, applied[^1]);
+      var refused = await Assert.ThrowsAsync<PostgresException>(() => migrationDb.GetService<IMigrator>().MigrateAsync(current));
+      Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, refused.SqlState);
+      Assert.Equal(eventProbe ? "fk_procedure_review_event_note_scope" : "fk_procedure_review_note_result_scope", refused.ConstraintName);
+      Assert.Equal(invalidRetained, await SnapshotAsync(target: invalidConnection));
+      Assert.Equal(invalidCatalog, await CatalogAsync(invalidConnection));
+      Assert.Equal(applied, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+    }
+  }
+
+  [Fact]
   public async Task InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews()
   {
     await using var pg = await PgTestSchema.CreateAsync();

@@ -26380,6 +26380,41 @@
       "actualCheckoutPartial": "Angular123983581773 and Docs123983582202 MATCH/PASS; accepted logs/hashes retained once",
       "full": "NOT_DISPATCHED; local coherent UX successors still being verified",
       "boundary": "Predecessorc7full pending separately; no current aggregate or release pass."
+    },
+    "targetedVerification.uxWorkflow20261030.beforeReviewNoteParentScope20261030": {
+      "baseSource": "c7c954309105fa371ec015d081d4e5e399d01361",
+      "packets": [
+        "U06",
+        "U13"
+      ],
+      "status": "SCOPED_U05_U06_U10_U13_VERIFIED_EXACT_SUCCESSOR_CI_PENDING",
+      "pairedRegression": "Original 5FAIL/30PASS; identical tests corrected 35PASS/0FAIL",
+      "build": "Angular production PASS; two pre-existing stylesheet budget warnings",
+      "lint": "Production files PASS; initial spec ignore warnings retained",
+      "review": "Herschel read-only twoU05P2 and oneU10P2 fixed; finalrereads noactionablefindings; no independentexecution",
+      "evidence": ".local/autonomous/evidence/ux-workflow-20261030/u05-u10-final-review.json",
+      "remaining": "Other UX packets, final-source populated/restricted-role V01 and CI, professional/external release gates remain open",
+      "publishedSource": "e5f2be16a01eb3f3ee7fe4606e011a472738490f",
+      "localPackets": [
+        "U05",
+        "U10"
+      ],
+      "native": "U05 corrected focused1PASS; expired-scope draftRED1/identicalstrongerGREEN1; original terminal window hides all older eligible work, stable paged traversal exposes105eligible queryidentities. Structural headers are not native reports.",
+      "angular": "U05 expanded8PASS; U10 displayexpanded5PASS, existingworkqueue37PASS; original3testpairRED1/GREEN3, laterfocusRED1/GREEN5. Strongerfinaltests differ from first pair.",
+      "contracts": "OpenAPI PASS; old paths/schemas unchanged; one additivepage path and three schemas",
+      "setupExclusions": "CS8361 test interpolation, invalid expiry beforeGrantedAt constraint, optionalGuiddefault OpenAPI failure, TS2353 expanded fixture types, existing lowercase mapping label restored; no test weakening",
+      "browser": "Actual local1280/390 List/Board/Calendar/Grouped and keyboarddisclosuresPASS; finalsource Cancelreview->displaychange->close revealscorrecttaskdisclosure/focusPASS; nativeemptyreviewpagePASS. No populatedbrowserpaging/fullrolematrix/HumanAT.",
+      "localU05Commit": "b5a1b06c",
+      "localU10Commit": "056b8386",
+      "cleanup": "Both bounded nativebrowserfixtures and all seven isolatedPGphases independently absent; temporaryharnessbytes restored; ownedtabsclosed and viewportreset; compiler shutdown."
+    },
+    "currentSourceCi.beforeReviewNoteParentScope20261030": {
+      "implementationSource": "056b838686bab7d131040df8b4dac3a11d2e9a57",
+      "status": "EXACT_SUCCESSOR_GATES_PENDING",
+      "fast": "NOT_DISPATCHED_ON_PUBLICATION_PREPARATION",
+      "images": "NOT_DISPATCHED_ON_PUBLICATION_PREPARATION",
+      "full": "NOT_DISPATCHED_DURING_UX_BATCH",
+      "boundary": "Predecessor CI and image proofs do not transfer. Exact automatic successor identities are maintained in the ignored checkpoint until the next coherent source update."
     }
   },
   "archivedTargetedVerification": {

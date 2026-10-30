@@ -19901,6 +19901,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("ak_procedure_review_note_firm_id");
+
                     b.HasIndex("ResultId");
 
                     b.HasIndex("FirmId", "ProcedureId", "CreatedAt");
