@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## ASCP current-source reconciliation
+
+The [ASCP queue](auditsphere-execution-ascp-reconciliation-current.md) separates delivered work, ready verification and qualified/external dependencies. Fresh inventory and dual-key subclauses preserve earlier evidence. Allocation evidence now identifies the later successor-carry function replacement; no migration was performed. Focused fieldwork checks cover wrong-capture and failed row pages, stale-evidence hiding and renewed assent after exact reload. Database-backed verification awaits an authorized isolated database; full suites remain CI-only. Results and environment limits: `targetedVerification.issue49Reconciliation20261030` in [status.json](status.json). Issue #49 remains open.
+
 ## Workspace availability and task recovery
 
 Focused evidence and acceptance limits are preserved in [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#workspace-availability-and-task-recovery).
