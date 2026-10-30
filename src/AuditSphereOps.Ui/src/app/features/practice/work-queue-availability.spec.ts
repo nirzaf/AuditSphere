@@ -38,6 +38,24 @@ describe('work availability and session fencing', () => {
     TestBed.tick();
     expect(fixture.nativeElement.textContent).not.toContain('Submitted work awaiting review');
     expect(fixture.nativeElement.textContent).toContain('My tasks: 0');
+    expect(fixture.nativeElement.querySelector('a[href="/app/accounting/reviews"]')).toBeNull();
+    http.verify({ ignoreCancelled: true }); fixture.destroy();
+  });
+
+  it('offers the independently authorized package review queue even when workflow work is disabled', () => {
+    const { http, session, fixture } = start();
+    const packageLink = () => (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('a[href="/app/accounting/reviews"]');
+    expect(packageLink()).toBeNull();
+    http.expectOne('/api/ui/workspace-availability').flush(availability('not_enabled', 'not_enabled', ['reviews']));
+    TestBed.tick();
+    expect(packageLink()?.textContent).toContain('Open financial package review queue');
+    expect(fixture.nativeElement.textContent).toContain('no package total is loaded here');
+    expect(fixture.nativeElement.textContent).toContain('Workflow work is not enabled');
+    http.expectNone(tasksUrl); http.expectNone(reviewsUrl);
+    http.expectNone(request => request.url.startsWith('/api/ui/accounting/reviews'));
+    session.clear(); TestBed.tick();
+    expect(packageLink()).toBeNull();
+    http.expectNone(request => request.method === 'POST');
     http.verify({ ignoreCancelled: true }); fixture.destroy();
   });
 
@@ -106,12 +124,14 @@ describe('work availability and session fencing', () => {
 
   it('clears task and review data at the returned expiry even while a refresh is pending', async () => {
     const { http, fixture, availability: service } = start();
-    http.expectOne('/api/ui/workspace-availability').flush({ ...availability('available', 'available'), validForMs: 150 });
+    http.expectOne('/api/ui/workspace-availability').flush({ ...availability('available', 'available', ['my-work', 'reviews']), validForMs: 150 });
     TestBed.tick();
     const tasks = http.expectOne(tasksUrl); const reviews = http.expectOne(reviewsUrl);
+    expect(fixture.nativeElement.querySelector('a[href="/app/accounting/reviews"]')).not.toBeNull();
     await new Promise(resolve => setTimeout(resolve, 220)); TestBed.tick();
     expect(service.current()).toBeNull();
     expect(tasks.cancelled).toBe(true); expect(reviews.cancelled).toBe(true);
+    expect(fixture.nativeElement.querySelector('a[href="/app/accounting/reviews"]')).toBeNull();
     const refreshes = http.match('/api/ui/workspace-availability');
     expect(refreshes).toHaveLength(2); expect(refreshes[0].cancelled).toBe(true);
     refreshes[1].flush(availability('not_authorized', 'not_authorized', []));

@@ -11,11 +11,12 @@
     <a [routerLink]="['/app/clients', client.id, 'assessment']">Acceptance checklist</a>
     <button matButton data-client-refresh (click)="load()">Refresh client</button>
     @if (client.canManageArchive) {
-      <button matButton="outlined" data-client-archive [disabled]="archiveBusy()" (click)="setArchived(!client.isArchived)">
+      <button matButton="outlined" data-client-archive aria-describedby="client-archive-boundary" [disabled]="archiveBusy()" (click)="setArchived(!client.isArchived)">
         {{ archiveBusy() ? 'Saving archive state…' : client.isArchived ? 'Restore client' : 'Archive client' }}
       </button>
     }
   </nav>
+  <p id="client-archive-boundary" class="muted">Archive and restore change only the client profile state. They do not complete offboarding, resolve open work or billing, revoke staff or portal access, or freeze engagement evidence. Review those controls separately in their authorized workspaces.</p>
   @if (archiveMessage()) { <p [attr.role]="archiveFailed() ? 'alert' : 'status'">{{ archiveMessage() }}</p> }
   @if (client.isArchived) {
     <aside aria-label="Archived client history">

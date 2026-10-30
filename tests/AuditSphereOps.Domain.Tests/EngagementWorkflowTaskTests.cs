@@ -1349,6 +1349,12 @@ public sealed class EngagementWorkflowTaskTests
     var accountingView = await Read(accountingActor);
     Assert.Equal(("not_authorized", "not_authorized"), (accountingView.Tasks, accountingView.Reviews));
     Assert.Contains("reviews", accountingView.Destinations);
+    Assert.Contains("my-work", accountingView.Destinations);
+    var disabledAccounting = await Read(accountingActor, enabled: false);
+    Assert.Equal(("not_enabled", "not_enabled", "not_enabled"),
+      (disabledAccounting.Tasks, disabledAccounting.Reviews, disabledAccounting.Templates));
+    Assert.Contains("reviews", disabledAccounting.Destinations);
+    Assert.Contains("my-work", disabledAccounting.Destinations);
     Assert.DoesNotContain("accounting", accountingView.Destinations); // An engagement grant does not authorize client books.
     Assert.True((await FinancialPackageReviewService.GetStaffQueuePageAsync(db, accountingActor)).Succeeded);
     var mixedView = await Read(mixedActor);

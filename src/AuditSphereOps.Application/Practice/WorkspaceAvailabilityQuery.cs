@@ -47,7 +47,8 @@ public static class WorkspaceAvailabilityQuery
     var tasks = workflowEnabled && await Allowed(WorkflowTaskQueueQuery.AuthorizeWorkspaceReadAsync(db, actor, ct));
     var reviews = workflowEnabled && await Allowed(ProcedureReviewInboxQuery.AuthorizeReadAsync(db, actor, ct));
     var templates = workflowEnabled && await Allowed(WorkflowTemplateService.AuthorizeWorkspaceReadAsync(db, actor, ct));
-    Add(tasks || reviews, "my-work");
+    var packageReviews = await Allowed(FinancialPackageReviewService.AuthorizeStaffQueueAsync(db, actor, ct));
+    Add(tasks || reviews || packageReviews, "my-work");
     Add(await Allowed(PortfolioQuery.AuthorizeWorkspaceReadAsync(db, actor, ct)), "portfolio");
     Add(await Allowed(PracticeLeadQuery.AuthorizeReadAsync(db, actor, ct)), "leads");
     Add(await Allowed(CommercialPipelineQuery.AuthorizeReadAsync(db, actor, ct)), "pipeline");
@@ -59,7 +60,7 @@ public static class WorkspaceAvailabilityQuery
     Add(await Allowed(CurrencyRemeasurementWorkspaceQuery.AuthorizeReadAsync(db, actor, ct)), "fx-remeasurement");
     // A group grant, creation permission or non-observing oversight eligibility is required for navigation.
     Add(await ConsolidationOverviewQuery.CanReadWorkspaceAsync(db, actor, ct), "consolidation");
-    Add(await Allowed(FinancialPackageReviewService.AuthorizeStaffQueueAsync(db, actor, ct)), "reviews");
+    Add(packageReviews, "reviews");
     Add(await Allowed(PeriodMaintenanceQuery.AuthorizeWorkspaceReadAsync(db, actor, ct)), "roll-forward", "restatements");
     Add(await Allowed(PracticeTimeWorkspaceQuery.AuthorizeWorkspaceReadAsync(db, actor, ct)), "time");
     var oversight = await Allowed(AdministratorOversightReadAuthorization.CheckEligibilityAsync(db, actor, ct));

@@ -18,6 +18,18 @@ newer exact-source CI and slice evidence live under `targetedVerification`.
 
 The [ASCP queue](auditsphere-execution-ascp-reconciliation-current.md) separates delivered work, ready verification and qualified/external dependencies. Fresh inventory and dual-key subclauses preserve earlier evidence. Allocation evidence now identifies the later successor-carry function replacement; no migration was performed. Focused fieldwork checks cover wrong-capture and failed row pages, stale-evidence hiding and renewed assent after exact reload. Database-backed verification awaits an authorized isolated database; full suites remain CI-only. Results and environment limits: `targetedVerification.issue49Reconciliation20261030` in [status.json](status.json). Issue #49 remains open.
 
+## Independent package-review handoff
+
+My Work now exposes the existing financial-package review queue to independently authorized reviewers, including when workflow work is disabled. Availability expiry or session invalidation removes the handoff; no package counts, approvals or extra grant are implied. U07 remains partial because integrated discovery and role/browser acceptance are still open. The cloud environment lacks a running isolated PostgreSQL server, so the extended native authorization regression is not locally verified; focused UI and compilation evidence belongs in `status.json`.
+
+## Lifecycle architecture crosswalk and archive boundary
+
+The [lifecycle diagram crosswalk](auditsphere-execution-lifecycle-diagram-crosswalk-current.md) traces the owner’s business lifecycle to current technical owners and identifies partial handoffs. Client archive/restore now explicitly describes profile state, not billing resolution, access revocation or engagement evidence freeze. Group deliver/archive and integrated offboarding remain open; source presence is not acceptance.
+
+## Exact linked-task workspaces
+
+Exact linked tasks can open activity, prerequisites and ordering without locating their current queue page. Each destination retains its own authorization and recovery fences; queue mutation authority is unchanged. Route replacement clears settled panels while retaining unresolved outcomes. A different task cannot replace a pending panel; same-task recovery remains available. Exact-task queue actions, browser acceptance and final-source CI remain open; focused evidence is in `status.json`.
+
 ## Workspace availability and task recovery
 
 Focused evidence and acceptance limits are preserved in [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#workspace-availability-and-task-recovery).
@@ -401,15 +413,11 @@ Historical verification details are preserved verbatim in the [handoff history](
 
 ## Client finance receipt continuation
 
-Agreement summaries now carry a bounded receipt page with separate continuation. Exact-agreement receipt history preserves full SQL cash totals, current access fences and existing settlement-document lineage. One payment allocated across both milestone invoices retains distinct kind/receipt identities. The Angular component loads additional pages only on demand; errors withdraw cached rows while keeping refresh recovery available.
-
-Focused PostgreSQL, Angular and authenticated browser checks pass. The browser proves receipt and agreement paging remain independent, exact monetary cells retain full totals, and keyboard/mobile behavior is preserved. Built-in inspection confirms the older receipt page and focus without console errors. Evidence, intermediate repairs and limits: `portalReceiptPaging20261021` in [status.json](status.json). Whole-product, human AT, full current-source release and provider/professional acceptance remain open. Prior agreement-history evidence is in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+Earlier source-bound behavior and verification are preserved in [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#client-finance-receipt-continuation). Whole-product, human assistive-technology/screen-reader review, current-source release, and professional/provider acceptance remain open.
 
 ## Paged client document history
 
-The portal now combines retained document sharing/acknowledgement, associated signed-scan upload, bundle assembly and current-account bundle receipt events into a read-only paged history. It preserves exact fractional-time ordering and links to the existing source cards. Internal work and identities stay private; delivery, signature verification and professional approval are not inferred. Unorderable timestamps remain visibly unresolved.
-
-The real browser journey caught and repaired focus loss; built-in inspection also caught base-URL fragment resolution. Source links now retain the portal route and keyboard destination, with stale navigation guards and long-text reflow. Focused evidence, intermediate failures and repairs, final artifacts and CI scope are under `portalDocumentHistory20261021` in [status.json](status.json). Complete commercial/PBC chronology, human screen-reader review, current-source full release and professional/live acceptance remain open. Earlier template notes are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+Earlier source-bound behavior and verification are preserved in [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#paged-client-document-history). Whole-product, human assistive-technology/screen-reader review, current-source release, and professional/provider acceptance remain open.
 
 ## Separate client upload and reply capabilities
 

@@ -145,10 +145,8 @@ describe('workflow queue assignment filters', () => {
     vi.stubGlobal('sessionStorage', new CaseStorage());
   });
   afterEach(() => vi.unstubAllGlobals());
-  it('sends the current session owner, resets paging when assignment changes, and clears assignment on view changes', () => {
+  it('sends the current session owner, resets paging when assignment changes, and clears assignment on view changes', async () => {
     TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideWorkspaceAvailabilityForTests()] });
-    // This isolated component case has no router outlet; routed navigation is covered below with the real router.
-    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     const userId = '11111111-1111-4111-8111-111111111111';
     TestBed.inject(SessionService).current.set({ userId, firmId: userId, generation: '1', staff: true });
     const fixture = TestBed.createComponent(WorkflowWorkQueue);
@@ -159,15 +157,15 @@ describe('workflow queue assignment filters', () => {
       flushQueue('/api/ui/work/tasks?view=MY_TASKS&pageSize=50&includeSummary=true', 'MY_TASKS');
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
       const component = fixture.componentInstance;
-      component.selectView('TEAM'); TestBed.tick();
+      component.selectView('TEAM'); await fixture.whenStable(); TestBed.tick();
       flushQueue('/api/ui/work/tasks?view=TEAM&pageSize=50&includeSummary=true', 'TEAM');
-      component.selectOwnerFilter('ME'); TestBed.tick();
+      component.selectOwnerFilter('ME'); await fixture.whenStable(); TestBed.tick();
       flushQueue(`/api/ui/work/tasks?view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}`, 'TEAM');
       component.nextPage({ dueDate: null, taskId: userId }); TestBed.tick();
       flushQueue(`/api/ui/work/tasks?view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}&afterTaskId=${userId}`, 'TEAM');
-      component.selectOwnerFilter('UNASSIGNED'); TestBed.tick();
+      component.selectOwnerFilter('UNASSIGNED'); await fixture.whenStable(); TestBed.tick();
       flushQueue('/api/ui/work/tasks?view=TEAM&pageSize=50&includeSummary=true&unassignedOnly=true', 'TEAM');
-      component.selectView('MY_TASKS'); TestBed.tick();
+      component.selectView('MY_TASKS'); await fixture.whenStable(); TestBed.tick();
       flushQueue('/api/ui/work/tasks?view=MY_TASKS&pageSize=50&includeSummary=true', 'MY_TASKS');
       expect(component.ownerFilter()).toBe('ALL');
       http.verify({ ignoreCancelled: true });
@@ -249,8 +247,6 @@ describe('workflow queue assignment filters', () => {
   const legacyTask = Object.fromEntries(Object.entries(task).filter(([key]) => key !== 'canCancel' && key !== 'canReopen'));
   const start = () => {
     TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideWorkspaceAvailabilityForTests()] });
-    // The legacy component fixtures have no route to activate; history behavior uses RouterTestingHarness below.
-    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     const userId = '11111111-1111-4111-8111-111111111111';
     const session = TestBed.inject(SessionService);
     session.current.set({ userId, firmId: userId, generation: '1', staff: true });
@@ -455,7 +451,7 @@ describe('workflow queue assignment filters', () => {
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 
-  it('preserves an unresolved applicability receipt through a transient availability loss', () => {
+  it('preserves an unresolved applicability receipt through a transient availability loss', async () => {
     const { fixture, http, host, component, userId } = start();
     const conditional = { ...task, applicabilityCondition: 'Synthetic condition', requiredTask: true };
     const queueUrl = tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true');
@@ -479,7 +475,7 @@ describe('workflow queue assignment filters', () => {
       access.invalidate(); TestBed.tick(); fixture.detectChanges();
       expect(fixture.debugElement.query(By.directive(WorkflowTaskApplicabilityPanel)).componentInstance).toBe(panel);
       expect(host.querySelector('div[hidden] audit-workflow-task-applicability')).toBeTruthy();
-      component.selectView('MY_TASKS'); TestBed.tick();
+      component.selectView('MY_TASKS'); await fixture.whenStable(); TestBed.tick();
       expect(panel.pending()).toBe(requestKey);
       (access.current as WritableSignal<WorkspaceAvailabilityView | null>).set(previous);
       (access.revision as WritableSignal<number>).update(value => value + 1);
@@ -606,14 +602,14 @@ describe('workflow queue assignment filters', () => {
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 
-  it('shows the explicit reopen action in list and board only for a server-authorized cancelled task', () => {
+  it('shows the explicit reopen action in list and board only for a server-authorized cancelled task', async () => {
     const { fixture, http, host, component } = start();
     try {
       fixture.detectChanges(); TestBed.tick();
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
         .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
-      component.selectView('CANCELLED'); TestBed.tick();
+      component.selectView('CANCELLED'); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=CANCELLED&pageSize=50&includeSummary=true'))
         .flush({ view: 'CANCELLED', tasks: [reopenableTask], hasMore: false, nextCursor: null, summary: summary() });
       fixture.detectChanges(); TestBed.tick();
@@ -633,14 +629,14 @@ describe('workflow queue assignment filters', () => {
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 
-  it('offers completed-work correction only when the server allows reopening the completed task', () => {
+  it('offers completed-work correction only when the server allows reopening the completed task', async () => {
     const { fixture, http, host, component } = start();
     try {
       fixture.detectChanges(); TestBed.tick();
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
         .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
-      component.selectView('COMPLETED'); TestBed.tick();
+      component.selectView('COMPLETED'); await fixture.whenStable(); TestBed.tick();
       const otherTask = { ...task, taskId: '55555555-5555-4555-8555-555555555555', title: 'Dependent already done', taskStatus: 'COMPLETED' };
       http.expectOne(tasksUrl('view=COMPLETED&pageSize=50&includeSummary=true')).flush({ view: 'COMPLETED',
         tasks: [{ ...task, taskStatus: 'COMPLETED', canReopen: true }, otherTask], hasMore: false, nextCursor: null, summary: summary() });
@@ -657,14 +653,14 @@ describe('workflow queue assignment filters', () => {
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 
-  it('offers hold and resume only from server flags and explains each in the review panel', () => {
+  it('offers hold and resume only from server flags and explains each in the review panel', async () => {
     const { fixture, http, host, component } = start();
     try {
       fixture.detectChanges(); TestBed.tick();
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
         .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
-      component.selectView('ON_HOLD'); TestBed.tick();
+      component.selectView('ON_HOLD'); await fixture.whenStable(); TestBed.tick();
       const held = { ...task, onHold: true, holdReason: 'Client asked to pause.', canResume: true };
       const readOnly = { ...task, taskId: '55555555-5555-4555-8555-555555555555', onHold: true, holdReason: 'Paused.' };
       http.expectOne(tasksUrl('view=ON_HOLD&pageSize=50&includeSummary=true'))
@@ -679,7 +675,7 @@ describe('workflow queue assignment filters', () => {
       expect(panel().querySelector('h2')?.textContent?.trim()).toBe('Review resuming the task');
       expect(panel().textContent).toContain('Reason for resumption');
       component.closeCancellation(); fixture.detectChanges(); TestBed.tick();
-      component.selectView('TEAM'); TestBed.tick();
+      component.selectView('TEAM'); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true'))
         .flush({ view: 'TEAM', tasks: [{ ...task, canSuspend: true }], hasMore: false, nextCursor: null, summary: summary() });
       fixture.detectChanges(); TestBed.tick();
@@ -692,14 +688,14 @@ describe('workflow queue assignment filters', () => {
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 
-  it('restores focus to the current queue view when a reopened cancelled row has disappeared', () => {
+  it('restores focus to the current queue view when a reopened cancelled row has disappeared', async () => {
     const { fixture, http, host, component } = start();
     try {
       fixture.detectChanges(); TestBed.tick();
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
         .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
-      component.selectView('CANCELLED'); TestBed.tick();
+      component.selectView('CANCELLED'); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=CANCELLED&pageSize=50&includeSummary=true'))
         .flush({ view: 'CANCELLED', tasks: [reopenableTask], hasMore: false, nextCursor: null, summary: summary() });
       fixture.detectChanges(); TestBed.tick();
@@ -720,7 +716,7 @@ describe('workflow queue assignment filters', () => {
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 
-  it('renders exact complete counts above the review inbox and opens each card view with paging and assignment reset', () => {
+  it('renders exact complete counts above the review inbox and opens each card view with paging and assignment reset', async () => {
     const { fixture, http, userId, host, overview, cards, card, countOf, component } = start();
     try {
       fixture.detectChanges(); TestBed.tick();
@@ -760,42 +756,42 @@ describe('workflow queue assignment filters', () => {
       // Time capture is a link to the existing time page with the task as context; it records nothing here.
       expect(host.querySelector(`a[href="/app/practice/time?taskId=${task.taskId}"]`)?.textContent).toBe('Record time for this task');
 
-      component.selectView('TEAM'); TestBed.tick();
+      component.selectView('TEAM'); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true')).flush({ view: 'TEAM', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
-      component.selectOwnerFilter('ME'); TestBed.tick();
+      component.selectOwnerFilter('ME'); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}`)).flush({ view: 'TEAM', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
       component.nextPage({ dueDate: '2026-10-15', taskId: task.taskId }); TestBed.tick();
       http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}&afterDueDate=2026-10-15&afterTaskId=${task.taskId}`))
         .flush({ view: 'TEAM', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
       TestBed.tick();
-      card('Due today').click(); TestBed.tick();
+      card('Due today').click(); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=DUE_TODAY&pageSize=50&includeSummary=true')).flush({ view: 'DUE_TODAY', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
       TestBed.tick();
       expect(component.selectedView()).toBe('DUE_TODAY');
       expect(component.ownerFilter()).toBe('ALL');
       expect(card('Due today').getAttribute('aria-pressed')).toBe('true');
 
-      component.selectOwnerFilter('UNASSIGNED'); TestBed.tick();
+      component.selectOwnerFilter('UNASSIGNED'); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=DUE_TODAY&pageSize=50&includeSummary=true&unassignedOnly=true')).flush({ view: 'DUE_TODAY', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
       component.nextPage({ dueDate: null, taskId: task.taskId }); TestBed.tick();
       http.expectOne(tasksUrl(`view=DUE_TODAY&pageSize=50&includeSummary=true&unassignedOnly=true&afterTaskId=${task.taskId}`))
         .flush({ view: 'DUE_TODAY', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
       TestBed.tick();
-      card('Rework required').click(); TestBed.tick();
+      card('Rework required').click(); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=CHANGES_REQUIRED&pageSize=50&includeSummary=true')).flush({ view: 'CHANGES_REQUIRED', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
       TestBed.tick();
       expect(component.selectedView()).toBe('CHANGES_REQUIRED');
       expect(component.ownerFilter()).toBe('ALL');
       expect(host.textContent).toContain('Changes required — workflow tasks');
       expect([...host.querySelectorAll('[role="status"]')].some(x => x.textContent?.includes('Changes required: 0 in this authorized view.'))).toBe(true);
-      component.selectView('UNDER_REVIEW'); TestBed.tick();
+      component.selectView('UNDER_REVIEW'); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=UNDER_REVIEW&pageSize=50&includeSummary=true'))
         .flush({ view: 'UNDER_REVIEW', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
       TestBed.tick();
       expect([...host.querySelectorAll('[role="status"]')].some(x => x.textContent?.includes('Under review: 0 in this authorized view.'))).toBe(true);
 
 
-      component.selectView('CANCELLED'); TestBed.tick();
+      component.selectView('CANCELLED'); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=CANCELLED&pageSize=50&includeSummary=true'))
         .flush({ view: 'CANCELLED', tasks: [{ ...task, taskStatus: 'CANCELLED' }], hasMore: false, nextCursor: null, summary: summary() });
       TestBed.tick();
@@ -811,7 +807,7 @@ describe('workflow queue assignment filters', () => {
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 
-  it('shows the unavailable notice for a legacy summary and the safe error for a malformed one, never zero cards', () => {
+  it('shows the unavailable notice for a legacy summary and the safe error for a malformed one, never zero cards', async () => {
     const { fixture, http, host, overview, cards, component } = start();
     const unavailable = 'Summary unavailable — refresh after the dashboard API is updated.';
     try {
@@ -823,13 +819,13 @@ describe('workflow queue assignment filters', () => {
       expect(cards()).toEqual([]);
       expect(overview().textContent).not.toContain('As of');
 
-      component.selectView('TEAM'); TestBed.tick();
+      component.selectView('TEAM'); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true')).flush({ view: 'TEAM', tasks: [task], hasMore: false, nextCursor: null });
       TestBed.tick();
       expect(overview().textContent).toContain(unavailable);
       expect(cards()).toEqual([]);
 
-      component.selectView('OVERDUE'); TestBed.tick();
+      component.selectView('OVERDUE'); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=OVERDUE&pageSize=50&includeSummary=true'))
         .flush({ view: 'OVERDUE', tasks: [task], hasMore: false, nextCursor: null, summary: summary({ OVERDUE: '1e3' }) });
       TestBed.tick();
@@ -841,7 +837,7 @@ describe('workflow queue assignment filters', () => {
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 
-  it('hides prior counts while loading and never renders counts from a delayed response after session invalidation', () => {
+  it('hides prior counts while loading and never renders counts from a delayed response after session invalidation', async () => {
     const { fixture, http, session, userId, overview, cards, card, countOf, component } = start();
     try {
       fixture.detectChanges(); TestBed.tick();
@@ -851,7 +847,7 @@ describe('workflow queue assignment filters', () => {
       TestBed.tick();
       expect(countOf('My tasks')).toBe('101');
 
-      card('Due today').click(); TestBed.tick();
+      card('Due today').click(); await fixture.whenStable(); TestBed.tick();
       const delayed = http.expectOne(tasksUrl('view=DUE_TODAY&pageSize=50&includeSummary=true'));
       expect(overview().textContent).toContain('Loading work overview.');
       expect(overview().textContent).not.toContain('101');
@@ -2090,12 +2086,12 @@ describe('workflow queue assignment filters', () => {
       expect(component.display()).toBe('BOARD');
       expect(component.reminderTaskSelection()).toEqual({ engagementId: task.engagementId, taskId: task.taskId });
 
-      component.selectDisplay('CALENDAR'); TestBed.tick();
+      component.selectDisplay('CALENDAR'); await harness.fixture.whenStable(); TestBed.tick();
       await harness.fixture.whenStable();
       expect(router.parseUrl(router.url).queryParams['queueDisplay']).toBe('CALENDAR');
       http.expectNone(request => request.url === '/api/ui/work/tasks');
 
-      component.selectOwnerFilter('UNASSIGNED'); TestBed.tick();
+      component.selectOwnerFilter('UNASSIGNED'); await harness.fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true&unassignedOnly=true')).flush({ ...queueResponse('TEAM'), tasks: [] });
       await harness.fixture.whenStable();
       component.nextPage({ dueDate: null, taskId: task.taskId }); TestBed.tick();
@@ -2105,7 +2101,7 @@ describe('workflow queue assignment filters', () => {
 
       const dueToday = [...harness.routeNativeElement!.querySelectorAll<HTMLButtonElement>('button.summary-card')]
         .find(button => button.textContent?.includes('Due today'))!;
-      dueToday.click(); TestBed.tick();
+      dueToday.click(); await harness.fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=DUE_TODAY&pageSize=50&includeSummary=true')).flush(queueResponse('DUE_TODAY'));
       await harness.fixture.whenStable();
       expect(component.ownerFilter()).toBe('ALL');
@@ -2307,7 +2303,25 @@ describe('workflow queue assignment filters', () => {
       expect(taskSource?.getAttribute('href')).toBe(`/app/work?engagementId=${task.engagementId}&taskId=${sourceTaskId}`);
       expect([...selectedPanel().querySelectorAll('button')].some(button => button.textContent?.trim() === 'Complete task')).toBe(false);
 
-      component.selectView('TEAM'); TestBed.tick();
+      // Exact task workspaces do not depend on membership in the current queue page.
+      const workspaceButton = (label: string) => [...selectedPanel().querySelectorAll<HTMLButtonElement>('button')]
+        .find(button => button.textContent?.trim() === label)!;
+      workspaceButton('Review prerequisites').click(); TestBed.tick();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/evidence`)
+        .flush({ engagementId: task.engagementId, taskId: task.taskId, taskRevision: task.revision, canManage: false, rules: [] });
+      await harness.fixture.whenStable(); harness.fixture.detectChanges();
+      expect(component.evidencePanel()?.authorizedWorkspace()).toBeTruthy();
+      expect(component.evidencePanel()?.workspace.data()?.canManage).toBe(false);
+      component.evidenceTask.set(null); TestBed.tick();
+      workspaceButton('Review task ordering').click(); TestBed.tick();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/dependencies`)
+        .flush({ message: 'Scope denied' }, { status: 403, statusText: 'Forbidden' });
+      await harness.fixture.whenStable(); harness.fixture.detectChanges();
+      expect(component.orderingPanel()?.authorizedWorkspace()).toBe(false);
+      component.orderingTask.set(null); TestBed.tick();
+      http.expectNone(request => request.method === 'POST');
+
+      component.selectView('TEAM'); await harness.fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true'))
         .flush({ view: 'TEAM', tasks: [{ ...task, revision: task.revision + 1, canComplete: true }],
           hasMore: false, nextCursor: null, summary: summary() });
@@ -2315,10 +2329,10 @@ describe('workflow queue assignment filters', () => {
       expect(selectedPanel().textContent).toContain('no currently loaded queue row matches its current status and revision');
       expect([...selectedPanel().querySelectorAll('button')].some(button => button.textContent?.trim() === 'Complete task')).toBe(false);
 
-      component.selectView('MY_TASKS'); TestBed.tick();
+      component.selectView('MY_TASKS'); await harness.fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
         .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
-      component.selectView('TEAM'); TestBed.tick();
+      component.selectView('TEAM'); await harness.fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true'))
         .flush({ view: 'TEAM', tasks: [{ ...task, canComplete: true }], hasMore: false, nextCursor: null, summary: summary() });
       await harness.fixture.whenStable(); harness.fixture.detectChanges();
@@ -2397,12 +2411,70 @@ describe('workflow queue assignment filters', () => {
       expect(host.querySelector('a[href*="/app/engagements/"]')).toBeNull();
 
       const legacyTaskId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
-      await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${legacyTaskId}`, WorkflowWorkQueue);
-      http.expectOne(workspaceUrl(legacyTaskId)).flush(reminderWorkspace(legacyTaskId, 'Legacy selected task', 1, 'OPEN'));
+      const mixedCaseLegacyTaskId = 'DdDdDdDd-dDdD-4dDd-8DdD-dDdDdDdDdDdD';
+      await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${mixedCaseLegacyTaskId}`, WorkflowWorkQueue);
+      http.expectOne(workspaceUrl(legacyTaskId)).flush(reminderWorkspace(mixedCaseLegacyTaskId, 'Legacy selected task', 1, 'OPEN'));
       await harness.fixture.whenStable(); harness.fixture.detectChanges();
       expect(host.textContent).toContain('Legacy selected task');
       expect(host.textContent).not.toContain('Unsupported response.');
       expect(host.textContent).not.toContain('Reminder origin');
+      const activityButton = [...host.querySelectorAll<HTMLButtonElement>('section[aria-labelledby="reminder-task-heading"] button')]
+        .find(button => button.textContent?.trim() === 'View activity')!;
+      expect(activityButton).toBeTruthy();
+      activityButton.click(); TestBed.tick(); harness.fixture.detectChanges();
+      const firstActivityRead = http.expectOne(request => request.url.startsWith(
+        `/api/ui/engagements/${task.engagementId}/workflow/tasks/${legacyTaskId}/activity?`));
+      expect(activityButton.textContent?.trim()).toBe('Hide activity');
+      activityButton.click(); TestBed.tick(); harness.fixture.detectChanges();
+      expect(firstActivityRead.cancelled).toBe(true);
+      expect(component.activityTask()).toBeNull();
+      expect(activityButton.textContent?.trim()).toBe('View activity');
+      http.expectNone(request => request.method !== 'GET');
+      activityButton.click(); TestBed.tick();
+      const activityRead = http.expectOne(request => request.url.startsWith(
+        `/api/ui/engagements/${task.engagementId}/workflow/tasks/${legacyTaskId}/activity?`));
+      await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${nextTaskId}`, WorkflowWorkQueue);
+      expect(activityRead.cancelled).toBe(true);
+      expect(component.activityTask()).toBeNull();
+      component.openLinkedTaskPanel('evidence'); TestBed.tick();
+      http.expectNone(request => request.url.endsWith('/evidence'));
+      http.expectOne(workspaceUrl(nextTaskId)).flush({ message: 'Scope denied' }, { status: 403, statusText: 'Forbidden' });
+      await harness.fixture.whenStable(); harness.fixture.detectChanges();
+      component.openLinkedTaskPanel('evidence'); TestBed.tick();
+      http.expectNone(request => request.url.endsWith('/evidence'));
+
+      // A route change must not replace an unresolved exact-task workspace.
+      await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${legacyTaskId}`, WorkflowWorkQueue);
+      http.expectOne(workspaceUrl(legacyTaskId)).flush(reminderWorkspace(legacyTaskId, 'Legacy selected task', 1, 'OPEN'));
+      await harness.fixture.whenStable();
+      const receiptKey = '77777777-7777-4777-8777-777777777777';
+      const storageKey = `auditsphere.workflow-evidence:${task.assigneeUserId}:${task.assigneeUserId}:${task.engagementId}:${legacyTaskId}`;
+      sessionStorage.setItem(storageKey, receiptKey);
+      component.openLinkedTaskPanel('evidence'); TestBed.tick();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${legacyTaskId}/evidence`)
+        .flush({ engagementId: task.engagementId, taskId: legacyTaskId, taskRevision: 1, canManage: false, rules: [] });
+      await harness.fixture.whenStable();
+      const pendingPanel = component.evidencePanel()!;
+      expect(pendingPanel.pending()).toBe(receiptKey);
+      await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${nextTaskId}`, WorkflowWorkQueue);
+      http.expectOne(workspaceUrl(nextTaskId)).flush(reminderWorkspace(nextTaskId, 'Next selected task', 1, 'OPEN'));
+      await harness.fixture.whenStable();
+      component.openLinkedTaskPanel('evidence'); TestBed.tick();
+      expect(component.evidencePanel()).toBe(pendingPanel);
+      expect(component.evidenceTask()?.taskId).toBe(legacyTaskId);
+      expect(pendingPanel.pending()).toBe(receiptKey);
+      expect(sessionStorage.getItem(storageKey)).toBe(receiptKey);
+      expect(component.actionMessage()).toContain('Resolve or explicitly close');
+      http.expectNone(request => request.url.endsWith('/evidence'));
+      // Selecting the original task remains available for receipt recovery.
+      component.selectEvidence({ engagementId: task.engagementId, taskId: legacyTaskId, title: 'Legacy selected task' });
+      TestBed.tick();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${legacyTaskId}/evidence`)
+        .flush({ engagementId: task.engagementId, taskId: legacyTaskId, taskRevision: 1, canManage: false, rules: [] });
+      TestBed.tick();
+      expect(component.evidencePanel()).toBe(pendingPanel);
+      expect(pendingPanel.pending()).toBe(receiptKey);
+      http.expectNone(request => request.method === 'POST');
       http.verify({ ignoreCancelled: true });
     } finally { harness.fixture.destroy(); TestBed.resetTestingModule(); }
   });

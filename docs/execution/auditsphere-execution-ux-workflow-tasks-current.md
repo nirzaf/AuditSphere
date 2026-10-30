@@ -22,17 +22,19 @@ The audit describes an earlier source snapshot. Each packet requires current-sou
 | U04 | Preserve and scope My Work filters in the route | U02 | Pending current-source assessment and scoped implementation. |
 | U05 | Make pending financial-package review discovery complete and paged | Independent | Implemented; focused native/Angular and additive contract checks passed. Exact successor CI, populated browser paging and integrated role acceptance remain pending. |
 | U06 | Remove false authority claims from the package-review preview | Independent | Implemented; focused regression and production build verified. Integrated browser/role acceptance remains pending. |
-| U07 | Expose existing package-review work inside My Work | U01, U05, U06 | Pending current-source assessment and scoped implementation. |
+| U07 | Expose existing package-review work inside My Work | U01, U05, U06 | Partial: independently authorized financial-package review handoff is visible in My Work, including package-only users with workflow disabled. No inline package count or rows are claimed. Integrated review discovery and role/browser acceptance remain open. |
 | U08 | Surface existing engagement next actions in My Work | U01, U02 | Pending current-source assessment and scoped implementation. |
 | U09 | Make Portfolio a concise triage page using existing projections | U01, U02, U04, U07, U08 | Pending current-source assessment and scoped implementation. |
 | U10 | Reduce task-card clutter without hiding actionable facts | Independent | Implemented; focused rendering/recovery, responsive keyboard and final recovery-focus browser checks passed. Exact successor CI and integrated role acceptance remain pending. |
 | U11 | Guide template preparation through unresolved inputs first | Independent | Pending current-source assessment and scoped implementation. |
 | U12 | Attach authorized resolution guidance to lifecycle blockers | Independent | Pending current-source assessment and scoped implementation. |
 | U13 | Distinguish idempotency conflicts from stale revisions in command guidance | Independent | Implemented; focused regression and production build verified. Integrated browser/role acceptance remains pending. |
-| U14 | Make an exact linked task usable without locating its queue page | U01 | Pending current-source assessment and scoped implementation. |
+| U14 | Make an exact linked task usable without locating its queue page | U01 | Partial: exact linked activity, prerequisite and ordering workspaces no longer depend on queue paging. Queue actions still require a matching current row; exact-action projection and integrated acceptance remain open. |
 | V01 | Qualify the changed journeys and record activation boundaries | U01, U02, U03, U04, U05, U06, U07, U08, U09, U10, U11, U12, U13, U14 | Pending integrated final-source CI, built-in browser journeys, responsive/keyboard checks and qualified activation evidence. |
 
 ## Implemented behavior
+
+My Work exposes a separate financial-package review handoff only while the existing review-destination hint is current. Package-only reviewers can enter My Work even when workflow tasks and procedure reviews are disabled or unauthorized. The handoff loads no package rows or totals and records no decision; the destination rechecks current eligibility. Expiry, session change and missing hints remove the link. This is a partial U07 navigation handoff, not an inline unified review queue.
 
 U01 adds an authenticated staff availability projection assembled from existing destination owners. My Work task, procedure-review and template sections have separate `available`, `not_authorized` and `not_enabled` states; the accounting review destination remains independently scoped. The shell and My Work suppress disallowed section reads and distinguish a disabled or unavailable feature from an authorized empty queue. A bounded scope-window limit is not presented as an authorization denial. These presentation hints do not authorize direct URLs, destination reads or commands, and add no role grant or feature activation.
 
