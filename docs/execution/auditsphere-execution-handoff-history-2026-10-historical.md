@@ -708,3 +708,15 @@ Review notes now bind their result to the same firm, client and engagement; note
 ## Workspace availability and task recovery
 
 Navigation and My Work sections use short-lived server-projected availability hints. Destination reads and commands retain their own authorization. Task and review availability are independent; session changes and expiry clear stale presentation. Task recovery retains unresolved requests and requires current authorized observations before details or explicit recovery; a storage check does not establish an earlier command outcome. Focused native, Angular, contract and synthetic built-in browser evidence is recorded in [status.json](status.json). Other roles, interrupted-command browser journeys, integrated CI, human accessibility and professional acceptance remain open.
+
+## Client finance receipt continuation
+
+Agreement summaries now carry a bounded receipt page with separate continuation. Exact-agreement receipt history preserves full SQL cash totals, current access fences and existing settlement-document lineage. One payment allocated across both milestone invoices retains distinct kind/receipt identities. The Angular component loads additional pages only on demand; errors withdraw cached rows while keeping refresh recovery available.
+
+Focused PostgreSQL, Angular and authenticated browser checks pass. The browser proves receipt and agreement paging remain independent, exact monetary cells retain full totals, and keyboard/mobile behavior is preserved. Built-in inspection confirms the older receipt page and focus without console errors. Evidence, intermediate repairs and limits: `portalReceiptPaging20261021` in [status.json](status.json). Whole-product, human AT, full current-source release and provider/professional acceptance remain open. Prior agreement-history evidence is in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+
+## Paged client document history
+
+The portal now combines retained document sharing/acknowledgement, associated signed-scan upload, bundle assembly and current-account bundle receipt events into a read-only paged history. It preserves exact fractional-time ordering and links to the existing source cards. Internal work and identities stay private; delivery, signature verification and professional approval are not inferred. Unorderable timestamps remain visibly unresolved.
+
+The real browser journey caught and repaired focus loss; built-in inspection also caught base-URL fragment resolution. Source links now retain the portal route and keyboard destination, with stale navigation guards and long-text reflow. Focused evidence, intermediate failures and repairs, final artifacts and CI scope are under `portalDocumentHistory20261021` in [status.json](status.json). Complete commercial/PBC chronology, human screen-reader review, current-source full release and professional/live acceptance remain open. Earlier template notes are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).

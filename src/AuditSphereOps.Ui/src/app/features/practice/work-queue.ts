@@ -185,6 +185,14 @@ const queueViews: { key: QueueView; label: string }[] = [
     @if (availability.current(); as access) {
       @if (access.tasks === 'not_enabled' && access.reviews === 'not_enabled') { <p role="status">Workflow work is not enabled on this server.</p> }
     }
+    @if (availability.current()?.destinations?.includes('reviews')) {
+      <section aria-labelledby="package-review-handoff-heading">
+        <h2 id="package-review-handoff-heading">Financial package reviews</h2>
+        <p>Package review is separate from operational tasks and procedure submissions. Open the authorized queue to check current stages and older packages; no package total is loaded here.</p>
+        <a matButton routerLink="/app/accounting/reviews">Open financial package review queue</a>
+        <p>Each package rechecks your current review eligibility. Opening the queue records no approval.</p>
+      </section>
+    }
     @if (taskRefused()) { <p role="alert">The task queue is unavailable in your current scope. <button matButton (click)="retrySection('tasks')">Retry task queue</button></p> }
     @if (reviewRefused()) { <p role="alert">The review inbox is unavailable in your current scope. <button matButton (click)="retrySection('reviews')">Retry review inbox</button></p> }
     @if (priorSessionFenceAvailable()) {
@@ -312,6 +320,12 @@ const queueViews: { key: QueueView; label: string }[] = [
               }
             </section>
           }
+          <div role="group" aria-label="Selected task workspaces">
+            <button matButton (click)="openLinkedTaskPanel('activity')">{{ activityTask()?.taskId === selected.id ? 'Hide activity' : 'View activity' }}</button>
+            <button matButton (click)="openLinkedTaskPanel('evidence')">Review prerequisites</button>
+            <button matButton (click)="openLinkedTaskPanel('ordering')">Review task ordering</button>
+          </div>
+          <p>Each workspace checks its own current permissions. Opening it does not complete or approve the task.</p>
           @if (reminderQueueTask(); as task) {
             @if (task.canChangeDueDate || task.canComplete || task.canCancel || reopenable(task) || task.canSuspend || task.canResume || task.canAssign) {
               <div role="group" aria-label="Actions authorized by the current work queue">
@@ -341,7 +355,7 @@ const queueViews: { key: QueueView; label: string }[] = [
               <p role="status">The selected task is read-only; the current queue has no authorized action for it.</p>
             }
           } @else {
-            <p role="status">The selected task is read-only because no currently loaded queue row matches its current status and revision.</p>
+            <p role="status">The selected task is read-only for queue actions because no currently loaded queue row matches its current status and revision. Its activity and prerequisite workspaces can still be checked.</p>
           }
         }
       </section>
@@ -982,6 +996,23 @@ export class WorkflowWorkQueue {
     if (this.taskAccessCurrent() && this.reminderTaskSelection()) this.reminderTask.reload();
   }
 
+  openLinkedTaskPanel(panel: 'activity' | 'evidence' | 'ordering'): void {
+    const selection = this.reminderTaskSelection(), selected = this.currentReminderTask();
+    if (!this.taskAccessCurrent() || !selection || !selected || this.reminderTask.loading() || this.reminderTask.error() ||
+        selected.id.toLowerCase() !== selection.taskId) return;
+    const task = { engagementId: selection.engagementId, taskId: selection.taskId, title: selected.title };
+    if (panel === 'activity') this.showActivity(task.engagementId, task.taskId, task.title);
+    else if (panel === 'evidence') this.selectEvidence(task);
+    else this.selectOrdering(task);
+  }
+
+  private clearLinkedTaskPanels(): void {
+    if (!this.reminderTaskSelection()) return;
+    this.clearSettledPanels();
+    this.activityTask.set(null);
+    this.activityCursor.set(null);
+  }
+
   currentReminderTask(): SelectedReminderTask | null {
     const selected = this.reminderTaskSelection();
     const task = this.reminderTask.data();
@@ -1011,11 +1042,13 @@ export class WorkflowWorkQueue {
     const engagementIds = params.getAll('engagementId');
     const taskIds = params.getAll('taskId');
     if (engagementIds.length === 0 && taskIds.length === 0) {
+      this.clearLinkedTaskPanels();
       this.reminderTaskLinkError.set('');
       this.reminderTaskSelection.set(null);
       return;
     }
     if (engagementIds.length !== 1 || taskIds.length !== 1) {
+      this.clearLinkedTaskPanels();
       this.reminderTaskSelection.set(null);
       this.reminderTaskLinkError.set('This task link is invalid. Open the reminder again.');
       return;
@@ -1028,9 +1061,11 @@ export class WorkflowWorkQueue {
       this.reminderTaskLinkError.set('');
       const current = this.reminderTaskSelection();
       if (current?.engagementId === next.engagementId && current.taskId === next.taskId) return;
+      this.clearLinkedTaskPanels();
       this.reminderTaskSelection.set(next);
       this.focusReminderTaskHeading(next);
     } catch {
+      this.clearLinkedTaskPanels();
       this.reminderTaskSelection.set(null);
       this.reminderTaskLinkError.set('This task link is invalid. Open the reminder again.');
     }
@@ -1150,9 +1185,29 @@ export class WorkflowWorkQueue {
   evidenceUnresolved(): boolean { const panel = this.evidencePanel(); return !!panel && (panel.busy() || !!panel.pending()); }
   orderingUnresolved(): boolean { const panel = this.orderingPanel(); return !!panel && (panel.busy() || !!panel.pending()); }
   applicabilityUnresolved(): boolean { const panel = this.applicabilityPanel(); return !!panel && (panel.busy() || !!panel.pending()); }
-  selectEvidence(task: QueueTask): void { this.loadRegistry(); if (!this.evidencePanel()?.busy() && !this.panelConflict(task, 'evidence')) this.evidenceTask.set(task); }
-  selectOrdering(task: QueueTask): void { this.loadRegistry(); if (!this.orderingPanel()?.busy() && !this.panelConflict(task, 'ordering')) this.orderingTask.set(task); }
-  selectApplicability(task: QueueTask): void { this.loadRegistry(); if (!this.applicabilityPanel()?.busy() && !this.panelConflict(task, 'applicability')) this.applicabilityTask.set(task); }
+  selectEvidence(task: Pick<QueueTask, 'engagementId' | 'taskId' | 'title'>): void {
+    this.loadRegistry();
+    if (!this.evidencePanel()?.busy() && this.canReplacePendingPanel(this.evidenceTask(), task, !!this.evidencePanel()?.pending()) &&
+        !this.panelConflict(task, 'evidence')) this.evidenceTask.set(task);
+  }
+  selectOrdering(task: Pick<QueueTask, 'engagementId' | 'taskId' | 'title'>): void {
+    this.loadRegistry();
+    if (!this.orderingPanel()?.busy() && this.canReplacePendingPanel(this.orderingTask(), task, !!this.orderingPanel()?.pending()) &&
+        !this.panelConflict(task, 'ordering')) this.orderingTask.set(task);
+  }
+  selectApplicability(task: QueueTask): void {
+    this.loadRegistry();
+    if (!this.applicabilityPanel()?.busy() && this.canReplacePendingPanel(this.applicabilityTask(), task, !!this.applicabilityPanel()?.pending()) &&
+        !this.panelConflict(task, 'applicability')) this.applicabilityTask.set(task);
+  }
+  private canReplacePendingPanel(current: { engagementId: string; taskId: string } | null,
+    next: { engagementId: string; taskId: string }, pending: boolean): boolean {
+    if (!pending || current?.engagementId.toLowerCase() === next.engagementId.toLowerCase() &&
+        current?.taskId.toLowerCase() === next.taskId.toLowerCase()) return true;
+    this.actionFailed.set(true);
+    this.actionMessage.set('Resolve or explicitly close the pending task workspace before opening another task. Its recovery reference is retained.');
+    return false;
+  }
   private clearSettledPanels(): void {
     if (!this.evidenceUnresolved()) this.evidenceTask.set(null);
     if (!this.orderingUnresolved()) this.orderingTask.set(null);

@@ -36,13 +36,13 @@
   },
   "remainingLocalWork": [
     {
-      "item": "AS-PAR-002 — remaining whole-application scope and revocation coverage",
+      "item": "AS-PAR-002 \u2014 remaining whole-application scope and revocation coverage",
       "status": "PARTIAL",
       "details": "Whole-application scope, revocation, source-action behavior and dynamic acceptance remain partial. Use apiAngularParity for the attached backlog; the previous verification narrative is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-PAR-009 — Pricing review, evidence-bound dispatch and client response",
+      "item": "AS-PAR-009 \u2014 Pricing review, evidence-bound dispatch and client response",
       "status": "PARTIAL",
       "details": "Pricing implementation exists; firm-approved policy, provider delivery evidence and current end-to-end acceptance remain separate gates. Earlier implementation and check history is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -54,43 +54,43 @@
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "STE-NXT-014 — End-of-service accrual as a provision (ADR-0010)",
+      "item": "STE-NXT-014 \u2014 End-of-service accrual as a provision (ADR-0010)",
       "status": "PARTIAL",
       "details": "End-of-service accrual requires the existing approved treatment, provision and expense account configuration and independent Partner confirmation. Prior technical verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "ADR-0016 — Certificate signing of the final report (specification 4.4.1, 4.4.2)",
+      "item": "ADR-0016 \u2014 Certificate signing of the final report (specification 4.4.1, 4.4.2)",
       "status": "PARTIAL",
       "details": "Final report certificate policy, legal acceptance and live deployment remain explicit external/operator gates. Earlier technical signing evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-002 / FSR-010 / FSR-011 first slice — typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
+      "item": "FSR-002 / FSR-010 / FSR-011 first slice \u2014 typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
       "status": "PARTIAL",
       "details": "Typed and pinned financial statement presentation is implemented incrementally. Professional policy, complete approved schedules/disclosures, report composition and release acceptance remain governed by their current records. Prior slice narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-005 first slice — cash-flow movement evidence and adjusted cash cross-cast",
+      "item": "FSR-005 first slice \u2014 cash-flow movement evidence and adjusted cash cross-cast",
       "status": "PARTIAL",
       "details": "Source-backed cash flow and its professional classification policy remain governed by their current completion records. Historical first-slice verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "CP-13 — signed equity components and transfer workflow",
+      "item": "CP-13 \u2014 signed equity components and transfer workflow",
       "status": "PARTIAL",
       "details": "Equity components and transfer workflows remain subject to source lineage and independent professional acceptance. Historical increment evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-WF-V22 — v2.2 workflow experience PRs D–I (WF-04 to WF-15) and production acceptance",
+      "item": "AS-WF-V22 \u2014 v2.2 workflow experience PRs D\u2013I (WF-04 to WF-15) and production acceptance",
       "status": "PARTIAL",
       "details": "Workflow implementation does not replace professional approval or production acceptance. Current focused evidence is in targetedVerification; earlier long-form incremental narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) — NOT COMPLETE",
+      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) \u2014 NOT COMPLETE",
       "status": "PARTIAL",
       "details": "The production-readiness backlog remains incomplete; its external and independent acceptance gates are not closed by local parity implementation.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -1196,6 +1196,37 @@
       "browser": "Isolated synthetic staff account: team task, assignment review and cancellation, empty saved receipt search, mobile navigation and Escape focus; console errors empty. Fixture and its owned resources cleaned.",
       "boundary": "Current-source CI, real interrupted-command and other role journeys, integrated acceptance, human accessibility and professional/live acceptance remain open.",
       "taskColumn": "Separate scoped layout change from bcd9: Angular production build passed with two existing stylesheet-budget warnings; synthetic built-in browser checked task width and Home/End table scrolling at desktop and mobile sizes. Current-source CI and broader acceptance remain open."
+    },
+    "cloudLinkedTaskPanels20261030": {
+      "previous": "status-archive-2026-10.json#archivedTargetedVerification.cloudLinkedTaskPanels20261030",
+      "scope": "Partial U14 exact linked panels; current revalidation belongs with cloudPackageReviewHandoff20261030. Queue mutation and browser acceptance remain open."
+    },
+    "cloudLifecycleArchitecture20261030": {
+      "previous": "status-archive-2026-10.json#archivedTargetedVerification.cloudLifecycleArchitecture20261030",
+      "crosswalk": "docs/execution/auditsphere-execution-lifecycle-diagram-crosswalk-current.md",
+      "remaining": "Group release/archive, integrated offboarding, partial crosswalk handoffs and professional/live acceptance remain open."
+    },
+    "cloudPackageReviewHandoff20261030": {
+      "sourceBase": "81c33ddc",
+      "result": "PARTIAL_U07_FOCUSED_UI_PASS_NATIVE_TEST_BLOCKED",
+      "scope": "Existing package-review destination handoff in My Work; package-only eligibility is independent of workflow feature flag. No inline rows, totals or decisions.",
+      "checks": {
+        "angular": "Queue cohort: 144 passed; final pending-panel identity regression in work-queue.spec.ts: 64 passed.",
+        "application": "Release Application build passed; cached NU1900 vulnerability-data warning.",
+        "uiBuild": "Final Angular production build passed; existing app.scss and commercial/settings.scss budget warnings.",
+        "lint": "Final work-queue.ts and client.html ESLint passed; specs excluded by repository config.",
+        "documentation": "Documentation health, filenames, narrative metrics and diff checks passed."
+      },
+      "notRun": [
+        "Native availability regression: BLOCKED_TEST_ENV (no isolated PostgreSQL server; source configure missing bison).",
+        "Authenticated browser journey",
+        "Exact-source CI",
+        "Complete regression suites"
+      ],
+      "evidence": ".local/autonomous/evidence/cloud-20261030/",
+      "remaining": "Integrated U07 discovery and role/browser acceptance; no full project completion or release claim.",
+      "pendingPanelFix": "Different task identities cannot replace unresolved evidence, ordering or applicability panels; same-task receipt recovery remains available.",
+      "codeDiffSha256": "a481dd950a87f0e2e266c2520efa158befefa6001323bc6b14b2f700ed0002fc"
     }
   },
   "externalGates": [
@@ -1247,7 +1278,7 @@
     {
       "gate": "P10",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Full §47 real-tenant acceptance and professional sign-off"
+      "required": "Full \u00a747 real-tenant acceptance and professional sign-off"
     },
     {
       "gate": "M365-ADMIN",

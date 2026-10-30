@@ -74,6 +74,17 @@ describe('Client profile request and command ownership', () => {
     f.componentInstance.size('engagement','25');
     expect(nav).toHaveBeenCalledWith([], expect.objectContaining({queryParams:{...defaultClientLocation,engagementPageSize:25}}));
   });
+  it('explains the profile-only archive boundary for both archive and restore actions', () => {
+    const f = open(); read().flush(payload); f.detectChanges();
+    const host = f.nativeElement as HTMLElement;
+    const guidance = host.querySelector('#client-archive-boundary');
+    expect(guidance?.textContent).toContain('change only the client profile state');
+    expect(guidance?.textContent).toContain('do not complete offboarding, resolve open work or billing, revoke staff or portal access, or freeze engagement evidence');
+    expect(host.querySelector('[data-client-archive]')?.getAttribute('aria-describedby')).toBe(guidance?.id);
+    f.componentInstance.data.set({ ...f.componentInstance.data()!, isArchived: true }); f.detectChanges();
+    expect(host.querySelector('#client-archive-boundary')?.textContent).toBe(guidance?.textContent);
+    expect(host.querySelector('[data-client-archive]')?.textContent).toContain('Restore client');
+  });
   it('archives and restores with the exact lifecycle revision while keeping history searchable', () => {
     const f = open(); read().flush(payload); TestBed.tick();
     const archiveButton = f.nativeElement.querySelector('[data-client-archive]') as HTMLButtonElement;
