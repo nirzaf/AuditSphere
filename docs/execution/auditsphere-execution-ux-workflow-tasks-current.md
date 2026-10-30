@@ -20,7 +20,7 @@ The audit describes an earlier source snapshot. Each packet requires current-sou
 | U02 | Provide authorized context choices and repair the portfolio handoff | Independent | Pending current-source assessment and scoped implementation. |
 | U03 | Add a persistent current-context header and safe client/engagement switcher | U01, U02 | Pending current-source assessment and scoped implementation. |
 | U04 | Preserve and scope My Work filters in the route | U02 | Pending current-source assessment and scoped implementation. |
-| U05 | Make pending financial-package review discovery complete and paged | Independent | Pending current-source assessment and scoped implementation. |
+| U05 | Make pending financial-package review discovery complete and paged | Independent | Implemented locally; focused native/Angular and additive contract checks passed. Browser populated paging and integrated role acceptance remain pending; publication waits for active image jobs. |
 | U06 | Remove false authority claims from the package-review preview | Independent | Implemented; focused regression and production build verified. Integrated browser/role acceptance remains pending. |
 | U07 | Expose existing package-review work inside My Work | U01, U05, U06 | Pending current-source assessment and scoped implementation. |
 | U08 | Surface existing engagement next actions in My Work | U01, U02 | Pending current-source assessment and scoped implementation. |
@@ -38,6 +38,10 @@ Package selection preview reports selected packages and directs users to current
 
 Command recovery distinguishes request-identity conflicts from revision/generation changes. Unknown conflict codes receive neutral guidance. Existing validation messages, unknown-outcome handling, session fences and single-send behavior remain. No new key, automatic retry or professional authority was introduced.
 
+## Using the changed queues
+
+Use **Check older packages** while continuation is available, including when the current candidate window has no eligible rows. The displayed row count is page-local. Moving pages clears current selection; saved IDs can be restored only when present in the freshly authorized current page. Refresh restarts at the newest window. Open each package for current authorized review actions.
+
 ## Remaining acceptance
 
-Next inspect bounded package-review discovery, then navigation/context and dependent My Work packets. Preserve authorization before paging, unavailable versus zero, command freshness, exact task-link identity and existing financial boundaries. Each packet retains its own acceptance criteria from the attachments. D00 blocks only true cross-firm switching. No tenant feature switch is authorized by this register. V01 and professional/external release gates remain open.
+Next inspect navigation/context and dependent My Work packets, then preparation and blocker-guidance packets. Preserve authorization before paging, unavailable versus zero, command freshness, exact task-link identity and existing financial boundaries. Each packet retains its own acceptance criteria from the attachments. D00 blocks only true cross-firm switching. No tenant feature switch is authorized by this register. V01 and professional/external release gates remain open.

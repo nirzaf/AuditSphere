@@ -18,6 +18,8 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 ## Current presentation ownership
 
+- Financial-package review discovery: `Application/Accounting/FinancialPackageReviewService.cs` owns bounded candidate continuation, final readiness and current scope checks including cursor disclosure. `Api/Ui/UiEndpoints.Packages.cs` exposes an additive page contract while retaining the legacy list shape; Angular `features/accounting/reviews.ts` owns page-local selection, session invalidation and honest continuation/empty states.
+
 - **HTTP host and contracts:** `src/AuditSphereOps.Api/` owns authenticated `/api/ui/*` endpoints, session and consent boundaries, protected file transports, health checks, and serving the Angular build. Route ownership is explicit in `src/AuditSphereOps.Api/Ui/AngularRouteOwnership.cs` and the SPA route catalogue.
 - **Presentation:** `src/AuditSphereOps.Ui/src/app/` owns the Angular staff and client-portal routes and workspaces. Angular calls the same-origin API; it does not own authorization or business-state authority.
 - **Historical screen references:** old Blazor screen names below are retained only to trace the pre-removal implementation at `c3905e07`. They are not current files, route owners, rollback hosts, or proof that a current Angular workspace has matching behavior. Where current API/Angular files are listed, those paths identify current implementation locations without asserting feature parity.

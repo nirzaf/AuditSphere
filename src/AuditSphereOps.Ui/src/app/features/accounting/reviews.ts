@@ -2,13 +2,18 @@ import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
-import { arr, guid, obj, text } from '../../core/decode';
+import { arr, guid, instant, nullable, obj, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { TabDrafts } from '../../core/tab-drafts';
 import { SHARED } from '../../core/ui';
 
 export const decodeReviewQueue = arr(obj({ packageId: guid, framework: text, periodStart: text, periodEnd: text, currency: text, packageHash: text,
   managementDecision: text, accountingDecision: text, partnerDecision: text, nextAction: text }), 2000);
+
+export const decodeReviewPage = obj({ items: arr(obj({ packageId: guid, framework: text, periodStart: text, periodEnd: text, currency: text, packageHash: text,
+  managementDecision: text, accountingDecision: text, partnerDecision: text, nextAction: text,
+  clientId: guid, engagementId: guid, clientName: text, engagementService: text }), 100),
+  nextCursor: nullable(obj({ createdAt: instant, id: guid })) });
 
 // This non-authoritative ID selection is pinned to its draft schema. Recovery separately filters it against a fresh authorized queue.
 const selectionScope = { entity: 'accounting/package-review-selection', baseRevision: '22bf59ad8353c8c0a5729323c669339cb5a1a0adf8b7968e2a62f9cbb63db46f' };
@@ -31,8 +36,9 @@ function decodeSelection(raw: unknown): string[] | null {
       description="Only validated packages in the current client and engagement grants are listed. Every stage is bound to the package's exact revision, generation and hash." />
     <button matButton="outlined" (click)="refreshQueue()">Refresh queue</button>
     <audit-state [loading]="queue.loading()" [error]="queue.error()" label="the review queue" />
-    @if (queue.data(); as q) {
-      <p role="status">{{ q.length }} stages shown · {{ partnerRequired(q) }} partner action required · {{ selected().length }} selected for preview</p>
+    @if (queue.data(); as page) {
+      @let q = page.items;
+      <p role="status">{{ q.length }} packages on this page · {{ partnerRequired(q) }} partner action required · {{ selected().length }} selected for preview</p>
       <section class="panel" aria-labelledby="queue-heading">
         <h2 id="queue-heading">Action required</h2>
         <p>Selection is optional. Preview only; no package decision is recorded from this screen.</p>
@@ -47,11 +53,13 @@ function decodeSelection(raw: unknown): string[] | null {
             <th scope="col">Package</th><th scope="col">Period</th><th scope="col">Management</th><th scope="col">Accounting</th><th scope="col">Partner</th><th scope="col">Next action</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
           <tbody>@for (x of q; track x.packageId) {
             <tr><td><input type="checkbox" [checked]="selected().includes(x.packageId)" (change)="toggle(x.packageId, $event)" [attr.aria-label]="'Select package ' + x.packageId" /></td>
-              <td><code>{{ x.packageId }}</code><small>{{ x.framework }} · {{ x.currency }}</small></td><td>{{ x.periodStart }} to {{ x.periodEnd }}</td>
+              <td>{{ x.clientName }}<small>{{ x.engagementService }} · {{ x.framework }} · {{ x.currency }}</small><details><summary>Package identity</summary><code>{{ x.packageId }}</code><p>{{ x.packageHash }}</p></details></td><td>{{ x.periodStart }} to {{ x.periodEnd }}</td>
               <td><audit-status [value]="x.managementDecision" /></td><td><audit-status [value]="x.accountingDecision" /></td><td><audit-status [value]="x.partnerDecision" /></td>
               <td><strong>{{ x.nextAction }}</strong></td><td><a [routerLink]="['/app/accounting/packages', x.packageId]">Open package</a></td></tr>
-          } @empty { <tr><td colspan="8">No current package review stage is waiting in your authorized scope.</td></tr> }</tbody>
+          } @empty { <tr><td colspan="8">{{ page.nextCursor ? 'No eligible packages in this candidate window. Continue to check older packages.' : 'No current package review stage is waiting in this remaining authorized window.' }}</td></tr> }</tbody>
         </table></div>
+        @if (page.nextCursor) { <p>Older candidates remain; this page is not a complete queue total.</p>
+          <button matButton="outlined" (click)="nextPage(page.nextCursor)" [disabled]="queue.loading()">Check older packages</button> }
       </section>
     }
   `,
@@ -61,7 +69,11 @@ export class PackageReviews {
   private readonly drafts = inject(TabDrafts);
   private readonly session = inject(SessionService);
   private observedInvalidation = this.session.invalidation();
-  readonly queue = this.api.resource(() => '/api/ui/accounting/reviews', decodeReviewQueue, 'This queue requires an authorized internal accounting role.');
+  private readonly cursor = signal<{ createdAt: string; id: string } | null>(null);
+  readonly queue = this.api.resource(() => {
+    const cursor = this.cursor();
+    return '/api/ui/accounting/reviews/page' + (cursor ? `?afterCreatedAt=${encodeURIComponent(cursor.createdAt)}&afterId=${encodeURIComponent(cursor.id)}` : '');
+  }, decodeReviewPage, 'This queue requires an authorized internal accounting role.');
   readonly selected = signal<string[]>([]);
   readonly previewText = signal('');
   readonly selectionDraftMessage = signal('');
@@ -71,6 +83,7 @@ export class PackageReviews {
       if (current === this.observedInvalidation) return;
       this.observedInvalidation = current;
       untracked(() => {
+        this.cursor.set(null);
         this.selected.set([]);
         this.previewText.set('');
         this.selectionDraftMessage.set('');
@@ -78,7 +91,10 @@ export class PackageReviews {
     });
   }
   partnerRequired(q: { nextAction: string }[]): number { return q.filter((x) => x.nextAction === 'PARTNER_APPROVAL_REQUIRED').length; }
-  refreshQueue(): void { this.queue.reload(); this.selected.set([]); this.previewText.set(''); this.selectionDraftMessage.set(''); }
+  nextPage(cursor: { createdAt: string; id: string }): void {
+    this.selected.set([]); this.previewText.set(''); this.selectionDraftMessage.set(''); this.cursor.set(cursor);
+  }
+  refreshQueue(): void { this.cursor.set(null); this.queue.reload(); this.selected.set([]); this.previewText.set(''); this.selectionDraftMessage.set(''); }
   toggleAll(q: { packageId: string }[], e: Event): void {
     this.selected.set((e.target as HTMLInputElement).checked ? q.map((x) => x.packageId) : []);
     this.previewText.set('');

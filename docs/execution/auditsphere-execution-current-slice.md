@@ -14,11 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
-## UX workflow preview and command recovery
+## UX workflow review discovery and command recovery
 
-The [UX workflow register](auditsphere-execution-ux-workflow-tasks-current.md) retains each attached packet independently. Package previews now describe selection without asserting actor eligibility or Administrator approval authority. Command recovery distinguishes request-identity conflicts from stale revision/generation refusals while preserving unknown-outcome and single-send fences.
+The [UX workflow register](auditsphere-execution-ux-workflow-tasks-current.md) separates the attached proposal packets from current authority and acceptance. Published package-preview and typed-conflict guidance remain. Package review discovery now has an additive bounded continuation contract, stable timestamp/identity ordering, authorized client/service labels and truthful empty-window guidance. Current scope is checked independently of cursors; invalidation resets paging and selection.
 
-Focused regression checks and the Angular production build passed; the build retains existing stylesheet budget warnings. Production-file lint passed after excluding spec files intentionally ignored by the existing configuration. Independent read-only review found no actionable issue. Built-in browser, integrated role journeys and exact successor CI remain pending. See [status.json](status.json) for observed evidence; this is not whole-application or release acceptance.
+Focused native and Angular regressions, production compilation, additive contract verification and read-only technical review passed. The native empty queue rendered in the built-in browser. Populated browser paging, integrated role journeys and final-source CI remain open. Publication waits for active predecessor image jobs; see [status.json](status.json).
 
 ## API source-scope fixture correction
 

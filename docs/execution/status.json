@@ -1193,13 +1193,22 @@
         "U06",
         "U13"
       ],
-      "status": "FOCUSED_PASS_PUBLICATION_PENDING",
+      "status": "U06_U13_PUBLISHED_U05_LOCAL_VERIFIED_PUBLICATION_WAIT_ACTIVE_IMAGES",
       "pairedRegression": "Original 5FAIL/30PASS; identical tests corrected 35PASS/0FAIL",
       "build": "Angular production PASS; two pre-existing stylesheet budget warnings",
       "lint": "Production files PASS; initial spec ignore warnings retained",
-      "review": "Herschel read-only no actionable findings; no independent execution",
-      "evidence": ".local/autonomous/evidence/ux-workflow-20261030/u06-u13-review.json",
-      "remaining": "Other UX packets/current-source assessment, V01 browser/role/final CI, professional and release gates remain open"
+      "review": "Herschel U05 twoP2fixed/reread noactionablefindings; no independentexecution",
+      "evidence": ".local/autonomous/evidence/ux-workflow-20261030/u05-u10-final-review.json",
+      "remaining": "Other UX packets, final-source populated/restricted-role V01 and CI, professional/external release gates remain open",
+      "publishedSource": "e5f2be16a01eb3f3ee7fe4606e011a472738490f",
+      "localPackets": [
+        "U05"
+      ],
+      "native": "U05 corrected focused1PASS; expired-scope draftRED1/identicalstrongerGREEN1; original terminal window hides all older eligible work, stable paged traversal exposes105eligible queryidentities. Structural headers are not native reports.",
+      "angular": "U05 expanded8PASS; exactsessioninvalidationRED1/GREEN8",
+      "contracts": "OpenAPI PASS; old paths/schemas unchanged; one additivepage path and three schemas",
+      "setupExclusions": "CS8361 test interpolation, invalid expiry beforeGrantedAt constraint, optionalGuiddefault OpenAPI failure, TS2353 expanded fixture types, existing lowercase mapping label restored; no test weakening",
+      "browser": "Actual native local emptyreviewpagePASS; populatedpaging/roles remainV01pending"
     }
   },
   "externalGates": [
@@ -1628,9 +1637,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBase": "c7c954309105fa371ec015d081d4e5e399d01361",
-    "status": "LOCAL_UX_SUCCESSOR_NOT_PUBLISHED",
-    "boundary": "Preceding exact-source CI remains separate; no successor CI or release pass implied."
+    "source": "e5f2be16a01eb3f3ee7fe4606e011a472738490f",
+    "fastRun": 41031967784,
+    "imagesRun": 41031967912,
+    "status": "RUNNING",
+    "actualCheckoutPartial": "Angular123983581773 and Docs123983582202 MATCH/PASS; accepted logs/hashes retained once",
+    "full": "NOT_DISPATCHED; local coherent UX successors still being verified",
+    "boundary": "Predecessorc7full pending separately; no current aggregate or release pass."
   },
   "updatedAtUtc": "2026-10-30T07:07:03.764194+00:00"
 }

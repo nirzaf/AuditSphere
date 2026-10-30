@@ -214,6 +214,92 @@ public sealed class FinancialPackageGateTests
     }
   }
 
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task ReviewQueue_ContinuesPastFilteredCandidatesWithStableScopedPages()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (fixture, packageId, _, _) = await PackageAwaitingPartnerAsync(pg, "paged-review");
+    var foreign = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var actor = Actor(fixture.Partner, "Partner");
+    var expected = new HashSet<Guid> { packageId };
+    var tie = DateTimeOffset.UtcNow.AddDays(1);
+    // Structural query population only: these headers are not further generated reports or human approvals.
+    // Missing required validations deliberately discard the newest window AFTER the coarse SQL filter.
+    for (var i = 0; i < 205; i++)
+    {
+      var id = Guid.NewGuid();
+      var eligible = i >= 101;
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO financial_packages (id, firm_id, client_id, engagement_id, adjusted_dataset_id, mapping_version_id,
+          adjustment_plan_id, period_id, book_id, basis, framework, period_start, period_end, taxonomy_version,
+          template_version, calculation_engine_version, calculation_hash, currency, revision, generation, status, created_at)
+        SELECT {id}, firm_id, client_id, engagement_id, adjusted_dataset_id, mapping_version_id,
+          adjustment_plan_id, period_id, book_id, basis, framework, period_start, period_end, taxonomy_version,
+          {"page-" + i}, calculation_engine_version, {Hashing.Sha256Hex("page-" + i)}, currency, revision, generation,
+          'VALIDATED', {(eligible ? tie : tie.AddDays(1))}
+        FROM financial_packages WHERE id = {packageId}
+        """);
+      if (!eligible) continue;
+      expected.Add(id);
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO financial_package_validations (id, firm_id, financial_package_id, code, passed, detail, created_at)
+        SELECT gen_random_uuid(), firm_id, {id}, code, passed, detail, created_at
+        FROM financial_package_validations WHERE financial_package_id = {packageId}
+        """);
+    }
+    var legacy = await FinancialPackageReviewService.GetStaffQueueAsync(db, actor);
+    Assert.Empty(legacy.Value!); // The former terminal newest-100 window conceals all eligible work.
+    FinancialPackageReviewCursor? cursor = null;
+    var found = new List<Guid>();
+    var pages = 0;
+    do
+    {
+      var result = await FinancialPackageReviewService.GetStaffQueuePageAsync(db, actor, cursor?.CreatedAt, cursor?.Id);
+      Assert.True(result.Succeeded, result.Message);
+      var page = result.Value!;
+      Assert.InRange(page.Items.Count, 0, 100);
+      if (pages++ == 0) { Assert.Empty(page.Items); Assert.NotNull(page.NextCursor); }
+      foreach (var item in page.Items)
+      {
+        Assert.Equal(fixture.ClientId, item.ClientId);
+        Assert.Equal(fixture.EngagementId, item.EngagementId);
+        Assert.Equal("PACKAGE GATE TEST", item.ClientName);
+        Assert.DoesNotContain(item.PackageId, found);
+        found.Add(item.PackageId);
+      }
+      cursor = page.NextCursor;
+      Assert.InRange(pages, 1, 3);
+    } while (cursor is not null);
+    Assert.True(expected.SetEquals(found));
+    var foreignActor = Actor(foreign.Partner, "Partner");
+    var foreignPage = await FinancialPackageReviewService.GetStaffQueuePageAsync(db, foreignActor, tie.AddDays(3), Guid.NewGuid());
+    Assert.True(foreignPage.Succeeded, foreignPage.Message);
+    Assert.Empty(foreignPage.Value!.Items);
+    Assert.False((await FinancialPackageReviewService.GetStaffQueuePageAsync(db, actor, tie, null)).Succeeded);
+    var grant = await db.RoleGrants.SingleAsync(x => x.FirmId == fixture.FirmId && x.UserId == fixture.Partner.Id);
+    var otherEngagementId = Guid.NewGuid();
+    db.Engagements.Add(new Engagement { Id = otherEngagementId, FirmId = fixture.FirmId,
+      PracticeClientId = fixture.ClientId, ServiceRoute = "AUDIT", ProfessionalWorkBlocked = false, CreatedAt = tie });
+    var liveOtherScope = Grant(fixture.FirmId, fixture.Partner, "Partner");
+    liveOtherScope.ClientId = fixture.ClientId; liveOtherScope.EngagementId = otherEngagementId;
+    db.RoleGrants.Add(liveOtherScope);
+    grant.ExpiresAt = grant.GrantedAt.AddMilliseconds(1);
+    Assert.True(grant.ExpiresAt < DateTimeOffset.UtcNow);
+    await db.SaveChangesAsync();
+    var expiredScope = await FinancialPackageReviewService.GetStaffQueuePageAsync(db, actor);
+    Assert.True(expiredScope.Succeeded, expiredScope.Message);
+    Assert.Empty(expiredScope.Value!.Items);
+    Assert.Null(expiredScope.Value.NextCursor); // An expired scope cannot disclose even a continuation identity.
+    grant.RevokedAt = DateTimeOffset.UtcNow;
+    liveOtherScope.RevokedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync();
+    var revoked = await FinancialPackageReviewService.GetStaffQueuePageAsync(db, actor, tie.AddDays(3), Guid.NewGuid());
+    Assert.False(revoked.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, revoked.ErrorCode);
+  }
+
   /// <summary>A validated package with source review, a rendered artifact, and management and accounting approvals, waiting for the Partner stage.</summary>
   private static async Task<(Fixture Fixture, Guid PackageId, ActorContext Preparer, ActorContext Reviewer)> PackageAwaitingPartnerAsync(
     PgTestSchema pg, string tag)

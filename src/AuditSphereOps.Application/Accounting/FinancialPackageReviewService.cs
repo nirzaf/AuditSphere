@@ -44,6 +44,15 @@ public sealed record FinancialPackageReviewQueueItem(
   string PackageHash, string ManagementDecision, string AccountingDecision,
   string PartnerDecision, string NextAction);
 
+public sealed record FinancialPackageReviewPageItem(
+  Guid PackageId, string Framework, string PeriodStart, string PeriodEnd, string Currency,
+  string PackageHash, string ManagementDecision, string AccountingDecision,
+  string PartnerDecision, string NextAction, Guid ClientId, Guid EngagementId, string ClientName, string EngagementService);
+
+public sealed record FinancialPackageReviewCursor(DateTimeOffset CreatedAt, Guid Id);
+public sealed record FinancialPackageReviewPage(IReadOnlyList<FinancialPackageReviewPageItem> Items,
+  FinancialPackageReviewCursor? NextCursor);
+
 public static partial class FinancialPackageReviewService
 {
   private static readonly string[] AccountingRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
@@ -396,24 +405,49 @@ public static partial class FinancialPackageReviewService
   public static async Task<CommandResult<IReadOnlyList<FinancialPackageReviewQueueItem>>> GetStaffQueueAsync(
     IClientAccountingDbContext db, ActorContext actor, CancellationToken ct = default)
   {
+    var page = await GetStaffQueuePageAsync(db, actor, ct: ct);
+    return page.Succeeded
+      ? CommandResult<IReadOnlyList<FinancialPackageReviewQueueItem>>.Ok(page.Value!.Items.Select(x =>
+          new FinancialPackageReviewQueueItem(x.PackageId, x.Framework, x.PeriodStart, x.PeriodEnd, x.Currency,
+            x.PackageHash, x.ManagementDecision, x.AccountingDecision, x.PartnerDecision, x.NextAction)).ToList())
+      : CommandResult<IReadOnlyList<FinancialPackageReviewQueueItem>>.Fail(page.ErrorCode!, page.Message!);
+  }
+
+  /// <summary>Scans at most one hundred authorized-scope candidates. An empty item page may still have a continuation.</summary>
+  public static async Task<CommandResult<FinancialPackageReviewPage>> GetStaffQueuePageAsync(
+    IClientAccountingDbContext db, ActorContext actor, DateTimeOffset? afterCreatedAt = null,
+    Guid? afterId = null, CancellationToken ct = default)
+  {
+    if (afterCreatedAt.HasValue != afterId.HasValue || afterId == Guid.Empty)
+      return CommandResult<FinancialPackageReviewPage>.Fail("request.invalid", "Invalid review queue cursor.");
     var firmAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true), ct);
     if (!firmAuth.Succeeded)
-      return CommandResult<IReadOnlyList<FinancialPackageReviewQueueItem>>.Fail(firmAuth.ErrorCode!, firmAuth.Message!);
+      return CommandResult<FinancialPackageReviewPage>.Fail(firmAuth.ErrorCode!, firmAuth.Message!);
 
+    // Coarse admission also excludes expired grants: even a continuation identity is scoped disclosure.
+    // Authentication still owns durable expiry/revocation; per-package authorization remains authoritative.
+    var scopeAt = DateTimeOffset.UtcNow;
     var userGrants = db.RoleGrants.AsNoTracking().Where(g =>
-      g.FirmId == actor.FirmId && g.UserId == actor.UserId && g.RevokedAt == null && AccountingRoles.Contains(g.Role));
-    var packages = await db.FinancialPackages.AsNoTracking()
+      g.FirmId == actor.FirmId && g.UserId == actor.UserId && g.RevokedAt == null &&
+      (g.ExpiresAt == null || g.ExpiresAt > scopeAt) && AccountingRoles.Contains(g.Role));
+    var candidates = db.FinancialPackages.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.Status == AccountingPackageStates.PackageValidated &&
         !db.FinancialPackageValidations.Any(v => v.FinancialPackageId == x.Id && !v.Passed &&
           BlockingValidationCodes.Contains(v.Code)) &&
         userGrants.Any(g =>
           (g.ClientId == null && g.EngagementId == null) ||
           (g.ClientId == x.ClientId && g.EngagementId == null) ||
-          (g.ClientId == x.ClientId && g.EngagementId == x.EngagementId)))
-      .OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync(ct);
+          (g.ClientId == x.ClientId && g.EngagementId == x.EngagementId)));
+    if (afterCreatedAt is { } createdAt && afterId is { } id)
+      candidates = candidates.Where(x => x.CreatedAt < createdAt || x.CreatedAt == createdAt && x.Id.CompareTo(id) < 0);
+    var packages = await candidates.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Take(101).ToListAsync(ct);
+    var hasMore = packages.Count > 100;
+    if (hasMore) packages.RemoveAt(100);
+    var last = packages.LastOrDefault();
+    var nextCursor = hasMore && last is not null ? new FinancialPackageReviewCursor(last.CreatedAt, last.Id) : null;
     if (packages.Count == 0)
-      return CommandResult<IReadOnlyList<FinancialPackageReviewQueueItem>>.Ok([]);
+      return CommandResult<FinancialPackageReviewPage>.Ok(new([], null));
 
     var packageIds = packages.Select(x => x.Id).ToArray();
     var decisions = await db.FinancialPackageReviewDecisions.AsNoTracking()
@@ -422,7 +456,7 @@ public static partial class FinancialPackageReviewService
     var validations = await db.FinancialPackageValidations.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId) &&
         FinancialPackageValidationReadiness.RequiredCodes.Contains(x.Code)).ToListAsync(ct);
-    var queue = new List<FinancialPackageReviewQueueItem>();
+    var queue = new List<FinancialPackageReviewPageItem>();
 
     foreach (var package in packages)
     {
@@ -464,11 +498,28 @@ public static partial class FinancialPackageReviewService
           !await IsCurrentAssignedEngagementPartnerAsync(db, package, actor.UserId, ct))
         next = "PARTNER_APPROVAL_REQUIRED";
       if (next != "COMPLETE")
-        queue.Add(new FinancialPackageReviewQueueItem(package.Id, package.Framework, package.PeriodStart,
-          package.PeriodEnd, package.Currency, package.CalculationHash, management, accounting, partner, next));
+      {
+        var clientName = await db.PracticeClients.AsNoTracking()
+          .Where(x => x.FirmId == package.FirmId && x.Id == package.ClientId).Select(x => x.LegalName).SingleOrDefaultAsync(ct);
+        var service = await db.Engagements.AsNoTracking()
+          .Where(x => x.FirmId == package.FirmId && x.PracticeClientId == package.ClientId && x.Id == package.EngagementId)
+          .Select(x => x.ServiceRoute).SingleOrDefaultAsync(ct);
+        // Labels are disclosed only for a currently authorized package; continuation itself grants no access.
+        if (!(await AuthorizationDecision.AuthorizeAsync(db, actor,
+            new AuthorizationRequest(package.FirmId, package.ClientId, package.EngagementId,
+              AccountingRoles, InternalOnly: true), ct)).Succeeded) continue;
+        queue.Add(new FinancialPackageReviewPageItem(package.Id, package.Framework, package.PeriodStart,
+          package.PeriodEnd, package.Currency, package.CalculationHash, management, accounting, partner, next,
+          package.ClientId, package.EngagementId, clientName ?? "Client unavailable", service ?? "Service unavailable"));
+      }
     }
 
-    return CommandResult<IReadOnlyList<FinancialPackageReviewQueueItem>>.Ok(queue);
+    if (nextCursor is not null && last is not null &&
+        !(await AuthorizationDecision.AuthorizeAsync(db, actor,
+          new AuthorizationRequest(last.FirmId, last.ClientId, last.EngagementId,
+            AccountingRoles, InternalOnly: true), ct)).Succeeded)
+      return CommandResult<FinancialPackageReviewPage>.Fail(ErrorCodes.ScopeDenied, "Review queue access changed. Refresh the queue.");
+    return CommandResult<FinancialPackageReviewPage>.Ok(new(queue, nextCursor));
   }
 
   public static async Task<CommandResult> RequireCurrentAsync(

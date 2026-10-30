@@ -4,6 +4,8 @@
 
 Package-selection preview tests must distinguish selection from current actor eligibility, preserve assigned Partner authority, and prove preview sends no decision command. Command guidance tests distinguish request-identity conflicts from revision/generation changes while preserving single-send and unknown-outcome behavior. These checks do not replace integrated role and browser acceptance.
 
+Paged review discovery checks must cover discarded candidate windows, stable equal-timestamp traversal, mixed valid/expired grants, revoked authority and session changes after paging. Structural header populations are query fixtures, not further reports or human approvals.
+
 ## 1. Execution tiers and ownership
 
 For browser-visible changes, use the built-in browser as the primary dynamic verification where available: open the target page, exercise the relevant flow, check responsive rendering and inspect console/network errors. Use computer use only when the built-in browser is insufficient. Full automated browser journeys remain in CI/CD.

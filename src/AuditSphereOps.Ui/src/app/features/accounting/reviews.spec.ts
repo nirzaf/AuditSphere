@@ -34,7 +34,7 @@ describe('package review selection draft', () => {
     const fixture = TestBed.createComponent(PackageReviews);
     fixture.detectChanges();
     TestBed.tick();
-    http.expectOne('/api/ui/accounting/reviews').flush(rows);
+    http.expectOne('/api/ui/accounting/reviews/page').flush({ items: rows.map((x) => ({ ...x, clientId: packageId, engagementId: packageId, clientName: 'Scoped client', engagementService: 'Audit' })), nextCursor: null });
     fixture.detectChanges();
     return fixture;
   }
@@ -86,6 +86,38 @@ describe('package review selection draft', () => {
     if (nextAction === 'PARTNER_APPROVAL_REQUIRED') expect(message).toContain('currently assigned Engagement Partner');
     expect(fixture.nativeElement.querySelector('span[role="status"]')?.textContent).toContain(message);
     http.expectNone((request) => request.method !== 'GET');
+  });
+  it('continues past an empty candidate window and clears the previous selection', () => {
+    const fixture = open();
+    fixture.componentInstance.toggle(packageId, { target: { checked: true } } as unknown as Event);
+    const cursor = { createdAt: '2026-01-01T00:00:00+00:00', id: packageId };
+    fixture.componentInstance.nextPage(cursor);
+    TestBed.tick();
+    http.expectOne((request) => request.url.startsWith('/api/ui/accounting/reviews/page?afterCreatedAt=')).flush({ items: [], nextCursor: { ...cursor, id: removedPackageId } });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.selected()).toEqual([]);
+    expect(fixture.nativeElement.textContent).toContain('No eligible packages in this candidate window');
+    expect(fixture.nativeElement.textContent).toContain('not a complete queue total');
+    const next = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find((button) => button.textContent?.trim() === 'Check older packages')!;
+    next.click(); TestBed.tick();
+    http.expectOne((request) => request.url.includes(`afterId=${removedPackageId}`)).flush({ items: [], nextCursor: null });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('remaining authorized window');
+    expect(fixture.nativeElement.textContent).not.toContain('Check older packages');
+    http.expectNone((request) => request.method !== 'GET');
+  });
+  it('starts at the newest window when the authenticated identity changes after paging', () => {
+    const fixture = open();
+    fixture.componentInstance.nextPage({ createdAt: '2026-01-01T00:00:00Z', id: packageId });
+    TestBed.tick();
+    http.expectOne((request) => request.url.includes('?afterCreatedAt=')).flush({ items: [], nextCursor: null });
+    session.clear(); TestBed.tick();
+    session.current.set({ userId: removedPackageId, firmId: userId, generation: '5', staff: true });
+    TestBed.tick(); fixture.detectChanges();
+    const reloaded = http.expectOne((request) => request.url.startsWith('/api/ui/accounting/reviews/page'));
+    reloaded.flush({ items: [], nextCursor: null });
+    expect(reloaded.request.url).toBe('/api/ui/accounting/reviews/page');
   });
   it('clears selection and its session draft when the authenticated session is invalidated', () => {
     const fixture = open();

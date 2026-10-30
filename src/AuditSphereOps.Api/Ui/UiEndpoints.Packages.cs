@@ -56,6 +56,12 @@ public static partial class UiEndpoints
       .Produces<IReadOnlyList<FinancialPackageReviewQueueItem>>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
+    group.MapGet("/accounting/reviews/page", (DateTimeOffset? afterCreatedAt, Guid? afterId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => FinancialPackageReviewService.GetStaffQueuePageAsync(db, actor, afterCreatedAt, afterId, ct)))
+      .Produces<FinancialPackageReviewPage>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapGet("/accounting/packages/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => FinancialPackageWorkspaceQuery.GetAsync(db, actor, id, ct)))
       .Produces<FinancialPackageWorkspace>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");

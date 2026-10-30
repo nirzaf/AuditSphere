@@ -682,3 +682,13 @@ The affected tests passed against an isolated database after a forced Release bu
 ### Archive boundary for subsequent UX work
 
 The preceding fixture section retains its original observation boundary. New UX work is tracked independently in the current register.
+
+## UX workflow preview and command recovery
+
+The [UX workflow register](auditsphere-execution-ux-workflow-tasks-current.md) retains each attached packet independently. Package previews now describe selection without asserting actor eligibility or Administrator approval authority. Command recovery distinguishes request-identity conflicts from stale revision/generation refusals while preserving unknown-outcome and single-send fences.
+
+Focused regression checks and the Angular production build passed; the build retains existing stylesheet budget warnings. Production-file lint passed after excluding spec files intentionally ignored by the existing configuration. Independent read-only review found no actionable issue. Built-in browser, integrated role journeys and exact successor CI remain pending. See [status.json](status.json) for observed evidence; this is not whole-application or release acceptance.
+
+### Subsequent UX discovery and disclosure work
+
+The preceding preview and recovery observation remains source-bound. Additional packets are tracked independently in the current UX register.
