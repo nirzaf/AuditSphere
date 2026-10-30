@@ -14,11 +14,15 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## UX workflow preview and command recovery
+
+The [UX workflow register](auditsphere-execution-ux-workflow-tasks-current.md) retains each attached packet independently. Package previews now describe selection without asserting actor eligibility or Administrator approval authority. Command recovery distinguishes request-identity conflicts from stale revision/generation refusals while preserving unknown-outcome and single-send fences.
+
+Focused regression checks and the Angular production build passed; the build retains existing stylesheet budget warnings. Production-file lint passed after excluding spec files intentionally ignored by the existing configuration. Independent read-only review found no actionable issue. Built-in browser, integrated role journeys and exact successor CI remain pending. See [status.json](status.json) for observed evidence; this is not whole-application or release acceptance.
+
 ## API source-scope fixture correction
 
-Two full-verification API fixtures reused an original engagement's dataset for sibling or malformed adjustment parents. The existing restrictive source references correctly rejected their setup. Valid sibling fixtures now carry matching source headers. Malformed links are explicitly refused at the named database constraint and their identifiers remain covered by opaque HTTP denial. Existing paging, tenant isolation, group-purpose, work-hold and session checks remain.
-
-The affected tests passed against an isolated database after a forced Release build. This is a test-fixture correction; shipping source constraints and command permissions remain unchanged. Fast and image gates passed on the preceding peer source, but full verification failed and was interrupted. Exact successor gates and all qualified release dependencies remain open; see [status.json](status.json).
+Earlier fixture evidence moved to [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#api-source-scope-fixture-correction).
 
 ## SRM, Partner clearance and opinion parent scope
 

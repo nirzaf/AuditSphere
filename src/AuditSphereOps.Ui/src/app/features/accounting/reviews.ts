@@ -126,9 +126,8 @@ export class PackageReviews {
   }
   preview(q: { packageId: string; nextAction: string }[]): void {
     const chosen = q.filter((x) => this.selected().includes(x.packageId));
-    const blocked = chosen.filter((x) => x.nextAction === 'PARTNER_APPROVAL_REQUIRED').length;
-    const eligible = chosen.length - blocked;
-    this.previewText.set(blocked === 0 ? `Preview: ${eligible} selected stage${eligible === 1 ? '' : 's'} are eligible for this role. No decision was recorded.`
-      : `Preview: ${eligible} eligible, ${blocked} blocked because partner approval requires a Partner or Administrator. No decision was recorded.`);
+    const partnerGuidance = chosen.some((x) => x.nextAction === 'PARTNER_APPROVAL_REQUIRED')
+      ? ' Partner approval requires the currently assigned Engagement Partner.' : '';
+    this.previewText.set(`Preview: ${chosen.length} selected package${chosen.length === 1 ? '' : 's'}. Open each package to check the current review actions.${partnerGuidance} No decision was recorded.`);
   }
 }

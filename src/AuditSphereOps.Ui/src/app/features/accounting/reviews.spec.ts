@@ -30,11 +30,11 @@ describe('package review selection draft', () => {
     TestBed.resetTestingModule();
     sessionStorage.clear();
   });
-  function open() {
+  function open(rows = queue) {
     const fixture = TestBed.createComponent(PackageReviews);
     fixture.detectChanges();
     TestBed.tick();
-    http.expectOne('/api/ui/accounting/reviews').flush(queue);
+    http.expectOne('/api/ui/accounting/reviews').flush(rows);
     fixture.detectChanges();
     return fixture;
   }
@@ -64,6 +64,28 @@ describe('package review selection draft', () => {
     fixture.componentInstance.restoreSelection(queue);
     expect(fixture.componentInstance.selected()).toEqual([packageId]);
     expect(fixture.componentInstance.selectionDraftMessage()).toContain('discarded 1 no longer available');
+  });
+  it.each(['MANAGEMENT_APPROVAL', 'ACCOUNTING_REVIEW', 'PARTNER_APPROVAL_REQUIRED'])('keeps the %s selection preview neutral about actor authority', (nextAction) => {
+    const rows = [{ ...queue[0], nextAction,
+      managementDecision: nextAction === 'MANAGEMENT_APPROVAL' ? 'PENDING' : 'APPROVED',
+      accountingDecision: nextAction === 'PARTNER_APPROVAL_REQUIRED' ? 'APPROVED' : 'PENDING' }];
+    const fixture = open(rows);
+    const selected = fixture.nativeElement.querySelector(`input[aria-label="Select package ${packageId}"]`) as HTMLInputElement;
+    selected.click();
+    fixture.detectChanges();
+    const preview = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find((button) => button.textContent?.trim() === 'Preview selected')!;
+    expect(preview.disabled).toBe(false);
+    preview.click();
+    fixture.detectChanges();
+    const message = fixture.componentInstance.previewText();
+    expect(message).toContain('Preview: 1 selected package.');
+    expect(message).toContain('Open each package to check the current review actions.');
+    expect(message).toContain('No decision was recorded.');
+    expect(message).not.toMatch(/eligible|Administrator/);
+    if (nextAction === 'PARTNER_APPROVAL_REQUIRED') expect(message).toContain('currently assigned Engagement Partner');
+    expect(fixture.nativeElement.querySelector('span[role="status"]')?.textContent).toContain(message);
+    http.expectNone((request) => request.method !== 'GET');
   });
   it('clears selection and its session draft when the authenticated session is invalidated', () => {
     const fixture = open();

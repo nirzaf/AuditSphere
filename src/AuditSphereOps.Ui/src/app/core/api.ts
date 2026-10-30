@@ -107,8 +107,12 @@ export class Api {
         ? 'That library code already exists. Choose another code or open the entry to prepare a new version.'
         : code === 'engagement.period-overlap'
           ? 'An engagement for this client and service overlaps the requested period. Inspect the existing engagement and resolve any amendment explicitly before creating another.'
+        : code === 'idempotency.conflict'
+          ? 'This request identity has already been used. Check the original request\'s receipt or persisted state before continuing.'
         : status === 409
-          ? 'This record changed since you loaded it. Refresh and review the current revision.'
+          ? code === 'revision.stale' || code === 'generation.stale'
+            ? 'This record changed since you loaded it. Refresh and review the current revision.'
+            : 'The request was not accepted. Check the current state before continuing.'
           : Api.message(e, 'The request was not accepted.');
       return { ok: false, unknown: false, code, status, message };
     }

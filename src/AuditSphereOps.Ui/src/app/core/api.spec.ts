@@ -65,6 +65,21 @@ describe('API session and unknown outcome fences', () => {
       message: 'That library code already exists. Choose another code or open the entry to prepare a new version.',
     });
   });
+  it.each([
+    ['idempotency.conflict', 'This request identity has already been used. Check the original request\'s receipt or persisted state before continuing.'],
+    ['revision.stale', 'This record changed since you loaded it. Refresh and review the current revision.'],
+    ['generation.stale', 'This record changed since you loaded it. Refresh and review the current revision.'],
+    ['unrecognized.conflict', 'The request was not accepted. Check the current state before continuing.'],
+  ] as const)('explains a 409 %s without changing the request or exposing server detail', async (code, message) => {
+    const api = TestBed.inject(Api), http = TestBed.inject(HttpTestingController);
+    const body = { idempotencyKey: '11111111-1111-4111-8111-111111111111', revision: '4', reviewed: true };
+    const request = api.command('/api/ui/example', body);
+    const pending = http.expectOne('/api/ui/example');
+    expect(pending.request.body).toEqual(body);
+    pending.flush({ code, message: '<script>private server detail</script>' }, { status: 409, statusText: 'Conflict' });
+    expect(await request).toEqual({ ok: false, unknown: false, code, status: 409, message });
+    http.expectNone('/api/ui/example');
+  });
   it('explains a period overlap without presenting it as a stale revision or exposing server detail', async () => {
     const request = TestBed.inject(Api).command('/api/ui/clients/synthetic/engagement-creation/preview', {});
     TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/synthetic/engagement-creation/preview').flush(

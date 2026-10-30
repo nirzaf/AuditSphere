@@ -672,3 +672,13 @@ The original global parent references accepted another firm's memorandum or clea
 `CompletionDecisionParentScope` adds restrictive full firm/client/engagement references and the clearance's matching nonnullable key. The extra database references are explicit migration constraints. Existing global relationships and indexes remain; measured lookups did not justify additional child indexes. Clean upgrade/downgrade preserve evidence and old definitions. Retained inconsistent links refuse upgrade atomically without rewriting history.
 
 These synthetic decisions and structural rollback controls do not establish a real opinion, document-kind/actor authenticity, methodology or professional acceptance. Exact verification, index costs, cleanup and successor gates are recorded in [status.json](status.json). The whole assignment remains incomplete.
+
+## API source-scope fixture correction
+
+Two full-verification API fixtures reused an original engagement's dataset for sibling or malformed adjustment parents. The existing restrictive source references correctly rejected their setup. Valid sibling fixtures now carry matching source headers. Malformed links are explicitly refused at the named database constraint and their identifiers remain covered by opaque HTTP denial. Existing paging, tenant isolation, group-purpose, work-hold and session checks remain.
+
+The affected tests passed against an isolated database after a forced Release build. This is a test-fixture correction; shipping source constraints and command permissions remain unchanged. Fast and image gates passed on the preceding peer source, but full verification failed and was interrupted. Exact successor gates and all qualified release dependencies remain open; see [status.json](status.json).
+
+### Archive boundary for subsequent UX work
+
+The preceding fixture section retains its original observation boundary. New UX work is tracked independently in the current register.
