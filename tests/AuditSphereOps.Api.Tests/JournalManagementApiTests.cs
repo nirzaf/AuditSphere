@@ -84,6 +84,7 @@ public sealed class JournalManagementApiTests
   {
     await using var pg=await OwnedPostgresDatabase.CreateAsync("API-JOURNAL-MANAGEMENT-ISOLATION");var(f,id)=await Seed(pg);
     var siblingId=Guid.NewGuid();var siblingClient=Guid.NewGuid();var otherId=Guid.NewGuid();
+    var malformed=Guid.NewGuid();
     await using(var db=new AuditSphereDbContext(pg.Options))
     {
       db.PracticeClients.Add(new(){Id=siblingClient,FirmId=f.FirmId,LegalName="PRIVATE-SIBLING-CLIENT",CreatedAt=DateTimeOffset.UtcNow});
@@ -91,17 +92,31 @@ public sealed class JournalManagementApiTests
         new(){Id=otherId,FirmId=f.FirmId,PracticeClientId=siblingClient,Status="Active",CreatedAt=DateTimeOffset.UtcNow});
       await db.SaveChangesAsync();
       var j=await db.AdjustmentJournals.AsNoTracking().SingleAsync(x=>x.Id==id);
-      // Includes a legacy row whose client disagrees with its otherwise authorized engagement.
-      foreach(var(e,c) in new[]{(siblingId,f.ClientId),(otherId,siblingClient),(f.EngagementId,siblingClient)})
-        db.AdjustmentJournals.Add(new(){Id=Guid.NewGuid(),FirmId=f.FirmId,ClientId=c,EngagementId=e,BaseDatasetId=j.BaseDatasetId,JournalNumber="PRIVATE-SIBLING-JOURNAL",Status="Draft",Purpose=j.Purpose,Revision=1,CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow});
+      // Persist valid sibling sources so HTTP isolation is exercised after FK validation.
+      foreach(var(e,c) in new[]{(siblingId,f.ClientId),(otherId,siblingClient)})
+      {
+        var source=await db.TrialBalanceDatasets.AsNoTracking().SingleAsync(x=>x.Id==j.BaseDatasetId);
+        source.Id=Guid.NewGuid();source.ClientId=c;source.EngagementId=e;
+        source.PeriodId=null;source.BookId=null;source.ImportBatchId=null;
+        source.ImportState=TrialBalanceImportStates.Loading;
+        db.TrialBalanceDatasets.Add(source);
+        db.AdjustmentJournals.Add(new(){Id=Guid.NewGuid(),FirmId=f.FirmId,ClientId=c,EngagementId=e,BaseDatasetId=source.Id,JournalNumber="PRIVATE-SIBLING-JOURNAL",Status="Draft",Purpose=j.Purpose,Revision=1,CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow});
+      }
       db.AdjustmentJournals.Add(new(){Id=Guid.NewGuid(),FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,BaseDatasetId=j.BaseDatasetId,JournalNumber="PRIVATE-GROUP-ONLY",Status="Draft",Purpose=AdjustmentJournalPurposes.GroupOnlyElimination,Revision=1,CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow});
       await db.SaveChangesAsync();
+      db.AdjustmentJournals.Add(new(){Id=malformed,FirmId=f.FirmId,ClientId=siblingClient,EngagementId=f.EngagementId,BaseDatasetId=j.BaseDatasetId,JournalNumber="PRIVATE-MALFORMED-JOURNAL",Status="Draft",Purpose=j.Purpose,Revision=1,CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow});
+      var refused=await Assert.ThrowsAsync<DbUpdateException>(()=>db.SaveChangesAsync());
+      var constraint=Assert.IsType<PostgresException>(refused.InnerException);
+      Assert.Equal(PostgresErrorCodes.ForeignKeyViolation,constraint.SqlState);
+      Assert.Equal("fk_adjustment_journal_source_scope",constraint.ConstraintName);
+      Assert.False(await db.AdjustmentJournals.AsNoTracking().AnyAsync(x=>x.Id==malformed));
     }
     using var factory=Factory(pg,f.Client);using var client=factory.CreateClient();var csrf=await SignIn(client);
     var own=await Read(client,Url(id,true));var request=Request(own) with{Reviewed=true};
     await using(var db=new AuditSphereDbContext(pg.Options))
     {
-      var targets=await db.AdjustmentJournals.Where(x=>x.Id!=id).Select(x=>x.Id).ToListAsync();targets.Add(Guid.NewGuid());
+      var targets=await db.AdjustmentJournals.Where(x=>x.Id!=id).Select(x=>x.Id).ToListAsync();
+      Assert.Equal(3,targets.Count);targets.Add(malformed);targets.Add(Guid.NewGuid());
       foreach(var target in targets)
       {
         using var denied=await client.GetAsync(Url(target,true));Assert.Equal(HttpStatusCode.Forbidden,denied.StatusCode);Assert.DoesNotContain("PRIVATE-SIBLING",await denied.Content.ReadAsStringAsync());

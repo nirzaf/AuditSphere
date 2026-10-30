@@ -36,13 +36,13 @@
   },
   "remainingLocalWork": [
     {
-      "item": "AS-PAR-002 — remaining whole-application scope and revocation coverage",
+      "item": "AS-PAR-002 \u2014 remaining whole-application scope and revocation coverage",
       "status": "PARTIAL",
       "details": "Whole-application scope, revocation, source-action behavior and dynamic acceptance remain partial. Use apiAngularParity for the attached backlog; the previous verification narrative is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-PAR-009 — Pricing review, evidence-bound dispatch and client response",
+      "item": "AS-PAR-009 \u2014 Pricing review, evidence-bound dispatch and client response",
       "status": "PARTIAL",
       "details": "Pricing implementation exists; firm-approved policy, provider delivery evidence and current end-to-end acceptance remain separate gates. Earlier implementation and check history is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -54,43 +54,43 @@
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "STE-NXT-014 — End-of-service accrual as a provision (ADR-0010)",
+      "item": "STE-NXT-014 \u2014 End-of-service accrual as a provision (ADR-0010)",
       "status": "PARTIAL",
       "details": "End-of-service accrual requires the existing approved treatment, provision and expense account configuration and independent Partner confirmation. Prior technical verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "ADR-0016 — Certificate signing of the final report (specification 4.4.1, 4.4.2)",
+      "item": "ADR-0016 \u2014 Certificate signing of the final report (specification 4.4.1, 4.4.2)",
       "status": "PARTIAL",
       "details": "Final report certificate policy, legal acceptance and live deployment remain explicit external/operator gates. Earlier technical signing evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-002 / FSR-010 / FSR-011 first slice — typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
+      "item": "FSR-002 / FSR-010 / FSR-011 first slice \u2014 typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
       "status": "PARTIAL",
       "details": "Typed and pinned financial statement presentation is implemented incrementally. Professional policy, complete approved schedules/disclosures, report composition and release acceptance remain governed by their current records. Prior slice narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-005 first slice — cash-flow movement evidence and adjusted cash cross-cast",
+      "item": "FSR-005 first slice \u2014 cash-flow movement evidence and adjusted cash cross-cast",
       "status": "PARTIAL",
       "details": "Source-backed cash flow and its professional classification policy remain governed by their current completion records. Historical first-slice verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "CP-13 — signed equity components and transfer workflow",
+      "item": "CP-13 \u2014 signed equity components and transfer workflow",
       "status": "PARTIAL",
       "details": "Equity components and transfer workflows remain subject to source lineage and independent professional acceptance. Historical increment evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-WF-V22 — v2.2 workflow experience PRs D–I (WF-04 to WF-15) and production acceptance",
+      "item": "AS-WF-V22 \u2014 v2.2 workflow experience PRs D\u2013I (WF-04 to WF-15) and production acceptance",
       "status": "PARTIAL",
       "details": "Workflow implementation does not replace professional approval or production acceptance. Current focused evidence is in targetedVerification; earlier long-form incremental narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) — NOT COMPLETE",
+      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) \u2014 NOT COMPLETE",
       "status": "PARTIAL",
       "details": "The production-readiness backlog remains incomplete; its external and independent acceptance gates are not closed by local parity implementation.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -1183,19 +1183,18 @@
       "boundary": "Native fake-provider scope repair/schema303/focused migration/index/cleanup verified; typedoperation/attempt/sourceauthenticity and provider/professional acceptance separate."
     },
     "wu004OpinionClearanceScope20261029": {
-      "status": "FOCUSED_SCOPE_MIGRATION_INDEX_VERIFIED_REVIEW_CLOSED_SUCCESSOR_CI_REQUIRED",
-      "sourceBaseCommit": "33f4807390e9d6eaf3818b7e5d0e0690da130069",
-      "migration": "304:20261029134026_CompletionDecisionParentScope",
-      "defect": "Original global SRM/clearance refs accepted12foreignfirm/otherclient/siblingparent and isolatedchildfirm/client/engagement links. Native2firms/currentreviewedSRM/Partnerclearance/opinion/foreigncommands/validSQL/exact10tablebytes established first.",
-      "repair": "Two explicit immediate validated restrictive fullscope DB FKs plus nonnullable clearance alternatekey; existingglobalEFrefs/alloldindexes/history retained. Measured redundantgeneratedchildindexes removed beforepublication; no data/command/API/role/opinionpolicy change. EF drift alone does not prove extraDBFKs.",
-      "pairedTestValue": "OriginalRED1/IDENTICALGREEN1, testsourceb3579a436a0f37bfcc0912d0f84472a3b015026e35fe4ff4ebaf15a6ba9151de/method0581f52f8d8b2d54ac6d19ead6094e98cad222c5c2c80ec2f913ce3e9b0cfe0e. Later financial/catalog/pin assertions are stronger separate source, NOT byteidentical.",
-      "verification": "FinalGREEN1/0FAIL0skip known100/-100QAR; legacy303catalog/history/exactbytes capturedBEFORE firstUp304, then303->304->303->304 preservation. RetainedforeignSRM+opinion on303 upgrade304refuses23503/opinionFK atomically/leavesalloldrows/catalog/history/no newobjects. SRM upgradefailure notseparatelyisolated. APIRelease0warnings0errors/EFdriftPASS/alloldtestbytesretained.",
-      "indexReview": "ActualEF304/PG18.6/20syntheticfirms/20000headers each/5%firmselectivity. Six FK/native lookups useOLDindexes. OnlyrequirednewAKindex2441216physicalbytes afterrollback/mayincludeabortedpages.1000rollbackrows perchild/WAL661132+536624bytes/0netrows; no controlledgain/productionthreshold claim.",
-      "finalTestSourceSHA256": "6819e0612fc77672c6f8411952ca978f12dcf29dd8b4f55409a6ab831cb6520f",
-      "review": "EpicurusP2pre-upcatalogoracle fixed/rereadnone/closed; readonlystatic/no reviewerexecution.",
-      "cleanup": "8ownedPGphases63045/63098/63636/63827/64151/64483/64798/65506 exactroots/controllers/postmasters/listeners independentlyabsent; compiler/dotnet/testhostscanempty. Original5433/Entra/Docker/VPS untouched.",
-      "evidence": ".local/autonomous/evidence/wu004-opinion-clearance-scope-20261029",
-      "remaining": "33 ORIGINALunprobedcataloglinks; WU004PARTIAL. Typedkind/actor/currentness/restrictedrole/mutation/TRUNCATE/professional acceptance remain separate. Exactsuccessorfast/full/images/schema304rehearsal/realDOV04/backups/receipt/publicauthenticatedacceptance open."
+      "status": "FOCUSED_SCOPE_VERIFIED_ACCEPTANCE_PARTIAL",
+      "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeApiSourceFixture20261030_wu004OpinionClearanceScope20261029",
+      "boundary": "Published schema304 parent scope/migration/index evidence retained; broader WU004 and final-source release acceptance open."
+    },
+    "apiSourceScopeFixtures20261030": {
+      "status": "FOCUSED_PASS_SUCCESSOR_CI_REQUIRED",
+      "sourceBaseCommit": "40245094e57430a15182cd38a31dfcff78b5c48a",
+      "originalFailure": "Full40925216397/API123630033739 actual402: plan and journal isolation fixture SaveChanges23503 at existing source-scope FKs;389partialPASS/2FAIL then shutdown143/no finalTRX. E2E123630033694 compilation shutdown143/no tests; underlying shutdown causes UNPROVEN.",
+      "change": "Test-only valid sibling source headers plus explicit23503/named-FK/nonpersisted malformed-link controls; original paging/auth/privacy/group/holds/session expectations retained. No product/schema/permissions change.",
+      "verification": "Forced API Release build0warnings0errors; focused2PASS/0FAIL/0skip on ownedPG18.6/schema304; runtime/root/listener cleanup retained. Original402CI failures retained as pre-correction evidence; no identical-red claim.",
+      "evidence": ".local/autonomous/evidence/api-source-scope-fixtures-20261030",
+      "remaining": "Successor fast/full/images and genuine release dependencies; no deployment/whole-assignment acceptance."
     }
   },
   "externalGates": [
@@ -1247,7 +1246,7 @@
     {
       "gate": "P10",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Full §47 real-tenant acceptance and professional sign-off"
+      "required": "Full \u00a747 real-tenant acceptance and professional sign-off"
     },
     {
       "gate": "M365-ADMIN",
@@ -1624,14 +1623,14 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBaseCommit": "33f4807390e9d6eaf3818b7e5d0e0690da130069",
-    "sourceRole": "COMPLETION_DECISION_PARENT_SCOPE_REPAIR",
-    "status": "FOCUSED_VERIFIED_EXACT_SUCCESSOR_GATES_REQUIRED",
-    "predecessor": "33ffast40880818717FAIL Release123472527940shutdown13:30UTC/actorcauseUNPROVEN; Docs123471535839+Angular123471535369actualPASS15+21/1737+189. Images40880818504FAIL ALL3actual33f API123471535637/worker123471535697/migrations123471535744csc137/OOM102/no pins; summary123483361892SKIPPED. All6actualcheckouts/loghash/check/annotation/artifactMETADATA retainedonce/no pending33fCI/no cancel/rerun/redownload.",
-    "diagnosticBoundary": "APIoptionalruntime_pulltimeout; worker+migrationfirstprocessprocroot/socketdenied/outputwritable/UID0/0; laterlargecompilerPIDs differ. No heapdata/exactpolicycause/resourcefix. Originaldiagnostic/workflow/buildbytesunchanged. Knownclassnorepeatnotification.",
-    "full": "NOT_DISPATCHED duringcoherentbatch/causaldiagnostics; no currentcache/rehearsal/helper/receipt/privateexecution.",
-    "cutover": "NOT_PERFORMED; exactsuccessorgates/schema304rehearsal/realDOV04/freshboundbackups/receipt/publicauthenticatedacceptance required.",
-    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeOpinionClearanceScope20261029"
+    "sourceBaseCommit": "40245094e57430a15182cd38a31dfcff78b5c48a",
+    "status": "FIXTURE_CORRECTION_FOCUSED_PASS_SUCCESSOR_REQUIRED",
+    "predecessorFast": "40919070254 attempt1 PASS actual402 all3checkouts; Angular1737/189,Release/EF/OpenAPI/fastguards PASS.",
+    "predecessorImages": "40928105050 attempt1 PASS all3actual402 pushing-manifest immutablepins retained; largelycached/not controlled resource-fix proof.",
+    "predecessorFull": "40925216397 attempt1 FAIL actual402 all7checkouts;Domain1886PASS,Angular1737PASS,VerifyPASS;API2fixtureFAIL+shutdown143;E2Ecompile shutdown143/no tests.",
+    "evidence": ".local/autonomous/evidence/release-peer-40245094-20261030/exact-checkout-terminal-review-corrected.json",
+    "cutover": "NOT_PERFORMED; successor gates/schema304rehearsal/genuineDOV04/freshbackups/receipt/publicauthenticatedacceptance required.",
+    "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeApiSourceFixture20261030"
   },
-  "updatedAtUtc": "2026-10-29T14:02:56.615565+00:00"
+  "updatedAtUtc": "2026-10-30T07:07:03.764194+00:00"
 }

@@ -8,6 +8,7 @@ using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace AuditSphereOps.Api.Tests;
 
@@ -87,13 +88,28 @@ public sealed class AdjustmentPlanReviewApiTests
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-PLAN-SCOPE"); var (f,s) = await Seed(pg);
     var sibling = Guid.NewGuid(); var malformed = Guid.NewGuid(); var siblingPlan = Guid.NewGuid();
+    var malformedClient=Guid.NewGuid();
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       db.Engagements.Add(new Engagement{Id=sibling,FirmId=f.FirmId,PracticeClientId=f.ClientId,Status="Active",CreatedAt=DateTimeOffset.UtcNow});
-      db.AdjustmentPlans.Add(new(){Id=siblingPlan,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=sibling,BaseDatasetId=s.SourceId,CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow});
-      db.AdjustmentPlans.Add(new(){Id=malformed,FirmId=f.FirmId,ClientId=Guid.NewGuid(),EngagementId=f.EngagementId,BaseDatasetId=s.SourceId,CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow});
+      db.PracticeClients.Add(new(){Id=malformedClient,FirmId=f.FirmId,LegalName="PRIVATE-MALFORMED-CLIENT",CreatedAt=DateTimeOffset.UtcNow});
+      await db.SaveChangesAsync();
+      // A real sibling row needs its own same-scope source under the retained source FK.
+      var siblingSource=await db.TrialBalanceDatasets.AsNoTracking().SingleAsync(x=>x.Id==s.SourceId);
+      siblingSource.Id=Guid.NewGuid();siblingSource.EngagementId=sibling;
+      siblingSource.PeriodId=null;siblingSource.BookId=null;siblingSource.ImportBatchId=null;
+      siblingSource.ImportState=TrialBalanceImportStates.Loading;
+      db.TrialBalanceDatasets.Add(siblingSource);
+      db.AdjustmentPlans.Add(new(){Id=siblingPlan,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=sibling,BaseDatasetId=siblingSource.Id,CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow});
       for(var i=0;i<26;i++) db.AdjustmentPlans.Add(new(){Id=Guid.NewGuid(),FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,BaseDatasetId=s.SourceId,CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow});
       await db.SaveChangesAsync();
+      // Malformed source parents are refused before they can enter the API queue.
+      db.AdjustmentPlans.Add(new(){Id=malformed,FirmId=f.FirmId,ClientId=malformedClient,EngagementId=f.EngagementId,BaseDatasetId=s.SourceId,CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow});
+      var refused=await Assert.ThrowsAsync<DbUpdateException>(()=>db.SaveChangesAsync());
+      var constraint=Assert.IsType<PostgresException>(refused.InnerException);
+      Assert.Equal(PostgresErrorCodes.ForeignKeyViolation,constraint.SqlState);
+      Assert.Equal("fk_adjustment_plan_source_scope",constraint.ConstraintName);
+      Assert.False(await db.AdjustmentPlans.AsNoTracking().AnyAsync(x=>x.Id==malformed));
     }
     var foreign = await PbcSeed.SeedAsync(pg); AdjustmentPlanReviewSeed.Result other;
     await using(var db=new AuditSphereDbContext(pg.Options)) other=await AdjustmentPlanReviewSeed.SeedAsync(db,foreign);

@@ -14,13 +14,15 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## API source-scope fixture correction
+
+Two full-verification API fixtures reused an original engagement's dataset for sibling or malformed adjustment parents. The existing restrictive source references correctly rejected their setup. Valid sibling fixtures now carry matching source headers. Malformed links are explicitly refused at the named database constraint and their identifiers remain covered by opaque HTTP denial. Existing paging, tenant isolation, group-purpose, work-hold and session checks remain.
+
+The affected tests passed against an isolated database after a forced Release build. This is a test-fixture correction; shipping source constraints and command permissions remain unchanged. Fast and image gates passed on the preceding peer source, but full verification failed and was interrupted. Exact successor gates and all qualified release dependencies remain open; see [status.json](status.json).
+
 ## SRM, Partner clearance and opinion parent scope
 
-The original global parent references accepted another firm's memorandum or clearance. Parent-only controls also accepted another client or sibling engagement; isolated child scope changes were accepted. A bounded native fixture established current independently reviewed SRM, Partner clearance and opinion records, known balanced source amounts, foreign-command denials and exact evidence bytes. The identical scope regression refused those links after repair. Later strengthened source and migration assertions are separate from the paired proof.
-
-`CompletionDecisionParentScope` adds restrictive full firm/client/engagement references and the clearance's matching nonnullable key. The extra database references are explicit migration constraints. Existing global relationships and indexes remain; measured lookups did not justify additional child indexes. Clean upgrade/downgrade preserve evidence and old definitions. Retained inconsistent links refuse upgrade atomically without rewriting history.
-
-These synthetic decisions and structural rollback controls do not establish a real opinion, document-kind/actor authenticity, methodology or professional acceptance. Exact verification, index costs, cleanup and successor gates are recorded in [status.json](status.json). The whole assignment remains incomplete.
+Focused evidence and its limits moved verbatim to [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#srm-partner-clearance-and-opinion-parent-scope).
 
 ## Archive-copy operation parent scope
 
