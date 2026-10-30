@@ -279,7 +279,7 @@ const queueViews: { key: QueueView; label: string }[] = [
                   <button matButton (click)="changeDueDate(task.engagementId, task.taskId, task.revision, reminderDueDate.value)">Save date</button>
                 }
                 @if (task.canComplete) {
-                  <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button>
+                  <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy() || blockedPrerequisites(task) || task.onHold">Complete task</button>
                 }
                 @if (task.canCancel) {
                   <button matButton [attr.data-cancel-engagement]="task.engagementId" [attr.data-cancel-task]="task.taskId"
@@ -326,11 +326,11 @@ const queueViews: { key: QueueView; label: string }[] = [
     <ng-template #card let-task>
       <article class="task-card">
         <strong>{{ task.title }}</strong>
-        <small>Source: {{ task.sourceKey || 'Not recorded' }}@if (task.templateRevisionId) { · template revision {{ task.templateRevisionId }} }@if (task.templateStepId) { · step {{ task.templateStepId }} }</small>
+        <details class="task-source-details"><summary>Task source details</summary><small>Source: {{ task.sourceKey || 'Not recorded' }}@if (task.templateRevisionId) { · template revision {{ task.templateRevisionId }} }@if (task.templateStepId) { · step {{ task.templateStepId }} }</small>@if (task.mappingVersionId) { <small>mapping {{ task.mappingVersionId }}</small> }</details>
         @if (task.requiredTask !== null) { <small>Template task designation: {{ !task.requiredTask ? 'Optional' : task.applicabilityCondition ? 'Conditional' : 'Required' }}</small> }@if (task.requiredTask === null && task.manualRequiredTask !== null) { <small>Task designation: {{ task.manualRequiredTask ? 'Required' : 'Optional' }}</small> }@if (task.applicabilityCondition) { <small>Applies when: {{ task.applicabilityCondition }}</small> }
         @if (task.taskGroupName) { <small>Task group: {{ task.taskGroupName }}</small> }
         <small><a [routerLink]="['/app/engagements', task.engagementId]">{{ task.clientName }}</a> · {{ task.engagementServiceRoute }} · {{ task.engagementPeriod }}</small>
-        <small>{{ task.phase.replaceAll('_', ' ') }} · #{{ task.ordinal }} · {{ task.dueDate ? 'due ' + task.dueDate : 'no due date' }} · {{ task.assigneeDisplayName ?? 'Unassigned' }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }@if (task.mappingVersionId) { · mapping {{ task.mappingVersionId }} }</small>
+        <small>{{ task.phase.replaceAll('_', ' ') }} · #{{ task.ordinal }} · {{ task.dueDate ? 'due ' + task.dueDate : 'no due date' }} · {{ task.assigneeDisplayName ?? 'Unassigned' }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }</small>
         @if (task.pbcRequestId) { <small><a [routerLink]="['/app/engagements', task.engagementId, 'pbc']">PBC request · {{ task.pbcState }}</a></small> }
         @if (task.taskStatus === 'OPEN' || task.taskStatus === 'IN_PROGRESS') { <small><a routerLink="/app/practice/time" [queryParams]="{ taskId: task.taskId }">Record time for this task</a></small> }
         @if (task.reviewState) {
@@ -341,16 +341,20 @@ const queueViews: { key: QueueView; label: string }[] = [
           }
         }
         <small><audit-status [value]="task.taskStatus" />@if (task.onHold) { · <audit-status value="ON_HOLD" /> }@if (task.reviewState) { · <audit-status [value]="task.reviewState" /> }@if (task.pbcState) { · PBC {{ task.pbcState }} }</small>
+        @if (task.onHold && task.holdReason) { <small>Hold reason: {{ task.holdReason }}</small> }
         @if (blockedPrerequisites(task)) { <small class="prerequisite-status">Prerequisites: <audit-status value="BLOCKED" /></small> }
         @if (task.unmetTaskDependencies) { <small>{{ task.unmetTaskDependencies }} task prerequisite(s) incomplete</small> }
         @if (task.unmetEvidencePrerequisites) { <small>{{ task.unmetEvidencePrerequisites }} evidence prerequisite(s) pending</small> }
-        <button matButton (click)="showActivity(task.engagementId, task.taskId, task.title)">{{ activityTask()?.taskId === task.taskId ? 'Hide activity' : 'View activity' }}</button>
         <button matButton (click)="evidenceTask.set(task)">Review prerequisites</button>
+        @if (task.canComplete) {
+          <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy() || blockedPrerequisites(task) || task.onHold">Complete task</button>
+        }
+        <details class="task-more-actions"><summary>More task actions</summary>
+        <button matButton (click)="showActivity(task.engagementId, task.taskId, task.title)">{{ activityTask()?.taskId === task.taskId ? 'Hide activity' : 'View activity' }}</button>
+
         @if (task.applicabilityCondition) { <button matButton (click)="applicabilityTask.set(task)">Review conditional applicability</button> }
         <button matButton (click)="orderingTask.set(task)">Review task ordering</button>
-        @if (task.canComplete) {
-          <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button>
-        }
+
         @if (task.canCancel) {
           <button matButton [attr.data-cancel-engagement]="task.engagementId" [attr.data-cancel-task]="task.taskId"
             (click)="openCancellation(task, $event)">Cancel task</button>
@@ -364,6 +368,7 @@ const queueViews: { key: QueueView; label: string }[] = [
             (click)="openHold(task, $event)">{{ task.canResume ? 'Resume task' : 'Put on hold' }}</button>
         }
         @if (task.canAssign) { <button matButton (click)="openAssignment(task)"> {{ task.assigneeUserId ? 'Reassign task' : 'Assign task' }} </button> }
+        </details>
       </article>
     </ng-template>
     @if (queue.data(); as result) {
@@ -452,7 +457,7 @@ const queueViews: { key: QueueView; label: string }[] = [
                 }
               </td>
               <td><a [routerLink]="['/app/engagements', task.engagementId]">{{ task.clientName }}</a><small>{{ task.engagementServiceRoute }} · {{ task.engagementPeriod }}</small></td>
-              <td>{{ task.title }}<small>Source: {{ task.sourceKey || 'Not recorded' }}@if (task.templateRevisionId) { · template revision {{ task.templateRevisionId }} }@if (task.templateStepId) { · step {{ task.templateStepId }} }</small>@if (task.requiredTask !== null) { <small>Template task designation: {{ !task.requiredTask ? 'Optional' : task.applicabilityCondition ? 'Conditional' : 'Required' }}</small> }@if (task.requiredTask === null && task.manualRequiredTask !== null) { <small>Task designation: {{ task.manualRequiredTask ? 'Required' : 'Optional' }}</small> }@if (task.applicabilityCondition) { <small>Applies when: {{ task.applicabilityCondition }}</small> }@if (task.taskGroupName) { <small>Task group: {{ task.taskGroupName }}</small> }<small>{{ task.phase.replace('_', ' ') }} · #{{ task.ordinal }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }@if (task.mappingVersionId) { · mapping {{ task.mappingVersionId }} }</small>
+              <td>{{ task.title }}<details class="task-source-details"><summary>Task source details</summary><small>Source: {{ task.sourceKey || 'Not recorded' }}@if (task.templateRevisionId) { · template revision {{ task.templateRevisionId }} }@if (task.templateStepId) { · step {{ task.templateStepId }} }</small>@if (task.mappingVersionId) { <small>mapping {{ task.mappingVersionId }}</small> }</details>@if (task.requiredTask !== null) { <small>Template task designation: {{ !task.requiredTask ? 'Optional' : task.applicabilityCondition ? 'Conditional' : 'Required' }}</small> }@if (task.requiredTask === null && task.manualRequiredTask !== null) { <small>Task designation: {{ task.manualRequiredTask ? 'Required' : 'Optional' }}</small> }@if (task.applicabilityCondition) { <small>Applies when: {{ task.applicabilityCondition }}</small> }@if (task.taskGroupName) { <small>Task group: {{ task.taskGroupName }}</small> }<small>{{ task.phase.replace('_', ' ') }} · #{{ task.ordinal }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }</small>
                 @if (task.pbcRequestId) { <small><a [routerLink]="['/app/engagements', task.engagementId, 'pbc']">PBC request · {{ task.pbcState }}</a></small> }
                 @if (task.taskStatus === 'OPEN' || task.taskStatus === 'IN_PROGRESS') { <small><a routerLink="/app/practice/time" [queryParams]="{ taskId: task.taskId }">Record time for this task</a></small> }
                 @if (task.reviewState) {
@@ -471,10 +476,10 @@ const queueViews: { key: QueueView; label: string }[] = [
               <td>{{ task.unmetTaskDependencies ? task.unmetTaskDependencies + ' task prerequisite(s) incomplete' : 'No task prerequisites pending' }}
                 @if (task.unmetEvidencePrerequisites) { <small>{{ task.unmetEvidencePrerequisites }} evidence prerequisite(s) pending</small> }
                 <button matButton (click)="evidenceTask.set(task)">Review prerequisites</button>
+              </td>
+              <td>@if (task.canComplete) { <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy() || blockedPrerequisites(task) || task.onHold">Complete task</button> }<details class="task-more-actions"><summary>More task actions</summary><button matButton (click)="showActivity(task.engagementId, task.taskId, task.title)">{{ activityTask()?.taskId === task.taskId ? 'Hide activity' : 'View activity' }}</button>
                 @if (task.applicabilityCondition) { <button matButton (click)="applicabilityTask.set(task)">Review conditional applicability</button> }
-        <button matButton (click)="orderingTask.set(task)">Review task ordering</button></td>
-              <td><button matButton (click)="showActivity(task.engagementId, task.taskId, task.title)">{{ activityTask()?.taskId === task.taskId ? 'Hide activity' : 'View activity' }}</button>
-                @if (task.canComplete) { <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button> }
+                <button matButton (click)="orderingTask.set(task)">Review task ordering</button>
                 @if (task.canCancel) { <button matButton [attr.data-cancel-engagement]="task.engagementId" [attr.data-cancel-task]="task.taskId"
                   (click)="openCancellation(task, $event)">Cancel task</button> }
                 @if (reopenable(task)) { <button matButton
@@ -483,7 +488,7 @@ const queueViews: { key: QueueView; label: string }[] = [
                 @if (task.canSuspend || task.canResume) { <button matButton
                   [attr.data-hold-engagement]="task.engagementId" [attr.data-hold-task]="task.taskId"
                   (click)="openHold(task, $event)">{{ task.canResume ? 'Resume task' : 'Put on hold' }}</button> }
-                @if (task.canAssign) { <button matButton (click)="openAssignment(task)">{{ task.assigneeUserId ? 'Reassign task' : 'Assign task' }}</button> }</td>
+                @if (task.canAssign) { <button matButton (click)="openAssignment(task)">{{ task.assigneeUserId ? 'Reassign task' : 'Assign task' }}</button> }</details></td>
             </tr>
           } @empty {
             <tr><td colspan="7">No tasks match this view in your current authorized scope.</td></tr>
@@ -916,7 +921,12 @@ export class WorkflowWorkQueue {
           .find(button => button.dataset[taskAttribute] === selected.taskId && button.dataset[engagementAttribute] === selected.engagementId);
       const freshFallback = this.hostElement.nativeElement.querySelector<HTMLButtonElement>('.queue-views button[aria-pressed="true"]') ??
         this.hostElement.nativeElement.querySelector<HTMLButtonElement>('.queue-views button');
-      (current?.isConnected ? current : freshFallback)?.focus();
+      // A display change replaces cards with closed native disclosures. Reveal the current action before restoring focus.
+      if (current?.isConnected) {
+        const disclosure = current.closest<HTMLDetailsElement>('details');
+        if (disclosure) disclosure.open = true;
+        current.focus();
+      } else freshFallback?.focus();
     }, { injector: this.renderInjector });
   }
 

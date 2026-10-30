@@ -14,11 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
-## UX workflow review discovery and command recovery
+## UX workflow discovery, disclosure and recovery
 
 The [UX workflow register](auditsphere-execution-ux-workflow-tasks-current.md) separates the attached proposal packets from current authority and acceptance. Published package-preview and typed-conflict guidance remain. Package review discovery now has an additive bounded continuation contract, stable timestamp/identity ordering, authorized client/service labels and truthful empty-window guidance. Current scope is checked independently of cursors; invalidation resets paging and selection.
 
-Focused native and Angular regressions, production compilation, additive contract verification and read-only technical review passed. The native empty queue rendered in the built-in browser. Populated browser paging, integrated role journeys and final-source CI remain open. Publication waits for active predecessor image jobs; see [status.json](status.json).
+Task source identities and secondary actions use labelled native disclosures; task facts and blockers stay visible. Existing capabilities remain, blocked/held completion is disabled, and recovery focus reveals the current disclosure before returning to its action. Focused native and Angular regressions, production compilation, contract checks and read-only technical review are recorded in [status.json](status.json). Isolated built-in browser checks covered keyboard disclosure, responsive views and final recovery focus across a display change. Publication waits for active predecessor image jobs. Other packets, integrated role journeys and all qualified release gates remain open.
 
 ## API source-scope fixture correction
 

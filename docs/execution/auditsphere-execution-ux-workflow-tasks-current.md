@@ -25,7 +25,7 @@ The audit describes an earlier source snapshot. Each packet requires current-sou
 | U07 | Expose existing package-review work inside My Work | U01, U05, U06 | Pending current-source assessment and scoped implementation. |
 | U08 | Surface existing engagement next actions in My Work | U01, U02 | Pending current-source assessment and scoped implementation. |
 | U09 | Make Portfolio a concise triage page using existing projections | U01, U02, U04, U07, U08 | Pending current-source assessment and scoped implementation. |
-| U10 | Reduce task-card clutter without hiding actionable facts | Independent | Pending current-source assessment and scoped implementation. |
+| U10 | Reduce task-card clutter without hiding actionable facts | Independent | Implemented locally; focused rendering/recovery checks passed. Responsive keyboard and final recovery-focus browser checks passed; publication and integrated role acceptance pending. |
 | U11 | Guide template preparation through unresolved inputs first | Independent | Pending current-source assessment and scoped implementation. |
 | U12 | Attach authorized resolution guidance to lifecycle blockers | Independent | Pending current-source assessment and scoped implementation. |
 | U13 | Distinguish idempotency conflicts from stale revisions in command guidance | Independent | Implemented; focused regression and production build verified. Integrated browser/role acceptance remains pending. |
@@ -41,6 +41,8 @@ Command recovery distinguishes request-identity conflicts from revision/generati
 ## Using the changed queues
 
 Use **Check older packages** while continuation is available, including when the current candidate window has no eligible rows. The displayed row count is page-local. Moving pages clears current selection; saved IDs can be restored only when present in the freshly authorized current page. Refresh restarts at the newest window. Open each package for current authorized review actions.
+
+Task source details retains source/template/mapping identities. More task actions retains activity, ordering and authorized recovery/assignment controls. Opening a disclosure records no task decision. The visible blocker and eligible primary action remain outside secondary actions. Closing a recovery panel after changing display reveals the current task action before restoring focus.
 
 ## Remaining acceptance
 

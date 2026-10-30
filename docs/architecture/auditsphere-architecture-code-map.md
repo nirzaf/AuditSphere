@@ -19,6 +19,7 @@ capability; public APIs are stable across parts. Verified project state lives on
 ## Current presentation ownership
 
 - Financial-package review discovery: `Application/Accounting/FinancialPackageReviewService.cs` owns bounded candidate continuation, final readiness and current scope checks including cursor disclosure. `Api/Ui/UiEndpoints.Packages.cs` exposes an additive page contract while retaining the legacy list shape; Angular `features/accounting/reviews.ts` owns page-local selection, session invalidation and honest continuation/empty states.
+- Operational task presentation: Angular `features/practice/work-queue.ts` uses native labelled source/action disclosures across existing views. Server capabilities still govern commands; recovery focus opens the replacement task's disclosure after a display change before returning to its action.
 
 - **HTTP host and contracts:** `src/AuditSphereOps.Api/` owns authenticated `/api/ui/*` endpoints, session and consent boundaries, protected file transports, health checks, and serving the Angular build. Route ownership is explicit in `src/AuditSphereOps.Api/Ui/AngularRouteOwnership.cs` and the SPA route catalogue.
 - **Presentation:** `src/AuditSphereOps.Ui/src/app/` owns the Angular staff and client-portal routes and workspaces. Angular calls the same-origin API; it does not own authorization or business-state authority.

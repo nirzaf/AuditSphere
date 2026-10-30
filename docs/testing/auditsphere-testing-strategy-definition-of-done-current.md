@@ -4,7 +4,7 @@
 
 Package-selection preview tests must distinguish selection from current actor eligibility, preserve assigned Partner authority, and prove preview sends no decision command. Command guidance tests distinguish request-identity conflicts from revision/generation changes while preserving single-send and unknown-outcome behavior. These checks do not replace integrated role and browser acceptance.
 
-Paged review discovery checks must cover discarded candidate windows, stable equal-timestamp traversal, mixed valid/expired grants, revoked authority and session changes after paging. Structural header populations are query fixtures, not further reports or human approvals.
+Paged review discovery checks must cover discarded candidate windows, stable equal-timestamp traversal, mixed valid/expired grants, revoked authority and session changes after paging. Task disclosure checks retain every view, visible blockers, disabled held/prerequisite completion and enabled eligible completion. Recovery-panel closure after a display change must return focus to a visible current action, including its disclosure. Structural header populations are query fixtures, not further reports or human approvals.
 
 ## 1. Execution tiers and ownership
 
