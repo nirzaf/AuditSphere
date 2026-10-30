@@ -1196,6 +1196,18 @@
       "browser": "Isolated synthetic staff account: team task, assignment review and cancellation, empty saved receipt search, mobile navigation and Escape focus; console errors empty. Fixture and its owned resources cleaned.",
       "boundary": "Current-source CI, real interrupted-command and other role journeys, integrated acceptance, human accessibility and professional/live acceptance remain open.",
       "taskColumn": "Separate scoped layout change from bcd9: Angular production build passed with two existing stylesheet-budget warnings; synthetic built-in browser checked task width and Home/End table scrolling at desktop and mobile sizes. Current-source CI and broader acceptance remain open."
+    },
+    "issue49Reconciliation20261030": {
+      "source": "f362d0e31a5f810ec470f0876c1aa95534960707 plus scoped docs/test overlay",
+      "status": "PARTIAL; no whole-spec or production acceptance",
+      "record": "docs/execution/auditsphere-execution-ascp-reconciliation-current.md",
+      "scope": "Current inventory, dual-key subclauses, final successor-carry allocation function, all31 bounded dispositions; historical evidence retained.",
+      "checks": "fieldwork.spec.ts:38 PASS,0 failed; wrong-capture and503 pagination refuse review until exact rows and renewed assent. Existing behavior, no product repair.",
+      "environment": "Node24.22.1/npm11.9.0 available; differs from pins26.8.1/11.19.0. No install; exact pinned CI required.",
+      "database": "NOT_RUN/BLOCKED_TEST_ENV: isolated PostgreSQL absent; cached /tmp build approval pending. No migration.",
+      "ci": "NOT_RUN_FOR_CANDIDATE; full suites CI-only",
+      "remaining": "Other current role/journey checks, complete denominator, qualified decisions and live/operational acceptance remain open.",
+      "staticChecks": "Criterion/source digest, selector and inventory checks PASS; documentation health/narrative/diff PASS. ESLint NOT_APPLICABLE: repository ignores spec files (explicit invocation exits1 on ignored-file warning); no lint rules changed."
     }
   },
   "externalGates": [
