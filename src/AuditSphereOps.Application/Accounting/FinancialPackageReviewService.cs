@@ -60,6 +60,10 @@ public static partial class FinancialPackageReviewService
   private static readonly string[] PartnerRoles = ["Partner"];
   private static readonly string[] OfflineManagementRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
 
+  internal static Task<CommandResult> AuthorizeStaffQueueAsync(IClientAccountingDbContext db, ActorContext actor,
+    CancellationToken ct) => AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true), ct);
+
   /// <summary>Compatibility alias for the canonical required validation population.</summary>
   public static readonly string[] BlockingValidationCodes = FinancialPackageValidationReadiness.RequiredCodes;
 
@@ -420,8 +424,7 @@ public static partial class FinancialPackageReviewService
   {
     if (afterCreatedAt.HasValue != afterId.HasValue || afterId == Guid.Empty)
       return CommandResult<FinancialPackageReviewPage>.Fail("request.invalid", "Invalid review queue cursor.");
-    var firmAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true), ct);
+    var firmAuth = await AuthorizeStaffQueueAsync(db, actor, ct);
     if (!firmAuth.Succeeded)
       return CommandResult<FinancialPackageReviewPage>.Fail(firmAuth.ErrorCode!, firmAuth.Message!);
 

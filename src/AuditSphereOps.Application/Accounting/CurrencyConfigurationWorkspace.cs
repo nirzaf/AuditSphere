@@ -18,24 +18,26 @@ public static class CurrencyConfigurationWorkspace
   private static readonly string[] Roles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
   private static Task<CommandResult> Auth(IClientAccountingDbContext db, ActorContext a, bool write, CancellationToken ct) =>
     AuthorizationDecision.AuthorizeAsync(db, a, new(a.FirmId, RequiredRoles: Roles, InternalOnly: true, RequireFirmWide: true), ct);
+  internal static Task<CommandResult> AuthorizeReadAsync(IClientAccountingDbContext db, ActorContext a, CancellationToken ct) =>
+    Auth(db, a, false, ct);
   private static string Revision(ActorContext a, object value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { a.FirmId, a.UserId, a.SessionEpoch, value }))));
   public static async Task<CommandResult<CurrencyConfigurationCatalogue>> GetAsync(IClientAccountingDbContext db, ActorContext a, CancellationToken ct = default)
   {
-    var auth = await Auth(db, a, false, ct); if (!auth.Succeeded) return CommandResult<CurrencyConfigurationCatalogue>.Fail(auth.ErrorCode!, auth.Message!);
+    var auth = await AuthorizeReadAsync(db, a, ct); if (!auth.Succeeded) return CommandResult<CurrencyConfigurationCatalogue>.Fail(auth.ErrorCode!, auth.Message!);
     var sets = await db.ExchangeRateSetVersions.AsNoTracking().Where(x => x.FirmId == a.FirmId).OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Take(1001).ToListAsync(ct);
     var policies = await db.TranslationPolicyVersions.AsNoTracking().Where(x => x.FirmId == a.FirmId).OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Take(1001).ToListAsync(ct);
     if (sets.Count > 1000 || policies.Count > 1000) return CommandResult<CurrencyConfigurationCatalogue>.Fail("window.exceeded", "The currency configuration exceeds the interactive catalogue window.");
-    auth = await Auth(db, a, false, ct); if (!auth.Succeeded) return CommandResult<CurrencyConfigurationCatalogue>.Fail(auth.ErrorCode!, auth.Message!);
+    auth = await AuthorizeReadAsync(db, a, ct); if (!auth.Succeeded) return CommandResult<CurrencyConfigurationCatalogue>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<CurrencyConfigurationCatalogue>.Ok(new(Revision(a, new { sets, policies }), sets, policies, (await Auth(db, a, true, ct)).Succeeded));
   }
   public static async Task<CommandResult<CurrencyRateSetReview>> RateSetAsync(IClientAccountingDbContext db, ActorContext a, Guid id, CancellationToken ct = default)
   {
-    var auth = await Auth(db, a, false, ct); if (!auth.Succeeded) return CommandResult<CurrencyRateSetReview>.Fail(auth.ErrorCode!, auth.Message!);
+    var auth = await AuthorizeReadAsync(db, a, ct); if (!auth.Succeeded) return CommandResult<CurrencyRateSetReview>.Fail(auth.ErrorCode!, auth.Message!);
     var set = await db.ExchangeRateSetVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == a.FirmId && x.Id == id, ct);
     if (set is null) return CommandResult<CurrencyRateSetReview>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var rates = await db.ExchangeRates.AsNoTracking().Where(x => x.FirmId == a.FirmId && x.RateSetVersionId == id).OrderBy(x => x.RateDate).ThenBy(x => x.FromCurrency).ThenBy(x => x.ToCurrency).ThenBy(x => x.RateType).ThenBy(x => x.Id).Take(1001).ToListAsync(ct);
     if (rates.Count > 1000) return CommandResult<CurrencyRateSetReview>.Fail("window.exceeded", "This rate set exceeds the interactive observation window.");
-    auth = await Auth(db, a, false, ct); if (!auth.Succeeded) return CommandResult<CurrencyRateSetReview>.Fail(auth.ErrorCode!, auth.Message!);
+    auth = await AuthorizeReadAsync(db, a, ct); if (!auth.Succeeded) return CommandResult<CurrencyRateSetReview>.Fail(auth.ErrorCode!, auth.Message!);
     var write = (await Auth(db, a, true, ct)).Succeeded && set.Status == AccountingWorkflowStates.Draft;
     return CommandResult<CurrencyRateSetReview>.Ok(new(set, rates, Revision(a, new { set, rates }), write, write && set.CreatedByUserId != a.UserId && ValidObservations(set, rates)));
   }
@@ -48,10 +50,10 @@ public static class CurrencyConfigurationWorkspace
     rates.Select(x => (x.FromCurrency, x.ToCurrency, x.RateDate, x.RateType)).Distinct().Count() == rates.Count;
   public static async Task<CommandResult<CurrencyPolicyReview>> PolicyAsync(IClientAccountingDbContext db, ActorContext a, Guid id, CancellationToken ct = default)
   {
-    var auth = await Auth(db, a, false, ct); if (!auth.Succeeded) return CommandResult<CurrencyPolicyReview>.Fail(auth.ErrorCode!, auth.Message!);
+    var auth = await AuthorizeReadAsync(db, a, ct); if (!auth.Succeeded) return CommandResult<CurrencyPolicyReview>.Fail(auth.ErrorCode!, auth.Message!);
     var policy = await db.TranslationPolicyVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == a.FirmId && x.Id == id, ct);
     if (policy is null) return CommandResult<CurrencyPolicyReview>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    auth = await Auth(db, a, false, ct); if (!auth.Succeeded) return CommandResult<CurrencyPolicyReview>.Fail(auth.ErrorCode!, auth.Message!);
+    auth = await AuthorizeReadAsync(db, a, ct); if (!auth.Succeeded) return CommandResult<CurrencyPolicyReview>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<CurrencyPolicyReview>.Ok(new(policy, Revision(a, policy), policy.Status == AccountingWorkflowStates.Draft && policy.CreatedByUserId != a.UserId && (await Auth(db, a, true, ct)).Succeeded));
   }
   private static async Task<CommandResult<T>> Guard<T>(IClientAccountingDbContext db, ActorContext a, string expected, bool reviewed,

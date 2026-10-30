@@ -67,8 +67,7 @@ public static class CommercialPipelineQuery
         (currency is not null && (currency.Length != 3 || !currency.All(char.IsAsciiLetterUpper))) ||
         (cursor is not null && (!Stages.Contains(cursor.Stage) || cursor.BeforeId == Guid.Empty)))
       return CommandResult<CommercialPipeline>.Fail("request.invalid", "Invalid pipeline filter or continuation.");
-    var request = new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles, InternalOnly: true, RequireFirmWide: true);
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    var auth = await AuthorizeReadAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<CommercialPipeline>.Fail(auth.ErrorCode!, "Pipeline unavailable.");
 
     var query = db.Opportunities.AsNoTracking().Where(o => o.FirmId == actor.FirmId);
@@ -154,9 +153,12 @@ public static class CommercialPipelineQuery
       if (snapshot is not null) await snapshot.DisposeAsync();
     }
 
-    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    auth = await AuthorizeReadAsync(db, actor, ct);
     return auth.Succeeded ? CommandResult<CommercialPipeline>.Ok(new(columns, pageSize,
       clientOptions.Take(100).ToArray(), clientOptions.Count > 100))
       : CommandResult<CommercialPipeline>.Fail(auth.ErrorCode!, "Pipeline unavailable.");
   }
+  internal static Task<CommandResult> AuthorizeReadAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles, InternalOnly: true, RequireFirmWide: true), ct);
 }

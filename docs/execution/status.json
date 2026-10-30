@@ -1188,27 +1188,13 @@
       "boundary": "Published schema304 parent scope/migration/index evidence retained; broader WU004 and final-source release acceptance open."
     },
     "uxWorkflow20261030": {
-      "status": "FOUR_PACKETS_SCOPED_VERIFIED_ACCEPTANCE_OPEN",
-      "packets": [
-        "U05",
-        "U06",
-        "U10",
-        "U13"
-      ],
-      "history": "status-archive-2026-10.json#targetedVerification.uxWorkflow20261030.beforeReviewNoteParentScope20261030",
-      "boundary": "Other packets, current-source role/browser and full acceptance remain open."
-    },
-    "wu004ReviewNoteParentScope20261030": {
-      "status": "FOCUSED_SCOPE_VERIFIED_EXACT_SUCCESSOR_CI_PENDING",
-      "sourceBase": "46ba5d5d280948f0884da09cde641f8b4283eb90",
-      "migration": "20261030104042_ReviewNoteParentScope",
-      "pair": "Original RED1 accepted six mismatched links; identical test GREEN1 refused them; two mismatched events reopened a visible closed thread before repair.",
-      "migrationVerification": "Expanded GREEN1: exact 304 catalog/12-table data before first up, 304/305/304/305 preservation and two separately isolated invalid-history upgrades refusing 23503 atomically.",
-      "build": "API Release 0 warnings/0 errors; EF model drift passed.",
-      "review": "Independent static reviewer found no remaining actionable findings; did not execute tests.",
-      "indexReview": "PostgreSQL18.6 canonical305, 20 synthetic firms/20,000 rows per table; six measured reference/queue equivalents use existing indexes except required new parent key. 1,000 rollback rows per child, zero net rows; no production performance claim.",
-      "evidence": ".local/autonomous/evidence/wu004-review-note-scope-20261030/paired-red-green-review.json and final-migration-review.json",
-      "boundary": "No procedure/revision authenticity, actor permission, professional or whole application acceptance implied."
+      "status": "U01_IMPLEMENTED_FOCUSED_VERIFIED_INTEGRATED_ACCEPTANCE_OPEN",
+      "previous": "status-archive-2026-10.json#targetedVerification.uxWorkflow20261030.beforeU01Availability20261030",
+      "sourceBase": "92dfb98fbd979cd8e6454d64f1232abfe73a0070",
+      "implementation": "Server-projected navigation and independent task/review availability, short expiry and session invalidation; current destination reads and commands retain authorization. Session-scoped task recovery preserves unresolved outcomes.",
+      "verification": "Focused native authorization matrix 1 pass; Angular eight specs 161 pass, subsequent affected three 134 pass, navigation/display 17 pass; OpenAPI drift verification and Angular production build passed with two stylesheet budget warnings.",
+      "browser": "Isolated synthetic staff account: team task, assignment review and cancellation, empty saved receipt search, mobile navigation and Escape focus; console errors empty. Fixture and its owned resources cleaned.",
+      "boundary": "Current-source CI, real interrupted-command and other role journeys, integrated acceptance, human accessibility and professional/live acceptance remain open."
     }
   },
   "externalGates": [
@@ -1637,12 +1623,12 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceBase": "46ba5d5d280948f0884da09cde641f8b4283eb90",
-    "status": "REVIEW_NOTE_SCOPE_SUCCESSOR_CI_PENDING",
-    "fast": "Predecessor exact-source fast PASS",
-    "images": "Predecessor exact-source images PASS",
-    "full": "NOT_DISPATCHED for local successor",
-    "boundary": "Predecessor gates and pins do not transfer to the new source; no release acceptance implied."
+    "sourceBase": "92dfb98fbd979cd8e6454d64f1232abfe73a0070",
+    "status": "PREDECESSOR_FOR_UNCOMMITTED_U01",
+    "fast": "PASS actual checkouts",
+    "images": "TERMINAL_CANCELLED worker 45-minute limit, no worker pin; API and migration pins passed; cause unconfirmed",
+    "full": "NOT_DISPATCHED",
+    "boundary": "No prior image or workflow result establishes a pass for U01; all current-source release gates remain required."
   },
   "updatedAtUtc": "2026-10-30T07:07:03.764194+00:00"
 }

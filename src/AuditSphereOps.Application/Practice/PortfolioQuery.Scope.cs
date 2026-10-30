@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Practice;
@@ -28,6 +29,21 @@ public static partial class PortfolioQuery
     return requests.Count == 0 ? null : new(requests.Any(r => r.RequireFirmWide),
       requests.Where(r => r.ClientId.HasValue && !r.EngagementId.HasValue).Select(r => r.ClientId!.Value).ToArray(),
       requests.Where(r => r.EngagementId.HasValue).Select(r => r.EngagementId!.Value).ToArray(), requests);
+  }
+
+  internal static async Task<CommandResult> AuthorizeWorkspaceReadAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
+  {
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: Roles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return auth;
+    var now = DateTimeOffset.UtcNow;
+    var exists = await db.RoleGrants.AsNoTracking().AnyAsync(g => g.FirmId == actor.FirmId && g.UserId == actor.UserId &&
+      g.RevokedAt == null && (g.ExpiresAt == null || g.ExpiresAt > now) && Roles.Contains(g.Role) &&
+      ((g.ClientId == null && g.EngagementId == null) ||
+       (g.ClientId != null && g.EngagementId == null && db.PracticeClients.Any(c => c.FirmId == actor.FirmId && c.Id == g.ClientId)) ||
+       (g.ClientId != null && g.EngagementId != null && db.Engagements.Any(e => e.FirmId == actor.FirmId &&
+         e.Id == g.EngagementId && e.PracticeClientId == g.ClientId))), ct);
+    return exists ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.ScopeDenied, "Access unavailable.");
   }
 
   private static IQueryable<Engagement> VisibleEngagements(IAuditSphereDbContext db, ActorContext actor, Scope scope) =>

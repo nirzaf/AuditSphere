@@ -119,6 +119,9 @@ public static class WorkflowTemplateService
   private static readonly string[] ConfigureRoles = ["Administrator", "Partner"];
   private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
+  internal static Task<CommandResult> AuthorizeWorkspaceReadAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+    AuthorizeAsync(db, actor, ReadRoles, ct);
+
   public static async Task<CommandResult<IReadOnlyList<WorkflowTemplateCatalogItem>>> ListAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
   {

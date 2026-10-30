@@ -1,8 +1,11 @@
 using System.Data.Common;
 using System.Text.RegularExpressions;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
@@ -1298,6 +1301,82 @@ public sealed class EngagementWorkflowTaskTests
       }
       return ValueTask.FromResult(result);
     }
+  }
+
+  [Fact]
+  public async Task WorkspaceAvailability_UsesCurrentOwnersAndKeepsMixedScopesSeparate()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firm = Guid.NewGuid();
+    var clientA = Guid.NewGuid(); var engagementA = Guid.NewGuid();
+    var clientB = Guid.NewGuid(); var engagementB = Guid.NewGuid();
+    var staff = User(firm, "AvailabilityStaff");
+    var reviewer = User(firm, "AvailabilityReviewer");
+    var accountant = User(firm, "AvailabilityAccountant");
+    var mixed = User(firm, "AvailabilityMixed");
+    var expired = User(firm, "AvailabilityExpired");
+    var expiredGrant = Grant(firm, expired, "Staff", clientA, engagementA);
+    expiredGrant.GrantedAt = DateTimeOffset.UtcNow.AddHours(-2);
+    expiredGrant.ExpiresAt = DateTimeOffset.UtcNow.AddHours(-1);
+    await SeedQueueScopeAsync(pg, firm, [(clientA, engagementA), (clientB, engagementB)],
+      [staff, reviewer, accountant, mixed, expired], () =>
+      [Grant(firm, staff, "Staff", clientA, engagementA),
+       Grant(firm, reviewer, "Reviewer", clientB, engagementB),
+       Grant(firm, accountant, "AccountingReviewer", clientA, engagementA),
+       Grant(firm, mixed, "Staff", clientA, engagementA),
+       Grant(firm, mixed, "Reviewer", clientB, engagementB), expiredGrant]);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var staffActor = Actor(staff, "Staff");
+    var reviewActor = Actor(reviewer, "Reviewer");
+    var accountingActor = Actor(accountant, "AccountingReviewer");
+    var mixedActor = Actor(mixed, "Staff", "Reviewer");
+    async Task<WorkspaceAvailabilityView> Read(ActorContext actor, bool enabled = true)
+    {
+      var result = await WorkspaceAvailabilityQuery.GetAsync(db, actor, enabled);
+      Assert.True(result.Succeeded, result.Message);
+      return result.Value!;
+    }
+    var staffView = await Read(staffActor);
+    Assert.Equal(("available", "not_authorized", "not_authorized"), (staffView.Tasks, staffView.Reviews, staffView.Templates));
+    Assert.DoesNotContain("consolidation", staffView.Destinations);
+    Assert.InRange(staffView.ValidForMs, 1, 30000);
+    Assert.True((await WorkflowTaskQueueQuery.GetAsync(db, staffActor, new())).Succeeded);
+    Assert.False((await ProcedureReviewInboxQuery.GetAsync(db, staffActor, new())).Succeeded);
+    var reviewerView = await Read(reviewActor);
+    Assert.Equal(("not_authorized", "available"), (reviewerView.Tasks, reviewerView.Reviews));
+    Assert.False((await WorkflowTaskQueueQuery.GetAsync(db, reviewActor, new())).Succeeded);
+    Assert.True((await ProcedureReviewInboxQuery.GetAsync(db, reviewActor, new())).Succeeded);
+    var accountingView = await Read(accountingActor);
+    Assert.Equal(("not_authorized", "not_authorized"), (accountingView.Tasks, accountingView.Reviews));
+    Assert.Contains("reviews", accountingView.Destinations);
+    Assert.DoesNotContain("accounting", accountingView.Destinations); // An engagement grant does not authorize client books.
+    Assert.True((await FinancialPackageReviewService.GetStaffQueuePageAsync(db, accountingActor)).Succeeded);
+    var mixedView = await Read(mixedActor);
+    Assert.Equal(("available", "available"), (mixedView.Tasks, mixedView.Reviews));
+    Assert.False((await AuthorizationDecision.AuthorizeAsync(db, mixedActor,
+      new(firm, clientA, engagementA, ["Reviewer"], InternalOnly: true))).Succeeded);
+    Assert.False((await AuthorizationDecision.AuthorizeAsync(db, mixedActor,
+      new(firm, clientB, engagementB, ["Staff"], InternalOnly: true))).Succeeded);
+    var disabled = await Read(mixedActor, enabled: false);
+    Assert.Equal(("not_enabled", "not_enabled", "not_enabled"), (disabled.Tasks, disabled.Reviews, disabled.Templates));
+    Assert.DoesNotContain("my-work", disabled.Destinations);
+    Assert.False((await WorkspaceAvailabilityQuery.GetAsync(db, Actor(expired, "Staff"), true)).Succeeded);
+    Assert.False((await WorkspaceAvailabilityQuery.GetAsync(db, staffActor with { SessionEpoch = 0 }, true)).Succeeded);
+    var groupId = Guid.NewGuid();
+    db.ClientGroups.Add(new ClientGroup { Id = groupId, FirmId = firm, Code = "GROUP-U01", Name = "Availability group", CreatedByUserId = staff.Id, CreatedAt = DateTimeOffset.UtcNow });
+    db.GroupAccessGrants.Add(new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = firm, GroupId = groupId, UserId = staff.Id,
+      Role = "AccountingReviewer", GrantedByUserId = staff.Id, GrantedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    Assert.Contains("consolidation", (await Read(staffActor)).Destinations);
+    Assert.False(db.AdministratorOversightObserved);
+    var groupView = await ConsolidationOverviewQuery.GetAsync(db, staffActor);
+    Assert.True(groupView.Succeeded, groupView.Message);
+    Assert.Contains(groupView.Value!.Groups, group => group.Id == groupId);
+    Assert.Equal(1, await db.RoleGrants.Where(g => g.UserId == mixed.Id && g.Role == "Staff")
+      .ExecuteUpdateAsync(s => s.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow)));
+    var afterRevoke = await Read(mixedActor);
+    Assert.Equal(("not_authorized", "available"), (afterRevoke.Tasks, afterRevoke.Reviews));
+    Assert.False((await WorkflowTaskQueueQuery.GetAsync(db, mixedActor, new())).Succeeded);
   }
 
   private static async Task SeedQueueScopeAsync(PgTestSchema pg, Guid firmId,

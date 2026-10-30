@@ -38,6 +38,20 @@ public static class PracticeTimeWorkspaceQuery
   private static readonly string[] WorkRoles = ["Senior", "Staff", "Manager", "Partner", "Administrator"];
   private static readonly string[] ApprovalRoles = ["Manager", "Partner", "Administrator"];
 
+  internal static async Task<CommandResult> AuthorizeWorkspaceReadAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct)
+  {
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: WorkRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return auth;
+    var now = DateTimeOffset.UtcNow;
+    var exists = await db.RoleGrants.AsNoTracking().AnyAsync(g => g.FirmId == actor.FirmId && g.UserId == actor.UserId &&
+      g.RevokedAt == null && (g.ExpiresAt == null || g.ExpiresAt > now) && WorkRoles.Contains(g.Role) &&
+      ((g.ClientId == null && g.EngagementId == null) || (g.ClientId != null && g.EngagementId == null) ||
+       (g.ClientId != null && g.EngagementId != null && db.Engagements.Any(e => e.FirmId == actor.FirmId &&
+         e.Id == g.EngagementId && e.PracticeClientId == g.ClientId))), ct);
+    return exists ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.ScopeDenied, "Time recording requires a current staff assignment.");
+  }
+
   public static Task<CommandResult<PracticeTimeWorkspace>> GetAsync(
     IClientAccountingDbContext db, ActorContext actor, CancellationToken ct = default) =>
     GetAsync(db, actor, new PracticeTimeWorkspaceRequest(), ct);

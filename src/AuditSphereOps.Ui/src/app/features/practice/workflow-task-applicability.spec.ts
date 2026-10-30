@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { SessionService } from '../../core/session';
@@ -51,6 +52,27 @@ describe('reviewed conditional applicability actions', () => {
   function sourcePreview(c: WorkflowTaskApplicabilityPanel, http: HttpTestingController) {
     c.selectSource(source); TestBed.tick(); http.expectOne(`${url}?sourceRequestId=${source}`).flush({ ...workspace, preview, canPropose: true }); TestBed.tick();
   }
+
+  it('fences late receipts and restores exact reads without resending after access changes', async () => {
+    const { fixture, c, http } = setup();
+    const access = signal(true), revision = signal(0);
+    fixture.componentRef.setInput('accessCurrent', access); fixture.componentRef.setInput('accessRevision', revision);
+    TestBed.tick(); http.expectOne(url).flush(workspace); TestBed.tick(); sourcePreview(c, http);
+    c.reason = 'Reviewed source'; c.prepare('PROPOSE'); c.confirmed = true;
+    const saving = c.submit(); const post = http.expectOne(`${url}/proposals`); const key = post.request.body.idempotencyKey;
+    post.flush({}, { status: 503, statusText: 'Lost reply' }); await saving;
+    const delayed = c.recover(); const lookup = http.expectOne(`${url}/receipts/${key}`);
+    access.set(false); revision.update(n => n + 1);
+    lookup.flush({ engagementId: engagement, taskId: task, idempotencyKey: key, proposalId, decisionId: null, version: '1' });
+    await delayed; TestBed.tick(); expect(c.pending()).toBe(key); expect(c.review()).toBeNull(); expect(c.confirmed).toBe(false);
+    c.refresh(); c.workspace.reload(); c.history.reload(); c.openHistory(); await c.recover();
+    http.expectNone(`${url}?sourceRequestId=${source}`); http.expectNone(`${url}/history`); http.expectNone(`${url}/receipts/${key}`);
+    access.set(true); revision.update(n => n + 1); TestBed.tick();
+    http.expectOne(`${url}?sourceRequestId=${source}`).flush({ ...workspace, preview, canPropose: true }); TestBed.tick();
+    const recovering = c.recover(); http.expectOne(`${url}/receipts/${key}`).flush({ engagementId: engagement, taskId: task, idempotencyKey: key, proposalId, decisionId: null, version: '1' });
+    await recovering; http.expectOne(`${url}?sourceRequestId=${source}`).flush({ ...workspace, preview, canPropose: true });
+    expect(c.pending()).toBeNull(); http.expectNone(r => r.method === 'POST'); http.verify({ ignoreCancelled: true }); fixture.destroy();
+  });
 
   it('requires fresh explicit assent, sends the exact server receipt/hash/revision once and refreshes after a matched receipt', async () => {
     const { fixture, c, http } = setup(); sourcePreview(c, http);

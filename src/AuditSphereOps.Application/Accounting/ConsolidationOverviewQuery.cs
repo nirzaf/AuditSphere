@@ -48,6 +48,23 @@ public sealed record ConsolidationOverview(bool CanCreateGroup, IReadOnlyList<Co
 /// </summary>
 public static class ConsolidationOverviewQuery
 {
+  private static readonly string[] GroupReadRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
+
+  internal static async Task<bool> CanReadWorkspaceAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct)
+  {
+    var create = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Manager", "Partner", "Administrator"],
+        InternalOnly: true, RequireFirmWide: true), ct);
+    if (create.Succeeded || (await AdministratorOversightReadAuthorization.CheckEligibilityAsync(db, actor, ct)).Succeeded)
+      return true;
+    return await db.GroupAccessGrants.AsNoTracking().AnyAsync(g => g.FirmId == actor.FirmId &&
+      g.UserId == actor.UserId && g.RevokedAt == null && GroupReadRoles.Contains(g.Role) &&
+      db.ClientGroups.Any(c => c.FirmId == actor.FirmId && c.Id == g.GroupId), ct);
+  }
+
+  internal static Task<CommandResult> AuthorizeGroupReadAsync(IClientAccountingDbContext db, ActorContext actor, Guid groupId, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId, GroupReadRoles, ct);
+
   public static async Task<CommandResult<ConsolidationOverview>> GetAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct = default)
   {
 
@@ -67,8 +84,7 @@ public static class ConsolidationOverviewQuery
     var accessModes = new Dictionary<Guid, string>();
     foreach (var groupId in candidateGroupIds)
     {
-      var access = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId,
-        ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"], ct);
+      var access = await AuthorizeGroupReadAsync(db, actor, groupId, ct);
       if (access.Succeeded || oversight.Succeeded)
       {
         groupIds.Add(groupId);
@@ -122,8 +138,7 @@ public static class ConsolidationOverviewQuery
       .ToDictionaryAsync(x => x.Id, x => x.Status, ct);
     foreach (var groupId in groupIds)
     {
-      var access = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId,
-        ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"], ct);
+      var access = await AuthorizeGroupReadAsync(db, actor, groupId, ct);
       accessModes[groupId] = access.Succeeded ? "OPERATIONAL" : AdministratorOversightReadAuthorization.ReadOnly;
       if (!access.Succeeded && !(await AdministratorOversightReadAuthorization.AuthorizeGroupAsync(db, actor, groupId, ct)).Succeeded)
         return CommandResult<ConsolidationOverview>.Fail(ErrorCodes.ScopeDenied, "Access denied.");

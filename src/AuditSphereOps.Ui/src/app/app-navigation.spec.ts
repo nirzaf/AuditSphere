@@ -8,6 +8,8 @@ import { provideRouter, Router } from '@angular/router';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { App } from './app';
 import { SessionService } from './core/session';
+import { provideWorkspaceAvailabilityForTests } from './core/workspace-availability.testing';
+import type { WorkspaceAvailabilityView } from './core/workspace-availability';
 import { NAVIGATION } from './navigation';
 
 @Component({ template: '<h1>Test workspace</h1>' })
@@ -15,11 +17,11 @@ class TestWorkspace {}
 
 describe('responsive workspace navigation', () => {
   afterEach(() => TestBed.resetTestingModule());
-  async function setup() {
+  async function setup(availability: Partial<WorkspaceAvailabilityView> = {}) {
     const layout = new BehaviorSubject({ matches: true, breakpoints: {} });
     let allow = true;
     TestBed.configureTestingModule({ imports: [App], providers: [
-      provideHttpClient(), provideHttpClientTesting(),
+      provideHttpClient(), provideHttpClientTesting(), provideWorkspaceAvailabilityForTests(availability),
       provideRouter([{path: 'app', component: TestWorkspace}, {path: 'other', component: TestWorkspace, canActivate: [() => allow]}]),
       {provide: BreakpointObserver, useValue: { observe: () => layout }},
     ] });
@@ -33,6 +35,15 @@ describe('responsive workspace navigation', () => {
     const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue(ref as never);
     return {fixture, app: fixture.componentInstance, layout, closed, ref, open, session: TestBed.inject(SessionService), router: TestBed.inject(Router), deny: () => {allow = false;}};
   }
+  it('renders only readable destinations and omits empty groups for an accounting reviewer', async () => {
+    const s = await setup({ destinations: ['reviews'], tasks: 'not_authorized', reviews: 'not_authorized' });
+    await s.fixture.whenStable();
+    const nav = s.fixture.nativeElement.querySelector('nav.workspace-navigation') as HTMLElement;
+    expect([...nav.querySelectorAll('a')].map(link => link.textContent?.trim())).toEqual(['Package reviews']);
+    expect([...nav.querySelectorAll('h2')].map(heading => heading.textContent?.trim())).toEqual(['Review, Reporting & Close']);
+    expect(nav.querySelector('a[href$="/app/work"]')).toBeNull();
+    s.fixture.destroy();
+  });
   it('opens one labelled focus-restoring dialog and leaves cancellation to Material', async () => {
     const s = await setup();
     await s.app.openNavigation(); await s.app.openNavigation();
@@ -106,9 +117,8 @@ describe('responsive workspace navigation', () => {
     for (const heading of nav.querySelectorAll('h2')) expect(heading.querySelector('svg[aria-hidden="true"]')).toBeTruthy();
     expect(nav.querySelector('a[href$="/app/finance/books"]')?.textContent?.trim()).toBe('Firm books');
     expect(Array.from(nav.querySelectorAll('h3')).map(heading => heading.textContent?.trim())).toEqual([
-      'Client Accounting', 'Audit Fieldwork', 'Group Consolidation',
+      'Client Accounting', 'Group Consolidation',
     ]);
-    expect(nav.textContent).toContain('Open an authorized engagement for audit work.');
     s.fixture.destroy();
   });
   it('reports a safe load failure and allows retry', async () => {

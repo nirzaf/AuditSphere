@@ -56,32 +56,20 @@ public static class WorkflowTaskQueueQuery
   private static readonly string[] ClientWaitingPbcStates =
     [PbcStates.Sent, PbcStates.Acknowledged, PbcStates.PartiallyReceived, PbcStates.ClarificationRequired];
 
-  public static async Task<CommandResult<WorkflowTaskQueue>> GetAsync(
-    IAuditSphereDbContext db, ActorContext actor, WorkflowTaskQueueRequest request, CancellationToken ct = default)
-  {
-    var view = request.View?.Trim().ToUpperInvariant();
-    if (view is not (MyTasks or Team or DueToday or Upcoming or Overdue or Completed or Cancelled or WaitingForClient or ChangesRequired or UnderReview or OnHold) || request.PageSize is < 1 or > 100 ||
-        (request.AfterTaskId is null && request.AfterDueDate.HasValue) || request.AssigneeUserId == Guid.Empty ||
-        (request.UnassignedOnly && request.AssigneeUserId.HasValue) ||
-        (view == MyTasks && (request.UnassignedOnly ||
-          (request.AssigneeUserId.HasValue && request.AssigneeUserId != actor.UserId))))
-      return CommandResult<WorkflowTaskQueue>.Fail("workflow.queue-invalid",
-        "Choose a supported queue view, page size from 1 to 100, and a valid task cursor.");
+  private sealed record QueueGrant(string Role, Guid? ClientId, Guid? EngagementId);
+  private sealed record QueueScope(List<QueueGrant> Grants, bool FirmWide, Guid[] Clients, Guid[] Engagements);
 
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+  private static Task<CommandResult> AuthorizeReadAsync(IAuditSphereDbContext db, ActorContext actor,
+    CancellationToken ct) => AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
-    if (!auth.Succeeded)
-      return CommandResult<WorkflowTaskQueue>.Fail(auth.ErrorCode!, auth.Message!);
 
-    // One UTC calendar cutoff per call: the existing calendar-date meaning of OVERDUE is preserved, never browser time.
-    var now = DateTimeOffset.UtcNow;
-    var today = DateOnly.FromDateTime(now.UtcDateTime);
-    var upcomingEnd = today.DayNumber > DateOnly.MaxValue.DayNumber - 7 ? DateOnly.MaxValue : today.AddDays(7);
-    var effectiveGrants = db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+  private static async Task<QueueScope?> ResolveScopeAsync(IAuditSphereDbContext db, ActorContext actor,
+    DateTimeOffset now, CancellationToken ct)
+  {
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
         x.UserId == actor.UserId && x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > now) &&
         ReadRoles.Contains(x.Role))
-      .Select(x => new { x.Role, x.ClientId, x.EngagementId });
-    var grants = await effectiveGrants.ToListAsync(ct);
+      .Select(x => new QueueGrant(x.Role, x.ClientId, x.EngagementId)).ToListAsync(ct);
     var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
     var clientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null)
       .Select(x => x.ClientId!.Value).Distinct().ToArray();
@@ -95,8 +83,62 @@ public static class WorkflowTaskQueueQuery
     var engagementIds = engagementScopes.Where(e => engagementGrantPairs.Any(g =>
         g.EngagementId == e.Id && g.ClientId == e.PracticeClientId))
       .Select(x => x.Id).Distinct().ToArray();
-    if (!firmWide && clientIds.Length == 0 && engagementIds.Length == 0)
+    return !firmWide && clientIds.Length == 0 && engagementIds.Length == 0
+      ? null : new QueueScope(grants, firmWide, clientIds, engagementIds);
+  }
+
+  internal static async Task<CommandResult> AuthorizeWorkspaceReadAsync(IAuditSphereDbContext db,
+    ActorContext actor, CancellationToken ct)
+  {
+    var authorization = await AuthorizeReadAsync(db, actor, ct);
+    if (!authorization.Succeeded) return authorization;
+    async Task<bool> HasUsableScopeAsync()
+    {
+      var now = DateTimeOffset.UtcNow;
+      return await db.RoleGrants.AsNoTracking().AnyAsync(g => g.FirmId == actor.FirmId &&
+        g.UserId == actor.UserId && g.RevokedAt == null && (g.ExpiresAt == null || g.ExpiresAt > now) &&
+        ReadRoles.Contains(g.Role) &&
+        ((g.ClientId == null && g.EngagementId == null) ||
+         (g.ClientId != null && g.EngagementId == null) ||
+         (g.ClientId != null && g.EngagementId != null && db.Engagements.Any(e =>
+           e.FirmId == actor.FirmId && e.Id == g.EngagementId && e.PracticeClientId == g.ClientId))), ct);
+    }
+    // Existence only: the queue owns its full scoped grant enumeration and per-row checks.
+    var allowed = await HasUsableScopeAsync();
+    authorization = await AuthorizeReadAsync(db, actor, ct);
+    if (!authorization.Succeeded) return authorization;
+    var current = await HasUsableScopeAsync();
+    if (allowed != current) return CommandResult.Fail("scope.changed", "Access changed; refresh the workspace.");
+    return current ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+  }
+
+  public static async Task<CommandResult<WorkflowTaskQueue>> GetAsync(
+    IAuditSphereDbContext db, ActorContext actor, WorkflowTaskQueueRequest request, CancellationToken ct = default)
+  {
+    var view = request.View?.Trim().ToUpperInvariant();
+    if (view is not (MyTasks or Team or DueToday or Upcoming or Overdue or Completed or Cancelled or WaitingForClient or ChangesRequired or UnderReview or OnHold) || request.PageSize is < 1 or > 100 ||
+        (request.AfterTaskId is null && request.AfterDueDate.HasValue) || request.AssigneeUserId == Guid.Empty ||
+        (request.UnassignedOnly && request.AssigneeUserId.HasValue) ||
+        (view == MyTasks && (request.UnassignedOnly ||
+          (request.AssigneeUserId.HasValue && request.AssigneeUserId != actor.UserId))))
+      return CommandResult<WorkflowTaskQueue>.Fail("workflow.queue-invalid",
+        "Choose a supported queue view, page size from 1 to 100, and a valid task cursor.");
+
+    var auth = await AuthorizeReadAsync(db, actor, ct);
+    if (!auth.Succeeded)
+      return CommandResult<WorkflowTaskQueue>.Fail(auth.ErrorCode!, auth.Message!);
+
+    // One UTC calendar cutoff per call: the existing calendar-date meaning of OVERDUE is preserved, never browser time.
+    var now = DateTimeOffset.UtcNow;
+    var today = DateOnly.FromDateTime(now.UtcDateTime);
+    var upcomingEnd = today.DayNumber > DateOnly.MaxValue.DayNumber - 7 ? DateOnly.MaxValue : today.AddDays(7);
+    var scope = await ResolveScopeAsync(db, actor, now, ct);
+    if (scope is null)
       return CommandResult<WorkflowTaskQueue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var grants = scope.Grants;
+    var firmWide = scope.FirmWide;
+    var clientIds = scope.Clients;
+    var engagementIds = scope.Engagements;
 
     var query = from binding in db.WorkflowTaskBindings.AsNoTracking()
       join task in db.WorkTasks.AsNoTracking() on new { binding.FirmId, WorkTaskId = binding.WorkTaskId }
@@ -330,14 +372,13 @@ public static class WorkflowTaskQueueQuery
       var current = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
           x.UserId == actor.UserId && x.RevokedAt == null &&
           (x.ExpiresAt == null || x.ExpiresAt > scopeCheckedAt) && ReadRoles.Contains(x.Role))
-        .Select(x => new { x.Role, x.ClientId, x.EngagementId }).ToListAsync(ct);
+        .Select(x => new QueueGrant(x.Role, x.ClientId, x.EngagementId)).ToListAsync(ct);
       var captured = grants.OrderBy(x => x.Role, StringComparer.Ordinal)
         .ThenBy(x => x.ClientId).ThenBy(x => x.EngagementId);
       if (!current.OrderBy(x => x.Role, StringComparer.Ordinal).ThenBy(x => x.ClientId)
             .ThenBy(x => x.EngagementId).SequenceEqual(captured))
         return false;
-      return (await AuthorizationDecision.AuthorizeAsync(db, actor,
-        new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct)).Succeeded;
+      return (await AuthorizeReadAsync(db, actor, ct)).Succeeded;
     }
   }
 }

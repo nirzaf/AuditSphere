@@ -6,6 +6,8 @@ Package-selection preview tests must distinguish selection from current actor el
 
 Paged review discovery checks must cover discarded candidate windows, stable equal-timestamp traversal, mixed valid/expired grants, revoked authority and session changes after paging. Task disclosure checks retain every view, visible blockers, disabled held/prerequisite completion and enabled eligible completion. Recovery-panel closure after a display change must return focus to a visible current action, including its disclosure. Structural header populations are query fixtures, not further reports or human approvals.
 
+U01 availability verification separates task, procedure-review and accounting-review authority, tests feature-off versus authorized-empty, and covers mixed and sibling scopes without widening command roles. Exercise expiry, revocation, session changes, late responses and direct/deep-link authorization at their owning boundaries. For retained actions and receipts, verify exact current-scope reads before disclosure or current-session cleanup, unchanged bounded storage discovery, unknown outcomes and explicit-only retries; a prior-session fence release must remain generic and must not delete a task record or assert an outcome. Record focused synthetic, browser, exact-source CI and human/professional evidence separately; none alone establishes all U01 acceptance.
+
 ## 1. Execution tiers and ownership
 
 For browser-visible changes, use the built-in browser as the primary dynamic verification where available: open the target page, exercise the relevant flow, check responsive rendering and inspect console/network errors. Use computer use only when the built-in browser is insufficient. Full automated browser journeys remain in CI/CD.

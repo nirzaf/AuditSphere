@@ -52,8 +52,7 @@ public static class PracticeLeadQuery
         (filter.Status is not null && !LeadStatuses.Contains(filter.Status)) ||
         (filter.Source is not null && !LeadChannels.All.Contains(filter.Source)))
       return CommandResult<PracticeLeadPage>.Fail("request.invalid", "Invalid search, filter or pagination.");
-    var request = new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles, InternalOnly: true, RequireFirmWide: true);
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    var auth = await AuthorizeReadAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<PracticeLeadPage>.Fail(auth.ErrorCode!, "Leads unavailable.");
     var query = db.Leads.AsNoTracking().Where(l => l.FirmId == actor.FirmId);
     if (!string.IsNullOrWhiteSpace(search))
@@ -104,7 +103,7 @@ public static class PracticeLeadQuery
       if (snapshot is not null) await snapshot.DisposeAsync();
     }
 
-    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    auth = await AuthorizeReadAsync(db, actor, ct);
     return auth.Succeeded ? CommandResult<PracticeLeadPage>.Ok(new(staged, summary.Matching, page, pageSize, summary))
       : CommandResult<PracticeLeadPage>.Fail(auth.ErrorCode!, "Leads unavailable.");
   }
@@ -124,9 +123,7 @@ public static class PracticeLeadQuery
   public static async Task<CommandResult<IReadOnlyList<PracticeLeadListItem>>> ListAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
   {
-    var request = new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles,
-      InternalOnly: true, RequireFirmWide: true);
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    var auth = await AuthorizeReadAsync(db, actor, ct);
     if (!auth.Succeeded)
       return CommandResult<IReadOnlyList<PracticeLeadListItem>>.Fail(auth.ErrorCode!, auth.Message!);
 
@@ -137,9 +134,13 @@ public static class PracticeLeadQuery
         x.PrimaryContactName, x.PrimaryContactEmail, x.Status, x.CreatedAt))
       .ToListAsync(ct);
 
-    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    auth = await AuthorizeReadAsync(db, actor, ct);
     return auth.Succeeded
       ? CommandResult<IReadOnlyList<PracticeLeadListItem>>.Ok(leads)
       : CommandResult<IReadOnlyList<PracticeLeadListItem>>.Fail(auth.ErrorCode!, auth.Message!);
   }
+
+  internal static Task<CommandResult> AuthorizeReadAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles, InternalOnly: true, RequireFirmWide: true), ct);
 }

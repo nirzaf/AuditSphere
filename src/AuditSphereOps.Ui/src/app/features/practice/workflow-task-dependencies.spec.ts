@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { SessionService } from '../../core/session';
@@ -22,6 +23,24 @@ describe('reviewed task ordering', () => {
     http.expectOne(url).flush({ ...state, canManage }); TestBed.tick(); fixture.detectChanges();
     return { fixture, c: fixture.componentInstance, http, session };
   }
+  it('clears unsent assent and preserves a pending key when access or the panel is lost', async () => {
+    const { fixture, c, http } = setup();
+    const access = signal(true), revision = signal(0);
+    fixture.componentRef.setInput('accessCurrent', access); fixture.componentRef.setInput('accessRevision', revision);
+    TestBed.tick(); http.expectOne(url).flush(state); TestBed.tick();
+    c.reason = 'Reviewed ordering'; c.prepare(predecessor, true); c.confirmed = true;
+    access.set(false); revision.update(n => n + 1); TestBed.tick();
+    expect(c.review()).toBeNull(); expect(c.confirmed).toBe(false);
+    c.workspace.reload(); await c.submit(); http.expectNone(url); http.expectNone(r => r.method === 'POST');
+    access.set(true); revision.update(n => n + 1); TestBed.tick(); http.expectOne(url).flush(state); TestBed.tick();
+    c.reason = 'Reviewed ordering'; c.prepare(predecessor, true); c.confirmed = true;
+    const saving = c.submit(); const post = http.expectOne(r => r.method === 'POST'); const key = post.request.body.idempotencyKey;
+    fixture.destroy();
+    post.flush({ value: { engagementId: engagement, taskId: task, idempotencyKey: key, changeId: user, taskRevision: 2 } });
+    await saving;
+    expect(sessionStorage.getItem(`auditsphere.workflow-ordering:${user}:${user}:${engagement}:${task}`)).toBe(key);
+    http.expectNone(url); http.verify({ ignoreCancelled: true });
+  });
   it('rejects missing, duplicate, self, cross-graph and revision-mismatched references', () => {
     for (const bad of [ { ...state, taskRevision: 2 }, { ...state, tasks: [...state.tasks, state.tasks[0]] },
       { ...state, references: [{ predecessorTaskId: task, required: true, version: 1, reason: 'Self' }] },

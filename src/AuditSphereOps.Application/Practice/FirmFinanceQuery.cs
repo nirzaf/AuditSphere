@@ -32,12 +32,15 @@ public static class FirmFinanceQuery
   private static readonly string[] FinanceRoles = ["FinanceManager", "FinanceReviewer"];
   private static readonly string[] ManagerRoles = ["FinanceManager"];
 
+  // Operational admission only. Oversight eligibility must be checked separately without recording a read.
+  internal static Task<CommandResult> AuthorizeReadAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: FinanceRoles,
+      InternalOnly: true, RequireFirmWide: true), ct);
+
   public static async Task<CommandResult<FirmFinanceSnapshot>> GetAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
   {
-    var request = new AuthorizationRequest(actor.FirmId, RequiredRoles: FinanceRoles,
-      InternalOnly: true, RequireFirmWide: true);
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    var auth = await AuthorizeReadAsync(db, actor, ct);
     if (!auth.Succeeded && auth.ErrorCode == ErrorCodes.ScopeDenied)
       auth = await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded)
@@ -93,7 +96,7 @@ public static class FirmFinanceQuery
         linesByJournal.GetValueOrDefault(x.Id, [])))
       .ToList();
 
-    var operationalRead = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    var operationalRead = await AuthorizeReadAsync(db, actor, ct);
     auth = operationalRead;
     if (!auth.Succeeded && auth.ErrorCode == ErrorCodes.ScopeDenied)
       auth = await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct);

@@ -27,11 +27,15 @@ public static class CurrencyRemeasurementWorkspaceQuery
 {
   private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
 
+  // Admission only; scope resolution and any return-time checks remain owned by the query.
+  internal static Task<CommandResult> AuthorizeReadAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: Roles, InternalOnly: true), ct);
+
   private sealed record Scope(bool FirmWide, Guid[] Clients, Guid[] PermittedEngagements, List<Domain.Engagements.Engagement> Engagements);
 
   private static async Task<Scope?> ScopeAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct)
   {
-    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: Roles, InternalOnly: true), ct)).Succeeded) return null;
+    if (!(await AuthorizeReadAsync(db, actor, ct)).Succeeded) return null;
     var now = DateTimeOffset.UtcNow;
     var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > now) && Roles.Contains(x.Role))
       .Select(x => new { x.ClientId, x.EngagementId }).Take(20001).ToListAsync(ct);

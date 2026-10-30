@@ -26,6 +26,10 @@ public static class ProcedureReviewInboxQuery
   private static readonly string[] ReviewRoles = ["Reviewer", "Senior", "Manager", "Partner", "Administrator"];
   private const int ScanBatchSize = 100;
 
+  internal static Task<CommandResult> AuthorizeReadAsync(IAuditSphereDbContext db, ActorContext actor,
+    CancellationToken ct) => AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ReviewRoles, InternalOnly: true), ct);
+
   public static async Task<CommandResult<ProcedureReviewInbox>> GetAsync(
     IAuditSphereDbContext db, ActorContext actor, ProcedureReviewInboxRequest request,
     CancellationToken ct = default)
@@ -35,8 +39,7 @@ public static class ProcedureReviewInboxQuery
       return CommandResult<ProcedureReviewInbox>.Fail("workflow.review-inbox-invalid",
         "Choose a page size from 1 to 100 and provide both review cursor values together.");
 
-    var roleAccess = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: ReviewRoles, InternalOnly: true), ct);
+    var roleAccess = await AuthorizeReadAsync(db, actor, ct);
     if (!roleAccess.Succeeded)
       return CommandResult<ProcedureReviewInbox>.Fail(roleAccess.ErrorCode!, roleAccess.Message!);
 

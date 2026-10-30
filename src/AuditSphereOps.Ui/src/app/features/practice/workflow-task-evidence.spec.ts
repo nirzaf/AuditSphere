@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
@@ -47,6 +48,30 @@ describe('reviewed task evidence changes', () => {
     const http = TestBed.inject(HttpTestingController); http.expectOne(url).flush({ ...workspace, canManage }); TestBed.tick(); fixture.detectChanges();
     return { fixture, component: fixture.componentInstance, http, session };
   }
+
+  it('retains the submitted key and fences late receipts across availability changes', async () => {
+    const { fixture, component: c, http } = setup();
+    const access = signal(true), revision = signal(0);
+    fixture.componentRef.setInput('accessCurrent', access);
+    fixture.componentRef.setInput('accessRevision', revision);
+    TestBed.tick(); http.expectOne(url).flush(workspace); TestBed.tick();
+    c.reason = 'Reviewed prerequisite'; c.prepare('CURRENT_MATERIALITY_APPROVED', null, true); c.confirmed = true;
+    const saving = c.submit(); const post = http.expectOne(r => r.method === 'POST'); const key = post.request.body.idempotencyKey;
+    access.set(false); revision.update(n => n + 1);
+    post.flush({ value: { engagementId: engagement, taskId: task, idempotencyKey: key, ruleRevisionId: user, taskRevision: 2 } });
+    await saving; TestBed.tick();
+    expect(c.pending()).toBe(key); expect(c.review()).toBeNull(); expect(c.confirmed).toBe(false);
+    c.workspace.reload(); await c.recover(); http.expectNone(url); http.expectNone(`${url}/receipts/${key}`);
+    access.set(true); revision.update(n => n + 1); TestBed.tick(); http.expectOne(url).flush(workspace); TestBed.tick();
+    const delayed = c.recover(); const lookup = http.expectOne(`${url}/receipts/${key}`);
+    access.set(false); revision.update(n => n + 1);
+    lookup.flush({ engagementId: engagement, taskId: task, idempotencyKey: key, ruleRevisionId: user, taskRevision: 2 });
+    await delayed; TestBed.tick(); expect(c.pending()).toBe(key);
+    access.set(true); revision.update(n => n + 1); TestBed.tick(); http.expectOne(url).flush(workspace); TestBed.tick();
+    const recovering = c.recover(); http.expectOne(`${url}/receipts/${key}`).flush({ engagementId: engagement, taskId: task, idempotencyKey: key, ruleRevisionId: user, taskRevision: 2 });
+    await recovering; http.expectOne(url).flush({ ...workspace, taskRevision: 2 });
+    expect(c.pending()).toBeNull(); http.expectNone(r => r.method === 'POST'); http.verify({ ignoreCancelled: true }); fixture.destroy();
+  });
 
   it('links each pending prerequisite to the page that clears it and none for satisfied or withdrawn ones', () => {
     const { fixture, component: c, http } = setup();

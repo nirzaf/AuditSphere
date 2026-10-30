@@ -1,4 +1,4 @@
-import { Component, effect, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
@@ -115,14 +115,32 @@ export class WorkflowTaskEvidencePanel {
   readonly engagementId = input.required<string>();
   readonly taskId = input.required<string>();
   readonly title = input.required<string>();
+  readonly accessCurrent = input<() => boolean>(() => true);
+  readonly accessRevision = input<() => number>(() => 0);
   readonly changed = output<void>();
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
-  readonly workspace = this.api.resource(() => this.url(), (value, path) => {
+  private destroyed = false;
+  private workspaceRevision = 0;
+  private verifiedRevision = -1;
+  private readonly workspaceResource = this.api.resource(() => {
+    this.workspaceRevision = this.accessRevision()();
+    return this.accessCurrent()() ? this.url() : null;
+  }, (value, path) => {
+    if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()()) throw new Error('Task access changed.');
     const data = decodeTaskEvidence(value, path);
     if (data.engagementId !== this.engagementId() || data.taskId !== this.taskId()) throw new Error('The task scope changed.');
+    this.verifiedRevision = this.accessRevision()();
     return data;
   }, 'Prerequisites are unavailable in your current task scope.');
+  readonly workspace = { ...this.workspaceResource, reload: () => {
+    if (this.accessCurrent()() && this.workspaceRevision === this.accessRevision()()) this.workspaceResource.reload();
+  } };
+  authorizedWorkspace(): boolean {
+    const data = this.workspace.data();
+    return this.accessCurrent()() && this.verifiedRevision === this.accessRevision()() && !!data &&
+      data.engagementId === this.engagementId() && data.taskId === this.taskId();
+  }
   readonly review = signal<Change | null>(null);
   readonly pending = signal<string | null>(null);
   readonly busy = signal(false);
@@ -141,6 +159,11 @@ export class WorkflowTaskEvidencePanel {
       try { const saved = sessionStorage.getItem(this.storageKey()); this.pending.set(saved ? guid(saved, 'saved request key') : null); }
       catch { this.pending.set(null); }
     });
+    effect(() => {
+      this.accessRevision()(); this.accessCurrent()();
+      untracked(() => { this.review.set(null); this.confirmed = false; });
+    });
+    inject(DestroyRef).onDestroy(() => { this.destroyed = true; });
   }
 
   /** Where the user goes to clear a pending prerequisite; the target page enforces its own authority. */
@@ -158,7 +181,7 @@ export class WorkflowTaskEvidencePanel {
 
   prepare(kindValue: Kind, sourceId: string | null, required: boolean): void {
     const data = this.workspace.data();
-    if (!data?.canManage || this.busy() || this.pending()) return;
+    if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()() || !data?.canManage || this.busy() || this.pending()) return;
     this.failed.set(false); this.message.set('');
     try {
       kind(kindValue, 'kind');
@@ -174,32 +197,36 @@ export class WorkflowTaskEvidencePanel {
 
   async submit(): Promise<void> {
     const change = this.review(); const data = this.workspace.data();
-    if (!change || !data?.canManage || !this.confirmed || this.busy() || this.pending() || data.taskRevision !== change.expectedRevision) return;
+    if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()() || !change || !data?.canManage || !this.confirmed || this.busy() || this.pending() || data.taskRevision !== change.expectedRevision) return;
     const key = this.storageKey(); const url = this.url(); const generation = this.session.invalidation();
+    const accessRevision = this.accessRevision()();
     try { sessionStorage.setItem(key, change.idempotencyKey); }
     catch { this.failed.set(true); this.message.set('A recovery key could not be saved, so no change was submitted.'); return; }
     this.pending.set(change.idempotencyKey); this.busy.set(true);
     try {
       const result = await this.api.command<unknown>(url, change);
-      if (generation !== this.session.invalidation() || url !== this.url()) return;
-      if (result.ok) this.accept(result.value, change.idempotencyKey, key);
+      if (!this.active(key, generation, url)) return;
+      if (result.ok && (!this.accessCurrent()() || accessRevision !== this.accessRevision()())) {
+        this.message.set('Access changed. Read the saved receipt after access returns.');
+      } else if (result.ok) this.accept(result.value, change.idempotencyKey, key);
       else {
         this.failed.set(true); this.message.set(result.message);
         if (!result.unknown) { sessionStorage.removeItem(key); this.pending.set(null); this.review.set(null); this.workspace.reload(); }
       }
-    } catch { this.failed.set(true); this.message.set('The change outcome is unconfirmed. Read its saved receipt before another action.'); }
+    } catch { if (this.active(key, generation, url)) { this.failed.set(true); this.message.set('The change outcome is unconfirmed. Read its saved receipt before another action.'); } }
     finally { this.busy.set(false); }
   }
 
   async recover(): Promise<void> {
-    const key = this.pending(); if (!key || this.busy()) return;
+    const key = this.pending(); if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()() || !this.workspace.data() || !key || this.busy()) return;
     const url = this.url(); const storageKey = this.storageKey(); const generation = this.session.invalidation();
+    const accessRevision = this.accessRevision()();
     this.busy.set(true);
     try {
       const value = await this.api.get(`${url}/receipts/${encodeURIComponent(key)}`, decodeEvidenceReceipt);
-      if (generation === this.session.invalidation() && url === this.url()) this.accept(value, key, storageKey);
+      if (this.active(storageKey, generation, url) && this.accessCurrent()() && accessRevision === this.accessRevision()()) this.accept(value, key, storageKey);
     } catch {
-      if (generation !== this.session.invalidation() || url !== this.url()) return;
+      if (!this.active(storageKey, generation, url) || !this.accessCurrent()() || accessRevision !== this.accessRevision()()) return;
       this.failed.set(true); this.message.set('A saved receipt was not confirmed. Keep the recovery key and review the task; no change was resent.');
     }
     finally { this.busy.set(false); }
@@ -215,5 +242,8 @@ export class WorkflowTaskEvidencePanel {
   }
 
   private url(): string { return `/api/ui/engagements/${this.engagementId()}/workflow/tasks/${this.taskId()}/evidence`; }
+  private active(key: string, generation: number, url: string): boolean {
+    return !this.destroyed && generation === this.session.invalidation() && key === this.storageKey() && url === this.url();
+  }
   private storageKey(): string { return `auditsphere.workflow-evidence:${this.session.current()?.firmId ?? 'none'}:${this.session.current()?.userId ?? 'none'}:${this.engagementId()}:${this.taskId()}`; }
 }

@@ -32,6 +32,18 @@ public static class AccountingWorkspaceQuery
 {
   private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
 
+  internal static async Task<CommandResult> AuthorizeWorkspaceReadAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct)
+  {
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: Roles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return auth;
+    var now = DateTimeOffset.UtcNow;
+    var exists = await db.RoleGrants.AsNoTracking().AnyAsync(g => g.FirmId == actor.FirmId && g.UserId == actor.UserId &&
+      g.RevokedAt == null && (g.ExpiresAt == null || g.ExpiresAt > now) && g.EngagementId == null && Roles.Contains(g.Role) &&
+      (g.ClientId == null || db.PracticeClients.Any(c => c.FirmId == actor.FirmId && c.Id == g.ClientId)), ct);
+    return exists ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.ScopeDenied, "Accounting unavailable.");
+  }
+
   public static async Task<CommandResult<AccountingClientPage>> ListAsync(IClientAccountingDbContext db,
     ActorContext actor, string? search = null, int page = 0, int pageSize = 25, CancellationToken ct = default)
   {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeActivity, decodeQueueSummary, hasBlockingPrerequisites } from './work-queue';
 
 const activity = {
@@ -113,18 +113,38 @@ describe('work overview summary contract', () => {
 });
 
 import { TestBed } from '@angular/core/testing';
+import type { ComponentFixture } from '@angular/core/testing';
+import type { WritableSignal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { SessionService } from '../../core/session';
+import { provideWorkspaceAvailabilityForTests } from '../../core/workspace-availability.testing';
+import { WorkspaceAvailability, type WorkspaceAvailabilityView } from '../../core/workspace-availability';
 import { WorkflowWorkQueue } from './work-queue';
 import { WorkflowTaskCancellationPanel } from './workflow-task-cancellation';
+import { WorkflowTaskApplicabilityPanel } from './workflow-task-applicability';
 
 describe('workflow queue assignment filters', () => {
+  beforeEach(() => {
+    // Each synthetic case owns a separate storage object and its in-memory reconciliation fences.
+    class CaseStorage implements Storage {
+      private readonly values = new Map<string, string>();
+      get length(): number { return this.values.size; }
+      clear(): void { this.values.clear(); }
+      getItem(key: string): string | null { return this.values.get(key) ?? null; }
+      key(index: number): string | null { return [...this.values.keys()][index] ?? null; }
+      removeItem(key: string): void { this.values.delete(key); }
+      setItem(key: string, value: string): void { this.values.set(key, String(value)); }
+    }
+    vi.stubGlobal('Storage', CaseStorage);
+    vi.stubGlobal('sessionStorage', new CaseStorage());
+  });
+  afterEach(() => vi.unstubAllGlobals());
   it('sends the current session owner, resets paging when assignment changes, and clears assignment on view changes', () => {
-    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])] });
+    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideWorkspaceAvailabilityForTests()] });
     const userId = '11111111-1111-4111-8111-111111111111';
     TestBed.inject(SessionService).current.set({ userId, firmId: userId, generation: '1', staff: true });
     const fixture = TestBed.createComponent(WorkflowWorkQueue);
@@ -224,7 +244,7 @@ describe('workflow queue assignment filters', () => {
   const reopenableTask = { ...task, taskStatus: 'CANCELLED', canCancel: false, canReopen: true };
   const legacyTask = Object.fromEntries(Object.entries(task).filter(([key]) => key !== 'canCancel' && key !== 'canReopen'));
   const start = () => {
-    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])] });
+    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideWorkspaceAvailabilityForTests()] });
     const userId = '11111111-1111-4111-8111-111111111111';
     const session = TestBed.inject(SessionService);
     session.current.set({ userId, firmId: userId, generation: '1', staff: true });
@@ -238,7 +258,7 @@ describe('workflow queue assignment filters', () => {
     return { fixture, http, session, userId, host, overview, cards, card, countOf, component: fixture.componentInstance };
   };
   const openCancellation = (test: ReturnType<typeof start>, overrides: object = {}) => {
-    const { fixture, http, host } = test;
+    const { fixture, http, host, component } = test;
     fixture.detectChanges(); TestBed.tick();
     http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
       .flush({ view: 'MY_TASKS', tasks: [{ ...cancelableTask, ...overrides }], hasMore: false, nextCursor: null, summary: summary() });
@@ -248,6 +268,136 @@ describe('workflow queue assignment filters', () => {
     trigger.focus(); trigger.click(); fixture.detectChanges(); TestBed.tick();
     return fixture.debugElement.query(By.directive(WorkflowTaskCancellationPanel)).componentInstance as WorkflowTaskCancellationPanel;
   };
+
+  // Fail exactly the readback after a real registry write, leaving the written bytes intact.
+  const failRegistryReadback = (registryKey: string, entryCount: number) => {
+    const originalSet = Storage.prototype.setItem, originalGet = Storage.prototype.getItem;
+    let failNextRead = false, injected = false;
+    const write = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      originalSet.call(this, key, value);
+      if (!injected && this === sessionStorage && key === registryKey && JSON.parse(value).entries.length === entryCount) {
+        injected = true; failNextRead = true;
+      }
+    });
+    const read = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function (this: Storage, key) {
+      if (this === sessionStorage && key === registryKey && failNextRead) {
+        failNextRead = false; throw new Error('Synthetic registry readback failure');
+      }
+      return originalGet.call(this, key);
+    });
+    return { injected: () => injected, restore: () => { read.mockRestore(); write.mockRestore(); } };
+  };
+
+  it('discovers off-page receipts only after exact reads and opens recovery despite another same-task key', async () => {
+    const { fixture, http, host, component, userId } = start();
+    const savedTask = '99999999-9999-4999-8999-999999999999';
+    const key = '77777777-7777-4777-8777-777777777777';
+    const suffix = `${userId}:${userId}:${task.engagementId}:${savedTask}`;
+    const applicabilityKey = `auditsphere.workflow-applicability:${suffix}`;
+    const orderingKey = `auditsphere.workflow-ordering:${suffix}`;
+    const exactUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${savedTask}`;
+    const panelUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks/${savedTask}/applicability`;
+    const exact = { engagementId: task.engagementId, truncated: false, tasks: [{ id: savedTask, assigneeUserId: null,
+      assigneeDisplayName: null, revision: 1, status: 'OPEN' }] };
+    try {
+      sessionStorage.setItem(applicabilityKey, key); sessionStorage.setItem(orderingKey, key);
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); component.findSavedReceipts(); fixture.detectChanges();
+      expect(host.textContent).not.toContain(savedTask);
+      http.expectOne(exactUrl).flush(exact);
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+      http.expectOne(exactUrl).flush(exact); await fixture.whenStable(); fixture.detectChanges();
+      expect(host.textContent).toContain(savedTask);
+      const entry = component.visibleSavedReceipts().find(item => item.candidate.kind === 'applicability')!;
+      const opening = component.openSavedReceipt(entry);
+      http.expectOne(exactUrl).flush(exact); await opening; TestBed.tick(); fixture.detectChanges();
+      http.expectOne(panelUrl).flush({ engagementId: task.engagementId, taskId: savedTask, taskRevision: '1', latestProposalId: null,
+        proposal: null, preview: null, canPropose: false, canApprove: false, canReturn: false, canRevoke: false });
+      TestBed.tick();
+      const panel = fixture.debugElement.query(By.directive(WorkflowTaskApplicabilityPanel)).componentInstance as WorkflowTaskApplicabilityPanel;
+      expect(panel.pending()).toBe(key);
+      expect(component.taskMutationBlocked(task.taskId)).toBe(false);
+      component.complete(task.engagementId, savedTask, 1);
+      http.expectNone(request => request.method === 'POST' && request.url.includes(savedTask));
+      expect(sessionStorage.getItem(orderingKey)).toBe(key);
+      component.closeSavedReceipt(); TestBed.tick();
+      expect(sessionStorage.getItem(applicabilityKey)).toBe(key);
+      const reopening = component.openSavedReceipt(entry);
+      http.expectOne(exactUrl).flush(exact); await reopening; TestBed.tick();
+      http.expectOne(panelUrl).flush({ engagementId: task.engagementId, taskId: savedTask, taskRevision: '1', latestProposalId: null,
+        proposal: null, preview: null, canPropose: false, canApprove: false, canReturn: false, canRevoke: false });
+      TestBed.tick();
+      const reopened = fixture.debugElement.query(By.directive(WorkflowTaskApplicabilityPanel)).componentInstance as WorkflowTaskApplicabilityPanel;
+      const recovering = reopened.recover();
+      http.expectOne(`${panelUrl}/receipts/${key}`).flush({ engagementId: task.engagementId, taskId: savedTask,
+        idempotencyKey: key, proposalId: '66666666-6666-4666-8666-666666666666', decisionId: null, version: '1' });
+      await recovering; TestBed.tick();
+      expect(sessionStorage.getItem(applicabilityKey)).toBeNull();
+      expect(sessionStorage.getItem(orderingKey)).toBe(key);
+      component.complete(task.engagementId, savedTask, 1);
+      http.expectNone(request => request.method === 'POST' && request.url.includes(savedTask));
+    } finally { sessionStorage.removeItem(applicabilityKey); sessionStorage.removeItem(orderingKey); fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('does not disclose a delayed exact read after a session, availability or saved-key change', async () => {
+    for (const change of ['session', 'availability', 'key'] as const) {
+      const { fixture, http, host, component, userId, session } = start();
+      const savedTask = '99999999-9999-4999-8999-999999999999';
+      const storageKey = `auditsphere.workflow-evidence:${userId}:${userId}:${task.engagementId}:${savedTask}`;
+      try {
+        sessionStorage.setItem(storageKey, '77777777-7777-4777-8777-777777777777');
+        fixture.detectChanges(); TestBed.tick();
+        http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true')).flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+        http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+        TestBed.tick(); component.findSavedReceipts();
+        const request = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${savedTask}`);
+        if (change === 'session') session.current.set({ userId, firmId: userId, generation: '2', staff: true });
+        else if (change === 'availability') TestBed.inject(WorkspaceAvailability).invalidate();
+        else sessionStorage.setItem(storageKey, '88888888-8888-4888-8888-888888888888');
+        request.flush({ engagementId: task.engagementId, truncated: false, tasks: [{ id: savedTask, assigneeUserId: null,
+          assigneeDisplayName: null, revision: 1, status: 'OPEN' }] });
+        await Promise.resolve(); await Promise.resolve(); TestBed.tick(); fixture.detectChanges();
+        expect(host.textContent).not.toContain(savedTask);
+        expect(component.visibleSavedReceipts()).toEqual([]);
+        expect(sessionStorage.getItem(storageKey)).not.toBeNull();
+      } finally { sessionStorage.removeItem(storageKey); fixture.destroy(); TestBed.resetTestingModule(); }
+    }
+  });
+
+  it('reports an incomplete scan for a malformed current-owner key without reading or deleting it', () => {
+    const { fixture, http, component, userId } = start();
+    const storageKey = `auditsphere.workflow-evidence:${userId}:${userId}:${task.engagementId}:invalid`;
+    try {
+      sessionStorage.setItem(storageKey, 'unrecognized');
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true')).flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); component.findSavedReceipts();
+      expect(component.receiptMessage()).toContain('incomplete');
+      expect(sessionStorage.getItem(storageKey)).toBe('unrecognized');
+      http.expectNone(request => request.url.includes('/workflow/tasks?taskId='));
+    } finally { sessionStorage.removeItem(storageKey); fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('fences a malformed same-task key without blocking another task', () => {
+    const { fixture, http, component, userId } = start();
+    const otherId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const storageKey = `auditsphere.workflow-evidence:${userId}:${userId}:${task.engagementId}:${task.taskId}:extra`;
+    try {
+      sessionStorage.setItem(storageKey, 'malformed');
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task, { ...task, taskId: otherId }], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick();
+      expect(component.taskMutationBlocked(task.taskId)).toBe(true);
+      expect(component.taskMutationBlocked(otherId)).toBe(false);
+      expect(sessionStorage.getItem(storageKey)).toBe('malformed');
+    } finally { sessionStorage.removeItem(storageKey); fixture.destroy(); TestBed.resetTestingModule(); }
+  });
 
   it('keeps the applicability receipt panel through a queue refresh and removes it after confirmed scope loss', () => {
     const { fixture, http, host, component } = start();
@@ -275,6 +425,78 @@ describe('workflow queue assignment filters', () => {
       TestBed.tick(); fixture.detectChanges(); expect(component.applicabilityTask()).toBeNull();
       expect(host.querySelector('audit-workflow-task-applicability')).toBeNull(); http.verify();
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+  it('does not use the previous task workspace to reveal a newly selected task panel', () => {
+    const { fixture, http, host, component } = start();
+    const first = { ...task, applicabilityCondition: 'First condition', requiredTask: true };
+    const second = { ...first, taskId: '99999999-9999-4999-8999-999999999999', title: 'Other task' };
+    const queueUrl = tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true');
+    const workspace = (id: string) => `/api/ui/engagements/${task.engagementId}/workflow/tasks/${id}/applicability`;
+    const result = (id: string) => ({ engagementId: task.engagementId, taskId: id, taskRevision: '1', latestProposalId: null,
+      proposal: null, preview: null, canPropose: false, canApprove: false, canReturn: false, canRevoke: false });
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [first, second], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); component.selectApplicability(first); TestBed.tick(); fixture.detectChanges();
+      http.expectOne(workspace(first.taskId)).flush(result(first.taskId)); TestBed.tick(); fixture.detectChanges();
+      expect(host.querySelector('div[hidden] audit-workflow-task-applicability')).toBeNull();
+      component.selectApplicability(second); fixture.detectChanges(); TestBed.tick(); fixture.detectChanges();
+      expect(host.querySelector('div[hidden] audit-workflow-task-applicability')).toBeTruthy();
+      http.expectOne(workspace(second.taskId)).flush(result(second.taskId)); TestBed.tick(); fixture.detectChanges();
+      expect(host.querySelector('div[hidden] audit-workflow-task-applicability')).toBeNull();
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('preserves an unresolved applicability receipt through a transient availability loss', () => {
+    const { fixture, http, host, component, userId } = start();
+    const conditional = { ...task, applicabilityCondition: 'Synthetic condition', requiredTask: true };
+    const queueUrl = tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true');
+    const workspaceUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/applicability`;
+    const storageKey = `auditsphere.workflow-applicability:${userId}:${userId}:${task.engagementId}:${task.taskId}`;
+    const requestKey = '77777777-7777-4777-8777-777777777777';
+    try {
+      sessionStorage.setItem(storageKey, requestKey);
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [conditional], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); fixture.detectChanges();
+      [...host.querySelectorAll<HTMLButtonElement>('button')].find(x => x.textContent?.trim() === 'Review conditional applicability')!.click();
+      TestBed.tick(); fixture.detectChanges();
+      http.expectOne(workspaceUrl).flush({ engagementId: task.engagementId, taskId: task.taskId, taskRevision: '1', latestProposalId: null,
+        proposal: null, preview: null, canPropose: false, canApprove: false, canReturn: false, canRevoke: false });
+      TestBed.tick();
+      const panel = fixture.debugElement.query(By.directive(WorkflowTaskApplicabilityPanel)).componentInstance as WorkflowTaskApplicabilityPanel;
+      expect(panel.pending()).toBe(requestKey);
+      const access = TestBed.inject(WorkspaceAvailability), previous = access.current();
+      access.invalidate(); TestBed.tick(); fixture.detectChanges();
+      expect(fixture.debugElement.query(By.directive(WorkflowTaskApplicabilityPanel)).componentInstance).toBe(panel);
+      expect(host.querySelector('div[hidden] audit-workflow-task-applicability')).toBeTruthy();
+      component.selectView('MY_TASKS'); TestBed.tick();
+      expect(panel.pending()).toBe(requestKey);
+      (access.current as WritableSignal<WorkspaceAvailabilityView | null>).set(previous);
+      (access.revision as WritableSignal<number>).update(value => value + 1);
+      TestBed.tick(); fixture.detectChanges();
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [conditional], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      expect(host.querySelector('div[hidden] audit-workflow-task-applicability')).toBeTruthy();
+      http.expectOne(workspaceUrl).flush({ engagementId: task.engagementId, taskId: task.taskId, taskRevision: '1', latestProposalId: null,
+        proposal: null, preview: null, canPropose: false, canApprove: false, canReturn: false, canRevoke: false });
+      TestBed.tick(); fixture.detectChanges();
+      expect(host.querySelector('div[hidden] audit-workflow-task-applicability')).toBeNull();
+      expect(panel.pending()).toBe(requestKey); expect(sessionStorage.getItem(storageKey)).toBe(requestKey);
+      [...host.querySelectorAll<HTMLButtonElement>('button')].find(x => x.textContent?.trim() === 'Close conditional applicability')!.click();
+      TestBed.tick(); fixture.detectChanges();
+      expect(host.querySelector('audit-workflow-task-applicability')).toBeNull();
+      [...host.querySelectorAll<HTMLButtonElement>('button')].find(x => x.textContent?.trim() === 'Review conditional applicability')!.click();
+      TestBed.tick(); fixture.detectChanges();
+      const reopened = fixture.debugElement.query(By.directive(WorkflowTaskApplicabilityPanel)).componentInstance as WorkflowTaskApplicabilityPanel;
+      http.expectOne(workspaceUrl).flush({ engagementId: task.engagementId, taskId: task.taskId, taskRevision: '1', latestProposalId: null,
+        proposal: null, preview: null, canPropose: false, canApprove: false, canReturn: false, canRevoke: false });
+      TestBed.tick(); expect(reopened.pending()).toBe(requestKey);
+      http.expectNone(request => request.method === 'POST'); http.verify({ ignoreCancelled: true });
+    } finally { sessionStorage.removeItem(storageKey); fixture.destroy(); TestBed.resetTestingModule(); }
   });
   const openReopening = (test: ReturnType<typeof start>) => {
     const { fixture, http, host } = test;
@@ -766,6 +988,561 @@ describe('workflow queue assignment filters', () => {
       expect(component.assignmentOptions()).toEqual([]);
       expect(component.assignmentUncertain()).toBe(false);
       expect(component.assignmentMessage()).not.toContain('Task assigned');
+      const key = 'auditsphere.work-queue-actions.v1:11111111-1111-4111-8111-111111111111:11111111-1111-4111-8111-111111111111';
+      const saved = JSON.parse(sessionStorage.getItem(key)!);
+      expect(saved.entries).toEqual([expect.objectContaining({ taskId: task.taskId, action: 'reassign', requestedAssigneeId: '55555555-5555-4555-8555-555555555555' })]);
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('does not accept a completion response observed after availability changes', async () => {
+    const { fixture, http, component } = start();
+    const registryKey = 'auditsphere.work-queue-actions.v1:11111111-1111-4111-8111-111111111111:11111111-1111-4111-8111-111111111111';
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      component.complete(task.engagementId, task.taskId, task.revision);
+      const post = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/complete`);
+      const access = TestBed.inject(WorkspaceAvailability), previous = access.current();
+      access.invalidate();
+      post.flush({ value: true });
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(component.registryRecords()).toHaveLength(1);
+      expect(component.actionMessage()).not.toContain('Task completed.');
+      const requestId = component.registryRecords()[0].requestId;
+      (access.current as WritableSignal<WorkspaceAvailabilityView | null>).set(previous);
+      (access.revision as WritableSignal<number>).update(value => value + 1);
+      TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      const unchanged = component.observeAction(requestId);
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`).flush({
+        engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName,
+          revision: task.revision, status: 'IN_PROGRESS', dueDate: task.dueDate }],
+      });
+      await unchanged;
+      component.acknowledgeAction(requestId);
+      expect(component.registryRecords()).toHaveLength(1);
+      const checking = component.observeAction(requestId);
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`).flush({
+        engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName,
+          revision: task.revision + 1, status: 'COMPLETED', dueDate: task.dueDate }],
+      });
+      await checking;
+      expect(component.actionObservations()[requestId]?.row.status).toBe('COMPLETED');
+      component.acknowledgeAction(requestId);
+      expect(component.registryRecords()).toHaveLength(0);
+      expect(component.actionMessage()).toContain('outcome is not established');
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      http.expectNone(request => request.method === 'POST');
+      http.verify({ ignoreCancelled: true });
+    } finally { sessionStorage.removeItem(registryKey); fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('retains independent uncertain actions and blocks only their tasks', async () => {
+    const { fixture, http, component } = start();
+    const other = { ...task, taskId: '55555555-5555-4555-8555-555555555555', canComplete: true, canChangeDueDate: true };
+    const first = { ...task, canComplete: true, canChangeDueDate: true };
+    const unrelated = { ...task, taskId: '66666666-6666-4666-8666-666666666666', canComplete: true };
+    const registryKey = `auditsphere.work-queue-actions.v1:${task.assigneeUserId}:${task.assigneeUserId}`;
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [first, other, unrelated], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      component.complete(first.engagementId, first.taskId, first.revision);
+      const completion = http.expectOne(`/api/ui/engagements/${first.engagementId}/workflow/tasks/${first.taskId}/complete`);
+      component.changeDueDate(other.engagementId, other.taskId, other.revision, '2026-12-01');
+      const due = http.expectOne(`/api/ui/engagements/${other.engagementId}/workflow/tasks/${other.taskId}/due-date`);
+      expect(component.registryRecords()).toHaveLength(2);
+      expect(JSON.parse(sessionStorage.getItem(registryKey)!).entries).toHaveLength(2);
+      component.complete(first.engagementId, first.taskId, first.revision);
+      http.expectNone(r => r.method === 'POST');
+      completion.flush({}, { status: 503, statusText: 'Unknown' });
+      due.flush({}, { status: 503, statusText: 'Unknown' });
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(component.registryRecords()).toHaveLength(2);
+      expect(component.registryRecords().find(x => x.taskId === other.taskId)?.requestedDueDate).toBe('2026-12-01');
+      const pendingReads = http.match(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'));
+      for (const read of pendingReads.filter(x => !x.cancelled)) read.flush({ view: 'MY_TASKS', tasks: [first, other, unrelated], hasMore: false, nextCursor: null });
+      expect(component.taskMutationBlocked(first.taskId)).toBe(true);
+      expect(component.taskMutationBlocked(other.taskId)).toBe(true);
+      expect(component.taskMutationBlocked(unrelated.taskId)).toBe(false);
+      component.complete(unrelated.engagementId, unrelated.taskId, unrelated.revision);
+      http.expectOne(`/api/ui/engagements/${unrelated.engagementId}/workflow/tasks/${unrelated.taskId}/complete`).flush({ value: true });
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(component.registryRecords()).toHaveLength(2);
+      for (const read of http.match(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true')).filter(x => !x.cancelled))
+        read.flush({ view: 'MY_TASKS', tasks: [first, other], hasMore: false, nextCursor: null });
+      http.expectNone(r => r.method === 'POST'); http.verify({ ignoreCancelled: true });
+    } finally { sessionStorage.removeItem(registryKey); fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('does not dispatch if recovery storage cannot persist the reservation', () => {
+    const { fixture, http, component } = start();
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      component.complete(task.engagementId, task.taskId, task.revision);
+      http.expectNone(r => r.method === 'POST');
+      expect(component.actionMessage()).toContain('No action was sent');
+      http.verify({ ignoreCancelled: true });
+    } finally { spy.mockRestore(); fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('cleans an uninvoked parent reservation after its write succeeds but readback fails, without a POST', async () => {
+    const { fixture, http, host, component, userId } = start();
+    const registryKey = `auditsphere.work-queue-actions.v1:${userId}:${userId}`;
+    let fault: ReturnType<typeof failRegistryReadback> | undefined;
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick();
+      fault = failRegistryReadback(registryKey, 1);
+      component.complete(task.engagementId, task.taskId, task.revision);
+      expect(fault.injected()).toBe(true);
+      expect(component.unsentIds()).toHaveLength(1);
+      expect(JSON.parse(sessionStorage.getItem(registryKey)!).entries).toHaveLength(1);
+      http.expectNone(request => request.method === 'POST');
+      const verified = component.verifyRetainedActions();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`).flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision, status: 'OPEN' }] });
+      await verified;
+      fixture.detectChanges();
+      [...host.querySelectorAll<HTMLButtonElement>('button')]
+        .find(button => button.textContent?.includes('Remove unsent recovery reference'))!.click();
+      expect(component.unsentIds()).toEqual([]);
+      expect(JSON.parse(sessionStorage.getItem(registryKey)!).entries).toEqual([]);
+      expect(component.actionMessage()).toContain('unsent recovery reference was removed');
+      http.expectNone(request => request.method === 'POST');
+      http.verify({ ignoreCancelled: true });
+    } finally { fault?.restore(); sessionStorage.removeItem(registryKey); fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('finishes parent definitive cleanup and refreshes the queue while preserving success or refusal', async () => {
+    for (const outcome of ['success', 'refusal'] as const) {
+      const { fixture, http, host, component, userId } = start();
+      const registryKey = `auditsphere.work-queue-actions.v1:${userId}:${userId}`;
+      const queueUrl = tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true');
+      let fault: ReturnType<typeof failRegistryReadback> | undefined;
+      try {
+        fixture.detectChanges(); TestBed.tick();
+        http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+        http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+        TestBed.tick();
+        component.complete(task.engagementId, task.taskId, task.revision);
+        const post = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/complete`);
+        fault = failRegistryReadback(registryKey, 0);
+        if (outcome === 'success') post.flush({ value: true });
+        else post.flush({ code: 'workflow.task-invalid', message: 'Action refused.' }, { status: 400, statusText: 'Bad Request' });
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(fault.injected()).toBe(true);
+        expect(JSON.parse(sessionStorage.getItem(registryKey)!).entries).toEqual([]);
+        expect(component.definitiveCleanupIds()).toHaveLength(1);
+        const verified = component.verifyRetainedActions();
+        http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`).flush({ engagementId: task.engagementId, truncated: false,
+          tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName,
+            revision: task.revision + 1, status: outcome === 'success' ? 'COMPLETED' : 'OPEN' }] });
+        await verified;
+        fixture.detectChanges();
+        [...host.querySelectorAll<HTMLButtonElement>('button')]
+          .find(button => button.textContent?.includes('Finish recovery reference cleanup'))!.click();
+        expect(component.definitiveCleanupIds()).toEqual([]);
+        expect(component.actionFailed()).toBe(outcome === 'refusal');
+        expect(component.actionMessage()).toBe(outcome === 'success' ? 'Task completed.' : 'The task action was refused. Review the current task.');
+        http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+        http.expectNone(request => request.method === 'POST');
+        http.verify({ ignoreCancelled: true });
+      } finally { fault?.restore(); sessionStorage.removeItem(registryKey); fixture.destroy(); TestBed.resetTestingModule(); }
+    }
+  });
+
+  it('rechecks exact task access before finalizing a cancellation whose removal readback failed', async () => {
+    const test = start();
+    const { fixture, http, host, component, userId } = test;
+    const registryKey = `auditsphere.work-queue-actions.v1:${userId}:${userId}`;
+    const queueUrl = tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true');
+    const exactUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`;
+    let fault: ReturnType<typeof failRegistryReadback> | undefined;
+    try {
+      const panel = openCancellation(test);
+      panel.updateReason('The engagement scope changed.'); panel.prepareReview(); panel.assent.set(true);
+      const sending = panel.submit();
+      const post = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/cancel`);
+      fault = failRegistryReadback(registryKey, 0);
+      post.flush({ value: true }); await sending;
+      expect(fault.injected()).toBe(true);
+      expect(panel.state()).toBe('finalizing');
+      expect(panel.activeRegistryRequest()).not.toBeNull();
+      expect(JSON.parse(sessionStorage.getItem(registryKey)!).entries).toEqual([]);
+      const access = TestBed.inject(WorkspaceAvailability), previous = access.current();
+      access.invalidate(); TestBed.tick(); fixture.detectChanges();
+      expect(panel.state()).toBe('finalizing');
+      expect(host.querySelector('div[hidden] audit-workflow-task-cancellation')).toBeTruthy();
+      (access.current as WritableSignal<WorkspaceAvailabilityView | null>).set(previous);
+      (access.revision as WritableSignal<number>).update(value => value + 1);
+      TestBed.tick();
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); fixture.detectChanges();
+      expect(component.cancellationAccessCurrent()).toBe(false);
+      panel.retryDefinitiveCleanup();
+      expect(panel.state()).toBe('finalizing');
+      const denied = component.verifyRetainedActions();
+      http.expectOne(exactUrl).flush({}, { status: 403, statusText: 'Forbidden' }); await denied;
+      TestBed.tick(); fixture.detectChanges();
+      expect(component.cancellationAccessCurrent()).toBe(false);
+      expect(host.querySelector('div[hidden] audit-workflow-task-cancellation')).toBeTruthy();
+      expect(panel.activeRegistryRequest()).not.toBeNull();
+      const verified = component.verifyRetainedActions();
+      http.expectOne(exactUrl).flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName,
+          revision: task.revision + 1, status: 'CANCELLED' }] });
+      await verified; TestBed.tick(); fixture.detectChanges();
+      expect(component.cancellationAccessCurrent()).toBe(true);
+      [...host.querySelectorAll<HTMLButtonElement>('audit-workflow-task-cancellation button')]
+        .find(button => button.textContent?.includes('Retry clearing completed recovery reference'))!.click();
+      expect(panel.state()).toBe('confirmed');
+      expect(panel.activeRegistryRequest()).toBeNull();
+      expect(JSON.parse(sessionStorage.getItem(registryKey)!).entries).toEqual([]);
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      http.expectNone(request => request.method === 'POST');
+      http.verify({ ignoreCancelled: true });
+    } finally { fault?.restore(); sessionStorage.removeItem(registryKey); fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('discovers failed generic and assignment acknowledgements and reconciles only after a fresh task read', async () => {
+    for (const mode of ['generic', 'assignment'] as const) {
+      const { fixture, http, component, userId } = start();
+      const registryKey = `auditsphere.work-queue-actions.v1:${userId}:${userId}`;
+      const queueUrl = tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true');
+      const exactUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`;
+      const advanced = { engagementId: task.engagementId, truncated: false, tasks: [{ id: task.taskId,
+        assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision + 1, status: 'IN_PROGRESS' }] };
+      let fault: ReturnType<typeof failRegistryReadback> | undefined;
+      try {
+        fixture.detectChanges(); TestBed.tick();
+        http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+        http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+        TestBed.tick();
+        if (mode === 'assignment') {
+          const opening = component.openAssignment(task);
+          http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`)
+            .flush([{ userId: '55555555-5555-4555-8555-555555555555', displayName: 'Replacement' }]); await opening;
+          component.selectAssignmentOwner('55555555-5555-4555-8555-555555555555'); component.assignmentReviewed.set(true);
+          const sending = component.saveAssignment();
+          http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/reassign`)
+            .flush({}, { status: 503, statusText: 'Unknown' }); await sending;
+          const checking = component.recoverAssignment();
+          http.expectOne(exactUrl).flush(advanced);
+          http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/activity?pageSize=50`)
+            .flush({ ...activity, engagementId: task.engagementId, taskId: task.taskId, events: [], hasMore: false, nextCursor: null });
+          await checking;
+        } else {
+          component.complete(task.engagementId, task.taskId, task.revision);
+          http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/complete`)
+            .flush({}, { status: 503, statusText: 'Unknown' });
+          await new Promise(resolve => setTimeout(resolve, 0));
+          http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+          const checking = component.observeAction(component.registryRecords()[0].requestId);
+          http.expectOne(exactUrl).flush(advanced); await checking;
+        }
+        const id = component.registryRecords()[0].requestId;
+        fault = failRegistryReadback(registryKey, 0);
+        if (mode === 'assignment') component.acknowledgeAssignmentObservation(); else component.acknowledgeAction(id);
+        expect(fault.injected()).toBe(true);
+        expect(component.reconciliation()).toMatchObject({ kind: 'acknowledgement', sameSession: true, item: { requestId: id } });
+        expect(component.actionVerified(id)).toBe(false);
+        component.finishReconciliation();
+        expect(component.reconciliation()).not.toBeNull();
+        const verified = component.verifyRetainedActions();
+        http.expectOne(exactUrl).flush(advanced); await verified;
+        component.finishReconciliation();
+        expect(component.reconciliation()).toBeNull();
+        expect(component.actionMessage()).toContain('outcome is not established');
+        expect(component.assignmentTask()).toBeNull();
+        http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+        http.expectNone(request => request.method === 'POST');
+        http.verify({ ignoreCancelled: true });
+      } finally { fault?.restore(); sessionStorage.removeItem(registryKey); fixture.destroy(); TestBed.resetTestingModule(); }
+    }
+  });
+
+  it('recovers a same-session cleanup ticket after the queue is recreated without claiming the old outcome', async () => {
+    const test = start();
+    const { fixture, http, component, userId } = test;
+    const key = `auditsphere.work-queue-actions.v1:${userId}:${userId}`;
+    const queueUrl = tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true');
+    const exactUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`;
+    let fault: ReturnType<typeof failRegistryReadback> | undefined;
+    let recreated: ComponentFixture<WorkflowWorkQueue> | undefined;
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); component.complete(task.engagementId, task.taskId, task.revision);
+      const post = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/complete`);
+      fault = failRegistryReadback(key, 0); post.flush({ value: true });
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(component.reconciliation()).toMatchObject({ kind: 'definitive', sameSession: true });
+      fault.restore(); fault = undefined; fixture.destroy();
+      recreated = TestBed.createComponent(WorkflowWorkQueue); recreated.detectChanges(); TestBed.tick();
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); recreated.detectChanges();
+      const next = recreated.componentInstance, host = recreated.nativeElement as HTMLElement;
+      expect(next.reconciliation()).toMatchObject({ kind: 'definitive', sameSession: true });
+      expect(host.textContent).not.toContain(task.taskId);
+      next.finishReconciliation(); expect(next.reconciliation()).not.toBeNull();
+      const access = TestBed.inject(WorkspaceAvailability), previous = access.current();
+      const stale = next.verifyRetainedActions();
+      const staleRead = http.expectOne(exactUrl);
+      access.invalidate();
+      staleRead.flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: null, assigneeDisplayName: null, revision: 2, status: 'COMPLETED' }] });
+      await stale; next.finishReconciliation(); expect(next.reconciliation()).not.toBeNull();
+      (access.current as WritableSignal<WorkspaceAvailabilityView | null>).set(previous);
+      (access.revision as WritableSignal<number>).update(value => value + 1);
+      TestBed.tick();
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      const checking = next.verifyRetainedActions();
+      http.expectOne(exactUrl).flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: null, assigneeDisplayName: null, revision: 2, status: 'COMPLETED' }] });
+      await checking; next.finishReconciliation();
+      expect(next.reconciliation()).toBeNull();
+      expect(next.actionMessage()).toContain('outcome is not established');
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      http.expectNone(request => request.method === 'POST'); http.verify({ ignoreCancelled: true });
+    } finally { fault?.restore(); recreated?.destroy(); fixture.destroy(); sessionStorage.removeItem(key); TestBed.resetTestingModule(); }
+  });
+
+  it('hands off a cancellation finalization after its panel and queue are destroyed', async () => {
+    const test = start();
+    const { fixture, http, userId } = test;
+    const key = `auditsphere.work-queue-actions.v1:${userId}:${userId}`;
+    const queueUrl = tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true');
+    let fault: ReturnType<typeof failRegistryReadback> | undefined;
+    let recreated: ComponentFixture<WorkflowWorkQueue> | undefined;
+    try {
+      const panel = openCancellation(test);
+      panel.updateReason('Reviewed reason'); panel.prepareReview(); panel.assent.set(true);
+      const sending = panel.submit();
+      const post = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/cancel`);
+      fault = failRegistryReadback(key, 0); post.flush({ value: true }); await sending;
+      expect(panel.state()).toBe('finalizing');
+      fault.restore(); fault = undefined; fixture.destroy();
+      recreated = TestBed.createComponent(WorkflowWorkQueue); recreated.detectChanges(); TestBed.tick();
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); recreated.detectChanges();
+      const next = recreated.componentInstance;
+      expect(next.reconciliation()).toMatchObject({ kind: 'definitive', sameSession: true, item: { action: 'cancel' } });
+      expect((recreated.nativeElement as HTMLElement).textContent).not.toContain(task.taskId);
+      const checking = next.verifyRetainedActions();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`).flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: null, assigneeDisplayName: null, revision: 2, status: 'CANCELLED' }] });
+      await checking; next.finishReconciliation();
+      expect(next.reconciliation()).toBeNull();
+      expect(next.actionMessage()).toContain('outcome is not established');
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      http.expectNone(request => request.method === 'POST'); http.verify({ ignoreCancelled: true });
+    } finally { fault?.restore(); recreated?.destroy(); fixture.destroy(); sessionStorage.removeItem(key); TestBed.resetTestingModule(); }
+  });
+
+  it('releases a prior-session serialization fence without a task read or storage write', async () => {
+    const { fixture, http, component, session, userId } = start();
+    const key = `auditsphere.work-queue-actions.v1:${userId}:${userId}`;
+    const queueUrl = tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true');
+    let fault: ReturnType<typeof failRegistryReadback> | undefined;
+    let recreated: ComponentFixture<WorkflowWorkQueue> | undefined;
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); component.complete(task.engagementId, task.taskId, task.revision);
+      const post = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/complete`);
+      fault = failRegistryReadback(key, 0); post.flush({ value: true });
+      await new Promise(resolve => setTimeout(resolve, 0));
+      fault.restore(); fault = undefined; fixture.destroy();
+      session.current.set({ userId, firmId: userId, generation: '2', staff: true });
+      recreated = TestBed.createComponent(WorkflowWorkQueue); recreated.detectChanges(); TestBed.tick();
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); recreated.detectChanges();
+      const next = recreated.componentInstance, host = recreated.nativeElement as HTMLElement;
+      const original = sessionStorage.getItem(key)!;
+      expect(next.priorSessionFenceAvailable()).toBe(true);
+      expect(host.textContent).not.toContain(task.taskId);
+      session.current.set({ userId: '88888888-8888-4888-8888-888888888888', firmId: userId, generation: '2', staff: true });
+      next.releasePriorSessionFence();
+      expect(sessionStorage.getItem(key)).toBe(original);
+      session.current.set({ userId, firmId: userId, generation: '2', staff: true });
+      TestBed.inject(WorkspaceAvailability).invalidate(); TestBed.tick();
+      expect(next.priorSessionFenceAvailable()).toBe(true);
+      sessionStorage.setItem(key, JSON.stringify({ ...JSON.parse(original), unexpected: true }));
+      next.releasePriorSessionFence();
+      expect(next.priorSessionFenceAvailable()).toBe(true);
+      expect(next.priorFenceMessage()).toContain('could not be checked');
+      sessionStorage.setItem(key, original);
+      next.loadRegistry();
+      const writes = vi.spyOn(Storage.prototype, 'setItem');
+      try { next.releasePriorSessionFence(); expect(writes).not.toHaveBeenCalled(); } finally { writes.mockRestore(); }
+      expect(next.priorSessionFenceAvailable()).toBe(false);
+      expect(sessionStorage.getItem(key)).toBe(original);
+      expect(next.priorFenceMessage()).toBe('The storage check sent no task action and does not establish the outcome of any earlier action.');
+      http.expectNone(request => request.method === 'POST' || request.url.includes('/workflow/tasks?taskId='));
+      http.verify({ ignoreCancelled: true });
+    } finally { fault?.restore(); recreated?.destroy(); fixture.destroy(); sessionStorage.removeItem(key); TestBed.resetTestingModule(); }
+  });
+
+  it('preserves an existing prior-session reservation when releasing its fence', () => {
+    const { fixture, http, component, session, userId } = start();
+    const key = `auditsphere.work-queue-actions.v1:${userId}:${userId}`;
+    const queueUrl = tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true');
+    let fault: ReturnType<typeof failRegistryReadback> | undefined;
+    let recreated: ComponentFixture<WorkflowWorkQueue> | undefined;
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); fault = failRegistryReadback(key, 1);
+      component.complete(task.engagementId, task.taskId, task.revision);
+      expect(component.reconciliation()).toMatchObject({ kind: 'cleanup', sameSession: true });
+      const original = sessionStorage.getItem(key)!;
+      expect(JSON.parse(original).entries).toHaveLength(1);
+      http.expectNone(request => request.method === 'POST');
+      fault.restore(); fault = undefined; fixture.destroy();
+      session.current.set({ userId, firmId: userId, generation: '2', staff: true });
+      recreated = TestBed.createComponent(WorkflowWorkQueue); recreated.detectChanges(); TestBed.tick();
+      http.expectOne(queueUrl).flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick();
+      const next = recreated.componentInstance;
+      expect(next.priorSessionFenceAvailable()).toBe(true);
+      next.releasePriorSessionFence();
+      expect(next.priorSessionFenceAvailable()).toBe(false);
+      expect(sessionStorage.getItem(key)).toBe(original);
+      expect(next.registryRecords()).toHaveLength(1);
+      http.expectNone(request => request.method === 'POST' || request.url.includes('/workflow/tasks?taskId='));
+      http.verify({ ignoreCancelled: true });
+    } finally { fault?.restore(); recreated?.destroy(); fixture.destroy(); sessionStorage.removeItem(key); TestBed.resetTestingModule(); }
+  });
+
+  it('fences a task with another panel receipt while allowing that panel to be reopened', () => {
+    const { fixture, http, component, userId } = start();
+    const storageKey = `auditsphere.workflow-evidence:${userId}:${userId}:${task.engagementId}:${task.taskId}`;
+    try {
+      sessionStorage.setItem(storageKey, '77777777-7777-4777-8777-777777777777');
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      component.complete(task.engagementId, task.taskId, task.revision);
+      http.expectNone(r => r.method === 'POST');
+      component.selectEvidence(task);
+      expect(component.evidenceTask()?.taskId).toBe(task.taskId);
+      expect(component.registryRecords()).toHaveLength(0);
+      http.verify({ ignoreCancelled: true });
+    } finally { sessionStorage.removeItem(storageKey); fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('does not let a previous session response alter the new session or remove the retained action', async () => {
+    const { fixture, http, component, session, userId } = start();
+    const registryKey = `auditsphere.work-queue-actions.v1:${userId}:${userId}`;
+    const nextUser = '55555555-5555-4555-8555-555555555555';
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      component.complete(task.engagementId, task.taskId, task.revision);
+      const post = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/complete`);
+      session.current.set({ userId: nextUser, firmId: userId, generation: '1', staff: true });
+      TestBed.tick();
+      const newQueue = http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'));
+      post.flush({ value: true });
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(newQueue.cancelled).toBe(false);
+      expect(component.registryRecords()).toHaveLength(0);
+      expect(component.actionMessage()).not.toContain('Task completed');
+      expect(JSON.parse(sessionStorage.getItem(registryKey)!).entries).toHaveLength(1);
+      newQueue.flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      for (const read of http.match('/api/ui/work/reviews?pageSize=50').filter(x => !x.cancelled))
+        read.flush({ reviews: [], hasMore: false, nextCursor: null });
+      http.verify({ ignoreCancelled: true });
+    } finally { sessionStorage.removeItem(registryKey); fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('keeps a retained action hidden until the exact current task is authorized', async () => {
+    const { fixture, http, component, session, userId } = start();
+    const registryKey = `auditsphere.work-queue-actions.v1:${userId}:${userId}`;
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      component.complete(task.engagementId, task.taskId, task.revision);
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/complete`)
+        .flush({}, { status: 503, statusText: 'Unknown' });
+      await new Promise(resolve => setTimeout(resolve, 0));
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      const retainedId = component.registryRecords()[0].requestId;
+      session.current.set({ userId, firmId: userId, generation: '2', staff: true });
+      TestBed.tick();
+      expect(component.registryRecords()).toHaveLength(1);
+      expect(component.visibleActions()).toHaveLength(0);
+      const checking = component.verifyRetainedActions();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`).flush({
+        engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName,
+          revision: task.revision + 1, status: 'COMPLETED', dueDate: task.dueDate }],
+      });
+      await checking;
+      expect(component.visibleActions().map(x => x.requestId)).toEqual([retainedId]);
+      component.acknowledgeAction(retainedId);
+      expect(component.registryRecords()).toHaveLength(0);
+      expect(component.actionMessage()).toContain('outcome is not established');
+      for (const read of http.match(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true')).filter(x => !x.cancelled))
+        read.flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      for (const read of http.match('/api/ui/work/reviews?pageSize=50').filter(x => !x.cancelled))
+        read.flush({ reviews: [], hasMore: false, nextCursor: null });
+      http.verify({ ignoreCancelled: true });
+    } finally { sessionStorage.removeItem(registryKey); fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('retains a submitted assignment when availability changes before its response', async () => {
+    const { fixture, http, component } = start();
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      const opening = component.openAssignment(task);
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`)
+        .flush([{ userId: '55555555-5555-4555-8555-555555555555', displayName: 'Replacement staff' }]);
+      await opening;
+      component.selectAssignmentOwner('55555555-5555-4555-8555-555555555555'); component.assignmentReviewed.set(true);
+      const sending = component.saveAssignment();
+      const post = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/reassign`);
+      TestBed.inject(WorkspaceAvailability).invalidate();
+      post.flush({ value: true }); await sending;
+      expect(component.assignmentUncertain()).toBe(true);
+      expect(component.assignmentTask()?.taskId).toBe(task.taskId);
+      expect(component.canRetryAssignment()).toBe(false);
+      http.expectNone(request => request.method === 'POST');
       http.verify({ ignoreCancelled: true });
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
@@ -787,11 +1564,49 @@ describe('workflow queue assignment filters', () => {
       const originalBody = original.request.body;
       original.flush({}, { status: 503, statusText: 'Service Unavailable' }); await saving;
       expect(component.assignmentUncertain()).toBe(true);
+      const access = TestBed.inject(WorkspaceAvailability);
+      const previous = access.current();
+      access.invalidate(); TestBed.tick();
+      expect(component.assignmentUncertain()).toBe(true);
+      expect(component.assignmentTask()?.taskId).toBe(task.taskId);
+      (access.current as WritableSignal<WorkspaceAvailabilityView | null>).set(previous);
+      (access.revision as WritableSignal<number>).update(value => value + 1);
+      TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick();
+      expect(component.assignmentUncertain()).toBe(true);
+      expect(component.assignmentAccessCurrent()).toBe(false);
+      const verifyFirst = component.verifyRetainedActions();
+      http.expectOne(exactWorkspaceUrl).flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision, status: 'IN_PROGRESS' }] });
+      await verifyFirst; TestBed.tick(); expect(component.assignmentAccessCurrent()).toBe(true);
       component.selectAssignmentOwner('77777777-7777-4777-8777-777777777777');
       component.closeAssignment(); await component.saveAssignment(); await component.retryAssignment();
       expect(component.assignmentUserId()).toBe(originalBody.assigneeUserId);
       expect(component.assignmentTask()?.taskId).toBe(task.taskId);
       http.expectNone(request => request.method === 'POST');
+      const delayedChecking = component.recoverAssignment();
+      const delayedTask = http.expectOne(exactWorkspaceUrl);
+      const delayedActivity = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/activity?pageSize=50`);
+      access.invalidate();
+      delayedTask.flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision, status: 'IN_PROGRESS' }] });
+      delayedActivity.flush({ ...activity, engagementId: task.engagementId, taskId: task.taskId, events: [], hasMore: false, nextCursor: null });
+      await delayedChecking;
+      expect(component.canRetryAssignment()).toBe(false);
+      (access.current as WritableSignal<WorkspaceAvailabilityView | null>).set(previous);
+      (access.revision as WritableSignal<number>).update(value => value + 1);
+      TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      expect(component.assignmentAccessCurrent()).toBe(false);
+      const verifyAgain = component.verifyRetainedActions();
+      http.expectOne(exactWorkspaceUrl).flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision, status: 'IN_PROGRESS' }] });
+      await verifyAgain; TestBed.tick();
       const checking = component.recoverAssignment();
       // Exact lookup recovers a selected task that may sit beyond the unfiltered 500-task workspace window.
       http.expectOne(exactWorkspaceUrl).flush({ engagementId: task.engagementId,
@@ -799,6 +1614,9 @@ describe('workflow queue assignment filters', () => {
       http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/activity?pageSize=50`)
         .flush({ ...activity, engagementId: task.engagementId, taskId: task.taskId, events: [], hasMore: false, nextCursor: null });
       await checking;
+      expect(component.canReviewAssignmentRetry()).toBe(true);
+      expect(component.canRetryAssignment()).toBe(false);
+      component.assignmentReviewed.set(true);
       expect(component.canRetryAssignment()).toBe(true);
       const retrying = component.retryAssignment();
       const retry = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/reassign`);
@@ -807,6 +1625,24 @@ describe('workflow queue assignment filters', () => {
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
         .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
       expect(component.assignmentUncertain()).toBe(false);
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('retains a submitted cancellation when availability changes before its response', async () => {
+    const test = start();
+    const { fixture, http } = test;
+    try {
+      const panel = openCancellation(test);
+      panel.updateReason('The engagement scope changed.'); panel.prepareReview(); panel.assent.set(true);
+      const sending = panel.submit();
+      const post = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/cancel`);
+      TestBed.inject(WorkspaceAvailability).invalidate();
+      post.flush({ value: true }); await sending;
+      expect(panel.state()).toBe('unknown');
+      expect(panel.intent()?.reason).toBe('The engagement scope changed.');
+      expect(panel.observed()).toBeNull();
+      http.expectNone(request => request.method === 'POST');
       http.verify({ ignoreCancelled: true });
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
@@ -836,7 +1672,7 @@ describe('workflow queue assignment filters', () => {
 
   it('keeps exact cancellation intent after a lost reply and retries only after exact status inspection and renewed assent', async () => {
     const test = start();
-    const { fixture, http, host } = test;
+    const { fixture, http, host, component } = test;
     const reason = '  Work stopped after the engagement scope changed.  ';
     const canonicalReason = reason.trim();
     const workspaceUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`;
@@ -869,9 +1705,52 @@ describe('workflow queue assignment filters', () => {
       await sending;
       fixture.detectChanges(); TestBed.tick();
       expect(panel.state()).toBe('unknown');
+      const access = TestBed.inject(WorkspaceAvailability);
+      const previous = access.current();
+      access.invalidate(); TestBed.tick(); fixture.detectChanges();
+      expect(panel.state()).toBe('unknown');
+      expect(host.querySelector('div[hidden] audit-workflow-task-cancellation')).toBeTruthy();
+      (access.current as WritableSignal<WorkspaceAvailabilityView | null>).set(previous);
+      (access.revision as WritableSignal<number>).update(value => value + 1);
+      TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [cancelableTask], hasMore: false, nextCursor: null, summary: summary() });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); fixture.detectChanges();
+      expect(fixture.debugElement.query(By.directive(WorkflowTaskCancellationPanel)).componentInstance).toBe(panel);
+      expect(panel.intent()).toEqual({ action: 'cancel', ...exactPayload });
+      expect(host.querySelector('div[hidden] audit-workflow-task-cancellation')).toBeTruthy();
+      const verifyFirst = component.verifyRetainedActions();
+      http.expectOne(workspaceUrl).flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision, status: 'IN_PROGRESS' }] });
+      await verifyFirst; TestBed.tick(); fixture.detectChanges();
+      expect(host.querySelector('div[hidden] audit-workflow-task-cancellation')).toBeNull();
       expect(host.textContent).toContain('Check cancellation status');
       expect(host.querySelectorAll('audit-workflow-task-cancellation [role="alert"]')).toHaveLength(1);
       http.expectNone(request => request.method === 'POST');
+
+      component.selectView('MY_TASKS');
+      TestBed.tick(); fixture.detectChanges();
+      expect(fixture.debugElement.query(By.directive(WorkflowTaskCancellationPanel)).componentInstance).toBe(panel);
+      const delayedCheck = panel.checkStatus();
+      const delayedRead = http.expectOne(workspaceUrl);
+      access.invalidate();
+      // The read can complete before the effect runs; it must not authorize a retry.
+      delayedRead.flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision, status: 'IN_PROGRESS' }] });
+      await delayedCheck;
+      expect(panel.state()).toBe('unknown'); expect(panel.observed()).toBeNull();
+      (access.current as WritableSignal<WorkspaceAvailabilityView | null>).set(previous);
+      (access.revision as WritableSignal<number>).update(value => value + 1);
+      TestBed.tick(); fixture.detectChanges();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [cancelableTask], hasMore: false, nextCursor: null, summary: summary() });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      http.expectNone(request => request.method === 'POST');
+      const verifyAgain = component.verifyRetainedActions();
+      http.expectOne(workspaceUrl).flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision, status: 'IN_PROGRESS' }] });
+      await verifyAgain; TestBed.tick(); fixture.detectChanges();
 
       const inconsistentCheck = panel.checkStatus();
       http.expectOne(workspaceUrl).flush({ engagementId: task.engagementId, truncated: false,
@@ -880,6 +1759,11 @@ describe('workflow queue assignment filters', () => {
       expect(panel.state()).toBe('unknown');
       expect(panel.observed()).toBeNull();
       expect(panel.message()).toContain('did not advance the reviewed revision');
+      expect(component.cancellationAccessCurrent()).toBe(false);
+      const verifyAfterError = component.verifyRetainedActions();
+      http.expectOne(workspaceUrl).flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision, status: 'IN_PROGRESS' }] });
+      await verifyAfterError; TestBed.tick(); fixture.detectChanges();
 
       const unchangedCheck = panel.checkStatus();
       http.expectOne(workspaceUrl).flush({ engagementId: task.engagementId, truncated: false,
@@ -1175,7 +2059,7 @@ describe('workflow queue assignment filters', () => {
   it('opens the exact reminder task read-only until a queue row matches its current revision and status', async () => {
     TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [
       provideRouter([{ path: 'app/work', component: WorkflowWorkQueue }]),
-      provideHttpClient(), provideHttpClientTesting(),
+      provideHttpClient(), provideHttpClientTesting(), provideWorkspaceAvailabilityForTests(),
     ] });
     TestBed.inject(SessionService).current.set({ userId: task.assigneeUserId!, firmId: task.assigneeUserId!, generation: '1', staff: true });
     const http = TestBed.inject(HttpTestingController);
@@ -1264,7 +2148,7 @@ describe('workflow queue assignment filters', () => {
   it('clears the prior reminder task and cancels its exact read when the route query selects another task', async () => {
     TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [
       provideRouter([{ path: 'app/work', component: WorkflowWorkQueue }]),
-      provideHttpClient(), provideHttpClientTesting(),
+      provideHttpClient(), provideHttpClientTesting(), provideWorkspaceAvailabilityForTests(),
     ] });
     TestBed.inject(SessionService).current.set({ userId: task.assigneeUserId!, firmId: task.assigneeUserId!, generation: '1', staff: true });
     const http = TestBed.inject(HttpTestingController);

@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { SessionService } from '../../core/session';
+import { provideWorkspaceAvailabilityForTests } from '../../core/workspace-availability.testing';
 import { WorkflowWorkQueue } from './work-queue';
 
 const user = '11111111-1111-4111-8111-111111111111';
@@ -27,7 +28,7 @@ describe('work queue display modes', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [WorkflowWorkQueue],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideWorkspaceAvailabilityForTests()],
     });
     http = TestBed.inject(HttpTestingController);
     TestBed.inject(SessionService).current.set({ userId: user, firmId: user, generation: '1', staff: true });
@@ -131,7 +132,7 @@ describe('work queue display modes', () => {
     fixture.destroy();
   });
 
-  it('shows the server feature-off state instead of presenting an empty queue as success', () => {
+  it('clears availability after a server denial instead of presenting an empty queue as success', () => {
     const fixture = TestBed.createComponent(WorkflowWorkQueue);
     fixture.detectChanges();
     const unavailable = {
@@ -146,8 +147,8 @@ describe('work queue display modes', () => {
     fixture.detectChanges();
 
     const root = fixture.nativeElement as HTMLElement;
-    expect(root.textContent).toContain('The work queue is unavailable in your current scope or is not enabled on this server.');
-    expect(root.textContent).toContain('The procedure review inbox is unavailable in your current reviewer scope or is not enabled on this server.');
+    expect(root.textContent).toContain('Work availability is temporarily unavailable');
+    expect(root.textContent).not.toContain('My tasks: 0');
     expect(root.querySelectorAll('.summary-card')).toHaveLength(0);
     expect(root.querySelectorAll('.task-card')).toHaveLength(0);
     fixture.destroy();

@@ -75,7 +75,7 @@ type Review = { action: Action; workspace: Workspace; reason: string; body: Reco
           <p>A retained approval is effective only while its exact basis remains current and all separate professional applicability requirements and holds permit it.</p>
           @if (!p.isLatest) { <button matButton (click)="showProposal(null)" [disabled]="busy()">Show latest proposal</button> }
         } @else { <p>No conditional applicability proposal is recorded.</p> }
-        @if (!pending() && !review()) {
+        @if (accessCurrent()() && !pending() && !review()) {
           <audit-workflow-evidence-source-picker [engagementId]="engagementId()" kind="PBC_ACCEPTED_OR_CLOSED"
             [stepTitle]="title()" requirementKey="task-applicability" pickerId="task-applicability-source"
             [selectedId]="sourceRequestId()" [disabled]="busy() || storageUnavailable()"
@@ -133,6 +133,8 @@ export class WorkflowTaskApplicabilityPanel {
   readonly engagementId = input.required<string>();
   readonly taskId = input.required<string>();
   readonly title = input.required<string>();
+  readonly accessCurrent = input<() => boolean>(() => true);
+  readonly accessRevision = input<() => number>(() => 0);
   readonly changed = output<void>();
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
@@ -142,17 +144,40 @@ export class WorkflowTaskApplicabilityPanel {
   readonly selectedProposalId = computed(() => this.proposalSelection()?.context === this.storageKey() ? this.proposalSelection()!.id : null);
   readonly historyOpen = signal(false);
   readonly historyCursor = signal<ReturnType<typeof cursor> | null>(null);
-  readonly workspace = this.api.resource(() => this.workspaceUrl(), (value, path) => {
+  private workspaceRevision = 0;
+  private verifiedRevision = -1;
+  private historyRevision = 0;
+  private readonly workspaceResource = this.api.resource(() => {
+    this.workspaceRevision = this.accessRevision()();
+    return this.accessCurrent()() ? this.workspaceUrl() : null;
+  }, (value, path) => {
+    if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()()) throw new Error('Task access changed.');
     const w = decodeTaskApplicability(value, path); this.requireScope(w);
     if (w.preview && w.preview.sourceRequestId !== this.sourceRequestId() ||
       this.selectedProposalId() && w.proposal?.id !== this.selectedProposalId() ||
       w.proposal?.actorUserId === this.session.current()?.userId && (w.canApprove || w.canReturn || w.canRevoke))
       throw new Error('The reviewed selection or independent actor changed.');
+    this.verifiedRevision = this.accessRevision()();
     return w;
   }, 'Conditional task applicability is unavailable in this task scope.');
-  readonly history = this.api.resource(() => this.historyUrl(), (value, path) => {
+  readonly workspace = { ...this.workspaceResource, reload: () => {
+    if (this.accessCurrent()() && this.workspaceRevision === this.accessRevision()()) this.workspaceResource.reload();
+  } };
+  authorizedWorkspace(): boolean {
+    const data = this.workspace.data();
+    return this.accessCurrent()() && this.verifiedRevision === this.accessRevision()() && !!data &&
+      data.engagementId === this.engagementId() && data.taskId === this.taskId();
+  }
+  private readonly historyResource = this.api.resource(() => {
+    this.historyRevision = this.accessRevision()();
+    return this.accessCurrent()() ? this.historyUrl() : null;
+  }, (value, path) => {
+    if (!this.accessCurrent()() || this.historyRevision !== this.accessRevision()()) throw new Error('Task access changed.');
     const h = decodeApplicabilityHistory(value, path); this.requireScope(h); return h;
   }, 'Applicability history is unavailable in this task scope.');
+  readonly history = { ...this.historyResource, reload: () => {
+    if (this.accessCurrent()() && this.historyRevision === this.accessRevision()()) this.historyResource.reload();
+  } };
   readonly review = signal<Review | null>(null);
   readonly pending = signal<string | null>(null);
   readonly busy = signal(false);
@@ -175,29 +200,34 @@ export class WorkflowTaskApplicabilityPanel {
       });
     });
     effect(() => { this.workspace.data(); untracked(() => this.clearReview()); });
+    effect(() => {
+      this.accessRevision()(); this.accessCurrent()();
+      untracked(() => this.clearReview());
+    });
     inject(DestroyRef).onDestroy(() => { this.destroyed = true; });
   }
 
   clearReview(): void { this.review.set(null); this.confirmed = false; }
-  refresh(): void { this.clearReview(); this.workspace.reload(); if (this.historyOpen()) this.firstHistory(); }
+  refresh(): void { if (!this.accessCurrent()()) return; this.clearReview(); this.workspace.reload(); if (this.historyOpen()) this.firstHistory(); }
   selectSource(id: string): void {
-    if (this.busy() || this.pending()) return;
+    if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()() || this.busy() || this.pending()) return;
     this.clearReview(); this.sourceSelection.set({ context: this.storageKey(), id: guid(id, 'source request') }); this.proposalSelection.set(null);
   }
   showProposal(id: string | null): void {
-    if (this.busy() || this.pending()) return;
+    if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()() || this.busy() || this.pending()) return;
     this.clearReview(); this.sourceSelection.set(null); this.proposalSelection.set(id ? { context: this.storageKey(), id } : null);
   }
-  openHistory(): void { this.historyContext = this.storageKey(); this.historyOpen.set(true); }
+  openHistory(): void { if (!this.accessCurrent()()) return; this.historyContext = this.storageKey(); this.historyOpen.set(true); }
   firstHistory(): void {
+    if (!this.accessCurrent()()) return;
     if (this.historyCursor()) this.historyCursor.set(null);
     else this.history.reload();
   }
-  nextHistory(): void { const h = this.history.data(); if (h?.hasMore) this.historyCursor.set(h.nextCursor); }
+  nextHistory(): void { if (!this.accessCurrent()() || this.historyRevision !== this.accessRevision()()) return; const h = this.history.data(); if (h?.hasMore) this.historyCursor.set(h.nextCursor); }
 
   prepare(action: Action): void {
     const w = this.workspace.data();
-    if (!w || this.busy() || this.pending() || this.storageUnavailable() || !this.allowed(action, w)) return;
+    if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()() || !w || this.busy() || this.pending() || this.storageUnavailable() || !this.allowed(action, w)) return;
     const reason = this.reason.trim();
     if (!reason || reason.length > 1000) { this.failed.set(true); this.message.set('Enter a reason of 1 to 1,000 characters.'); return; }
     const key = crypto.randomUUID(); const p = w.proposal;
@@ -211,16 +241,19 @@ export class WorkflowTaskApplicabilityPanel {
 
   async submit(): Promise<void> {
     const r = this.review(); const w = this.workspace.data();
-    if (!r || !w || w !== r.workspace || !this.confirmed || !this.allowed(r.action, w) ||
+    if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()() || !r || !w || w !== r.workspace || !this.confirmed || !this.allowed(r.action, w) ||
       this.busy() || this.pending() || this.storageUnavailable()) return;
     const context = this.storageKey(); const generation = this.session.invalidation(); const url = this.baseUrl();
+    const accessRevision = this.accessRevision()();
     try { sessionStorage.setItem(context, r.key); }
     catch { this.storageUnavailable.set(true); return; }
     this.pending.set(r.key); this.busy.set(true);
     try {
       const result = await this.api.command<unknown>(`${url}/${r.action === 'PROPOSE' ? 'proposals' : 'decisions'}`, r.body);
       if (!this.active(context, generation)) return;
-      if (result.ok) this.accept(result.value, r.key, context, r);
+      if (result.ok && (!this.accessCurrent()() || accessRevision !== this.accessRevision()())) {
+        this.message.set('Access changed. Read the saved receipt after access returns.');
+      } else if (result.ok) this.accept(result.value, r.key, context, r);
       else {
         this.failed.set(true); this.message.set(result.message);
         if (!result.unknown) { sessionStorage.removeItem(context); this.pending.set(null); this.clearReview(); this.workspace.reload(); }
@@ -231,14 +264,15 @@ export class WorkflowTaskApplicabilityPanel {
   }
 
   async recover(): Promise<void> {
-    const key = this.pending(); if (!key || this.busy()) return;
+    const key = this.pending(); if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()() || !this.workspace.data() || !key || this.busy()) return;
     const context = this.storageKey(); const generation = this.session.invalidation(); const url = this.baseUrl();
+    const accessRevision = this.accessRevision()();
     this.busy.set(true);
     try {
       const value = await this.api.get(`${url}/receipts/${encodeURIComponent(key)}`, decodeApplicabilityReceipt);
-      if (this.active(context, generation)) this.accept(value, key, context);
+      if (this.active(context, generation) && this.accessCurrent()() && accessRevision === this.accessRevision()()) this.accept(value, key, context);
     } catch {
-      if (this.active(context, generation)) { this.failed.set(true); this.message.set('No matching saved receipt was confirmed. Keep the recovery key; no action was resent.'); }
+      if (this.active(context, generation) && this.accessCurrent()() && accessRevision === this.accessRevision()()) { this.failed.set(true); this.message.set('No matching saved receipt was confirmed. Keep the recovery key; no action was resent.'); }
     } finally { this.busy.set(false); }
   }
 

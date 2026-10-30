@@ -25,12 +25,16 @@ public sealed record JournalDetailView(Guid Id, string JournalNumber, string Sta
 public static class AccountingRecordsQuery
 {
   private static readonly string[] AccountingRoles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
+
+  // Admission only; scope resolution and any return-time checks remain owned by the query.
+  internal static Task<CommandResult> AuthorizeReadAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true), ct);
   private static readonly string[] JournalRoles = ["Administrator", "Partner", "Manager", "Staff", "AccountingPreparer", "AccountingReviewer"];
   private sealed record Scope(bool FirmWide, Guid[] Clients, Guid[] Engagements);
 
   private static async Task<Scope?> ScopeAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
   {
-    var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true), ct);
+    var authorization = await AuthorizeReadAsync(db, actor, ct);
     if (!authorization.Succeeded) return null;
     var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null && AccountingRoles.Contains(x.Role))
       .Select(x => new { x.ClientId, x.EngagementId }).ToListAsync(ct);

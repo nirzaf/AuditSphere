@@ -145,7 +145,7 @@ public static partial class UiEndpoints
   internal static int StatusFor(string? code) => code switch
   {
     ErrorCodes.ScopeDenied => 403,
-    "engagement.period-overlap" => 409,
+    "engagement.period-overlap" or "scope.changed" => 409,
     ErrorCodes.GenerationStale or ErrorCodes.StaleRevision or ErrorCodes.IdempotencyConflict or ErrorCodes.TechnicalLibrary.DuplicateCode => 409,
     "session.unavailable" => 401,
     _ => 400

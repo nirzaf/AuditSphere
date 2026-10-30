@@ -40,6 +40,11 @@ public static class FirmBooksWorkspaceQuery
       prepare || review ? null : AdministratorOversightReadAuthorization.Reason));
   }
 
+  internal static async Task<bool> CanReadWorkspaceAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct) =>
+    await AuthorizeAsync(db, actor, ["FinanceManager"], ct) ||
+    await AuthorizeAsync(db, actor, ["FinanceReviewer"], ct) ||
+    (await AdministratorOversightReadAuthorization.CheckEligibilityAsync(db, actor, ct)).Succeeded;
+
   private static async Task<bool> AuthorizeAsync(IClientAccountingDbContext db, ActorContext actor, string[] roles, CancellationToken ct) =>
     (await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: roles, InternalOnly: true, RequireFirmWide: true), ct)).Succeeded;
 }

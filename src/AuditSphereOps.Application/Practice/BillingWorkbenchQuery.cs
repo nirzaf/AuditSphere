@@ -38,6 +38,11 @@ public static class BillingWorkbenchQuery
   public const string Unposted = "UNPOSTED";
   public const string Cancelled = "CANCELLED";
   private static readonly string[] FinanceRoles = ["FinanceManager", "FinanceReviewer"];
+
+  // Operational admission only; oversight eligibility is a separate, non-observing check.
+  internal static Task<CommandResult> AuthorizeReadAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: FinanceRoles,
+      InternalOnly: true, RequireFirmWide: true), ct);
   private static readonly string[] Statuses =
   [
     BillingStates.InvoiceDraft, BillingStates.InvoiceReviewRequired, BillingStates.InvoiceApproved,
@@ -54,8 +59,7 @@ public static class BillingWorkbenchQuery
         (filter.Status is not null && !Statuses.Contains(filter.Status)) ||
         (currency is not null && (currency.Length != 3 || !currency.All(char.IsAsciiLetterUpper))) || number is { Length: 0 or > 50 })
       return CommandResult<BillingWorkbenchPage>.Fail("request.invalid", "Invalid invoice filter or page.");
-    var request = new AuthorizationRequest(actor.FirmId, RequiredRoles: FinanceRoles, InternalOnly: true, RequireFirmWide: true);
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    var auth = await AuthorizeReadAsync(db, actor, ct);
     if (!auth.Succeeded) auth = await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<BillingWorkbenchPage>.Fail(auth.ErrorCode!, "Invoices unavailable.");
 
@@ -185,7 +189,7 @@ public static class BillingWorkbenchQuery
       if (snapshot is not null) await snapshot.DisposeAsync();
     }
 
-    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    auth = await AuthorizeReadAsync(db, actor, ct);
     var operational = auth.Succeeded;
     if (!auth.Succeeded) auth = await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct);
     return auth.Succeeded ? CommandResult<BillingWorkbenchPage>.Ok(new(rows, matching, page, pageSize, totals,

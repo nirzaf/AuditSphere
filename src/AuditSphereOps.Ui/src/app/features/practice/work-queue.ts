@@ -2,16 +2,22 @@ import { NgTemplateOutlet } from '@angular/common';
 import { afterNextRender, Component, DestroyRef, effect, ElementRef, HostListener, inject, Injector, signal, untracked, viewChild } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { ActivatedRoute, ParamMap, RouterLink } from '@angular/router';
-import { Api, CommandState } from '../../core/api';
+import { Api } from '../../core/api';
+import type { CommandOutcome } from '../../core/api';
 import { arr, bool, date, guid, instant, int, nullable, obj, oneOf, str, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { SessionService } from '../../core/session';
+import { WorkspaceAvailability } from '../../core/workspace-availability';
 import { QUEUE_DISPLAYS, QueueDisplay, boardColumns, groupedTasks, queueCalendar } from './work-queue-views';
 import { WorkflowTaskDependenciesPanel } from './workflow-task-dependencies';
 import { WorkflowTaskEvidencePanel } from './workflow-task-evidence';
 import { WorkflowTaskApplicabilityPanel } from './workflow-task-applicability';
 import { canReopenTask, decodeWorkflowTaskWorkspace, WorkflowTaskCancellationPanel } from './workflow-task-cancellation';
 import type { WorkflowTaskRecoveryAction } from './workflow-task-cancellation';
+import { WorkQueueActionRegistry, type WorkQueueDispatchTicket, type WorkQueuePendingAction, type WorkQueueRegistryOwner,
+  type WorkQueueReconciliation } from './work-queue-action-registry';
+import { WORK_QUEUE_RECEIPT_SCAN_MAX_CHARS, WORK_QUEUE_RECEIPT_SCAN_MAX_ENTRIES,
+  WorkQueueReceiptDiscovery, type WorkQueueReceiptCandidate } from './work-queue-receipt-discovery';
 
 const nonBlank = (max: number) => (value: unknown, path: string): string => {
   const decoded = str(max)(value, path);
@@ -124,6 +130,7 @@ function decodeReminderTaskWorkspace(value: unknown, path: string, selection: Re
 const decodeAssigneeOptions = arr(obj({ userId: guid, displayName: nonBlank(200) }), 200);
 type AssignmentIntent = { task: QueueTask; owner: { userId: string; displayName: string }; action: 'assign' | 'reassign'; scope: string };
 type AssignmentObservation = ReturnType<typeof decodeWorkflowTaskWorkspace>['tasks'][number];
+type VerifiedReceipt = { candidate: WorkQueueReceiptCandidate; owner: string; revision: number };
 const reviewItem = obj({ resultId: guid, procedureId: guid, engagementId: guid, clientName: text,
   serviceRoute: str(100), engagementPeriod: str(80), sourceProcedureId: str(100), procedureTitle: text,
   revision: int, preparedByDisplayName: str(200), submittedAt: instant });
@@ -172,7 +179,20 @@ const queueViews: { key: QueueView; label: string }[] = [
     <audit-page-header title="My work" eyebrow="Engagement tasks"
       description="Operational tasks across your current client and engagement grants. Task completion never replaces audit review or engagement approval." />
     <p id="work-table-scroll-instructions" class="sr-only">When a table region is focused, use the left and right arrow keys to scroll horizontally. Home and End move to the start and end.</p>
-    <p><a matButton routerLink="/app/practice/workflow-templates">Manage workflow templates</a></p>
+    @if (availability.state() === 'loading') { <p role="status">Checking available work.</p> }
+    @if (availability.state() === 'unavailable') { <p role="alert">Work availability is temporarily unavailable. <button matButton (click)="availability.refresh()">Retry</button></p> }
+    @if (availability.current(); as access) {
+      @if (access.tasks === 'not_enabled' && access.reviews === 'not_enabled') { <p role="status">Workflow work is not enabled on this server.</p> }
+    }
+    @if (taskRefused()) { <p role="alert">The task queue is unavailable in your current scope. <button matButton (click)="retrySection('tasks')">Retry task queue</button></p> }
+    @if (reviewRefused()) { <p role="alert">The review inbox is unavailable in your current scope. <button matButton (click)="retrySection('reviews')">Retry review inbox</button></p> }
+    @if (priorSessionFenceAvailable()) {
+      <p>Recovery storage from an earlier session needs a local check.
+        <button matButton (click)="releasePriorSessionFence()">Check earlier session storage</button></p>
+    }
+    @if (priorFenceMessage()) { <p role="status">{{ priorFenceMessage() }}</p> }
+    @if (taskAccessCurrent()) {
+    @if (availability.current()?.templates === 'available') { <p><a matButton routerLink="/app/practice/workflow-templates">Manage workflow templates</a></p> }
     <section class="work-summary" aria-labelledby="work-summary-heading">
       <h2 id="work-summary-heading">Work overview</h2>
       <div role="status">@if (queue.loading()) { <p>Loading work overview.</p> }</div>
@@ -193,6 +213,8 @@ const queueViews: { key: QueueView; label: string }[] = [
         }
       }
     </section>
+    }
+    @if (reviewAccessCurrent()) {
     <section aria-labelledby="review-inbox-heading">
       <h2 id="review-inbox-heading">Submitted work awaiting review</h2>
       <p>These submissions are not represented in Under review. Earlier operational tasks may still exist. Opening fieldwork rechecks review eligibility and current evidence.</p>
@@ -221,7 +243,21 @@ const queueViews: { key: QueueView; label: string }[] = [
         }
       }
     </section>
+    }
+    @if (taskAccessCurrent()) {
     <audit-state [loading]="queue.loading()" [error]="queue.error()" label="work queue" />
+    <section aria-label="Saved task receipts">
+      <button matButton (click)="findSavedReceipts()" [disabled]="receiptChecking()">Find saved task receipts</button>
+      @if (receiptChecking()) { <p role="status">Checking saved receipts against current task access.</p> }
+      @if (receiptMessage()) { <p role="status">{{ receiptMessage() }}</p> }
+      @for (entry of visibleSavedReceipts(); track entry.candidate.storageKey) {
+        <p>Unconfirmed {{ entry.candidate.kind }} receipt for task {{ entry.candidate.taskId }}.
+          <button matButton (click)="openSavedReceipt(entry)" [disabled]="receiptChecking()">Open saved receipt</button></p>
+      }
+      @if (hasMoreSavedReceipts()) {
+        <button matButton (click)="checkMoreSavedReceipts()" [disabled]="receiptChecking()">Check more saved receipts</button>
+      }
+    </section>
     @if (reminderTaskLinkError()) { <p role="alert">{{ reminderTaskLinkError() }}</p> }
     @if (reminderTaskSelection(); as selection) {
       <section class="activity-panel" aria-labelledby="reminder-task-heading">
@@ -276,10 +312,10 @@ const queueViews: { key: QueueView; label: string }[] = [
                 @if (task.canChangeDueDate) {
                   <label class="sr-only" [attr.for]="'reminder-due-date-' + task.taskId">Due date for {{ task.title }}</label>
                   <input [id]="'reminder-due-date-' + task.taskId" type="date" [value]="task.dueDate ?? ''" #reminderDueDate />
-                  <button matButton (click)="changeDueDate(task.engagementId, task.taskId, task.revision, reminderDueDate.value)">Save date</button>
+                  <button matButton [disabled]="taskMutationBlocked(task.taskId)" (click)="changeDueDate(task.engagementId, task.taskId, task.revision, reminderDueDate.value)">Save date</button>
                 }
                 @if (task.canComplete) {
-                  <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy() || blockedPrerequisites(task) || task.onHold">Complete task</button>
+                  <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="taskMutationBlocked(task.taskId) || blockedPrerequisites(task) || task.onHold">Complete task</button>
                 }
                 @if (task.canCancel) {
                   <button matButton [attr.data-cancel-engagement]="task.engagementId" [attr.data-cancel-task]="task.taskId"
@@ -345,15 +381,15 @@ const queueViews: { key: QueueView; label: string }[] = [
         @if (blockedPrerequisites(task)) { <small class="prerequisite-status">Prerequisites: <audit-status value="BLOCKED" /></small> }
         @if (task.unmetTaskDependencies) { <small>{{ task.unmetTaskDependencies }} task prerequisite(s) incomplete</small> }
         @if (task.unmetEvidencePrerequisites) { <small>{{ task.unmetEvidencePrerequisites }} evidence prerequisite(s) pending</small> }
-        <button matButton (click)="evidenceTask.set(task)">Review prerequisites</button>
+        <button matButton (click)="selectEvidence(task)">Review prerequisites</button>
         @if (task.canComplete) {
-          <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy() || blockedPrerequisites(task) || task.onHold">Complete task</button>
+          <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="taskMutationBlocked(task.taskId) || blockedPrerequisites(task) || task.onHold">Complete task</button>
         }
         <details class="task-more-actions"><summary>More task actions</summary>
         <button matButton (click)="showActivity(task.engagementId, task.taskId, task.title)">{{ activityTask()?.taskId === task.taskId ? 'Hide activity' : 'View activity' }}</button>
 
-        @if (task.applicabilityCondition) { <button matButton (click)="applicabilityTask.set(task)">Review conditional applicability</button> }
-        <button matButton (click)="orderingTask.set(task)">Review task ordering</button>
+        @if (task.applicabilityCondition) { <button matButton (click)="selectApplicability(task)">Review conditional applicability</button> }
+        <button matButton (click)="selectOrdering(task)">Review task ordering</button>
 
         @if (task.canCancel) {
           <button matButton [attr.data-cancel-engagement]="task.engagementId" [attr.data-cancel-task]="task.taskId"
@@ -452,7 +488,7 @@ const queueViews: { key: QueueView; label: string }[] = [
                   <div class="due-date-editor">
                     <label class="sr-only" [attr.for]="'due-date-' + task.taskId">Due date for {{ task.title }}</label>
                     <input #dueDateInput [id]="'due-date-' + task.taskId" type="date" [value]="task.dueDate ?? ''" />
-                    <button matButton (click)="changeDueDate(task.engagementId, task.taskId, task.revision, dueDateInput.value)">Save date</button>
+                    <button matButton [disabled]="taskMutationBlocked(task.taskId)" (click)="changeDueDate(task.engagementId, task.taskId, task.revision, dueDateInput.value)">Save date</button>
                   </div>
                 }
               </td>
@@ -475,11 +511,11 @@ const queueViews: { key: QueueView; label: string }[] = [
               </td>
               <td>{{ task.unmetTaskDependencies ? task.unmetTaskDependencies + ' task prerequisite(s) incomplete' : 'No task prerequisites pending' }}
                 @if (task.unmetEvidencePrerequisites) { <small>{{ task.unmetEvidencePrerequisites }} evidence prerequisite(s) pending</small> }
-                <button matButton (click)="evidenceTask.set(task)">Review prerequisites</button>
+                <button matButton (click)="selectEvidence(task)">Review prerequisites</button>
               </td>
-              <td>@if (task.canComplete) { <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy() || blockedPrerequisites(task) || task.onHold">Complete task</button> }<details class="task-more-actions"><summary>More task actions</summary><button matButton (click)="showActivity(task.engagementId, task.taskId, task.title)">{{ activityTask()?.taskId === task.taskId ? 'Hide activity' : 'View activity' }}</button>
-                @if (task.applicabilityCondition) { <button matButton (click)="applicabilityTask.set(task)">Review conditional applicability</button> }
-                <button matButton (click)="orderingTask.set(task)">Review task ordering</button>
+              <td>@if (task.canComplete) { <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="taskMutationBlocked(task.taskId) || blockedPrerequisites(task) || task.onHold">Complete task</button> }<details class="task-more-actions"><summary>More task actions</summary><button matButton (click)="showActivity(task.engagementId, task.taskId, task.title)">{{ activityTask()?.taskId === task.taskId ? 'Hide activity' : 'View activity' }}</button>
+                @if (task.applicabilityCondition) { <button matButton (click)="selectApplicability(task)">Review conditional applicability</button> }
+                <button matButton (click)="selectOrdering(task)">Review task ordering</button>
                 @if (task.canCancel) { <button matButton [attr.data-cancel-engagement]="task.engagementId" [attr.data-cancel-task]="task.taskId"
                   (click)="openCancellation(task, $event)">Cancel task</button> }
                 @if (reopenable(task)) { <button matButton
@@ -496,18 +532,8 @@ const queueViews: { key: QueueView; label: string }[] = [
         </tbody>
       </table></div>
       }
-      @if (evidenceTask(); as selected) {
-        <audit-workflow-task-evidence [engagementId]="selected.engagementId" [taskId]="selected.taskId" [title]="selected.title"
-          (changed)="refreshTaskWorkspaces(); activity.reload()" />
-        <button matButton (click)="evidenceTask.set(null)">Close prerequisites</button>
-      }
-      @if (orderingTask(); as selected) {
-        <audit-workflow-task-dependencies [engagementId]="selected.engagementId" [taskId]="selected.taskId" [title]="selected.title"
-          (changed)="refreshTaskWorkspaces(); activity.reload()" />
-        <button matButton (click)="orderingTask.set(null)">Close task ordering</button>
-      }
       @if (assignmentTask(); as selected) {
-        <section class="activity-panel" aria-labelledby="task-assignment-heading">
+        <section class="activity-panel" aria-labelledby="task-assignment-heading" [hidden]="!assignmentAccessCurrent()">
           <h2 id="task-assignment-heading">{{ selected.assigneeUserId ? 'Reassign workflow task' : 'Assign workflow task' }}</h2>
           @if (assignmentLoading()) { <p role="status">Loading eligible staff for this engagement.</p> }
           @if (assignmentError()) { <p role="alert">{{ assignmentError() }}</p> }
@@ -526,8 +552,10 @@ const queueViews: { key: QueueView; label: string }[] = [
               }
               @if (observed.revision > selected.revision) {
                 <button matButton (click)="acknowledgeAssignmentObservation()" [disabled]="assignmentBusy()">Acknowledge observed owner and refresh</button>
-              } @else if (canRetryAssignment()) {
-                <button matButton (click)="retryAssignment()" [disabled]="assignmentBusy()">Retry the exact original assignment</button>
+              } @else if (canReviewAssignmentRetry()) {
+                <p>Original requested owner: {{ assignmentRetryOwner() }} · expected revision {{ selected.revision }}.</p>
+                <label><input type="checkbox" [checked]="assignmentReviewed()" (change)="assignmentReviewed.set($any($event.target).checked)" /> I reviewed the exact original task, revision and requested owner and agree to retry.</label>
+                <button matButton (click)="retryAssignment()" [disabled]="!canRetryAssignment()">Retry the exact original assignment</button>
               }
             }
           } @else if (assignmentOptions().length) {
@@ -584,27 +612,116 @@ const queueViews: { key: QueueView; label: string }[] = [
         }
       </section>
     }
+    <audit-command-message [message]="actionMessage()" [failed]="actionFailed()" />
+    @if (registryError()) { <p role="alert">{{ registryError() }} <button matButton (click)="loadRegistry()">Retry recovery storage</button></p> }
+    @if (reconciliation(); as pending) { @if (pending.sameSession) {
+      <p>Recovery storage needs reconciliation. Check the current task before continuing.
+        <button matButton (click)="finishReconciliation()" [disabled]="!actionVerified(pending.item.requestId)">Reconcile recovery storage</button></p>
+    } }
+    @for (id of unsentIds(); track id) {
+      <p>A task action was not sent, but its local recovery reference still needs cleanup.
+        <button matButton [disabled]="!actionVerified(id) || !actionObservations()[id]" (click)="clearUnsentReservation(id)">Remove unsent recovery reference</button></p>
+    }
+    @for (id of definitiveCleanupIds(); track id) {
+      <p>A task action response was received, but its local recovery reference still needs cleanup.
+        <button matButton [disabled]="!actionVerified(id)" (click)="finishDefinitiveCleanup(id)">Finish recovery reference cleanup</button></p>
+    }
+    @if (hasUnverifiedActions()) {
+      <p>Retained task actions require a fresh authorized task read before they can be displayed.
+        <button matButton (click)="verifyRetainedActions()" [disabled]="verifyingRetained()">Check retained task actions</button></p>
+      @if (retainedError()) { <p role="alert">{{ retainedError() }}</p> }
+    }
+    @for (pending of visibleActions(); track pending.requestId) {
+      <section class="activity-panel" aria-label="Unconfirmed task action">
+        <p>The {{ actionLabel(pending.action) }} outcome for task {{ pending.taskId }} is unconfirmed. No action will be resent.</p>
+        @if (pending.action === 'changeDueDate') { <p>Requested due date: {{ pending.requestedDueDate ?? 'none' }}.</p> }
+        @if (pending.action === 'assign' || pending.action === 'reassign') { <p>Requested assignee: {{ pending.requestedAssigneeId }}.</p> }
+        @if (actionInFlight(pending.requestId)) { <p role="status">The request is in progress.</p> }
+        <button matButton (click)="observeAction(pending.requestId)" [disabled]="actionInFlight(pending.requestId) || observationLoading(pending.requestId)">Check current task</button>
+        @if (observationErrors()[pending.requestId]; as error) { <p role="alert">{{ error }}</p> }
+        @if (actionObservations()[pending.requestId]; as observed) {
+          <p>Current status: {{ observed.row.status }}; revision: {{ observed.row.revision }}; due date: {{ observed.row.dueDate ?? 'none' }}.</p>
+          @if (observed.row.revision > pending.expectedRevision) {
+            <p>The revision advanced; this observation does not identify which action changed it.</p>
+            <button matButton (click)="acknowledgeAction(pending.requestId)" [disabled]="actionInFlight(pending.requestId)">Acknowledge current task</button>
+          } @else { <p>The original revision is still current. The previous request may still be in flight, so its outcome remains unresolved.</p> }
+        }
+      </section>
+    }
+    }
+    @if (evidenceTask(); as selected) {
+      @if (taskAccessCurrent() && !evidencePanel()?.authorizedWorkspace()) { <p role="status">Checking prerequisites in the current scope, or they are unavailable.</p><button matButton [disabled]="evidencePanel()?.busy()" (click)="evidenceTask.set(null)">Close prerequisites</button> }
+      <div [hidden]="!evidencePanel()?.authorizedWorkspace() || evidencePanel()?.engagementId() !== selected.engagementId || evidencePanel()?.taskId() !== selected.taskId">
+        <audit-workflow-task-evidence #queueEvidence [engagementId]="selected.engagementId" [taskId]="selected.taskId" [title]="selected.title"
+          [accessCurrent]="evidenceAccessCurrent" [accessRevision]="availability.revision" (changed)="refreshTaskWorkspaces(); refreshActivity()" />
+        <button matButton [disabled]="evidencePanel()?.busy()" (click)="evidenceTask.set(null)">Close prerequisites</button>
+      </div>
+    }
+    @if (orderingTask(); as selected) {
+      @if (taskAccessCurrent() && !orderingPanel()?.authorizedWorkspace()) { <p role="status">Checking task ordering in the current scope, or it is unavailable.</p><button matButton [disabled]="orderingPanel()?.busy()" (click)="orderingTask.set(null)">Close task ordering</button> }
+      <div [hidden]="!orderingPanel()?.authorizedWorkspace() || orderingPanel()?.engagementId() !== selected.engagementId || orderingPanel()?.taskId() !== selected.taskId">
+        <audit-workflow-task-dependencies #queueOrdering [engagementId]="selected.engagementId" [taskId]="selected.taskId" [title]="selected.title"
+          [accessCurrent]="orderingAccessCurrent" [accessRevision]="availability.revision" (changed)="refreshTaskWorkspaces(); refreshActivity()" />
+        <button matButton [disabled]="orderingPanel()?.busy()" (click)="orderingTask.set(null)">Close task ordering</button>
+      </div>
+    }
     @if (applicabilityTask(); as selected) {
-      <audit-workflow-task-applicability [engagementId]="selected.engagementId" [taskId]="selected.taskId" [title]="selected.title"
-        (changed)="refreshTaskWorkspaces(); activity.reload()" />
-      <button matButton (click)="applicabilityTask.set(null)">Close conditional applicability</button>
+      @if (taskAccessCurrent() && !applicabilityPanel()?.authorizedWorkspace()) { <p role="status">Checking applicability in the current scope, or it is unavailable.</p><button matButton [disabled]="applicabilityPanel()?.busy()" (click)="applicabilityTask.set(null)">Close conditional applicability</button> }
+      <div [hidden]="!applicabilityPanel()?.authorizedWorkspace() || applicabilityPanel()?.engagementId() !== selected.engagementId || applicabilityPanel()?.taskId() !== selected.taskId">
+        <audit-workflow-task-applicability #queueApplicability [engagementId]="selected.engagementId" [taskId]="selected.taskId" [title]="selected.title"
+          [accessCurrent]="applicabilityAccessCurrent" [accessRevision]="availability.revision" (changed)="refreshTaskWorkspaces(); refreshActivity()" />
+        <button matButton [disabled]="applicabilityPanel()?.busy()" (click)="applicabilityTask.set(null)">Close conditional applicability</button>
+      </div>
     }
     @if (cancellationTask(); as selected) {
-      <audit-workflow-task-cancellation [task]="selected" [action]="cancellationAction()" (changed)="cancellationChanged()"
-        (reviewActivity)="reviewCancellationActivity(selected)" (refreshRequested)="refreshCancellationQueue()"
-        (closeRequested)="closeCancellation()" />
+      <div [hidden]="!cancellationAccessCurrent()">
+        <audit-workflow-task-cancellation [task]="selected" [action]="cancellationAction()" [readable]="cancellationAccessCurrent()"
+          [accessCurrent]="cancellationAccessCurrent" [accessRevision]="availability.revision" [recoveryRegistry]="actionRegistry"
+          (registryChanged)="cancellationRegistryChanged()" (scopeCheckFailed)="cancellationScopeFailed()" (changed)="cancellationChanged()"
+          (reviewActivity)="reviewCancellationActivity(selected)" (refreshRequested)="refreshCancellationQueue()"
+          (closeRequested)="closeCancellation()" />
+      </div>
     }
-    <audit-command-message [message]="command.message()" [failed]="command.failed()" />
+    @if (receiptRecovery(); as selected) {
+      <div [hidden]="!receiptRecoveryAccessCurrent()">
+        @switch (selected.candidate.kind) {
+          @case ('evidence') {
+            <audit-workflow-task-evidence #receiptEvidence [engagementId]="selected.candidate.engagementId" [taskId]="selected.candidate.taskId" [title]="'Saved task receipt'"
+              [accessCurrent]="receiptRecoveryAccessCurrent" [accessRevision]="availability.revision" (changed)="savedReceiptConfirmed()" />
+          }
+          @case ('ordering') {
+            <audit-workflow-task-dependencies #receiptOrdering [engagementId]="selected.candidate.engagementId" [taskId]="selected.candidate.taskId" [title]="'Saved task receipt'"
+              [accessCurrent]="receiptRecoveryAccessCurrent" [accessRevision]="availability.revision" (changed)="savedReceiptConfirmed()" />
+          }
+          @case ('applicability') {
+            <audit-workflow-task-applicability #receiptApplicability [engagementId]="selected.candidate.engagementId" [taskId]="selected.candidate.taskId" [title]="'Saved task receipt'"
+              [accessCurrent]="receiptRecoveryAccessCurrent" [accessRevision]="availability.revision" (changed)="savedReceiptConfirmed()" />
+          }
+        }
+        <button matButton (click)="closeSavedReceipt()">Close saved receipt</button>
+      </div>
+    }
   `,
   styleUrl: './work-queue.scss',
 })
 export class WorkflowWorkQueue {
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
+  readonly availability = inject(WorkspaceAvailability);
+  readonly taskRefused = signal(false);
+  readonly reviewRefused = signal(false);
+  readonly taskAccessCurrent = () => !this.taskRefused() && this.availability.current()?.tasks === 'available';
+  readonly reviewAccessCurrent = () => !this.reviewRefused() && this.availability.current()?.reviews === 'available';
   private readonly route = inject(ActivatedRoute);
   private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly renderInjector = inject(Injector);
   private readonly cancellationPanel = viewChild(WorkflowTaskCancellationPanel);
+  readonly evidencePanel = viewChild<WorkflowTaskEvidencePanel>('queueEvidence');
+  readonly orderingPanel = viewChild<WorkflowTaskDependenciesPanel>('queueOrdering');
+  readonly applicabilityPanel = viewChild<WorkflowTaskApplicabilityPanel>('queueApplicability');
+  private readonly receiptEvidencePanel = viewChild<WorkflowTaskEvidencePanel>('receiptEvidence');
+  private readonly receiptOrderingPanel = viewChild<WorkflowTaskDependenciesPanel>('receiptOrdering');
+  private readonly receiptApplicabilityPanel = viewChild<WorkflowTaskApplicabilityPanel>('receiptApplicability');
   readonly ownerFilter = signal<'ALL' | 'ME' | 'UNASSIGNED'>('ALL');
   readonly views = queueViews;
   readonly displays = QUEUE_DISPLAYS;
@@ -636,6 +753,9 @@ export class WorkflowWorkQueue {
   readonly assignmentObservation = signal<AssignmentObservation | null>(null);
   readonly assignmentObservedActivity = signal<ReturnType<typeof decodeActivity>['events']>([]);
   private assignmentIntent: AssignmentIntent | null = null;
+  private assignmentTicket: WorkQueueDispatchTicket | null = null;
+  private assignmentObservationOwner = '';
+  private assignmentObservationRevision = -1;
   private assignmentRequest = 0;
   private assignmentDestroyed = false;
   private cancellationTrigger: { taskId: string; engagementId: string; action: WorkflowTaskRecoveryAction; element: HTMLButtonElement } | null = null;
@@ -645,6 +765,7 @@ export class WorkflowWorkQueue {
   private readonly reviewCursor = signal<{ submittedAt: string; resultId: string } | null>(null);
   private readonly activityCursor = signal<{ occurredAt: string; activityId: string } | null>(null);
   readonly queue = this.api.resource(() => {
+    if (!this.taskAccessCurrent()) return null;
     const params = new URLSearchParams({ view: this.selectedView(), pageSize: '50', includeSummary: 'true' });
     if (this.selectedView() !== 'MY_TASKS') {
       if (this.ownerFilter() === 'ME') {
@@ -659,15 +780,17 @@ export class WorkflowWorkQueue {
       params.set('afterTaskId', after.taskId);
     }
     return `/api/ui/work/tasks?${params.toString()}`;
-  }, decodeQueue, 'The work queue is unavailable in your current scope or is not enabled on this server.');
+  }, decodeQueue, 'The work queue is unavailable in your current scope or is not enabled on this server.',
+    undefined, () => this.refuseSection('tasks'));
   readonly reminderTask = this.api.resource(() => {
     const selection = this.reminderTaskSelection();
-    return selection
+    return selection && this.taskAccessCurrent()
       ? `/api/ui/engagements/${selection.engagementId}/workflow/tasks?taskId=${encodeURIComponent(selection.taskId)}`
       : null;
   }, (value, path) => decodeReminderTaskWorkspace(value, path, this.reminderTaskSelection()),
   'The selected task is unavailable in your current authorized scope.');
   readonly reviews = this.api.resource(() => {
+    if (!this.reviewAccessCurrent()) return null;
     const params = new URLSearchParams({ pageSize: '50' });
     const after = this.reviewCursor();
     if (after) {
@@ -675,10 +798,11 @@ export class WorkflowWorkQueue {
       params.set('afterResultId', after.resultId);
     }
     return `/api/ui/work/reviews?${params.toString()}`;
-  }, decodeReviewInbox, 'The procedure review inbox is unavailable in your current reviewer scope or is not enabled on this server.');
+  }, decodeReviewInbox, 'The procedure review inbox is unavailable in your current reviewer scope or is not enabled on this server.',
+    undefined, () => this.refuseSection('reviews'));
   readonly activity = this.api.resource(() => {
     const selected = this.activityTask();
-    if (!selected) return null;
+    if (!selected || !this.taskAccessCurrent()) return null;
     const params = new URLSearchParams({ pageSize: '50' });
     const after = this.activityCursor();
     if (after) {
@@ -687,37 +811,117 @@ export class WorkflowWorkQueue {
     }
     return `/api/ui/engagements/${selected.engagementId}/workflow/tasks/${selected.taskId}/activity?${params.toString()}`;
   }, decodeActivity, 'Task activity is unavailable in your current authorized scope.');
-  readonly command = new CommandState(this.api);
+  readonly actionRegistry = new WorkQueueActionRegistry(() => this.registryOwner());
+  private readonly receiptDiscovery = new WorkQueueReceiptDiscovery(() => this.registryOwner());
+  private receiptCandidates: readonly WorkQueueReceiptCandidate[] = [];
+  private receiptOffset = 0;
+  private receiptSequence = 0;
+  private readonly verifiedReceipts = signal<VerifiedReceipt[]>([]);
+  readonly receiptRecovery = signal<VerifiedReceipt | null>(null);
+  readonly receiptChecking = signal(false);
+  readonly receiptMessage = signal('');
+  readonly registryRecords = signal<WorkQueuePendingAction[]>([]);
+  readonly registryError = signal('');
+  readonly registryReady = signal(false);
+  readonly reconciliation = signal<WorkQueueReconciliation | null>(null);
+  readonly priorFenceMessage = signal('');
+  readonly actionMessage = signal('');
+  readonly actionFailed = signal(false);
+  readonly verifyingRetained = signal(false);
+  readonly retainedError = signal('');
+  private readonly runningActions = signal<string[]>([]);
+  readonly unsentIds = signal<string[]>([]);
+  private readonly unsentTickets = new Map<string, WorkQueueDispatchTicket>();
+  readonly definitiveCleanupIds = signal<string[]>([]);
+  private readonly definitiveCleanupTickets = new Map<string, { ticket: WorkQueueDispatchTicket; success: boolean; message: string }>();
+  private readonly verifiedActions = signal<Record<string, { owner: string; revision: number }>>({});
+  private readonly seenCancellationRequests = new Set<string>();
+  readonly actionObservations = signal<Record<string, { row: ReturnType<typeof decodeWorkflowTaskWorkspace>['tasks'][number]; owner: string; revision: number }>>({});
+  readonly observationErrors = signal<Record<string, string>>({});
+  private readonly loadingObservations = signal<string[]>([]);
+  private observationSequence = 0;
+  private readonly observationRequests = new Map<string, number>();
 
   constructor() {
     const routeSubscription = this.route.queryParamMap.subscribe(params => this.readReminderTaskSelection(params));
+    let sessionOwner = this.sessionOwnerKey();
+    let availabilityRevision = this.availability.revision();
+    this.loadRegistry();
     effect(() => {
-      this.session.invalidation(); this.session.current();
+      const owner = this.sessionOwnerKey();
+      if (owner === sessionOwner) return;
+      sessionOwner = owner;
       untracked(() => {
+        this.cursor.set(null); this.reviewCursor.set(null); this.activityCursor.set(null);
+        this.reminderTaskSelection.set(null); this.reminderTaskLinkError.set('');
         this.evidenceTask.set(null); this.orderingTask.set(null); this.activityTask.set(null);
         this.applicabilityTask.set(null);
         this.cancellationTask.set(null); this.cancellationAction.set('cancel'); this.cancellationTrigger = null; this.resetAssignment();
+        this.taskRefused.set(false); this.reviewRefused.set(false);
+        this.runningActions.set([]); this.clearActionObservations(); this.actionMessage.set(''); this.actionFailed.set(false);
+        this.priorFenceMessage.set('');
+        this.unsentTickets.clear(); this.unsentIds.set([]);
+        this.definitiveCleanupTickets.clear(); this.definitiveCleanupIds.set([]);
+        this.clearSavedReceiptDiscovery();
+        this.loadRegistry();
+      });
+    });
+    effect(() => {
+      const revision = this.availability.revision();
+      const tasksAvailable = this.taskAccessCurrent();
+      untracked(() => {
+        if (revision !== availabilityRevision) {
+          availabilityRevision = revision;
+          this.assignmentMessage.set(''); this.assignmentFailed.set(false);
+          this.clearSavedReceiptDiscovery();
+          const cancellation = this.cancellationPanel();
+          cancellation?.invalidateAvailability();
+          if (cancellation && !cancellation.hasUnresolvedOutcome() && !cancellation.activeRegistryRequest()) {
+            this.cancellationTask.set(null); this.cancellationAction.set('cancel'); this.cancellationTrigger = null;
+          }
+          this.clearActionObservations();
+          if (this.assignmentIntent && (this.assignmentBusy() || this.assignmentUncertain())) {
+            ++this.assignmentRequest;
+            this.assignmentBusy.set(false); this.assignmentLoading.set(false);
+            this.assignmentUncertain.set(true); this.assignmentReviewed.set(false);
+            this.assignmentObservation.set(null); this.assignmentObservedActivity.set([]);
+            this.assignmentMessage.set('Access changed while the assignment was unresolved. Check the current task again before continuing.');
+          } else if (this.assignmentTask()) this.resetAssignment();
+        }
+        this.cursor.set(null); this.reviewCursor.set(null); this.activityCursor.set(null);
+        if (tasksAvailable) this.readReminderTaskSelection(this.route.snapshot.queryParamMap);
+        else { this.reminderTaskSelection.set(null); this.reminderTaskLinkError.set(''); }
+        if (!tasksAvailable) { this.clearActionObservations(); this.clearSettledPanels(); this.clearSavedReceiptDiscovery(); }
+        this.activityTask.set(null);
+        // Assignment and cancellation may have an unconfirmed command outcome. Retain the
+        // session-bound recovery state while availability is rechecked; hide it until allowed.
       });
     });
     inject(DestroyRef).onDestroy(() => {
       routeSubscription.unsubscribe();
       this.assignmentDestroyed = true; this.workQueueDestroyed = true; ++this.assignmentRequest;
     });
-    effect(() => {
-      const ordering = this.orderingTask(); const page = this.queue.data();
-      if (ordering && !page?.tasks.some(x => x.taskId === ordering.taskId && x.engagementId === ordering.engagementId)) this.orderingTask.set(null);
-      const selected = this.evidenceTask();
-      if (selected && !page?.tasks.some(x => x.taskId === selected.taskId && x.engagementId === selected.engagementId))
-        this.evidenceTask.set(null);
-      const applicability = this.applicabilityTask();
-      if (applicability && !this.queue.loading() && !page?.tasks.some(x => x.taskId === applicability.taskId && x.engagementId === applicability.engagementId))
-        this.applicabilityTask.set(null);
-    });
   }
 
   @HostListener('document:pointerdown')
   @HostListener('document:keydown')
   recordFocusInteraction(): void { this.focusInteraction++; }
+
+  private refuseSection(section: 'tasks' | 'reviews'): void {
+    const refused = section === 'tasks' ? this.taskRefused : this.reviewRefused;
+    if (refused()) return;
+    refused.set(true);
+    if (this.availability.state() !== 'loading') {
+      this.availability.invalidate();
+      this.availability.refresh();
+    }
+  }
+
+  retrySection(section: 'tasks' | 'reviews'): void {
+    this.availability.invalidate();
+    (section === 'tasks' ? this.taskRefused : this.reviewRefused).set(false);
+    this.availability.refresh();
+  }
 
   labelFor(value: string): string {
     return this.views.find(x => x.key === value)?.label ?? 'Work';
@@ -738,13 +942,16 @@ export class WorkflowWorkQueue {
     region.scrollLeft = Math.max(0, Math.min(maxScroll, nextScroll));
   }
 
+  refreshActivity(): void { if (this.taskAccessCurrent()) this.activity.reload(); }
+
   refreshTaskWorkspaces(): void {
+    if (!this.taskAccessCurrent()) return;
     this.queue.reload();
     this.refreshReminderTask();
   }
 
   private refreshReminderTask(): void {
-    if (this.reminderTaskSelection()) this.reminderTask.reload();
+    if (this.taskAccessCurrent() && this.reminderTaskSelection()) this.reminderTask.reload();
   }
 
   reminderQueueTask(): QueueTask | null {
@@ -816,22 +1023,39 @@ export class WorkflowWorkQueue {
   }
 
   selectView(value: QueueView): void {
-    this.evidenceTask.set(null); this.orderingTask.set(null); this.cancellationTask.set(null); this.cancellationAction.set('cancel'); this.cancellationTrigger = null;
+    this.clearSettledPanels(); this.clearSettledCancellation();
     this.cursor.set(null);
     this.ownerFilter.set('ALL');
     this.selectedView.set(value);
   }
 
   selectOwnerFilter(value: string): void {
-    this.evidenceTask.set(null); this.orderingTask.set(null); this.cancellationTask.set(null); this.cancellationAction.set('cancel'); this.cancellationTrigger = null;
+    this.clearSettledPanels(); this.clearSettledCancellation();
     if (this.selectedView() === 'MY_TASKS' || !['ALL', 'ME', 'UNASSIGNED'].includes(value)) return;
     this.cursor.set(null);
     this.ownerFilter.set(value as 'ALL' | 'ME' | 'UNASSIGNED');
   }
 
   nextPage(cursor: { dueDate: string | null; taskId: string }): void {
-    this.evidenceTask.set(null); this.orderingTask.set(null); this.cancellationTask.set(null); this.cancellationAction.set('cancel'); this.cancellationTrigger = null;
+    this.clearSettledPanels(); this.clearSettledCancellation();
     this.cursor.set(cursor);
+  }
+
+  private clearSettledCancellation(): void {
+    if (this.cancellationPanel()?.hasUnresolvedOutcome()) return;
+    this.cancellationTask.set(null); this.cancellationAction.set('cancel'); this.cancellationTrigger = null;
+  }
+
+  evidenceUnresolved(): boolean { const panel = this.evidencePanel(); return !!panel && (panel.busy() || !!panel.pending()); }
+  orderingUnresolved(): boolean { const panel = this.orderingPanel(); return !!panel && (panel.busy() || !!panel.pending()); }
+  applicabilityUnresolved(): boolean { const panel = this.applicabilityPanel(); return !!panel && (panel.busy() || !!panel.pending()); }
+  selectEvidence(task: QueueTask): void { this.loadRegistry(); if (!this.evidencePanel()?.busy() && !this.panelConflict(task, 'evidence')) this.evidenceTask.set(task); }
+  selectOrdering(task: QueueTask): void { this.loadRegistry(); if (!this.orderingPanel()?.busy() && !this.panelConflict(task, 'ordering')) this.orderingTask.set(task); }
+  selectApplicability(task: QueueTask): void { this.loadRegistry(); if (!this.applicabilityPanel()?.busy() && !this.panelConflict(task, 'applicability')) this.applicabilityTask.set(task); }
+  private clearSettledPanels(): void {
+    if (!this.evidenceUnresolved()) this.evidenceTask.set(null);
+    if (!this.orderingUnresolved()) this.orderingTask.set(null);
+    if (!this.applicabilityUnresolved()) this.applicabilityTask.set(null);
   }
 
   nextReviewPage(cursor: { submittedAt: string; resultId: string }): void {
@@ -876,7 +1100,8 @@ export class WorkflowWorkQueue {
   reopenable(task: QueueTask): boolean { return canReopenTask(task); }
 
   private openRecovery(task: QueueTask, action: WorkflowTaskRecoveryAction, event: MouseEvent): void {
-    if (this.cancellationTask() || !this.canRecover(task, action)) return;
+    this.loadRegistry();
+    if (this.cancellationTask() || !this.canRecover(task, action) || this.panelConflict(task, 'cancellation')) return;
     const trigger = event.currentTarget as HTMLButtonElement;
     const owner = this.sessionOwnerKey();
     const interaction = this.focusInteraction;
@@ -949,7 +1174,7 @@ export class WorkflowWorkQueue {
     this.cancellationAction.set('cancel');
     this.cancellationTrigger = null;
     this.refreshTaskWorkspaces();
-    if (sameTask && alreadyAtFirstPage) this.activity.reload();
+    if (sameTask && alreadyAtFirstPage) this.refreshActivity();
     afterNextRender(() => {
       if (this.workQueueDestroyed || owner !== this.sessionOwnerKey() || interaction !== this.focusInteraction ||
           !origin || (document.activeElement !== origin && document.activeElement !== document.body) ||
@@ -968,14 +1193,16 @@ export class WorkflowWorkQueue {
   }
 
   async openAssignment(task: QueueTask): Promise<void> {
-    if (!task.canAssign || this.assignmentBusy() || this.assignmentUncertain()) return;
+    this.loadRegistry();
+    if (!this.taskAccessCurrent() || !task.canAssign || this.assignmentBusy() || this.assignmentUncertain() || this.panelConflict(task, 'assignment')) return;
     const scope = this.assignmentScope(), request = ++this.assignmentRequest;
+    const accessRevision = this.availability.revision();
     this.assignmentTask.set(task); this.assignmentOptions.set([]); this.assignmentUserId.set('');
     this.assignmentReviewed.set(false); this.assignmentError.set(''); this.assignmentMessage.set('');
     this.assignmentLoading.set(true);
     try {
       const options = await this.api.get(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`, decodeAssigneeOptions);
-      if (this.assignmentCurrent(scope, request)) this.assignmentOptions.set(options);
+      if (this.assignmentCurrent(scope, request) && this.taskAccessCurrent() && accessRevision === this.availability.revision()) this.assignmentOptions.set(options);
     } catch (error) {
       if (this.assignmentCurrent(scope, request)) this.assignmentError.set(error instanceof Error ? error.message : 'Eligible staff are unavailable. Refresh the task list.');
     } finally { if (this.assignmentCurrent(scope, request)) this.assignmentLoading.set(false); }
@@ -1002,6 +1229,7 @@ export class WorkflowWorkQueue {
     this.assignmentBusy.set(false); this.assignmentLoading.set(false); this.assignmentUncertain.set(false);
     this.assignmentMessage.set(''); this.assignmentFailed.set(false);
     this.assignmentObservation.set(null); this.assignmentObservedActivity.set([]); this.assignmentIntent = null;
+    this.assignmentTicket = null; this.assignmentObservationOwner = ''; this.assignmentObservationRevision = -1;
   }
 
   private assignmentScope(): string {
@@ -1015,7 +1243,8 @@ export class WorkflowWorkQueue {
 
   async saveAssignment(): Promise<void> {
     const task = this.assignmentTask(); const owner = this.selectedAssignmentOwner();
-    if (!task || !owner || !task.canAssign || !this.assignmentReviewed() || this.assignmentBusy() || this.assignmentUncertain() || owner.userId === task.assigneeUserId) return;
+    this.loadRegistry();
+    if (!this.taskAccessCurrent() || !task || !owner || !task.canAssign || this.panelConflict(task, 'assignment') || !this.assignmentReviewed() || this.assignmentBusy() || this.assignmentUncertain() || owner.userId === task.assigneeUserId) return;
     this.assignmentIntent = { task: { ...task }, owner: { ...owner }, action: task.assigneeUserId ? 'reassign' : 'assign', scope: this.assignmentScope() };
     await this.dispatchAssignment(false);
   }
@@ -1023,28 +1252,76 @@ export class WorkflowWorkQueue {
   private async dispatchAssignment(retry: boolean): Promise<void> {
     const intent = this.assignmentIntent;
     if (!intent || intent.scope !== this.assignmentScope()) return;
-    const { task, owner, action, scope } = intent, request = ++this.assignmentRequest;
-    this.assignmentBusy.set(true); this.assignmentFailed.set(false); this.assignmentMessage.set('');
-    this.assignmentObservation.set(null); this.assignmentObservedActivity.set([]);
-    const outcome = await this.api.command(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/${action}`,
+    const { task, owner, action, scope } = intent;
+    const registryOwner = this.registryOwner();
+    if (!registryOwner || retry && (!this.assignmentTicket || !this.canRetryAssignment())) return;
+    this.loadRegistry();
+    if (this.panelConflict(task, 'assignment', retry ? this.assignmentTicket?.item.requestId ?? null : null)) return;
+    const accessRevision = this.availability.revision();
+    let ticket = this.assignmentTicket;
+    if (!retry) {
+      let requestId: string;
+      try { requestId = crypto.randomUUID(); } catch { this.assignmentFailed.set(true); this.assignmentMessage.set('A recovery reference could not be created. No assignment was sent.'); return; }
+      const reserved = this.actionRegistry.reserveForDispatchRecoverable(registryOwner, { engagementId: task.engagementId, taskId: task.taskId,
+        expectedRevision: task.revision, action, requestedDueDate: null, requestedAssigneeId: owner.userId, requestId });
+      if (!reserved.ok) { if ('cleanup' in reserved) this.rememberUnsent(reserved.cleanup); this.loadRegistry(); this.assignmentFailed.set(true); this.assignmentMessage.set('The assignment could not be safely reserved. No assignment was sent.'); return; }
+      ticket = reserved.value; this.assignmentTicket = ticket; this.loadRegistry();
+      if (!this.registryReady() || scope !== this.assignmentScope() || !this.taskAccessCurrent() || accessRevision !== this.availability.revision()) {
+        const aborted = this.actionRegistry.abortBeforeDispatch(ticket);
+        if (scope === this.assignmentScope()) { if (aborted.ok) this.assignmentTicket = null; else this.rememberUnsent(ticket); this.loadRegistry(); this.assignmentFailed.set(true); this.assignmentMessage.set(aborted.ok ? 'Access changed. No assignment was sent.' : 'No assignment was sent; the recovery reference could not be cleared.'); }
+        return;
+      }
+      this.verifiedActions.update(items => ({ ...items, [ticket!.item.requestId]: { owner: this.sessionOwnerKey(), revision: accessRevision } }));
+    }
+    if (!ticket) return;
+    const send = () => this.api.command(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/${action}`,
       { assigneeUserId: owner.userId, expectedRevision: task.revision });
-    if (!this.assignmentCurrent(scope, request)) return;
-    this.assignmentBusy.set(false);
-    if (outcome.ok) {
-      this.resetAssignment();
-      this.assignmentMessage.set(`Task assigned to ${owner.displayName}.`);
-      this.refreshTaskWorkspaces(); this.activity.reload();
+    const invoked = retry
+      ? this.actionRegistry.invokeExactRetry<CommandOutcome>(ticket, () => this.canRetryAssignment() && scope === this.assignmentScope() && accessRevision === this.availability.revision())
+      : this.actionRegistry.invokeReserved(ticket, send);
+    if (!invoked.ok) {
+      const aborted = !retry ? this.actionRegistry.abortBeforeDispatch(ticket) : null;
+      if (scope === this.assignmentScope()) { if (aborted?.ok) this.assignmentTicket = null; else if (!retry) this.rememberUnsent(ticket); this.loadRegistry(); this.assignmentFailed.set(true); this.assignmentMessage.set('The assignment was not sent; its recovery reference requires review.'); }
       return;
     }
-    this.assignmentFailed.set(true); this.assignmentMessage.set(outcome.message);
-    if (outcome.unknown || retry) {
+    const request = ++this.assignmentRequest;
+    this.assignmentBusy.set(true); this.assignmentFailed.set(false); this.assignmentMessage.set('');
+    this.assignmentObservation.set(null); this.assignmentObservedActivity.set([]);
+    let outcome: CommandOutcome;
+    try { outcome = await invoked.value; }
+    catch {
+      if (this.assignmentCurrent(scope, request)) { this.assignmentBusy.set(false); this.assignmentUncertain.set(true); this.assignmentFailed.set(true); this.assignmentMessage.set('The assignment outcome is unconfirmed.'); }
+      return;
+    }
+    if (!this.assignmentCurrent(scope, request)) return;
+    if (!this.taskAccessCurrent() || accessRevision !== this.availability.revision()) {
+      this.assignmentBusy.set(false); this.assignmentUncertain.set(true); this.assignmentReviewed.set(false);
+      this.assignmentMessage.set('Access changed while the assignment was unresolved. Check the current task again before continuing.');
+      return;
+    }
+    this.assignmentBusy.set(false);
+    if (outcome.ok && outcome.value === true || !retry && !outcome.ok && !outcome.unknown) {
+      const removed = this.actionRegistry.removeDefinitiveTicket(ticket);
+      const finished = removed.ok && this.taskAccessCurrent() && scope === this.assignmentScope() && accessRevision === this.availability.revision()
+        ? this.actionRegistry.finishDefinitiveTicket(ticket) : null;
+      if (!removed.ok || !finished?.ok) { this.rememberDefinitiveCleanup(ticket, outcome.ok, outcome.ok ? 'Task assignment response confirmed.' : 'The assignment was refused. Review the current task.'); this.loadRegistry(); this.assignmentUncertain.set(true); this.assignmentFailed.set(true); this.assignmentMessage.set('The response was received, but the recovery reference could not be cleared.'); return; }
+      this.loadRegistry();
+    }
+    if (outcome.ok && outcome.value === true) {
+      this.resetAssignment();
+      this.assignmentMessage.set(`Task assigned to ${owner.displayName}.`);
+      this.refreshTaskWorkspaces(); this.refreshActivity();
+      return;
+    }
+    this.assignmentFailed.set(true); this.assignmentMessage.set(outcome.ok ? 'The assignment response could not be confirmed.' : outcome.message);
+    if (outcome.ok || outcome.unknown || retry) {
       this.assignmentUncertain.set(true); this.assignmentReviewed.set(false);
       this.assignmentMessage.set('The original assignment remains unconfirmed. Check the current task and its activity before retrying or choosing another owner.');
       this.refreshReminderTask();
     } else if (outcome.status === 409 || /stale|revision/i.test(outcome.code)) {
       this.resetAssignment();
       this.assignmentFailed.set(true);
-      this.refreshTaskWorkspaces(); this.activity.reload();
+      this.refreshTaskWorkspaces(); this.refreshActivity();
       this.assignmentMessage.set('The task changed before assignment. The queue has been refreshed; reopen it and review the current owner and revision.');
     } else if (outcome.status === 403) {
       this.resetAssignment(); this.assignmentFailed.set(true); this.assignmentMessage.set(outcome.message); this.refreshTaskWorkspaces();
@@ -1055,9 +1332,10 @@ export class WorkflowWorkQueue {
 
   async recoverAssignment(): Promise<void> {
     const intent = this.assignmentIntent;
-    if (!intent || !this.assignmentUncertain() || this.assignmentBusy() || this.assignmentLoading() || intent.scope !== this.assignmentScope()) return;
+    if (!this.taskAccessCurrent() || !intent || !this.assignmentUncertain() || this.assignmentBusy() || this.assignmentLoading() || intent.scope !== this.assignmentScope()) return;
     const request = ++this.assignmentRequest, { task, scope } = intent;
-    this.assignmentLoading.set(true); this.assignmentError.set('');
+    const accessRevision = this.availability.revision();
+    this.assignmentLoading.set(true); this.assignmentError.set(''); this.assignmentReviewed.set(false);
     this.assignmentObservation.set(null); this.assignmentObservedActivity.set([]);
     try {
       const [workspace, history] = await Promise.all([
@@ -1065,17 +1343,37 @@ export class WorkflowWorkQueue {
         this.api.get(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/activity?pageSize=50`, decodeActivity),
       ]);
       if (!this.assignmentCurrent(scope, request)) return;
-      const observed = workspace.tasks.find(row => row.id === task.taskId);
+      if (!this.taskAccessCurrent() || accessRevision !== this.availability.revision()) {
+        this.assignmentObservation.set(null); this.assignmentObservedActivity.set([]);
+        this.assignmentMessage.set('Access changed while the assignment was unresolved. Check the current task again before continuing.');
+        return;
+      }
+      const matches = workspace.tasks.filter(row => row.id === task.taskId);
+      const observed = matches[0];
       if (workspace.engagementId !== task.engagementId || history.engagementId !== task.engagementId || history.taskId !== task.taskId ||
-          !observed || observed.revision < task.revision) throw new Error('The exact current task and activity could not be verified. Keep the original request unresolved.');
+          workspace.truncated || matches.length !== 1 || !observed || observed.revision < task.revision) throw new Error('The exact current task and activity could not be verified. Keep the original request unresolved.');
+      if (observed.revision === task.revision && this.assignmentTicket) {
+        const readiness = this.actionRegistry.retryReadiness(this.assignmentTicket);
+        if (!readiness.ok || readiness.value === 'in_flight') {
+          this.assignmentMessage.set('The original request is still awaiting a response or cannot be verified. Check the task again after it finishes.');
+          return;
+        }
+      }
+      this.assignmentObservationOwner = scope; this.assignmentObservationRevision = accessRevision;
+      if (this.assignmentTicket) this.verifiedActions.update(values => ({ ...values, [this.assignmentTicket!.item.requestId]: { owner: this.sessionOwnerKey(), revision: accessRevision } }));
       this.assignmentObservation.set(observed);
       this.assignmentObservedActivity.set(history.events.filter(event => event.taskRevision > task.revision &&
         ['TASK_ASSIGNED', 'TASK_REASSIGNED'].includes(event.kind)));
       this.assignmentMessage.set(observed.revision > task.revision
         ? 'The task revision advanced. Review and acknowledge the observed owner before opening another assignment.'
         : 'The task still has its original revision. An explicit retry uses the exact original owner and revision, so the server can refuse a concurrent change.');
-    } catch (error) {
-      if (this.assignmentCurrent(scope, request)) this.assignmentError.set(error instanceof Error ? error.message : 'Current assignment could not be verified.');
+    } catch {
+      if (this.assignmentCurrent(scope, request) && accessRevision === this.availability.revision() && this.taskAccessCurrent()) {
+        const id = this.assignmentTicket?.item.requestId;
+        if (id) this.verifiedActions.update(values => { const next = { ...values }; delete next[id]; return next; });
+        this.assignmentError.set('The current assignment could not be verified.');
+        this.retainedError.set('The retained assignment could not be checked in the current scope.');
+      }
     } finally {
       if (this.assignmentCurrent(scope, request)) {
         this.assignmentLoading.set(false);
@@ -1084,12 +1382,19 @@ export class WorkflowWorkQueue {
     }
   }
 
-  canRetryAssignment(): boolean {
+  assignmentRetryOwner(): string { return this.assignmentIntent?.owner.displayName ?? this.assignmentIntent?.owner.userId ?? 'Unavailable'; }
+
+  canReviewAssignmentRetry(): boolean {
     const intent = this.assignmentIntent, observed = this.assignmentObservation();
-    return !!intent && intent.scope === this.assignmentScope() && this.assignmentUncertain() && !!observed &&
+    const readiness = this.assignmentTicket ? this.actionRegistry.retryReadiness(this.assignmentTicket) : null;
+    return this.assignmentAccessCurrent() && !!intent && !!this.assignmentTicket && intent.scope === this.assignmentScope() && this.assignmentUncertain() && !!observed &&
+      !!readiness && readiness.ok && readiness.value === 'settled' &&
+      this.assignmentObservationOwner === this.assignmentScope() && this.assignmentObservationRevision === this.availability.revision() &&
       observed.id === intent.task.taskId && observed.revision === intent.task.revision && observed.assigneeUserId === intent.task.assigneeUserId &&
       !['COMPLETED', 'CANCELLED'].includes(observed.status) && !this.assignmentBusy() && !this.assignmentLoading();
   }
+
+  canRetryAssignment(): boolean { return this.canReviewAssignmentRetry() && this.assignmentReviewed(); }
 
   async retryAssignment(): Promise<void> {
     if (this.canRetryAssignment()) await this.dispatchAssignment(true);
@@ -1097,22 +1402,522 @@ export class WorkflowWorkQueue {
 
   acknowledgeAssignmentObservation(): void {
     const intent = this.assignmentIntent, observed = this.assignmentObservation();
-    if (!intent || intent.scope !== this.assignmentScope() || !this.assignmentUncertain() || this.assignmentBusy() ||
-        !observed || observed.revision <= intent.task.revision) return;
+    const registryOwner = this.registryOwner(), ticket = this.assignmentTicket;
+    if (!this.assignmentAccessCurrent() || !registryOwner || !ticket || !intent || intent.scope !== this.assignmentScope() || !this.assignmentUncertain() || this.assignmentBusy() ||
+        !observed || observed.revision <= intent.task.revision || this.assignmentObservationOwner !== this.assignmentScope() ||
+        this.assignmentObservationRevision !== this.availability.revision()) return;
+    const acknowledged = this.actionRegistry.acknowledge(registryOwner, ticket.item.requestId, { owner: registryOwner,
+      engagementId: intent.task.engagementId, taskId: intent.task.taskId, revision: observed.revision,
+      availabilityRevision: this.assignmentObservationRevision }, this.availability.revision());
+    if (!acknowledged.ok) { this.loadRegistry(); this.assignmentFailed.set(true); this.assignmentMessage.set('The current assignment observation could not be acknowledged.'); return; }
+    if (!this.taskAccessCurrent() || intent.scope !== this.assignmentScope() || this.assignmentObservationRevision !== this.availability.revision()) { this.loadRegistry(); return; }
+    this.loadRegistry();
     const owner = observed.assigneeDisplayName ?? observed.assigneeUserId ?? 'Unassigned';
-    this.resetAssignment(); this.refreshTaskWorkspaces(); this.activity.reload();
-    this.assignmentMessage.set(`Observed assignment to ${owner} at revision ${observed.revision} acknowledged. Review the refreshed queue before another change.`);
+    this.resetAssignment(); this.refreshTaskWorkspaces(); this.refreshActivity();
+    this.assignmentMessage.set(`Current owner ${owner} at revision ${observed.revision} acknowledged. The original assignment outcome is not established.`);
+  }
+
+  private registryLoadedOwner = '';
+
+  private registryOwner(): WorkQueueRegistryOwner | null {
+    const actor = this.session.current();
+    return actor?.staff ? { firmId: actor.firmId, userId: actor.userId, generation: actor.generation,
+      invalidation: this.session.invalidation(), staff: true } : null;
+  }
+
+  private clearSavedReceiptDiscovery(): void {
+    ++this.receiptSequence;
+    this.receiptCandidates = []; this.receiptOffset = 0;
+    this.verifiedReceipts.set([]); this.receiptRecovery.set(null);
+    this.receiptChecking.set(false); this.receiptMessage.set('');
+  }
+
+  findSavedReceipts(): void {
+    if (!this.taskAccessCurrent() || this.receiptChecking()) return;
+    this.clearSavedReceiptDiscovery();
+    const owner = this.registryOwner();
+    if (!owner) { this.receiptMessage.set('Saved receipts could not be checked.'); return; }
+    const snapshot = this.receiptDiscovery.snapshot(owner);
+    if (!snapshot.complete) {
+      this.receiptMessage.set('Saved receipt discovery is incomplete. Existing recovery keys have been preserved.');
+      return;
+    }
+    this.receiptCandidates = snapshot.candidates;
+    if (!snapshot.candidates.length) { this.receiptMessage.set('No saved task receipts were found.'); return; }
+    void this.checkMoreSavedReceipts();
+  }
+
+  hasMoreSavedReceipts(): boolean { return this.receiptOffset < this.receiptCandidates.length; }
+
+  private receiptCurrent(entry: VerifiedReceipt): boolean {
+    const owner = this.registryOwner();
+    return !this.workQueueDestroyed && !!owner && this.taskAccessCurrent() && entry.owner === this.sessionOwnerKey() &&
+      entry.revision === this.availability.revision() && this.receiptDiscovery.verify(owner, entry.candidate).valid;
+  }
+
+  visibleSavedReceipts(): VerifiedReceipt[] { return this.verifiedReceipts().filter(entry => this.receiptCurrent(entry)); }
+  readonly receiptRecoveryAccessCurrent = () => {
+    const entry = this.receiptRecovery();
+    if (!entry || !this.receiptCurrent(entry)) return false;
+    const panel = entry.candidate.kind === 'evidence' ? this.receiptEvidencePanel() :
+      entry.candidate.kind === 'ordering' ? this.receiptOrderingPanel() : this.receiptApplicabilityPanel();
+    return panel?.pending() === entry.candidate.requestKey;
+  };
+
+  private async readSavedReceiptTask(entry: VerifiedReceipt): Promise<boolean> {
+    if (!this.receiptCurrent(entry)) return false;
+    const candidate = entry.candidate;
+    const workspace = await this.api.get(`/api/ui/engagements/${candidate.engagementId}/workflow/tasks?taskId=${encodeURIComponent(candidate.taskId)}`, decodeWorkflowTaskWorkspace);
+    if (!this.receiptCurrent(entry) || workspace.truncated || workspace.tasks.length !== 1) return false;
+    // Existing panels construct case-sensitive storage keys from the session and input IDs,
+    // and compare the returned workspace IDs exactly. Refuse incompatible spellings.
+    const actor = this.session.current();
+    const prefix = { evidence: 'auditsphere.workflow-evidence', ordering: 'auditsphere.workflow-ordering',
+      applicability: 'auditsphere.workflow-applicability' }[candidate.kind];
+    return !!actor && workspace.engagementId === candidate.engagementId && workspace.tasks[0].id === candidate.taskId &&
+      candidate.storageKey === `${prefix}:${actor.firmId}:${actor.userId}:${candidate.engagementId}:${candidate.taskId}`;
+  }
+
+  async checkMoreSavedReceipts(): Promise<void> {
+    if (!this.taskAccessCurrent() || this.receiptChecking() || !this.hasMoreSavedReceipts()) return;
+    const sequence = ++this.receiptSequence, owner = this.sessionOwnerKey(), revision = this.availability.revision();
+    const current = () => !this.workQueueDestroyed && sequence === this.receiptSequence && owner === this.sessionOwnerKey() &&
+      revision === this.availability.revision() && this.taskAccessCurrent();
+    this.receiptChecking.set(true);
+    let incomplete = false;
+    const end = Math.min(this.receiptOffset + 10, this.receiptCandidates.length);
+    while (current() && this.receiptOffset < end) {
+      const candidate = this.receiptCandidates[this.receiptOffset++];
+      const entry = { candidate, owner, revision };
+      try {
+        const valid = await this.readSavedReceiptTask(entry);
+        if (!current()) return;
+        if (valid) this.verifiedReceipts.update(items => [...items, entry]);
+        else incomplete = true;
+      } catch { if (!current()) return; incomplete = true; }
+    }
+    if (current()) {
+      this.receiptChecking.set(false);
+      if (incomplete) this.receiptMessage.set('Some saved receipts could not be checked. Their keys have been preserved.');
+    }
+  }
+
+  async openSavedReceipt(entry: VerifiedReceipt): Promise<void> {
+    if (this.receiptChecking() || this.receiptRecovery() || !this.visibleSavedReceipts().includes(entry)) return;
+    const candidate = entry.candidate;
+    const existing = candidate.kind === 'evidence' ? this.evidenceTask() : candidate.kind === 'ordering' ? this.orderingTask() : this.applicabilityTask();
+    if (existing?.taskId.toLowerCase() === candidate.taskId.toLowerCase()) {
+      this.receiptMessage.set('This receipt panel is already open. Close it before opening saved recovery.'); return;
+    }
+    const sequence = ++this.receiptSequence;
+    this.receiptChecking.set(true); this.receiptMessage.set('');
+    try {
+      const valid = await this.readSavedReceiptTask(entry);
+      if (sequence !== this.receiptSequence || !this.receiptCurrent(entry)) return;
+      if (valid) this.receiptRecovery.set(entry);
+      else this.receiptMessage.set('The saved receipt could not be checked. Its key has been preserved.');
+    } catch {
+      if (sequence === this.receiptSequence && this.receiptCurrent(entry))
+        this.receiptMessage.set('The saved receipt could not be checked. Its key has been preserved.');
+    } finally {
+      if (sequence === this.receiptSequence) this.receiptChecking.set(false);
+    }
+  }
+
+  closeSavedReceipt(): void { this.receiptRecovery.set(null); }
+  savedReceiptConfirmed(): void {
+    this.clearSavedReceiptDiscovery();
+    this.receiptMessage.set('The saved receipt was confirmed. Find saved receipts again to check other outcomes.');
+    this.refreshTaskWorkspaces(); this.refreshActivity();
+  }
+
+  private panelAccess(task: { taskId: string; engagementId: string } | null,
+    own: 'evidence' | 'ordering' | 'applicability' | 'cancellation'): boolean {
+    const owner = this.registryOwner();
+    const active = own === 'cancellation' ? this.cancellationPanel()?.activeRegistryRequest() : null;
+    const exempt = active && owner && active.firmId === owner.firmId.toLowerCase() && active.userId === owner.userId.toLowerCase() &&
+      active.dispatchGeneration === owner.generation && active.dispatchInvalidation === owner.invalidation &&
+      active.engagementId === task?.engagementId.toLowerCase() && active.taskId === task?.taskId.toLowerCase() ? active.requestId : null;
+    if (active && (!exempt || !this.actionVerified(exempt))) return false;
+    if (!task || !owner || this.panelConflict(task, own, exempt)) return false;
+    if (own !== 'cancellation') {
+      const panel = own === 'evidence' ? this.evidencePanel() : own === 'ordering' ? this.orderingPanel() : this.applicabilityPanel();
+      const prefix = own === 'evidence' ? 'auditsphere.workflow-evidence' : own === 'ordering' ? 'auditsphere.workflow-ordering' : 'auditsphere.workflow-applicability';
+      try {
+        const saved = sessionStorage.getItem(`${prefix}:${owner.firmId}:${owner.userId}:${task.engagementId}:${task.taskId}`);
+        if (saved !== null && panel?.pending() !== saved) return false;
+      } catch { return false; }
+    }
+    const live = this.actionRegistry.read(owner);
+    return live.ok && !live.value.some(item => item.taskId.toLowerCase() === task.taskId.toLowerCase() && item.requestId !== exempt);
+  }
+  readonly evidenceAccessCurrent = () => this.panelAccess(this.evidenceTask(), 'evidence');
+  readonly orderingAccessCurrent = () => this.panelAccess(this.orderingTask(), 'ordering');
+  readonly applicabilityAccessCurrent = () => this.panelAccess(this.applicabilityTask(), 'applicability');
+  readonly cancellationAccessCurrent = () => this.panelAccess(this.cancellationTask(), 'cancellation');
+  readonly assignmentAccessCurrent = () => this.taskAccessCurrent() && (!this.assignmentTicket || this.actionVerified(this.assignmentTicket.item.requestId));
+
+  actionVerified(id: string): boolean {
+    const item = this.verifiedActions()[id];
+    return !!item && item.owner === this.sessionOwnerKey() && item.revision === this.availability.revision();
+  }
+
+  cancellationRegistryChanged(): void {
+    const panel = this.cancellationPanel(), active = panel?.activeRegistryRequest();
+    this.loadRegistry();
+    if (active && !this.seenCancellationRequests.has(active.requestId)) {
+      this.seenCancellationRequests.add(active.requestId);
+      if (panel?.state() === 'review' && this.taskAccessCurrent())
+        this.verifiedActions.update(items => ({ ...items, [active.requestId]: { owner: this.sessionOwnerKey(), revision: this.availability.revision() } }));
+    }
+  }
+
+  cancellationScopeFailed(): void {
+    const id = this.cancellationPanel()?.activeRegistryRequest()?.requestId;
+    if (id) this.verifiedActions.update(values => { const next = { ...values }; delete next[id]; return next; });
+    this.retainedError.set('The retained task action could not be checked in the current scope.');
+  }
+
+  loadRegistry(): void {
+    const owner = this.registryOwner();
+    this.registryLoadedOwner = this.sessionOwnerKey();
+    if (!owner) { this.registryRecords.set([]); this.reconciliation.set(null); this.registryReady.set(false); this.registryError.set(''); return; }
+    const result = this.actionRegistry.read(owner);
+    const pending = this.actionRegistry.pendingReconciliation(owner);
+    this.registryReady.set(result.ok && pending.ok);
+    if (result.ok && pending.ok) {
+      if (JSON.stringify(this.registryRecords()) !== JSON.stringify(result.value)) this.registryRecords.set(result.value);
+      const previous = this.reconciliation();
+      if (JSON.stringify(previous) !== JSON.stringify(pending.value)) {
+        this.reconciliation.set(pending.value);
+        const panel = this.cancellationPanel();
+        const finishingLiveCancellation = panel?.busy() && panel.activeRegistryRequest()?.requestId === pending.value?.item.requestId &&
+          !['cleanup', 'finalizing'].includes(panel.state());
+        if (pending.value && !finishingLiveCancellation && (!previous || previous.item.requestId !== pending.value.item.requestId || previous.kind !== pending.value.kind)) {
+          const id = pending.value.item.requestId;
+          this.verifiedActions.update(values => { const next = { ...values }; delete next[id]; return next; });
+          this.actionObservations.update(values => { const next = { ...values }; delete next[id]; return next; });
+        }
+      }
+      this.registryError.set('');
+    }
+    else { this.registryRecords.set([]); this.reconciliation.set(pending.ok ? pending.value : null); this.registryError.set('Task action recovery storage is unavailable or invalid. Restore it before making task changes.'); }
+  }
+
+  private clearActionObservations(): void {
+    this.observationRequests.clear(); this.verifiedActions.set({}); this.actionObservations.set({});
+    this.observationErrors.set({}); this.loadingObservations.set([]); this.verifyingRetained.set(false); this.retainedError.set('');
+  }
+
+  actionInFlight(id: string): boolean {
+    const panel = this.cancellationPanel();
+    return this.runningActions().includes(id) || this.assignmentBusy() && this.assignmentTicket?.item.requestId === id ||
+      !!panel && panel.busy() && panel.activeRegistryRequest()?.requestId === id;
+  }
+  private rememberUnsent(ticket: WorkQueueDispatchTicket): void {
+    this.unsentTickets.set(ticket.item.requestId, ticket);
+    this.unsentIds.update(ids => ids.includes(ticket.item.requestId) ? ids : [...ids, ticket.item.requestId]);
+  }
+  private rememberDefinitiveCleanup(ticket: WorkQueueDispatchTicket, success: boolean, message: string): void {
+    this.definitiveCleanupTickets.set(ticket.item.requestId, { ticket, success, message });
+    this.definitiveCleanupIds.update(ids => ids.includes(ticket.item.requestId) ? ids : [...ids, ticket.item.requestId]);
+  }
+  finishDefinitiveCleanup(id: string): void {
+    const cleanup = this.definitiveCleanupTickets.get(id);
+    if (!cleanup || !this.taskAccessCurrent() || !this.actionVerified(id)) return;
+    const result = this.actionRegistry.removeDefinitiveTicket(cleanup.ticket);
+    if (!result.ok) { this.actionFailed.set(true); this.actionMessage.set('The recovery reference could not be verified or removed.'); return; }
+    if (!this.taskAccessCurrent() || !this.actionVerified(id) || !this.actionRegistry.finishDefinitiveTicket(cleanup.ticket).ok) {
+      this.actionFailed.set(true); this.actionMessage.set('The recovery reference cleanup could not be completed in the current scope.'); return;
+    }
+    this.definitiveCleanupTickets.delete(id); this.definitiveCleanupIds.update(ids => ids.filter(value => value !== id));
+    if (this.assignmentTicket === cleanup.ticket) this.resetAssignment();
+    this.loadRegistry(); this.actionFailed.set(!cleanup.success); this.actionMessage.set(cleanup.message);
+    this.refreshTaskWorkspaces(); this.refreshActivity();
+  }
+  clearUnsentReservation(id: string): void {
+    const ticket = this.unsentTickets.get(id);
+    if (!ticket || !this.taskAccessCurrent() || !this.actionObservations()[id] || !this.actionVerified(id)) return;
+    const result = this.actionRegistry.abortBeforeDispatch(ticket);
+    if (!result.ok) { this.actionFailed.set(true); this.actionMessage.set('The unsent recovery reference could not be verified or removed.'); return; }
+    this.unsentTickets.delete(id); this.unsentIds.update(ids => ids.filter(value => value !== id));
+    if (this.assignmentTicket === ticket) this.resetAssignment();
+    this.loadRegistry();
+    this.verifiedActions.update(values => { const next = { ...values }; delete next[id]; return next; });
+    this.actionFailed.set(false); this.actionMessage.set('The unsent recovery reference was removed.');
+  }
+  actionLabel(action: string): string {
+    return ({ complete: 'completion', changeDueDate: 'due-date change', cancel: 'cancellation', reopen: 'reopening',
+      suspend: 'suspension', resume: 'resumption', assign: 'assignment', reassign: 'reassignment' } as Record<string, string>)[action] ?? 'task action';
+  }
+  observationLoading(id: string): boolean { return this.loadingObservations().includes(id); }
+  visibleActions(): WorkQueuePendingAction[] {
+    if (!this.taskAccessCurrent() || this.registryLoadedOwner !== this.sessionOwnerKey()) return [];
+    const owner = this.sessionOwnerKey(), revision = this.availability.revision(), verified = this.verifiedActions();
+    return this.registryRecords().filter(item => verified[item.requestId]?.owner === owner && verified[item.requestId]?.revision === revision);
+  }
+  private retainedActionsForVerification(): WorkQueuePendingAction[] {
+    const items = [...this.registryRecords()], panel = this.cancellationPanel(), active = panel?.activeRegistryRequest(), owner = this.registryOwner();
+    if (!owner) return items;
+    const include = (item: WorkQueuePendingAction) => {
+      if (item.firmId === owner.firmId.toLowerCase() && item.userId === owner.userId.toLowerCase() &&
+          item.dispatchGeneration === owner.generation && item.dispatchInvalidation === owner.invalidation &&
+          !items.some(existing => existing.requestId === item.requestId)) items.push(item);
+    };
+    if (active && panel && ['cleanup', 'finalizing'].includes(panel.state())) include(active);
+    for (const cleanup of this.definitiveCleanupTickets.values()) include(cleanup.ticket.item);
+    const pending = this.reconciliation();
+    if (pending?.sameSession) {
+      const index = items.findIndex(item => item.requestId === pending.item.requestId);
+      if (index < 0) items.push({ ...pending.item }); else items[index] = { ...pending.item };
+    }
+    return items;
+  }
+
+  priorSessionFenceAvailable(): boolean {
+    return !!this.registryOwner() && this.registryLoadedOwner === this.sessionOwnerKey() && !!this.reconciliation() && !this.reconciliation()!.sameSession;
+  }
+
+  /** Only the registry's prior-session byte check may release this lock; it does not remove an action. */
+  releasePriorSessionFence(): void {
+    const owner = this.registryOwner(), ownerKey = this.sessionOwnerKey(), pending = this.reconciliation();
+    if (!owner || !pending || pending.sameSession || !this.priorSessionFenceAvailable()) return;
+    const live = this.actionRegistry.pendingReconciliation(owner);
+    if (!live.ok || !live.value || live.value.sameSession || JSON.stringify(live.value) !== JSON.stringify(pending)) {
+      this.loadRegistry(); this.priorFenceMessage.set('Earlier session storage could not be checked.'); return;
+    }
+    const result = this.actionRegistry.releasePriorSessionFence(owner);
+    if (ownerKey !== this.sessionOwnerKey()) return;
+    this.loadRegistry();
+    this.priorFenceMessage.set(result.ok ? 'The storage check sent no task action and does not establish the outcome of any earlier action.' :
+      'Earlier session storage could not be checked. Try again when storage is available.');
+  }
+
+  /** Recovered capabilities only reconcile storage; they never resend or establish a command outcome. */
+  finishReconciliation(): void {
+    const owner = this.registryOwner(), pending = this.reconciliation();
+    const observed = pending ? this.actionObservations()[pending.item.requestId] : null;
+    if (!owner || !pending || !pending.sameSession || !observed || !this.taskAccessCurrent() || !this.actionVerified(pending.item.requestId) ||
+        observed.owner !== this.sessionOwnerKey() || observed.revision !== this.availability.revision() ||
+        observed.row.id.toLowerCase() !== pending.item.taskId.toLowerCase()) return;
+    const live = this.actionRegistry.pendingReconciliation(owner);
+    if (!live.ok || !live.value || live.value.ticket !== pending.ticket || JSON.stringify(live.value) !== JSON.stringify(pending)) {
+      this.loadRegistry(); this.actionFailed.set(true); this.actionMessage.set('Recovery storage changed. Check the current task again.'); return;
+    }
+    const revision = this.availability.revision();
+    let result;
+    if (!pending.ticket) return;
+    else if (pending.kind === 'cleanup') result = this.actionRegistry.abortBeforeDispatch(pending.ticket);
+    else if (pending.kind === 'acknowledgement') result = this.actionRegistry.reconcileAcknowledgement(owner, pending.ticket,
+      { owner, engagementId: pending.item.engagementId, taskId: pending.item.taskId, revision: observed.row.revision,
+        availabilityRevision: observed.revision }, revision);
+    else {
+      result = this.actionRegistry.removeDefinitiveTicket(pending.ticket);
+      if (result.ok && this.taskAccessCurrent() && this.sessionOwnerKey() === observed.owner && revision === this.availability.revision())
+        result = this.actionRegistry.finishDefinitiveTicket(pending.ticket);
+    }
+    if (!result.ok) { this.loadRegistry(); this.actionFailed.set(true); this.actionMessage.set('Recovery storage could not be reconciled.'); return; }
+    if (!this.taskAccessCurrent() || this.sessionOwnerKey() !== observed.owner || revision !== this.availability.revision()) { this.loadRegistry(); return; }
+    const id = pending.item.requestId;
+    this.unsentTickets.delete(id); this.unsentIds.update(ids => ids.filter(value => value !== id));
+    this.definitiveCleanupTickets.delete(id); this.definitiveCleanupIds.update(ids => ids.filter(value => value !== id));
+    if (this.assignmentTicket?.item.requestId === id) this.resetAssignment();
+    if (this.cancellationPanel()?.activeRegistryRequest()?.requestId === id) this.closeCancellation();
+    this.verifiedActions.update(values => { const next = { ...values }; delete next[id]; return next; });
+    this.actionObservations.update(values => { const next = { ...values }; delete next[id]; return next; });
+    this.loadRegistry(); this.actionFailed.set(false);
+    this.actionMessage.set('Recovery storage reconciled. The original action outcome is not established.');
+    this.refreshTaskWorkspaces();
+  }
+  hasUnverifiedActions(): boolean {
+    return this.registryReady() && this.retainedActionsForVerification().some(item => !this.actionVerified(item.requestId));
+  }
+
+  private savedReceiptConflict(task: { taskId: string; engagementId: string }, own: 'evidence' | 'ordering' | 'applicability' | 'assignment' | 'cancellation' | null): boolean {
+    const actor = this.session.current();
+    if (!actor) return true;
+    const prefixes = ['auditsphere.workflow-evidence', 'auditsphere.workflow-ordering', 'auditsphere.workflow-applicability'];
+    const ownPrefix = own === 'evidence' ? prefixes[0] : own === 'ordering' ? prefixes[1] : own === 'applicability' ? prefixes[2] : null;
+    const ownKey = `${ownPrefix}:${actor.firmId}:${actor.userId}:${task.engagementId}:${task.taskId}`;
+    try {
+      const length = sessionStorage.length;
+      if (length > WORK_QUEUE_RECEIPT_SCAN_MAX_ENTRIES) return true;
+      const keys: string[] = [];
+      let chars = 0, conflict = false;
+      for (let i = 0; i < length; i++) {
+        const key = sessionStorage.key(i);
+        if (key === null) return true;
+        chars += key.length;
+        if (chars > WORK_QUEUE_RECEIPT_SCAN_MAX_CHARS) return true;
+        keys.push(key);
+        const parts = key.split(':');
+        if (prefixes.includes(parts[0]) && parts[1]?.toLowerCase() === actor.firmId.toLowerCase() &&
+            parts[2]?.toLowerCase() === actor.userId.toLowerCase() && parts[3]?.toLowerCase() === task.engagementId.toLowerCase() &&
+            parts[4]?.toLowerCase() === task.taskId.toLowerCase()) {
+          if (key !== ownKey) conflict = true;
+          else {
+            const value = sessionStorage.getItem(key);
+            if (value === null || guid(value, 'saved receipt') === '00000000-0000-0000-0000-000000000000') conflict = true;
+          }
+        }
+      }
+      if (sessionStorage.length !== length || keys.some((key, i) => sessionStorage.key(i) !== key)) return true;
+      return conflict;
+    } catch { return true; }
+  }
+
+  /** Other panels own their own receipt fences. Never overwrite or ignore those references. */
+  private panelConflict(task: { taskId: string; engagementId: string }, own: 'evidence' | 'ordering' | 'applicability' | 'assignment' | 'cancellation' | null, exempt: string | null = null): boolean {
+    if (!this.taskAccessCurrent() || !this.registryReady() || this.registryLoadedOwner !== this.sessionOwnerKey() ||
+        this.registryRecords().some(item => item.taskId.toLowerCase() === task.taskId.toLowerCase() && item.requestId !== exempt)) return true;
+    const same = (other: { taskId: string } | null) => other?.taskId.toLowerCase() === task.taskId.toLowerCase();
+    if (same(this.receiptRecovery()?.candidate ?? null)) return true;
+    if (own !== 'evidence' && same(this.evidenceTask()) || own !== 'ordering' && same(this.orderingTask()) ||
+        own !== 'applicability' && same(this.applicabilityTask()) || own !== 'assignment' && same(this.assignmentTask()) ||
+        own !== 'cancellation' && same(this.cancellationTask())) return true;
+    return this.savedReceiptConflict(task, own);
+  }
+
+  taskMutationBlocked(taskId: string): boolean {
+    const task = this.queue.data()?.tasks.find(x => x.taskId === taskId) ?? this.reminderQueueTask();
+    return !task || task.taskId !== taskId || this.panelConflict(task, null);
   }
 
   changeDueDate(engagementId: string, taskId: string, revision: number, dueDate: string): void {
-    this.command.run(`/api/ui/engagements/${engagementId}/workflow/tasks/${taskId}/due-date`,
-      { dueDate: dueDate || null, expectedRevision: revision }, 'Task due date updated.', () => this.activity.reload())
-      .finally(() => this.refreshTaskWorkspaces());
+    void this.dispatchTaskAction(engagementId, taskId, revision, 'changeDueDate', dueDate || null);
+  }
+  complete(engagementId: string, taskId: string, revision: number): void {
+    void this.dispatchTaskAction(engagementId, taskId, revision, 'complete', null);
   }
 
-  complete(engagementId: string, taskId: string, revision: number): void {
-    this.command.run(`/api/ui/engagements/${engagementId}/workflow/tasks/${taskId}/complete`,
-      { expectedRevision: revision }, 'Task completed.', () => this.activity.reload())
-      .finally(() => this.refreshTaskWorkspaces());
+  private async dispatchTaskAction(engagementId: string, taskId: string, revision: number,
+    action: 'complete' | 'changeDueDate', requestedDueDate: string | null): Promise<void> {
+    const owner = this.registryOwner(), ownerKey = this.sessionOwnerKey(), accessRevision = this.availability.revision();
+    if (!owner || !this.taskAccessCurrent()) return;
+    this.loadRegistry();
+    if (this.panelConflict({ engagementId, taskId }, null)) {
+      this.actionFailed.set(true); this.actionMessage.set('Resolve or close the existing task action before making another change.'); return;
+    }
+    let requestId: string;
+    try { requestId = crypto.randomUUID(); } catch { this.actionFailed.set(true); this.actionMessage.set('A recovery reference could not be created. No action was sent.'); return; }
+    const reservation = this.actionRegistry.reserveForDispatchRecoverable(owner, { engagementId, taskId, expectedRevision: revision, action, requestedDueDate, requestId });
+    if (!reservation.ok) {
+      if ('cleanup' in reservation) this.rememberUnsent(reservation.cleanup);
+      this.actionFailed.set(true); this.actionMessage.set('The task action could not be safely reserved. No action was sent.'); this.loadRegistry(); return;
+    }
+    const ticket = reservation.value, pending = ticket.item;
+    this.loadRegistry();
+    if (!this.registryReady() || ownerKey !== this.sessionOwnerKey() || !this.taskAccessCurrent() || accessRevision !== this.availability.revision()) {
+      const aborted = this.actionRegistry.abortBeforeDispatch(ticket);
+      if (ownerKey === this.sessionOwnerKey()) { if (!aborted.ok) this.rememberUnsent(ticket); this.loadRegistry(); this.actionFailed.set(true); this.actionMessage.set(aborted.ok ? 'Access changed. No action was sent.' : 'No action was sent; the recovery reference could not be cleared.'); }
+      return;
+    }
+    this.verifiedActions.update(v => ({ ...v, [pending.requestId]: { owner: ownerKey, revision: accessRevision } }));
+    this.runningActions.update(ids => [...ids, pending.requestId]);
+    this.actionMessage.set(''); this.actionFailed.set(false);
+    const path = action === 'complete' ? 'complete' : 'due-date';
+    const body = action === 'complete' ? { expectedRevision: revision } : { dueDate: requestedDueDate, expectedRevision: revision };
+    let result: CommandOutcome;
+    try {
+      const invoked = this.actionRegistry.invokeReserved(ticket, () => this.api.command(`/api/ui/engagements/${engagementId}/workflow/tasks/${taskId}/${path}`, body));
+      if (!invoked.ok) {
+        const aborted = this.actionRegistry.abortBeforeDispatch(ticket);
+        if (ownerKey === this.sessionOwnerKey()) {
+          this.runningActions.update(ids => ids.filter(id => id !== pending.requestId)); if (!aborted.ok) this.rememberUnsent(ticket); this.loadRegistry();
+          this.actionFailed.set(true); this.actionMessage.set(aborted.ok ? 'The action was not sent.' : 'No action was sent; the recovery reference could not be cleared.');
+        }
+        return;
+      }
+      result = await invoked.value;
+    }
+    catch {
+      if (!this.workQueueDestroyed && ownerKey === this.sessionOwnerKey()) {
+        this.runningActions.update(ids => ids.filter(id => id !== pending.requestId));
+        this.actionFailed.set(true); this.actionMessage.set('The task action outcome is unconfirmed. Check the exact task; no action was resent.');
+      }
+      return;
+    }
+    if (this.workQueueDestroyed || ownerKey !== this.sessionOwnerKey()) return;
+    this.runningActions.update(ids => ids.filter(id => id !== pending.requestId));
+    if (!this.taskAccessCurrent() || accessRevision !== this.availability.revision()) {
+      this.actionFailed.set(true); this.actionMessage.set('Access changed. Check the retained task action after access returns.'); return;
+    }
+    if (result.ok && result.value !== true) {
+      this.actionFailed.set(true); this.actionMessage.set('The task action response could not be confirmed. Check the exact task; no action was resent.');
+      this.refreshTaskWorkspaces(); return;
+    }
+    if (result.ok || !result.unknown) {
+      const removed = this.actionRegistry.removeDefinitiveTicket(ticket);
+      const finished = removed.ok && ownerKey === this.sessionOwnerKey() && this.taskAccessCurrent() && accessRevision === this.availability.revision()
+        ? this.actionRegistry.finishDefinitiveTicket(ticket) : null;
+      if (!removed.ok || !finished?.ok) { this.rememberDefinitiveCleanup(ticket, result.ok, result.ok ? (action === 'complete' ? 'Task completed.' : 'Task due date updated.') : 'The task action was refused. Review the current task.'); this.loadRegistry(); this.actionFailed.set(true); this.actionMessage.set('The response was received, but the recovery record could not be cleared.'); return; }
+      this.loadRegistry();
+      this.actionFailed.set(!result.ok); this.actionMessage.set(result.ok ? (action === 'complete' ? 'Task completed.' : 'Task due date updated.') : result.message);
+      this.refreshActivity(); this.refreshTaskWorkspaces(); return;
+    }
+    this.actionFailed.set(true); this.actionMessage.set('The task action outcome is unconfirmed. Check the exact task; no action was resent.');
+    this.refreshTaskWorkspaces();
+  }
+
+  async verifyRetainedActions(): Promise<void> {
+    if (!this.taskAccessCurrent() || this.verifyingRetained()) return;
+    const owner = this.sessionOwnerKey(), revision = this.availability.revision();
+    this.verifyingRetained.set(true); this.retainedError.set('');
+    for (const item of this.retainedActionsForVerification()) {
+      if (this.workQueueDestroyed || owner !== this.sessionOwnerKey() || revision !== this.availability.revision() || !this.taskAccessCurrent()) return;
+      if (!this.actionVerified(item.requestId) && !this.actionInFlight(item.requestId)) await this.observeAction(item.requestId);
+    }
+    if (!this.workQueueDestroyed && owner === this.sessionOwnerKey() && revision === this.availability.revision()) {
+      this.verifyingRetained.set(false);
+      if (this.hasUnverifiedActions()) this.retainedError.set('Some retained task actions could not be verified in your current scope.');
+    }
+  }
+
+  async observeAction(requestId: string): Promise<void> {
+    const task = this.retainedActionsForVerification().find(item => item.requestId === requestId);
+    if (!task || !this.registryReady() || this.actionInFlight(requestId) || this.observationLoading(requestId) || !this.taskAccessCurrent()) return;
+    const owner = this.sessionOwnerKey(), revision = this.availability.revision(), request = ++this.observationSequence;
+    this.observationRequests.set(requestId, request);
+    this.loadingObservations.update(ids => [...ids, requestId]);
+    this.actionObservations.update(values => { const next = { ...values }; delete next[requestId]; return next; });
+    this.observationErrors.update(values => { const next = { ...values }; delete next[requestId]; return next; });
+    const current = () => !this.workQueueDestroyed && this.observationRequests.get(requestId) === request &&
+      owner === this.sessionOwnerKey() && revision === this.availability.revision() && this.taskAccessCurrent() &&
+      this.retainedActionsForVerification().some(item => item.requestId === requestId);
+    try {
+      const workspace = await this.api.get(`/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${encodeURIComponent(task.taskId)}`, decodeWorkflowTaskWorkspace);
+      if (!current()) return;
+      const matches = workspace.tasks.filter(row => row.id.toLowerCase() === task.taskId);
+      if (workspace.engagementId.toLowerCase() !== task.engagementId || workspace.truncated || workspace.tasks.length !== 1 || matches.length !== 1 || matches[0].revision < task.expectedRevision ||
+          task.action === 'changeDueDate' && matches[0].dueDate === undefined) throw new Error('The exact current task could not be verified.');
+      this.verifiedActions.update(values => ({ ...values, [requestId]: { owner, revision } }));
+      this.actionObservations.update(values => ({ ...values, [requestId]: { row: matches[0], owner, revision } }));
+    } catch (error) {
+      if (current()) {
+        this.verifiedActions.update(values => { const next = { ...values }; delete next[requestId]; return next; });
+        this.actionObservations.update(values => { const next = { ...values }; delete next[requestId]; return next; });
+        this.observationErrors.update(values => ({ ...values, [requestId]: error instanceof Error ? error.message : 'The exact current task could not be verified.' }));
+        this.retainedError.set('A retained task action could not be checked in the current scope.');
+      }
+    } finally {
+      if (current()) { this.loadingObservations.update(ids => ids.filter(id => id !== requestId)); this.observationRequests.delete(requestId); }
+    }
+  }
+
+  acknowledgeAction(requestId: string): void {
+    const owner = this.registryOwner(), task = this.registryRecords().find(item => item.requestId === requestId), observed = this.actionObservations()[requestId];
+    if (!owner || !task || !observed || this.actionInFlight(requestId) || !this.taskAccessCurrent() ||
+        observed.owner !== this.sessionOwnerKey() || observed.revision !== this.availability.revision()) return;
+    const result = this.actionRegistry.acknowledge(owner, requestId, { owner, engagementId: task.engagementId,
+      taskId: task.taskId, revision: observed.row.revision, availabilityRevision: observed.revision }, this.availability.revision());
+    if (!result.ok) { this.loadRegistry(); this.actionFailed.set(true); this.actionMessage.set('The current task observation could not be acknowledged.'); return; }
+    if (!this.taskAccessCurrent() || observed.owner !== this.sessionOwnerKey() || observed.revision !== this.availability.revision()) { this.loadRegistry(); return; }
+    if (this.assignmentTicket?.item.requestId === requestId && !this.assignmentBusy()) this.resetAssignment();
+    if (this.cancellationPanel()?.activeRegistryRequest()?.requestId === requestId && !this.cancellationPanel()?.busy()) this.closeCancellation();
+    this.loadRegistry();
+    this.actionObservations.update(values => { const next = { ...values }; delete next[requestId]; return next; });
+    this.verifiedActions.update(values => { const next = { ...values }; delete next[requestId]; return next; });
+    this.actionFailed.set(false); this.actionMessage.set('Current task observation acknowledged. The original action outcome is not established.');
+    this.refreshTaskWorkspaces();
   }
 }

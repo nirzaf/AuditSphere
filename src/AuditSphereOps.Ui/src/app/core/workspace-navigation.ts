@@ -4,6 +4,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
 import { NAVIGATION, navigationOwner, type NavGroupId } from '../navigation';
 import { SessionService } from './session';
+import { WorkspaceAvailability } from './workspace-availability';
 import { WorkspaceNavigationIcon } from './workspace-navigation-icon';
 
 /** Presentation links only; the API owns every record and action permission. */
@@ -13,7 +14,9 @@ import { WorkspaceNavigationIcon } from './workspace-navigation-icon';
   template: `
     <nav class="workspace-navigation" [class.compact-navigation]="compactNavigation()" aria-label="Workspace navigation">
       @if (session.current()?.staff) {
-        @for (group of nav; track group.id) {
+        @if (availability.state() === 'loading') { <p role="status">Loading available destinations.</p> }
+        @if (availability.state() === 'unavailable') { <p role="alert">Navigation is temporarily unavailable. <button type="button" (click)="availability.refresh()">Retry</button></p> }
+        @for (group of nav(); track group.id) {
           <h2 [class.current-section]="isCurrentGroup(group.id)"
             [attr.aria-current]="isCurrentGroup(group.id) ? 'location' : null"
             [attr.aria-label]="group.title"
@@ -22,10 +25,6 @@ import { WorkspaceNavigationIcon } from './workspace-navigation-icon';
             <span class="group-label">{{ group.title }}</span>
           </h2>
           @for (item of group.items; track item.id; let index = $index) {
-            @if (group.id === 'execution' && item.id === 'consolidation') {
-              <h3 class="subsection">Audit Fieldwork</h3>
-              <p class="section-hint">Open an authorized engagement for audit work.</p>
-            }
             @if (item.section && (index === 0 || group.items[index - 1].section !== item.section)) {
               <h3 class="subsection">{{ item.section }}</h3>
             }
@@ -89,7 +88,12 @@ import { WorkspaceNavigationIcon } from './workspace-navigation-icon';
 export class WorkspaceNavigation {
   readonly session = inject(SessionService);
   readonly compactNavigation = input(false);
-  readonly nav = NAVIGATION;
+  readonly availability = inject(WorkspaceAvailability);
+  readonly nav = () => {
+    const allowed = new Set(this.availability.current()?.destinations ?? []);
+    return NAVIGATION.map(group => ({ ...group, items: group.items.filter(item => allowed.has(item.id)) }))
+      .filter(group => group.items.length > 0);
+  };
   private readonly router = inject(Router);
   private readonly currentRoute = toSignal(this.router.events.pipe(map(() => this.router.url)), { initialValue: this.router.url });
 

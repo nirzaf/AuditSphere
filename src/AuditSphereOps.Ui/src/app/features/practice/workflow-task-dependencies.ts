@@ -1,4 +1,4 @@
-import { Component, effect, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
@@ -81,12 +81,30 @@ type Change = { predecessorTaskId: string; required: boolean; expectedRevision: 
 })
 export class WorkflowTaskDependenciesPanel {
   readonly engagementId = input.required<string>(); readonly taskId = input.required<string>(); readonly title = input.required<string>();
+  readonly accessCurrent = input<() => boolean>(() => true);
+  readonly accessRevision = input<() => number>(() => 0);
   readonly changed = output<void>(); private readonly api = inject(Api); private readonly session = inject(SessionService);
-  readonly workspace = this.api.resource(() => this.url(), (value, path) => {
+  private destroyed = false;
+  private workspaceRevision = 0;
+  private verifiedRevision = -1;
+  private readonly workspaceResource = this.api.resource(() => {
+    this.workspaceRevision = this.accessRevision()();
+    return this.accessCurrent()() ? this.url() : null;
+  }, (value, path) => {
+    if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()()) throw new Error('Task access changed.');
     const data = decodeTaskDependencies(value, path);
     if (data.engagementId !== this.engagementId() || data.taskId !== this.taskId()) throw new Error('Task scope changed.');
+    this.verifiedRevision = this.accessRevision()();
     return data;
   }, 'Task ordering is unavailable in your current scope.');
+  readonly workspace = { ...this.workspaceResource, reload: () => {
+    if (this.accessCurrent()() && this.workspaceRevision === this.accessRevision()()) this.workspaceResource.reload();
+  } };
+  authorizedWorkspace(): boolean {
+    const data = this.workspace.data();
+    return this.accessCurrent()() && this.verifiedRevision === this.accessRevision()() && !!data &&
+      data.engagementId === this.engagementId() && data.taskId === this.taskId();
+  }
   readonly review = signal<Change | null>(null); readonly pending = signal<string | null>(null);
   readonly busy = signal(false); readonly message = signal(''); readonly failed = signal(false);
   selected = ''; required = true; reason = ''; confirmed = false;
@@ -98,12 +116,17 @@ export class WorkflowTaskDependenciesPanel {
       try { const saved = sessionStorage.getItem(this.storageKey()); this.pending.set(saved ? guid(saved, 'saved ordering key') : null); }
       catch { this.pending.set(null); }
     });
+    effect(() => {
+      this.accessRevision()(); this.accessCurrent()();
+      untracked(() => { this.review.set(null); this.confirmed = false; });
+    });
+    inject(DestroyRef).onDestroy(() => { this.destroyed = true; });
   }
   predecessorTitle(id: string): string { return this.workspace.data()?.tasks.find(t => t.taskId === id)?.title ?? 'Unavailable task'; }
   predecessorRevision(id: string): number | undefined { return this.workspace.data()?.tasks.find(t => t.taskId === id)?.revision; }
   prepare(predecessorTaskId: string, required: boolean): void {
     const data = this.workspace.data(); const predecessor = data?.tasks.find(t => t.taskId === predecessorTaskId);
-    if (!data?.canManage || this.pending() || this.busy()) return;
+    if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()() || !data?.canManage || this.pending() || this.busy()) return;
     this.failed.set(false); this.message.set('');
     if (!predecessor || predecessorTaskId === this.taskId() || !this.reason.trim() || this.reason.trim().length > 1000 ||
       (required && predecessor.status === 'CANCELLED')) {
@@ -114,31 +137,35 @@ export class WorkflowTaskDependenciesPanel {
   }
   async submit(): Promise<void> {
     const change = this.review(); const data = this.workspace.data();
-    if (!change || !data?.canManage || !this.confirmed || this.pending() || this.busy() || data.taskRevision !== change.expectedRevision ||
+    if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()() || !change || !data?.canManage || !this.confirmed || this.pending() || this.busy() || data.taskRevision !== change.expectedRevision ||
       this.predecessorRevision(change.predecessorTaskId) !== change.expectedPredecessorRevision) return;
     const url = this.url(); const key = this.storageKey(); const generation = this.session.invalidation();
+    const accessRevision = this.accessRevision()();
     try { sessionStorage.setItem(key, change.idempotencyKey); }
     catch { this.failed.set(true); this.message.set('No recovery key could be saved, so no change was submitted.'); return; }
     this.pending.set(change.idempotencyKey); this.busy.set(true);
     try {
       const { predecessorTitle: _title, ...body } = change;
       const result = await this.api.command<unknown>(url, body);
-      if (url !== this.url() || generation !== this.session.invalidation()) return;
-      if (result.ok) this.accept(result.value, change.idempotencyKey, key);
+      if (!this.active(key, generation, url)) return;
+      if (result.ok && (!this.accessCurrent()() || accessRevision !== this.accessRevision()())) {
+        this.message.set('Access changed. Read the saved receipt after access returns.');
+      } else if (result.ok) this.accept(result.value, change.idempotencyKey, key);
       else {
         this.failed.set(true); this.message.set(result.message);
         if (!result.unknown) { sessionStorage.removeItem(key); this.pending.set(null); this.review.set(null); this.workspace.reload(); }
       }
-    } catch { this.failed.set(true); this.message.set('The ordering outcome is unconfirmed. Read its receipt; no change was resent.'); }
+    } catch { if (this.active(key, generation, url)) { this.failed.set(true); this.message.set('The ordering outcome is unconfirmed. Read its receipt; no change was resent.'); } }
     finally { this.busy.set(false); }
   }
   async recover(): Promise<void> {
-    const pending = this.pending(); if (!pending || this.busy()) return;
+    const pending = this.pending(); if (!this.accessCurrent()() || this.workspaceRevision !== this.accessRevision()() || !this.workspace.data() || !pending || this.busy()) return;
     const url = this.url(); const key = this.storageKey(); const generation = this.session.invalidation(); this.busy.set(true);
+    const accessRevision = this.accessRevision()();
     try {
       const receipt = await this.api.get(`${url}/receipts/${encodeURIComponent(pending)}`, receiptDecoder);
-      if (url === this.url() && generation === this.session.invalidation()) this.accept(receipt, pending, key);
-    } catch { this.failed.set(true); this.message.set('No receipt confirmed. Keep its recovery key; no change was resent.'); }
+      if (this.active(key, generation, url) && this.accessCurrent()() && accessRevision === this.accessRevision()()) this.accept(receipt, pending, key);
+    } catch { if (this.active(key, generation, url) && this.accessCurrent()() && accessRevision === this.accessRevision()()) { this.failed.set(true); this.message.set('No receipt confirmed. Keep its recovery key; no change was resent.'); } }
     finally { this.busy.set(false); }
   }
   private accept(value: unknown, id: string, key: string): void {
@@ -149,5 +176,8 @@ export class WorkflowTaskDependenciesPanel {
     this.failed.set(false); this.message.set('Task ordering change confirmed.'); this.workspace.reload(); this.changed.emit();
   }
   private url(): string { return `/api/ui/engagements/${this.engagementId()}/workflow/tasks/${this.taskId()}/dependencies`; }
+  private active(key: string, generation: number, url: string): boolean {
+    return !this.destroyed && generation === this.session.invalidation() && key === this.storageKey() && url === this.url();
+  }
   private storageKey(): string { return `auditsphere.workflow-ordering:${this.session.current()?.firmId ?? 'none'}:${this.session.current()?.userId ?? 'none'}:${this.engagementId()}:${this.taskId()}`; }
 }

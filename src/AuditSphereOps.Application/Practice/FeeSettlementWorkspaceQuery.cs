@@ -66,6 +66,21 @@ public static class FeeSettlementWorkspaceQuery
       : CommandResult<FinanceScope>.Ok(new(false, authorizedClientIds.ToArray()));
   }
 
+  internal static async Task<CommandResult> AuthorizeWorkspaceReadAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
+  {
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, FinanceRequest(actor.FirmId), ct);
+    if (!auth.Succeeded) return auth;
+    var grants = EffectiveFinanceGrants(db, actor, DateTimeOffset.UtcNow);
+    if (await grants.AnyAsync(g => g.ClientId == null, ct))
+      return await AuthorizationDecision.AuthorizeAsync(db, actor, FinanceRequest(actor.FirmId, requireFirmWide: true), ct);
+    var clients = grants.Where(g => g.ClientId != null).Select(g => g.ClientId!.Value).Distinct();
+    if (await clients.Take(MaximumClientScopes + 1).CountAsync(ct) > MaximumClientScopes)
+      return CommandResult.Fail("scope.limit", "Finance client scope exceeds the supported workspace limit.");
+    var exists = await grants.AnyAsync(g => g.ClientId != null &&
+      db.PracticeClients.Any(c => c.FirmId == actor.FirmId && c.Id == g.ClientId), ct);
+    return exists ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.ScopeDenied, "Fee agreement unavailable.");
+  }
+
   private static CommandResult<T> Denied<T>() =>
     CommandResult<T>.Fail(ErrorCodes.ScopeDenied, "Fee agreement unavailable.");
 

@@ -44,8 +44,7 @@ public static class AuditProgramLibraryQuery
     IAuditSphereDbContext db, ActorContext actor, string? version = null,
     CancellationToken ct = default)
   {
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
+    var auth = await AuthorizeReadAsync(db, actor, ct);
     if (!auth.Succeeded)
       return CommandResult<AuditProgramLibraryView>.Fail(auth.ErrorCode!, auth.Message!);
 
@@ -55,8 +54,7 @@ public static class AuditProgramLibraryQuery
       .ToListAsync(ct);
     if (versions.Count == 0)
     {
-      var current = await AuthorizationDecision.AuthorizeAsync(db, actor,
-        new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
+      var current = await AuthorizeReadAsync(db, actor, ct);
       var emptyLibraryOwner = await AuthorizeProgramOwnerAsync(db, actor, ct);
       return current.Succeeded
         ? CommandResult<AuditProgramLibraryView>.Ok(new AuditProgramLibraryView(emptyLibraryOwner.Succeeded, emptyLibraryOwner.Succeeded, [], null, []))
@@ -93,8 +91,7 @@ public static class AuditProgramLibraryQuery
       x.Id == selected.Id ? sections.Count : 0,
       x.CreatedByUserId, x.ApprovedByUserId, x.PublicationReviewReference, x.CreatedAt, x.ApprovedAt)).ToList();
 
-    var recheck = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
+    var recheck = await AuthorizeReadAsync(db, actor, ct);
     if (!recheck.Succeeded)
       return CommandResult<AuditProgramLibraryView>.Fail(recheck.ErrorCode!, recheck.Message!);
     var publicationOwner = await AuthorizeProgramOwnerAsync(db, actor, ct);
@@ -105,6 +102,10 @@ public static class AuditProgramLibraryQuery
       versionSummaries.First(x => x.ProgramVersionId == selected.Id),
       sections));
   }
+
+  internal static Task<CommandResult> AuthorizeReadAsync(IAuditSphereDbContext db, ActorContext actor,
+    CancellationToken ct) => AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
 
   private static Task<CommandResult> AuthorizeProgramOwnerAsync(IAuditSphereDbContext db, ActorContext actor,
     CancellationToken ct) => AuthorizationDecision.AuthorizeAsync(db, actor,
@@ -120,8 +121,7 @@ public static class AuditProgramLibraryQuery
     if (programVersionId == Guid.Empty || sectionNumber is < 1 or > 20 || page < 1 || pageSize is < 1 or > 500)
       return CommandResult<AuditProgramSectionPage>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "The library section request is invalid.");
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
+    var auth = await AuthorizeReadAsync(db, actor, ct);
     if (!auth.Succeeded)
       return CommandResult<AuditProgramSectionPage>.Fail(auth.ErrorCode!, auth.Message!);
 
@@ -153,8 +153,7 @@ public static class AuditProgramLibraryQuery
           x.SectionNumber == sectionNumber)
         .Select(x => x.SectionTitle).FirstOrDefaultAsync(ct) ?? string.Empty;
 
-    var recheck = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
+    var recheck = await AuthorizeReadAsync(db, actor, ct);
     if (!recheck.Succeeded)
       return CommandResult<AuditProgramSectionPage>.Fail(recheck.ErrorCode!, recheck.Message!);
     return CommandResult<AuditProgramSectionPage>.Ok(new AuditProgramSectionPage(

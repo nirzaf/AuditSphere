@@ -17,9 +17,13 @@ public static class AccountingEvidenceQueueQuery
 {
   private static readonly string[] QueueRoles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
 
+  // Admission only; scope resolution and any return-time checks remain owned by the query.
+  internal static Task<CommandResult> AuthorizeReadAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: QueueRoles, InternalOnly: true), ct);
+
   public static async Task<CommandResult<IReadOnlyList<AccountingEvidenceRow>>> GetAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct = default)
   {
-    var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: QueueRoles, InternalOnly: true), ct);
+    var authorization = await AuthorizeReadAsync(db, actor, ct);
     if (!authorization.Succeeded) return CommandResult<IReadOnlyList<AccountingEvidenceRow>>.Fail(ErrorCodes.ScopeDenied, "This queue requires an authorized internal accounting role and an explicit client scope.");
     var f = actor.FirmId;
     var observedAt = DateTimeOffset.UtcNow;
@@ -38,8 +42,7 @@ public static class AccountingEvidenceQueueQuery
       .Where(x => x.FirmId == f && (directClientIds.Contains(x.PracticeClientId) || grantedEngagementIds.Contains(x.Id))).Select(x => x.Id).ToArrayAsync(ct);
     if (!unrestricted && clientIds.Length == 0)
     {
-      var final = await AuthorizationDecision.AuthorizeAsync(db, actor,
-        new AuthorizationRequest(f, RequiredRoles: QueueRoles, InternalOnly: true), ct);
+      var final = await AuthorizeReadAsync(db, actor, ct);
       return final.Succeeded ? CommandResult<IReadOnlyList<AccountingEvidenceRow>>.Ok([]) :
         CommandResult<IReadOnlyList<AccountingEvidenceRow>>.Fail(final.ErrorCode!, final.Message!);
     }
@@ -102,8 +105,7 @@ public static class AccountingEvidenceQueueQuery
         new AuthorizationRequest(f, clientId, engagementId, QueueRoles, InternalOnly: true), ct);
       if (!final.Succeeded) return CommandResult<IReadOnlyList<AccountingEvidenceRow>>.Fail(final.ErrorCode!, final.Message!);
     }
-    var currentAuthority = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(f, RequiredRoles: QueueRoles, InternalOnly: true), ct);
+    var currentAuthority = await AuthorizeReadAsync(db, actor, ct);
     return currentAuthority.Succeeded ? CommandResult<IReadOnlyList<AccountingEvidenceRow>>.Ok(
       rows.OrderBy(x => x.ClientName).ThenBy(x => x.PeriodCode).ThenBy(x => x.Kind).ToList()) :
       CommandResult<IReadOnlyList<AccountingEvidenceRow>>.Fail(currentAuthority.ErrorCode!, currentAuthority.Message!);

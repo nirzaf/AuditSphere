@@ -16,7 +16,7 @@ The audit describes an earlier source snapshot. Each packet requires current-sou
 | Packet | Requested behavior | Dependencies | Current disposition |
 | --- | --- | --- | --- |
 | D00 | Decide the true cross-firm switching boundary | Independent | Independent identity-contract decision. Current-firm work may proceed; no cross-firm session or grant is inferred. |
-| U01 | Make navigation and My Work sections capability- and availability-aware | Independent | Pending current-source assessment and scoped implementation. |
+| U01 | Make navigation and My Work sections capability- and availability-aware | Independent | Owner-projected availability and scoped recovery implemented; focused synthetic evidence recorded below. Full AC01–AC06, integrated role and release acceptance remain open. |
 | U02 | Provide authorized context choices and repair the portfolio handoff | Independent | Pending current-source assessment and scoped implementation. |
 | U03 | Add a persistent current-context header and safe client/engagement switcher | U01, U02 | Pending current-source assessment and scoped implementation. |
 | U04 | Preserve and scope My Work filters in the route | U02 | Pending current-source assessment and scoped implementation. |
@@ -34,9 +34,24 @@ The audit describes an earlier source snapshot. Each packet requires current-sou
 
 ## Implemented behavior
 
+U01 adds an authenticated staff availability projection assembled from existing destination owners. My Work task, procedure-review and template sections have separate `available`, `not_authorized` and `not_enabled` states; the accounting review destination remains independently scoped. The shell and My Work suppress disallowed section reads and distinguish a disabled or unavailable feature from an authorized empty queue. A bounded scope-window limit is not presented as an authorization denial. These presentation hints do not authorize direct URLs, destination reads or commands, and add no role grant or feature activation.
+
+The server bounds each hint to at most 30 seconds and to the earliest active timed role expiry, rejects expiry during projection construction and rechecks the actor. The client binds it to firm, user, session generation and local invalidation, deducts the measured request duration, uses monotonic and wall-clock deadlines, and fences dependent data and late responses when availability or session changes. Renewals do not extend an expired hint; a workspace-availability 401 clears the shared session. Revocation remains subject to the bounded refresh and the destination's own current authorization; the hint is not immediate revocation notification.
+
+Pending task actions and evidence, ordering and applicability receipts use per-tab recovery references scoped to the current firm and user. Discovery is bounded to 500 storage entries and 1,000,000 characters, reports incomplete storage rather than a false empty result, and checks candidates in batches. Retained task details require a fresh exact authorized task or panel workspace read bound to the current session and availability revision. Recovery checks the original reference, preserves unresolved or unrecognized keys and does not automatically resend; an exact retry, where supported, remains an explicit reviewed action. Prior-session serialization-fence checking is generic, does not read or disclose a task, does not remove a task action record and does not establish an earlier outcome.
+
+### U01 retained focused evidence
+
+The following are recorded observations for `92dfb98fbd979cd8e6454d64f1232abfe73a0070` plus the respective uncommitted WIP at the time of each run, not a single immutable final-source CI result:
+
+- The synthetic PostgreSQL owner/scope test `WorkspaceAvailability_UsesCurrentOwnersAndKeepsMixedScopesSeparate` reported 1 passed. Its fixtures cover Staff, Reviewer, AccountingReviewer and mixed engagement roles, disabled workflow, expiry/revocation and stale epoch, scoped group navigation and no oversight observation. Evidence: `.local/autonomous/evidence/ux-workflow-20261030/u01-native-matrix.log` and `.trx`.
+- The eight-file affected Angular cohort reported 161 passed, followed by a three-file queue/registry/cancellation cohort reporting 134 passed; the separate navigation/display cohort reported 17 passed. Evidence: `u01-handoff-session-invalidation.log`, `u01-handoff-session-read-final.log` and `u01-navigation-display-final.log` in the same local evidence directory. These counts cover their selected files and recorded WIP, not every role or integrated journey.
+- `u01-openapi-verify.log` reports the emitted API contract was current for that run. `u01-angular-build-current.log` records a successful Angular build with two SCSS budget warnings, for `commercial/settings.scss` and `app.scss`. These records are not current-commit CI evidence.
+- `u01-browser-final-scoped-review.json` records a built-in browser observation using one synthetic staff account: team list, assignment choices opened and cancelled without mutation, an empty receipt scan, and mobile navigation at 390 × 844 with Escape and focus return. Console errors were empty. The record identifies base SHA, tracked-diff SHA-256 `43ce3ced7169026d3237eb65868d257529784c257c80215933d804fa4c7effcd` and individual untracked-file hashes; those identify the observed WIP, not necessarily every subsequent shared-checkout edit. It did not inspect network errors or exercise task commands, interrupted outcomes, actual revocation, a role journey, live tenants or professional/human assistive-technology acceptance. It also notes a narrow desktop task cell without attributing cause.
+
 Package selection preview reports selected packages and directs users to current workspace actions. Partner guidance names the currently assigned Engagement Partner. Selection is not an eligibility decision; no decision is recorded by preview. Existing fresh-queue selection and session invalidation remain.
 
-Command recovery distinguishes request-identity conflicts from revision/generation changes. Unknown conflict codes receive neutral guidance. Existing validation messages, unknown-outcome handling, session fences and single-send behavior remain. No new key, automatic retry or professional authority was introduced.
+The earlier U13 command recovery change distinguishes request-identity conflicts from revision/generation changes. Unknown conflict codes receive neutral guidance. Existing validation messages, unknown-outcome handling, session fences and single-send behavior remain. No new key, automatic retry or professional authority was introduced.
 
 ## Using the changed queues
 
@@ -46,4 +61,4 @@ Task source details retains source/template/mapping identities. More task action
 
 ## Remaining acceptance
 
-Next inspect navigation/context and dependent My Work packets, then preparation and blocker-guidance packets. Preserve authorization before paging, unavailable versus zero, command freshness, exact task-link identity and existing financial boundaries. Each packet retains its own acceptance criteria from the attachments. D00 blocks only true cross-firm switching. No tenant feature switch is authorized by this register. V01 and professional/external release gates remain open.
+Continue U01 role and scope verification, including direct and deep-link authorization, expiry/revocation/session races, feature-off and mixed-role destinations, recovery and full keyboard/mobile workflows on the exact final source. Integrated role journeys, exact-source CI, network inspection, qualified human accessibility review and professional/external acceptance remain open; the focused evidence above does not close U01 AC01–AC06 or V01. Continue dependent context, My Work, preparation and blocker-guidance packets independently where ready. Preserve authorization before paging, unavailable versus zero, command freshness, exact task-link identity and existing financial boundaries. D00 blocks only true cross-firm switching. No tenant feature switch is authorized by this register.

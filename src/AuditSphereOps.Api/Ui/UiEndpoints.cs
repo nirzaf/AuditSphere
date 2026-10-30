@@ -105,6 +105,11 @@ public static partial class UiEndpoints
     MapChartEndpoints(group);
     MapCurrencyConfigurationEndpoints(group);
     MapWorkbenchEndpoints(group);
+    group.MapGet("/workspace-availability", (Delegate)((HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => WorkspaceAvailabilityQuery.GetAsync(db, actor,
+        http.RequestServices.GetRequiredService<IConfiguration>().GetValue<bool>("WorkflowExperience:Enabled"), ct))))
+      .WithDescription("Returns current presentation availability for the signed-in staff identity; destination reads remain independently authorized.")
+      .WithT046Response<WorkspaceAvailabilityView>(includeConflict: true);
     MapWorkflowTaskEndpoints(group);
     MapWorkflowTemplateEndpoints(group);
     MapWorkflowReminderRuleEndpoints(group);

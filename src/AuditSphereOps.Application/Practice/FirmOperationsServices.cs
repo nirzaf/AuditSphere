@@ -123,10 +123,13 @@ public static class TechnicalLibraryService
 
   private static async Task<string[]> AudiencesAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
   {
-    if (!(await AuthorizeAsync(db, actor, StaffRoles, ct)).Succeeded) return [];
+    if (!(await AuthorizeReadAsync(db, actor, ct)).Succeeded) return [];
     return (await HasAnyRoleAsync(db, actor, SeniorAudience, ct))
       ? [TechnicalLibraryAudiences.AllStaff, TechnicalLibraryAudiences.PartnersAndManagers] : [TechnicalLibraryAudiences.AllStaff];
   }
+
+  internal static Task<CommandResult> AuthorizeReadAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+    AuthorizeAsync(db, actor, StaffRoles, ct);
 
   private static async Task<bool> HasAnyRoleAsync(IAuditSphereDbContext db, ActorContext actor, string[] roles, CancellationToken ct) =>
     await db.RoleGrants.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null && roles.Contains(x.Role), ct);
@@ -211,8 +214,7 @@ public static partial class PracticeAnalyticsQuery
     if (page is null || page.PageSize is < 1 or > 100 || page.AfterEngagementId == Guid.Empty)
       return CommandResult<PracticeAnalyticsView>.Fail("analytics.invalid-page", "Choose an engagement page size from 1 to 100 and a valid cursor.");
     if (to < from || to.DayNumber - from.DayNumber > 800) return CommandResult<PracticeAnalyticsView>.Fail("analytics.invalid", "Choose a period of up to about two years.");
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Partner", "Administrator", "FinanceManager"],
-      InternalOnly: true, RequireFirmWide: true), ct);
+    var auth = await AuthorizeReadAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<PracticeAnalyticsView>.Fail(auth.ErrorCode!, auth.Message!);
     var f = actor.FirmId;
     var engagementIds = await SelectEconomicsPageAsync(db, f, from, to, page, ct);
@@ -433,6 +435,10 @@ public static partial class PracticeAnalyticsQuery
     return CommandResult<PracticeAnalyticsView>.Ok(new(from, to, rows, departments, milestones, workload, phaseWorkload, reviewTurnaround, clientWait, Definitions)
       { EngagementPageSize = page.PageSize, HasMoreEngagements = hasMore, NextEngagementId = nextEngagementId });
   }
+
+  internal static Task<CommandResult> AuthorizeReadAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId,
+      RequiredRoles: ["Partner", "Administrator", "FinanceManager"], InternalOnly: true, RequireFirmWide: true), ct);
 
   public static async Task<CommandResult<Guid>> RecordCostRateAsync(IClientAccountingDbContext db, ActorContext actor, Guid userId, decimal hourlyCost, string currency, DateOnly effectiveFrom, CancellationToken ct = default)
   {
