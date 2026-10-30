@@ -1,6 +1,6 @@
 <audit-page-header title="Portfolio" eyebrow="Practice overview · Current explicit scope"
   description="Clients, engagement activity and recent records under your current AuditSphere assignments.">
-  <button matButton (click)="view.reload()" [disabled]="view.loading()">Refresh</button>
+  <button matButton (click)="refreshWorkspace()" [disabled]="view.loading()">Refresh</button>
 </audit-page-header>
 <form (submit)="search($event)">
   <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Search client name or ID</mat-label>
@@ -9,9 +9,10 @@
 </form>
 @if (!location()) { <p role="alert">Invalid portfolio filters. <button matButton (click)="go(0, '')">Reset filters</button></p> }
 <audit-state [loading]="view.loading()" [error]="view.error()" label="portfolio" />
-@if (view.error()) { <h2>Portfolio unavailable</h2><button matButton (click)="view.reload()">Retry</button> }
+@if (view.error()) { <h2>Portfolio unavailable</h2><button matButton (click)="refreshWorkspace()">Retry</button> }
+@if (location() && !accessCurrent()) { <p role="status">Portfolio access is being checked or is unavailable.</p> }
 <audit-command-message [message]="message()" [failed]="failed()" />
-@if (view.data(); as result) {
+@if (workspaceData(); as result) {
   @if (!result.hasActiveMicrosoftConfiguration) {
     <aside class="configuration-note" aria-label="Microsoft configuration status">
       No active Microsoft 365 configuration is recorded. An administrator can review tenant setup.
@@ -39,7 +40,37 @@
       <caption>Authorized clients</caption><thead><tr><th>Client</th><th>Record state</th><th>Visible engagements</th></tr></thead>
       <tbody>@for (client of result.clients.items; track client.id) {
         <tr [class.selected]="location()?.selected === client.id">
-          <td><strong><a [routerLink]="['/app/clients', client.id]" (click)="select(client.id)">{{ client.name }}</a></strong><small>{{ client.id }}</small></td>
+          <td><strong>{{ client.name }}</strong><small>{{ client.id }}</small>
+            <button matButton type="button" [attr.aria-label]="'Destinations for ' + client.name" [attr.aria-expanded]="!!choiceFor(client.id)"
+              [attr.aria-controls]="'portfolio-choices-' + client.id"
+              (click)="choiceFor(client.id) ? closeChoices() : openChoices(client.id)">Destinations</button>
+            <div [id]="'portfolio-choices-' + client.id">
+              @if (choiceFor(client.id); as choices) {
+                @if (choices.loading) { <p role="status">Loading destinations…</p> }
+                @if (choices.error) { <p role="alert">{{ choices.error }}</p>
+                  <button matButton type="button" (click)="openChoices(client.id)">Retry destinations</button> }
+                @if (choices.page; as page) {
+                  @if (page.canOpenClient) { <p><a [attr.href]="choiceHref('client', client.id)"
+                    (click)="followChoice(client.id, 'client', client.id, $event)" (auxclick)="followChoice(client.id, 'client', client.id, $event)">Open client details</a></p> }
+                  @if (choices.first && !page.hasMore && page.items.length === 0) { <p>No engagement destinations available.</p> }
+                  @else if (choices.first && !page.hasMore && page.items.length === 1) {
+                    <p><a [attr.href]="choiceHref('engagement', page.items[0].engagementId)"
+                      (click)="followChoice(client.id, 'engagement', page.items[0].engagementId, $event)" (auxclick)="followChoice(client.id, 'engagement', page.items[0].engagementId, $event)">
+                      Open {{ page.items[0].serviceRoute || 'engagement' }} · {{ page.items[0].periodStart }} to {{ page.items[0].periodEnd }}</a></p>
+                  } @else {
+                    <ul>@for (item of page.items; track item.engagementId) {
+                      <li><a [attr.href]="choiceHref('engagement', item.engagementId)"
+                        (click)="followChoice(client.id, 'engagement', item.engagementId, $event)" (auxclick)="followChoice(client.id, 'engagement', item.engagementId, $event)">{{ item.serviceRoute || 'Engagement' }} · {{ item.periodStart }} to {{ item.periodEnd }}</a> · {{ item.status }}</li>
+                    }</ul>
+                    @if (page.hasMore) { <p>More destinations are available.</p>
+                      <button matButton type="button" [disabled]="choices.loading" (click)="moreChoices(client.id)">More engagements</button> }
+                    @else { <p>End of engagement destinations.</p> }
+                    @if (!choices.first) { <button matButton type="button" [disabled]="choices.loading" (click)="openChoices(client.id)">First page</button> }
+                  }
+                }
+              }
+            </div>
+          </td>
           <td>{{ client.isArchived ? 'Archived' : 'Current' }}</td>
           <td class="number">{{ client.engagements }}</td>
         </tr>

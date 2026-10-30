@@ -14,6 +14,110 @@ public sealed class PortfolioWorkspaceTests
   [InlineData("detail")]
   [InlineData("client")]
   [InlineData("portfolio")]
+  public async Task ProgressRedactsLifecycleDetailsWhenFirmWideDetailGrantIsRevokedAfterSnapshot(string view)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var detailGrant = PbcSeed.Grant(f.FirmId, f.Staff, "SeniorManager");
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var engagement = await setup.Engagements.SingleAsync(e => e.Id == f.EngagementId);
+      engagement.ServiceRoute = "FinancialStatementAudit";
+      setup.RoleGrants.Add(detailGrant);
+      await setup.SaveChangesAsync();
+    }
+    var actor = PbcSeed.Actor(f.Staff, "Staff");
+    await using (var baseline = new AuditSphereDbContext(pg.Options))
+    {
+      var result = await EngagementProgressQuery.GetAsync(baseline, actor, f.EngagementId);
+      Assert.True(result.Succeeded, result.Message);
+      Assert.Contains("Commercial proposal preparation and dispatch required", result.Value!.Gates);
+      Assert.Equal("Commercial proposal preparation and dispatch required", result.Value.NextAction);
+      Assert.True(result.Value.GateOpen);
+    }
+
+    var witness = new ProgressLifecycleSnapshotWitness(f.Staff.Id, f.EngagementId);
+    var race = new ProgressSnapshotCommittedRace(witness, async () =>
+    {
+      int updated;
+      await using (var writer = new AuditSphereDbContext(pg.Options))
+      await using (var transaction = await writer.Database.BeginTransactionAsync())
+      {
+        updated = await writer.RoleGrants.Where(g => g.Id == detailGrant.Id && g.FirmId == f.FirmId && g.RevokedAt == null)
+          .ExecuteUpdateAsync(s => s.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow));
+        await transaction.CommitAsync();
+      }
+      await using var verifier = new AuditSphereDbContext(pg.Options);
+      var observed = await verifier.RoleGrants.AsNoTracking().AnyAsync(g => g.Id == detailGrant.Id && g.RevokedAt != null);
+      return (updated, observed);
+    });
+    await using var reader = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(witness, race).Options);
+    EngagementProgressView? progress;
+    bool succeeded;
+    if (view == "detail")
+    {
+      var result = await EngagementProgressQuery.GetAsync(reader, actor, f.EngagementId);
+      succeeded = result.Succeeded;
+      progress = result.Value;
+    }
+    else
+    {
+      var result = view == "client" ? await EngagementProgressQuery.ForClientAsync(reader, actor, f.ClientId)
+        : await PortfolioQuery.ProgressAsync(reader, actor);
+      succeeded = result.Succeeded;
+      progress = result.Value is null ? null : Assert.Single(result.Value.Items);
+    }
+    Assert.True(race.Fired);
+    Assert.True(race.LifecycleReadBeforeCommit);
+    Assert.Equal(1, race.UpdatedRows);
+    Assert.True(race.ObservedCommitted);
+    Assert.True(succeeded);
+    Assert.NotNull(progress);
+    Assert.True(progress.GateOpen);
+    Assert.Equal(["Some engagement readiness details are restricted to firm-wide management."], progress.Gates);
+    Assert.Equal("Some engagement readiness details are restricted to firm-wide management.", progress.NextAction);
+    Assert.DoesNotContain("Commercial proposal preparation and dispatch required", System.Text.Json.JsonSerializer.Serialize(progress));
+  }
+
+  private sealed class ProgressLifecycleSnapshotWitness(Guid userId, Guid engagementId) : DbCommandInterceptor
+  {
+    public bool Observed { get; private set; }
+
+    public override ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (command.Transaction is not null &&
+          command.CommandText.Contains("U12 engagement projection final authorization", StringComparison.Ordinal) &&
+          command.Parameters.Cast<DbParameter>().Any(p => Equals(p.Value, userId)) &&
+          command.Parameters.Cast<DbParameter>().Any(p => Equals(p.Value, engagementId)))
+        Observed = true;
+      return ValueTask.FromResult(result);
+    }
+  }
+
+  private sealed class ProgressSnapshotCommittedRace(ProgressLifecycleSnapshotWitness witness,
+    Func<Task<(int Rows, bool Observed)>> change) : DbTransactionInterceptor
+  {
+    public bool Fired { get; private set; }
+    public bool LifecycleReadBeforeCommit { get; private set; }
+    public int UpdatedRows { get; private set; }
+    public bool ObservedCommitted { get; private set; }
+
+    public override async Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,
+      CancellationToken cancellationToken = default)
+    {
+      if (Fired) return;
+      Fired = true;
+      LifecycleReadBeforeCommit = witness.Observed;
+      (UpdatedRows, ObservedCommitted) = await change();
+    }
+  }
+
+  [Theory]
+  [InlineData("detail")]
+  [InlineData("client")]
+  [InlineData("portfolio")]
   public async Task ProgressObservesOneCommittedTaskAndHoldState(string view)
   {
     await using var pg = await PgTestSchema.CreateAsync();

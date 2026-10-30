@@ -13,12 +13,24 @@ public static partial class PortfolioQuery
   private sealed record Scope(bool FirmWide, Guid[] Clients, Guid[] Engagements, List<AuthorizationRequest> Requests);
 
   private static async Task<Scope?> ScopeAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct,
-    string[]? requiredRoles = null)
+    string[]? requiredRoles = null, bool caseInsensitiveRoles = false)
   {
     var roles = requiredRoles ?? Roles;
-    var grants = await db.RoleGrants.AsNoTracking().Where(g => g.FirmId == actor.FirmId &&
-      g.UserId == actor.UserId && g.RevokedAt == null && roles.Contains(g.Role))
-      .Select(g => new { g.ClientId, g.EngagementId }).Distinct().ToListAsync(ct);
+    var grantsQuery = db.RoleGrants.AsNoTracking().Where(g => g.FirmId == actor.FirmId &&
+      g.UserId == actor.UserId && g.RevokedAt == null);
+    List<(Guid? ClientId, Guid? EngagementId)> grants;
+    if (caseInsensitiveRoles)
+    {
+      var candidates = await grantsQuery.Select(g => new { g.Role, g.ClientId, g.EngagementId }).ToListAsync(ct);
+      grants = candidates.Where(g => roles.Contains(g.Role, StringComparer.OrdinalIgnoreCase))
+        .Select(g => (g.ClientId, g.EngagementId)).Distinct().ToList();
+    }
+    else
+    {
+      var candidates = await grantsQuery.Where(g => roles.Contains(g.Role))
+        .Select(g => new { g.ClientId, g.EngagementId }).Distinct().ToListAsync(ct);
+      grants = candidates.Select(g => (g.ClientId, g.EngagementId)).ToList();
+    }
     var requests = new List<AuthorizationRequest>();
     foreach (var grant in grants)
     {

@@ -56,6 +56,45 @@ describe('Seven-phase workflow projection contract (WF-01/WF-02)', () => {
     expect(decoded.archive).toBeNull();
   });
 
+  it('keeps legacy and nullable blocker details as fallback entries', () => {
+    expect(decodeEngagementWorkflowReport(workflow()).blockerDetails).toEqual([null]);
+    expect(decodeEngagementWorkflowReport(workflow({ blockerDetails: null })).blockerDetails).toEqual([null]);
+  });
+
+  it('attaches only unique, well-formed details whose cause matches the indexed blocker', () => {
+    const cause = 'Unconditional Partner risk acceptance decision required';
+    const detail = {
+      blockerIndex: 1, code: 'PARTNER_RISK_ACCEPTANCE_REQUIRED', cause,
+      responsibleRole: 'Partner', guidance: 'Waiting for a current Partner decision.',
+    };
+    const blockers = ['Other gate', cause, 'Another gate'];
+    const valid = decodeEngagementWorkflowReport(workflow({ blockers, blockerDetails: [detail] }));
+    expect(valid.blockers).toEqual(blockers);
+    expect(valid.blockerDetails).toEqual([null, detail, null]);
+
+    const malformedCases: unknown[] = [
+      {},
+      [{ ...detail, blockerIndex: -1 }],
+      [{ ...detail, blockerIndex: 3 }],
+      [{ ...detail, blockerIndex: 1.5 }],
+      [{ ...detail, cause: 'Other gate' }],
+      [{ ...detail, guidance: null }],
+      [{ ...detail, responsibleRole: ' ' }],
+      [detail, detail],
+      [detail, { blockerIndex: 1 }],
+      Array.from({ length: 101 }, () => detail),
+    ];
+    for (const blockerDetails of malformedCases) {
+      const decoded = decodeEngagementWorkflowReport(workflow({ blockers, blockerDetails }));
+      expect(decoded.blockers).toEqual(blockers);
+      expect(decoded.blockerDetails).toEqual([null, null, null]);
+    }
+    const mixed = decodeEngagementWorkflowReport(workflow({
+      blockers, blockerDetails: [detail, { ...detail, blockerIndex: 2, cause: 'wrong' }],
+    }));
+    expect(mixed.blockerDetails).toEqual([null, detail, null]);
+  });
+
   it('decodes an optional source-backed operational due date without changing phase status', () => {
     const raw = workflow();
     raw.phases[0].operationalDueDate = '2026-10-20';

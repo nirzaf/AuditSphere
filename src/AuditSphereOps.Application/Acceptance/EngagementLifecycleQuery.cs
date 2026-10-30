@@ -28,6 +28,10 @@ public static class CanonicalEngagementStages
   public const string ArchivedReadOnly = "ARCHIVED_READ_ONLY";
 }
 
+/// <summary>Optional guidance for one existing blocker; its index refers to the same report's blocker list.</summary>
+public sealed record EngagementLifecycleBlockerDetail(
+  int BlockerIndex, string Code, string Cause, string ResponsibleRole, string Guidance);
+
 public sealed record EngagementLifecycleSummary(
   string CanonicalStage,
   string StageLabel,
@@ -40,7 +44,8 @@ public sealed record EngagementLifecycleSummary(
   bool IsLegacyUnverified,
   string? ComplianceWarning = null,
   string? LocalArchiveState = null,
-  string? ProviderProtectionState = null);
+  string? ProviderProtectionState = null,
+  IReadOnlyList<EngagementLifecycleBlockerDetail>? BlockerDetails = null);
 
 public sealed record EngagementLifecycleReport(
   Guid EngagementId,
@@ -59,12 +64,49 @@ public sealed record EngagementLifecycleReport(
 public static class EngagementLifecycleQuery
 {
   private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "Auditor", "EngagementLeader", "CommercialManager", "FinanceManager"];
+  private static readonly string[] DetailRoles = ["Administrator", "Partner", "Manager", "SeniorManager"];
+  internal const string RestrictedBlockers = "Some engagement readiness details are restricted to firm-wide management.";
 
-  public static async Task<CommandResult<EngagementLifecycleReport>> GetAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  internal static AuthorizationRequest ReadRequest(ActorContext actor, Guid engagementId) =>
+    new(actor.FirmId, EngagementId: engagementId, RequiredRoles: Roles, InternalOnly: true);
+
+  internal static AuthorizationRequest DetailRequest(ActorContext actor, Guid engagementId) =>
+    new(actor.FirmId, EngagementId: engagementId, RequiredRoles: DetailRoles, InternalOnly: true, RequireFirmWide: true);
+
+  internal static Task<CommandResult> AuthorizeReadAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeAsync(db, actor, ReadRequest(actor, engagementId), ct);
+
+  internal static Task<CommandResult> AuthorizeDetailedBlockersAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeAsync(db, actor, DetailRequest(actor, engagementId), ct);
+
+  internal static Task<EngagementProjectionAuthorization> AuthorizeProjectionAsync(IAuditSphereDbContext db,
+    ActorContext actor, Guid clientId, Guid engagementId, AuthorizationRequest? action, string? staffingLevel, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeEngagementProjectionAsync(db, actor, clientId, engagementId,
+      ReadRequest(actor, engagementId), DetailRequest(actor, engagementId), action, staffingLevel, ct);
+
+  internal static Task<AuthorizationDecision.EngagementSnapshot> CaptureProjectionAsync(IAuditSphereDbContext db,
+    ActorContext actor, Guid clientId, Guid engagementId, AuthorizationRequest? action, string? staffingLevel, CancellationToken ct) =>
+    AuthorizationDecision.CaptureEngagementProjectionAsync(db, actor, clientId, engagementId,
+      ReadRequest(actor, engagementId), DetailRequest(actor, engagementId), action, staffingLevel, ct);
+
+  public static Task<CommandResult<EngagementLifecycleReport>> GetAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default) =>
+    GetCoreAsync(db, actor, engagementId, null, ct);
+
+  internal static async Task<(CommandResult<EngagementLifecycleReport> Result, bool IncludesVisibleHolds)> GetForProgressAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
   {
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, EngagementId: engagementId, RequiredRoles: Roles, InternalOnly: true), ct);
+    var includesVisibleHolds = false;
+    var result = await GetCoreAsync(db, actor, engagementId, value => includesVisibleHolds = value, ct);
+    return (result, includesVisibleHolds);
+  }
+
+  private static async Task<CommandResult<EngagementLifecycleReport>> GetCoreAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, Action<bool>? reportVisibleHolds, CancellationToken ct)
+  {
+    var auth = await AuthorizeReadAsync(db, actor, engagementId, ct);
     if (!auth.Succeeded) return CommandResult<EngagementLifecycleReport>.Fail(auth.ErrorCode!, auth.Message!);
 
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
@@ -74,15 +116,19 @@ public static class EngagementLifecycleQuery
     if (client is null) return CommandResult<EngagementLifecycleReport>.Fail(ErrorCodes.ScopeDenied, "Client unavailable.");
 
     var now = DateTimeOffset.UtcNow;
-    var detailAuthorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, EngagementId: engagementId,
-        RequiredRoles: ["Administrator", "Partner", "Manager", "SeniorManager"], InternalOnly: true, RequireFirmWide: true), ct);
+    var detailAuthorization = await AuthorizeDetailedBlockersAsync(db, actor, engagementId, ct);
     var canViewDetailedBlockers = detailAuthorization.Succeeded;
 
-    CommandResult<EngagementLifecycleReport> Project(EngagementLifecycleSummary summary)
+    async Task<CommandResult<EngagementLifecycleReport>> ProjectAsync(EngagementLifecycleSummary summary, bool includesHolds = false)
     {
-      if (!canViewDetailedBlockers && summary.BlockedReasons.Count > 0)
-        summary = summary with { BlockedReasons = ["Some engagement readiness details are restricted to firm-wide management."] };
+      var currentRead = await AuthorizeReadAsync(db, actor, engagementId, ct);
+      if (!currentRead.Succeeded) return CommandResult<EngagementLifecycleReport>.Fail(currentRead.ErrorCode!, currentRead.Message!);
+      var final = await AuthorizeProjectionAsync(db, actor, client.Id, engagementId, null, null, ct);
+      if (!final.Read.Succeeded) return CommandResult<EngagementLifecycleReport>.Fail(final.Read.ErrorCode!, final.Read.Message!);
+      var detailStillAuthorized = canViewDetailedBlockers && final.CanViewDetails;
+      if (!detailStillAuthorized && summary.BlockedReasons.Count > 0)
+        summary = summary with { BlockedReasons = [RestrictedBlockers], BlockerDetails = null };
+      reportVisibleHolds?.Invoke(includesHolds && detailStillAuthorized);
       return Success(engagement, client.LegalName, summary, now);
     }
 
@@ -110,7 +156,7 @@ public static class EngagementLifecycleQuery
 
     if (freeze is { State: FileFreezeStates.Frozen })
     {
-      return Project(new EngagementLifecycleSummary(
+      return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.ArchivedReadOnly, "Archived (Read-Only)", 11, [],
         "None", $"/app/records/archives/{engagementId}", 0, true, false, ComplianceWarningFor(freeze),
         freeze.State, freeze.ExternalReadOnly));
@@ -142,16 +188,16 @@ public static class EngagementLifecycleQuery
         countdownBlocked.Add("The freeze is due but has not committed; the file is not archived until the local freeze succeeds.");
       var phaseDelivered = PostSignatureStage(freeze.State == FileFreezeStates.Scheduled, bundleAvailableToClient) ==
         CanonicalEngagementStages.ComplianceCountdown;
-      return Project(new EngagementLifecycleSummary(
+      return await ProjectAsync(new EngagementLifecycleSummary(
         PostSignatureStage(freeze.State == FileFreezeStates.Scheduled, bundleAvailableToClient),
         phaseDelivered ? "Compliance Countdown" : "Deliverable Release", phaseDelivered ? 10 : 9, countdownBlocked,
         "EngagementPartner", completionLink, remaining, false, false, ComplianceWarningFor(freeze),
-        freeze.State, freeze.ExternalReadOnly));
+        freeze.State, freeze.ExternalReadOnly), includesHolds: holds.Count > 0);
     }
 
     if (release is not null || signedReport is not null)
     {
-      return Project(new EngagementLifecycleSummary(
+      return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.DeliverableRelease, "Deliverable Release", 9,
         [signedReport is null
           ? "The compliance countdown starts when the Partner signs the Independent Auditor's Report."
@@ -209,9 +255,9 @@ public static class EngagementLifecycleQuery
       if (partnerClearance is null) partnerBlocked.Add("Partner clearance of the current Summary Review Memorandum is pending.");
       if (opinion is null) partnerBlocked.Add("Partner audit opinion decision pending");
       else partnerBlocked.Add("Partner signature of the current Independent Auditor's Report pending");
-      return Project(new EngagementLifecycleSummary(
+      return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.PartnerApproval, "Partner Approval & Signing", 8, partnerBlocked,
-        "EngagementPartner", $"/app/engagements/{engagementId}/completion", null, false, false));
+        "EngagementPartner", $"/app/engagements/{engagementId}/completion", null, false, false), includesHolds: holds.Count > 0);
     }
 
     if (allSubmittedForReview || partnerClearance is not null)
@@ -219,9 +265,9 @@ public static class EngagementLifecycleQuery
       var mgrBlocked = new List<string>();
       if (holds.Count > 0) mgrBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
       mgrBlocked.AddRange(handoverBlockers);
-      return Project(new EngagementLifecycleSummary(
+      return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.ManagerialReview, "Managerial Review", 7, mgrBlocked,
-        "AuditManager", $"/app/engagements/{engagementId}/audit-fieldwork", null, false, false));
+        "AuditManager", $"/app/engagements/{engagementId}/audit-fieldwork", null, false, false), includesHolds: holds.Count > 0);
     }
 
     // Planning approval means the CURRENT materiality is Partner-approved and not stale (STE 3.2), not merely calculated.
@@ -247,9 +293,9 @@ public static class EngagementLifecycleQuery
          procedureResults.Any(result => result.AuditProcedureId == x.Procedure.Id && result.Revision == x.Procedure.CurrentResultRevision &&
            result.Status == AuditProcedureResultStatuses.ChangesRequired)));
       if (returnedCount > 0) fwBlocked.Add($"{returnedCount} audit procedure(s) returned for preparer rework");
-      return Project(new EngagementLifecycleSummary(
+      return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.FieldworkExecution, "Fieldwork Execution", 6, fwBlocked,
-        "SeniorAuditor", $"/app/engagements/{engagementId}/audit-fieldwork", null, false, false));
+        "SeniorAuditor", $"/app/engagements/{engagementId}/audit-fieldwork", null, false, false), includesHolds: holds.Count > 0);
     }
 
     // 5. Portal Active & Planning
@@ -264,9 +310,9 @@ public static class EngagementLifecycleQuery
         planBlocked.Add("Materiality is stale: the mapping or trial balance changed. Recalculate and re-approve before planning can advance.");
       else if (!planApproved) planBlocked.Add("Materiality calculation and formal Partner planning approval required");
       if (engagement.ProfessionalWorkBlocked) planBlocked.Add("Engagement professional work is currently blocked");
-      return Project(new EngagementLifecycleSummary(
+      return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.PortalActivePlanning, "Portal Active & Planning", 5, planBlocked,
-        "AuditManager", $"/app/engagements/{engagementId}/audit-plan", null, false, false));
+        "AuditManager", $"/app/engagements/{engagementId}/audit-plan", null, false, false), includesHolds: holds.Count > 0);
     }
 
     // 4. Advance Billing & 3. Dual-Key Pending. Both keys are read from the evidence the protected engagement-letter and
@@ -296,28 +342,36 @@ public static class EngagementLifecycleQuery
       // Use the activation predicate: retained paid evidence plus the effect of approved allocation reversals.
       var advancePaid = agreement is not null && await AuditSphereOps.Application.Practice.FeeAgreementService.AdvanceCurrentlyPaidAsync(db, actor.FirmId, agreement.Id, ct);
       if (!advancePaid) feeBlocked.Add("50% advance invoice payment allocation required to activate portal onboarding");
-      return Project(new EngagementLifecycleSummary(
+      return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.AdvanceBilling, "Advance Billing & Payment", 4, feeBlocked,
-        "FinanceManager", $"/app/finance", null, false, false));
+        "FinanceManager", $"/app/finance", null, false, false), includesHolds: holds.Count > 0);
     }
 
     if (proposal is { SentAt: not null, Status: CrmStates.ProposalSent or CrmStates.ProposalAccepted or CrmStates.ProposalDeclined })
     {
       var dualBlocked = new List<string>();
-      if (acceptance is null) dualBlocked.Add("Unconditional Partner risk acceptance decision required");
+      List<EngagementLifecycleBlockerDetail>? details = null;
+      if (acceptance is null)
+      {
+        const string reason = "Unconditional Partner risk acceptance decision required";
+        details = [new(dualBlocked.Count, "PARTNER_RISK_ACCEPTANCE_REQUIRED", reason, "Partner",
+          "Waiting for current unconditional Partner risk acceptance. An authorized Partner determines the appropriate next step.")];
+        dualBlocked.Add(reason);
+      }
       if (proposal.Status == CrmStates.ProposalDeclined)
         dualBlocked.Add("The client declined the dispatched proposal; revise and resend or close the opportunity.");
       else if (proposal.Status != CrmStates.ProposalAccepted)
         dualBlocked.Add("Client commercial acceptance of proposal required");
       else if (!commercialAccepted)
         dualBlocked.Add("Client acceptance does not cite the current dispatched offer or quotation revision; re-record acceptance against the exact current offer.");
-      return Project(new EngagementLifecycleSummary(
+      return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.DualKeyPending, "Dual-Key Acceptance Pending", 3, dualBlocked,
-        "EngagementPartner", $"/app/assessments/{engagement.PracticeClientId}", null, false, false));
+        "EngagementPartner", $"/app/assessments/{engagement.PracticeClientId}", null, false, false,
+        BlockerDetails: details));
     }
 
     // 2. Proposal Generation & 1. Lead Ingestion
-    return Project(new EngagementLifecycleSummary(
+    return await ProjectAsync(new EngagementLifecycleSummary(
       CanonicalEngagementStages.ProposalGeneration, "Proposal Generation", 2,
       ["Commercial proposal preparation and dispatch required"],
       "CommercialManager", $"/app/clients/{engagement.PracticeClientId}", null, false, false));

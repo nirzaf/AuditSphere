@@ -5,6 +5,7 @@ using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace AuditSphereOps.Application.Acceptance;
 
@@ -44,7 +45,8 @@ public sealed record EngagementWorkflowReport(
   IReadOnlyList<string> Blockers,
   IReadOnlyList<EngagementWorkflowNextAction> NextActions,
   EngagementWorkflowArchiveState? Archive,
-  DateTimeOffset EvaluatedAtUtc);
+  DateTimeOffset EvaluatedAtUtc,
+  IReadOnlyList<EngagementLifecycleBlockerDetail>? BlockerDetails = null);
 
 /// <summary>
 /// Read-only seven-phase workflow projection. It composes <see cref="EngagementLifecycleQuery"/>, which keeps authorization,
@@ -58,6 +60,9 @@ public static class EngagementWorkflowWorkspaceQuery
   public static async Task<CommandResult<EngagementWorkflowReport>> GetAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
   {
+    if (AuthorizationDecision.HasCallerTransaction(db))
+      return CommandResult<EngagementWorkflowReport>.Fail(ErrorCodes.GateBlocked,
+        "Workflow requires an independent authorization snapshot.");
     var lifecycle = await EngagementLifecycleQuery.GetAsync(db, actor, engagementId, ct);
     if (!lifecycle.Succeeded) return CommandResult<EngagementWorkflowReport>.Fail(lifecycle.ErrorCode!, lifecycle.Message!);
     var report = lifecycle.Value!;
@@ -81,21 +86,45 @@ public static class EngagementWorkflowWorkspaceQuery
       : new EngagementWorkflowArchiveState(summary.LocalArchiveState, summary.ProviderProtectionState,
         summary.ComplianceWarning, summary.ComplianceCountdownDays);
 
-    var canOpenNextAction = InternalRoute.IsMatch(summary.DeepLink) &&
+    // Preliminary checks retain existing admission behavior; only the final shared snapshot selects output.
+    if (hasBlockers) await EngagementLifecycleQuery.AuthorizeDetailedBlockersAsync(db, actor, engagementId, ct);
+    if (InternalRoute.IsMatch(summary.DeepLink))
       await CanOpenNextActionAsync(db, actor, report.ClientId, report.EngagementId, summary.ResponsibleRole, ct);
+    var read = await EngagementLifecycleQuery.AuthorizeReadAsync(db, actor, engagementId, ct);
+    if (!read.Succeeded) return CommandResult<EngagementWorkflowReport>.Fail(read.ErrorCode!, read.Message!);
+    var (actionRequest, staffingLevel) = ActionRequest(actor, report.ClientId, report.EngagementId, summary.ResponsibleRole);
+    if (!InternalRoute.IsMatch(summary.DeepLink)) actionRequest = null;
+    AuthorizationDecision.EngagementSnapshot authority;
+    IReadOnlyList<string> responsibleUsers;
+    await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
+    {
+      authority = await EngagementLifecycleQuery.CaptureProjectionAsync(db, actor, report.ClientId, report.EngagementId,
+        actionRequest, staffingLevel, ct);
+      responsibleUsers = await ResponsibleUsersAsync(db, actor.FirmId, report.EngagementId, summary.ResponsibleRole, ct);
+      await snapshot.CommitAsync(ct);
+    }
+    var final = authority.Evaluate(DateTimeOffset.UtcNow);
+    if (!final.Read.Succeeded) return CommandResult<EngagementWorkflowReport>.Fail(final.Read.ErrorCode!, final.Read.Message!);
+    var detailStillAuthorized = hasBlockers && final.CanViewDetails;
+    var canOpenNextAction = final.CanOpenAction;
     var nextActions = canOpenNextAction
       ? new List<EngagementWorkflowNextAction>
       {
         new("OPEN_CANONICAL_ACTION", $"Open: {summary.StageLabel}", summary.DeepLink),
       }
       : new List<EngagementWorkflowNextAction>();
-
-    var responsibleUsers = await ResponsibleUsersAsync(db, actor.FirmId, report.EngagementId, summary.ResponsibleRole, ct);
+    var blockerDetails = summary.BlockerDetails;
+    if (hasBlockers && !detailStillAuthorized)
+    {
+      blockers = [EngagementLifecycleQuery.RestrictedBlockers];
+      blockerDetails = null;
+    }
 
     return CommandResult<EngagementWorkflowReport>.Ok(new EngagementWorkflowReport(
       report.EngagementId, report.ClientId, report.ServiceRoute,
       summary.CanonicalStage, summary.StageIndex, summary.StageLabel,
-      current, phases, summary.ResponsibleRole, responsibleUsers, blockers, nextActions, archive, report.EvaluatedAtUtc));
+      current, phases, summary.ResponsibleRole, responsibleUsers, blockers, nextActions, archive, report.EvaluatedAtUtc,
+      blockerDetails));
   }
 
   /// <summary>
@@ -124,6 +153,18 @@ public static class EngagementWorkflowWorkspaceQuery
   private static async Task<bool> CanOpenNextActionAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid clientId, Guid engagementId, string responsibleRole, CancellationToken ct)
   {
+    var (request, staffingLevel) = ActionRequest(actor, clientId, engagementId, responsibleRole);
+    if (request is null) return false;
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+    if (!auth.Succeeded) return false;
+    return staffingLevel is null || await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x =>
+      x.FirmId == actor.FirmId && x.ClientId == clientId && x.EngagementId == engagementId &&
+      x.UserId == actor.UserId && x.StaffingLevel == staffingLevel && x.RevokedAt == null, ct);
+  }
+
+  private static (AuthorizationRequest? Request, string? StaffingLevel) ActionRequest(
+    ActorContext actor, Guid clientId, Guid engagementId, string responsibleRole)
+  {
     var staffingLevel = responsibleRole switch
     {
       "EngagementPartner" => StaffingLevels.EngagementPartner,
@@ -132,19 +173,11 @@ public static class EngagementWorkflowWorkspaceQuery
       _ => null,
     };
     if (staffingLevel is not null)
-    {
-      var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-        new(actor.FirmId, clientId, engagementId, [StaffingLevels.AuthorizationRole(staffingLevel)], InternalOnly: true), ct);
-      return auth.Succeeded && await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x =>
-        x.FirmId == actor.FirmId && x.ClientId == clientId && x.EngagementId == engagementId &&
-        x.UserId == actor.UserId && x.StaffingLevel == staffingLevel && x.RevokedAt == null, ct);
-    }
+      return (new(actor.FirmId, clientId, engagementId, [StaffingLevels.AuthorizationRole(staffingLevel)], InternalOnly: true), staffingLevel);
 
-    if (responsibleRole is not ("CommercialManager" or "FinanceManager")) return false;
-    var businessRoleAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new(actor.FirmId, clientId, engagementId, [responsibleRole], InternalOnly: true,
-        RequireFirmWide: responsibleRole == "FinanceManager"), ct);
-    return businessRoleAuth.Succeeded;
+    if (responsibleRole is not ("CommercialManager" or "FinanceManager")) return (null, null);
+    return (new(actor.FirmId, clientId, engagementId, [responsibleRole], InternalOnly: true,
+      RequireFirmWide: responsibleRole == "FinanceManager"), null);
   }
 
   /// <summary>

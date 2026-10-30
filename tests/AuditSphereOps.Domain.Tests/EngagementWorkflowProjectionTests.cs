@@ -5,6 +5,8 @@ using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Data.Common;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -14,6 +16,152 @@ namespace AuditSphereOps.Domain.Tests;
 /// </summary>
 public sealed class EngagementWorkflowProjectionTests
 {
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task LifecycleAndWorkflowRefuseSessionChangedDuringFinalReadAuthorization(bool workflow)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var actor = PbcSeed.Actor(seed.Staff, "Staff");
+    await using (var baseline = new AuditSphereDbContext(pg.Options))
+    {
+      var before = await EngagementWorkflowWorkspaceQuery.GetAsync(baseline, actor, seed.EngagementId);
+      Assert.True(before.Succeeded, before.Message);
+      Assert.Equal(CanonicalEngagementStages.ProposalGeneration, before.Value!.CanonicalStage);
+      Assert.Equal(["Some engagement readiness details are restricted to firm-wide management."], before.Value.Blockers);
+      Assert.Null(before.Value.BlockerDetails);
+      Assert.Empty(before.Value.NextActions);
+    }
+    var race = new FinalSessionAuthorizationRace(workflow, actor.UserId, seed.ClientId, async () =>
+    {
+      int changed;
+      await using (var writer = new AuditSphereDbContext(pg.Options))
+      await using (var transaction = await writer.Database.BeginTransactionAsync())
+      {
+        changed = await writer.Users.Where(x => x.Id == actor.UserId && x.FirmId == actor.FirmId && x.SessionEpoch == actor.SessionEpoch)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1));
+        await transaction.CommitAsync();
+      }
+      await using var verifier = new AuditSphereDbContext(pg.Options);
+      var committedEpoch = await verifier.Users.AsNoTracking().Where(x => x.Id == actor.UserId && x.FirmId == actor.FirmId)
+        .Select(x => (long?)x.SessionEpoch).SingleOrDefaultAsync();
+      return (changed, committedEpoch);
+    });
+    await using var reader = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(race).Options);
+    void AssertBoundaryAndCommit()
+    {
+      Assert.True(race.AnchorObserved);
+      if (workflow) { Assert.True(race.ActionClientReadObserved); Assert.True(race.ActionGrantReadObserved); }
+      Assert.True(race.FinalActorReadObserved);
+      Assert.True(race.FinalGrantBoundaryReached);
+      Assert.True(race.MutationCommitted);
+      Assert.Equal(1, race.UpdatedRows);
+      Assert.Equal(actor.SessionEpoch + 1, race.CommittedEpoch);
+    }
+    if (workflow)
+    {
+      var result = await EngagementWorkflowWorkspaceQuery.GetAsync(reader, actor, seed.EngagementId);
+      AssertBoundaryAndCommit();
+      Assert.False(result.Succeeded);
+      Assert.Null(result.Value);
+    }
+    else
+    {
+      var result = await EngagementLifecycleQuery.GetAsync(reader, actor, seed.EngagementId);
+      AssertBoundaryAndCommit();
+      Assert.False(result.Succeeded);
+      Assert.Null(result.Value);
+    }
+  }
+
+  [Theory]
+  [InlineData(false, false)]
+  [InlineData(false, true)]
+  [InlineData(true, false)]
+  [InlineData(true, true)]
+  public async Task LifecycleAndWorkflowRefuseLostScopeOrSessionAfterInitialRead(bool workflow, bool changeEpoch)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var actor = PbcSeed.Actor(seed.Staff, "Staff");
+    var marker = workflow ? "FROM workflow_task_bindings" : "FROM engagement_holds";
+    var race = new LifecycleAuthorizationRace(marker, async () =>
+    {
+      await using var writer = new AuditSphereDbContext(pg.Options);
+      if (changeEpoch)
+        await writer.Users.Where(x => x.Id == actor.UserId && x.FirmId == actor.FirmId)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1));
+      else
+        await writer.RoleGrants.Where(x => x.UserId == actor.UserId && x.FirmId == actor.FirmId && x.RevokedAt == null)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+    });
+    await using var reader = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(race).Options);
+    if (workflow)
+    {
+      var result = await EngagementWorkflowWorkspaceQuery.GetAsync(reader, actor, seed.EngagementId);
+      Assert.False(result.Succeeded);
+      Assert.Null(result.Value);
+      Assert.Equal(changeEpoch ? ErrorCodes.GenerationStale : ErrorCodes.ScopeDenied, result.ErrorCode);
+    }
+    else
+    {
+      var result = await EngagementLifecycleQuery.GetAsync(reader, actor, seed.EngagementId);
+      Assert.False(result.Succeeded);
+      Assert.Null(result.Value);
+      Assert.Equal(changeEpoch ? ErrorCodes.GenerationStale : ErrorCodes.ScopeDenied, result.ErrorCode);
+    }
+    Assert.True(race.Fired);
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task LifecycleAndWorkflowRedactWhenFirmWideDetailGrantIsRevoked(bool workflow)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var user = PbcSeed.User(seed.FirmId, "Staff");
+    var detailGrant = PbcSeed.Grant(seed.FirmId, user, "Manager");
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.Users.Add(user);
+      setup.RoleGrants.Add(detailGrant);
+      setup.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, user, "Staff", seed.ClientId, seed.EngagementId));
+      await setup.SaveChangesAsync();
+    }
+    var actor = PbcSeed.Actor(user, "Manager");
+    var marker = workflow ? "FROM workflow_task_bindings" : "FROM engagement_holds";
+    var race = new LifecycleAuthorizationRace(marker, async () =>
+    {
+      await using var writer = new AuditSphereDbContext(pg.Options);
+      await writer.RoleGrants.Where(x => x.Id == detailGrant.Id && x.FirmId == seed.FirmId)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+    });
+    await using var reader = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(race).Options);
+    if (workflow)
+    {
+      var result = await EngagementWorkflowWorkspaceQuery.GetAsync(reader, actor, seed.EngagementId);
+      Assert.True(result.Succeeded, result.Message);
+      Assert.Equal(CanonicalEngagementStages.ProposalGeneration, result.Value!.CanonicalStage);
+      Assert.Equal(EngagementWorkflowPhaseStatuses.Blocked, result.Value.CurrentPhase.Status);
+      Assert.Equal(["Some engagement readiness details are restricted to firm-wide management."], result.Value.Blockers);
+      Assert.Null(result.Value.BlockerDetails);
+    }
+    else
+    {
+      var result = await EngagementLifecycleQuery.GetAsync(reader, actor, seed.EngagementId);
+      Assert.True(result.Succeeded, result.Message);
+      Assert.Equal(CanonicalEngagementStages.ProposalGeneration, result.Value!.Summary.CanonicalStage);
+      Assert.Equal(["Some engagement readiness details are restricted to firm-wide management."], result.Value.Summary.BlockedReasons);
+      Assert.Null(result.Value.Summary.BlockerDetails);
+    }
+    Assert.True(race.Fired);
+  }
+
   private static readonly (string Stage, int Index, string Phase, int PhaseIndex)[] ExpectedMapping =
   [
     (CanonicalEngagementStages.LeadIngestion, 1, "CLIENT_ONBOARDING", 1),
@@ -168,5 +316,72 @@ public sealed class EngagementWorkflowProjectionTests
       Assert.Null(completedWork.Value!.Phases[0].OperationalDueDate);
       Assert.Equal(EngagementWorkflowPhaseStatuses.Blocked, completedWork.Value.CurrentPhase.Status);
     }
+  }
+}
+
+internal sealed class LifecycleAuthorizationRace(string marker, Func<Task> change, int skipMatches = 0,
+  string? armMarker = null) : DbCommandInterceptor
+{
+  public bool Fired { get; private set; }
+  private bool armed = armMarker is null;
+  private int matches;
+
+  public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+    CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+  {
+    if (!armed && command.CommandText.Contains(armMarker!, StringComparison.Ordinal)) armed = true;
+    if (!Fired && armed && command.CommandText.Contains(marker, StringComparison.Ordinal) && matches++ >= skipMatches)
+    {
+      Fired = true;
+      await change();
+    }
+    return result;
+  }
+}
+
+internal sealed class FinalSessionAuthorizationRace(bool workflow, Guid actorId, Guid clientId,
+  Func<Task<(int Rows, long? Epoch)>> mutate) : DbCommandInterceptor
+{
+  public bool AnchorObserved { get; private set; }
+  public bool ActionClientReadObserved { get; private set; }
+  public bool ActionGrantReadObserved { get; private set; }
+  public bool FinalActorReadObserved { get; private set; }
+  public bool FinalGrantBoundaryReached { get; private set; }
+  public bool MutationCommitted { get; private set; }
+  public int UpdatedRows { get; private set; }
+  public long? CommittedEpoch { get; private set; }
+
+  private static bool HasId(DbCommand command, Guid id) =>
+    command.Parameters.Cast<DbParameter>().Any(parameter => parameter.Value is Guid value && value == id);
+
+  public override ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+    DbDataReader result, CancellationToken cancellationToken = default)
+  {
+    var text = command.CommandText;
+    if (!AnchorObserved && text.Contains(workflow ? "FROM workflow_task_bindings" : "FROM proposals", StringComparison.OrdinalIgnoreCase))
+      AnchorObserved = true;
+    else if (AnchorObserved && workflow && !ActionClientReadObserved &&
+      text.Contains("FROM practice_clients", StringComparison.OrdinalIgnoreCase) && HasId(command, clientId))
+      ActionClientReadObserved = true;
+    else if (AnchorObserved && workflow && ActionClientReadObserved && !ActionGrantReadObserved &&
+      text.Contains("FROM role_grants", StringComparison.OrdinalIgnoreCase) && HasId(command, actorId))
+      ActionGrantReadObserved = true;
+    else if (AnchorObserved && (!workflow || ActionGrantReadObserved) && !FinalActorReadObserved &&
+      text.Contains("FROM users", StringComparison.OrdinalIgnoreCase) && HasId(command, actorId))
+      FinalActorReadObserved = true;
+    return ValueTask.FromResult(result);
+  }
+
+  public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+    CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+  {
+    if (!FinalGrantBoundaryReached && FinalActorReadObserved &&
+        command.CommandText.Contains("FROM role_grants", StringComparison.OrdinalIgnoreCase) && HasId(command, actorId))
+    {
+      FinalGrantBoundaryReached = true;
+      (UpdatedRows, CommittedEpoch) = await mutate();
+      MutationCommitted = true;
+    }
+    return result;
   }
 }

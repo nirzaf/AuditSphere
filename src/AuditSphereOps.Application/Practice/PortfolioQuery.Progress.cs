@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
@@ -22,11 +23,11 @@ public static partial class PortfolioQuery
     Guid? clientId, int page, int pageSize, CancellationToken ct)
   {
     if (page is < 0 or > 10000) return CommandResult<EngagementProgressList>.Fail("request.invalid", "Choose a valid progress page.");
-    if (db.Database.CurrentTransaction is not null)
+    if (AuthorizationDecision.HasCallerTransaction(db))
       return CommandResult<EngagementProgressList>.Fail(ErrorCodes.GateBlocked, "Progress requires an independent read snapshot.");
     Scope scope;
     List<AuditSphereOps.Domain.Engagements.Engagement> permitted;
-    IReadOnlyList<EngagementProgressView> views;
+    IReadOnlyList<EngagementProgressQuery.ProgressSnapshot> views;
     int total;
     await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
     {
@@ -49,9 +50,15 @@ public static partial class PortfolioQuery
       views = await EngagementProgressQuery.BuildAsync(db, actor, permitted, includeSteps: false, ct);
       await snapshot.CommitAsync(ct);
     }
-    if ((await EngagementProgressQuery.PermittedAsync(db, actor, permitted, ct)).Count != permitted.Count ||
-        !await CurrentAsync(db, actor, scope, ct))
-      return CommandResult<EngagementProgressList>.Fail(ErrorCodes.ScopeDenied, "Progress unavailable.");
-    return CommandResult<EngagementProgressList>.Ok(new(views, total, page, pageSize));
+    AuthorizationDecision.ReadSnapshot authority;
+    await using (var authorizationSnapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
+    {
+      authority = await EngagementProgressQuery.CaptureSnapshotsAsync(db, actor, views, scope.Requests, ct);
+      await authorizationSnapshot.CommitAsync(ct);
+    }
+    var current = EngagementProgressQuery.AuthorizeSnapshots(authority, views, scope.Requests.Count);
+    if (!current.Succeeded)
+      return CommandResult<EngagementProgressList>.Fail(current.ErrorCode!, "Progress unavailable.");
+    return CommandResult<EngagementProgressList>.Ok(new(current.Value!, total, page, pageSize));
   }
 }

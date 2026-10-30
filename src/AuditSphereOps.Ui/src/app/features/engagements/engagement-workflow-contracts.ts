@@ -69,6 +69,46 @@ const archiveDecoder = obj({
   complianceCountdownDays: nullable(int),
 });
 
+const blockerDetailDecoder = obj({
+  blockerIndex: int,
+  code: str(100),
+  cause: str(2000),
+  responsibleRole: str(200),
+  guidance: str(2000),
+});
+
+type BlockerDetail = ReturnType<typeof blockerDetailDecoder>;
+
+/** Optional details are advisory: invalid or ambiguous entries never hide the original blocker. */
+function blockerDetailsByIndex(value: unknown, blockers: readonly string[]): (BlockerDetail | null)[] {
+  const result: (BlockerDetail | null)[] = blockers.map(() => null);
+  if (!Array.isArray(value) || value.length > 100) return result;
+
+  // Count even malformed entries with a valid index so a duplicate cannot select a preferred detail.
+  const counts = new Map<number, number>();
+  for (const entry of value) {
+    if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+      const index = (entry as Record<string, unknown>)['blockerIndex'];
+      if (typeof index === 'number' && Number.isSafeInteger(index) && index >= 0 && index < blockers.length) {
+        counts.set(index, (counts.get(index) ?? 0) + 1);
+      }
+    }
+  }
+  for (const entry of value) {
+    try {
+      const detail = decode(blockerDetailDecoder, entry);
+      const index = detail.blockerIndex;
+      if (index >= 0 && index < blockers.length && counts.get(index) === 1 && detail.cause === blockers[index] &&
+          detail.code.trim() && detail.responsibleRole.trim() && detail.guidance.trim()) {
+        result[index] = detail;
+      }
+    } catch {
+      // Ignore unsupported optional detail while retaining the original blocker and fallback.
+    }
+  }
+  return result;
+}
+
 const workflowDecoder = obj({
   engagementId: guid,
   clientId: guid,
@@ -98,7 +138,8 @@ export function decodeEngagementWorkflowReport(value: unknown) {
     const expected = WORKFLOW_PHASES[i];
     if (phase.index !== expected.index || phase.code !== expected.code) throw new Error('Workflow phase order mismatch');
   });
-  return report;
+  const rawDetails = (value as Record<string, unknown>)['blockerDetails'];
+  return { ...report, blockerDetails: blockerDetailsByIndex(rawDetails, report.blockers) };
 }
 
 export type EngagementWorkflowReport = ReturnType<typeof decodeEngagementWorkflowReport>;

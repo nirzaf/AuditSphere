@@ -1,16 +1,111 @@
 using System.Net;
 using System.Net.Http.Json;
+using AuditSphereOps.Api.Ui;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace AuditSphereOps.Api.Tests;
 
 public sealed class PortfolioWorkspaceApiTests
 {
+  [Fact]
+  public async Task ContextChoiceContinuationIsProtectedAndBoundToActorClientAndPageSize()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("PORTFOLIO-CONTEXT-CURSOR-API");
+    var f = await PbcSeed.SeedAsync(pg);
+    var otherClientId = Guid.NewGuid();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.PracticeClients.Add(new PracticeClient { Id = otherClientId, FirmId = f.FirmId,
+        LegalName = "Other context client", CreatedAt = DateTimeOffset.UtcNow });
+      db.Engagements.Add(new Engagement { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId,
+        ServiceRoute = "AUDIT", Status = "Active", CreatedAt = DateTimeOffset.UtcNow });
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Staff", f.ClientId));
+      await db.SaveChangesAsync();
+    }
+    var protection = new EphemeralDataProtectionProvider();
+    StandaloneApiApplicationFactory Factory(string subject, string tenant) => new(new Dictionary<string, string?> {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString, ["DevelopmentIdentity:Enabled"] = "true",
+      ["DevelopmentIdentity:Subject"] = subject, ["DevelopmentIdentity:TenantId"] = tenant,
+      ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false" }, services =>
+    {
+      services.RemoveAll<IDataProtectionProvider>();
+      services.AddSingleton<IDataProtectionProvider>(protection);
+    });
+    using var adminFactory = Factory(f.Admin.Subject, f.Admin.TenantId);
+    using var staffFactory = Factory(f.Staff.Subject, f.Staff.TenantId);
+    using var admin = adminFactory.CreateClient(new() { AllowAutoRedirect = false });
+    using var staff = staffFactory.CreateClient(new() { AllowAutoRedirect = false });
+    await admin.GetAsync("/auth/sign-in");
+    await staff.GetAsync("/auth/sign-in");
+    var path = $"/api/ui/portfolio/context-choices?clientId={f.ClientId}&pageSize=1";
+    using var first = await admin.GetAsync(path);
+    Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+    Assert.True(first.Headers.CacheControl?.NoStore == true);
+    var firstPage = await first.Content.ReadFromJsonAsync<UiEndpoints.PortfolioContextChoicesResponse>();
+    Assert.NotNull(firstPage);
+    Assert.Equal(f.ClientId, firstPage.ClientId);
+    Assert.Equal(1, firstPage.PageSize);
+    Assert.Single(firstPage.Items);
+    Assert.True(firstPage.HasMore);
+    Assert.InRange(firstPage.ValidForMs, 1, 30000);
+    var token = Assert.IsType<string>(firstPage.NextCursor);
+    Assert.StartsWith("pc1.", token);
+    var continuation = $"&cursor={Uri.EscapeDataString(token)}";
+    using var second = await admin.GetAsync(path + continuation);
+    Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+    Assert.True(second.Headers.CacheControl?.NoStore == true);
+    var secondPage = await second.Content.ReadFromJsonAsync<UiEndpoints.PortfolioContextChoicesResponse>();
+    Assert.NotNull(secondPage);
+    Assert.Equal(f.ClientId, secondPage.ClientId);
+    Assert.Equal(1, secondPage.PageSize);
+    Assert.Single(secondPage.Items);
+    Assert.NotEqual(firstPage.Items[0].EngagementId, secondPage.Items[0].EngagementId);
+    Assert.False(secondPage.HasMore);
+    Assert.Null(secondPage.NextCursor);
+
+    // Both actors can independently access this client; a shared protector isolates actor binding.
+    using var staffFirst = await staff.GetAsync(path);
+    Assert.Equal(HttpStatusCode.OK, staffFirst.StatusCode);
+    var tampered = token.ToCharArray();
+    tampered[tampered.Length / 2] = tampered[tampered.Length / 2] == 'A' ? 'B' : 'A';
+    var invalidRequests = new[] {
+      (admin, path + "&cursor=" + Uri.EscapeDataString(new string(tampered))),
+      (admin, $"/api/ui/portfolio/context-choices?clientId={otherClientId}&pageSize=1" + continuation),
+      (admin, $"/api/ui/portfolio/context-choices?clientId={f.ClientId}&pageSize=2" + continuation),
+      (staff, path + continuation)
+    };
+    foreach (var (client, request) in invalidRequests)
+    {
+      using var rejected = await client.GetAsync(request);
+      Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+      Assert.True(rejected.Headers.CacheControl?.NoStore == true);
+      var failure = await rejected.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+      Assert.Equal("request.invalid", failure!["code"]);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      await db.Users.Where(u => u.Id == f.Admin.Id)
+        .ExecuteUpdateAsync(update => update.SetProperty(u => u.SessionEpoch, u => u.SessionEpoch + 1));
+    using var renewedAdmin = adminFactory.CreateClient(new() { AllowAutoRedirect = false });
+    await renewedAdmin.GetAsync("/auth/sign-in");
+    using var renewedFirst = await renewedAdmin.GetAsync(path);
+    Assert.Equal(HttpStatusCode.OK, renewedFirst.StatusCode);
+    using var priorEpoch = await renewedAdmin.GetAsync(path + continuation);
+    Assert.Equal(HttpStatusCode.BadRequest, priorEpoch.StatusCode);
+    Assert.True(priorEpoch.Headers.CacheControl?.NoStore == true);
+    var epochFailure = await priorEpoch.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+    Assert.Equal("request.invalid", epochFailure!["code"]);
+  }
+
   [Fact]
   public async Task ExportLimitReturnsTypedRefusalWithoutCsvOrInternalDiagnostics()
   {

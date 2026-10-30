@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { afterNextRender, Component, DestroyRef, effect, ElementRef, HostListener, inject, Injector, signal, untracked, viewChild } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { ActivatedRoute, ParamMap, RouterLink } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, ParamMap, Router, RouterLink } from '@angular/router';
 import { Api } from '../../core/api';
 import type { CommandOutcome } from '../../core/api';
 import { arr, bool, date, guid, instant, int, nullable, obj, oneOf, str, text } from '../../core/decode';
@@ -9,6 +9,7 @@ import { SHARED } from '../../core/ui';
 import { SessionService } from '../../core/session';
 import { WorkspaceAvailability } from '../../core/workspace-availability';
 import { QUEUE_DISPLAYS, QueueDisplay, boardColumns, groupedTasks, queueCalendar } from './work-queue-views';
+import { hasUnsupportedQueueContext, parseWorkQueueLocation, type QueueOwner, type QueueView, type WorkQueueLocation } from './work-queue-location';
 import { WorkflowTaskDependenciesPanel } from './workflow-task-dependencies';
 import { WorkflowTaskEvidencePanel } from './workflow-task-evidence';
 import { WorkflowTaskApplicabilityPanel } from './workflow-task-applicability';
@@ -109,6 +110,7 @@ const reminderTaskRowShape = obj({
 const reminderTaskRow = (value: unknown, path: string) => reminderTaskRowShape(value, path);
 const reminderTaskWorkspaceShape = obj({ engagementId: guid, tasks: arr(reminderTaskRow, 500), truncated: bool });
 type ReminderTaskRow = ReturnType<typeof reminderTaskRow>;
+type SelectedReminderTask = ReminderTaskRow & { engagementId: string };
 type ReminderSource = NonNullable<ReminderTaskRow['reminderSource']>;
 function reminderSourceHrefAllowed(engagementId: string, source: ReminderSource): boolean {
   const engagement = engagementId.toLowerCase();
@@ -117,7 +119,7 @@ function reminderSourceHrefAllowed(engagementId: string, source: ReminderSource)
     ? source.sourceHref === `/app/work?engagementId=${engagement}&taskId=${sourceId}`
     : source.sourceHref === `/app/engagements/${engagement}/pbc`;
 }
-function decodeReminderTaskWorkspace(value: unknown, path: string, selection: ReminderTaskSelection | null): ReminderTaskRow {
+function decodeReminderTaskWorkspace(value: unknown, path: string, selection: ReminderTaskSelection | null): SelectedReminderTask {
   const workspace = reminderTaskWorkspaceShape(value, path);
   const task = workspace.tasks[0];
   if (!selection || workspace.engagementId.toLowerCase() !== selection.engagementId || workspace.truncated ||
@@ -125,7 +127,7 @@ function decodeReminderTaskWorkspace(value: unknown, path: string, selection: Re
     throw new Error(`${path || 'task'}: selected task does not match the current reminder link`);
   if (task.reminderSource && !reminderSourceHrefAllowed(selection.engagementId, task.reminderSource))
     throw new Error(`${path || 'task'}: reminder source link does not match its authorized context`);
-  return task;
+  return { ...task, engagementId: workspace.engagementId.toLowerCase() };
 }
 const decodeAssigneeOptions = arr(obj({ userId: guid, displayName: nonBlank(200) }), 200);
 type AssignmentIntent = { task: QueueTask; owner: { userId: string; displayName: string }; action: 'assign' | 'reassign'; scope: string };
@@ -157,7 +159,6 @@ export const decodeActivity = obj({
   hasMore: bool, nextCursor: nullable(obj({ occurredAt: instant, activityId: guid })),
 });
 
-type QueueView = 'MY_TASKS' | 'TEAM' | 'DUE_TODAY' | 'UPCOMING' | 'WAITING_FOR_CLIENT' | 'UNDER_REVIEW' | 'CHANGES_REQUIRED' | 'OVERDUE' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
 const queueViews: { key: QueueView; label: string }[] = [
   { key: 'MY_TASKS', label: 'My tasks' },
   { key: 'TEAM', label: 'Team' },
@@ -193,6 +194,8 @@ const queueViews: { key: QueueView; label: string }[] = [
     @if (priorFenceMessage()) { <p role="status">{{ priorFenceMessage() }}</p> }
     @if (taskAccessCurrent()) {
     @if (availability.current()?.templates === 'available') { <p><a matButton routerLink="/app/practice/workflow-templates">Manage workflow templates</a></p> }
+    }
+    @if (taskAccessCurrent() && queueLocationValid()) {
     <section class="work-summary" aria-labelledby="work-summary-heading">
       <h2 id="work-summary-heading">Work overview</h2>
       <div role="status">@if (queue.loading()) { <p>Loading work overview.</p> }</div>
@@ -245,6 +248,9 @@ const queueViews: { key: QueueView; label: string }[] = [
     </section>
     }
     @if (taskAccessCurrent()) {
+    @if (queueLocationError()) {
+      <p role="alert">{{ queueLocationError() }} <button matButton (click)="resetQueueLocation()">Reset queue filters</button></p>
+    }
     <audit-state [loading]="queue.loading()" [error]="queue.error()" label="work queue" />
     <section aria-label="Saved task receipts">
       <button matButton (click)="findSavedReceipts()" [disabled]="receiptChecking()">Find saved task receipts</button>
@@ -264,7 +270,7 @@ const queueViews: { key: QueueView; label: string }[] = [
         <h2 id="reminder-task-heading" tabindex="-1">Task selected from deadline reminder</h2>
         @if (reminderTask.loading()) { <p role="status">Loading the exact selected task.</p> }
         @if (reminderTask.error()) { <p role="alert">{{ reminderTask.error() }}</p> }
-        @if (reminderTask.data(); as selected) {
+        @if (currentReminderTask(); as selected) {
           <p role="status">{{ selected.title }} loaded from the reminder link; status {{ selected.status }}, revision {{ selected.revision }}.</p>
           <dl class="facts">
             <dt>Task</dt><dd>{{ selected.title }} · {{ selected.id }}</dd>
@@ -340,7 +346,7 @@ const queueViews: { key: QueueView; label: string }[] = [
         }
       </section>
     }
-    @if (selectedView() !== 'MY_TASKS') {
+    @if (queueLocationValid() && selectedView() !== 'MY_TASKS') {
       <label>Task assignment
         <select [value]="ownerFilter()" (change)="selectOwnerFilter($any($event.target).value)">
           <option value="ALL">All authorized assignments</option>
@@ -349,6 +355,7 @@ const queueViews: { key: QueueView; label: string }[] = [
         </select>
       </label>
     }
+    @if (queueLocationValid()) {
     <nav class="queue-views" aria-label="Work queue views">
       @for (item of views; track item.key) {
         <button matButton [attr.aria-pressed]="selectedView() === item.key" (click)="selectView(item.key)">{{ item.label }}</button>
@@ -356,9 +363,10 @@ const queueViews: { key: QueueView; label: string }[] = [
     </nav>
     <nav class="queue-views" aria-label="Work queue display">
       @for (item of displays; track item.key) {
-        <button matButton [attr.aria-pressed]="display() === item.key" (click)="display.set(item.key)">{{ item.label }}</button>
+        <button matButton [attr.aria-pressed]="display() === item.key" (click)="selectDisplay(item.key)">{{ item.label }}</button>
       }
     </nav>
+    }
     <ng-template #card let-task>
       <article class="task-card">
         <strong>{{ task.title }}</strong>
@@ -407,7 +415,7 @@ const queueViews: { key: QueueView; label: string }[] = [
         </details>
       </article>
     </ng-template>
-    @if (queue.data(); as result) {
+    @if (queueLocationValid() ? queue.data() : null; as result) {
       <p role="status">{{ labelFor(result.view) }}: {{ result.tasks.length }} {{ result.view === 'MY_TASKS' ? 'assigned to you' : 'in this authorized view' }}. Client and engagement rows are limited to your current grants.</p>
       @if (display() === 'BOARD') {
         <p class="queue-note">The board groups this page of tasks by operational status. A task changes column only through its own action; cards cannot be dragged.</p>
@@ -713,6 +721,7 @@ export class WorkflowWorkQueue {
   readonly taskAccessCurrent = () => !this.taskRefused() && this.availability.current()?.tasks === 'available';
   readonly reviewAccessCurrent = () => !this.reviewRefused() && this.availability.current()?.reviews === 'available';
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly renderInjector = inject(Injector);
   private readonly cancellationPanel = viewChild(WorkflowTaskCancellationPanel);
@@ -722,7 +731,7 @@ export class WorkflowWorkQueue {
   private readonly receiptEvidencePanel = viewChild<WorkflowTaskEvidencePanel>('receiptEvidence');
   private readonly receiptOrderingPanel = viewChild<WorkflowTaskDependenciesPanel>('receiptOrdering');
   private readonly receiptApplicabilityPanel = viewChild<WorkflowTaskApplicabilityPanel>('receiptApplicability');
-  readonly ownerFilter = signal<'ALL' | 'ME' | 'UNASSIGNED'>('ALL');
+  readonly ownerFilter = signal<QueueOwner>('ALL');
   readonly views = queueViews;
   readonly displays = QUEUE_DISPLAYS;
   /** How the loaded page is arranged. It never changes which tasks are requested or shown. */
@@ -732,6 +741,10 @@ export class WorkflowWorkQueue {
   readonly calendar = queueCalendar;
   readonly grouped = groupedTasks;
   readonly selectedView = signal<QueueView>('MY_TASKS');
+  readonly queueLocationValid = signal(false);
+  readonly queueLocationError = signal('');
+  private queueLocationNavigation = 0;
+  private queueLocationPending = false;
   readonly reminderTaskSelection = signal<ReminderTaskSelection | null>(null);
   readonly reminderTaskLinkError = signal('');
   readonly activityTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
@@ -765,7 +778,7 @@ export class WorkflowWorkQueue {
   private readonly reviewCursor = signal<{ submittedAt: string; resultId: string } | null>(null);
   private readonly activityCursor = signal<{ occurredAt: string; activityId: string } | null>(null);
   readonly queue = this.api.resource(() => {
-    if (!this.taskAccessCurrent()) return null;
+    if (!this.taskAccessCurrent() || !this.queueLocationValid()) return null;
     const params = new URLSearchParams({ view: this.selectedView(), pageSize: '50', includeSummary: 'true' });
     if (this.selectedView() !== 'MY_TASKS') {
       if (this.ownerFilter() === 'ME') {
@@ -843,7 +856,21 @@ export class WorkflowWorkQueue {
   private readonly observationRequests = new Map<string, number>();
 
   constructor() {
-    const routeSubscription = this.route.queryParamMap.subscribe(params => this.readReminderTaskSelection(params));
+    const routeSubscription = this.route.queryParamMap.subscribe(params => {
+      // Query parameters may be emitted during activation, before navigation commits.
+      if (this.router.currentNavigation()) return;
+      ++this.queueLocationNavigation;
+      this.queueLocationPending = false;
+      this.readQueueLocation(params);
+      this.readReminderTaskSelection(params);
+    });
+    const navigationSubscription = this.router.events.subscribe(event => {
+      if (!(event instanceof NavigationEnd)) return;
+      ++this.queueLocationNavigation;
+      this.queueLocationPending = false;
+      this.readQueueLocation(this.route.snapshot.queryParamMap);
+      this.readReminderTaskSelection(this.route.snapshot.queryParamMap);
+    });
     let sessionOwner = this.sessionOwnerKey();
     let availabilityRevision = this.availability.revision();
     this.loadRegistry();
@@ -899,6 +926,7 @@ export class WorkflowWorkQueue {
     });
     inject(DestroyRef).onDestroy(() => {
       routeSubscription.unsubscribe();
+      navigationSubscription.unsubscribe();
       this.assignmentDestroyed = true; this.workQueueDestroyed = true; ++this.assignmentRequest;
     });
   }
@@ -946,7 +974,7 @@ export class WorkflowWorkQueue {
 
   refreshTaskWorkspaces(): void {
     if (!this.taskAccessCurrent()) return;
-    this.queue.reload();
+    if (this.queueLocationValid()) this.queue.reload();
     this.refreshReminderTask();
   }
 
@@ -954,10 +982,17 @@ export class WorkflowWorkQueue {
     if (this.taskAccessCurrent() && this.reminderTaskSelection()) this.reminderTask.reload();
   }
 
+  currentReminderTask(): SelectedReminderTask | null {
+    const selected = this.reminderTaskSelection();
+    const task = this.reminderTask.data();
+    return selected && task && task.engagementId === selected.engagementId &&
+      task.id.toLowerCase() === selected.taskId ? task : null;
+  }
+
   reminderQueueTask(): QueueTask | null {
     const selected = this.reminderTaskSelection();
-    const currentTask = selected ? this.reminderTask.data() : null;
-    return selected && currentTask ? this.queue.data()?.tasks.find(task =>
+    const currentTask = this.currentReminderTask();
+    return selected && currentTask && this.queueLocationValid() ? this.queue.data()?.tasks.find(task =>
       task.engagementId.toLowerCase() === selected.engagementId && task.taskId.toLowerCase() === selected.taskId &&
       task.taskStatus === currentTask.status && task.revision === currentTask.revision) ?? null : null;
   }
@@ -1001,6 +1036,65 @@ export class WorkflowWorkQueue {
     }
   }
 
+  private readQueueLocation(params: ParamMap): void {
+    const location = parseWorkQueueLocation(params);
+    if (!location) {
+      this.queueLocationValid.set(false);
+      this.queueLocationError.set(hasUnsupportedQueueContext(params)
+        ? 'Client and engagement queue filters are not supported yet. Reset queue filters to open the default view.'
+        : 'This queue link has invalid filters. Reset them to open the default view.');
+      this.cursor.set(null);
+      this.clearSettledPanels(); this.clearSettledCancellation();
+      return;
+    }
+    this.applyQueueLocation(location);
+  }
+
+  private applyQueueLocation(location: WorkQueueLocation): void {
+    if (location.view !== this.selectedView() || location.owner !== this.ownerFilter()) {
+      this.cursor.set(null);
+      this.clearSettledPanels(); this.clearSettledCancellation();
+    }
+    this.selectedView.set(location.view);
+    this.ownerFilter.set(location.owner);
+    this.display.set(location.display);
+    this.queueLocationError.set('');
+    this.queueLocationValid.set(true);
+  }
+
+  private navigateQueueLocation(location: WorkQueueLocation, resetContext = false): void {
+    if (!this.queueLocationPending && this.queueLocationValid() && this.selectedView() === location.view &&
+        this.ownerFilter() === location.owner && this.display() === location.display) return;
+    const navigation = ++this.queueLocationNavigation;
+    this.queueLocationPending = true;
+    void this.router.navigate([], { relativeTo: this.route, queryParamsHandling: 'merge', preserveFragment: true,
+      queryParams: { queueView: location.view, queueAssignment: location.owner, queueDisplay: location.display,
+        ...(resetContext ? { queueClientId: null, queueEngagementId: null } : {}) } })
+      .then(success => {
+        if (this.workQueueDestroyed || navigation !== this.queueLocationNavigation) return;
+        this.queueLocationPending = false;
+        if (success) return;
+        const actual = parseWorkQueueLocation(this.route.snapshot.queryParamMap);
+        if (actual && actual.view === location.view && actual.owner === location.owner && actual.display === location.display) {
+          this.applyQueueLocation(actual);
+          return;
+        }
+        this.queueLocationValid.set(false);
+        this.queueLocationError.set('The queue link could not be updated. Reset the filters to try again.');
+        this.cursor.set(null);
+      }).catch(() => {
+        if (this.workQueueDestroyed || navigation !== this.queueLocationNavigation) return;
+        this.queueLocationPending = false;
+        this.queueLocationValid.set(false);
+        this.queueLocationError.set('The queue link could not be updated. Reset the filters to try again.');
+        this.cursor.set(null);
+      });
+  }
+
+  resetQueueLocation(): void {
+    this.navigateQueueLocation({ view: 'MY_TASKS', owner: 'ALL', display: 'LIST' }, true);
+  }
+
   private focusReminderTaskHeading(selection: ReminderTaskSelection): void {
     const root = this.hostElement.nativeElement;
     const document = root.ownerDocument;
@@ -1023,17 +1117,24 @@ export class WorkflowWorkQueue {
   }
 
   selectView(value: QueueView): void {
-    this.clearSettledPanels(); this.clearSettledCancellation();
-    this.cursor.set(null);
-    this.ownerFilter.set('ALL');
-    this.selectedView.set(value);
+    if (!this.queueLocationValid()) return;
+    if (this.selectedView() === value && this.ownerFilter() === 'ALL') {
+      this.clearSettledPanels(); this.clearSettledCancellation(); this.cursor.set(null);
+    }
+    this.navigateQueueLocation({ view: value, owner: 'ALL', display: this.display() });
   }
 
   selectOwnerFilter(value: string): void {
-    this.clearSettledPanels(); this.clearSettledCancellation();
-    if (this.selectedView() === 'MY_TASKS' || !['ALL', 'ME', 'UNASSIGNED'].includes(value)) return;
-    this.cursor.set(null);
-    this.ownerFilter.set(value as 'ALL' | 'ME' | 'UNASSIGNED');
+    if (!this.queueLocationValid() || this.selectedView() === 'MY_TASKS' || !['ALL', 'ME', 'UNASSIGNED'].includes(value)) return;
+    if (this.ownerFilter() === value) {
+      this.clearSettledPanels(); this.clearSettledCancellation(); this.cursor.set(null);
+    }
+    this.navigateQueueLocation({ view: this.selectedView(), owner: value as QueueOwner, display: this.display() });
+  }
+
+  selectDisplay(value: QueueDisplay): void {
+    if (!this.queueLocationValid() || !this.displays.some(item => item.key === value)) return;
+    this.navigateQueueLocation({ view: this.selectedView(), owner: this.ownerFilter(), display: value });
   }
 
   nextPage(cursor: { dueDate: string | null; taskId: string }): void {
@@ -1779,7 +1880,7 @@ export class WorkflowWorkQueue {
   }
 
   taskMutationBlocked(taskId: string): boolean {
-    const task = this.queue.data()?.tasks.find(x => x.taskId === taskId) ?? this.reminderQueueTask();
+    const task = (this.queueLocationValid() ? this.queue.data()?.tasks.find(x => x.taskId === taskId) : null) ?? this.reminderQueueTask();
     return !task || task.taskId !== taskId || this.panelConflict(task, null);
   }
 

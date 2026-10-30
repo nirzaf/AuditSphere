@@ -115,8 +115,17 @@
         <div class="blockers-section">
           <h4>Blocked until resolved</h4>
           <ul>
-            @for (blocker of report.blockers; track blocker) {
-              <li>{{ blocker }}</li>
+            @for (blocker of report.blockers; track $index; let i = $index) {
+              <li>
+                {{ blocker }}
+                @if (report.blockerDetails[i]; as detail) {
+                  <div>Responsible role: {{ detail.responsibleRole }}</div>
+                  <div>{{ detail.guidance }}</div>
+                } @else {
+                  <div>Responsible role: Unknown.</div>
+                  <div>Detailed guidance is not available for this blocker.</div>
+                }
+              </li>
             }
           </ul>
         </div>

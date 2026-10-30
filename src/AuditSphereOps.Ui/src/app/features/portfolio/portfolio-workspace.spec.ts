@@ -6,6 +6,7 @@ import { BehaviorSubject } from 'rxjs';
 import { Portfolio } from './portfolio';
 import { PortfolioNavigation, decodePortfolioWorkspace, portfolioLocation, portfolioWindow } from './portfolio-contracts';
 import { SessionService } from '../../core/session';
+import { WorkspaceAvailability } from '../../core/workspace-availability';
 import { Api, CommandOutcome } from '../../core/api';
 const id = '11111111-1111-4111-8111-111111111111';
 const payload = {
@@ -55,6 +56,11 @@ describe('Native portfolio reads and export fences', () => {
   });
   function open() {
     const f = TestBed.createComponent(Portfolio); f.detectChanges(); TestBed.tick();
+    TestBed.inject(HttpTestingController).expectOne('/api/ui/workspace-availability').flush({
+      userId: id, firmId: id, generation: '1', staff: true, destinations: [],
+      tasks: 'available', reviews: 'available', templates: 'available', validForMs: 30000,
+    });
+    TestBed.tick();
     return f;
   }
   function read() { return TestBed.inject(HttpTestingController).expectOne(r => r.url.startsWith('/api/ui/portfolio/workspace?')); }
@@ -125,6 +131,22 @@ describe('Native portfolio reads and export fences', () => {
     expect(accept(metadata)).toBe(false); f.destroy();
     finish({ ok: true, value: { fileName: metadata.fileName, headers: {} } }); await pending;
     expect(f.componentInstance.message()).toBe('');
+  });
+  it('does not save or report an export after availability is invalidated', async () => {
+    const f = open(); read().flush(payload); TestBed.tick();
+    let finish!: (v: CommandOutcome<{ fileName: string; headers: Record<string,string> }>) => void;
+    let accept!: (metadata: { fileName: string; headers: Record<string,string>; byteCount: number; contentType: string }) => boolean;
+    vi.spyOn(TestBed.inject(Api), 'download').mockImplementation((_url, _body, callback) => {
+      accept = callback!; return new Promise(resolve => { finish = resolve; });
+    });
+    const pending = f.componentInstance.download();
+    const metadata = { fileName: 'auditsphere-portfolio.csv', headers: {}, byteCount: 100, contentType: 'text/csv' };
+    expect(accept(metadata)).toBe(true);
+    TestBed.inject(WorkspaceAvailability).invalidate();
+    expect(accept(metadata)).toBe(false);
+    finish({ ok: true, value: { fileName: metadata.fileName, headers: {} } }); await pending;
+    expect(f.componentInstance.message()).toBe('');
+    expect(f.componentInstance.exporting()).toBe(false);
   });
   it('shows the client-limit refusal and lets the user retry after narrowing the search', async () => {
     const f = open(); read().flush(payload); TestBed.tick();

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SessionService } from '../../core/session';
-import { arr, bool, decode, guid, instant, nat, obj, str } from '../../core/decode';
+import { arr, bool, decode, guid, instant, nat, nullable, obj, str } from '../../core/decode';
 
 export interface ClientRow { id: string; name: string; engagements: number; isArchived: boolean; }
 export interface PortfolioPage { items: ClientRow[]; total: number; page: number; pageSize: number; }
@@ -10,6 +10,24 @@ export function decodePortfolio(value: unknown): PortfolioPage {
   if (v.page > 10000 || v.pageSize < 1 || v.pageSize > 100 || v.items.length > v.pageSize || v.items.length > v.total)
     throw new Error('Invalid page bounds');
   return v;
+}
+
+const contextChoiceDecoder = obj({ engagementId: guid, serviceRoute: str(200), periodStart: str(100), periodEnd: str(100), status: str(200) });
+const contextPageDecoder = obj({ clientId: guid, clientName: str(2000), canOpenClient: bool, pageSize: nat,
+  items: arr(contextChoiceDecoder, 100), hasMore: bool, nextCursor: nullable(str(4096)), validForMs: nat });
+export type PortfolioContextPage = ReturnType<typeof contextPageDecoder>;
+export function decodeContextPage(value: unknown, clientId: string, pageSize: number): PortfolioContextPage {
+  if (!value || typeof value !== 'object' || !Object.prototype.hasOwnProperty.call(value, 'nextCursor'))
+    throw new Error('Invalid context choices');
+  const page = decode(contextPageDecoder, value);
+  const ids = page.items.map(item => item.engagementId.toLowerCase());
+  if (page.clientId === '00000000-0000-0000-0000-000000000000' || ids.includes('00000000-0000-0000-0000-000000000000') ||
+      page.clientId.toLowerCase() !== clientId.toLowerCase() || page.pageSize !== pageSize ||
+      pageSize < 1 || pageSize > 100 || page.items.length > pageSize ||
+      page.validForMs < 1 || page.validForMs > 30000 || new Set(ids).size !== ids.length ||
+      (page.hasMore ? !page.items.length || !page.nextCursor || !/^pc1\.[A-Za-z0-9_-]+$/.test(page.nextCursor)
+        : page.nextCursor !== null)) throw new Error('Invalid context choices');
+  return page;
 }
 const revision = (v: unknown): string => {
   if (typeof v !== 'string' || !/^[1-9][0-9]{0,18}$/.test(v)) throw new Error('Invalid exact revision');

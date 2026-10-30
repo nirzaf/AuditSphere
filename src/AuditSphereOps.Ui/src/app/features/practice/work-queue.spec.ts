@@ -116,9 +116,11 @@ import { TestBed } from '@angular/core/testing';
 import type { ComponentFixture } from '@angular/core/testing';
 import type { WritableSignal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
+import { Location } from '@angular/common';
+import { provideLocationMocks } from '@angular/common/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { By } from '@angular/platform-browser';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { SessionService } from '../../core/session';
 import { provideWorkspaceAvailabilityForTests } from '../../core/workspace-availability.testing';
@@ -145,6 +147,8 @@ describe('workflow queue assignment filters', () => {
   afterEach(() => vi.unstubAllGlobals());
   it('sends the current session owner, resets paging when assignment changes, and clears assignment on view changes', () => {
     TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideWorkspaceAvailabilityForTests()] });
+    // This isolated component case has no router outlet; routed navigation is covered below with the real router.
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     const userId = '11111111-1111-4111-8111-111111111111';
     TestBed.inject(SessionService).current.set({ userId, firmId: userId, generation: '1', staff: true });
     const fixture = TestBed.createComponent(WorkflowWorkQueue);
@@ -245,6 +249,8 @@ describe('workflow queue assignment filters', () => {
   const legacyTask = Object.fromEntries(Object.entries(task).filter(([key]) => key !== 'canCancel' && key !== 'canReopen'));
   const start = () => {
     TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideWorkspaceAvailabilityForTests()] });
+    // The legacy component fixtures have no route to activate; history behavior uses RouterTestingHarness below.
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     const userId = '11111111-1111-4111-8111-111111111111';
     const session = TestBed.inject(SessionService);
     session.current.set({ userId, firmId: userId, generation: '1', staff: true });
@@ -2054,6 +2060,206 @@ describe('workflow queue assignment filters', () => {
       expect(component.assignmentMessage()).toContain('Concurrent owner at revision 2 acknowledged');
       http.verify({ ignoreCancelled: true });
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('restores queue controls through history while keeping the exact reminder and resetting population cursors', async () => {
+    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [
+      provideRouter([{ path: 'app/work', component: WorkflowWorkQueue }]), provideLocationMocks(),
+      provideHttpClient(), provideHttpClientTesting(), provideWorkspaceAvailabilityForTests(),
+    ] });
+    const userId = task.assigneeUserId!;
+    TestBed.inject(SessionService).current.set({ userId, firmId: userId, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController);
+    const router = TestBed.inject(Router);
+    const location = TestBed.inject(Location);
+    // The harness navigates imperatively without app bootstrap, which normally installs this listener.
+    router.setUpLocationChangeListener();
+    const harness = await RouterTestingHarness.create();
+    const reminderUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`;
+    const queueResponse = (view: string) => ({ view, tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
+    try {
+      const component = await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${task.taskId}` +
+        '&queueView=TEAM&queueAssignment=ME&queueDisplay=BOARD', WorkflowWorkQueue);
+      TestBed.tick();
+      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}`)).flush(queueResponse('TEAM'));
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      http.expectOne(reminderUrl).flush(reminderWorkspace(task.taskId, task.title, task.revision, task.taskStatus));
+      TestBed.tick(); harness.fixture.detectChanges();
+      expect(component.selectedView()).toBe('TEAM');
+      expect(component.ownerFilter()).toBe('ME');
+      expect(component.display()).toBe('BOARD');
+      expect(component.reminderTaskSelection()).toEqual({ engagementId: task.engagementId, taskId: task.taskId });
+
+      component.selectDisplay('CALENDAR'); TestBed.tick();
+      await harness.fixture.whenStable();
+      expect(router.parseUrl(router.url).queryParams['queueDisplay']).toBe('CALENDAR');
+      http.expectNone(request => request.url === '/api/ui/work/tasks');
+
+      component.selectOwnerFilter('UNASSIGNED'); TestBed.tick();
+      http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true&unassignedOnly=true')).flush({ ...queueResponse('TEAM'), tasks: [] });
+      await harness.fixture.whenStable();
+      component.nextPage({ dueDate: null, taskId: task.taskId }); TestBed.tick();
+      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&unassignedOnly=true&afterTaskId=${task.taskId}`))
+        .flush({ ...queueResponse('TEAM'), tasks: [] });
+      harness.fixture.detectChanges();
+
+      const dueToday = [...harness.routeNativeElement!.querySelectorAll<HTMLButtonElement>('button.summary-card')]
+        .find(button => button.textContent?.includes('Due today'))!;
+      dueToday.click(); TestBed.tick();
+      http.expectOne(tasksUrl('view=DUE_TODAY&pageSize=50&includeSummary=true')).flush(queueResponse('DUE_TODAY'));
+      await harness.fixture.whenStable();
+      expect(component.ownerFilter()).toBe('ALL');
+      expect(harness.routeNativeElement!.textContent).toContain('As of 2026-10-15 (UTC)');
+      expect(router.parseUrl(router.url).queryParams).toMatchObject({ engagementId: task.engagementId, taskId: task.taskId });
+
+      location.back();
+      expect(router.parseUrl(location.path()).queryParams).toMatchObject({ queueView: 'TEAM', queueAssignment: 'UNASSIGNED',
+        queueDisplay: 'CALENDAR', engagementId: task.engagementId, taskId: task.taskId });
+      await vi.waitFor(() => expect(component.selectedView()).toBe('TEAM'));
+      TestBed.tick();
+      expect(component.ownerFilter()).toBe('UNASSIGNED');
+      expect(component.display()).toBe('CALENDAR');
+      http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true&unassignedOnly=true')).flush({ ...queueResponse('TEAM'), tasks: [] });
+      location.forward();
+      expect(router.parseUrl(location.path()).queryParams).toMatchObject({ queueView: 'DUE_TODAY', queueAssignment: 'ALL',
+        queueDisplay: 'CALENDAR', engagementId: task.engagementId, taskId: task.taskId });
+      await vi.waitFor(() => expect(component.selectedView()).toBe('DUE_TODAY'));
+      TestBed.tick();
+      expect(component.ownerFilter()).toBe('ALL');
+      http.expectOne(tasksUrl('view=DUE_TODAY&pageSize=50&includeSummary=true')).flush(queueResponse('DUE_TODAY'));
+      expect(component.reminderTaskSelection()).toEqual({ engagementId: task.engagementId, taskId: task.taskId });
+      http.expectNone(reminderUrl);
+      http.verify({ ignoreCancelled: true });
+    } finally { harness.fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('blocks invalid queue links without broadening and resets only on explicit request', async () => {
+    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [
+      provideRouter([{ path: 'app/work', component: WorkflowWorkQueue }]),
+      provideHttpClient(), provideHttpClientTesting(), provideWorkspaceAvailabilityForTests(),
+    ] });
+    const userId = task.assigneeUserId!;
+    TestBed.inject(SessionService).current.set({ userId, firmId: userId, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController);
+    const router = TestBed.inject(Router);
+    const harness = await RouterTestingHarness.create();
+    const reminderUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`;
+    const base = `/app/work?engagementId=${task.engagementId}&taskId=${task.taskId}`;
+    try {
+      const component = await harness.navigateByUrl(`${base}&queueView=TEAM&queueView=OVERDUE`, WorkflowWorkQueue);
+      TestBed.tick();
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      http.expectOne(reminderUrl).flush(reminderWorkspace(task.taskId, task.title, task.revision, task.taskStatus));
+      http.expectNone(request => request.url === '/api/ui/work/tasks');
+      for (const invalid of ['queueView=BOGUS', 'queueAssignment=ME', 'queueView=TEAM&queueDisplay=BOARD&queueDisplay=LIST']) {
+        await harness.navigateByUrl(`${base}&${invalid}`, WorkflowWorkQueue);
+        TestBed.tick(); harness.fixture.detectChanges();
+        expect(component.queueLocationValid()).toBe(false);
+        expect(harness.routeNativeElement!.textContent).toContain('This queue link has invalid filters');
+        http.expectNone(request => request.url === '/api/ui/work/tasks');
+      }
+      expect(component.reminderTaskSelection()).toEqual({ engagementId: task.engagementId, taskId: task.taskId });
+      const reset = [...harness.routeNativeElement!.querySelectorAll<HTMLButtonElement>('button')]
+        .find(button => button.textContent?.includes('Reset queue filters'))!;
+      reset.click();
+      await harness.fixture.whenStable(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
+      expect(component.queueLocationValid()).toBe(true);
+      expect(router.parseUrl(router.url).queryParams).toMatchObject({ engagementId: task.engagementId, taskId: task.taskId });
+      http.expectNone(reminderUrl);
+      http.verify({ ignoreCancelled: true });
+    } finally { harness.fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('cancels an old queue read when navigation changes to invalid filters', async () => {
+    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [
+      provideRouter([{ path: 'app/work', component: WorkflowWorkQueue }]),
+      provideHttpClient(), provideHttpClientTesting(), provideWorkspaceAvailabilityForTests(),
+    ] });
+    const userId = task.assigneeUserId!;
+    TestBed.inject(SessionService).current.set({ userId, firmId: userId, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController);
+    const harness = await RouterTestingHarness.create();
+    try {
+      const component = await harness.navigateByUrl('/app/work?queueView=TEAM&queueAssignment=ME', WorkflowWorkQueue);
+      TestBed.tick();
+      const prior = http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}`));
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      await harness.navigateByUrl('/app/work?queueView=TEAM&queueAssignment=ME&queueAssignment=ALL', WorkflowWorkQueue);
+      TestBed.tick(); harness.fixture.detectChanges();
+      expect(prior.cancelled).toBe(true);
+      expect(component.queue.data()).toBeNull();
+      expect(harness.routeNativeElement!.querySelector('nav[aria-label="Work queue views"]')).toBeNull();
+      component.refreshTaskWorkspaces();
+      http.expectNone(request => request.url === '/api/ui/work/tasks');
+      http.verify({ ignoreCancelled: true });
+    } finally { harness.fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('does not let restored filters bypass current availability or session invalidation', async () => {
+    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [
+      provideRouter([{ path: 'app/work', component: WorkflowWorkQueue }]),
+      provideHttpClient(), provideHttpClientTesting(),
+    ] });
+    const userId = task.assigneeUserId!;
+    const session = TestBed.inject(SessionService);
+    session.current.set({ userId, firmId: userId, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController);
+    const harness = await RouterTestingHarness.create();
+    try {
+      const component = await harness.navigateByUrl('/app/work?queueView=TEAM&queueAssignment=ME&queueDisplay=BOARD', WorkflowWorkQueue);
+      TestBed.tick();
+      http.expectNone(request => request.url === '/api/ui/work/tasks');
+      http.expectOne('/api/ui/workspace-availability').flush({ userId, firmId: userId, generation: '1', staff: true,
+        destinations: ['my-work'], tasks: 'available', reviews: 'not_authorized', templates: 'not_authorized', validForMs: 30000 });
+      TestBed.tick();
+      const pending = http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}`));
+      session.clear(); TestBed.tick(); harness.fixture.detectChanges();
+      expect(pending.cancelled).toBe(true);
+      expect(component.queue.data()).toBeNull();
+      expect(harness.routeNativeElement!.textContent).not.toContain('Team: 0');
+      http.expectNone(request => request.url === '/api/ui/work/tasks');
+      http.verify({ ignoreCancelled: true });
+    } finally { harness.fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('keeps an unknown cancellation through an invalid queue route without resending it', async () => {
+    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [
+      provideRouter([{ path: 'app/work', component: WorkflowWorkQueue }]),
+      provideHttpClient(), provideHttpClientTesting(), provideWorkspaceAvailabilityForTests(),
+    ] });
+    const userId = task.assigneeUserId!;
+    TestBed.inject(SessionService).current.set({ userId, firmId: userId, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController);
+    const harness = await RouterTestingHarness.create();
+    try {
+      await harness.navigateByUrl('/app/work', WorkflowWorkQueue);
+      TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [cancelableTask], hasMore: false, nextCursor: null, summary: summary() });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick(); harness.fixture.detectChanges();
+      const host = harness.routeNativeElement!;
+      host.querySelector<HTMLButtonElement>(`button[data-cancel-task="${task.taskId}"]`)!.click();
+      TestBed.tick(); harness.fixture.detectChanges();
+      const panel = harness.routeDebugElement!.query(By.directive(WorkflowTaskCancellationPanel)).componentInstance as WorkflowTaskCancellationPanel;
+      panel.updateReason('Scope changed.'); panel.prepareReview(); panel.assent.set(true);
+      const sending = panel.submit();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/cancel`)
+        .flush({}, { status: 503, statusText: 'Service Unavailable' });
+      await sending; TestBed.tick();
+      expect(panel.state()).toBe('unknown');
+      const intent = panel.intent();
+      await harness.navigateByUrl('/app/work?queueView=TEAM&queueView=OVERDUE', WorkflowWorkQueue);
+      TestBed.tick(); harness.fixture.detectChanges();
+      expect(harness.routeDebugElement!.query(By.directive(WorkflowTaskCancellationPanel)).componentInstance).toBe(panel);
+      expect(panel.state()).toBe('unknown');
+      expect(panel.intent()).toEqual(intent);
+      http.expectNone(request => request.method === 'POST');
+      http.expectNone(request => request.url === '/api/ui/work/tasks');
+      http.verify({ ignoreCancelled: true });
+    } finally { harness.fixture.destroy(); TestBed.resetTestingModule(); }
   });
 
   it('opens the exact reminder task read-only until a queue row matches its current revision and status', async () => {

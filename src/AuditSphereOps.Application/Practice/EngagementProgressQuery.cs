@@ -35,6 +35,7 @@ public sealed record EngagementProgressList(IReadOnlyList<EngagementProgressView
 
 public static class EngagementProgressQuery
 {
+  internal sealed record ProgressSnapshot(EngagementProgressView View, EngagementProgressView RestrictedView);
   internal static readonly string[] ReadRoles = WorkflowTaskEvidenceQuery.ReadRoles;
   /// <summary>Routes governed by the eleven-state derived audit lifecycle; other routes await approved completion profiles.</summary>
   internal static readonly string[] LifecycleRoutes = ["FinancialStatementAudit"];
@@ -43,10 +44,10 @@ public static class EngagementProgressQuery
   public static async Task<CommandResult<EngagementProgressView>> GetAsync(IAuditSphereDbContext db, ActorContext actor,
     Guid engagementId, CancellationToken ct = default)
   {
-    if (db.Database.CurrentTransaction is not null)
+    if (AuthorizationDecision.HasCallerTransaction(db))
       return CommandResult<EngagementProgressView>.Fail(ErrorCodes.GateBlocked, "Progress requires an independent read snapshot.");
     var request = new AuthorizationRequest(actor.FirmId, EngagementId: engagementId, RequiredRoles: ReadRoles, InternalOnly: true);
-    IReadOnlyList<EngagementProgressView> views;
+    IReadOnlyList<ProgressSnapshot> views;
     await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
     {
       var snapshotAuth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
@@ -56,9 +57,15 @@ public static class EngagementProgressQuery
       views = await BuildAsync(db, actor, [engagement], includeSteps: true, ct);
       await snapshot.CommitAsync(ct);
     }
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
-    return auth.Succeeded ? CommandResult<EngagementProgressView>.Ok(views[0])
-      : CommandResult<EngagementProgressView>.Fail(auth.ErrorCode!, "Engagement progress unavailable.");
+    AuthorizationDecision.ReadSnapshot authority;
+    await using (var authorizationSnapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
+    {
+      authority = await CaptureSnapshotsAsync(db, actor, views, [], ct);
+      await authorizationSnapshot.CommitAsync(ct);
+    }
+    var current = AuthorizeSnapshots(authority, views, 0);
+    if (!current.Succeeded) return CommandResult<EngagementProgressView>.Fail(current.ErrorCode!, "Engagement progress unavailable.");
+    return CommandResult<EngagementProgressView>.Ok(current.Value![0]);
   }
 
   /// <summary>The first bounded page of summaries for the client's currently authorized engagements.</summary>
@@ -81,7 +88,43 @@ public static class EngagementProgressQuery
     return permitted;
   }
 
-  internal static async Task<IReadOnlyList<EngagementProgressView>> BuildAsync(IAuditSphereDbContext db, ActorContext actor,
+  internal static async Task<AuthorizationDecision.ReadSnapshot> CaptureSnapshotsAsync(
+    IAuditSphereDbContext db, ActorContext actor, IReadOnlyList<ProgressSnapshot> snapshots,
+    IReadOnlyList<AuthorizationRequest> scopeRequests, CancellationToken ct)
+  {
+    var requests = new List<AuthorizationRequest>(scopeRequests);
+    foreach (var snapshot in snapshots)
+    {
+      var view = snapshot.View;
+      requests.Add(new AuthorizationRequest(actor.FirmId, view.ClientId, view.EngagementId, ReadRoles, InternalOnly: true));
+      requests.Add(EngagementLifecycleQuery.ReadRequest(actor, view.EngagementId));
+      requests.Add(EngagementLifecycleQuery.DetailRequest(actor, view.EngagementId));
+    }
+    return await AuthorizationDecision.CaptureReadSnapshotAsync(db, actor, requests, ct);
+  }
+
+  internal static CommandResult<IReadOnlyList<EngagementProgressView>> AuthorizeSnapshots(
+    AuthorizationDecision.ReadSnapshot authority, IReadOnlyList<ProgressSnapshot> snapshots, int scopeRequestCount)
+  {
+    var decisions = authority.Evaluate(DateTimeOffset.UtcNow);
+    for (var index = 0; index < scopeRequestCount; index++)
+      if (!decisions[index].Succeeded)
+        return CommandResult<IReadOnlyList<EngagementProgressView>>.Fail(decisions[index].ErrorCode!, "Progress unavailable.");
+    var result = new List<EngagementProgressView>(snapshots.Count);
+    for (var index = 0; index < snapshots.Count; index++)
+    {
+      var first = scopeRequestCount + index * 3;
+      if (!decisions[first].Succeeded || !decisions[first + 1].Succeeded)
+      {
+        var failed = !decisions[first].Succeeded ? decisions[first] : decisions[first + 1];
+        return CommandResult<IReadOnlyList<EngagementProgressView>>.Fail(failed.ErrorCode!, "Progress unavailable.");
+      }
+      result.Add(decisions[first + 2].Succeeded ? snapshots[index].View : snapshots[index].RestrictedView);
+    }
+    return CommandResult<IReadOnlyList<EngagementProgressView>>.Ok(result);
+  }
+
+  internal static async Task<IReadOnlyList<ProgressSnapshot>> BuildAsync(IAuditSphereDbContext db, ActorContext actor,
     IReadOnlyList<Engagement> engagements, bool includeSteps, CancellationToken ct)
   {
     if (engagements.Count == 0) return [];
@@ -166,7 +209,7 @@ public static class EngagementProgressQuery
       .Select(x => x.EngagementId).Distinct().ToListAsync(ct);
     var now = DateTimeOffset.UtcNow;
 
-    var views = new List<EngagementProgressView>();
+    var views = new List<ProgressSnapshot>();
     foreach (var engagement in engagements)
     {
       // A task receipt never supplies professional N/A. Check required exact procedure sources for
@@ -211,14 +254,18 @@ public static class EngagementProgressQuery
       if (truncated) gates.Add($"More than {StepLimit} tasks are recorded, so progress cannot be fully evaluated here.");
       string? stageLabel = null, responsibleRole = null, gateLink = null, disclosure = null;
       int? stageIndex = null;
+      var lifecycleBlockerCount = 0;
+      var lifecycleIncludesVisibleHolds = false;
       if (lifecycleRoute)
       {
-        var lifecycle = await EngagementLifecycleQuery.GetAsync(db, actor, engagement.Id, ct);
+        var (lifecycle, includesVisibleHolds) = await EngagementLifecycleQuery.GetForProgressAsync(db, actor, engagement.Id, ct);
         if (!lifecycle.Succeeded || lifecycle.Value is null)
           gates.Add("Lifecycle readiness is unavailable in your current scope, so release gates are treated as open.");
         else
         {
           var summary = lifecycle.Value.Summary;
+          lifecycleBlockerCount = summary.BlockedReasons.Count;
+          lifecycleIncludesVisibleHolds = includesVisibleHolds;
           stageLabel = summary.StageLabel; stageIndex = summary.StageIndex;
           responsibleRole = summary.ResponsibleRole; gateLink = summary.DeepLink;
           gates.InsertRange(0, summary.BlockedReasons);
@@ -233,8 +280,8 @@ public static class EngagementProgressQuery
       }
 
       // Some derived lifecycle stages omit holds. Keep the gate without disclosing its restricted reason.
-      if (openHoldEngagements.Contains(engagement.Id) &&
-          !gates.Any(g => g.StartsWith("Open hold", StringComparison.OrdinalIgnoreCase)))
+      var hasOpenHold = openHoldEngagements.Contains(engagement.Id);
+      if (hasOpenHold && !lifecycleIncludesVisibleHolds)
         gates.Add("An engagement hold remains open.");
 
       var figures = EngagementProgressCalculator.Calculate(facts, gates.Count > 0);
@@ -253,7 +300,7 @@ public static class EngagementProgressQuery
             : $"/app/work?engagementId={engagement.Id:D}&taskId={next.TaskId:D}";
       }
       else if (gates.Count > 0) nextLink = gateLink ?? $"/app/engagements/{engagement.Id:D}";
-      views.Add(new EngagementProgressView(engagement.Id, engagement.PracticeClientId,
+      var view = new EngagementProgressView(engagement.Id, engagement.PracticeClientId,
         clients.GetValueOrDefault(engagement.PracticeClientId, "Client"), engagement.ServiceRoute, engagement.PeriodStart,
         engagement.PeriodEnd, lifecycleRoute, phase, stageLabel, stageIndex, figures.PercentComplete, figures.ApplicableRequired,
         figures.CompletedRequired, figures.PendingRequired, figures.BlockedRequired, figures.NotApplicable,
@@ -263,7 +310,20 @@ public static class EngagementProgressQuery
         includeSteps ? figures.Steps.Select(s => new EngagementProgressStepView(s.TaskId, s.Title, s.Phase, s.Ordinal,
           s.Requirement, s.State, s.Condition, s.AssigneeUserId,
           s.AssigneeUserId is { } id ? names.GetValueOrDefault(id) : null, s.DueDate, s.ApplicabilityCondition)).ToList() : [],
-        now));
+        now);
+      var restricted = view;
+      if (lifecycleBlockerCount > 0)
+      {
+        var restrictedGates = new List<string> { EngagementLifecycleQuery.RestrictedBlockers };
+        restrictedGates.AddRange(gates.Skip(lifecycleBlockerCount));
+        if (hasOpenHold && lifecycleIncludesVisibleHolds) restrictedGates.Add("An engagement hold remains open.");
+        restricted = view with
+        {
+          Gates = restrictedGates,
+          NextAction = next is null ? restrictedGates.FirstOrDefault() : view.NextAction
+        };
+      }
+      views.Add(new ProgressSnapshot(view, restricted));
     }
     return views;
   }

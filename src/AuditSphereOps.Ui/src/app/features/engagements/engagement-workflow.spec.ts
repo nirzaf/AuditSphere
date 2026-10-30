@@ -88,14 +88,14 @@ describe('Engagement workflow saved milestone display', () => {
     TestBed.resetTestingModule();
   });
 
-  function open(milestoneResponse: unknown, requestError?: { status: number; statusText: string }) {
+  function open(milestoneResponse: unknown, requestError?: { status: number; statusText: string }, workflowResponse: unknown = workflow()) {
     const fixture = TestBed.createComponent(EngagementWorkflow);
     fixture.componentRef.setInput('engagementId', engagementId);
     fixture.detectChanges();
     TestBed.tick();
 
     const http = TestBed.inject(HttpTestingController);
-    http.expectOne(`/api/ui/engagements/${engagementId}/workflow`).flush(workflow());
+    http.expectOne(`/api/ui/engagements/${engagementId}/workflow`).flush(workflowResponse as object);
     http.expectOne(`/api/ui/engagements/${engagementId}/workflow/tasks`).flush({
       engagementId, tasks: [], truncated: false,
     });
@@ -145,6 +145,40 @@ describe('Engagement workflow saved milestone display', () => {
     expect(text).toContain('No saved milestone schedule is recorded.');
     expect(text).toContain('Next task due: 2026-12-15');
     expect(text).not.toContain('2027-04-30');
+  });
+
+  it('renders guidance beside its matching blocker and preserves fallbacks for unmapped or invalid details', () => {
+    const cause = 'Unconditional Partner risk acceptance decision required';
+    const fixture = open(null, undefined, {
+      ...workflow(),
+      blockers: ['Legacy gate', cause, 'Restricted gate'],
+      blockerDetails: [
+        { blockerIndex: 1, code: 'PARTNER_RISK_ACCEPTANCE_REQUIRED', cause,
+          responsibleRole: 'Partner', guidance: 'Waiting for a current Partner decision.' },
+        { blockerIndex: 2, code: 'OTHER', cause: 'Different gate',
+          responsibleRole: 'Private role', guidance: 'Wrong guidance' },
+      ],
+    });
+    const rows = Array.from(fixture.nativeElement.querySelectorAll('.blockers-section li')) as HTMLElement[];
+    expect(rows).toHaveLength(3);
+    expect(rows[0].textContent).toContain('Legacy gate');
+    expect(rows[0].textContent).toContain('Responsible role: Unknown.');
+    expect(rows[0].textContent).toContain('Detailed guidance is not available');
+    expect(rows[1].textContent).toContain(cause);
+    expect(rows[1].textContent).toContain('Responsible role: Partner');
+    expect(rows[1].textContent).toContain('Waiting for a current Partner decision.');
+    expect(rows[2].textContent).toContain('Restricted gate');
+    expect(rows[2].textContent).toContain('Detailed guidance is not available');
+    expect(rows[2].textContent).not.toContain('Wrong guidance');
+    expect(rows[2].textContent).not.toContain('Private role');
+  });
+
+  it('renders a legacy blocker with fallback when details are null', () => {
+    const fixture = open(null, undefined, { ...workflow(), blockerDetails: null });
+    const row = fixture.nativeElement.querySelector('.blockers-section li') as HTMLElement;
+    expect(row.textContent).toContain('Synthetic review gate remains open.');
+    expect(row.textContent).toContain('Responsible role: Unknown.');
+    expect(row.textContent).toContain('Detailed guidance is not available');
   });
 
   it('does not misreport a role-denied schedule read as an absent schedule', () => {
