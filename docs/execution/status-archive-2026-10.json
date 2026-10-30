@@ -26371,6 +26371,15 @@
       "evidence": ".local/autonomous/evidence/release-peer-40245094-20261030/exact-checkout-terminal-review-corrected.json",
       "cutover": "NOT_PERFORMED; successor gates/schema304rehearsal/genuineDOV04/freshbackups/receipt/publicauthenticatedacceptance required.",
       "history": "status-archive-2026-10.json#keys.currentSourceCiBeforeApiSourceFixture20261030"
+    },
+    "currentSourceCiBeforeUxQueuePublication20261030": {
+      "source": "e5f2be16a01eb3f3ee7fe4606e011a472738490f",
+      "fastRun": 41031967784,
+      "imagesRun": 41031967912,
+      "status": "RUNNING",
+      "actualCheckoutPartial": "Angular123983581773 and Docs123983582202 MATCH/PASS; accepted logs/hashes retained once",
+      "full": "NOT_DISPATCHED; local coherent UX successors still being verified",
+      "boundary": "Predecessorc7full pending separately; no current aggregate or release pass."
     }
   },
   "archivedTargetedVerification": {

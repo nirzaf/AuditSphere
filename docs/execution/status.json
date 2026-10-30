@@ -1193,7 +1193,7 @@
         "U06",
         "U13"
       ],
-      "status": "U06_U13_PUBLISHED_U05_U10_LOCAL_SCOPED_VERIFIED_PUBLICATION_WAIT_ACTIVE_IMAGES",
+      "status": "SCOPED_U05_U06_U10_U13_VERIFIED_EXACT_SUCCESSOR_CI_PENDING",
       "pairedRegression": "Original 5FAIL/30PASS; identical tests corrected 35PASS/0FAIL",
       "build": "Angular production PASS; two pre-existing stylesheet budget warnings",
       "lint": "Production files PASS; initial spec ignore warnings retained",
@@ -1210,7 +1210,9 @@
       "contracts": "OpenAPI PASS; old paths/schemas unchanged; one additivepage path and three schemas",
       "setupExclusions": "CS8361 test interpolation, invalid expiry beforeGrantedAt constraint, optionalGuiddefault OpenAPI failure, TS2353 expanded fixture types, existing lowercase mapping label restored; no test weakening",
       "browser": "Actual local1280/390 List/Board/Calendar/Grouped and keyboarddisclosuresPASS; finalsource Cancelreview->displaychange->close revealscorrecttaskdisclosure/focusPASS; nativeemptyreviewpagePASS. No populatedbrowserpaging/fullrolematrix/HumanAT.",
-      "localU05Commit": "b5a1b06c"
+      "localU05Commit": "b5a1b06c",
+      "localU10Commit": "056b8386",
+      "cleanup": "Both bounded nativebrowserfixtures and all seven isolatedPGphases independently absent; temporaryharnessbytes restored; ownedtabsclosed and viewportreset; compiler shutdown."
     }
   },
   "externalGates": [
@@ -1639,13 +1641,12 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "source": "e5f2be16a01eb3f3ee7fe4606e011a472738490f",
-    "fastRun": 41031967784,
-    "imagesRun": 41031967912,
-    "status": "RUNNING",
-    "actualCheckoutPartial": "Angular123983581773 and Docs123983582202 MATCH/PASS; accepted logs/hashes retained once",
-    "full": "NOT_DISPATCHED; local coherent UX successors still being verified",
-    "boundary": "Predecessorc7full pending separately; no current aggregate or release pass."
+    "implementationSource": "056b838686bab7d131040df8b4dac3a11d2e9a57",
+    "status": "EXACT_SUCCESSOR_GATES_PENDING",
+    "fast": "NOT_DISPATCHED_ON_PUBLICATION_PREPARATION",
+    "images": "NOT_DISPATCHED_ON_PUBLICATION_PREPARATION",
+    "full": "NOT_DISPATCHED_DURING_UX_BATCH",
+    "boundary": "Predecessor CI and image proofs do not transfer. Exact automatic successor identities are maintained in the ignored checkpoint until the next coherent source update."
   },
   "updatedAtUtc": "2026-10-30T07:07:03.764194+00:00"
 }

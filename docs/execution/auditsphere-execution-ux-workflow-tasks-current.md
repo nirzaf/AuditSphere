@@ -20,12 +20,12 @@ The audit describes an earlier source snapshot. Each packet requires current-sou
 | U02 | Provide authorized context choices and repair the portfolio handoff | Independent | Pending current-source assessment and scoped implementation. |
 | U03 | Add a persistent current-context header and safe client/engagement switcher | U01, U02 | Pending current-source assessment and scoped implementation. |
 | U04 | Preserve and scope My Work filters in the route | U02 | Pending current-source assessment and scoped implementation. |
-| U05 | Make pending financial-package review discovery complete and paged | Independent | Implemented locally; focused native/Angular and additive contract checks passed. Browser populated paging and integrated role acceptance remain pending; publication waits for active image jobs. |
+| U05 | Make pending financial-package review discovery complete and paged | Independent | Implemented; focused native/Angular and additive contract checks passed. Exact successor CI, populated browser paging and integrated role acceptance remain pending. |
 | U06 | Remove false authority claims from the package-review preview | Independent | Implemented; focused regression and production build verified. Integrated browser/role acceptance remains pending. |
 | U07 | Expose existing package-review work inside My Work | U01, U05, U06 | Pending current-source assessment and scoped implementation. |
 | U08 | Surface existing engagement next actions in My Work | U01, U02 | Pending current-source assessment and scoped implementation. |
 | U09 | Make Portfolio a concise triage page using existing projections | U01, U02, U04, U07, U08 | Pending current-source assessment and scoped implementation. |
-| U10 | Reduce task-card clutter without hiding actionable facts | Independent | Implemented locally; focused rendering/recovery checks passed. Responsive keyboard and final recovery-focus browser checks passed; publication and integrated role acceptance pending. |
+| U10 | Reduce task-card clutter without hiding actionable facts | Independent | Implemented; focused rendering/recovery, responsive keyboard and final recovery-focus browser checks passed. Exact successor CI and integrated role acceptance remain pending. |
 | U11 | Guide template preparation through unresolved inputs first | Independent | Pending current-source assessment and scoped implementation. |
 | U12 | Attach authorized resolution guidance to lifecycle blockers | Independent | Pending current-source assessment and scoped implementation. |
 | U13 | Distinguish idempotency conflicts from stale revisions in command guidance | Independent | Implemented; focused regression and production build verified. Integrated browser/role acceptance remains pending. |
