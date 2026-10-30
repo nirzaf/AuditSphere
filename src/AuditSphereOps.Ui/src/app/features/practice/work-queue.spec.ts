@@ -2411,13 +2411,26 @@ describe('workflow queue assignment filters', () => {
       expect(host.querySelector('a[href*="/app/engagements/"]')).toBeNull();
 
       const legacyTaskId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
-      await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${legacyTaskId}`, WorkflowWorkQueue);
-      http.expectOne(workspaceUrl(legacyTaskId)).flush(reminderWorkspace(legacyTaskId, 'Legacy selected task', 1, 'OPEN'));
+      const mixedCaseLegacyTaskId = 'DdDdDdDd-dDdD-4dDd-8DdD-dDdDdDdDdDdD';
+      await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${mixedCaseLegacyTaskId}`, WorkflowWorkQueue);
+      http.expectOne(workspaceUrl(legacyTaskId)).flush(reminderWorkspace(mixedCaseLegacyTaskId, 'Legacy selected task', 1, 'OPEN'));
       await harness.fixture.whenStable(); harness.fixture.detectChanges();
       expect(host.textContent).toContain('Legacy selected task');
       expect(host.textContent).not.toContain('Unsupported response.');
       expect(host.textContent).not.toContain('Reminder origin');
-      component.openLinkedTaskPanel('activity'); TestBed.tick();
+      const activityButton = [...host.querySelectorAll<HTMLButtonElement>('section[aria-labelledby="reminder-task-heading"] button')]
+        .find(button => button.textContent?.trim() === 'View activity')!;
+      expect(activityButton).toBeTruthy();
+      activityButton.click(); TestBed.tick(); harness.fixture.detectChanges();
+      const firstActivityRead = http.expectOne(request => request.url.startsWith(
+        `/api/ui/engagements/${task.engagementId}/workflow/tasks/${legacyTaskId}/activity?`));
+      expect(activityButton.textContent?.trim()).toBe('Hide activity');
+      activityButton.click(); TestBed.tick(); harness.fixture.detectChanges();
+      expect(firstActivityRead.cancelled).toBe(true);
+      expect(component.activityTask()).toBeNull();
+      expect(activityButton.textContent?.trim()).toBe('View activity');
+      http.expectNone(request => request.method !== 'GET');
+      activityButton.click(); TestBed.tick();
       const activityRead = http.expectOne(request => request.url.startsWith(
         `/api/ui/engagements/${task.engagementId}/workflow/tasks/${legacyTaskId}/activity?`));
       await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${nextTaskId}`, WorkflowWorkQueue);

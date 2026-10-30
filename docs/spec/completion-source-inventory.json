@@ -140,5 +140,117 @@
       "unresolved": "Acceptance Compose shares the database login across migration/API/worker and does not explicitly configure database TLS. Separate Production target, trust/certificates and runtime role grants must be selected/observed before production acceptance; no claim existing profile supplies that protection. No source delta chosen without target scope.",
       "evidence": ".local/autonomous/evidence/ascp-reconciliation-20261024/deployment-bindings-offline.log"
     }
+  },
+  "issue49Observation20261030": {
+    "sourceSha": "f362d0e31a5f810ec470f0876c1aa95534960707",
+    "gitTree": "df82797ce494230358e0e7cc358dafade8c069a5",
+    "upstream": "origin/master",
+    "observedAtUtc": "2026-10-30T19:27:00Z",
+    "specification": {
+      "fileName": "AuditSphere_Atomic_Implementation_Spec(2).md",
+      "sha256": "48443a258b9c4e12bb8bf4c1fd081734addb4d14a6514599d5b998b87812db9a",
+      "identity": "Four-phase, 31-task ASCP specification; bytes verified against retained ASCP-04 identity, not the same-named Angular quality or parity specifications."
+    },
+    "trackedFiles": {
+      "total": 2980,
+      "config-tooling": 97,
+      "migration": 626,
+      "other": 43,
+      "production": 1162,
+      "specification": 302,
+      "test": 750
+    },
+    "classificationRule": "migration path first; then tests/ or .spec.ts; then src/; docs/; scripts/ .github/ .config/; other. Distinct from historical root classification.",
+    "markerInventory": {
+      "scope": "Exact Appendix A.2 git grep over tracked README.md/docs/src/contracts/tools, excluding bin/obj/node_modules/dist/package-lock.json. Discovery output retained locally.",
+      "matchingLines": 14,
+      "sha256": "893d6b3f8de6339cb4f0610441f1c6b9654b83ed07e42b0e87e72cf14658af30",
+      "classification": {
+        "documentationOrSearchRecipe": 6,
+        "exceptionCatchFilter": 8,
+        "throwingStubObserved": 0
+      },
+      "limit": "Lexical inventory only; not exhaustive semantic or production acceptance."
+    },
+    "providerReachability": {
+      "scope": "Exact Appendix A.2 tracked src provider/simulation/mock/stub/placeholder pass, including UI specs and generated designers; not comparable to narrower historical scan.",
+      "matchingLines": 602,
+      "sha256": "48010a4b98a574f83c19e795c8698881796de676de5b85ab730b84683555f704",
+      "reviewedBoundaries": [
+        {
+          "path": "src/AuditSphereOps.Worker/Program.cs",
+          "finding": "simulationAllowed requires Test, explicit flag and no live capability or client-sites worker; real profiles retain separate handlers."
+        },
+        {
+          "path": "src/AuditSphereOps.Api/ApiHost.Authentication.cs",
+          "finding": "DevelopmentIdentity is rejected outside Development/Test and when OIDC is configured; deployed identity requires configured OIDC."
+        },
+        {
+          "path": "src/AuditSphereOps.Api/Authentication/TenantAdministrationComposition.cs",
+          "finding": "Simulation refuses non-Development/Test, enabled external effects and live directory/consent settings."
+        },
+        {
+          "path": "src/AuditSphereOps.Infrastructure/Providers/GraphReleaseCheckpointStore.cs",
+          "finding": "Every operation returns a live-provider-not-approved exception; intentional custody gate, not success."
+        }
+      ],
+      "remaining": "Only named registration/identity/custody boundaries inspected. Other matches, including legitimate local stub variable names and UI placeholders/specs, are not an assertion of missing functionality or exhaustive reachability review."
+    },
+    "allocationSchema": {
+      "disposition": "REPLAN_WITHIN_AUTHORITY: update evidence, SKIP_DUPLICATE_MIGRATION",
+      "sourceDigests": {
+        "src/AuditSphereOps.Domain/Accounting/ClientOpenItemAllocation.cs": "0195249e4fe3cf21c4455dcaec49d5bb1b5f17949b5b21a4e47b82f570dd8476",
+        "src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.ClientOpenItemAllocations.cs": "fcd3a77251c005ba15fdd86f9a46064d5b1f1a1a9c8d5169b2ac6b64585ef263",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/AuditSphereDbContextModelSnapshot.cs": "e247510df81cc48c8c625290905975e7cfe1099904c395b9d9855b24d33c46b2",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261007144624_ClientOpenItemAllocations.cs": "c1c2118b155e1490cdce244737e0800ae52e6dc3067d24e22cb574b06a670ead",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/ClientOpenItemAllocationSql.cs": "3f99e0470f6dce60c09eebc79f147806b13a54ac125d18fa3ad36b09b7d1b042",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261008110000_ClientOpeningItemAllocations.cs": "c21eabc6e1caaf10ccd63f086305765387ae46fe62d6d9d694dba6c6185a2a5f",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/20261024130836_ClientOpeningSuccessorCarry.cs": "937bee9301eb3811c54bb304f98278afca99351dab24ec5ea5774a035b8ccb99",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/ClientOpeningSuccessorCarryAllocationSql.cs": "19e8a003dd429e7c8310ce2c67e63cfd79f7043b132123a3efaafd5ed5db71be",
+        "src/AuditSphereOps.Infrastructure/Persistence/Migrations/ClientOpeningSuccessorCarrySql.cs": "7dca54aea2cfc18a043378b51a6e7fc1bfff2576c163d4bc34f76c34995e8007"
+      },
+      "historicalBoundary": "latestObservation.allocationSchemaObservation is retained as its dated observation. Its no-later-replacement statement must not be used for this source.",
+      "effectiveChain": [
+        {
+          "migration": "20261007144624_ClientOpenItemAllocations",
+          "definition": "ClientOpenItemAllocationSql",
+          "effect": "Initial scoped allocation tables, deferred completeness and immutable UPDATE/DELETE guards."
+        },
+        {
+          "migration": "20261008110000_ClientOpeningItemAllocations",
+          "definition": "Inline Up SQL",
+          "effect": "Replaces check_client_open_item_allocation(uuid), adds opening AR/AP targets and reinstalls completeness/immutability triggers."
+        },
+        {
+          "migration": "20261024130836_ClientOpeningSuccessorCarry",
+          "definition": "ClientOpeningSuccessorCarryAllocationSql.Up",
+          "effect": "Replaces the same function with original-item successor carry checks, latest approved v2 carry proof and source posting/capture baseline guards. Existing trigger registrations continue calling that function."
+        }
+      ],
+      "replacementSearch": "Read all authored migration files matching check_client_open_item_allocation and its guard names; final Up replacement is the successor-carry helper. Its Down string is the predecessor definition, not the final installed Up function.",
+      "model": "Source configuration retains numeric(19,6), scoped keys/FKs, request uniqueness, checks and Restrict deletes. EF snapshot cannot establish custom trigger/function state.",
+      "rollback": "ClientOpeningSuccessorCarry.Down calls ClientOpeningSuccessorCarrySql.Down first; retained v2 proof raises 55000. No downgrade or data deletion attempted.",
+      "differenceClassification": {
+        "sourceVsHistoricalInventory": "DOCUMENTATION_STALE: later function replacement was missing from the old inventory.",
+        "pendingDeployment": "UNVERIFIED: no authorized deployment migration history/catalog supplied.",
+        "manualDrift": "UNVERIFIED: not inferable from model or migration source.",
+        "incompatibleData": "UNVERIFIED: no target rows inspected.",
+        "economicDate": "BLOCKED_DECISION: CreatedAt is not an approved allocation effective date."
+      },
+      "migrationDecision": "NONE_PROPOSED: no accepted schema defect established by this bounded source comparison; not a model-drift or deployed-schema PASS.",
+      "existingTests": [
+        {
+          "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.OpenItemAllocations.cs",
+          "method": "CurrentSettlementSchemaRetainsItsGuardAndPermanentFreezeBlocksDowngrade"
+        },
+        {
+          "path": "tests/AuditSphereOps.Domain.Tests/ClientAccountingTests/ClientAccountingTests.NativeSuccessorCarry.cs",
+          "method": "NativeSuccessorCarriesOriginalOpeningItemAndSettlesWithoutReposting"
+        }
+      ],
+      "localExecution": "NOT_RUN: documentation-only schema inspection; isolated PostgreSQL unavailable, no installation or migration performed. Historical test results remain history.",
+      "externalEvidence": "BLOCKED_EXTERNAL: exact authorized target/version/catalog/history, data compatibility and qualified upgrade/recovery acceptance required."
+    },
+    "verificationBoundary": "SOURCE_ONLY. No current runtime, model-drift, database, professional or live-provider acceptance; historical root/latestObservation retained unchanged."
   }
 }

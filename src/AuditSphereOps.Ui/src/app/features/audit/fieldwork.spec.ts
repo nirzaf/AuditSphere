@@ -940,7 +940,7 @@ describe('Fieldwork bank reconciliation inspection', () => {
     http.verify();
   });
 
-  it('shows hash-bound source tie-outs and original listing rows before enabling independent review assent', async () => {
+  it.each(['wrong capture', 'page unavailable'] as const)('keeps hash-bound source review unapproved through %s and requires renewed assent', async problem => {
     const { fixture, http } = open();
     const state = fixture.componentInstance.sourceIntake;
     state.candidate.set({ scheduleId: id4, sourceDate: '2026-12-31', fileName: 'receivables.csv',
@@ -958,11 +958,11 @@ describe('Fieldwork bank reconciliation inspection', () => {
       periodCode: 'FY2026', periodStart: '2026-01-01', periodEnd: '2026-12-31', periodRevision: '2',
       bookId: null, bookRevision: null, basis: 'ACCRUAL', legalEntityKey: 'SYNTHETIC-ENTITY', currency: 'QAR',
       sourceDate: '2026-12-31', fileName: 'receivables.csv', profileVersion: 'audit-client-listing-csv.v1',
-      rawFileSha256: hash64, byteCount: 128, rowCount: 1, controlBasis: 'TB_CLOSING_SIGNED_NET',
+      rawFileSha256: hash64, byteCount: 4096, rowCount: 51, controlBasis: 'TB_CLOSING_SIGNED_NET',
       selectedControlAccountCodes: ['0010'], signedTotal: '125.000000', closingControl: '125.000000',
       residual: '0.000000', hasCompleteListingCoverage: true, allAccountsReconciled: true,
       accounts: [{ accountCode: '0010', listingAmount: '125.000000', trialBalanceAmount: '125.000000',
-        difference: '0.000000', listingRowCount: '1', trialBalanceRowCount: '1' }] };
+        difference: '0.000000', listingRowCount: '51', trialBalanceRowCount: '1' }] };
     previewRequest.flush({ value: { requestId, scheduleId: id4, captureHash: hash64, inputGeneration: '2',
       reviewBasis: hash64, requestHash: hash64, canonicalInput: { action: 'APPROVE',
         reason: state.review.reason, evidenceReference: state.review.evidenceReference }, sourceCurrent: true,
@@ -976,15 +976,59 @@ describe('Fieldwork bank reconciliation inspection', () => {
     expect(state.canRecordReview()).toBe(false);
 
     http.expectOne(`/api/ui/engagements/${id1}/fieldwork/schedule-intake/schedules/${id4}/review/source-rows?captureHash=${hash64}&offset=0&limit=50`)
-      .flush({ captureHash: hash64, offset: 0, limit: 50, totalRows: 1, hasMore: false,
+      .flush({ captureHash: hash64, offset: 0, limit: 50, totalRows: 51, hasMore: true,
         headers: ['AccountCode', 'Description', 'SignedAmount', 'Currency', 'StableRowId', 'TransactionDate'],
-        items: [{ stableRowId: 'row-a', sourceLineNumber: 2,
-          cells: ['0010', 'Trade A', '125', 'QAR', 'row-a', '2025-12-15'] }] });
+        items: Array.from({ length: 50 }, (_, index) => ({ stableRowId: `row-${index}`, sourceLineNumber: index + 2,
+          cells: ['0010', index === 0 ? 'Trade A' : `Trade ${index}`, index === 0 ? '125' : '0',
+            'QAR', `row-${index}`, '2025-12-15'] })) });
     TestBed.tick(); fixture.detectChanges();
     expect(state.reviewEvidenceReady()).toBe(true);
     expect(fixture.nativeElement.textContent).toContain(hash64);
     expect(fixture.nativeElement.textContent).toContain('Per-account listing to accepted trial-balance closing tie-out');
     expect(fixture.nativeElement.textContent).toContain('Trade A');
+    state.setReviewAssent(true);
+    expect(state.canRecordReview()).toBe(true);
+
+    state.reviewRowsPage(true);
+    TestBed.tick(); fixture.detectChanges();
+    expect(state.reviewSourceRows.loading()).toBe(true);
+    expect(state.reviewedDecision()).toBe(false);
+    expect(state.reviewEvidenceReady()).toBe(false);
+    expect(state.canRecordReview()).toBe(false);
+    expect(fixture.nativeElement.textContent).not.toContain('Trade A');
+    await state.recordReview();
+    http.expectNone(r => r.method === 'POST');
+
+    const nextRowsUrl = `/api/ui/engagements/${id1}/fieldwork/schedule-intake/schedules/${id4}/review/source-rows?captureHash=${hash64}&offset=50&limit=50`;
+    const nextPage = { captureHash: hash64, offset: 50, limit: 50, totalRows: 51, hasMore: false,
+      headers: ['AccountCode', 'Description', 'SignedAmount', 'Currency', 'StableRowId', 'TransactionDate'],
+      items: [{ stableRowId: 'row-50', sourceLineNumber: 52,
+        cells: ['0010', 'Final exact row', '0', 'QAR', 'row-50', '2025-12-15'] }] };
+    const nextRequest = http.expectOne(nextRowsUrl);
+    if (problem === 'wrong capture') nextRequest.flush({ ...nextPage, captureHash: 'e'.repeat(64) });
+    else nextRequest.flush({}, { status: 503, statusText: 'Service Unavailable' });
+    TestBed.tick(); fixture.detectChanges();
+    expect(state.reviewSourceRows.error()).not.toBe('');
+    expect(state.reviewEvidenceReady()).toBe(false);
+    expect(fixture.nativeElement.textContent).not.toContain('Trade A');
+    expect(fixture.nativeElement.textContent).not.toContain('Final exact row');
+    state.setReviewAssent(true);
+    expect(state.reviewedDecision()).toBe(false);
+    expect(state.canRecordReview()).toBe(false);
+    await state.recordReview();
+    http.expectNone(r => r.method === 'POST');
+
+    state.reviewSourceRows.reload();
+    TestBed.tick(); fixture.detectChanges();
+    http.expectOne(nextRowsUrl).flush(nextPage);
+    TestBed.tick(); fixture.detectChanges();
+    expect(state.reviewEvidenceReady()).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Final exact row');
+    expect(fixture.nativeElement.textContent).not.toContain('Trade A');
+    expect(state.reviewedDecision()).toBe(false);
+    expect(state.canRecordReview()).toBe(false);
+    await state.recordReview();
+    http.expectNone(r => r.method === 'POST');
     state.setReviewAssent(true);
     expect(state.canRecordReview()).toBe(true);
     http.verify();

@@ -10102,6 +10102,339 @@
       "remaining": "Current exact-source full CI, complete template/recurrence/reminder/UI journeys and dependent professional/provider acceptance; POLICY-RENEWAL remains unresolved.",
       "acceptance": "PARTIAL_LOCAL_VERIFICATION",
       "taskComplete": false
+    },
+    "ASCP-01": {
+      "observedSourceSha": "f362d0e31a5f810ec470f0876c1aa95534960707",
+      "status": "PARTIAL",
+      "scope": "Refine the existing seven enhanced-dual-key parent criteria into independently reviewable subclauses; preserve every historical parent and its pinned authority. Not the whole product denominator.",
+      "sourcePath": "docs/requirements/auditsphere-requirements-source-ste-audit-management-specification-v22.md",
+      "sourceSha256": "41559ec66b090b86a97d9aacc84a3be5e312dbaf0ffec3c04ca3ee02384b9c9c",
+      "authority": "Preserved v2.2 statements interpreted with approved ADRs; the similarly named accounting-module current file is a proposed v2.3 candidate, not automatic adoption.",
+      "sourceTextHashConvention": "SHA-256 of the exact UTF-8 source line, preserving indentation and excluding its line terminator.",
+      "criteria": [
+        {
+          "id": "ACCREQ-4.1.3-OFFER-EXACT-REVISION",
+          "parent": "ACCREQ-4.1.3-OFFER",
+          "sourceLine": 1093,
+          "sourceTextSha256": "9f174b3dc2b6e31c5e68c27eaa3bccbe95f17bb4743f515f24bf0c4724ace602",
+          "expectedOutcome": "Accept only the exact dispatched offer revision; do not substitute a later quotation.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/DualKeyEvidence.cs",
+            "symbol": "CommercialAcceptanceStandsAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "Dispatch_BindsArtifactToCurrentQuotation_AndDownstreamUsesAcceptedTerms",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        },
+        {
+          "id": "ACCREQ-4.1.3-OFFER-RESPONSE-EVIDENCE",
+          "parent": "ACCREQ-4.1.3-OFFER",
+          "sourceLine": 1093,
+          "sourceTextSha256": "9f174b3dc2b6e31c5e68c27eaa3bccbe95f17bb4743f515f24bf0c4724ace602",
+          "expectedOutcome": "Retain authorized contact, response channel, timestamp and linked acceptance evidence.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/PracticeCrmService.cs",
+            "symbol": "RecordProposalResponseAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "Dispatch_BindsArtifactToCurrentQuotation_AndDownstreamUsesAcceptedTerms",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        },
+        {
+          "id": "ACCREQ-4.1.3-OFFER-CHANGED-OFFER",
+          "parent": "ACCREQ-4.1.3-OFFER",
+          "sourceLine": 1093,
+          "sourceTextSha256": "9f174b3dc2b6e31c5e68c27eaa3bccbe95f17bb4743f515f24bf0c4724ace602",
+          "expectedOutcome": "An offer change requires renewed commercial acceptance.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/DualKeyEvidence.cs",
+            "symbol": "CommercialAcceptanceStandsAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "Dispatch_BindsArtifactToCurrentQuotation_AndDownstreamUsesAcceptedTerms",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        },
+        {
+          "id": "ACCREQ-4.1.3-RISK-UNCONDITIONAL",
+          "parent": "ACCREQ-4.1.3-RISK",
+          "sourceLine": 1095,
+          "sourceTextSha256": "e518e001f6cf11ca2b2700aeae4012bd6bc8ba04aada5875e2e3c5d1d3f026ba",
+          "expectedOutcome": "Conditional or rejected Partner decisions do not clear the risk key.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+            "symbol": "ActivateAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs",
+            "method": "Activation_RequiresACurrentUnconditionalPartnerAcceptanceForTheSameRoute",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        },
+        {
+          "id": "ACCREQ-4.1.3-RISK-CURRENT-GENERATION",
+          "parent": "ACCREQ-4.1.3-RISK",
+          "sourceLine": 1095,
+          "sourceTextSha256": "e518e001f6cf11ca2b2700aeae4012bd6bc8ba04aada5875e2e3c5d1d3f026ba",
+          "expectedOutcome": "Superseded or stale due-diligence generations do not clear the risk key.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+            "symbol": "ActivateAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/AcceptanceChecklistTests.cs",
+            "method": "Activation_RequiresACurrentUnconditionalPartnerAcceptanceForTheSameRoute",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        },
+        {
+          "id": "ACCREQ-4.1.3-INDEPENDENT-KEYS-NEITHER",
+          "parent": "ACCREQ-4.1.3-INDEPENDENT-KEYS",
+          "sourceLine": 1097,
+          "sourceTextSha256": "7785e864aa8b6e7941bbe1f5f19595427bbab578f6cbe42ee86d9354bc42b9c8",
+          "expectedOutcome": "With neither key current, letter eligibility is blocked.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "GenerateEngagementLetterAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OnboardingReadinessEvaluatesEachKeyIndependentlyFromRealCommercialRecords",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        },
+        {
+          "id": "ACCREQ-4.1.3-INDEPENDENT-KEYS-COMMERCIAL-ONLY",
+          "parent": "ACCREQ-4.1.3-INDEPENDENT-KEYS",
+          "sourceLine": 1097,
+          "sourceTextSha256": "7785e864aa8b6e7941bbe1f5f19595427bbab578f6cbe42ee86d9354bc42b9c8",
+          "expectedOutcome": "Commercial acceptance alone leaves Partner clearance required.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "GenerateEngagementLetterAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OnboardingReadinessEvaluatesEachKeyIndependentlyFromRealCommercialRecords",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        },
+        {
+          "id": "ACCREQ-4.1.3-INDEPENDENT-KEYS-RISK-ONLY",
+          "parent": "ACCREQ-4.1.3-INDEPENDENT-KEYS",
+          "sourceLine": 1097,
+          "sourceTextSha256": "7785e864aa8b6e7941bbe1f5f19595427bbab578f6cbe42ee86d9354bc42b9c8",
+          "expectedOutcome": "Partner clearance alone leaves client commercial acceptance required.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "GenerateEngagementLetterAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OnboardingReadinessEvaluatesEachKeyIndependentlyFromRealCommercialRecords",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        },
+        {
+          "id": "ACCREQ-4.1.3-INDEPENDENT-KEYS-BOTH",
+          "parent": "ACCREQ-4.1.3-INDEPENDENT-KEYS",
+          "sourceLine": 1097,
+          "sourceTextSha256": "7785e864aa8b6e7941bbe1f5f19595427bbab578f6cbe42ee86d9354bc42b9c8",
+          "expectedOutcome": "Both current keys establish letter eligibility, not automatic activation.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Practice/CommercialDocumentService.cs",
+            "symbol": "GenerateEngagementLetterAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OnboardingReadinessEvaluatesEachKeyIndependentlyFromRealCommercialRecords",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        },
+        {
+          "id": "ACCREQ-4.1.3-ADVANCE-FULL-ALLOCATION",
+          "parent": "ACCREQ-4.1.3-ADVANCE",
+          "sourceLine": 1099,
+          "sourceTextSha256": "a2310001977fceb612cbd94c87c3fc17a38d7e8f5e839c08910d458c55274d25",
+          "expectedOutcome": "Activation requires the linked 50 percent advance fully paid and allocated; merely invoiced or partially paid is insufficient.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+            "symbol": "ActivateAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        },
+        {
+          "id": "ACCREQ-4.1.3-HOLDS-OPEN-HOLD",
+          "parent": "ACCREQ-4.1.3-HOLDS",
+          "sourceLine": 1101,
+          "sourceTextSha256": "c2e9a204313a6fee9b0dfaf45babec5f8d9080349792cea52aefb881eace503a",
+          "expectedOutcome": "An open hold blocks activation.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+            "symbol": "ActivateAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs",
+            "method": "ExactScopeWrongRoleStaleDecisionHoldsAndEpochFailClosed",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        },
+        {
+          "id": "ACCREQ-4.1.3-HOLDS-EXACT-SCOPE",
+          "parent": "ACCREQ-4.1.3-HOLDS",
+          "sourceLine": 1101,
+          "sourceTextSha256": "c2e9a204313a6fee9b0dfaf45babec5f8d9080349792cea52aefb881eace503a",
+          "expectedOutcome": "Mismatched client/service scope blocks protected activation.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+            "symbol": "ActivateAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs",
+            "method": "ExactScopeWrongRoleStaleDecisionHoldsAndEpochFailClosed",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        },
+        {
+          "id": "ACCREQ-4.1.3-CARDS-SEPARATE-READINESS",
+          "parent": "ACCREQ-4.1.3-CARDS",
+          "sourceLine": 1103,
+          "sourceTextSha256": "0d90ebec2745c04b6b7c9481d52fd8a622835c5f340e6a88fb466a1db18c093b",
+          "expectedOutcome": "Present commercial and risk cards separately from letter and advance readiness.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/ClientOnboardingReadinessQuery.cs",
+            "symbol": "GetAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/CommercialWorkflowTests.cs",
+            "method": "OnboardingReadinessEvaluatesEachKeyIndependentlyFromRealCommercialRecords",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        },
+        {
+          "id": "ACCREQ-4.1.3-CARDS-CLIENT-PRIVACY",
+          "parent": "ACCREQ-4.1.3-CARDS",
+          "sourceLine": 1103,
+          "sourceTextSha256": "0d90ebec2745c04b6b7c9481d52fd8a622835c5f340e6a88fb466a1db18c093b",
+          "expectedOutcome": "Do not expose sensitive AML/KYC findings in client portal views.",
+          "owner": {
+            "path": "src/AuditSphereOps.Api/Ui/UiEndpoints.Portal.cs",
+            "symbol": "MapPortalEndpoints"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Api.Tests/UiPortalContractTests.cs",
+            "method": "PortalContracts_RequireCurrentParticipantAndCsrf_AndNeverReturnCapabilityInReads",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Existing API selector seeds internal AML/KYC evidence, checks permitted portal reads exclude it and internal endpoints refuse a client identity even with a stray Partner grant. Source assertion inspected; not rerun here."
+        },
+        {
+          "id": "ACCREQ-4.1.3-HISTORY-AUTHENTIC-EVIDENCE",
+          "parent": "ACCREQ-4.1.3-HISTORY",
+          "sourceLine": 1105,
+          "sourceTextSha256": "61cf4f094df2343c60db4aaa5b8a611794f09906850403e72ac6b576e1ac800b",
+          "expectedOutcome": "Retain authentic actor, generation, source, timestamps and rejection reason.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+            "symbol": "ActivateAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs",
+            "method": "ExactReviewConcurrentRecoveryAndAppendOnlyEvidenceActivateOnce",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "ActivateAsync retains activation receipt identity; commercial response and Partner decision writers own their respective retained actor/source/rejection facts. All selectors are candidates, not complete retention or current execution evidence.",
+          "supportingOwners": [
+            {
+              "path": "src/AuditSphereOps.Application/Practice/PracticeCrmService.cs",
+              "symbol": "RecordProposalResponseAsync"
+            },
+            {
+              "path": "src/AuditSphereOps.Application/Acceptance/AcceptanceDecisionService.cs",
+              "symbol": "RecordAsync"
+            }
+          ]
+        },
+        {
+          "id": "ACCREQ-4.1.3-HISTORY-COMMAND-RECHECK",
+          "parent": "ACCREQ-4.1.3-HISTORY",
+          "sourceLine": 1105,
+          "sourceTextSha256": "61cf4f094df2343c60db4aaa5b8a611794f09906850403e72ac6b576e1ac800b",
+          "expectedOutcome": "Re-evaluate current keys at protected document generation and activation; refuse stale or concurrently changed inputs.",
+          "owner": {
+            "path": "src/AuditSphereOps.Application/Acceptance/EngagementLifecycleService.cs",
+            "symbol": "ActivateAsync"
+          },
+          "existingTestCandidate": {
+            "path": "tests/AuditSphereOps.Domain.Tests/EngagementActivationReviewTests.cs",
+            "method": "ExactReviewConcurrentRecoveryAndAppendOnlyEvidenceActivateOnce",
+            "execution": "NOT_RUN_THIS_SLICE"
+          },
+          "disposition": "VERIFY_ONLY",
+          "acceptance": "UNVERIFIED",
+          "limit": "Owner and existing selector presence rechecked, not a fresh execution or complete coverage of this leaf."
+        }
+      ],
+      "evidenceClassification": {
+        "source": "Named symbols and existing test selectors checked; evidence semantics remain bounded by the named test, not all subclauses or rendered states.",
+        "local": "NOT_RUN: database-backed product checks not part of this documentation slice.",
+        "ci": "NOT_RUN_FOR_THIS_CANDIDATE; predecessor runs are not current evidence.",
+        "professional": "PENDING: authentic client and independent Partner decisions cannot be supplied by synthetic tests.",
+        "live": "BLOCKED_EXTERNAL: enabled provider/tenant and operational acceptance remain separate."
+      },
+      "remaining": "Other compound clauses, full applicable denominator and inherited finding reconciliation remain open; no parent promoted or percentage inferred."
     }
   }
 }

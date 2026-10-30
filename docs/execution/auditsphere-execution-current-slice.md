@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
 newer exact-source CI and slice evidence live under `targetedVerification`.
 
+## ASCP current-source reconciliation
+
+The [ASCP queue](auditsphere-execution-ascp-reconciliation-current.md) separates delivered work, ready verification and qualified/external dependencies. Fresh inventory and dual-key subclauses preserve earlier evidence. Allocation evidence now identifies the later successor-carry function replacement; no migration was performed. Focused fieldwork checks cover wrong-capture and failed row pages, stale-evidence hiding and renewed assent after exact reload. Database-backed verification awaits an authorized isolated database; full suites remain CI-only. Results and environment limits: `targetedVerification.issue49Reconciliation20261030` in [status.json](status.json). Issue #49 remains open.
+
 ## Independent package-review handoff
 
 My Work now exposes the existing financial-package review queue to independently authorized reviewers, including when workflow work is disabled. Availability expiry or session invalidation removes the handoff; no package counts, approvals or extra grant are implied. U07 remains partial because integrated discovery and role/browser acceptance are still open. The cloud environment lacks a running isolated PostgreSQL server, so the extended native authorization regression is not locally verified; focused UI and compilation evidence belongs in `status.json`.
@@ -409,11 +413,11 @@ Historical verification details are preserved verbatim in the [handoff history](
 
 ## Client finance receipt continuation
 
-Earlier source-bound behavior and verification are preserved in [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#client-finance-receipt-continuation). Current-source acceptance remains separate.
+Earlier source-bound behavior and verification are preserved in [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#client-finance-receipt-continuation). Whole-product, human assistive-technology/screen-reader review, current-source release, and professional/provider acceptance remain open.
 
 ## Paged client document history
 
-Earlier source-bound behavior and verification are preserved in [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#paged-client-document-history). Current-source acceptance remains separate.
+Earlier source-bound behavior and verification are preserved in [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md#paged-client-document-history). Whole-product, human assistive-technology/screen-reader review, current-source release, and professional/provider acceptance remain open.
 
 ## Separate client upload and reply capabilities
 

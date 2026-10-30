@@ -321,7 +321,7 @@ const queueViews: { key: QueueView; label: string }[] = [
             </section>
           }
           <div role="group" aria-label="Selected task workspaces">
-            <button matButton (click)="openLinkedTaskPanel('activity')">{{ activityTask()?.taskId === selected.id ? 'Hide activity' : 'View activity' }}</button>
+            <button matButton (click)="openLinkedTaskPanel('activity')">{{ activityTask()?.taskId.toLowerCase() === selected.id.toLowerCase() ? 'Hide activity' : 'View activity' }}</button>
             <button matButton (click)="openLinkedTaskPanel('evidence')">Review prerequisites</button>
             <button matButton (click)="openLinkedTaskPanel('ordering')">Review task ordering</button>
           </div>
