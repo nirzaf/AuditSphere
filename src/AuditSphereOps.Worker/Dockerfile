@@ -18,6 +18,7 @@ COPY src/ src/
 RUN DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet publish src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj \
   --configuration Release --no-restore -m:1 -p:BuildInParallel=false \
   -p:UseSharedCompilation=false -o /out \
+  -p:RunAnalyzers=false -p:DebugType=None -p:DebugSymbols=false \
   && test -f /out/AuditSphereOps.Worker.dll
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
