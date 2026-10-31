@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -40,7 +41,10 @@ public sealed record WorkflowTaskRow(
   long Revision,
   DateTimeOffset CreatedAt,
   Guid? ReminderRuleId = null, Guid? ReminderRuleRevisionId = null, Guid? ReminderOperationId = null,
-  WorkflowReminderTaskOrigin? ReminderSource = null, bool CanOpenReminderRule = false, bool OnHold = false);
+  WorkflowReminderTaskOrigin? ReminderSource = null, bool CanOpenReminderRule = false, bool OnHold = false,
+  bool CanComplete = false, bool CanChangeDueDate = false, bool CanAssign = false, bool CanCancel = false,
+  bool CanReopen = false, bool CanSuspend = false, bool CanResume = false,
+  int UnmetTaskDependencies = 0, int UnmetEvidencePrerequisites = 0);
 
 public sealed record WorkflowTaskWorkspace(
   Guid EngagementId,
@@ -129,6 +133,68 @@ public static class EngagementWorkflowTaskService
       }
       rows = enriched;
     }
+
+    var elevatedAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, EngagementId: engagementId, RequiredRoles: ["Administrator", "Partner", "Manager"], InternalOnly: true), ct);
+    var canElevatedManage = elevatedAuth.Succeeded;
+
+    int unmetDependencies = 0;
+    int unmetEvidence = 0;
+    bool hasUnresolvedPbc = false;
+    if (selectedTaskId.HasValue && rows.Count > 0)
+    {
+      var targetRow = rows[0];
+      var targetBinding = await db.WorkflowTaskBindings.AsNoTracking().FirstOrDefaultAsync(
+        b => b.FirmId == actor.FirmId && b.EngagementId == engagementId && b.WorkTaskId == targetRow.Id, ct);
+      if (targetBinding is not null)
+      {
+        unmetDependencies = await (from dependency in WorkflowTaskDependencyQuery.Effective(db, actor.FirmId)
+          join predecessor in db.WorkflowTaskBindings.AsNoTracking()
+            on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.PredecessorBindingId }
+            equals new { predecessor.FirmId, predecessor.ClientId, predecessor.EngagementId, predecessor.Id }
+          join predecessorTask in db.WorkTasks.AsNoTracking()
+            on new { predecessor.FirmId, WorkTaskId = predecessor.WorkTaskId }
+            equals new { predecessorTask.FirmId, WorkTaskId = predecessorTask.Id }
+          where dependency.FirmId == actor.FirmId && dependency.EngagementId == engagementId &&
+            dependency.SuccessorBindingId == targetBinding.Id &&
+            predecessorTask.Status != PracticeTimeStates.TaskCompleted
+          select dependency.PredecessorBindingId).Distinct().CountAsync(ct);
+
+        var evidence = await WorkflowTaskEvidenceQuery.EvaluateManyAsync(db, actor.FirmId, [targetBinding], ct);
+        unmetEvidence = evidence.GetValueOrDefault(targetBinding.Id)?.Count(r =>
+          r.State == WorkflowEvidenceRuleStates.Required && !r.Satisfied) ?? 0;
+
+        hasUnresolvedPbc = targetBinding.PbcRequestId is { } pbcId && await db.PbcRequests.AsNoTracking().AnyAsync(
+          p => p.FirmId == actor.FirmId && p.Id == pbcId && p.State != PbcStates.Accepted && p.State != PbcStates.Closed, ct);
+      }
+    }
+
+    rows = rows.Select(x =>
+    {
+      var isActive = x.Status == PracticeTimeStates.TaskOpen || x.Status == PracticeTimeStates.TaskInProgress;
+      var canChangeDueDate = isActive && canElevatedManage;
+      var canAssign = isActive && canElevatedManage;
+      var canCancel = isActive && canElevatedManage;
+      var canHold = isActive && x.Revision < long.MaxValue && canElevatedManage;
+      var canSuspend = canHold && !x.OnHold;
+      var canResume = canHold && x.OnHold;
+      var canReopen = canElevatedManage && (x.Status == PracticeTimeStates.TaskCancelled || x.Status == PracticeTimeStates.TaskCompleted);
+      var canComplete = isActive && !x.OnHold && unmetDependencies == 0 && unmetEvidence == 0 && !hasUnresolvedPbc &&
+        (x.AssigneeUserId == actor.UserId || canElevatedManage);
+      return x with
+      {
+        CanComplete = canComplete,
+        CanChangeDueDate = canChangeDueDate,
+        CanAssign = canAssign,
+        CanCancel = canCancel,
+        CanReopen = canReopen,
+        CanSuspend = canSuspend,
+        CanResume = canResume,
+        UnmetTaskDependencies = unmetDependencies,
+        UnmetEvidencePrerequisites = unmetEvidence
+      };
+    }).ToList();
+
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, EngagementId: engagementId, RequiredRoles: WorkRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<WorkflowTaskWorkspace>.Fail(auth.ErrorCode!, auth.Message!);

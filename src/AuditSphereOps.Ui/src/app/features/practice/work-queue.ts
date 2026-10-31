@@ -106,6 +106,16 @@ const reminderTaskRowShape = obj({
   dueDate: nullable(date), revision: int, reminderRuleId: nullable(guid),
   reminderRuleRevisionId: nullable(guid), reminderOperationId: nullable(guid),
   reminderSource: optionalNullable(reminderSource), canOpenReminderRule: optionalBoolean,
+  onHold: optionalBoolean,
+  canComplete: optionalBoolean,
+  canChangeDueDate: optionalBoolean,
+  canAssign: optionalBoolean,
+  canCancel: optionalBoolean,
+  canReopen: optionalBoolean,
+  canSuspend: optionalBoolean,
+  canResume: optionalBoolean,
+  unmetTaskDependencies: (v: unknown, p: string) => v === undefined ? 0 : int(v, p),
+  unmetEvidencePrerequisites: (v: unknown, p: string) => v === undefined ? 0 : int(v, p),
 });
 const reminderTaskRow = (value: unknown, path: string) => reminderTaskRowShape(value, path);
 const reminderTaskWorkspaceShape = obj({ engagementId: guid, tasks: arr(reminderTaskRow, 500), truncated: bool });
@@ -1023,9 +1033,57 @@ export class WorkflowWorkQueue {
   reminderQueueTask(): QueueTask | null {
     const selected = this.reminderTaskSelection();
     const currentTask = this.currentReminderTask();
-    return selected && currentTask && this.queueLocationValid() ? this.queue.data()?.tasks.find(task =>
-      task.engagementId.toLowerCase() === selected.engagementId && task.taskId.toLowerCase() === selected.taskId &&
-      task.taskStatus === currentTask.status && task.revision === currentTask.revision) ?? null : null;
+    if (!selected || !currentTask || !this.queueLocationValid()) return null;
+    const sameTaskInQueue = this.queue.data()?.tasks.find(task =>
+      task.engagementId.toLowerCase() === selected.engagementId && task.taskId.toLowerCase() === selected.taskId);
+    if (sameTaskInQueue) {
+      return sameTaskInQueue.taskStatus === currentTask.status && sameTaskInQueue.revision === currentTask.revision
+        ? sameTaskInQueue
+        : null;
+    }
+    const hasAnyAction = currentTask.canComplete || currentTask.canChangeDueDate || currentTask.canAssign ||
+      currentTask.canCancel || currentTask.canReopen || currentTask.canSuspend || currentTask.canResume;
+    if (!hasAnyAction) return null;
+    return {
+      taskId: currentTask.id,
+      clientId: selected.engagementId,
+      clientName: '',
+      engagementId: selected.engagementId,
+      engagementServiceRoute: '',
+      engagementPeriod: '',
+      title: currentTask.title,
+      phase: currentTask.phase,
+      ordinal: currentTask.ordinal,
+      taskStatus: currentTask.status,
+      assigneeUserId: currentTask.assigneeUserId,
+      assigneeDisplayName: currentTask.assigneeDisplayName,
+      dueDate: currentTask.dueDate,
+      mappingVersionId: null,
+      fsliCode: null,
+      unmetTaskDependencies: currentTask.unmetTaskDependencies,
+      unmetEvidencePrerequisites: currentTask.unmetEvidencePrerequisites,
+      canComplete: currentTask.canComplete,
+      canChangeDueDate: currentTask.canChangeDueDate,
+      canAssign: currentTask.canAssign,
+      canCancel: currentTask.canCancel,
+      canReopen: currentTask.canReopen,
+      revision: currentTask.revision,
+      sourceKey: '',
+      templateRevisionId: null,
+      templateStepId: null,
+      requiredTask: null,
+      taskGroupName: null,
+      applicabilityCondition: null,
+      pbcRequestId: null,
+      pbcState: null,
+      reviewState: null,
+      reviewComment: null,
+      onHold: currentTask.onHold,
+      holdReason: null,
+      canSuspend: currentTask.canSuspend,
+      canResume: currentTask.canResume,
+      manualRequiredTask: null,
+    };
   }
 
   reminderSourceTarget(source: ReminderSource): {

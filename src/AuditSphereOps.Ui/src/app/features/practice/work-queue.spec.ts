@@ -231,6 +231,8 @@ describe('workflow queue assignment filters', () => {
       reminderSource?: { sourceKind: 'TASK_DUE' | 'PBC_DUE'; sourceId: string; sourceRevision: number; dueRevision: number;
         sourceDueDate: string; sourceHref: string; recipientUserId: string; isSourceCurrent: boolean | null } | null;
       canOpenReminderRule?: boolean;
+      canComplete?: boolean; canChangeDueDate?: boolean; canAssign?: boolean; canCancel?: boolean;
+      canReopen?: boolean; canSuspend?: boolean; canResume?: boolean;
     } = {}) => ({
     engagementId, truncated: false,
     tasks: [{ id, title, phase: task.phase, ordinal: task.ordinal, status,
@@ -240,6 +242,13 @@ describe('workflow queue assignment filters', () => {
       reminderOperationId: reminderOrigin.reminderOperationId ?? null,
       ...(Object.prototype.hasOwnProperty.call(reminderOrigin, 'reminderSource') ? { reminderSource: reminderOrigin.reminderSource } : {}),
       ...(Object.prototype.hasOwnProperty.call(reminderOrigin, 'canOpenReminderRule') ? { canOpenReminderRule: reminderOrigin.canOpenReminderRule } : {}),
+      ...(reminderOrigin.canComplete !== undefined ? { canComplete: reminderOrigin.canComplete } : {}),
+      ...(reminderOrigin.canChangeDueDate !== undefined ? { canChangeDueDate: reminderOrigin.canChangeDueDate } : {}),
+      ...(reminderOrigin.canAssign !== undefined ? { canAssign: reminderOrigin.canAssign } : {}),
+      ...(reminderOrigin.canCancel !== undefined ? { canCancel: reminderOrigin.canCancel } : {}),
+      ...(reminderOrigin.canReopen !== undefined ? { canReopen: reminderOrigin.canReopen } : {}),
+      ...(reminderOrigin.canSuspend !== undefined ? { canSuspend: reminderOrigin.canSuspend } : {}),
+      ...(reminderOrigin.canResume !== undefined ? { canResume: reminderOrigin.canResume } : {}),
     }],
   });
   const cancelableTask = { ...task, canCancel: true };
@@ -2362,6 +2371,37 @@ describe('workflow queue assignment filters', () => {
       expect(selectedPanel().querySelector('a[href^="/app/practice/reminder-rules"]')).toBeNull();
       expect([...selectedPanel().querySelectorAll('button')].some(button => button.textContent?.trim() === 'Complete task')).toBe(false);
       http.verify({ ignoreCancelled: true });
+    } finally { harness.fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('allows actions on an off-page exact task when server grants action capabilities', async () => {
+    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [
+      provideRouter([{ path: 'app/work', component: WorkflowWorkQueue }]),
+      provideHttpClient(), provideHttpClientTesting(), provideWorkspaceAvailabilityForTests(),
+    ] });
+    TestBed.inject(SessionService).current.set({ userId: task.assigneeUserId!, firmId: task.assigneeUserId!, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController);
+    const harness = await RouterTestingHarness.create();
+    const workspaceUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`;
+    try {
+      await harness.navigateByUrl(
+        `/app/work?engagementId=${task.engagementId}&taskId=${task.taskId}`, WorkflowWorkQueue);
+      const host = harness.routeNativeElement!;
+      const selectedPanel = () => host.querySelector<HTMLElement>('section[aria-labelledby="reminder-task-heading"]')!;
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      http.expectOne(workspaceUrl).flush(reminderWorkspace(task.taskId, task.title, task.revision, task.taskStatus,
+        task.engagementId, { canComplete: true, canAssign: true }));
+      await harness.fixture.whenStable(); harness.fixture.detectChanges();
+
+      const completeButton = [...selectedPanel().querySelectorAll<HTMLButtonElement>('button')]
+        .find(button => button.textContent?.trim() === 'Complete task');
+      expect(completeButton).toBeTruthy();
+      completeButton!.click();
+      const completion = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/complete`);
+      expect(completion.request.body).toEqual({ expectedRevision: task.revision });
+      completion.flush({ value: true });
     } finally { harness.fixture.destroy(); TestBed.resetTestingModule(); }
   });
 
