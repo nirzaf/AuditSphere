@@ -50,6 +50,8 @@ export class ConsolidationScopeWorkspace {
   readonly externalPacksScopeId = signal<string | null>(null);
   readonly uncertainScopeId = signal<string | null>(null);
   private readonly deliverableBuildRequestKeys = new Map<string, string>();
+  private readonly deliverableIssueRequestKeys = new Map<string, string>();
+  private readonly deliverableArchiveRequestKeys = new Map<string, string>();
   deliverableReleaseKey = '';
   deliverableArchiveReason = '';
   deliverableAssent = false;
@@ -363,13 +365,19 @@ export class ConsolidationScopeWorkspace {
     if (scopeId.toLowerCase() !== this.id()?.toLowerCase() || !workspace.canApproveScope ||
         deliverable.status !== 'BUILT' || !deliverable.revision ||
         !this.deliverableReleaseKey.trim() || !this.deliverableAssent) return;
+    const releaseKey = this.deliverableReleaseKey.trim();
+    const intentKey = [this.ownerKey(), scopeId.toLowerCase(), deliverable.deliverableId.toLowerCase(),
+      deliverable.revision, deliverable.deliverableSha256, releaseKey].join(':');
+    const requestKey = this.deliverableIssueRequestKeys.get(intentKey) ?? crypto.randomUUID();
+    this.deliverableIssueRequestKeys.set(intentKey, requestKey);
     void this.runScopedCommand(this.ownerKey(), `/api/ui/consolidation/scopes/${scopeId}/deliverables/${deliverable.deliverableId}/issue`, {
       expectedDeliverableRevision: deliverable.revision,
       expectedGroupRevision: workspace.scope.groupRevision,
       expectedDeliverableSha256: deliverable.deliverableSha256,
-      authorizedReleaseKey: this.deliverableReleaseKey.trim(),
-      requestKey: crypto.randomUUID()
+      authorizedReleaseKey: releaseKey,
+      requestKey
     }, 'Group deliverable issued.', () => {
+      this.deliverableIssueRequestKeys.delete(intentKey);
       this.deliverableReleaseKey = '';
       this.deliverableAssent = false;
     }, () => { this.deliverablePage.reload(); this.ws.reload(); });
@@ -381,12 +389,17 @@ export class ConsolidationScopeWorkspace {
     const reason = this.deliverableArchiveReason.trim() || 'Superseded or closed';
     if (scopeId.toLowerCase() !== this.id()?.toLowerCase() || !workspace.canApproveScope ||
         deliverable.status !== 'ISSUED' || !deliverable.revision) return;
+    const intentKey = [this.ownerKey(), scopeId.toLowerCase(), deliverable.deliverableId.toLowerCase(),
+      deliverable.revision, deliverable.deliverableSha256, reason].join(':');
+    const requestKey = this.deliverableArchiveRequestKeys.get(intentKey) ?? crypto.randomUUID();
+    this.deliverableArchiveRequestKeys.set(intentKey, requestKey);
     void this.runScopedCommand(this.ownerKey(), `/api/ui/consolidation/scopes/${scopeId}/deliverables/${deliverable.deliverableId}/archive`, {
       expectedDeliverableRevision: deliverable.revision,
       expectedDeliverableSha256: deliverable.deliverableSha256,
       reason,
-      requestKey: crypto.randomUUID()
+      requestKey
     }, 'Group deliverable archived.', () => {
+      this.deliverableArchiveRequestKeys.delete(intentKey);
       this.deliverableArchiveReason = '';
     }, () => { this.deliverablePage.reload(); this.ws.reload(); });
   }
