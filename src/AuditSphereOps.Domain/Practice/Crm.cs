@@ -231,6 +231,7 @@ public sealed class ClientLifecycleEvent
 public static class ClientOffboardingRecordStates
 {
   public const string Completed = "COMPLETED";
+  public const string BlockedDecision = "BLOCKED_DECISION";
 }
 
 public sealed class ClientOffboardingRecord
@@ -238,7 +239,7 @@ public sealed class ClientOffboardingRecord
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
   public Guid ClientId { get; set; }
-  public string Status { get; set; } = ClientOffboardingRecordStates.Completed;
+  public string Status { get; set; } = ClientOffboardingRecordStates.BlockedDecision;
   public string ReadinessOverallState { get; set; } = string.Empty;
   public string ReadinessSnapshotJson { get; set; } = string.Empty;
   public string ReadinessDigest { get; set; } = string.Empty;
@@ -246,6 +247,7 @@ public sealed class ClientOffboardingRecord
   public string AcknowledgedActionItemsJson { get; set; } = "[]";
   public Guid DecidedByUserId { get; set; }
   public DateTimeOffset DecidedAt { get; set; }
+  public string? RequestKey { get; set; }
 }
 
 public sealed class ClientContact

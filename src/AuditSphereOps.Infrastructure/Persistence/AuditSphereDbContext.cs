@@ -613,6 +613,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<RecordState> RecordStates => Set<RecordState>();
 
   public DbSet<EqrCase> EqrCases => Set<EqrCase>();
+  public DbSet<EqrDecision> EqrDecisions => Set<EqrDecision>();
 
   public DbSet<WrittenRepresentation> WrittenRepresentations => Set<WrittenRepresentation>();
 

@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
 import { SessionService } from '../../core/session';
 import { EngagementTaskPlan } from './engagement-task-plan';
 import { describe, expect, it, vi } from 'vitest';
@@ -38,7 +39,7 @@ describe('Engagement task plan preview and receipt recovery', () => {
     sessionStorage.clear();
     TestBed.configureTestingModule({
       imports: [EngagementTaskPlan],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
     TestBed.inject(SessionService).current.set({ userId: firmId, firmId, generation: '1', staff: true });
   });
@@ -103,7 +104,8 @@ describe('Engagement task plan preview and receipt recovery', () => {
     expect(inputSection.textContent).toContain('no PBC client owner choices shown');
     inputButton('no due date shown').click();
     expect(document.activeElement?.id).toBe(component.planInputId(revisionId, 'schedule'));
-    expect(document.activeElement?.textContent).toContain('no date editor');
+    expect(document.activeElement?.textContent).toContain('Review dates in the Audit Plan');
+    expect((document.activeElement as HTMLAnchorElement).getAttribute('href')).toBe(`/app/engagements/${engagementId}/audit-plan`);
     expect(component.reviewed()).toBe(false);
     expect(component.canExecute()).toBe(false);
     component.reviewed.set(true);

@@ -339,6 +339,42 @@ public sealed class PortfolioWorkspaceTests
     Assert.True(unreleasedDetail.GateOpen);
     Assert.Equal(99, unreleasedDetail.PercentComplete);
     Assert.Contains("No issued release exists for this engagement yet.", unreleasedDetail.Gates);
+
+    // T07: Ambiguous profiles without explicit ServiceProfileId selection blocks completion
+    var secondProfileId = Guid.CreateVersion7();
+    db.AccountingCapabilityProfiles.Add(new AccountingCapabilityProfile
+    {
+      Id = secondProfileId, FirmId = f.FirmId, ClientId = f.ClientId, ServiceRoute = "AccountingOnly",
+      ServiceKind = AccountingCapabilityServiceKinds.ClientBookkeeping, Framework = "US_GAAP",
+      Status = AccountingWorkflowStates.Approved, CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.AccountingCapabilityAcceptances.Add(new AccountingCapabilityAcceptance
+    {
+      Id = Guid.CreateVersion7(), FirmId = f.FirmId, CapabilityProfileId = secondProfileId,
+      Stage = AccountingCapabilityAcceptanceStages.Released, Status = AccountingWorkflowStates.Approved,
+      EvidenceReference = "APPROVED-CAPABILITY-002", DecidedByUserId = f.Admin.Id,
+      DecidedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
+    var ambiguousProfileDetail = (await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId)).Value!;
+    Assert.True(ambiguousProfileDetail.GateOpen);
+    Assert.Contains("Ambiguous completion profiles exist for this service; exact profile selection is required.", ambiguousProfileDetail.Gates);
+
+    // Binding exact ServiceProfileId resolves ambiguity
+    engagement = await db.Engagements.SingleAsync(x => x.Id == f.EngagementId);
+    engagement.ServiceProfileId = profileId.ToString("D");
+    await db.SaveChangesAsync();
+
+    var resolvedProfileDetail = (await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId)).Value!;
+    Assert.DoesNotContain("Ambiguous completion profiles exist for this service; exact profile selection is required.", resolvedProfileDetail.Gates);
+
+    // T07: a Workpaper release cannot satisfy an EntityReporting profile that requires its exact approved package.
+    var entityProfile = await db.AccountingCapabilityProfiles.SingleAsync(x => x.Id == profileId);
+    entityProfile.ServiceKind = AccountingCapabilityServiceKinds.EntityReporting;
+    await db.SaveChangesAsync();
+    var wrongReleaseDetail = (await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId)).Value!;
+    Assert.Contains("No issued release of the exact approved financial package exists for this period.", wrongReleaseDetail.Gates);
   }
 
   [Theory]

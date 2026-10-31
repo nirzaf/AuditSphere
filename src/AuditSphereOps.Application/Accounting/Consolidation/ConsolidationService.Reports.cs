@@ -82,6 +82,6 @@ public static partial class ConsolidationService
       ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"], ct);
     if (!finalAuth.Succeeded)
       return CommandResult<ConsolidationReport>.Fail(finalAuth.ErrorCode!, finalAuth.Message!);
-    return CommandResult<ConsolidationReport>.Ok(new(scope.Id, run.Id, "CURRENT_APPROVED", run.ApprovedAt, lines));
+    return CommandResult<ConsolidationReport>.Ok(new(scope.Id, run.Id, "CURRENT_APPROVED", run.ApprovedAt, lines, run.RunHash));
   }
 }

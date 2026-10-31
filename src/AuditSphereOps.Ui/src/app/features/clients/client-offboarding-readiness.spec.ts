@@ -9,13 +9,27 @@ import { decodeOffboardingReadiness } from './client-contracts';
 
 const clientId = '11111111-1111-4111-8111-111111111111';
 const otherId = '22222222-2222-4222-8222-222222222222';
+const readinessDigest = 'a'.repeat(64);
 const body = (id = clientId) => ({
   clientId: id, isArchived: false, archiveRevision: '0', assessedAt: '2026-10-31T10:00:00Z', overallState: 'ACTION_REQUIRED',
+  readinessDigest,
   sections: [
     { key: 'WORK', title: 'Open work', state: 'ACTION_REQUIRED', ownerRoute: '/app/work',
       items: [{ key: 'OPEN_TASKS', label: 'Open or in-progress tasks', state: 'ACTION_REQUIRED', count: 2, detail: null }] },
     { key: 'FINANCE', title: 'Money', state: 'UNKNOWN', ownerRoute: null,
       items: [{ key: 'OUTSTANDING_INVOICES', label: 'Posted invoices with an outstanding balance', state: 'UNKNOWN', count: null, detail: 'Your access does not include firm finance for this client.' }] },
+  ],
+  coverageNotes: ['NO_FINDINGS is not evidence that offboarding is complete.'],
+});
+
+const fullyAssessedBody = (id = clientId) => ({
+  clientId: id, isArchived: false, archiveRevision: '0', assessedAt: '2026-10-31T10:00:00Z', overallState: 'ACTION_REQUIRED',
+  readinessDigest,
+  sections: [
+    { key: 'WORK', title: 'Open work', state: 'ACTION_REQUIRED', ownerRoute: '/app/work',
+      items: [{ key: 'OPEN_TASKS', label: 'Open or in-progress tasks', state: 'ACTION_REQUIRED', count: 2, detail: null }] },
+    { key: 'FINANCE', title: 'Money', state: 'NO_FINDINGS', ownerRoute: null,
+      items: [{ key: 'OUTSTANDING_INVOICES', label: 'Posted invoices with an outstanding balance', state: 'NO_FINDINGS', count: 0, detail: null }] },
   ],
   coverageNotes: ['NO_FINDINGS is not evidence that offboarding is complete.'],
 });
@@ -69,12 +83,43 @@ describe('client offboarding readiness', () => {
       expect(fixture.nativeElement.textContent).not.toContain('Open or in-progress tasks');
     });
 
-    it('records offboarding closeout decision when assessed', () => {
+    it('records an immutable BLOCKED_DECISION review even when a section remains UNKNOWN', () => {
       const fixture = TestBed.createComponent(ClientOffboardingReadiness);
       fixture.componentRef.setInput('clientId', clientId);
       fixture.detectChanges();
       (fixture.nativeElement.querySelector('[data-offboarding-check]') as HTMLButtonElement).click();
       http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('UNKNOWN and action-required items remain unresolved');
+      const textarea = fixture.nativeElement.querySelector('#offboarding-disposition-notes') as HTMLTextAreaElement;
+      textarea.value = 'Finance access was not available during this review.';
+      textarea.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      (fixture.nativeElement.querySelector('[data-offboarding-closeout]') as HTMLButtonElement).click();
+
+      const request = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      expect(request.request.body.expectedRevision).toBe('0');
+      expect(request.request.body.expectedReadinessDigest).toBe(readinessDigest);
+      expect(request.request.body.acknowledgedActionItems).toEqual([]);
+      expect(request.request.body.archiveClientOnCloseout).toBe(false);
+      expect(request.request.body.requestKey).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+      request.flush({
+        recordId: otherId, clientId, status: 'BLOCKED_DECISION', readinessOverallState: 'ACTION_REQUIRED',
+        readinessDigest, dispositionNotes: 'Finance access was not available during this review.',
+        acknowledgedActionItems: [], decidedByUserId: clientId, isArchived: false, archiveRevision: '0',
+        requestKey: request.request.body.requestKey,
+      });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('A BLOCKED_DECISION review record was saved');
+    });
+
+    it('records offboarding closeout decision when fully assessed', () => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId);
+      fixture.detectChanges();
+      (fixture.nativeElement.querySelector('[data-offboarding-check]') as HTMLButtonElement).click();
+      http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(fullyAssessedBody());
       fixture.detectChanges();
 
       const textarea = fixture.nativeElement.querySelector('#offboarding-disposition-notes') as HTMLTextAreaElement;
@@ -90,11 +135,47 @@ describe('client offboarding readiness', () => {
       const postReq = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
       expect(postReq.request.method).toBe('POST');
       expect(postReq.request.body.dispositionNotes).toContain('Reviewed all open tasks');
-      expect(postReq.request.body.acknowledgedActionItems).toEqual(['OPEN_TASKS']);
-      postReq.flush({ recordId: clientId, status: 'COMPLETED' });
+      expect(postReq.request.body.acknowledgedActionItems).toEqual([]);
+      expect(postReq.request.body.requestKey).toBeDefined();
+      postReq.flush({
+        recordId: otherId, clientId, status: 'BLOCKED_DECISION', readinessOverallState: 'ACTION_REQUIRED',
+        readinessDigest, dispositionNotes: 'Reviewed all open tasks and outstanding invoices with Partner.',
+        acknowledgedActionItems: [], decidedByUserId: clientId, isArchived: false, archiveRevision: '0',
+        requestKey: postReq.request.body.requestKey,
+      });
       fixture.detectChanges();
 
-      expect(fixture.nativeElement.textContent).toContain('Offboarding closeout recorded successfully');
+      expect(fixture.nativeElement.textContent).toContain('A BLOCKED_DECISION review record was saved');
+    });
+
+    it('reuses the same idempotency key after an unknown network outcome', () => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId);
+      fixture.detectChanges();
+      (fixture.nativeElement.querySelector('[data-offboarding-check]') as HTMLButtonElement).click();
+      http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(fullyAssessedBody());
+      fixture.detectChanges();
+      const textarea = fixture.nativeElement.querySelector('#offboarding-disposition-notes') as HTMLTextAreaElement;
+      textarea.value = 'Verified the listed items only.';
+      textarea.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      (fixture.nativeElement.querySelector('[data-offboarding-closeout]') as HTMLButtonElement).click();
+      const first = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      const firstKey = first.request.body.requestKey;
+      first.error(new ProgressEvent('error'));
+      fixture.detectChanges();
+
+      (fixture.nativeElement.querySelector('[data-offboarding-closeout]') as HTMLButtonElement).click();
+      const retry = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      expect(retry.request.body.requestKey).toBe(firstKey);
+      expect(retry.request.body.expectedReadinessDigest).toBe(readinessDigest);
+      retry.flush({
+        recordId: otherId, clientId, status: 'BLOCKED_DECISION', readinessOverallState: 'ACTION_REQUIRED',
+        readinessDigest, dispositionNotes: 'Verified the listed items only.',
+        acknowledgedActionItems: [], decidedByUserId: clientId, isArchived: false, archiveRevision: '0',
+        requestKey: firstKey,
+      });
     });
   });
 });

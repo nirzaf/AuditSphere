@@ -271,12 +271,25 @@ public sealed partial class AuditSphereDbContext
     deliverable.Property(x => x.Status).HasMaxLength(30);
     deliverable.Property(x => x.AuthorizedReleaseKey).HasMaxLength(100);
     deliverable.Property(x => x.ArchiveReason).HasMaxLength(2000);
+    deliverable.Property(x => x.RequestKey).HasMaxLength(100);
+    deliverable.Property(x => x.IssueRequestKey).HasMaxLength(100);
+    deliverable.Property(x => x.ArchiveRequestKey).HasMaxLength(100);
+    deliverable.Property(x => x.Revision).IsConcurrencyToken().HasDefaultValue(1L);
     deliverable.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id })
       .HasName("ak_group_deliverables_scope_id");
     deliverable.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.RunId, x.Status })
       .HasDatabaseName("ix_group_deliverables_scope_run_status");
+    deliverable.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.RequestKey })
+      .HasFilter("request_key IS NOT NULL").IsUnique().HasDatabaseName("ix_group_deliverables_scope_request_key");
+    deliverable.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.IssueRequestKey })
+      .HasFilter("issue_request_key IS NOT NULL").IsUnique().HasDatabaseName("ix_group_deliverables_scope_issue_request_key");
+    deliverable.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.ArchiveRequestKey })
+      .HasFilter("archive_request_key IS NOT NULL").IsUnique().HasDatabaseName("ix_group_deliverables_scope_archive_request_key");
     deliverable.ToTable("group_deliverables", t => t.HasCheckConstraint("ck_group_deliverable_values",
-      "format_version <> '' AND run_hash ~ '^[0-9a-f]{64}$' AND input_manifest_digest ~ '^[0-9a-f]{64}$' AND deliverable_sha256 ~ '^[0-9a-f]{64}$' AND status IN ('BUILT','ISSUED','ARCHIVED')"));
+      "format_version <> '' AND run_hash ~ '^[0-9a-f]{64}$' AND input_manifest_digest ~ '^[0-9a-f]{64}$' AND deliverable_sha256 ~ '^[0-9a-f]{64}$' AND status IN ('BUILT','ISSUED','ARCHIVED') AND revision >= 1" +
+      " AND ((status = 'BUILT' AND issued_by_user_id IS NULL AND issued_at IS NULL AND archived_by_user_id IS NULL AND archived_at IS NULL)" +
+      " OR (status = 'ISSUED' AND issued_by_user_id IS NOT NULL AND issued_at IS NOT NULL AND archived_by_user_id IS NULL AND archived_at IS NULL)" +
+      " OR (status = 'ARCHIVED' AND issued_by_user_id IS NOT NULL AND issued_at IS NOT NULL AND archived_by_user_id IS NOT NULL AND archived_at IS NOT NULL))"));
     deliverable.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     deliverable.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })

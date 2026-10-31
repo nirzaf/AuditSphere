@@ -33,24 +33,19 @@ import { decodeOffboardingReadiness, OffboardingReadiness, offboardingStateLabel
         }
         <ul>@for (n of r.coverageNotes; track n) { <li class="muted">{{ n }}</li> }</ul>
 
-        @if (r.overallState !== 'UNKNOWN') {
-          <section aria-labelledby="offboarding-closeout-heading">
-            <h3 id="offboarding-closeout-heading">Offboarding closeout decision</h3>
-            @if (closeoutSuccess()) {
-              <p role="status">Offboarding closeout recorded successfully.</p>
-            } @else {
-              <p class="muted">Record a reviewed offboarding disposition. All assessed items will be locked into the closeout record.</p>
-              @if (r.overallState === 'ACTION_REQUIRED') {
-                <p><strong>Action required:</strong> Explicit acknowledgement and disposition notes are required for all open items.</p>
-              }
-              <label for="offboarding-disposition-notes">Disposition notes:</label>
-              <textarea id="offboarding-disposition-notes" [(ngModel)]="dispositionNotes" rows="3" placeholder="Enter reviewed closeout disposition notes"></textarea>
-              <button matButton="filled" data-offboarding-closeout [disabled]="closeoutLoading() || !dispositionNotes.trim()" (click)="recordCloseout(r)">
-                {{ closeoutLoading() ? 'Recording…' : 'Record offboarding closeout' }}
-              </button>
-            }
-          </section>
-        }
+        <section aria-labelledby="offboarding-review-heading">
+          <h3 id="offboarding-review-heading">Record a blocked review</h3>
+          @if (closeoutSuccess()) {
+            <p role="status">A BLOCKED_DECISION review record was saved. It did not approve offboarding or change the client's archive, work, money, access or retention state.</p>
+          } @else {
+            <p class="muted">This immutable snapshot records what was visible at review time. It does not approve or complete offboarding. UNKNOWN and action-required items remain unresolved; client archiving is a separate action.</p>
+            <label for="offboarding-disposition-notes">Review notes:</label>
+            <textarea id="offboarding-disposition-notes" name="offboardingReviewNotes" [(ngModel)]="dispositionNotes" rows="3" maxlength="2000" placeholder="Enter notes about this blocked review"></textarea>
+            <button matButton="filled" data-offboarding-closeout [disabled]="closeoutLoading() || !dispositionNotes.trim()" (click)="recordCloseout(r)">
+              {{ closeoutLoading() ? 'Recording…' : 'Record blocked review' }}
+            </button>
+          }
+        </section>
       }
     </section>`,
 })
@@ -66,7 +61,9 @@ export class ClientOffboardingReadiness {
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
   private request?: Subscription;
+  private closeoutRequest?: Subscription;
   private revision = 0;
+  private closeoutIntent: { clientId: string; readinessDigest: string; archiveRevision: string; notes: string; requestKey: string } | null = null;
 
   constructor() {
     // A route or session change discards retained evidence and any in-flight response.
@@ -74,14 +71,21 @@ export class ClientOffboardingReadiness {
       this.clientId(); this.session.invalidation(); this.session.current();
       untracked(() => this.reset());
     });
-    inject(DestroyRef).onDestroy(() => { this.revision++; this.request?.unsubscribe(); });
+    inject(DestroyRef).onDestroy(() => {
+      this.revision++;
+      this.request?.unsubscribe();
+      this.closeoutRequest?.unsubscribe();
+    });
   }
 
   private reset(): void {
-    this.revision++; this.request?.unsubscribe();
+    this.revision++;
+    this.request?.unsubscribe();
+    this.closeoutRequest?.unsubscribe();
     this.result.set(null); this.error.set(''); this.loading.set(false);
     this.closeoutLoading.set(false); this.closeoutSuccess.set(false);
     this.dispositionNotes = '';
+    this.closeoutIntent = null;
   }
 
   load(): void {
@@ -110,21 +114,51 @@ export class ClientOffboardingReadiness {
 
   recordCloseout(r: OffboardingReadiness): void {
     const id = this.clientId()?.toLowerCase();
-    if (!id || this.closeoutLoading() || !this.dispositionNotes.trim()) return;
-    const actionKeys = r.sections.flatMap(s => s.items).filter(i => i.state === 'ACTION_REQUIRED').map(i => i.key);
+    const notes = this.dispositionNotes.trim();
+    if (!id || !guidPattern.test(id) || r.clientId.toLowerCase() !== id || this.closeoutLoading() || !notes) return;
+    let intent = this.closeoutIntent;
+    if (!intent || intent.clientId !== id || intent.readinessDigest !== r.readinessDigest ||
+        intent.archiveRevision !== r.archiveRevision || intent.notes !== notes) {
+      intent = { clientId: id, readinessDigest: r.readinessDigest, archiveRevision: r.archiveRevision, notes, requestKey: crypto.randomUUID() };
+      this.closeoutIntent = intent;
+    }
+    const requestKey = intent.requestKey;
+    const revision = this.revision;
     this.closeoutLoading.set(true);
     this.error.set('');
-    this.http.post<unknown>(`/api/ui/clients/${id}/offboarding-closeout`, {
-      dispositionNotes: this.dispositionNotes.trim(),
-      acknowledgedActionItems: actionKeys,
+    this.closeoutRequest?.unsubscribe();
+    this.closeoutRequest = this.http.post<unknown>(`/api/ui/clients/${id}/offboarding-closeout`, {
+      dispositionNotes: notes,
+      acknowledgedActionItems: [],
       expectedRevision: r.archiveRevision,
-      archiveClientOnCloseout: false
-    }).subscribe({
-      next: () => {
+      archiveClientOnCloseout: false,
+      expectedReadinessDigest: r.readinessDigest,
+      requestKey
+    }).pipe(timeout(30000)).subscribe({
+      next: (res) => {
+        if (revision !== this.revision) return;
         this.closeoutLoading.set(false);
-        this.closeoutSuccess.set(true);
+        const receipt = res as {
+          recordId?: unknown; clientId?: unknown; status?: unknown; readinessDigest?: unknown;
+          requestKey?: unknown; archiveRevision?: unknown; isArchived?: unknown;
+          readinessOverallState?: unknown; dispositionNotes?: unknown; acknowledgedActionItems?: unknown;
+          decidedByUserId?: unknown;
+        } | null;
+        const expectedActor = this.session.current()?.userId.toLowerCase();
+        if (receipt && typeof receipt.recordId === 'string' && guidPattern.test(receipt.recordId.toLowerCase()) &&
+            typeof receipt.clientId === 'string' && receipt.clientId.toLowerCase() === id &&
+            receipt.status === 'BLOCKED_DECISION' && receipt.readinessDigest === r.readinessDigest &&
+            receipt.requestKey === requestKey && receipt.archiveRevision === r.archiveRevision &&
+            receipt.isArchived === r.isArchived && receipt.readinessOverallState === r.overallState &&
+            receipt.dispositionNotes === notes && Array.isArray(receipt.acknowledgedActionItems) && receipt.acknowledgedActionItems.length === 0 &&
+            typeof receipt.decidedByUserId === 'string' && receipt.decidedByUserId.toLowerCase() === expectedActor) {
+          this.closeoutSuccess.set(true);
+        } else {
+          this.error.set('The server returned an invalid blocked-review receipt. Refresh to verify the saved record before retrying.');
+        }
       },
       error: (err) => {
+        if (revision !== this.revision) return;
         this.closeoutLoading.set(false);
         this.error.set(err?.error?.message || 'Failed to record offboarding closeout.');
       }

@@ -1136,24 +1136,74 @@ public sealed partial class AuditDeliverablesTests
 
       // EQR enforcement: when an EQR case exists, non-concurred status blocks signing
       var eqrPartner = w.A("partner2", "Partner");
+      var adminId = Guid.NewGuid();
+      db.Users.Add(new AppUser
+      {
+        Id = adminId, FirmId = w.FirmId, Subject = "eqr-admin-" + adminId.ToString("N"), TenantId = "tenant-del",
+        Email = $"eqr-admin-{adminId:N}@example.test", DisplayName = "EQR Administrator", UserKind = "Staff",
+        SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = adminId, Role = "Administrator",
+        GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = partner.UserId
+      });
+      await db.SaveChangesAsync();
+      var eqrAdmin = new ActorContext(adminId, w.FirmId, 1, ["Administrator"]);
+
       // The Engagement Partner cannot perform EQR on their own engagement
-      var epAttempt = await AuditDeliverableService.RecordEqrDecisionAsync(db, partner, w.EngagementId, "CONCURRED", "Attempt by EP", true);
+      var epAttempt = await AuditDeliverableService.RecordEqrDecisionAsync(db, partner, w.EngagementId,
+        new RecordEqrDecisionRequest("CONCURRED", "Attempt by EP", true, Guid.NewGuid().ToString("D"), 0));
       Assert.False(epAttempt.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, epAttempt.ErrorCode);
 
-      // EQR Changes Requested blocks signing
-      var changesDecision = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId, "CHANGES_REQUESTED", "Review note on valuation", false);
+      // EQR Changes Requested blocks signing and establishes the assigned reviewer.
+      var changesDecision = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId,
+        new RecordEqrDecisionRequest("CHANGES_REQUESTED", "Review note on valuation", false, Guid.NewGuid().ToString("D"), 0));
       Assert.True(changesDecision.Succeeded, changesDecision.Message);
       Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar)).ErrorCode);
 
+      // An Administrator may override the assigned reviewer; the retained decision
+      // identifies the actual decider, while the case assignment remains with partner2.
+      var adminChanges = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrAdmin, w.EngagementId,
+        new RecordEqrDecisionRequest("CHANGES_REQUESTED", "Administrative review note", false, Guid.NewGuid().ToString("D"), 1));
+      Assert.True(adminChanges.Succeeded, adminChanges.Message);
+      var adminDecision = await db.EqrDecisions.AsNoTracking().SingleAsync(x => x.Id == adminChanges.Value);
+      Assert.Equal(adminId, adminDecision.DecidedByUserId);
+      Assert.Equal(2, adminDecision.Revision);
+
       // Concurrence without findings discussed is refused
-      var prematureConcurrence = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId, "CONCURRED", "Premature concurrence", false);
+      var concurrenceRequest = new RecordEqrDecisionRequest("CONCURRED", "All matters discussed and concurred.", true,
+        Guid.NewGuid().ToString("D"), 2);
+      var prematureConcurrence = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId,
+        concurrenceRequest with { FindingsDiscussed = false, Notes = "Premature concurrence" });
       Assert.False(prematureConcurrence.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, prematureConcurrence.ErrorCode);
 
       // Independent EQR Partner concurrence with findings discussed unblocks signing
-      var concurred = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId, "CONCURRED", "All matters discussed and concurred.", true);
+      var concurred = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId, concurrenceRequest);
       Assert.True(concurred.Succeeded, concurred.Message);
+      var concurredDecision = await db.EqrDecisions.AsNoTracking().SingleAsync(x => x.Id == concurred.Value);
+      Assert.Equal(eqrPartner.UserId, concurredDecision.DecidedByUserId);
+      Assert.Equal(3, concurredDecision.Revision);
+      var eqrCase = await db.EqrCases.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId);
+      Assert.Equal(eqrPartner.UserId, eqrCase.EqrPartnerUserId);
+      Assert.Equal(concurred.Value, eqrCase.CurrentDecisionId);
+      Assert.Equal(3, eqrCase.Revision);
+      Assert.Equal(3, await db.EqrDecisions.CountAsync(x => x.EngagementId == w.EngagementId));
+
+      // Exact replay returns the original decision; changed intent conflicts.
+      var concurredReplay = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId, concurrenceRequest);
+      Assert.True(concurredReplay.Succeeded);
+      Assert.Equal(concurred.Value, concurredReplay.Value);
+      var concurredConflict = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId,
+        concurrenceRequest with { Status = "CHANGES_REQUESTED", Notes = "Different intent" });
+      Assert.False(concurredConflict.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, concurredConflict.ErrorCode);
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE eqr_decisions SET notes = 'tampered' WHERE id = {concurred.Value}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM eqr_decisions WHERE id = {concurred.Value}"));
 
       var signed = await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar);
       Assert.True(signed.Succeeded, signed.Message);
@@ -1175,6 +1225,21 @@ public sealed partial class AuditDeliverablesTests
       var imageOnly = await AuditDeliverableService.VerifyReportSignatureAsync(db, manager, signed.Value);
       Assert.Equal((ReportSignatureKinds.Visual, ReportSignatureStates.NotCertificateSigned), (imageOnly.Value!.SignatureKind, imageOnly.Value.State));
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE audit_deliverables SET content_sha256 = {new string('f', 64)} WHERE id = {signed.Value}"));
+
+      // A later report makes the earlier concurrence superseded; a new report cannot reuse it.
+      var nextIar = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId,
+        DeliverableKinds.IndependentAuditorsReport)).Value!.DeliverableId!.Value;
+      var staleSign = await AuditDeliverableService.SignIndependentReportAsync(db, partner, nextIar);
+      Assert.False(staleSign.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleSign.ErrorCode);
+
+      var reconcur = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId,
+        new RecordEqrDecisionRequest("CONCURRED", "Re-reviewed the current report and evidence.", true,
+          Guid.NewGuid().ToString("D"), 3));
+      Assert.True(reconcur.Succeeded, reconcur.Message);
+      var nextSigned = await AuditDeliverableService.SignIndependentReportAsync(db, partner, nextIar);
+      Assert.True(nextSigned.Succeeded, nextSigned.Message);
+      Assert.Equal(4, await db.EqrDecisions.CountAsync(x => x.EngagementId == w.EngagementId));
     }
   }
 
@@ -1570,6 +1635,12 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(CanonicalEngagementStages.PartnerApproval, lifecycle.Value!.Summary.CanonicalStage);
     Assert.Equal(8, lifecycle.Value.Summary.StageIndex);
     Assert.Contains("Partner audit opinion decision pending", lifecycle.Value.Summary.BlockedReasons);
+    var opinionBlocker = Assert.Single(lifecycle.Value.Summary.BlockerDetails!);
+    Assert.Equal(0, opinionBlocker.BlockerIndex);
+    Assert.Equal("PARTNER_AUDIT_OPINION_REQUIRED", opinionBlocker.Code);
+    Assert.Equal("Partner audit opinion decision pending", opinionBlocker.Cause);
+    Assert.Equal("Engagement Partner", opinionBlocker.ResponsibleRole);
+    Assert.False(string.IsNullOrWhiteSpace(opinionBlocker.Guidance));
     Assert.DoesNotContain(lifecycle.Value.Summary.BlockedReasons,
       reason => reason.StartsWith("Partner clearance of a current Summary Review Memorandum is pending.", StringComparison.Ordinal));
 

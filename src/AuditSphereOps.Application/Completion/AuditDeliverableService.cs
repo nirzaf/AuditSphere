@@ -19,6 +19,8 @@ public sealed record ReportSignatureCheck(string SignatureKind, string State, st
 public sealed record ReportAttempt(Guid? DeliverableId, Guid? HoldingLetterId, string Message);
 public sealed record ConfirmationDashboardRow(Guid CaseId, string Type, string Respondent, decimal BookedAmount, string Currency, string Status,
   string Monitoring, int? DaysSinceDispatch, bool Critical, string? CriticalityRationale, bool ReturnedEvaluatedResponse = false);
+public sealed record RecordEqrDecisionRequest(string Status, string? Notes, bool FindingsDiscussed,
+  string RequestKey, long ExpectedCaseRevision);
 
 /// <summary>
 /// Completion deliverables. Every generated document records a digest of the reviewed facts it was built from; a
@@ -541,9 +543,17 @@ public static partial class AuditDeliverableService
     if (await db.SignatureApplications.AnyAsync(x => x.FirmId == actor.FirmId && x.SourceDeliverableId == report.Id, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This report version is already signed.");
     var eqr = await db.EqrCases.AsNoTracking().FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == report.EngagementId, ct);
-    if (eqr is not null && eqr.Status != "CONCURRED")
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
-        $"Engagement quality review (EQR) status is {eqr.Status}; concurrence is required before signing the independent auditor's report.");
+    if (eqr is not null)
+    {
+      var concurrence = await CurrentEqrDecisionAsync(db, actor.FirmId, eqr, ct);
+      if (eqr.Status != "CONCURRED" || concurrence is null || concurrence.Status != "CONCURRED")
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          $"Engagement quality review (EQR) status is {eqr.Status}; a current retained concurrence is required before signing the independent auditor's report.");
+      if (concurrence.ReviewedFactsDigest != report.InputDigest ||
+          concurrence.ReviewedReportDeliverableId is { } reviewedReport && reviewedReport != report.Id)
+        return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
+          "The EQR concurrence was recorded against different completion or report evidence; re-review the current basis before signing.");
+    }
     var gate = await ClientGateAsync(db, actor, report.EngagementId, ct);
     if (gate is not null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, gate);
     var specimen = await db.SignatureSpecimens.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null, ct);
@@ -579,51 +589,105 @@ public static partial class AuditDeliverableService
     return signed;
   }
 
-  public static async Task<CommandResult> RecordEqrDecisionAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, string status, string? notes,
-    bool findingsDiscussed, CancellationToken ct = default)
+  public static async Task<CommandResult<Guid>> RecordEqrDecisionAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, RecordEqrDecisionRequest request,
+    CancellationToken ct = default)
   {
-    status = (status ?? string.Empty).Trim().ToUpperInvariant();
+    ArgumentNullException.ThrowIfNull(request);
+    var status = (request.Status ?? string.Empty).Trim().ToUpperInvariant();
     if (status is not ("CONCURRED" or "CHANGES_REQUESTED" or "IN_PROGRESS"))
-      return CommandResult.Fail(ErrorCodes.GateBlocked, "Invalid EQR status decision.");
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Invalid EQR status decision.");
+    if (!Guid.TryParseExact(request.RequestKey?.Trim(), "D", out var requestKey) || requestKey == Guid.Empty)
+      return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "A canonical request identity is required.");
+    if (request.ExpectedCaseRevision < 0)
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The expected EQR case revision is invalid.");
+    var notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
+    if (notes is { Length: > 8000 })
+      return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "EQR notes are too long.");
 
     var auth = await AuthorizeAsync(db, actor, engagementId, ["Partner", "Administrator"], ct);
-    if (!auth.Succeeded) return CommandResult.Fail(auth.ErrorCode!, auth.Message!);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
     var isEngagementPartner = await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x =>
       x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.UserId == actor.UserId &&
       x.RevokedAt == null && x.StaffingLevel == Domain.Practice.StaffingLevels.EngagementPartner, ct);
     if (isEngagementPartner)
-      return CommandResult.Fail(ErrorCodes.ScopeDenied, "The Engagement Partner cannot perform the independent Engagement Quality Review.");
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The Engagement Partner cannot perform the independent Engagement Quality Review.");
 
-    if (status == "CONCURRED" && !findingsDiscussed)
-      return CommandResult.Fail(ErrorCodes.GateBlocked, "Findings must be discussed before EQR concurrence.");
+    if (status == "CONCURRED" && !request.FindingsDiscussed)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Findings must be discussed before EQR concurrence.");
+    if (status == "CHANGES_REQUESTED" && notes is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Explain the required changes.");
 
-    if (status == "CHANGES_REQUESTED" && string.IsNullOrWhiteSpace(notes))
-      return CommandResult.Fail(ErrorCodes.GateBlocked, "Explain the required changes.");
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var digest = Hashing.Sha256Hex(JsonSerializer.Serialize(new { Namespace = "eqr-decision-v1", actor.FirmId, engagementId }));
+    var lockKey = unchecked((long)Convert.ToUInt64(digest[..16], 16));
+    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockKey})", ct);
 
-    var eqr = await db.EqrCases.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
+    // An exact replay returns the original retained decision even after later
+    // decisions advanced the case; a reused identity with changed intent conflicts.
+    var replay = await db.EqrDecisions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.RequestKey == requestKey.ToString("D"), ct);
+    if (replay is not null)
+    {
+      if (replay.DecidedByUserId != actor.UserId || replay.Status != status ||
+          replay.Notes != notes || replay.FindingsDiscussed != request.FindingsDiscussed)
+        return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
+          "This EQR request identity is already bound to a different decision intent.");
+      if (tx is not null) await tx.CommitAsync(ct);
+      return CommandResult<Guid>.Ok(replay.Id);
+    }
+
+    var eqr = await db.EqrCases.FromSqlInterpolated($"""
+      SELECT * FROM eqr_cases WHERE firm_id = {actor.FirmId} AND engagement_id = {engagementId} FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
     if (eqr is null)
     {
+      if (request.ExpectedCaseRevision != 0)
+        return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
+          "No EQR case exists at the expected revision; refresh before deciding.");
       var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
-      if (engagement is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Engagement unavailable.");
+      if (engagement is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Engagement unavailable.");
       eqr = new EqrCase
       {
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = engagement.PracticeClientId,
-        EngagementId = engagementId, EqrPartnerUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+        EngagementId = engagementId, EqrPartnerUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow,
+        Revision = 0, CurrentDecisionRevision = 0
       };
       db.EqrCases.Add(eqr);
     }
-    else if (eqr.EqrPartnerUserId != Guid.Empty && eqr.EqrPartnerUserId != actor.UserId)
+    else
     {
-      var isAdmin = actor.Roles.Contains("Administrator", StringComparer.OrdinalIgnoreCase);
-      if (!isAdmin)
-        return CommandResult.Fail(ErrorCodes.ScopeDenied, "Only the assigned EQR Partner or Administrator can record the EQR decision.");
+      if (request.ExpectedCaseRevision != eqr.Revision)
+        return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
+          "The EQR case changed after review; refresh and record the decision again.");
+      if (eqr.EqrPartnerUserId != Guid.Empty && eqr.EqrPartnerUserId != actor.UserId &&
+          !actor.Roles.Contains("Administrator", StringComparer.OrdinalIgnoreCase))
+        return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied,
+          "Only the assigned EQR Partner or Administrator can record the EQR decision.");
     }
 
+    var reviewedFactsDigest = await ExpectedDigestAsync(db, actor, engagementId, DeliverableKinds.IndependentAuditorsReport, ct);
+    var reviewedReport = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.EngagementId == engagementId && x.Kind == DeliverableKinds.IndependentAuditorsReport &&
+        x.SignedFromDeliverableId == null)
+      .OrderByDescending(x => x.Version).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    var decision = new EqrDecision
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = eqr.ClientId, EngagementId = engagementId,
+      EqrCaseId = eqr.Id, Revision = eqr.Revision + 1, Status = status, Notes = notes,
+      FindingsDiscussed = request.FindingsDiscussed, DecidedByUserId = actor.UserId, DecidedAt = DateTimeOffset.UtcNow,
+      ReviewedFactsDigest = reviewedFactsDigest, ReviewedReportDeliverableId = reviewedReport?.Id,
+      ReviewedReportSha256 = reviewedReport?.ContentSha256, RequestKey = requestKey.ToString("D"),
+      PreviousDecisionId = eqr.CurrentDecisionId
+    };
+    db.EqrDecisions.Add(decision);
     eqr.Status = status;
-    eqr.Notes = notes?.Trim();
-    eqr.FindingsDiscussed = findingsDiscussed;
+    eqr.Notes = notes;
+    eqr.FindingsDiscussed = request.FindingsDiscussed;
+    eqr.Revision = decision.Revision;
+    eqr.CurrentDecisionId = decision.Id;
+    eqr.CurrentDecisionRevision = decision.Revision;
     if (status == "CONCURRED")
     {
       eqr.ConcurrenceDate = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -636,7 +700,19 @@ public static partial class AuditDeliverableService
     }
 
     await db.SaveChangesAsync(ct);
-    return CommandResult.Ok();
+    if (tx is not null) await tx.CommitAsync(ct);
+    return CommandResult<Guid>.Ok(decision.Id);
+  }
+
+  private static async Task<EqrDecision?> CurrentEqrDecisionAsync(IAuditSphereDbContext db, Guid firmId, EqrCase eqr,
+    CancellationToken ct)
+  {
+    if (eqr.CurrentDecisionId is not { } decisionId || eqr.Revision < 1 ||
+        eqr.CurrentDecisionRevision != eqr.Revision)
+      return null;
+    return await db.EqrDecisions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId &&
+      x.ClientId == eqr.ClientId && x.EngagementId == eqr.EngagementId && x.EqrCaseId == eqr.Id &&
+      x.Id == decisionId && x.Revision == eqr.CurrentDecisionRevision, ct);
   }
 
   // ── Client review cycle (4.1-02) ──────────────────────────────────────────────────────────────────

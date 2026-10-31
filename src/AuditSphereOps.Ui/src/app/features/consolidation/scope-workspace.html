@@ -465,6 +465,58 @@
                 </tbody>
               </table>
             </div>
+
+            <div class="actions" style="margin-top: 1rem;">
+              @if (w.canPrepare) {
+                <button matButton="filled" type="button" (click)="buildDeliverable(w)" [disabled]="cmd.busy() || cmd.uncertain()">
+                  Build group deliverable
+                </button>
+              }
+              @if (deliverablePage.data()?.items?.length) {
+                <a matButton="outlined" [href]="'/api/ui/consolidation/scopes/' + w.scope.id + '/deliverables/issued/download'" target="_blank">
+                  Download latest issued deliverable
+                </a>
+              }
+            </div>
+
+            @if (deliverablePage.data(); as page) {
+              <h3>Retained group deliverables</h3>
+              @if (!page.items.length) {
+                <p>No group build is retained for this scope yet.</p>
+              } @else {
+                <div class="table-scroll"><table>
+                  <thead><tr><th scope="col">Status</th><th scope="col" class="number">Revision</th><th scope="col">Run hash</th><th scope="col">Artifact SHA-256</th><th scope="col">Created</th><th scope="col">Actions</th></tr></thead>
+                  <tbody>
+                    @for (d of page.items; track d.deliverableId) {
+                      <tr>
+                        <td>{{ d.status }}</td><td class="number">{{ d.revision }}</td>
+                        <td><code>{{ d.runHash }}</code></td><td><code>{{ d.deliverableSha256 }}</code></td>
+                        <td>{{ d.createdAt | date:'medium' }}{{ d.issuedAt ? ' · issued ' + (d.issuedAt | date:'medium') : '' }}{{ d.archivedAt ? ' · archived ' + (d.archivedAt | date:'medium') : '' }}</td>
+                        <td>
+                          <a matButton [href]="deliverableDownload(w.scope.id, d.deliverableId)" target="_blank">Download exact artifact</a>
+                          @if (w.canApproveScope && d.status === 'BUILT') {
+                            <label [attr.for]="'deliverable-release-' + d.deliverableId">Authorized release key</label>
+                            <input [id]="'deliverable-release-' + d.deliverableId" [ngModel]="deliverableReleaseKey" (ngModelChange)="deliverableReleaseKey = $event" maxlength="100" autocomplete="off" />
+                            <label><input type="checkbox" [ngModel]="deliverableAssent" (ngModelChange)="deliverableAssent = $event" /> I reviewed this exact revision, run hash and artifact SHA-256.</label>
+                            <button matButton="filled" type="button" (click)="issueDeliverable(w, d)" [disabled]="cmd.busy() || cmd.uncertain() || !deliverableReleaseKey.trim() || !deliverableAssent">Issue exact artifact</button>
+                          }
+                          @if (w.canApproveScope && d.status === 'ISSUED') {
+                            <label [attr.for]="'deliverable-archive-' + d.deliverableId">Archive reason</label>
+                            <input [id]="'deliverable-archive-' + d.deliverableId" [ngModel]="deliverableArchiveReason" (ngModelChange)="deliverableArchiveReason = $event" maxlength="500" />
+                            <button matButton type="button" (click)="archiveDeliverable(w, d)" [disabled]="cmd.busy() || cmd.uncertain()">Archive exact artifact</button>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table></div>
+                <p>Showing {{ page.items.length }} of {{ page.totalCount }} retained builds. Issue requires the exact release reference and a fresh review; archive applies only to an issued build and never deletes retained bytes.</p>
+              }
+            } @else if (deliverablePage.loading()) {
+              <p role="status">Loading retained group deliverables…</p>
+            } @else if (deliverablePage.error()) {
+              <p class="error-text" role="alert">{{ deliverablePage.error() }}</p>
+            }
           </div>
         } @else if (w.latestReport.value?.state === 'STALE') {
           <p class="error-text" role="alert">Report evidence is stale. Review the current scope, component evidence and approvals before creating a new group run. Historical runs remain unchanged.</p>

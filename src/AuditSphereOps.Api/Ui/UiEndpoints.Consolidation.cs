@@ -20,8 +20,14 @@ public static partial class UiEndpoints
     string? EvidenceReference);
 
   public sealed record AdvancedScheduleInput(string SourceManifestJson, string InputSnapshotJson);
-  public sealed record IssueGroupDeliverableInput(string? AuthorizedReleaseKey = null);
-  public sealed record ArchiveGroupDeliverableInput(string? Reason = null);
+  public sealed record BuildGroupDeliverableInput(
+    Guid? RunId = null, string? ExpectedRunHash = null, string? RequestKey = null, long? ExpectedGroupRevision = null);
+  public sealed record IssueGroupDeliverableInput(
+    string? AuthorizedReleaseKey = null, string? ExpectedDeliverableSha256 = null, string? RequestKey = null,
+    long? ExpectedDeliverableRevision = null, long? ExpectedGroupRevision = null);
+  public sealed record ArchiveGroupDeliverableInput(
+    string? Reason = null, string? ExpectedDeliverableSha256 = null, string? RequestKey = null,
+    long? ExpectedDeliverableRevision = null);
 
   public sealed record AddConsolidationOwnershipInput(
     Guid ParentClientId, Guid ChildClientId, string? EffectiveFrom, string? EffectiveTo,
@@ -570,8 +576,11 @@ public static partial class UiEndpoints
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
 
     // Group Deliverable & Issuance (LC-06, LC-07, LC-08)
-    group.MapPost("/consolidation/scopes/{scopeId:guid}/deliverables/build", (Guid scopeId, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => ConsolidationService.BuildGroupDeliverableAsync(db, actor, scopeId, ct)))
+    group.MapPost("/consolidation/scopes/{scopeId:guid}/deliverables/build",
+      (Guid scopeId, BuildGroupDeliverableInput? i, HttpContext http) =>
+        CommandAsync(http, (db, actor, ct) => ConsolidationService.BuildGroupDeliverableAsync(db, actor,
+          new BuildGroupDeliverableRequest(scopeId, i?.RunId ?? Guid.Empty, i?.ExpectedRunHash, i?.RequestKey,
+            i?.ExpectedGroupRevision ?? 0), ct)))
       .Produces<UiValueResponse<GroupDeliverableResult>>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
@@ -580,7 +589,8 @@ public static partial class UiEndpoints
     group.MapPost("/consolidation/scopes/{scopeId:guid}/deliverables/{deliverableId:guid}/issue",
       (Guid scopeId, Guid deliverableId, IssueGroupDeliverableInput? i, HttpContext http) =>
         CommandAsync(http, (db, actor, ct) => ConsolidationService.IssueGroupDeliverableAsync(db, actor,
-          new IssueGroupDeliverableRequest(deliverableId, i?.AuthorizedReleaseKey), ct)))
+          new IssueGroupDeliverableRequest(scopeId, deliverableId, i?.ExpectedDeliverableRevision ?? 0,
+            i?.ExpectedGroupRevision ?? 0, i?.ExpectedDeliverableSha256, i?.AuthorizedReleaseKey, i?.RequestKey), ct)))
       .Produces<UiValueResponse<GroupDeliverableResult>>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
@@ -589,14 +599,28 @@ public static partial class UiEndpoints
     group.MapPost("/consolidation/scopes/{scopeId:guid}/deliverables/{deliverableId:guid}/archive",
       (Guid scopeId, Guid deliverableId, ArchiveGroupDeliverableInput? i, HttpContext http) =>
         CommandAsync(http, (db, actor, ct) => ConsolidationService.ArchiveGroupDeliverableAsync(db, actor,
-          new ArchiveGroupDeliverableRequest(deliverableId, i?.Reason), ct)))
+          new ArchiveGroupDeliverableRequest(scopeId, deliverableId, i?.ExpectedDeliverableRevision ?? 0,
+            i?.ExpectedDeliverableSha256, i?.Reason, i?.RequestKey), ct)))
       .Produces<UiValueResponse<GroupDeliverableResult>>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
 
+    group.MapGet("/consolidation/scopes/{scopeId:guid}/deliverables", (Guid scopeId, HttpContext http, int page = 1, int pageSize = 25) =>
+      ReadAsync(http, (db, actor, ct) => ConsolidationService.ListGroupDeliverablesAsync(db, actor, scopeId, page, pageSize, ct)))
+      .Produces<GroupDeliverablePage>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
+
     group.MapGet("/consolidation/scopes/{scopeId:guid}/deliverables/issued", (Guid scopeId, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => ConsolidationService.GetIssuedGroupDeliverableAsync(db, actor, scopeId, ct)))
+      .Produces<GroupDeliverableResult>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
+
+    group.MapGet("/consolidation/scopes/{scopeId:guid}/deliverables/{deliverableId:guid}",
+      (Guid scopeId, Guid deliverableId, HttpContext http) =>
+        ReadAsync(http, (db, actor, ct) => ConsolidationService.GetGroupDeliverableByIdAsync(db, actor, scopeId, deliverableId, ct)))
       .Produces<GroupDeliverableResult>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
@@ -618,7 +642,29 @@ public static partial class UiEndpoints
 
       http.Response.Headers.ETag = $"\"{export.Value!.ContentSha256}\"";
       return Results.File(export.Value.Content, "application/json", export.Value.FileName);
-    }).Produces(StatusCodes.Status200OK, contentType: "application/json")
+    }).Produces<Stream>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
+
+    group.MapGet("/consolidation/scopes/{scopeId:guid}/deliverables/{deliverableId:guid}/download", async (Guid scopeId, Guid deliverableId,
+      HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var export = await ConsolidationService.DownloadGroupDeliverableByIdAsync(db, actor, scopeId, deliverableId, http.RequestAborted);
+      if (!export.Succeeded)
+        return Results.Json(new { code = export.ErrorCode, message = export.Message },
+          statusCode: export.ErrorCode == ErrorCodes.ScopeDenied ? 403 : 409);
+
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+
+      http.Response.Headers.ETag = $"\"{export.Value!.ContentSha256}\"";
+      return Results.File(export.Value.Content, "application/json", export.Value.FileName);
+    }).Produces<Stream>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");

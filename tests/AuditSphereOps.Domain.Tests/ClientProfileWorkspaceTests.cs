@@ -89,7 +89,7 @@ public sealed class ClientProfileWorkspaceTests
   }
 
   [Fact]
-  public async Task OffboardingCloseout_EnforcesAssessedPrerequisites_AcknowledgesActionItems_AndRecordsImmutableOutcome()
+  public async Task OffboardingCloseout_RecordsExactReplayableBlockedReview_WithoutArchivingOrOverstatingUnknowns()
   {
     await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
     await using var db = new AuditSphereDbContext(pg.Options);
@@ -109,36 +109,96 @@ public sealed class ClientProfileWorkspaceTests
     var managerActor = PbcSeed.Actor(manager, "Manager");
     var adminActor = PbcSeed.Actor(f.Admin, "Administrator");
 
-    // 1. Partial authority (manager cannot read finance/records -> UNKNOWN state) fails closed with GateBlocked
-    var partialRefusal = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, managerActor,
-      new ClientOffboardingCloseoutRequest(f.ClientId, "Disposition notes"));
-    Assert.False(partialRefusal.Succeeded);
-    Assert.Equal(ErrorCodes.GateBlocked, partialRefusal.ErrorCode);
+    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, managerActor, f.ClientId);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    Assert.Equal(ClientOffboardingStates.ActionRequired, readiness.Value!.OverallState);
+    Assert.Contains(readiness.Value.Sections,
+      section => section.Key == "WORK" && section.State == ClientOffboardingStates.ActionRequired);
+    Assert.Contains(readiness.Value.Sections,
+      section => section.Key == "FINANCE" && section.State == ClientOffboardingStates.Unknown);
+    Assert.Equal(64, readiness.Value.ReadinessDigest.Length);
 
-    // 2. Full authority but without acknowledging ACTION_REQUIRED items fails closed
-    var unacknowledgedRefusal = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, adminActor,
-      new ClientOffboardingCloseoutRequest(f.ClientId, "Disposition notes without acknowledging items", []));
-    Assert.False(unacknowledgedRefusal.Succeeded);
-    Assert.Equal(ErrorCodes.GateBlocked, unacknowledgedRefusal.ErrorCode);
+    var key = "33333333-3333-4333-8333-333333333333";
+    var malformedKey = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, managerActor,
+      new ClientOffboardingCloseoutRequest(f.ClientId, "Reviewed limited-visibility state.", [], 0,
+        ExpectedReadinessDigest: readiness.Value.ReadinessDigest,
+        RequestKey: "00000000-0000-4000-7000-000000000001"));
+    Assert.False(malformedKey.Succeeded);
+    Assert.Equal("crm.invalid", malformedKey.ErrorCode);
 
-    // 3. Full authority with explicit acknowledgement of action items and disposition notes succeeds
-    var actionKeys = new[] { "OPEN_ENGAGEMENTS", "OPEN_TASKS", "OUTSTANDING_INVOICES", "ACTIVE_GRANTS" };
-    var success = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, adminActor,
-      new ClientOffboardingCloseoutRequest(f.ClientId, "All open items reviewed and approved for closeout.", actionKeys, ExpectedRevision: 0, ArchiveClientOnCloseout: true));
-    Assert.True(success.Succeeded, success.Message);
-    Assert.Equal(ClientOffboardingRecordStates.Completed, success.Value!.Status);
-    Assert.Equal(ClientOffboardingStates.ActionRequired, success.Value.ReadinessOverallState);
-    Assert.NotEmpty(success.Value.ReadinessDigest);
-    Assert.True(success.Value.IsArchived);
-    Assert.Equal(1, success.Value.ArchiveRevision);
+    var archiveAttempt = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, managerActor,
+      new ClientOffboardingCloseoutRequest(f.ClientId, "Reviewed limited-visibility state.", [], 0, ArchiveClientOnCloseout: true,
+        ExpectedReadinessDigest: readiness.Value.ReadinessDigest, RequestKey: key));
+    Assert.False(archiveAttempt.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, archiveAttempt.ErrorCode);
 
-    // 4. Persistence verification: record is immutable, invoices and tasks remain intact (no silent write-offs)
-    var savedRecord = await db.ClientOffboardingRecords.SingleOrDefaultAsync(x => x.Id == success.Value.RecordId);
-    Assert.NotNull(savedRecord);
-    Assert.Equal(f.ClientId, savedRecord.ClientId);
-    Assert.Equal("All open items reviewed and approved for closeout.", savedRecord.DispositionNotes);
+    var staleDigestAttempt = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, managerActor,
+      new ClientOffboardingCloseoutRequest(f.ClientId, "Reviewed limited-visibility state.", [], 0,
+        ExpectedReadinessDigest: new string('0', 64), RequestKey: key));
+    Assert.False(staleDigestAttempt.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, staleDigestAttempt.ErrorCode);
+
+    db.WorkTasks.Add(new WorkTask { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId,
+      EngagementId = f.EngagementId, Title = "Added after readiness review", CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    var changedReadiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, managerActor, f.ClientId);
+    Assert.True(changedReadiness.Succeeded, changedReadiness.Message);
+    Assert.NotEqual(readiness.Value!.ReadinessDigest, changedReadiness.Value!.ReadinessDigest);
+    var staleReadinessAttempt = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, managerActor,
+      new ClientOffboardingCloseoutRequest(f.ClientId, "Reviewed limited-visibility state.", [], 0,
+        ExpectedReadinessDigest: readiness.Value!.ReadinessDigest, RequestKey: key));
+    Assert.False(staleReadinessAttempt.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, staleReadinessAttempt.ErrorCode);
+
+    var request = new ClientOffboardingCloseoutRequest(f.ClientId, "Reviewed limited-visibility state.", [], 0,
+      ExpectedReadinessDigest: changedReadiness.Value!.ReadinessDigest, RequestKey: key);
+    var recorded = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, managerActor, request);
+    Assert.True(recorded.Succeeded, recorded.Message);
+    Assert.Equal(ClientOffboardingRecordStates.BlockedDecision, recorded.Value!.Status);
+    Assert.Equal(ClientOffboardingStates.ActionRequired, recorded.Value.ReadinessOverallState);
+    Assert.False(recorded.Value.IsArchived);
+    Assert.Equal("0", recorded.Value.ArchiveRevision);
+    Assert.Empty(recorded.Value.AcknowledgedActionItems);
+
+    // A retry returns the original point-in-time receipt even after the checklist changes.
+    db.WorkTasks.Add(new WorkTask { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId,
+      EngagementId = f.EngagementId, Title = "Added after reviewed snapshot", CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    var replay = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, managerActor, request);
+    Assert.True(replay.Succeeded, replay.Message);
+    Assert.Equal(recorded.Value.RecordId, replay.Value!.RecordId);
+    Assert.Equal(recorded.Value.ReadinessDigest, replay.Value.ReadinessDigest);
+    Assert.Equal(recorded.Value.DecidedAt, replay.Value.DecidedAt);
+
+    var changedNotes = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, managerActor,
+      request with { DispositionNotes = "Different review intent." });
+    Assert.False(changedNotes.Succeeded);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, changedNotes.ErrorCode);
+    var changedActor = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, adminActor, request);
+    Assert.False(changedActor.Succeeded);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, changedActor.ErrorCode);
+
+    Assert.Equal(1, await db.ClientOffboardingRecords.CountAsync(x => x.ClientId == f.ClientId));
+    Assert.Equal(0, await db.ClientLifecycleEvents.CountAsync(x => x.ClientId == f.ClientId));
     Assert.Equal(1, await db.Invoices.CountAsync(x => x.BillingAccountId == accountId));
-    Assert.Equal(1, await db.WorkTasks.CountAsync(x => x.ClientId == f.ClientId));
+    Assert.Equal(3, await db.WorkTasks.CountAsync(x => x.ClientId == f.ClientId));
+
+    await using (var update = new AuditSphereDbContext(pg.Options))
+      await Assert.ThrowsAsync<PostgresException>(() => update.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE client_offboarding_records SET disposition_notes = 'changed' WHERE id = {recorded.Value.RecordId}"));
+    await using (var delete = new AuditSphereDbContext(pg.Options))
+      await Assert.ThrowsAsync<PostgresException>(() => delete.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM client_offboarding_records WHERE id = {recorded.Value.RecordId}"));
+    await using (var truncate = new AuditSphereDbContext(pg.Options))
+      await Assert.ThrowsAsync<PostgresException>(() => truncate.Database.ExecuteSqlRawAsync("TRUNCATE TABLE client_offboarding_records"));
+
+    var migrations = db.Database.GetMigrations().ToArray();
+    var index = Array.FindIndex(migrations, name => name.EndsWith("_LifecycleAuditRemediationIntegrity", StringComparison.Ordinal));
+    Assert.True(index > 0, "The lifecycle integrity migration must be discoverable.");
+    var downgrade = await Assert.ThrowsAnyAsync<Exception>(() => db.GetService<IMigrator>().MigrateAsync(migrations[index - 1]));
+    Assert.Equal("55000", Assert.IsType<PostgresException>(downgrade.GetBaseException()).SqlState);
+    Assert.Contains(migrations[index], await db.Database.GetAppliedMigrationsAsync());
+    Assert.Single(await db.ClientOffboardingRecords.Where(x => x.ClientId == f.ClientId).ToListAsync());
   }
 
   [Fact]

@@ -106,6 +106,8 @@ public static class EngagementWorkflowWorkspaceQuery
     var final = authority.Evaluate(DateTimeOffset.UtcNow);
     if (!final.Read.Succeeded) return CommandResult<EngagementWorkflowReport>.Fail(final.Read.ErrorCode!, final.Read.Message!);
     var detailStillAuthorized = hasBlockers && final.CanViewDetails;
+    // Assigned people are protected workflow detail; a scoped read may retain the role but not names.
+    if (!final.CanViewDetails) responsibleUsers = [];
     var canOpenNextAction = final.CanOpenAction;
     var nextActions = canOpenNextAction
       ? new List<EngagementWorkflowNextAction>

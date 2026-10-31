@@ -6,6 +6,9 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -542,8 +545,17 @@ public sealed partial class ClientAccountingTests
     var groupViewerActor = Actor(groupViewer, "AccountingReviewer");
     var siblingUser = User(scope.FirmId, "sibling-group-user");
     var siblingActor = Actor(siblingUser, "Partner");
+    var adminUser = User(scope.FirmId, "firm-admin-oversight");
+    var adminOversightActor = Actor(adminUser, "Administrator");
 
-    Guid groupId, siblingGroupId, consolidationScopeId;
+    Guid groupId, siblingGroupId, consolidationScopeId, runId;
+    string runHash;
+    long groupRevision;
+    var buildRequestKey = Guid.NewGuid().ToString("D");
+    var issueRequestKey = Guid.NewGuid().ToString("D");
+    const string issueReleaseKey = "REL-KEY-2026-GROUP";
+    var archiveRequestKey = Guid.NewGuid().ToString("D");
+    const string archiveReason = "Statutory archiving requirement";
     string sourcePackagesBefore, sourceClientBooksBefore;
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -556,7 +568,13 @@ public sealed partial class ClientAccountingTests
       Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
         new GroupMembershipRequest(groupId, scope.ClientB, new DateOnly(2026, 1, 1), null, "CONTROLLED", 100m, 100m, "ownership-b"))).Succeeded);
 
-      db.Users.AddRange(groupViewer, siblingUser);
+      db.Users.AddRange(groupViewer, siblingUser, adminUser);
+      db.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = adminUser.Id, Role = "Administrator",
+        ClientId = null, EngagementId = null, GrantedAt = DateTimeOffset.UtcNow,
+        GrantedByUserId = scope.Reviewer.Id, Reason = "Administrator oversight role without group grant"
+      });
       db.GroupAccessGrants.AddRange(
         new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = scope.Preparer.Id, Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id },
         new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = scope.Preparer.Id, Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id },
@@ -635,52 +653,136 @@ public sealed partial class ClientAccountingTests
       Assert.True((await ConsolidationService.ApproveConsolidationJournalAsync(db, reviewer, journalId)).Succeeded);
 
       // Run is calculated by preparer and approved by independent reviewer
-      var runId = (await ConsolidationService.RunAsync(db, preparer, consolidationScopeId)).Value;
+      runId = (await ConsolidationService.RunAsync(db, preparer, consolidationScopeId)).Value;
       Assert.True((await ConsolidationService.ApproveRunAsync(db, reviewer, runId)).Succeeded);
+      runHash = await db.ConsolidationRuns.Where(x => x.FirmId == scope.FirmId && x.Id == runId)
+        .Select(x => x.RunHash).SingleAsync();
+      groupRevision = await db.ConsolidationScopeVersions.Where(x => x.FirmId == scope.FirmId && x.Id == consolidationScopeId)
+        .Select(x => x.GroupRevision).SingleAsync();
     }
 
-    // 1. Build immutable group deliverable (LC-06)
+    // 1. Build immutable group deliverable (LC-06, T01)
+    // Firm-wide administrator without group grant is denied build (T01-AC1)
     Guid deliverableId;
     string deliverableSha256;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var build = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer, consolidationScopeId);
+      var malformedKeyBuild = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer,
+        new BuildGroupDeliverableRequest(consolidationScopeId, runId, runHash,
+          "00000000-0000-4000-7000-000000000001", groupRevision));
+      Assert.False(malformedKeyBuild.Succeeded);
+      Assert.Equal("deliverable.invalid", malformedKeyBuild.ErrorCode);
+
+      var adminBuildRefusal = await ConsolidationService.BuildGroupDeliverableAsync(db, adminOversightActor,
+        new BuildGroupDeliverableRequest(consolidationScopeId, runId, runHash, Guid.NewGuid().ToString("D"), groupRevision));
+      Assert.False(adminBuildRefusal.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, adminBuildRefusal.ErrorCode);
+
+      // Permitted oversight browsing works for administrator (T01-AC5)
+      var oversightReport = await ConsolidationService.GetLatestReportAsync(db, adminOversightActor, consolidationScopeId);
+      Assert.True(oversightReport.Succeeded);
+
+      // T02: Build with RequestKey and ExpectedRunHash
+      var build = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer,
+        new BuildGroupDeliverableRequest(consolidationScopeId, runId, runHash, buildRequestKey, groupRevision));
       Assert.True(build.Succeeded, build.Message);
       Assert.Equal(GroupDeliverableStates.Built, build.Value!.Status);
       Assert.NotEmpty(build.Value.DeliverableSha256);
       Assert.NotEmpty(build.Value.DeliverableJson);
       Assert.Equal(groupId, build.Value.GroupId);
       Assert.Equal(consolidationScopeId, build.Value.ScopeVersionId);
+      Assert.Equal(buildRequestKey, build.Value.RequestKey);
       deliverableId = build.Value.DeliverableId;
       deliverableSha256 = build.Value.DeliverableSha256;
+
+      // Idempotent build replay with same key returns original deliverable
+      var buildReplay = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer,
+        new BuildGroupDeliverableRequest(consolidationScopeId, runId, runHash, buildRequestKey, groupRevision));
+      Assert.True(buildReplay.Succeeded);
+      Assert.Equal(deliverableId, buildReplay.Value!.DeliverableId);
+
+      // Build with mismatching ExpectedRunHash fails with GenerationStale
+      var badHashBuild = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer,
+        new BuildGroupDeliverableRequest(consolidationScopeId, runId,
+          runHash == new string('0', 64) ? new string('f', 64) : new string('0', 64), Guid.NewGuid().ToString("D"), groupRevision));
+      Assert.False(badHashBuild.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, badHashBuild.ErrorCode);
     }
 
-    // 2. Controlled group approval / issuance (LC-07):
+    // 2. Controlled group approval / issuance (LC-07, T01):
     //    Preparer of the run cannot self-issue (reviewer independence rule)
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var selfIssue = await ConsolidationService.IssueGroupDeliverableAsync(db, preparer,
-        new IssueGroupDeliverableRequest(deliverableId));
+        new IssueGroupDeliverableRequest(consolidationScopeId, deliverableId, 1, groupRevision,
+          deliverableSha256, "REL-KEY-SELF-ISSUE", Guid.NewGuid().ToString("D")));
       Assert.False(selfIssue.Succeeded);
       Assert.Equal(ErrorCodes.Accounting.MappingInvalid, selfIssue.ErrorCode);
 
-      // Independent Partner/Reviewer can issue
+      // Administrator without group grant cannot issue (T01-AC1)
+      var adminIssueRefusal = await ConsolidationService.IssueGroupDeliverableAsync(db, adminOversightActor,
+        new IssueGroupDeliverableRequest(consolidationScopeId, deliverableId, 1, groupRevision,
+          deliverableSha256, "REL-KEY-ADMIN", Guid.NewGuid().ToString("D")));
+      Assert.False(adminIssueRefusal.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, adminIssueRefusal.ErrorCode);
+
+      // Scope mismatch / wrong parent scope is refused without mutation (T01-AC3)
+      var wrongScopeIssue = await ConsolidationService.IssueGroupDeliverableAsync(db, reviewer,
+        new IssueGroupDeliverableRequest(Guid.NewGuid(), deliverableId, 1, groupRevision,
+          deliverableSha256, "REL-KEY-WRONG-SCOPE", Guid.NewGuid().ToString("D")));
+      Assert.False(wrongScopeIssue.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, wrongScopeIssue.ErrorCode);
+
+      // Independent Partner/Reviewer with explicit group grant can issue (T01-AC2, T03)
+      // Mismatched expected SHA fails
+      var badShaIssue = await ConsolidationService.IssueGroupDeliverableAsync(db, reviewer,
+        new IssueGroupDeliverableRequest(consolidationScopeId, deliverableId, 1, groupRevision,
+          new string('0', 64) == deliverableSha256 ? new string('f', 64) : new string('0', 64), issueReleaseKey, issueRequestKey));
+      Assert.False(badShaIssue.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, badShaIssue.ErrorCode);
+
       var issue = await ConsolidationService.IssueGroupDeliverableAsync(db, reviewer,
-        new IssueGroupDeliverableRequest(deliverableId, "REL-KEY-2026-GROUP"));
+        new IssueGroupDeliverableRequest(consolidationScopeId, deliverableId, 1, groupRevision,
+          deliverableSha256, issueReleaseKey, issueRequestKey));
       Assert.True(issue.Succeeded, issue.Message);
       Assert.Equal(GroupDeliverableStates.Issued, issue.Value!.Status);
-      Assert.Equal("REL-KEY-2026-GROUP", issue.Value.AuthorizedReleaseKey);
+      Assert.Equal(issueReleaseKey, issue.Value.AuthorizedReleaseKey);
       Assert.Equal(reviewer.UserId, issue.Value.IssuedByUserId);
+      Assert.Equal(issueRequestKey, issue.Value.IssueRequestKey);
       Assert.NotNull(issue.Value.IssuedAt);
+      Assert.Equal(2, issue.Value.Revision);
+
+      // Replay issue with same request key returns Ok
+      var issueReplay = await ConsolidationService.IssueGroupDeliverableAsync(db, reviewer,
+        new IssueGroupDeliverableRequest(consolidationScopeId, deliverableId, 1, groupRevision,
+          deliverableSha256, issueReleaseKey, issueRequestKey));
+      Assert.True(issueReplay.Succeeded);
+      Assert.Equal(GroupDeliverableStates.Issued, issueReplay.Value!.Status);
+      Assert.Equal(2, issueReplay.Value.Revision);
+
+      var changedIssueIntent = await ConsolidationService.IssueGroupDeliverableAsync(db, reviewer,
+        new IssueGroupDeliverableRequest(consolidationScopeId, deliverableId, 1, groupRevision,
+          deliverableSha256, "REL-KEY-CHANGED", issueRequestKey));
+      Assert.False(changedIssueIntent.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, changedIssueIntent.ErrorCode);
     }
 
-    // 3. Retain issued group output with group-scope lineage (LC-08):
+    // 3. Retain issued group output with group-scope lineage (LC-08, T01):
     //    Sibling group user is denied; group viewer can retrieve and verify SHA-256 byte integrity
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var siblingRead = await ConsolidationService.GetIssuedGroupDeliverableAsync(db, siblingActor, consolidationScopeId);
       Assert.False(siblingRead.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, siblingRead.ErrorCode);
+
+      // Administrator without group grant is denied retrieval and download (T01-AC1)
+      var adminGetRefusal = await ConsolidationService.GetIssuedGroupDeliverableAsync(db, adminOversightActor, consolidationScopeId);
+      Assert.False(adminGetRefusal.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, adminGetRefusal.ErrorCode);
+
+      var adminDownloadRefusal = await ConsolidationService.DownloadIssuedGroupDeliverableAsync(db, adminOversightActor, consolidationScopeId);
+      Assert.False(adminDownloadRefusal.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, adminDownloadRefusal.ErrorCode);
 
       var issued = await ConsolidationService.GetIssuedGroupDeliverableAsync(db, groupViewerActor, consolidationScopeId);
       Assert.True(issued.Succeeded, issued.Message);
@@ -694,19 +796,129 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(deliverableSha256, export.Value.DeliverableSha256);
       Assert.NotEmpty(export.Value.Content);
 
-      // Archive issued deliverable
+      // Scope mismatch on archive is refused (T01-AC3)
+      var wrongScopeArchive = await ConsolidationService.ArchiveGroupDeliverableAsync(db, reviewer,
+        new ArchiveGroupDeliverableRequest(Guid.NewGuid(), deliverableId, 2, deliverableSha256,
+          "Statutory archiving requirement", Guid.NewGuid().ToString("D")));
+      Assert.False(wrongScopeArchive.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, wrongScopeArchive.ErrorCode);
+
+      // Administrator without group grant is denied archive (T01-AC1)
+      var adminArchiveRefusal = await ConsolidationService.ArchiveGroupDeliverableAsync(db, adminOversightActor,
+        new ArchiveGroupDeliverableRequest(consolidationScopeId, deliverableId, 2, deliverableSha256,
+          "Statutory archiving requirement", Guid.NewGuid().ToString("D")));
+      Assert.False(adminArchiveRefusal.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, adminArchiveRefusal.ErrorCode);
+
+      // Archive issued deliverable (T03)
+      var badShaArchive = await ConsolidationService.ArchiveGroupDeliverableAsync(db, reviewer,
+        new ArchiveGroupDeliverableRequest(consolidationScopeId, deliverableId, 2,
+          new string('0', 64) == deliverableSha256 ? new string('f', 64) : new string('0', 64),
+          archiveReason, archiveRequestKey));
+      Assert.False(badShaArchive.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, badShaArchive.ErrorCode);
+
       var archive = await ConsolidationService.ArchiveGroupDeliverableAsync(db, reviewer,
-        new ArchiveGroupDeliverableRequest(deliverableId, "Statutory archiving requirement"));
+        new ArchiveGroupDeliverableRequest(consolidationScopeId, deliverableId, 2, deliverableSha256,
+          archiveReason, archiveRequestKey));
       Assert.True(archive.Succeeded, archive.Message);
       Assert.Equal(GroupDeliverableStates.Archived, archive.Value!.Status);
       Assert.Equal(reviewer.UserId, archive.Value.ArchivedByUserId);
       Assert.NotNull(archive.Value.ArchivedAt);
-      Assert.Equal("Statutory archiving requirement", archive.Value.ArchiveReason);
+      Assert.Equal(archiveReason, archive.Value.ArchiveReason);
+      Assert.Equal(archiveRequestKey, archive.Value.ArchiveRequestKey);
+      Assert.Equal(3, archive.Value.Revision);
+
+      // Archive replay with same request key returns Ok
+      var archiveReplay = await ConsolidationService.ArchiveGroupDeliverableAsync(db, reviewer,
+        new ArchiveGroupDeliverableRequest(consolidationScopeId, deliverableId, 2, deliverableSha256,
+          archiveReason, archiveRequestKey));
+      Assert.True(archiveReplay.Succeeded);
+      Assert.Equal(GroupDeliverableStates.Archived, archiveReplay.Value!.Status);
+      Assert.Equal(3, archiveReplay.Value.Revision);
+
+      var changedArchiveIntent = await ConsolidationService.ArchiveGroupDeliverableAsync(db, reviewer,
+        new ArchiveGroupDeliverableRequest(consolidationScopeId, deliverableId, 2, deliverableSha256,
+          "Different archive reason", archiveRequestKey));
+      Assert.False(changedArchiveIntent.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, changedArchiveIntent.ErrorCode);
+
+      // A build retry after later transitions still returns the original build receipt.
+      var buildReplayAfterArchive = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer,
+        new BuildGroupDeliverableRequest(consolidationScopeId, runId, runHash, buildRequestKey, groupRevision));
+      Assert.True(buildReplayAfterArchive.Succeeded);
+      Assert.Equal(deliverableId, buildReplayAfterArchive.Value!.DeliverableId);
+      Assert.Equal(GroupDeliverableStates.Built, buildReplayAfterArchive.Value.Status);
+      Assert.Equal(1, buildReplayAfterArchive.Value.Revision);
+
+      var issueReplayAfterArchive = await ConsolidationService.IssueGroupDeliverableAsync(db, reviewer,
+        new IssueGroupDeliverableRequest(consolidationScopeId, deliverableId, 1, groupRevision,
+          deliverableSha256, issueReleaseKey, issueRequestKey));
+      Assert.True(issueReplayAfterArchive.Succeeded);
+      Assert.Equal(GroupDeliverableStates.Issued, issueReplayAfterArchive.Value!.Status);
+      Assert.Equal(2, issueReplayAfterArchive.Value.Revision);
+
+      // T05: Exact deliverable lookup by ID and list deliverables
+      var exactById = await ConsolidationService.GetGroupDeliverableByIdAsync(db, groupViewerActor, consolidationScopeId, deliverableId);
+      Assert.True(exactById.Succeeded);
+      Assert.Equal(deliverableId, exactById.Value!.DeliverableId);
+      Assert.Equal(GroupDeliverableStates.Archived, exactById.Value.Status);
+
+      var downloadById = await ConsolidationService.DownloadGroupDeliverableByIdAsync(db, groupViewerActor, consolidationScopeId, deliverableId);
+      Assert.True(downloadById.Succeeded);
+      Assert.Equal(deliverableSha256, downloadById.Value!.ContentSha256);
+
+      var list = await ConsolidationService.ListGroupDeliverablesAsync(db, groupViewerActor, consolidationScopeId);
+      Assert.True(list.Succeeded);
+      Assert.Contains(list.Value!.Items, d => d.DeliverableId == deliverableId);
+      Assert.Equal(25, list.Value.PageSize);
+      Assert.DoesNotContain(typeof(GroupDeliverableSummary).GetProperties(),
+        property => property.Name == nameof(GroupDeliverableResult.DeliverableJson));
 
       // Component books are completely unchanged
       var packagesAfter = await db.FinancialPackages.Where(x => x.ClientId == scope.ClientA || x.ClientId == scope.ClientB).Select(x => x.Id).ToArrayAsync();
       Assert.Equal(sourcePackagesBefore, await CurrencyPackageSourceManifestAsync(db, packagesAfter));
       Assert.Equal(sourceClientBooksBefore, await ClientBookSourceManifestAsync(db, scope.FirmId, [scope.ClientA, scope.ClientB]));
+    }
+
+    await using (var update = new AuditSphereDbContext(pg.Options))
+    {
+      var immutableBytes = await Assert.ThrowsAsync<PostgresException>(() =>
+        update.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE group_deliverables SET deliverable_sha256 = {new string('0', 64)} WHERE firm_id = {scope.FirmId} AND id = {deliverableId}"));
+      Assert.Equal("55000", immutableBytes.SqlState);
+    }
+
+    await using (var delete = new AuditSphereDbContext(pg.Options))
+    {
+      var immutableDelete = await Assert.ThrowsAsync<PostgresException>(() =>
+        delete.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM group_deliverables WHERE firm_id = {scope.FirmId} AND id = {deliverableId}"));
+      Assert.Equal("55000", immutableDelete.SqlState);
+    }
+
+    await using (var truncate = new AuditSphereDbContext(pg.Options))
+    {
+      var immutableTruncate = await Assert.ThrowsAsync<PostgresException>(() =>
+        truncate.Database.ExecuteSqlRawAsync("TRUNCATE TABLE group_deliverables"));
+      Assert.Equal("55000", immutableTruncate.SqlState);
+    }
+
+    await using (var migrationDb = new AuditSphereDbContext(pg.Options))
+    {
+      var migrations = migrationDb.Database.GetMigrations().ToArray();
+      var migrationIndex = Array.FindIndex(migrations,
+        name => name.EndsWith("_LifecycleAuditRemediationIntegrity", StringComparison.Ordinal));
+      Assert.True(migrationIndex > 0, "The lifecycle integrity migration must be discoverable.");
+
+      var downgrade = await Assert.ThrowsAnyAsync<Exception>(() =>
+        migrationDb.GetService<IMigrator>().MigrateAsync(migrations[migrationIndex - 1]));
+      Assert.Equal("55000", Assert.IsType<PostgresException>(downgrade.GetBaseException()).SqlState);
+      Assert.Contains(migrations[migrationIndex], await migrationDb.Database.GetAppliedMigrationsAsync());
+
+      var retained = await migrationDb.GroupDeliverables.SingleAsync(x => x.FirmId == scope.FirmId && x.Id == deliverableId);
+      Assert.Equal(deliverableSha256, retained.DeliverableSha256);
+      Assert.Equal(GroupDeliverableStates.Archived, retained.Status);
     }
   }
 }

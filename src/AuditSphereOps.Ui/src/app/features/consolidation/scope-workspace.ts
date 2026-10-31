@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, untracked, viewChildren } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -8,7 +9,7 @@ import { SHARED } from '../../core/ui';
 import { ConsolidationOwnership } from './ownership';
 import { ConsolidationComponentCorrection } from './component-correction';
 import { ConsolidationExternalPacks } from './external-packs';
-import { decodeScopeWorkspace, type ScopeWorkspace, type ConsolidationComponent, type IntercompanyException, type IntercompanyExceptionsPage, type IntercompanyMatchOptions } from './scope-contracts';
+import { decodeGroupDeliverablePage, decodeScopeWorkspace, type ScopeWorkspace, type ConsolidationComponent, type IntercompanyException, type IntercompanyExceptionsPage, type IntercompanyMatchOptions } from './scope-contracts';
 import { formatOwnershipPercent, isValidOwnershipPercent } from './scope-amounts';
 import { ScopeIntercompanyState, type IntercompanyForm } from './scope-intercompany-state';
 import { ScopeJournalState, type NewJournalLine } from './scope-journal-state';
@@ -17,7 +18,7 @@ export { formatOwnershipPercent } from './scope-amounts';
 
 @Component({
   selector: 'audit-consolidation-scope-workspace',
-  imports: [FormsModule, RouterLink, MatButtonModule, ConsolidationOwnership, ConsolidationComponentCorrection, ConsolidationExternalPacks, ...SHARED],
+  imports: [FormsModule, RouterLink, MatButtonModule, DatePipe, ConsolidationOwnership, ConsolidationComponentCorrection, ConsolidationExternalPacks, ...SHARED],
   templateUrl: './scope-workspace.html',
   styles: [`
     .inline-form { min-width: 0; max-width: 100%; }
@@ -48,6 +49,10 @@ export class ConsolidationScopeWorkspace {
   readonly selectedComponentCorrection = signal<{ scopeId: string; componentId: string } | null>(null);
   readonly externalPacksScopeId = signal<string | null>(null);
   readonly uncertainScopeId = signal<string | null>(null);
+  private readonly deliverableBuildRequestKeys = new Map<string, string>();
+  deliverableReleaseKey = '';
+  deliverableArchiveReason = '';
+  deliverableAssent = false;
   readonly Math = Math;
   readonly ws = this.api.resource(
     () => this.id()
@@ -64,6 +69,11 @@ export class ConsolidationScopeWorkspace {
       return workspace;
     },
     'The requested consolidation scope is not available in the current firm and group grant.',
+  );
+  readonly deliverablePage = this.api.resource(
+    () => this.id() ? `/api/ui/consolidation/scopes/${this.id()}/deliverables?page=1&pageSize=100` : null,
+    decodeGroupDeliverablePage,
+    'The retained group deliverables are not available in the current group grant.',
   );
   readonly cmd = new CommandState(this.api);
   readonly intercompany = new ScopeIntercompanyState(
@@ -322,5 +332,62 @@ export class ConsolidationScopeWorkspace {
   approveRun(runId: string): void {
     if (!this.currentWorkspace()?.runs.items.some(run => run.id.toLowerCase() === runId.toLowerCase())) return;
     void this.runScopedCommand(this.ownerKey(), `/api/ui/consolidation/runs/${runId}/approve`, {}, 'Consolidation run approved.', undefined, () => this.ws.reload());
+  }
+
+  buildDeliverable(workspace: ScopeWorkspace): void {
+    const report = workspace.latestReport.value;
+    const current = this.currentWorkspace();
+    if (workspace.scope.id.toLowerCase() !== this.id()?.toLowerCase() || !report ||
+        report.state !== 'CURRENT_APPROVED' || !report.runId || !report.runHash ||
+        current?.scope.id.toLowerCase() !== workspace.scope.id.toLowerCase()) return;
+    const scopeId = workspace.scope.id;
+    const intentKey = [this.ownerKey(), scopeId.toLowerCase(), workspace.scope.groupRevision, report.runId.toLowerCase(), report.runHash].join(':');
+    const requestKey = this.deliverableBuildRequestKeys.get(intentKey) ?? crypto.randomUUID();
+    this.deliverableBuildRequestKeys.set(intentKey, requestKey);
+    void this.runScopedCommand(this.ownerKey(), `/api/ui/consolidation/scopes/${scopeId}/deliverables/build`, {
+      runId: report.runId,
+      expectedRunHash: report.runHash,
+      expectedGroupRevision: workspace.scope.groupRevision,
+      requestKey
+    }, 'Group deliverable built.', () => this.deliverableBuildRequestKeys.delete(intentKey),
+      () => { this.deliverablePage.reload(); this.ws.reload(); });
+  }
+
+  deliverableDownload(scopeId: string, deliverableId: string): string {
+    return `/api/ui/consolidation/scopes/${scopeId}/deliverables/${deliverableId}/download`;
+  }
+
+  issueDeliverable(workspace: ScopeWorkspace,
+    deliverable: ReturnType<typeof decodeGroupDeliverablePage>['items'][number]): void {
+    const scopeId = workspace.scope.id;
+    if (scopeId.toLowerCase() !== this.id()?.toLowerCase() || !workspace.canApproveScope ||
+        deliverable.status !== 'BUILT' || !deliverable.revision ||
+        !this.deliverableReleaseKey.trim() || !this.deliverableAssent) return;
+    void this.runScopedCommand(this.ownerKey(), `/api/ui/consolidation/scopes/${scopeId}/deliverables/${deliverable.deliverableId}/issue`, {
+      expectedDeliverableRevision: deliverable.revision,
+      expectedGroupRevision: workspace.scope.groupRevision,
+      expectedDeliverableSha256: deliverable.deliverableSha256,
+      authorizedReleaseKey: this.deliverableReleaseKey.trim(),
+      requestKey: crypto.randomUUID()
+    }, 'Group deliverable issued.', () => {
+      this.deliverableReleaseKey = '';
+      this.deliverableAssent = false;
+    }, () => { this.deliverablePage.reload(); this.ws.reload(); });
+  }
+
+  archiveDeliverable(workspace: ScopeWorkspace,
+    deliverable: ReturnType<typeof decodeGroupDeliverablePage>['items'][number]): void {
+    const scopeId = workspace.scope.id;
+    const reason = this.deliverableArchiveReason.trim() || 'Superseded or closed';
+    if (scopeId.toLowerCase() !== this.id()?.toLowerCase() || !workspace.canApproveScope ||
+        deliverable.status !== 'ISSUED' || !deliverable.revision) return;
+    void this.runScopedCommand(this.ownerKey(), `/api/ui/consolidation/scopes/${scopeId}/deliverables/${deliverable.deliverableId}/archive`, {
+      expectedDeliverableRevision: deliverable.revision,
+      expectedDeliverableSha256: deliverable.deliverableSha256,
+      reason,
+      requestKey: crypto.randomUUID()
+    }, 'Group deliverable archived.', () => {
+      this.deliverableArchiveReason = '';
+    }, () => { this.deliverablePage.reload(); this.ws.reload(); });
   }
 }

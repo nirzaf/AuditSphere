@@ -162,9 +162,12 @@ public sealed partial class AuditSphereDbContext
       e.Property(x => x.ReadinessDigest).HasMaxLength(64);
       e.Property(x => x.DispositionNotes).HasMaxLength(2000);
       e.Property(x => x.AcknowledgedActionItemsJson).HasColumnType("text");
+      e.Property(x => x.RequestKey).HasMaxLength(100);
       e.HasIndex(x => new { x.FirmId, x.ClientId, x.DecidedAt });
+      e.HasIndex(x => new { x.FirmId, x.ClientId, x.RequestKey }).HasFilter("request_key IS NOT NULL")
+        .IsUnique().HasDatabaseName("ix_client_offboarding_records_request_key");
       e.ToTable("client_offboarding_records", t => t.HasCheckConstraint("ck_client_offboarding_record_values",
-        "length(trim(status)) > 0 AND length(trim(disposition_notes)) > 0 AND readiness_digest ~ '^[0-9a-f]{64}$'"));
+        "length(trim(status)) > 0 AND length(trim(disposition_notes)) > 0 AND readiness_digest ~ '^[0-9a-f]{64}$' AND readiness_overall_state IN ('ACTION_REQUIRED','UNKNOWN','NO_FINDINGS')"));
       e.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
         .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
       e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.DecidedByUserId })

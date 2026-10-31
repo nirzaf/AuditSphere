@@ -158,9 +158,31 @@ export const decodeConsolidationReportLine = obj({
 export const decodeConsolidationReport = obj({
   scopeVersionId: guid,
   runId: nullable(guid),
+  runHash: nullable(text),
   state: reportState,
   approvedAt: nullable(instant),
   lines: arr(decodeConsolidationReportLine, 20000),
+});
+
+export const decodeGroupDeliverable = obj({
+  deliverableId: guid,
+  status: text,
+  runHash: text,
+  deliverableSha256: text,
+  createdAt: instant,
+  createdByUserId: guid,
+  issuedAt: nullable(instant),
+  issuedByUserId: nullable(guid),
+  archivedAt: nullable(instant),
+  archivedByUserId: nullable(guid),
+  revision: nat,
+});
+
+export const decodeGroupDeliverablePage = obj({
+  page: int,
+  pageSize: int,
+  totalCount: int,
+  items: arr(decodeGroupDeliverable, 100),
 });
 
 export const decodeComponentReadiness = obj({

@@ -196,6 +196,8 @@ public sealed partial class AuditSphereDbContext
 
     var eqr = b.Entity<EqrCase>();
     eqr.Property(x => x.Status).HasMaxLength(30);
+    eqr.Property(x => x.Revision).HasDefaultValue(0L);
+    eqr.Property(x => x.CurrentDecisionRevision).HasDefaultValue(0L);
     eqr.HasIndex(x => new { x.FirmId, x.EngagementId }).IsUnique().HasDatabaseName("ux_eqr_case_engagement");
     ScopeToEngagement(eqr, nameof(EqrCase.FirmId), nameof(EqrCase.ClientId), nameof(EqrCase.EngagementId));
     eqr.HasOne<AppUser>().WithMany()
@@ -203,8 +205,36 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     eqr.ToTable("eqr_cases", t => t.HasCheckConstraint("ck_eqr_case_values",
       "status IN ('PENDING','IN_PROGRESS','CONCURRED','CHANGES_REQUESTED')" +
+      " AND revision >= 0 AND current_decision_revision >= 0" +
+      " AND (current_decision_id IS NULL OR current_decision_revision = revision)" +
       " AND ((status = 'CONCURRED' AND concurrence_date IS NOT NULL AND completed_at IS NOT NULL)" +
       "   OR status <> 'CONCURRED')"));
+
+    var eqrDecision = b.Entity<EqrDecision>();
+    eqrDecision.Property(x => x.Status).HasMaxLength(30);
+    eqrDecision.Property(x => x.Notes).HasMaxLength(8000);
+    eqrDecision.Property(x => x.ReviewedFactsDigest).HasMaxLength(64);
+    eqrDecision.Property(x => x.ReviewedReportSha256).HasMaxLength(64);
+    eqrDecision.Property(x => x.RequestKey).HasMaxLength(64);
+    eqrDecision.HasIndex(x => new { x.FirmId, x.EngagementId, x.RequestKey }).IsUnique()
+      .HasDatabaseName("ux_eqr_decision_request");
+    eqrDecision.HasIndex(x => new { x.FirmId, x.EqrCaseId, x.Revision }).IsUnique()
+      .HasDatabaseName("ux_eqr_decision_revision");
+    eqrDecision.HasIndex(x => new { x.FirmId, x.EngagementId, x.DecidedAt })
+      .HasDatabaseName("ix_eqr_decision_engagement_decided");
+    eqrDecision.ToTable("eqr_decisions", t => t.HasCheckConstraint("ck_eqr_decision_values",
+      "revision > 0 AND status IN ('IN_PROGRESS','CONCURRED','CHANGES_REQUESTED')" +
+      " AND length(trim(request_key)) > 0 AND reviewed_facts_digest ~ '^[0-9a-f]{64}$'" +
+      " AND (reviewed_report_sha256 IS NULL OR reviewed_report_sha256 ~ '^[0-9a-f]{64}$')" +
+      " AND ((status = 'CONCURRED' AND findings_discussed) OR status <> 'CONCURRED')" +
+      " AND ((status = 'CHANGES_REQUESTED' AND notes IS NOT NULL AND length(trim(notes)) > 0) OR status <> 'CHANGES_REQUESTED')"));
+    ScopeToEngagement(eqrDecision, nameof(EqrDecision.FirmId), nameof(EqrDecision.ClientId),
+      nameof(EqrDecision.EngagementId));
+    eqrDecision.HasOne<EqrCase>().WithMany()
+      .HasForeignKey(x => x.EqrCaseId).OnDelete(DeleteBehavior.Restrict);
+    eqrDecision.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.DecidedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var representation = b.Entity<WrittenRepresentation>();
     representation.Property(x => x.Code).HasMaxLength(20);

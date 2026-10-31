@@ -11,6 +11,7 @@ import {
   decodeScopeWorkspace,
   decodeConsolidationJournal,
   decodeConsolidationComponent,
+  decodeGroupDeliverablePage,
   decodeIntercompanyExceptionsPage,
   decodeIntercompanyMatchOptions,
   decodeScopeSummary,
@@ -174,6 +175,18 @@ describe('Consolidation Scope Workspace Contracts', () => {
     error: WritableSignal<string>;
     reload: ReturnType<typeof vi.fn>;
   };
+  let deliverableResource: {
+    data: WritableSignal<null>;
+    loading: WritableSignal<boolean>;
+    error: WritableSignal<string>;
+    reload: ReturnType<typeof vi.fn>;
+  };
+  let correctionResource: {
+    data: WritableSignal<ScopeWorkspace | null>;
+    loading: WritableSignal<boolean>;
+    error: WritableSignal<string>;
+    reload: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     params = new BehaviorSubject(convertToParamMap({ id: id1 }));
@@ -183,13 +196,18 @@ describe('Consolidation Scope Workspace Contracts', () => {
     intercompanyMatchesData = signal(decodeIntercompanyExceptionsPage(intercompanyPagePayload([]), 'root'));
     intercompanyOptionsResource = { data: intercompanyOptionsData, loading: signal(false), error: signal(''), reload: vi.fn() };
     intercompanyMatchesResource = { data: intercompanyMatchesData, loading: signal(false), error: signal(''), reload: vi.fn() };
+    deliverableResource = { data: signal(null), loading: signal(false), error: signal(''), reload: vi.fn() };
+    correctionResource = { data: workspaceData, loading: signal(false), error: signal(''), reload: vi.fn() };
     let resourceIndex = 0;
     api = {
       resource: vi.fn((_url, decoder) => {
         resourceIndex++;
-        if (resourceIndex === 1 || decoder === decodeScopeWorkspace) return resource;
-        return resourceIndex === 2 ? intercompanyOptionsResource : resourceIndex === 3 ? intercompanyMatchesResource
-          : { data: signal(null), loading: signal(false), error: signal(''), reload: vi.fn() };
+        if (resourceIndex === 1) return resource;
+        if (resourceIndex === 2) return deliverableResource;
+        if (resourceIndex === 3) return intercompanyOptionsResource;
+        if (resourceIndex === 4) return intercompanyMatchesResource;
+        if (decoder === decodeScopeWorkspace) return correctionResource;
+        return { data: signal(null), loading: signal(false), error: signal(''), reload: vi.fn() };
       }),
       command: vi.fn().mockResolvedValue({ ok: true, value: true }),
     };
@@ -216,7 +234,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
   }
 
   function publishCurrentIntercompanyOptions(raw: unknown) {
-    const decoder = api.resource.mock.calls[1][1] as (value: unknown, path: string) => ReturnType<typeof decodeIntercompanyMatchOptions>;
+    const decoder = api.resource.mock.calls[2][1] as (value: unknown, path: string) => ReturnType<typeof decodeIntercompanyMatchOptions>;
     const options = decoder(raw, 'root');
     intercompanyOptionsData.set(options);
     intercompanyOptionsResource.error.set('');
@@ -241,13 +259,52 @@ describe('Consolidation Scope Workspace Contracts', () => {
     const fixture = TestBed.createComponent(ConsolidationScopeWorkspace);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Read-only — Administrator oversight');
-    expect((api.resource.mock.calls[1][0] as () => string | null)()).toBeNull();
+    expect((api.resource.mock.calls[2][0] as () => string | null)()).toBeNull();
     const labels = [...fixture.nativeElement.querySelectorAll('button')].map((button: any) => button.textContent.trim());
     expect(labels).not.toContain('Approve perimeter');
     expect(labels).not.toContain('Calculate consolidation run');
     await fixture.componentInstance.approveScope(id1);
     expect(api.command).not.toHaveBeenCalled();
     expect(() => decodeScopeWorkspace({ ...raw, canPrepare: true }, 'root')).toThrow('oversight cannot grant operational capabilities');
+  });
+
+  it('dispatches exact build, issue and archive intents with pinned revisions and SHA-256', async () => {
+    const { component } = open(workspacePayload({
+      canApproveScope: true,
+      latestReport: { scopeVersionId: id1, runId: id3, runHash: hash64, state: 'CURRENT_APPROVED',
+        approvedAt: '2026-10-01T12:00:00Z', lines: [] },
+    }));
+    const workspace = component.ws.data()!;
+    component.buildDeliverable(workspace);
+    await vi.waitFor(() => expect(api.command).toHaveBeenCalledWith(
+      `/api/ui/consolidation/scopes/${id1}/deliverables/build`,
+      expect.objectContaining({ runId: id3, expectedRunHash: hash64, expectedGroupRevision: 1 }),
+      'POST'));
+
+    const built: ReturnType<typeof decodeGroupDeliverablePage>['items'][number] = {
+      deliverableId: id2, status: 'BUILT', runHash: hash64, deliverableSha256: hash64,
+      createdAt: '2026-10-01T12:00:00Z', createdByUserId: id1, issuedAt: null, issuedByUserId: null,
+      archivedAt: null, archivedByUserId: null, revision: 1,
+    };
+    component.issueDeliverable(workspace, built);
+    expect(api.command).toHaveBeenCalledTimes(1);
+    component.deliverableReleaseKey = 'GROUP-REL-001';
+    component.deliverableAssent = true;
+    component.issueDeliverable(workspace, built);
+    await vi.waitFor(() => expect(api.command).toHaveBeenCalledWith(
+      `/api/ui/consolidation/scopes/${id1}/deliverables/${id2}/issue`,
+      expect.objectContaining({ expectedDeliverableRevision: 1, expectedGroupRevision: 1,
+        expectedDeliverableSha256: hash64, authorizedReleaseKey: 'GROUP-REL-001' }),
+      'POST'));
+
+    const issued = { ...built, status: 'ISSUED', revision: 2 } as const;
+    component.deliverableArchiveReason = 'Superseded by reviewed close.';
+    component.archiveDeliverable(workspace, issued);
+    await vi.waitFor(() => expect(api.command).toHaveBeenCalledWith(
+      `/api/ui/consolidation/scopes/${id1}/deliverables/${id2}/archive`,
+      expect.objectContaining({ expectedDeliverableRevision: 2, expectedDeliverableSha256: hash64,
+        reason: 'Superseded by reviewed close.' }),
+      'POST'));
   });
 
   it('opens external pack history only for the active scope and clears it on a route change', () => {
@@ -947,7 +1004,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
     ]), 'root'));
     const { fixture, component } = open();
     expect(component.intercompanyUnresolvedOnly()).toBe(false);
-    const pageUrl = api.resource.mock.calls[2][0] as () => string | null;
+    const pageUrl = api.resource.mock.calls[3][0] as () => string | null;
     expect(pageUrl()).toContain('unresolvedOnly=false');
 
     const rows = [...fixture.nativeElement.querySelectorAll('#intercompany tbody tr')] as HTMLTableRowElement[];
@@ -1007,7 +1064,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(fixture.nativeElement.textContent).toContain('Report read was refused.');
     expect(fixture.nativeElement.textContent).toContain('match.read-denied');
     const workspaceUrl = api.resource.mock.calls[0][0] as () => string | null;
-    const pageUrl = api.resource.mock.calls[2][0] as () => string | null;
+    const pageUrl = api.resource.mock.calls[3][0] as () => string | null;
     expect(workspaceUrl()).toContain('eligiblePackagesPage=1&journalsPage=1&runsPage=1');
     expect(pageUrl()).toContain('page=1&pageSize=50');
     expect(fixture.nativeElement.querySelector('[aria-label="Component pages"]')?.textContent).toContain('2 components');
@@ -1172,8 +1229,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
 
   it('continues member options beyond 500, retains exact selections and rejects mismatched or stale responses', async () => {
     const { fixture, component } = open();
-    const url = api.resource.mock.calls[1][0] as () => string;
-    const decodeResponse = api.resource.mock.calls[1][1] as typeof decodeIntercompanyMatchOptions;
+    const url = api.resource.mock.calls[2][0] as () => string;
+    const decodeResponse = api.resource.mock.calls[2][1] as typeof decodeIntercompanyMatchOptions;
     component.selectIntercompanyMember('SELLER', id2);
     component.intercompanyMembersPageNumber.set(21);
     const lastPage = intercompanyOptionsPayload({

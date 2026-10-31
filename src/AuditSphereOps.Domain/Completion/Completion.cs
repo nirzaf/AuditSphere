@@ -116,6 +116,31 @@ public sealed class EqrCase
   public string? Notes { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
   public DateTimeOffset? CompletedAt { get; set; }
+  /// <summary>Projection revision advanced by each retained decision; zero on legacy cases without provenance.</summary>
+  public long Revision { get; set; }
+  public Guid? CurrentDecisionId { get; set; }
+  public long CurrentDecisionRevision { get; set; }
+}
+
+/// <summary>Append-only EQR decision attribution and reviewed-evidence identity.</summary>
+public sealed class EqrDecision
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid EqrCaseId { get; set; }
+  public long Revision { get; set; }
+  public string Status { get; set; } = "IN_PROGRESS";
+  public string? Notes { get; set; }
+  public bool FindingsDiscussed { get; set; }
+  public Guid DecidedByUserId { get; set; }
+  public DateTimeOffset DecidedAt { get; set; }
+  public string ReviewedFactsDigest { get; set; } = string.Empty;
+  public Guid? ReviewedReportDeliverableId { get; set; }
+  public string? ReviewedReportSha256 { get; set; }
+  public string RequestKey { get; set; } = string.Empty;
+  public Guid? PreviousDecisionId { get; set; }
 }
 
 public sealed class WrittenRepresentation
