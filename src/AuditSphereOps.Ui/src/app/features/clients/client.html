@@ -17,6 +17,7 @@
     }
   </nav>
   <p id="client-archive-boundary" class="muted">Archive and restore change only the client profile state. They do not complete offboarding, resolve open work or billing, revoke staff or portal access, or freeze engagement evidence. Review those controls separately in their authorized workspaces.</p>
+  @if (client.canManageArchive) { <audit-client-offboarding-readiness [clientId]="client.id" /> }
   @if (archiveMessage()) { <p [attr.role]="archiveFailed() ? 'alert' : 'status'">{{ archiveMessage() }}</p> }
   @if (client.isArchived) {
     <aside aria-label="Archived client history">

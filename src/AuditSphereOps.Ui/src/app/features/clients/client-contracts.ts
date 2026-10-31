@@ -59,3 +59,27 @@ export function portalIntentExplanation(state: string): string {
     default: return 'Portal intent is unavailable. Refresh before taking an action.';
   }
 }
+
+const offboardingState = oneOf('ACTION_REQUIRED', 'UNKNOWN', 'NO_FINDINGS');
+const offboardingItem = obj({ key: str(100), label: str(300), state: offboardingState, count: nullable(nat), detail: nullable(str(2000)) });
+const offboardingSection = obj({
+  key: str(100), title: str(200), state: offboardingState, ownerRoute: nullable(str(200)), items: arr(offboardingItem, 20),
+});
+/** Read-only closeout assessment. UNKNOWN items carry no count and are never shown as zero or clear. */
+export function decodeOffboardingReadiness(value: unknown) {
+  const v = decode(obj({
+    clientId: guid, isArchived: bool, archiveRevision: revision, assessedAt: instant, overallState: offboardingState,
+    sections: arr(offboardingSection, 10), coverageNotes: arr(str(1000), 10),
+  }), value);
+  const rank = (states: readonly string[]) => states.includes('ACTION_REQUIRED') ? 'ACTION_REQUIRED' : states.includes('UNKNOWN') ? 'UNKNOWN' : 'NO_FINDINGS';
+  const consistent = v.sections.every(s => s.items.length > 0 && s.state === rank(s.items.map(i => i.state)) &&
+    (s.ownerRoute === null || /^\/app\/[a-z0-9/-]*$/.test(s.ownerRoute)) &&
+    s.items.every(i => i.state === 'UNKNOWN' ? i.count === null : i.count !== null && (i.state === 'ACTION_REQUIRED') === (i.count > 0)));
+  if (!consistent || v.sections.length === 0 || v.overallState !== rank(v.sections.map(s => s.state)))
+    throw new Error('Invalid offboarding readiness projection');
+  return v;
+}
+export type OffboardingReadiness = ReturnType<typeof decodeOffboardingReadiness>;
+export function offboardingStateLabel(state: string): string {
+  return state === 'ACTION_REQUIRED' ? 'Action required' : state === 'UNKNOWN' ? 'Unknown — not visible to you' : 'No findings';
+}

@@ -4329,6 +4329,93 @@
         ]
       }
     },
+    "/api/ui/clients/{id}/offboarding-readiness": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "summary": "Read client offboarding readiness",
+        "description": "Read-only closeout assessment of open work, money, access and retention. Each section requires its owning module's read authority; unreadable or unestablished evidence is UNKNOWN, never zero. It changes nothing and does not archive the client.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOffboardingReadiness"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiCodeErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/clients/{id}/relationship-candidates": {
       "get": {
         "tags": [
@@ -108799,6 +108886,118 @@
           }
         }
       },
+      "ClientOffboardingItem": {
+        "required": [
+          "key",
+          "label",
+          "state",
+          "count",
+          "detail"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ClientOffboardingReadiness": {
+        "required": [
+          "clientId",
+          "isArchived",
+          "archiveRevision",
+          "assessedAt",
+          "overallState",
+          "sections",
+          "coverageNotes"
+        ],
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "isArchived": {
+            "type": "boolean"
+          },
+          "archiveRevision": {
+            "type": "string"
+          },
+          "assessedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "overallState": {
+            "type": "string"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOffboardingSection"
+            }
+          },
+          "coverageNotes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ClientOffboardingSection": {
+        "required": [
+          "key",
+          "title",
+          "state",
+          "ownerRoute",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "ownerRoute": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientOffboardingItem"
+            }
+          }
+        }
+      },
       "ClientOpenItemAllocationCommandLookup": {
         "required": [
           "found",
@@ -122000,6 +122199,38 @@
           }
         }
       },
+      "EngagementLifecycleBlockerDetail": {
+        "required": [
+          "blockerIndex",
+          "code",
+          "cause",
+          "responsibleRole",
+          "guidance"
+        ],
+        "type": "object",
+        "properties": {
+          "blockerIndex": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "code": {
+            "type": "string"
+          },
+          "cause": {
+            "type": "string"
+          },
+          "responsibleRole": {
+            "type": "string"
+          },
+          "guidance": {
+            "type": "string"
+          }
+        }
+      },
       "EngagementLifecycleReport": {
         "required": [
           "engagementId",
@@ -122106,6 +122337,15 @@
               "null",
               "string"
             ]
+          },
+          "blockerDetails": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/EngagementLifecycleBlockerDetail"
+            }
           }
         }
       },
@@ -123035,6 +123275,15 @@
           "evaluatedAtUtc": {
             "type": "string",
             "format": "date-time"
+          },
+          "blockerDetails": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/EngagementLifecycleBlockerDetail"
+            }
           }
         }
       },

@@ -14,6 +14,81 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class ClientProfileWorkspaceTests
 {
   [Fact]
+  public async Task OffboardingReadiness_ReadsEachSectionUnderItsOwnAuthority_ShowsUnreadableEvidenceAsUnknown_AndChangesNothing()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var manager = PbcSeed.User(f.FirmId, "Staff");
+    var relationshipManager = PbcSeed.User(f.FirmId, "Staff");
+    var siblingManager = PbcSeed.User(f.FirmId, "Staff");
+    var siblingClientId = Guid.NewGuid();
+    db.PracticeClients.Add(new PracticeClient { Id = siblingClientId, FirmId = f.FirmId, LegalName = "Sibling Client", CreatedAt = DateTimeOffset.UtcNow });
+    db.Users.AddRange(manager, relationshipManager, siblingManager);
+    db.RoleGrants.AddRange(
+      PbcSeed.Grant(f.FirmId, manager, "Manager", f.ClientId),
+      PbcSeed.Grant(f.FirmId, relationshipManager, "RelationshipManager", f.ClientId),
+      PbcSeed.Grant(f.FirmId, siblingManager, "Manager", siblingClientId),
+      PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"),
+      PbcSeed.Grant(f.FirmId, f.Admin, "RecordsCustodian"));
+    var accountId = Guid.NewGuid(); var archiveId = Guid.NewGuid();
+    db.BillingAccounts.Add(new BillingAccount { Id = accountId, FirmId = f.FirmId, PracticeClientId = f.ClientId, Currency = "USD", CreatedAt = DateTimeOffset.UtcNow });
+    db.Invoices.AddRange(
+      new Invoice { Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = accountId, InvoiceNumber = "INV-OFF-1", Currency = "USD",
+        Subtotal = 100.25m, Total = 100.25m, Status = BillingStates.InvoicePosted, PostedAt = DateTimeOffset.UtcNow.AddDays(-2), CreatedAt = DateTimeOffset.UtcNow.AddDays(-3) },
+      new Invoice { Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = accountId, InvoiceNumber = "INV-OFF-2", Currency = "USD",
+        Subtotal = 10m, Total = 10m, Status = BillingStates.InvoiceDraft, CreatedAt = DateTimeOffset.UtcNow });
+    db.WorkTasks.Add(new WorkTask { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, Title = "Open", CreatedAt = DateTimeOffset.UtcNow });
+    db.Archives.Add(new AuditSphereOps.Domain.Completion.Archive { Id = archiveId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, ProfileId = "profile", CreatedAt = DateTimeOffset.UtcNow });
+    db.LegalHolds.Add(new AuditSphereOps.Domain.Records.LegalHold { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, ArchiveId = archiveId,
+      HoldReference = "HOLD-1", RequestedByUserId = f.Admin.Id, RequestedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    var grantsBefore = await db.RoleGrants.CountAsync(); var invoicesBefore = await db.Invoices.CountAsync();
+
+    static ClientOffboardingItem Item(ClientOffboardingReadiness r, string key) => r.Sections.SelectMany(s => s.Items).Single(i => i.Key == key);
+
+    // Full authority: every section is read and counted, and nothing is claimed to be complete.
+    var full = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
+    Assert.True(full.Succeeded, full.Message);
+    Assert.Equal(1, Item(full.Value!, "OPEN_ENGAGEMENTS").Count);
+    Assert.Equal(1, Item(full.Value!, "OPEN_TASKS").Count);
+    var owed = Item(full.Value!, "OUTSTANDING_INVOICES");
+    Assert.Equal(1, owed.Count); Assert.Equal("USD 100.25", owed.Detail);
+    Assert.Equal(1, Item(full.Value!, "UNPOSTED_INVOICES").Count);
+    Assert.Equal(5, Item(full.Value!, "ACTIVE_GRANTS").Count); // staff, reviewer, client, manager, relationshipManager
+    Assert.Equal(1, Item(full.Value!, "UNVERIFIED_ARCHIVES").Count);
+    Assert.Equal(1, Item(full.Value!, "UNRELEASED_LEGAL_HOLDS").Count);
+    Assert.Equal(ClientOffboardingStates.Unknown, Item(full.Value!, "EXTERNAL_ACCESS").State);
+    Assert.Null(Item(full.Value!, "EXTERNAL_ACCESS").Count);
+    Assert.Equal(ClientOffboardingStates.ActionRequired, full.Value!.OverallState);
+
+    // A client Manager reads work, but finance, access and records are UNKNOWN rather than zero or clear.
+    var partial = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, PbcSeed.Actor(manager, "Manager"), f.ClientId);
+    Assert.True(partial.Succeeded, partial.Message);
+    Assert.Equal(1, Item(partial.Value!, "OPEN_ENGAGEMENTS").Count);
+    foreach (var key in new[] { "OUTSTANDING_INVOICES", "UNPOSTED_INVOICES", "ACTIVE_GRANTS", "UNVERIFIED_ARCHIVES", "UNRELEASED_LEGAL_HOLDS" })
+    {
+      Assert.Equal(ClientOffboardingStates.Unknown, Item(partial.Value!, key).State);
+      Assert.Null(Item(partial.Value!, key).Count);
+    }
+    Assert.All(partial.Value!.Sections.Where(s => s.State == ClientOffboardingStates.Unknown), s => Assert.Null(s.OwnerRoute));
+
+    // Commercial authority alone grants no operational visibility: everything is UNKNOWN, never NO_FINDINGS.
+    var commercial = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, PbcSeed.Actor(relationshipManager, "RelationshipManager"), f.ClientId);
+    Assert.True(commercial.Succeeded, commercial.Message);
+    Assert.All(commercial.Value!.Sections.SelectMany(s => s.Items), i => { Assert.Equal(ClientOffboardingStates.Unknown, i.State); Assert.Null(i.Count); });
+    Assert.Equal(ClientOffboardingStates.Unknown, commercial.Value.OverallState);
+
+    // Client users, sibling-client managers and engagement-scoped staff cannot open the assessment.
+    foreach (var denied in new[] { PbcSeed.Actor(f.Client, "ClientUser"), PbcSeed.Actor(siblingManager, "Manager"), PbcSeed.Actor(f.Staff, "Staff") })
+      Assert.Equal(ErrorCodes.ScopeDenied, (await PracticeCrmService.GetClientOffboardingReadinessAsync(db, denied, f.ClientId)).ErrorCode);
+
+    // Read-only: no archive event, grant or invoice was written.
+    Assert.Equal(0, await db.ClientLifecycleEvents.CountAsync());
+    Assert.Equal(grantsBefore, await db.RoleGrants.CountAsync());
+    Assert.Equal(invoicesBefore, await db.Invoices.CountAsync());
+  }
+
+  [Fact]
   public async Task ClientArchiveIsReversibleSearchableScopedAndAppendOnly()
   {
     await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);

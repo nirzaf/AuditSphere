@@ -68,6 +68,27 @@ public static partial class UiEndpoints
       .WithDescription("Records an authorized, reversible archive-state change. Client, engagement and evidence history remains available in its current authorized scope.")
       .WithT046Response<ClientArchiveStateResponse>();
 
+    var offboarding = group.MapGet("/clients/{id:guid}/offboarding-readiness", async (Guid id, HttpContext http,
+      TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, actor, id, http.RequestAborted);
+      if (!result.Succeeded)
+        return Results.Json(new { code = result.ErrorCode, message = result.Message },
+          statusCode: result.ErrorCode == "crm.invalid" ? 400 : 403);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return Results.Ok(result.Value);
+    }).WithSummary("Read client offboarding readiness")
+      .WithDescription("Read-only closeout assessment of open work, money, access and retention. Each section requires its owning module's read authority; unreadable or unestablished evidence is UNKNOWN, never zero. It changes nothing and does not archive the client.");
+    offboarding.Produces<ClientOffboardingReadiness>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
+
     // Hierarchy
     var candidates = group.MapGet("/clients/{id:guid}/relationship-candidates", async (Guid id, string? search, int? page, int? pageSize,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>

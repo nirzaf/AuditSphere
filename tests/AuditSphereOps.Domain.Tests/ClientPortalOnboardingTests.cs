@@ -301,6 +301,51 @@ public sealed class ClientPortalOnboardingTests
   }
 
   [Fact]
+  public async Task ConcurrentFirstSignInAcknowledgements_RecoverOnlyThePersistedUserRecord()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var client = await AddClientUserAsync(pg, f, f.ClientId, f.EngagementId);
+    var actor = PbcSeed.Actor(client, "ClientUser");
+    var barrier = new ConcurrentFirstSignInSaveBarrier();
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(barrier).Options;
+
+    async Task<CommandResult> AcknowledgeAsync()
+    {
+      await using var db = new AuditSphereDbContext(options);
+      return await ClientPortalService.CompleteFirstSignInAsync(db, actor, acknowledged: true);
+    }
+
+    var results = await Task.WhenAll(AcknowledgeAsync(), AcknowledgeAsync());
+    Assert.All(results, result => Assert.True(result.Succeeded, result.Message));
+    Assert.Equal(2, barrier.Arrivals);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Single(await verify.ClientPortalFirstSignIns.AsNoTracking()
+      .Where(x => x.FirmId == f.FirmId && x.UserId == client.Id).ToListAsync());
+  }
+
+  [Fact]
+  public async Task NonDuplicatePersistenceFailure_DoesNotReportSuccess_AndUploadGateRemainsClosed()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var client = await AddClientUserAsync(pg, f, f.ClientId, f.EngagementId);
+    var actor = PbcSeed.Actor(client, "ClientUser");
+    var failingInterceptor = new FailingSaveInterceptor();
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(failingInterceptor).Options;
+
+    await using (var db = new AuditSphereDbContext(options))
+    {
+      await Assert.ThrowsAsync<DbUpdateException>(() =>
+        ClientPortalService.CompleteFirstSignInAsync(db, actor, acknowledged: true));
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.False(await verify.ClientPortalFirstSignIns.AsNoTracking().AnyAsync(x => x.FirmId == f.FirmId && x.UserId == client.Id));
+    Assert.Equal("portal.first-sign-in.required", (await ClientPortalService.RequireFirstSignInAsync(verify, actor, default)).ErrorCode);
+  }
+
+  [Fact]
   public async Task ClientPortalWrites_RequireFirstSignInAndActiveEngagement_WhileStaffUploadsRemainAvailable()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -845,6 +890,30 @@ public sealed class ClientPortalOnboardingTests
     {
       var window = await ClientPortalService.RequireUploadWindowAsync(db, clientActor, f.EngagementId);
       Assert.Equal(ErrorCodes.ProtectedState, window.ErrorCode);
+    }
+  }
+
+  private sealed class ConcurrentFirstSignInSaveBarrier : SaveChangesInterceptor
+  {
+    private readonly TaskCompletionSource released = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int arrivals;
+    public int Arrivals => Volatile.Read(ref arrivals);
+
+    public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+      DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+      if (Interlocked.Increment(ref arrivals) == 2) released.TrySetResult();
+      await released.Task.WaitAsync(cancellationToken);
+      return result;
+    }
+  }
+
+  private sealed class FailingSaveInterceptor : SaveChangesInterceptor
+  {
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+      DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+      throw new DbUpdateException("Injected non-duplicate persistence failure");
     }
   }
 }

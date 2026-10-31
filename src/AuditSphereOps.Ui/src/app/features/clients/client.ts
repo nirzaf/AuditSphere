@@ -13,6 +13,7 @@ import { SHARED } from '../../core/ui';
 import { guidPattern } from '../../core/contracts';
 import { Client, ClientLocation, clientLocation, decodeClient, decodeClientArchiveState, clientUtcTime, portalIntentExplanation } from './client-contracts';
 import { ClientRelationships } from './client-relationships';
+import { ClientOffboardingReadiness } from './client-offboarding-readiness';
 import { PageSection, SectionTabs } from '../../core/section-tabs';
 import { ClientProgress } from '../practice/engagement-progress';
 export { decodeClient } from './client-contracts';
@@ -32,6 +33,7 @@ type ArchiveFocus = { owner: string; interaction: number; origin: HTMLElement; i
     MatButtonModule,
     MatProgressBarModule,
     ClientRelationships,
+    ClientOffboardingReadiness,
     ClientProgress,
     SectionTabs,
     ...SHARED,

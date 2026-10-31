@@ -1,3 +1,4 @@
+using System.Data.Common;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -133,8 +134,27 @@ public static class ClientPortalService
       SignInObservedAt = observedAt, TermsVersion = TermsVersion, CompletedAt = DateTimeOffset.UtcNow
     });
     try { await db.SaveChangesAsync(ct); }
-    catch (DbUpdateException) { return CommandResult.Ok(); } // a concurrent completion already recorded it
+    catch (DbUpdateException ex) when (IsFirstSignInDuplicate(ex, actor))
+    {
+      // A unique-index conflict can only be treated as an idempotent race after proving this exact user's row exists.
+      return await db.ClientPortalFirstSignIns.AsNoTracking()
+        .AnyAsync(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId, ct)
+        ? CommandResult.Ok()
+        : CommandResult.Fail("portal.first-sign-in.persistence", "The first-sign-in acknowledgement could not be confirmed. Try again.");
+    }
     return CommandResult.Ok();
+  }
+
+  private static bool IsFirstSignInDuplicate(DbUpdateException exception, ActorContext actor)
+  {
+    if (exception.GetBaseException() is not DbException cause ||
+        cause.GetType().FullName != "Npgsql.PostgresException") return false;
+    var providerError = cause.GetType();
+    if (providerError.GetProperty("SqlState")?.GetValue(cause) is not "23505" ||
+        providerError.GetProperty("ConstraintName")?.GetValue(cause) is not string constraint ||
+        constraint != "IX_client_portal_first_sign_ins_firm_id_user_id") return false;
+    return exception.Entries.Any(entry => entry.Entity is ClientPortalFirstSignIn signIn &&
+      signIn.FirmId == actor.FirmId && signIn.UserId == actor.UserId);
   }
 
   /// <summary>Requires completion of the client portal's first-sign-in gate before a client mutation.</summary>
