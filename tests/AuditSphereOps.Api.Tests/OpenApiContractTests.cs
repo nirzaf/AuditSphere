@@ -271,6 +271,11 @@ public sealed class OpenApiContractTests
     Assert.Equal("string", retainedBinary.GetProperty("type").GetString());
     Assert.Equal("binary", retainedBinary.GetProperty("format").GetString());
     Assert.False(retainedDownload.TryGetProperty("application/json", out _));
+    var groupDownload = paths.GetProperty("/api/ui/consolidation/scopes/{scopeId}/deliverables/issued/download")
+      .GetProperty("get").GetProperty("responses").GetProperty("200").GetProperty("content");
+    var groupBinary = Resolve(groupDownload.GetProperty("application/json").GetProperty("schema"));
+    Assert.Equal("string", groupBinary.GetProperty("type").GetString());
+    Assert.Equal("binary", groupBinary.GetProperty("format").GetString());
   }
 
   [Fact]

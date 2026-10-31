@@ -618,7 +618,7 @@ public static partial class UiEndpoints
 
       http.Response.Headers.ETag = $"\"{export.Value!.ContentSha256}\"";
       return Results.File(export.Value.Content, "application/json", export.Value.FileName);
-    }).Produces(StatusCodes.Status200OK, contentType: "application/json")
+    }).Produces<Stream>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
