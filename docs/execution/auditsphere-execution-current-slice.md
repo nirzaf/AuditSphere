@@ -9,10 +9,11 @@
 
 **Audience:** AI coding agents and human developers.
 
-**Chronology:** Sections are newest first. An older section describes the state
-when it was written; where a later section supersedes it, the later section is
-current. The top-level `verifiedCommit` in `status.json` is a historical baseline;
-newer exact-source CI and slice evidence live under `targetedVerification`.
+**Chronology:** Newest sections supersede older state. In `status.json`, top-level
+`verifiedCommit` is historical; newer exact-source CI and slice evidence live
+under `targetedVerification`.
+
+Download contract repair: `targetedVerification.ciContractDocsRepair20261031`.
 
 ## ASCP current-source reconciliation
 

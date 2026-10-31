@@ -97,18 +97,12 @@
     }
   ],
   "targetedVerification": {
+    "ciContractDocsRepair20261031": {"sourceBaseCommit": "cfbc85392be03252ba38b953d1b548ae87501809", "scope": "Issued group download success metadata only; archived-pointer row whitespace compacted without changing existing JSON values. No authorization, lifecycle or EQR behavior changes.", "local": "PASS: documentation health and git diff --check. NOT_RUN: OpenAPI tests/emission; pinned SDK absent.", "remaining": "Exact-source CI pending; canonical OpenAPI artifact predates latest lifecycle endpoints and requires regeneration in an authorized SDK environment. Prior group-closeout and EQR blockers remain open."},
     "sharePointPrimary": {
       "handoff": "auditsphere-execution-sharepoint-primary-storage-current.md"
     },
-    "angularMigrationAcceptanceCrossFirmIsolation": {
-      "result": "PASS",
-      "scopeStatus": "PARTIAL",
-      "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAcceptanceCrossFirmIsolation"
-    },
-    "workflowExperiencePrH": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json",
-      "key": "targetedVerification.workflowExperiencePrH"
-    },
+    "angularMigrationAcceptanceCrossFirmIsolation": {"result": "PASS", "scopeStatus": "PARTIAL", "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAcceptanceCrossFirmIsolation"},
+    "workflowExperiencePrH": {"archivedTo": "docs/execution/status-archive-2026-10.json", "key": "targetedVerification.workflowExperiencePrH"},
     "atomicAuditWorkingProcessTasks05to09": {
       "result": "PARTIAL",
       "commits": [
@@ -123,168 +117,49 @@
     },
     "angularQuality": {"status": "PARTIAL_AGENT_REVIEW", "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualitySpec3Implementation20261023"},
     "fullE2eSuiteOnThisSource": "PASS: 234/234 at bc66c38b6a03010a7d1e468da3537481af81339c; full solution total 1265/1265 in testSuites.runs.e2e, api, and domain.",
-    "financialStatementPresentationPins": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json",
-      "key": "targetedVerification.financialStatementPresentationPins"
-    },
-    "workflowManagerReviewPrF": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowManagerReviewPrF"
-    },
-    "workflowTaskPbcFollowUp": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowTaskPbcFollowUp"
-    },
-    "workflowCommercialAcceptance": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowCommercialAcceptance"
-    },
-    "workflowTaskDueDateHistory": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowTaskDueDateHistory"
-    },
+    "financialStatementPresentationPins": {"archivedTo": "docs/execution/status-archive-2026-10.json", "key": "targetedVerification.financialStatementPresentationPins"},
+    "workflowManagerReviewPrF": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.workflowManagerReviewPrF"},
+    "workflowTaskPbcFollowUp": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.workflowTaskPbcFollowUp"},
+    "workflowCommercialAcceptance": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.workflowCommercialAcceptance"},
+    "workflowTaskDueDateHistory": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.workflowTaskDueDateHistory"},
     "workflowTemplateAuthoringUi": {"archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowEvidenceHistory20261020.workflowTemplateAuthoringUi", "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "remaining": "Human AT and complete supported-state acceptance remain open."},
     "accessibilityRenderedSweep20261020": {"result": "PARTIAL_RENDERED_REVIEW", "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.accessibilityRenderedSweep20261020CurrentRecord", "currentFollowUp": "targetedVerification.accessibilityReview20261021"},
-    "agentCapabilityRunner": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.agentCapabilityRunner20261016"
-    },
-    "workflowQueueAssignmentFilter": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowQueueAssignmentFilter"
-    },
-    "workflowAnalyticsPaging": {
-      "status": "ARCHIVED_FOCUSED_EVIDENCE",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowAnalyticsPaging"
-    },
-    "workflowRecurringRiskScope": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowRecurringRiskScope"
-    },
-    "workflowScopedAssessmentAuthoring": {
-      "status": "ARCHIVED_FOCUSED_EVIDENCE",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowScopedAssessmentAuthoring"
-    },
-    "workflowAnnualPreparationCore": {
-      "status": "ARCHIVED_FOCUSED_EVIDENCE",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowAnnualPreparationCore"
-    },
-    "workflowAnnualTaskPlanReferences": {
-      "status": "ARCHIVED_FOCUSED_EVIDENCE",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowAnnualTaskPlanReferences"
-    },
-    "workflowAnnualPlanHandoff": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowAnnualPlanHandoff"
-    },
-    "workflowAnnualReferenceMetadata": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowAnnualReferenceMetadata"
-    },
-    "workflowAnnualChecklistHandoff": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowAnnualChecklistHandoff"
-    },
-    "workflowAnnualTemplateReference": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowAnnualTemplateReference"
-    },
-    "workflowDomainEvidencePrerequisites": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json",
-      "key": "targetedVerification.workflowDomainEvidencePrerequisites"
-    },
-    "workflowTrackerReconciliation": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowHistory20261020.workflowTrackerReconciliation"
-    },
-    "workflowTaskDependencyAmendments": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json",
-      "key": "targetedVerification.workflowTaskDependencyAmendments"
-    },
-    "releaseBundleSigningReplay": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.releaseBundleSigningReplay",
-      "supersededBy": "targetedVerification.releaseBundleRaceAndAngular"
-    },
-    "releaseBundleCorrespondence": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.releaseBundleCorrespondence",
-      "laterEvidence": "targetedVerification.releaseBundleRaceAndAngular"
-    },
-    "releaseBundleRaceAndAngular": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.releaseBundleRaceAndAngular"
-    },
-    "workflowTemplateProfessionalBoundary": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json",
-      "key": "targetedVerification.workflowTemplateProfessionalBoundary",
-      "recheck": {
-        "sourceCommit": "f2e8f6235455109a2e34f15487ceca224df751e0",
-        "result": "3/3 focused PostgreSQL tests PASS: plan/activation separation, reviewed-edge scope/fences/replay, retained template edges. Domain source unchanged since 6ba8302b; existing Release binaries used. Full local suites NOT_RUN."
-      }
-    },
-    "trialBalanceReportSignedEquity": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json",
-      "key": "targetedVerification.trialBalanceReportSignedEquity"
-    },
-    "reportingScheduleSourceManifest": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json",
-      "key": "targetedVerification.reportingScheduleSourceManifest"
-    },
+    "agentCapabilityRunner": {"archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.agentCapabilityRunner20261016"},
+    "workflowQueueAssignmentFilter": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.workflowQueueAssignmentFilter"},
+    "workflowAnalyticsPaging": {"status": "ARCHIVED_FOCUSED_EVIDENCE", "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowAnalyticsPaging"},
+    "workflowRecurringRiskScope": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.workflowRecurringRiskScope"},
+    "workflowScopedAssessmentAuthoring": {"status": "ARCHIVED_FOCUSED_EVIDENCE", "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowScopedAssessmentAuthoring"},
+    "workflowAnnualPreparationCore": {"status": "ARCHIVED_FOCUSED_EVIDENCE", "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowAnnualPreparationCore"},
+    "workflowAnnualTaskPlanReferences": {"status": "ARCHIVED_FOCUSED_EVIDENCE", "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowAnnualTaskPlanReferences"},
+    "workflowAnnualPlanHandoff": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.workflowAnnualPlanHandoff"},
+    "workflowAnnualReferenceMetadata": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.workflowAnnualReferenceMetadata"},
+    "workflowAnnualChecklistHandoff": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.workflowAnnualChecklistHandoff"},
+    "workflowAnnualTemplateReference": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.workflowAnnualTemplateReference"},
+    "workflowDomainEvidencePrerequisites": {"archivedTo": "docs/execution/status-archive-2026-10.json", "key": "targetedVerification.workflowDomainEvidencePrerequisites"},
+    "workflowTrackerReconciliation": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.workflowHistory20261020.workflowTrackerReconciliation"},
+    "workflowTaskDependencyAmendments": {"archivedTo": "docs/execution/status-archive-2026-10.json", "key": "targetedVerification.workflowTaskDependencyAmendments"},
+    "releaseBundleSigningReplay": {"archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.releaseBundleSigningReplay", "supersededBy": "targetedVerification.releaseBundleRaceAndAngular"},
+    "releaseBundleCorrespondence": {"archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.releaseBundleCorrespondence", "laterEvidence": "targetedVerification.releaseBundleRaceAndAngular"},
+    "releaseBundleRaceAndAngular": {"archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.releaseBundleRaceAndAngular"},
+    "workflowTemplateProfessionalBoundary": {"archivedTo": "docs/execution/status-archive-2026-10.json", "key": "targetedVerification.workflowTemplateProfessionalBoundary", "recheck": {"sourceCommit": "f2e8f6235455109a2e34f15487ceca224df751e0", "result": "3/3 focused PostgreSQL tests PASS: plan/activation separation, reviewed-edge scope/fences/replay, retained template edges. Domain source unchanged since 6ba8302b; existing Release binaries used. Full local suites NOT_RUN."}},
+    "trialBalanceReportSignedEquity": {"archivedTo": "docs/execution/status-archive-2026-10.json", "key": "targetedVerification.trialBalanceReportSignedEquity"},
+    "reportingScheduleSourceManifest": {"archivedTo": "docs/execution/status-archive-2026-10.json", "key": "targetedVerification.reportingScheduleSourceManifest"},
     "pkcsSecurityPatch": {"history": "status-archive-2026-10.json#archivedTargetedVerification.pkcsSecurityPatch", "scope": "Historical focused verification; current release and professional/provider acceptance remain separate."},
-    "clientSitesDefaultRollout": {
-      "sourceCommit": "74a21cf7961b39a9fdfc4684848639b0da11d1b5",
-      "recordedAtUtc": "2026-10-11T21:00:44Z",
-      "fullDomainApiE2eSuitesOnThisSource": "NOT_RUN",
-      "externalAcceptance": "NOT_VERIFIED: no live Microsoft provisioning or membership reconciliation; no production database migration; code was not deployed to the VPS.",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.clientSitesDefaultRollout20261011"
-    },
-    "angularMigrationAdminGroupRevocationFencing": {
-      "result": "PASS",
-      "scopeStatus": "PARTIAL",
-      "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAdminGroupRevocationFencing"
-    },
-    "angularMigrationAdministrationReviewFreshnessCi": {
-      "result": "PASS",
-      "scopeStatus": "PARTIAL",
-      "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAdministrationReviewFreshnessCi"
-    },
-    "angularLibrarySourceClosure": {
-      "source": "4f7a9f01074bce74f37eab9c728b4d653ca53ccd",
-      "archivedAt": "status-archive-2026-10.json#keys.targetedVerification.angularLibrarySourceClosure"
-    },
-    "angularPeriodMaintenanceSourceClosure": {
-      "source": "1e56926c2f00542d3d486171aa6d3ec25517c540",
-      "browserPassed": 6,
-      "archivedAt": "status-archive-2026-10.json#keys.targetedVerification.angularPeriodMaintenanceSourceClosure"
-    },
-    "angularArchiveReleaseReadFollowUp": {
-      "source": "9efddf6d86f2f0eea7c6cc885ecfc70ee6ff8b23",
-      "archivedAt": "status-archive-2026-10.json#keys.targetedVerification.angularArchiveReleaseReadFollowUp"
-    },
+    "clientSitesDefaultRollout": {"sourceCommit": "74a21cf7961b39a9fdfc4684848639b0da11d1b5", "recordedAtUtc": "2026-10-11T21:00:44Z", "fullDomainApiE2eSuitesOnThisSource": "NOT_RUN", "externalAcceptance": "NOT_VERIFIED: no live Microsoft provisioning or membership reconciliation; no production database migration; code was not deployed to the VPS.", "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.clientSitesDefaultRollout20261011"},
+    "angularMigrationAdminGroupRevocationFencing": {"result": "PASS", "scopeStatus": "PARTIAL", "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAdminGroupRevocationFencing"},
+    "angularMigrationAdministrationReviewFreshnessCi": {"result": "PASS", "scopeStatus": "PARTIAL", "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAdministrationReviewFreshnessCi"},
+    "angularLibrarySourceClosure": {"source": "4f7a9f01074bce74f37eab9c728b4d653ca53ccd", "archivedAt": "status-archive-2026-10.json#keys.targetedVerification.angularLibrarySourceClosure"},
+    "angularPeriodMaintenanceSourceClosure": {"source": "1e56926c2f00542d3d486171aa6d3ec25517c540", "browserPassed": 6, "archivedAt": "status-archive-2026-10.json#keys.targetedVerification.angularPeriodMaintenanceSourceClosure"},
+    "angularArchiveReleaseReadFollowUp": {"source": "9efddf6d86f2f0eea7c6cc885ecfc70ee6ff8b23", "archivedAt": "status-archive-2026-10.json#keys.targetedVerification.angularArchiveReleaseReadFollowUp"},
     "angularParityHostedFollowUp": {"history": "status-archive-2026-10.json#archivedTargetedVerification.angularParityHostedFollowUp", "scope": "Historical focused evidence; whole portal/migration acceptance remains incomplete."},
     "operatorReceiptRecovery": "PARTIAL; D18 API7 E2E8 Angular1283 pass; 7 migrations pending; live VPS not checked; e4686058 build PASS; Domain 29/29; run 38946802126 running",
     "cashFlowSourceReviewRevocationRace": {"history": "status-archive-2026-10.json#keys.targetedVerification.cashFlowSourceReviewRevocationRace", "note": "Historical focused revocation evidence retained; current acceptance separate."},
-    "cp13EquityComponentTransfers": {
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.cp13EquityComponentTransfers",
-      "status": "PARTIAL",
-      "open": [
-        "Resolve each component to accepted source evidence rather than preparer-entered references.",
-        "Obtain approved professional policy for reserves, profit convention, distributions and opening balances.",
-        "Cover opening/no-movement cases and complete independent professional acceptance."
-      ]
-    },
-    "cp10PeriodScopedPackageFreshness": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.cp10PeriodScopedPackageFreshness"
-    },
-    "scheduleAcceptedGlDiscovery": {
-      "archivedTo": "status-archive-2026-10.json",
-      "key": "targetedVerification.scheduleAcceptedGlDiscovery",
-      "followUp": "The accepted-GL discovery/picker and period-scoped source query remain in place; current CP-11 retry fencing is recorded under cashFlowSourceReviewExpectedPredecessor."
-    },
+    "cp13EquityComponentTransfers": {"archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.cp13EquityComponentTransfers", "status": "PARTIAL", "open": ["Resolve each component to accepted source evidence rather than preparer-entered references.", "Obtain approved professional policy for reserves, profit convention, distributions and opening balances.", "Cover opening/no-movement cases and complete independent professional acceptance."]},
+    "cp10PeriodScopedPackageFreshness": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.cp10PeriodScopedPackageFreshness"},
+    "scheduleAcceptedGlDiscovery": {"archivedTo": "status-archive-2026-10.json", "key": "targetedVerification.scheduleAcceptedGlDiscovery", "followUp": "The accepted-GL discovery/picker and period-scoped source query remain in place; current CP-11 retry fencing is recorded under cashFlowSourceReviewExpectedPredecessor."},
     "cashFlowSourcePersistenceIntegrity": {"status": "FOCUSED_REGRESSION_PASS", "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.cashFlowSourcePersistenceIntegrity"},
     "cp10OpeningBridgeCloseGate": {"status": "FOCUSED_REGRESSION_PASS", "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.cp10OpeningBridgeCloseGate"},
-    "cp12IndirectCashFlowRoles": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.cp12IndirectCashFlowRoles"
-    },
+    "cp12IndirectCashFlowRoles": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.cp12IndirectCashFlowRoles"},
     "r2r07CarryForwardSafety": {
       "codeCommit": "d91a2713",
       "result": "T026 card: focused carry-forward regression PASS 1/1."
@@ -295,176 +170,51 @@
     },
     "cp19CompletionCapabilityProjection": {"archive": "status-archive-2026-10.json#archivedTargetedVerification.cp19CompletionCapabilityProjection", "remaining": "Historical focused evidence; parent/current-source acceptance remains open."},
     "cp11AssetScheduleCashFlowLineage": {"archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.cp11AssetScheduleCashFlowLineage", "status": "PARTIAL", "remaining": "CP-11 remains partial: adjustments/reconciliations, policy-permitted manual evidence, schedule rework and full source-kind acceptance remain open. CP-12 indirect methodology remains BLOCKED_PROFESSIONAL."},
-    "atomicAuditWorkingProcessTask02": {
-      "result": "PARTIAL",
-      "archiveRef": "status-archive-2026-10.json#keys.targetedVerification.atomicAuditWorkingProcessTask02",
-      "note": "Implementation evidence is archived; professional methodology acceptance and full-suite/external gates remain open."
-    },
-    "atomicAuditWorkingProcessTask03": {
-      "result": "PARTIAL",
-      "archiveRef": "status-archive-2026-10.json#keys.targetedVerification.atomicAuditWorkingProcessTask03",
-      "note": "Source-bound independent task decision implemented for accepted PBC evidence; professional decisions, exact-source full CI and release acceptance remain separate."
-    },
-    "atomicAuditWorkingProcessTask01": {
-      "result": "PARTIAL",
-      "archiveRef": "status-archive-2026-10.json#keys.targetedVerification.atomicAuditWorkingProcessTask01",
-      "note": "Implementation evidence is archived; professional methodology acceptance and full-suite/external gates remain open."
-    },
-    "angularFindingRecovery": {
-      "status": "ARCHIVED_FOCUSED_EVIDENCE",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularFindingRecovery20261017"
-    },
+    "atomicAuditWorkingProcessTask02": {"result": "PARTIAL", "archiveRef": "status-archive-2026-10.json#keys.targetedVerification.atomicAuditWorkingProcessTask02", "note": "Implementation evidence is archived; professional methodology acceptance and full-suite/external gates remain open."},
+    "atomicAuditWorkingProcessTask03": {"result": "PARTIAL", "archiveRef": "status-archive-2026-10.json#keys.targetedVerification.atomicAuditWorkingProcessTask03", "note": "Source-bound independent task decision implemented for accepted PBC evidence; professional decisions, exact-source full CI and release acceptance remain separate."},
+    "atomicAuditWorkingProcessTask01": {"result": "PARTIAL", "archiveRef": "status-archive-2026-10.json#keys.targetedVerification.atomicAuditWorkingProcessTask01", "note": "Implementation evidence is archived; professional methodology acceptance and full-suite/external gates remain open."},
+    "angularFindingRecovery": {"status": "ARCHIVED_FOCUSED_EVIDENCE", "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularFindingRecovery20261017"},
     "angularMigrationAcceptanceBatch": {"archive": "status-archive-2026-10.json#archivedTargetedVerification.angularMigrationAcceptanceBatch", "remaining": "Historical focused evidence; parent/current-source acceptance remains open."},
-    "figmaAngularShell": {
-      "status": "ARCHIVED_FOCUSED_EVIDENCE",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.figmaAngularShell"
-    },
-    "ste22F07WorkflowPhaseCues": {
-      "status": "PARTIAL",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.ste22F07WorkflowPhaseCuesLatest20261018",
-      "stillOpen": [
-        "Qualified approval of an applicable, versioned jurisdictional source mapping and legal validation for statutory filing cutoffs.",
-        "Broader role, responsive, assistive-technology and current-SHA release acceptance."
-      ]
-    },
-    "angularAccountingMaintenanceRecovery": {
-      "archivedTo": "docs/execution/status-archive-2026-10.json",
-      "key": "keys.targetedVerification.angularAccountingMaintenanceRecovery",
-      "note": "Full focused accounting-maintenance recovery evidence retained in the October archive."
-    },
-    "productionReadinessStoryCp11": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.productionReadinessStoryCp11"
-    },
+    "figmaAngularShell": {"status": "ARCHIVED_FOCUSED_EVIDENCE", "archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.figmaAngularShell"},
+    "ste22F07WorkflowPhaseCues": {"status": "PARTIAL", "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.ste22F07WorkflowPhaseCuesLatest20261018", "stillOpen": ["Qualified approval of an applicable, versioned jurisdictional source mapping and legal validation for statutory filing cutoffs.", "Broader role, responsive, assistive-technology and current-SHA release acceptance."]},
+    "angularAccountingMaintenanceRecovery": {"archivedTo": "docs/execution/status-archive-2026-10.json", "key": "keys.targetedVerification.angularAccountingMaintenanceRecovery", "note": "Full focused accounting-maintenance recovery evidence retained in the October archive."},
+    "productionReadinessStoryCp11": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.productionReadinessStoryCp11"},
     "runs": {"archive": "status-archive-2026-10.json#keys.targetedVerification.legacyVerificationRuns20261017"},
     "workflowTaskCancellation": {"sourceCommit": "9b99b4f2f6644c91dabbed4677fa0c4ba63f8eda", "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "archive": "status-archive-2026-10.json#keys.targetedVerification.workflowTaskCancellationBeforeReopening20261019"},
     "browserCiRecovery20261019": {"archive": "status-archive-2026-10.json#keys.targetedVerification.browserCiRecoveryBeforeFirmReport20261019", "summary": "Earlier planning/invoice/finding focused repairs, response diagnostics and passes retained intact. No full API/E2E acceptance or proven runner-shutdown/hang root cause."},
-    "roleGrantExpiryFence": {
-      "result": "FOCUSED_PASS",
-      "evidence": "status-archive-2026-10.json#keys.roleGrantExpiryFenceBeforeResourceCommands20261019"
-    },
-    "paymentRecipientSnapshots": {
-      "result": "FOCUSED_PASS",
-      "evidence": "status-archive-2026-10.json#keys.paymentRecipientSnapshotsBeforeRework20261019"
-    },
-    "workflowTaskReopening": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowTaskReopening"
-    },
+    "roleGrantExpiryFence": {"result": "FOCUSED_PASS", "evidence": "status-archive-2026-10.json#keys.roleGrantExpiryFenceBeforeResourceCommands20261019"},
+    "paymentRecipientSnapshots": {"result": "FOCUSED_PASS", "evidence": "status-archive-2026-10.json#keys.paymentRecipientSnapshotsBeforeRework20261019"},
+    "workflowTaskReopening": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.workflowTaskReopening"},
     "practiceCompletionGuards20261019": {"history": "status-archive-2026-10.json#keys.targetedVerification.practiceCompletionGuards20261019", "note": "Earlier bounded guards/evidence retained; not current-source acceptance."},
-    "uploadIntentFreshness20261019": {
-      "sourceCommit": "b34d0884284b8e93b41ee4575bffe03a5d90f510",
-      "result": "FOCUSED_PASS",
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.uploadIntentFreshness20261019",
-      "summary": "Locked upload-intent reload fixes reused-context revision/token and received-state decisions; counterfactual and final Domain/API evidence retained. No observed current HTTP context-reuse path; full-family/live acceptance remains open."
-    },
+    "uploadIntentFreshness20261019": {"sourceCommit": "b34d0884284b8e93b41ee4575bffe03a5d90f510", "result": "FOCUSED_PASS", "archive": "status-archive-2026-10.json#keys.targetedVerification.uploadIntentFreshness20261019", "summary": "Locked upload-intent reload fixes reused-context revision/token and received-state decisions; counterfactual and final Domain/API evidence retained. No observed current HTTP context-reuse path; full-family/live acceptance remains open."},
     "portalFinanceAccessibility20261019": {"result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "archive": "status-archive-2026-10.json#keys.targetedVerification.portalFinanceAccessibility20261019"},
-    "timeWorkspaceGrantExpiry20261019": {
-      "sourceCommit": "306a60a83f104fe008663b590e44f16f582155aa",
-      "result": "FOCUSED_PASS",
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.timeWorkspaceGrantExpiry20261019",
-      "summary": "Direct-query expired-grant widening reproduced and fixed; focused test preserves independent HTTP expiry/session protection. No observed HTTP exposure; broader time/period/accounting acceptance open."
-    },
-    "workflowEvidenceRecoveryScope20261019": {
-      "sourceCommit": "4995804836fd249e2e9b2bc1d8bfcb4adfd0db5d",
-      "result": "FOCUSED_PASS",
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.workflowEvidenceRecoveryScope20261019",
-      "summary": "Late recovery errors stay in the original task/session; retained key, next-task draft, single dispatch and original server receipt verified. Full-state/human/live gates remain open."
-    },
-    "feeInvoiceIdentity20261019": {
-      "sourceCommit": "e94a24ea16cb52e9c1c8d2ddb07ebfeda3131ca5",
-      "result": "FOCUSED_PASS",
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.feeInvoiceIdentity20261019BeforeAtomicity",
-      "summary": "Full agreement identity, legacy relinking and long-heading focused Domain/E2E/native evidence retained. Concurrency follow-up is separate; no full-source release acceptance."
-    },
-    "feeMilestoneAtomicity20261019": {
-      "sourceCommit": "ee09d7172d129818f011bf2a08f27265f4d942d9",
-      "result": "FOCUSED_PASS",
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.feeMilestoneAtomicityBeforeFirmReport20261019",
-      "summary": "Manual/worker transaction ownership, same-source advance race and rollback evidence retained. Broader payment/source concurrency and mixed-worker rollout caveat remain open."
-    },
+    "timeWorkspaceGrantExpiry20261019": {"sourceCommit": "306a60a83f104fe008663b590e44f16f582155aa", "result": "FOCUSED_PASS", "archive": "status-archive-2026-10.json#keys.targetedVerification.timeWorkspaceGrantExpiry20261019", "summary": "Direct-query expired-grant widening reproduced and fixed; focused test preserves independent HTTP expiry/session protection. No observed HTTP exposure; broader time/period/accounting acceptance open."},
+    "workflowEvidenceRecoveryScope20261019": {"sourceCommit": "4995804836fd249e2e9b2bc1d8bfcb4adfd0db5d", "result": "FOCUSED_PASS", "archive": "status-archive-2026-10.json#keys.targetedVerification.workflowEvidenceRecoveryScope20261019", "summary": "Late recovery errors stay in the original task/session; retained key, next-task draft, single dispatch and original server receipt verified. Full-state/human/live gates remain open."},
+    "feeInvoiceIdentity20261019": {"sourceCommit": "e94a24ea16cb52e9c1c8d2ddb07ebfeda3131ca5", "result": "FOCUSED_PASS", "archive": "status-archive-2026-10.json#keys.targetedVerification.feeInvoiceIdentity20261019BeforeAtomicity", "summary": "Full agreement identity, legacy relinking and long-heading focused Domain/E2E/native evidence retained. Concurrency follow-up is separate; no full-source release acceptance."},
+    "feeMilestoneAtomicity20261019": {"sourceCommit": "ee09d7172d129818f011bf2a08f27265f4d942d9", "result": "FOCUSED_PASS", "archive": "status-archive-2026-10.json#keys.targetedVerification.feeMilestoneAtomicityBeforeFirmReport20261019", "summary": "Manual/worker transaction ownership, same-source advance race and rollback evidence retained. Broader payment/source concurrency and mixed-worker rollout caveat remain open."},
     "firmReportSnapshot20261019": {"archive": "status-archive-2026-10.json#keys.targetedVerification.firmReportSnapshot20261019BeforeEvidenceReview20261019", "summary": "Focused evidence retained intact; broader current-source release and external acceptance remain open."},
     "operatorReceiptConcurrency20261019": {"archive": "status-archive-2026-10.json#keys.targetedVerification.operatorReceiptConcurrency20261019BeforeEvidenceReview20261019", "summary": "Focused evidence retained intact; broader current-source release and external acceptance remain open."},
-    "feePaymentSource20261019": {
-      "result": "FOCUSED_PASS",
-      "archive": "status-archive-2026-10.json#keys.feePaymentSource20261019BeforeReconciliationAndDeadlineHandoff20261019",
-      "sourceCommit": "82697eea",
-      "limits": "No complete browser payment workflow/current-source full release/live bank proof; pathological Min/Max explicit dates may refuse replay. More than two legacy aliases fail closed; no global bank-reference uniqueness claimed."
-    },
+    "feePaymentSource20261019": {"result": "FOCUSED_PASS", "archive": "status-archive-2026-10.json#keys.feePaymentSource20261019BeforeReconciliationAndDeadlineHandoff20261019", "sourceCommit": "82697eea", "limits": "No complete browser payment workflow/current-source full release/live bank proof; pathological Min/Max explicit dates may refuse replay. More than two legacy aliases fail closed; no global bank-reference uniqueness claimed."},
     "feeSettlementFinance20261019": {"result": "PARTIAL", "archive": "status-archive-2026-10.json#feeSettlementFinanceBeforeResourceKeyboard20261019", "limits": "Focused commercial/Finance and accessibility evidence only; human, provider and current-source full release gates remain open."},
-    "reviewInboxHistory20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "codeCommit": "96b0c982447f11359ccf065c1c0ae7d35970b008",
-      "archive": "status-archive-2026-10.json#reviewInboxHistoryBeforeCoreCrmFences20261019",
-      "limits": "Archived scoped review-inbox evidence; complete queue/state, human AT and release gates remain open."
-    },
-    "resourceReadAuthority20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "evidence": "status-archive-2026-10.json#keys.resourceReadAuthorityBeforeCommandScope20261019"
-    },
-    "resourceCommandAuthority20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "codeCommit": "d2e24fb0de27e232a9c11415323ca1602b9c72cd",
-      "archive": "status-archive-2026-10.json#resourceCommandAuthorityBeforeTimeRateAcceptance20261019",
-      "limits": "Focused command/HTTP/legacy upgrade evidence; broader role/state and current-source full release acceptance remain open."
-    },
-    "resourceGridKeyboard20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "evidenceArchive": "status-archive-2026-10.json#keys.resourceGridKeyboardBeforeCommercialDocumentAccess20261019",
-      "scope": "Earlier resource-grid keyboard evidence retained; human AT and full supported-state acceptance remain open."
-    },
-    "timeWorkspaceReadFence20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "codeCommit": "4b5835f3b3ca507540ab59850211aac20f3c24af",
-      "archive": "status-archive-2026-10.json#timeWorkspaceReadFence20261019BeforeCrmFocus20261019",
-      "limits": "No schema/HTTP contract/UI change, no new browser run, no full local suites or provider effects. Broader time field/rate/client-book and current-source full release acceptance remain open."
-    },
-    "timeRateAcceptance20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "codeCommit": "a8a961751711723f354ff81688199aad7239a517",
-      "archive": "status-archive-2026-10.json#timeRateAcceptanceBeforeTimeBookIsolation20261019",
-      "limits": "Focused rate/period/FSLI acceptance; broader field/state and full release gates remain open."
-    },
+    "reviewInboxHistory20261019": {"result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "codeCommit": "96b0c982447f11359ccf065c1c0ae7d35970b008", "archive": "status-archive-2026-10.json#reviewInboxHistoryBeforeCoreCrmFences20261019", "limits": "Archived scoped review-inbox evidence; complete queue/state, human AT and release gates remain open."},
+    "resourceReadAuthority20261019": {"result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "evidence": "status-archive-2026-10.json#keys.resourceReadAuthorityBeforeCommandScope20261019"},
+    "resourceCommandAuthority20261019": {"result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "codeCommit": "d2e24fb0de27e232a9c11415323ca1602b9c72cd", "archive": "status-archive-2026-10.json#resourceCommandAuthorityBeforeTimeRateAcceptance20261019", "limits": "Focused command/HTTP/legacy upgrade evidence; broader role/state and current-source full release acceptance remain open."},
+    "resourceGridKeyboard20261019": {"result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "evidenceArchive": "status-archive-2026-10.json#keys.resourceGridKeyboardBeforeCommercialDocumentAccess20261019", "scope": "Earlier resource-grid keyboard evidence retained; human AT and full supported-state acceptance remain open."},
+    "timeWorkspaceReadFence20261019": {"result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "codeCommit": "4b5835f3b3ca507540ab59850211aac20f3c24af", "archive": "status-archive-2026-10.json#timeWorkspaceReadFence20261019BeforeCrmFocus20261019", "limits": "No schema/HTTP contract/UI change, no new browser run, no full local suites or provider effects. Broader time field/rate/client-book and current-source full release acceptance remain open."},
+    "timeRateAcceptance20261019": {"result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "codeCommit": "a8a961751711723f354ff81688199aad7239a517", "archive": "status-archive-2026-10.json#timeRateAcceptanceBeforeTimeBookIsolation20261019", "limits": "Focused rate/period/FSLI acceptance; broader field/state and full release gates remain open."},
     "timeClientBookIsolation20261019": {"archive": "status-archive-2026-10.json#archivedTargetedVerification.timeClientBookIsolation20261019", "remaining": "Historical focused evidence only; parent/current-source acceptance remains open."},
     "crmAuthorityAndFocus20261019": {"status": "ARCHIVED_SCOPED_EVIDENCE", "archive": "status-archive-2026-10.json#archivedTargetedVerification.crmAuthorityAndFocus20261019"},
-    "crmCorePublicationFences20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "codeCommit": "b6eac7d6e1120cc9616fe5d529e780aee4bc011d",
-      "evidenceArchive": "status-archive-2026-10.json#keys.crmCorePublicationFencesBeforeOpportunityPaging20261019",
-      "scope": "Core lead/proposal lock-time authority; focused negative and positive cohorts passed. Full current-source acceptance remains separate."
-    },
-    "opportunityPagingAccessibility20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "codeCommit": "0db1b1ea596d9755d91b7891cb9a5b25fc7ecbba",
-      "evidenceArchive": "status-archive-2026-10.json#keys.opportunityPagingBeforeClientPublication20261019",
-      "summary": "Scoped opportunity paging and owned success/retry focus; focused PostgreSQL/Angular/browser checks and built-in390px flow pass. Fast CI c0859189passed. Human AT/full release remain open."
-    },
+    "crmCorePublicationFences20261019": {"result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "codeCommit": "b6eac7d6e1120cc9616fe5d529e780aee4bc011d", "evidenceArchive": "status-archive-2026-10.json#keys.crmCorePublicationFencesBeforeOpportunityPaging20261019", "scope": "Core lead/proposal lock-time authority; focused negative and positive cohorts passed. Full current-source acceptance remains separate."},
+    "opportunityPagingAccessibility20261019": {"result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "codeCommit": "0db1b1ea596d9755d91b7891cb9a5b25fc7ecbba", "evidenceArchive": "status-archive-2026-10.json#keys.opportunityPagingBeforeClientPublication20261019", "summary": "Scoped opportunity paging and owned success/retry focus; focused PostgreSQL/Angular/browser checks and built-in390px flow pass. Fast CI c0859189passed. Human AT/full release remain open."},
     "clientAndQuotationPublication20261019": {"archive": "status-archive-2026-10.json#archivedTargetedVerification.clientAndQuotationPublication20261019", "remaining": "Historical focused evidence only; parent/current-source acceptance remains open."},
-    "commercialDocumentAccess20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "codeCommit": "a56180ed2d81edb3ac50782e49c852e6d8477ea0",
-      "evidenceArchive": "status-archive-2026-10.json#keys.commercialDocumentAccessBeforeFinality20261019",
-      "scope": "Commercial publication/read authority and exact dual-linked/legacy receipt scope. Focused Domain and browser evidence retained intact; parent acceptance remains partial. Fast CI39260118277 passed on76d904c7."
-    },
-    "commercialFinality20261019": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.commercialFinality20261019"
-    },
+    "commercialDocumentAccess20261019": {"result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "codeCommit": "a56180ed2d81edb3ac50782e49c852e6d8477ea0", "evidenceArchive": "status-archive-2026-10.json#keys.commercialDocumentAccessBeforeFinality20261019", "scope": "Commercial publication/read authority and exact dual-linked/legacy receipt scope. Focused Domain and browser evidence retained intact; parent acceptance remains partial. Fast CI39260118277 passed on76d904c7."},
+    "commercialFinality20261019": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.commercialFinality20261019"},
     "operationalReadiness20261019": {"archive": "status-archive-2026-10.json#archivedTargetedVerification.operationalReadiness20261019", "remaining": "Historical focused evidence only; parent/current-source acceptance remains open."},
     "perimeterAndReminderPolicy20261019": {"archive": "status-archive-2026-10.json#archivedTargetedVerification.perimeterAndReminderPolicy20261019", "remaining": "Historical focused evidence only; parent/current-source acceptance remains open."},
-    "reminderBatchFairness20261019": {
-      "result": "FOCUSED_PASS",
-      "archive": "status-archive-2026-10.json#keys.reminderBatchFairness20261019BeforeReconciliationAndDeadlineHandoff20261019",
-      "sourceCommit": "4e2fa8aa109237b9f6d51cffe1b6a180927d977c",
-      "limits": "Catalogue/live acceptance remain open; full retained limits are in the archive."
-    },
+    "reminderBatchFairness20261019": {"result": "FOCUSED_PASS", "archive": "status-archive-2026-10.json#keys.reminderBatchFairness20261019BeforeReconciliationAndDeadlineHandoff20261019", "sourceCommit": "4e2fa8aa109237b9f6d51cffe1b6a180927d977c", "limits": "Catalogue/live acceptance remain open; full retained limits are in the archive."},
     "reconciliationWriterFences20261019": {"status": "ARCHIVED_EVIDENCE", "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.reconciliationWriterFences20261019"},
     "deadlineExactTask20261019": {"archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.quotationTimelineHistory20261020.deadlineExactTask20261019", "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "remaining": "Broader role and release acceptance remain open."},
-    "workflowReminderRules20261020": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.workflowHistory20261020.workflowReminderRules20261020"
-    },
+    "workflowReminderRules20261020": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.workflowHistory20261020.workflowReminderRules20261020"},
     "hostingerAcceptanceImages20261020": {"status": "PUBLISHED_FOCUSED_HISTORY_ACCEPTANCE_OPEN", "archive": "status-archive-2026-10.json#archivedTargetedVerification.hostingerAcceptanceImages20261020"},
     "workflowReminderScheduleBound20261020": {"archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261020.workflowReminderScheduleBound20261020", "pending": "Full current-source release and applicable human acceptance remain open."},
     "templateEvidencePrerequisites20261020": {"archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261020.templateEvidencePrerequisites20261020", "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "pending": "Full current-source CI, broad role/supported-state acceptance and human AT; no deployment or live enablement."},
@@ -513,41 +263,19 @@
     "workflowAmendmentFreshLocks20261021": {"status": "PASS_FOCUSED", "sourceCommit": "31c1df4e0d81ff6e887a3e2ca5c14c2cedbf8597", "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.workflowAmendmentFreshLocks20261021"},
     "quotationCostPrivacy20261021": {"status": "PASS_FOCUSED_TEST_ONLY", "sourceCommit": "803c719970bc4c28a6d6a6d697223e1c9f6c4ed6", "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.quotationCostPrivacy20261021"},
     "portalFinancePaging20261021": {"status": "ARCHIVED_FOCUSED_EVIDENCE_ACCEPTANCE_SEPARATE", "archive": "status-archive-2026-10.json#archivedTargetedVerification.portalFinancePaging20261021"},
-    "portalReceiptPaging20261021": {
-      "sourceCommit": "4bce2f6f2b2ca41233e454987b6847c9a92c36fb",
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalReceiptPaging20261021",
-      "remaining": "Full current-source release, broader state/source integrity, human AT and provider/professional acceptance remain open."
-    },
+    "portalReceiptPaging20261021": {"sourceCommit": "4bce2f6f2b2ca41233e454987b6847c9a92c36fb", "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE", "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalReceiptPaging20261021", "remaining": "Full current-source release, broader state/source integrity, human AT and provider/professional acceptance remain open."},
     "purchaseCommandRecovery20261021": "Archived: status-archive-2026-10.json#keys.targetedVerification.purchaseCommandRecovery20261021",
     "apiAngularParityFocused20261021": "Archived: status-archive-2026-10.json#keys.targetedVerification.apiAngularParityFocused20261021",
     "practiceTimeAssignment20261021": "Archived: status-archive-2026-10.json#keys.targetedVerification.practiceTimeAssignment20261021",
-    "fileFreezeFinancialReleaseSelection20261021": {
-      "result": "FOCUSED_PASS",
-      "evidence": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.fileFreezeFinancialReleaseSelection20261021"
-    },
+    "fileFreezeFinancialReleaseSelection20261021": {"result": "FOCUSED_PASS", "evidence": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.fileFreezeFinancialReleaseSelection20261021"},
     "accessibilityReview20261022": {"result": "PARTIAL_AGENT_REVIEW", "humanAssistiveTechnology": "OPEN", "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261022.accessibilityReviewCurrentSource20261022"},
-    "currentSourceCi20261022": {
-      "sourceCommit": "2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b",
-      "evidence": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261022.accessibilityReviewCurrentSource20261022"
-    },
-    "authorizationE2eStability20261022": {
-      "sourceCommit": "7b69f6db4455a28c5d30a6bc2a7be49e8d7c8f2d",
-      "result": "FOCUSED_PASS_CI_PENDING",
-      "evidence": "status-archive-2026-10.json#keys.targetedVerification.authorizationE2eStability20261022"
-    },
-    "angularQuality20261023": {
-      "result": "PARTIAL_ACCEPTANCE",
-      "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityCiAccessibilityContinuation20261023",
-      "remaining": "Task07 wider states/native zoom/humanAT; current fullCI pending. a9 E2E causal follow-up is recorded separately, not a claimed product fix."
-    },
+    "currentSourceCi20261022": {"sourceCommit": "2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b", "evidence": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261022.accessibilityReviewCurrentSource20261022"},
+    "authorizationE2eStability20261022": {"sourceCommit": "7b69f6db4455a28c5d30a6bc2a7be49e8d7c8f2d", "result": "FOCUSED_PASS_CI_PENDING", "evidence": "status-archive-2026-10.json#keys.targetedVerification.authorizationE2eStability20261022"},
+    "angularQuality20261023": {"result": "PARTIAL_ACCEPTANCE", "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityCiAccessibilityContinuation20261023", "remaining": "Task07 wider states/native zoom/humanAT; current fullCI pending. a9 E2E causal follow-up is recorded separately, not a claimed product fix."},
     "autonomousCompletion20261022": {"status": "IN_PROGRESS; full completion and qualified/live acceptance remain unproven", "history": "status-archive-2026-10.json#archivedTargetedVerification.autonomousCompletion20261022", "note": "Earlier source-pinned RUN/WU evidence retained unchanged; current 31-task assignment continues."},
     "developmentFeedback20261023": {"status": "PARTIAL", "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.developmentFeedback20261023", "note": "Measured development-loop evidence retained; configured startup and broader comparisons remain open."},
     "sharePointClientSitesAutomation": {"status": "PARTIALLY_VERIFIED", "history": "status-archive-2026-10.json#archivedTargetedVerification.sharePointClientSitesAutomation", "remaining": "Exact live provisioning/membership/denial acceptance remains open; offline proof is preserved in history."},
-    "ascpSpecDiscovery20261024": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.ascpSpecDiscovery20261024"
-    },
+    "ascpSpecDiscovery20261024": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.ascpSpecDiscovery20261024"},
     "archivedOn20261024": {
       "entries": [
         "cp12FxCashAssessment",
@@ -566,14 +294,8 @@
       "note": "Closed focused-slice records moved verbatim; no verdict changed."
     },
     "confirmationBankSource20261024": {"status": "Earlier focused proof retained; wider acceptance remains separate.", "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeCounterAccessAttribution20261029_confirmationBankSource20261024"},
-    "t058CutoffProcedureLineage20261024": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.t058CutoffProcedureLineage20261024"
-    },
-    "t058MigrationProbeOrdering20261024": {
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
-      "jsonPath": "keys.targetedVerification.t058MigrationProbeOrdering20261024"
-    },
+    "t058CutoffProcedureLineage20261024": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.t058CutoffProcedureLineage20261024"},
+    "t058MigrationProbeOrdering20261024": {"archivedEvidence": "docs/execution/status-archive-2026-10.json", "jsonPath": "keys.targetedVerification.t058MigrationProbeOrdering20261024"},
     "scheduleSourceIndependentReview20261024": {"history": "status-archive-2026-10.json#archivedTargetedVerification.scheduleSourceIndependentReview20261024BeforeRolesSafety20261027"},
     "t058SamplingEvidenceApiAngular20261024": {"archive": "status-archive-2026-10.json#archivedTargetedVerification.t058SamplingEvidenceApiAngular20261024BeforeTechnicalStoriesR0120261028"},
     "t058SubsequentAmountPrecision20261025": {"history": "status-archive-2026-10.json#archivedTargetedVerification.t058SubsequentAmountPrecision20261025", "note": "Closed focused-slice evidence retained verbatim in the archive; T058 and overall acceptance remain partial."},
@@ -589,28 +311,15 @@
     "wu004BudgetReceiptCompositeForeignKeys20261025": {"archive": "status-archive-2026-10.json#archivedTargetedVerification.wu004BudgetReceiptCompositeForeignKeys20261025BeforeTechnicalStoriesR0120261028"},
     "findingReceiptRefresh20261025": {"status": "ARCHIVED_PRECEDING_SOURCE_EVIDENCE", "history": "status-archive-2026-10.json#keys.targetedVerification.findingReceiptRefresh20261025"},
     "wu024DeploymentBindings20261025": {"status": "PUBLISHED_SCOPED_EVIDENCE_HISTORY", "archive": "status-archive-2026-10.json#archivedTargetedVerification.wu024DeploymentBindings20261025"},
-    "narrativeMetricsFastCiRepair20261025": {
-      "status": "ARCHIVED_HISTORY",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.narrativeMetricsFastCiRepair20261025"
-    },
+    "narrativeMetricsFastCiRepair20261025": {"status": "ARCHIVED_HISTORY", "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.narrativeMetricsFastCiRepair20261025"},
     "fullE2eFailureTriage40148920261025": {"status": "HISTORICAL_SOURCE_REVIEW_ARCHIVED", "history": "status-archive-2026-10.json#archivedTargetedVerification.fullE2eFailureTriage40148920261025", "note": "Older-source E2E triage is retained verbatim in the archive; current exact-source release CI supersedes its run status."},
-    "releasePreflight20261025": {
-      "status": "CURRENT_RELEASE_PREPARATION_RECORDED",
-      "history": "status-archive-2026-10.json#archivedTargetedVerification.releasePreflight20261025",
-      "current": "hostingerAcceptance.latestReleasePreparation and currentSourceCi",
-      "note": "Earlier 6d rehearsal and API failure details are retained verbatim in the archive; current candidate rehearsal and CI are recorded in the active fields."
-    },
+    "releasePreflight20261025": {"status": "CURRENT_RELEASE_PREPARATION_RECORDED", "history": "status-archive-2026-10.json#archivedTargetedVerification.releasePreflight20261025", "current": "hostingerAcceptance.latestReleasePreparation and currentSourceCi", "note": "Earlier 6d rehearsal and API failure details are retained verbatim in the archive; current candidate rehearsal and CI are recorded in the active fields."},
     "axelorRemaining20261025": {
       "result": "Domain7/Angular70/resource16; E2E4+5+1; connected2/previousUI2 PASS; full pending.",
       "evidence": ".local/autonomous/evidence/axelor-remaining-20261025/review.json",
       "limits": "Selected browser states; no whole-spec/human/live acceptance."
     },
-    "axelorFinal20261025": {
-      "status": "PRECEDING_A948_API_RETRY_PENDING",
-      "finalSource": "a948479b4a2bc688a47018fab06536cdc2268ca9",
-      "history": "status-archive-2026-10.json#archivedTargetedVerification.axelorFinalApiRetryBeforeResponsiveFacts20261026",
-      "remaining": "The responsive successor requires its own exact-source gates; preceding passes never establish current release acceptance."
-    },
+    "axelorFinal20261025": {"status": "PRECEDING_A948_API_RETRY_PENDING", "finalSource": "a948479b4a2bc688a47018fab06536cdc2268ca9", "history": "status-archive-2026-10.json#archivedTargetedVerification.axelorFinalApiRetryBeforeResponsiveFacts20261026", "remaining": "The responsive successor requires its own exact-source gates; preceding passes never establish current release acceptance."},
     "axelorInvoiceDescription20261026": {"history": "status-archive-2026-10.json#archivedTargetedVerification.axelorInvoiceDescription20261026BeforeNavigationCi20261028", "scope": "Historical invoice-description slice; current exact-source regression and requirement acceptance remain separate."},
     "axelorFinalAcceptanceGap20261026": {"archive": "status-archive-2026-10.json#archivedTargetedVerification.axelorFinalAcceptanceGap20261026BeforeAllStoriesIntegration20261028"},
     "axelorPrecedingFailures20261026": {"status": "HISTORICAL_EVIDENCE_RETAINED", "history": "status-archive-2026-10.json#keys.targetedVerification.axelorPrecedingFailures20261026.beforeNativeProofRead20261028"},
@@ -648,29 +357,14 @@
     "rolesBooksOversight20261027": {"history": "status-archive-2026-10.json#archivedTargetedVerification.rolesBooksBeforeScope20261027"},
     "rolesScopeOversight20261027": {"history": "status-archive-2026-10.json#archivedTargetedVerification.rolesScopeOversight20261027BeforeOversightAccess20261027"},
     "rolesInvoiceOversight20261027": {"history": "status-archive-2026-10.json#archivedTargetedVerification.rolesInvoiceOversight20261027BeforeOversightAccess20261027"},
-    "roleAuthorizationEqrAccess20261027": {
-      "result": "PARTIAL_OVERSIGHT_IMPLEMENTED_EQR_POLICY_OPEN",
-      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.roleAuthorizationEqrAccess20261027"
-    },
-    "releaseCandidateReplay20261027": {
-      "result": "FOCUSED_PASS_HISTORY_RETAINED",
-      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.releaseCandidateReplay20261027BeforeTask03Publication20261028"
-    },
+    "roleAuthorizationEqrAccess20261027": {"result": "PARTIAL_OVERSIGHT_IMPLEMENTED_EQR_POLICY_OPEN", "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.roleAuthorizationEqrAccess20261027"},
+    "releaseCandidateReplay20261027": {"result": "FOCUSED_PASS_HISTORY_RETAINED", "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.releaseCandidateReplay20261027BeforeTask03Publication20261028"},
     "ownershipOversightCi20261028": {"status": "HISTORICAL_SLICE_RETAINED", "history": "status-archive-2026-10.json#keys.targetedVerification.ownershipOversightCi20261028.beforeNativeProofRead20261028"},
-    "task03ScopedApplicability20261028": {
-      "result": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_REQUIRED",
-      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.task03ScopedApplicabilityBeforeSiblingSnapshot20261028"
-    },
-    "shellNavigationCi20261028": {
-      "result": "TEST_ONLY_NAMED_GREEN4_FULL_CI_REQUIRED",
-      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.shellNavigationBeforeRolesDocumentation20261028"
-    },
+    "task03ScopedApplicability20261028": {"result": "FOCUSED_AND_BUILTIN_VERIFIED_FULL_CI_REQUIRED", "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.task03ScopedApplicabilityBeforeSiblingSnapshot20261028"},
+    "shellNavigationCi20261028": {"result": "TEST_ONLY_NAMED_GREEN4_FULL_CI_REQUIRED", "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.shellNavigationBeforeRolesDocumentation20261028"},
     "userTypesPrivileges20261028": {"status": "HISTORICAL_SLICE_RETAINED", "history": "status-archive-2026-10.json#keys.targetedVerification.userTypesPrivileges20261028.beforeNativeProofRead20261028"},
     "siblingGroupSnapshotCi20261028": {"status": "HISTORICAL_SLICE_RETAINED", "history": "status-archive-2026-10.json#keys.targetedVerification.siblingGroupSnapshotCi20261028.beforeNativeProofRead20261028"},
-    "reviewPointReceiptRefreshCi20261028": {
-      "status": "TRUE_RED2_FOCUSED_AND_BUILTIN_PASS_EXACT_SOURCE_CI_REQUIRED",
-      "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.reviewPointReceiptRefreshBeforeMarkdownSweep20261028"
-    },
+    "reviewPointReceiptRefreshCi20261028": {"status": "TRUE_RED2_FOCUSED_AND_BUILTIN_PASS_EXACT_SOURCE_CI_REQUIRED", "archivedEvidence": "status-archive-2026-10.json#keys.targetedVerification.reviewPointReceiptRefreshBeforeMarkdownSweep20261028"},
     "markdownCodebaseReconciliation20261028": {"archive": "status-archive-2026-10.json#archivedTargetedVerification.markdownCodebaseReconciliation20261028BeforeTechnicalStoriesR0320261028"},
     "nativeSuccessorProofReadCi20261028": {"archive": "status-archive-2026-10.json#archivedTargetedVerification.nativeSuccessorProofReadCi20261028BeforeTechnicalStoriesR0320261028"},
     "technicalStoriesFinanceAuthority20261028": {"archive": "status-archive-2026-10.json#archivedTargetedVerification.technicalStoriesFinanceAuthority20261028BeforeEffectiveSampling20261028"},
@@ -700,12 +394,7 @@
     "collectorExecutionDiagnostics20261029": {"status": "Earlier focused evidence retained; acceptance remains separate.", "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeSamplingSelectionScope20261029_collectorExecutionDiagnostics20261029"},
     "wu004SamplingSelectionScope20261029": {"status": "Earlier focused proof retained; wider acceptance remains separate.", "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeCounterAccessAttribution20261029_wu004SamplingSelectionScope20261029"},
     "counterAccessAttribution20261029": {"status": "Earlier focused diagnostic proof retained; runtime access attribution and heap-cause acceptance remain separate.", "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeArchiveOperationScope20261029_counterAccessAttribution20261029"},
-    "wu004ArchiveCopyOperationScope20261029": {
-      "status": "FOCUSED_VERIFIED_ARCHIVED_ACCEPTANCE_PARTIAL",
-      "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeOpinionClearanceScope20261029_wu004ArchiveCopyOperationScope20261029",
-      "evidence": ".local/autonomous/evidence/wu004-archive-operation-scope-20261029",
-      "boundary": "Native fake-provider scope repair/schema303/focused migration/index/cleanup verified; typedoperation/attempt/sourceauthenticity and provider/professional acceptance separate."
-    },
+    "wu004ArchiveCopyOperationScope20261029": {"status": "FOCUSED_VERIFIED_ARCHIVED_ACCEPTANCE_PARTIAL", "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeOpinionClearanceScope20261029_wu004ArchiveCopyOperationScope20261029", "evidence": ".local/autonomous/evidence/wu004-archive-operation-scope-20261029", "boundary": "Native fake-provider scope repair/schema303/focused migration/index/cleanup verified; typedoperation/attempt/sourceauthenticity and provider/professional acceptance separate."},
     "wu004OpinionClearanceScope20261029": {"status": "FOCUSED_SCOPE_VERIFIED_ACCEPTANCE_PARTIAL", "history": "status-archive-2026-10.json#archivedTargetedVerification.beforeApiSourceFixture20261030_wu004OpinionClearanceScope20261029", "boundary": "Published schema304 parent scope/migration/index evidence retained; broader WU004 and final-source release acceptance open."},
     "uxWorkflow20261030": {
       "status": "U01_IMPLEMENTED_FOCUSED_VERIFIED_INTEGRATED_ACCEPTANCE_OPEN",
@@ -778,12 +467,7 @@
       "remaining": "Other current role/journey checks, complete denominator, qualified decisions and live/operational acceptance remain open.",
       "staticChecks": "Criterion/source digest, selector and inventory checks PASS; documentation health/narrative/diff PASS. ESLint NOT_APPLICABLE: repository ignores spec files (explicit invocation exits1 on ignored-file warning); no lint rules changed."
     },
-    "pr53ReviewRepair20261030": {
-      "sourceBase": "8c9895a2",
-      "checks": "Mixed-case activity View/Hide regression: 64 focused tests passed; Angular production build/lint and docs validators passed.",
-      "scope": "Integrated master d99cd922, corrected review pointers/filenames and current evidence summaries. JSON archived-pointer formatting compaction preserves all values.",
-      "remaining": "Fresh exact-head CI and native availability database regression; broader browser/professional/live acceptance remains open."
-    }
+    "pr53ReviewRepair20261030": {"sourceBase": "8c9895a2", "checks": "Mixed-case activity View/Hide regression: 64 focused tests passed; Angular production build/lint and docs validators passed.", "scope": "Integrated master d99cd922, corrected review pointers/filenames and current evidence summaries. JSON archived-pointer formatting compaction preserves all values.", "remaining": "Fresh exact-head CI and native availability database regression; broader browser/professional/live acceptance remains open."}
   },
   "externalGates": [
     {
@@ -1025,15 +709,8 @@
       "Live provider acceptance"
     ],
     "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.apiAngularParityStatus20261018",
-    "groupCreationT008": {
-      "archivedEvidence": "status-archive-2026-10.json#keys.apiAngularParityGroupCreationT00820261021"
-    },
-    "groupMembershipT009": {
-      "result": "FOCUSED_LOCAL_PASS_BROWSER_PENDING",
-      "tests": "Angular 3/3; Domain 1/1; API 1/1.",
-      "browser": "No group access; no mutation.",
-      "details": "status-archive-2026-10.json#keys.apiAngularParityGroupMembershipT00920261021"
-    },
+    "groupCreationT008": {"archivedEvidence": "status-archive-2026-10.json#keys.apiAngularParityGroupCreationT00820261021"},
+    "groupMembershipT009": {"result": "FOCUSED_LOCAL_PASS_BROWSER_PENDING", "tests": "Angular 3/3; Domain 1/1; API 1/1.", "browser": "No group access; no mutation.", "details": "status-archive-2026-10.json#keys.apiAngularParityGroupMembershipT00920261021"},
     "verifiedTasksArchive": "status-archive-2026-10.json#keys.apiAngularParityVerifiedTasks20261021",
     "contactRoutingT011": {
       "result": "FOCUSED_LOCAL_PASS_BROWSER_PENDING",
@@ -1042,11 +719,7 @@
       "browser": "Unavailable; no group/client access."
     },
     "ownershipWindowsT026": {"archive": "status-archive-2026-10.json#keys.apiAngularParityOwnershipWindowsT02620261023"},
-    "intercompanyMatchingT027": {
-      "result": "FOCUSED_API_PASS; PLAYWRIGHT_PASS; FAST_CI_PASS; HUMAN_AT_OPEN",
-      "sourceCommit": "5d52d4347ad85277b76f89bef2b1391a1f2f5b93",
-      "evidence": "status-archive-2026-10.json#keys.apiAngularParityIntercompanyT02720261022"
-    },
+    "intercompanyMatchingT027": {"result": "FOCUSED_API_PASS; PLAYWRIGHT_PASS; FAST_CI_PASS; HUMAN_AT_OPEN", "sourceCommit": "5d52d4347ad85277b76f89bef2b1391a1f2f5b93", "evidence": "status-archive-2026-10.json#keys.apiAngularParityIntercompanyT02720261022"},
     "scopeCreationT010": {"archive": "status-archive-2026-10.json#keys.apiAngularParityScopeCreationT01020261022"},
     "externalComponentPacksT028": {"archive": "status-archive-2026-10.json#keys.apiAngularParityExternalPacksT02820261022"},
     "retainedUiT015T033T034": {
@@ -1091,35 +764,13 @@
       "ASPM-UAT-01..15"
     ],
     "lastTechnicalSlice": "Fair PBC discovery, exact deadline-task handoff and reconciliation writer/period-close fences have focused technical evidence.",
-    "advanceCashGate": {
-      "codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
-      "result": "FOCUSED_INCREMENTAL_PASS",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.advanceCashGate20261018"
-    },
-    "queuePrerequisiteDisplay": {
-      "codeCommit": "1865b20c",
-      "result": "FOCUSED_PASS_BROWSER_DEPENDENCY_PASS",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.queuePrerequisiteDisplay20261018"
-    },
-    "queueSourceLineage": {
-      "result": "FOCUSED_PASS",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.queueSourceLineage20261018"
-    },
-    "firmMonthlyBoundary": {
-      "result": "FOCUSED_PASS",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.firmMonthlyBoundary20261018"
-    },
-    "expensePaging": {
-      "codeCommit": "bf45c6b4e7e4b05c59cbe85c36b2d75b8f3a0ca6",
-      "result": "FOCUSED_PASS_BROWSER_PENDING",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.expensePaging20261018"
-    },
+    "advanceCashGate": {"codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5", "result": "FOCUSED_INCREMENTAL_PASS", "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.advanceCashGate20261018"},
+    "queuePrerequisiteDisplay": {"codeCommit": "1865b20c", "result": "FOCUSED_PASS_BROWSER_DEPENDENCY_PASS", "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.queuePrerequisiteDisplay20261018"},
+    "queueSourceLineage": {"result": "FOCUSED_PASS", "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.queueSourceLineage20261018"},
+    "firmMonthlyBoundary": {"result": "FOCUSED_PASS", "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.firmMonthlyBoundary20261018"},
+    "expensePaging": {"codeCommit": "bf45c6b4e7e4b05c59cbe85c36b2d75b8f3a0ca6", "result": "FOCUSED_PASS_BROWSER_PENDING", "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.expensePaging20261018"},
     "capacityRemainder": {"archive": "status-archive-2026-10.json#keys.capacityRemainder20261018", "codeCommit": "668b295eaa1a84b2528048d11c071cbb8571bdbd", "result": "FOCUSED_PASS"},
-    "resourceRange": {
-      "codeCommit": "b2db659888e34facbb82ff8d237919e6cd6af6cf",
-      "result": "FOCUSED_PASS",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.resourceRange20261018"
-    },
+    "resourceRange": {"codeCommit": "b2db659888e34facbb82ff8d237919e6cd6af6cf", "result": "FOCUSED_PASS", "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.resourceRange20261018"},
     "certificationDisclosure": {"archive": "status-archive-2026-10.json#keys.certificationDisclosure20261018", "codeCommit": "826ad96cb2d12a72936852631dcb22be3e4acd46"},
     "certificationRules": {"archive": "status-archive-2026-10.json#keys.certificationRules20261018", "codeCommit": "079642f89bb709fd0bc85ddd72b6c4bac1af1861"},
     "certificationReview": {
@@ -1171,10 +822,7 @@
       "releaseAcceptance": "NOT_VERIFIED"
     },
     "nextTechnicalSlice": "Select the next slice from CURRENT requirements. Due-PBC reviewer escalation is already configurable; event notifications need approved event/recipient/channel semantics; recurring monthly accounting handover remains PROPOSED.",
-    "clientProgressTracker": {
-      "result": "FOCUSED_PASS_BROWSER_PASS_FAST_CI_PASS",
-      "archivedEvidence": "status-archive-2026-10.json#keys.completePracticeManagement.clientProgressTracker20261026"
-    }
+    "clientProgressTracker": {"result": "FOCUSED_PASS_BROWSER_PASS_FAST_CI_PASS", "archivedEvidence": "status-archive-2026-10.json#keys.completePracticeManagement.clientProgressTracker20261026"}
   },
   "m365ClientTenantGuide": {
     "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",
