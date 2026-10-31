@@ -296,6 +296,8 @@ const decodeScopeWorkspaceShape = obj({
   canPrepare: bool,
   canReview: bool,
   canApproveScope: bool,
+  canIssueDeliverable: bool,
+  canArchiveDeliverable: bool,
   scopeApprovalBlocker: nullable(text),
   currentUserId: guid,
   components: arr(decodeConsolidationComponent, 100),
@@ -319,7 +321,7 @@ export const decodeScopeWorkspace = (value: unknown, path: string) => {
   const workspace = decodeScopeWorkspaceShape(value, path);
   const components = [...workspace.components, ...(workspace.resolvedComponent ? [workspace.resolvedComponent] : [])];
   if (workspace.accessMode === 'READ_ONLY' && (workspace.canPrepare || workspace.canReview || workspace.canApproveScope ||
-      components.some(component => component.canApprove)))
+      workspace.canIssueDeliverable || workspace.canArchiveDeliverable || components.some(component => component.canApprove)))
     throw new Error(`${path || 'response'}: oversight cannot grant operational capabilities`);
   if (workspace.canApproveScope && workspace.scopeApprovalBlocker !== null)
     throw new Error(`${path || 'response'}: approvable scope cannot have an approval blocker`);

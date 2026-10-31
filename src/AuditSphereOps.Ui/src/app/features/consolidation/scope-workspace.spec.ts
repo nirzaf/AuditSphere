@@ -82,6 +82,8 @@ function workspacePayload(overrides: Record<string, unknown> = {}) {
     canPrepare: true,
     canReview: true,
     canApproveScope: false,
+    canIssueDeliverable: false,
+    canArchiveDeliverable: false,
     scopeApprovalBlocker: null,
     currentUserId: actor,
     components: [],
@@ -271,6 +273,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
   it('dispatches exact build, issue and archive intents with pinned revisions and SHA-256', async () => {
     const { component } = open(workspacePayload({
       canApproveScope: true,
+      canIssueDeliverable: true,
+      canArchiveDeliverable: true,
       latestReport: { scopeVersionId: id1, runId: id3, runHash: hash64, state: 'CURRENT_APPROVED',
         approvedAt: '2026-10-01T12:00:00Z', lines: [] },
     }));
@@ -382,6 +386,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
       canPrepare: true,
       canReview: true,
       canApproveScope: false,
+      canIssueDeliverable: false,
+      canArchiveDeliverable: false,
       scopeApprovalBlocker: null,
       currentUserId: id1,
       componentPaging: { totalCount: 1, page: 1, pageSize: 100 },

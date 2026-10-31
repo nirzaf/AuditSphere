@@ -494,13 +494,13 @@
                         <td>{{ d.createdAt | date:'medium' }}{{ d.issuedAt ? ' · issued ' + (d.issuedAt | date:'medium') : '' }}{{ d.archivedAt ? ' · archived ' + (d.archivedAt | date:'medium') : '' }}</td>
                         <td>
                           <a matButton [href]="deliverableDownload(w.scope.id, d.deliverableId)" target="_blank">Download exact artifact</a>
-                          @if (w.canApproveScope && d.status === 'BUILT') {
+                          @if (w.canIssueDeliverable && d.status === 'BUILT') {
                             <label [attr.for]="'deliverable-release-' + d.deliverableId">Authorized release key</label>
                             <input [id]="'deliverable-release-' + d.deliverableId" [ngModel]="deliverableReleaseKey" (ngModelChange)="deliverableReleaseKey = $event" maxlength="100" autocomplete="off" />
                             <label><input type="checkbox" [ngModel]="deliverableAssent" (ngModelChange)="deliverableAssent = $event" /> I reviewed this exact revision, run hash and artifact SHA-256.</label>
                             <button matButton="filled" type="button" (click)="issueDeliverable(w, d)" [disabled]="cmd.busy() || cmd.uncertain() || !deliverableReleaseKey.trim() || !deliverableAssent">Issue exact artifact</button>
                           }
-                          @if (w.canApproveScope && d.status === 'ISSUED') {
+                          @if (w.canArchiveDeliverable && d.status === 'ISSUED') {
                             <label [attr.for]="'deliverable-archive-' + d.deliverableId">Archive reason</label>
                             <input [id]="'deliverable-archive-' + d.deliverableId" [ngModel]="deliverableArchiveReason" (ngModelChange)="deliverableArchiveReason = $event" maxlength="500" />
                             <button matButton type="button" (click)="archiveDeliverable(w, d)" [disabled]="cmd.busy() || cmd.uncertain()">Archive exact artifact</button>
