@@ -1,6 +1,7 @@
 import { Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
@@ -10,7 +11,7 @@ import { decodeOffboardingReadiness, OffboardingReadiness, offboardingStateLabel
 /** On-demand, read-only closeout assessment; it never changes the client, work, money or access. */
 @Component({
   selector: 'audit-client-offboarding-readiness',
-  imports: [RouterLink, MatButtonModule],
+  imports: [RouterLink, FormsModule, MatButtonModule],
   template: `
     <section aria-labelledby="client-offboarding-heading">
       <h2 id="client-offboarding-heading">Offboarding readiness</h2>
@@ -31,6 +32,25 @@ import { decodeOffboardingReadiness, OffboardingReadiness, offboardingStateLabel
           </section>
         }
         <ul>@for (n of r.coverageNotes; track n) { <li class="muted">{{ n }}</li> }</ul>
+
+        @if (r.overallState !== 'UNKNOWN') {
+          <section aria-labelledby="offboarding-closeout-heading">
+            <h3 id="offboarding-closeout-heading">Offboarding closeout decision</h3>
+            @if (closeoutSuccess()) {
+              <p role="status">Offboarding closeout recorded successfully.</p>
+            } @else {
+              <p class="muted">Record a reviewed offboarding disposition. All assessed items will be locked into the closeout record.</p>
+              @if (r.overallState === 'ACTION_REQUIRED') {
+                <p><strong>Action required:</strong> Explicit acknowledgement and disposition notes are required for all open items.</p>
+              }
+              <label for="offboarding-disposition-notes">Disposition notes:</label>
+              <textarea id="offboarding-disposition-notes" [(ngModel)]="dispositionNotes" rows="3" placeholder="Enter reviewed closeout disposition notes"></textarea>
+              <button matButton="filled" data-offboarding-closeout [disabled]="closeoutLoading() || !dispositionNotes.trim()" (click)="recordCloseout(r)">
+                {{ closeoutLoading() ? 'Recording…' : 'Record offboarding closeout' }}
+              </button>
+            }
+          </section>
+        }
       }
     </section>`,
 })
@@ -38,8 +58,11 @@ export class ClientOffboardingReadiness {
   readonly clientId = input.required<string>();
   readonly result = signal<OffboardingReadiness | null>(null);
   readonly loading = signal(false);
+  readonly closeoutLoading = signal(false);
+  readonly closeoutSuccess = signal(false);
   readonly error = signal('');
   readonly label = offboardingStateLabel;
+  dispositionNotes = '';
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
   private request?: Subscription;
@@ -57,6 +80,8 @@ export class ClientOffboardingReadiness {
   private reset(): void {
     this.revision++; this.request?.unsubscribe();
     this.result.set(null); this.error.set(''); this.loading.set(false);
+    this.closeoutLoading.set(false); this.closeoutSuccess.set(false);
+    this.dispositionNotes = '';
   }
 
   load(): void {
@@ -80,6 +105,29 @@ export class ClientOffboardingReadiness {
         this.loading.set(false); this.result.set(null);
         this.error.set('Offboarding readiness is unavailable for your current access. Nothing was changed.');
       },
+    });
+  }
+
+  recordCloseout(r: OffboardingReadiness): void {
+    const id = this.clientId()?.toLowerCase();
+    if (!id || this.closeoutLoading() || !this.dispositionNotes.trim()) return;
+    const actionKeys = r.sections.flatMap(s => s.items).filter(i => i.state === 'ACTION_REQUIRED').map(i => i.key);
+    this.closeoutLoading.set(true);
+    this.error.set('');
+    this.http.post<unknown>(`/api/ui/clients/${id}/offboarding-closeout`, {
+      dispositionNotes: this.dispositionNotes.trim(),
+      acknowledgedActionItems: actionKeys,
+      expectedRevision: r.archiveRevision,
+      archiveClientOnCloseout: false
+    }).subscribe({
+      next: () => {
+        this.closeoutLoading.set(false);
+        this.closeoutSuccess.set(true);
+      },
+      error: (err) => {
+        this.closeoutLoading.set(false);
+        this.error.set(err?.error?.message || 'Failed to record offboarding closeout.');
+      }
     });
   }
 }

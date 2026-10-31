@@ -153,6 +153,23 @@ public sealed partial class AuditSphereDbContext
       e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ActorUserId })
         .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     });
+    b.Entity<ClientOffboardingRecord>(e =>
+    {
+      e.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.Id }).HasName("ak_client_offboarding_records_client_id");
+      e.Property(x => x.Status).HasMaxLength(30);
+      e.Property(x => x.ReadinessOverallState).HasMaxLength(30);
+      e.Property(x => x.ReadinessSnapshotJson).HasColumnType("text");
+      e.Property(x => x.ReadinessDigest).HasMaxLength(64);
+      e.Property(x => x.DispositionNotes).HasMaxLength(2000);
+      e.Property(x => x.AcknowledgedActionItemsJson).HasColumnType("text");
+      e.HasIndex(x => new { x.FirmId, x.ClientId, x.DecidedAt });
+      e.ToTable("client_offboarding_records", t => t.HasCheckConstraint("ck_client_offboarding_record_values",
+        "length(trim(status)) > 0 AND length(trim(disposition_notes)) > 0 AND readiness_digest ~ '^[0-9a-f]{64}$'"));
+      e.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.DecidedByUserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    });
     b.Entity<ClientContact>().Property(x => x.Phone).HasMaxLength(32);
     b.Entity<ClientContact>().Property(x => x.Title).HasMaxLength(100);
     b.Entity<ClientContact>().Property(x => x.SignatoryAuthority).HasMaxLength(64);

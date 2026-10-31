@@ -529,4 +529,184 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(sourcePackagesBefore, await CurrencyPackageSourceManifestAsync(db, [packageA, packageB]));
     }
   }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task GroupDeliverable_BuildsImmutableDeliverable_EnforcesIndependentIssuance_RetainsGroupScope_AndPreservesComponentBooks()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "Partner");
+    var groupViewer = User(scope.FirmId, "deliverable-group-viewer");
+    var groupViewerActor = Actor(groupViewer, "AccountingReviewer");
+    var siblingUser = User(scope.FirmId, "sibling-group-user");
+    var siblingActor = Actor(siblingUser, "Partner");
+
+    Guid groupId, siblingGroupId, consolidationScopeId;
+    string sourcePackagesBefore, sourceClientBooksBefore;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer, new ClientGroupRequest("DELIV-GROUP", "Deliverable Group"))).Value;
+      siblingGroupId = (await ConsolidationService.CreateGroupAsync(db, reviewer, new ClientGroupRequest("SIBLING-GROUP", "Sibling Group"))).Value;
+
+      Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+        new GroupMembershipRequest(groupId, scope.ClientA, new DateOnly(2026, 1, 1), null, "CONTROLLED", 100m, 100m, "ownership-a"))).Succeeded);
+      Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
+        new GroupMembershipRequest(groupId, scope.ClientB, new DateOnly(2026, 1, 1), null, "CONTROLLED", 100m, 100m, "ownership-b"))).Succeeded);
+
+      db.Users.AddRange(groupViewer, siblingUser);
+      db.GroupAccessGrants.AddRange(
+        new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = scope.Preparer.Id, Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id },
+        new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = scope.Preparer.Id, Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id },
+        new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = groupViewer.Id, Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id },
+        new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = siblingGroupId, UserId = siblingUser.Id, Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id }
+      );
+
+      var clientBPartnerGrant = new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = scope.Partner.Id, Role = "Partner",
+        ClientId = scope.ClientB, EngagementId = scope.EngagementB, GrantedAt = DateTimeOffset.UtcNow,
+        GrantedByUserId = scope.Reviewer.Id, Reason = "Partner fixture"
+      };
+      db.RoleGrants.Add(clientBPartnerGrant);
+      db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+      {
+        Id = Guid.NewGuid(), FirmId = scope.FirmId, ClientId = scope.ClientB, EngagementId = scope.EngagementB,
+        UserId = scope.Partner.Id, StaffingLevel = StaffingLevels.EngagementPartner,
+        RoleGrantId = clientBPartnerGrant.Id, AssignedByUserId = scope.Reviewer.Id, AssignedAt = DateTimeOffset.UtcNow
+      });
+
+      var periodId = Guid.NewGuid();
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = periodId, FirmId = scope.FirmId, ClientId = scope.ClientA, PeriodCode = "FY2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+        CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+
+      consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
+        new ConsolidationScopeRequest(groupId, periodId, "", ConsolidationCalculator.RestrictedMethod, "OPENING-2026"))).Value;
+
+      await BuildCurrencyPackageAsync(db, scope, scope.ClientA, scope.EngagementA, Gold07Lines, "group-a", "QAR");
+      await BuildCurrencyPackageAsync(db, scope, scope.ClientB, scope.EngagementB,
+        [("CASH", "ASSETS", 100m), ("CAPITAL", "EQUITY", 0m), ("REVENUE", "INCOME", -100m), ("EXPENSE", "EXPENSE", 0m)], "group-b", "QAR");
+      await db.SaveChangesAsync();
+
+      var packageA = await db.FinancialPackages.Where(x => x.ClientId == scope.ClientA).Select(x => x.Id).SingleAsync();
+      var packageB = await db.FinancialPackages.Where(x => x.ClientId == scope.ClientB).Select(x => x.Id).SingleAsync();
+      var packageMappings = await db.FinancialPackages.Where(x => x.Id == packageA || x.Id == packageB)
+        .ToDictionaryAsync(x => x.Id, x => x.MappingVersionId);
+
+      await ReviewCurrencyCompositionAsync(db, scope, packageA);
+      await ReviewCurrencyCompositionAsync(db, scope, packageB);
+
+      sourcePackagesBefore = await CurrencyPackageSourceManifestAsync(db, [packageA, packageB]);
+      sourceClientBooksBefore = await ClientBookSourceManifestAsync(db, scope.FirmId, [scope.ClientA, scope.ClientB]);
+
+      Assert.True((await ConsolidationService.SubmitComponentAsync(db, preparer,
+        new ConsolidationComponentRequest(consolidationScopeId, scope.ClientA, scope.EngagementA, packageA, 100m, "CONTROLLED", "STATUTORY", "tax-v1", packageMappings[packageA].ToString("D")))).Succeeded);
+      Assert.True((await ConsolidationService.SubmitComponentAsync(db, preparer,
+        new ConsolidationComponentRequest(consolidationScopeId, scope.ClientB, scope.EngagementB, packageB, 100m, "CONTROLLED", "STATUTORY", "tax-v1", packageMappings[packageB].ToString("D")))).Succeeded);
+
+      foreach (var componentId in await db.ConsolidationComponents.Where(x => x.ScopeVersionId == consolidationScopeId).Select(x => x.Id).ToListAsync())
+        Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentId)).Succeeded);
+
+      var capabilityId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+        new CapabilityProfileRequest(null, groupId, "GROUP_REPORTING", "IFRS", "2026", "ANNUAL", "QAR",
+          "STATUTORY", ConsolidationCalculator.RestrictedMethod, "PARTNER", "GROUP"))).Value;
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, reviewer, capabilityId,
+        AccountingCapabilityAcceptanceStages.LocalConstruction, "local-profile")).Succeeded);
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, Actor(scope.Preparer, "Partner"), capabilityId,
+        AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "method-owner-fixture")).Succeeded);
+      Assert.True((await ConsolidationService.ApproveScopeAsync(db, reviewer, consolidationScopeId)).Succeeded);
+
+      var matchId = (await ConsolidationService.AddIntercompanyMatchAsync(db, preparer,
+        new IntercompanyMatchRequest(consolidationScopeId, scope.ClientA, scope.ClientB,
+          ConsolidationEliminationKinds.ReceivablePayable, "2026", "QAR", "IC-001", 100m, -100m, 100m, "ic-evidence", "CASH", "REVENUE"))).Value;
+      Assert.True((await ConsolidationService.ApproveIntercompanyMatchAsync(db, reviewer, matchId)).Succeeded);
+
+      var journalId = (await ConsolidationService.CreateConsolidationJournalAsync(db, preparer,
+        new ConsolidationJournalRequest(consolidationScopeId, "GC-001", "GROUP_RECLASSIFICATION", "QAR", "group-adjustment-001",
+        [new(null, "CASH", 100m, 0m, "Cash reclass"), new(null, "REVENUE", 0m, 100m, "Rev reclass")]))).Value;
+      Assert.True((await ConsolidationService.ApproveConsolidationJournalAsync(db, reviewer, journalId)).Succeeded);
+
+      // Run is calculated by preparer and approved by independent reviewer
+      var runId = (await ConsolidationService.RunAsync(db, preparer, consolidationScopeId)).Value;
+      Assert.True((await ConsolidationService.ApproveRunAsync(db, reviewer, runId)).Succeeded);
+    }
+
+    // 1. Build immutable group deliverable (LC-06)
+    Guid deliverableId;
+    string deliverableSha256;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var build = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer, consolidationScopeId);
+      Assert.True(build.Succeeded, build.Message);
+      Assert.Equal(GroupDeliverableStates.Built, build.Value!.Status);
+      Assert.NotEmpty(build.Value.DeliverableSha256);
+      Assert.NotEmpty(build.Value.DeliverableJson);
+      Assert.Equal(groupId, build.Value.GroupId);
+      Assert.Equal(consolidationScopeId, build.Value.ScopeVersionId);
+      deliverableId = build.Value.DeliverableId;
+      deliverableSha256 = build.Value.DeliverableSha256;
+    }
+
+    // 2. Controlled group approval / issuance (LC-07):
+    //    Preparer of the run cannot self-issue (reviewer independence rule)
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var selfIssue = await ConsolidationService.IssueGroupDeliverableAsync(db, preparer,
+        new IssueGroupDeliverableRequest(deliverableId));
+      Assert.False(selfIssue.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, selfIssue.ErrorCode);
+
+      // Independent Partner/Reviewer can issue
+      var issue = await ConsolidationService.IssueGroupDeliverableAsync(db, reviewer,
+        new IssueGroupDeliverableRequest(deliverableId, "REL-KEY-2026-GROUP"));
+      Assert.True(issue.Succeeded, issue.Message);
+      Assert.Equal(GroupDeliverableStates.Issued, issue.Value!.Status);
+      Assert.Equal("REL-KEY-2026-GROUP", issue.Value.AuthorizedReleaseKey);
+      Assert.Equal(reviewer.UserId, issue.Value.IssuedByUserId);
+      Assert.NotNull(issue.Value.IssuedAt);
+    }
+
+    // 3. Retain issued group output with group-scope lineage (LC-08):
+    //    Sibling group user is denied; group viewer can retrieve and verify SHA-256 byte integrity
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var siblingRead = await ConsolidationService.GetIssuedGroupDeliverableAsync(db, siblingActor, consolidationScopeId);
+      Assert.False(siblingRead.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, siblingRead.ErrorCode);
+
+      var issued = await ConsolidationService.GetIssuedGroupDeliverableAsync(db, groupViewerActor, consolidationScopeId);
+      Assert.True(issued.Succeeded, issued.Message);
+      Assert.Equal(deliverableSha256, issued.Value!.DeliverableSha256);
+      Assert.Equal(GroupDeliverableStates.Issued, issued.Value.Status);
+
+      // Download bytes and verify integrity
+      var export = await ConsolidationService.DownloadIssuedGroupDeliverableAsync(db, groupViewerActor, consolidationScopeId);
+      Assert.True(export.Succeeded, export.Message);
+      Assert.Equal(deliverableSha256, export.Value!.ContentSha256);
+      Assert.Equal(deliverableSha256, export.Value.DeliverableSha256);
+      Assert.NotEmpty(export.Value.Content);
+
+      // Archive issued deliverable
+      var archive = await ConsolidationService.ArchiveGroupDeliverableAsync(db, reviewer,
+        new ArchiveGroupDeliverableRequest(deliverableId, "Statutory archiving requirement"));
+      Assert.True(archive.Succeeded, archive.Message);
+      Assert.Equal(GroupDeliverableStates.Archived, archive.Value!.Status);
+      Assert.Equal(reviewer.UserId, archive.Value.ArchivedByUserId);
+      Assert.NotNull(archive.Value.ArchivedAt);
+      Assert.Equal("Statutory archiving requirement", archive.Value.ArchiveReason);
+
+      // Component books are completely unchanged
+      var packagesAfter = await db.FinancialPackages.Where(x => x.ClientId == scope.ClientA || x.ClientId == scope.ClientB).Select(x => x.Id).ToArrayAsync();
+      Assert.Equal(sourcePackagesBefore, await CurrencyPackageSourceManifestAsync(db, packagesAfter));
+      Assert.Equal(sourceClientBooksBefore, await ClientBookSourceManifestAsync(db, scope.FirmId, [scope.ClientA, scope.ClientB]));
+    }
+  }
 }

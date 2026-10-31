@@ -299,6 +299,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<ManagedDirectoryGroup> ManagedDirectoryGroups { get; }
   DbSet<Microsoft365ExternalOperation> Microsoft365ExternalOperations { get; }
   DbSet<Microsoft365AdministrationEvent> Microsoft365AdministrationEvents { get; }
+  DbSet<ClientOffboardingRecord> ClientOffboardingRecords { get; }
   DatabaseFacade Database { get; }
   Task<int> SaveChangesAsync(CancellationToken ct = default);
 }
@@ -393,6 +394,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<AdvancedConsolidationExecution> AdvancedConsolidationExecutions { get; }
   DbSet<ConsolidationRun> ConsolidationRuns { get; }
   DbSet<ConsolidationRunLine> ConsolidationRunLines { get; }
+  DbSet<GroupDeliverable> GroupDeliverables { get; }
   DbSet<ExchangeRateSetVersion> ExchangeRateSetVersions { get; }
   DbSet<ExchangeRate> ExchangeRates { get; }
   DbSet<TranslationPolicyVersion> TranslationPolicyVersions { get; }

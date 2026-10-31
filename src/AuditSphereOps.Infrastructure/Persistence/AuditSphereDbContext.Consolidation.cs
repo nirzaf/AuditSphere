@@ -262,6 +262,34 @@ public sealed partial class AuditSphereDbContext
     run.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).HasName("ak_consolidation_runs_scope_id");
     component.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).HasName("ak_consolidation_components_scope_id");
 
+    var deliverable = b.Entity<GroupDeliverable>();
+    deliverable.Property(x => x.FormatVersion).HasMaxLength(50);
+    deliverable.Property(x => x.RunHash).HasMaxLength(64);
+    deliverable.Property(x => x.InputManifestDigest).HasMaxLength(64);
+    deliverable.Property(x => x.DeliverableSha256).HasMaxLength(64);
+    deliverable.Property(x => x.DeliverableJson).HasColumnType("text");
+    deliverable.Property(x => x.Status).HasMaxLength(30);
+    deliverable.Property(x => x.AuthorizedReleaseKey).HasMaxLength(100);
+    deliverable.Property(x => x.ArchiveReason).HasMaxLength(2000);
+    deliverable.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id })
+      .HasName("ak_group_deliverables_scope_id");
+    deliverable.HasIndex(x => new { x.FirmId, x.ScopeVersionId, x.RunId, x.Status })
+      .HasDatabaseName("ix_group_deliverables_scope_run_status");
+    deliverable.ToTable("group_deliverables", t => t.HasCheckConstraint("ck_group_deliverable_values",
+      "format_version <> '' AND run_hash ~ '^[0-9a-f]{64}$' AND input_manifest_digest ~ '^[0-9a-f]{64}$' AND deliverable_sha256 ~ '^[0-9a-f]{64}$' AND status IN ('BUILT','ISSUED','ARCHIVED')"));
+    deliverable.HasOne<ClientGroup>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    deliverable.HasOne<ConsolidationScopeVersion>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    deliverable.HasOne<ConsolidationRun>().WithMany().HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.RunId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    deliverable.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    deliverable.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.IssuedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    deliverable.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ArchivedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var rateSet = b.Entity<ExchangeRateSetVersion>();
     rateSet.Property(x => x.Code).HasMaxLength(100);
     rateSet.Property(x => x.Version);

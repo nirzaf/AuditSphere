@@ -1234,6 +1234,36 @@ public sealed class ConsolidationRun
   public DateTimeOffset? ApprovedAt { get; set; }
 }
 
+public static class GroupDeliverableStates
+{
+  public const string Built = "BUILT";
+  public const string Issued = "ISSUED";
+  public const string Archived = "ARCHIVED";
+}
+
+public sealed class GroupDeliverable
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid GroupId { get; set; }
+  public Guid ScopeVersionId { get; set; }
+  public Guid RunId { get; set; }
+  public string RunHash { get; set; } = string.Empty;
+  public string InputManifestDigest { get; set; } = string.Empty;
+  public string DeliverableSha256 { get; set; } = string.Empty;
+  public string DeliverableJson { get; set; } = string.Empty;
+  public string FormatVersion { get; set; } = "GROUP_DELIVERABLE_V1";
+  public string Status { get; set; } = GroupDeliverableStates.Built;
+  public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+  public Guid? IssuedByUserId { get; set; }
+  public DateTimeOffset? IssuedAt { get; set; }
+  public string? AuthorizedReleaseKey { get; set; }
+  public Guid? ArchivedByUserId { get; set; }
+  public DateTimeOffset? ArchivedAt { get; set; }
+  public string? ArchiveReason { get; set; }
+}
+
 public sealed class ConsolidationRunLine
 {
   public Guid Id { get; set; }

@@ -68,5 +68,33 @@ describe('client offboarding readiness', () => {
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).not.toContain('Open or in-progress tasks');
     });
+
+    it('records offboarding closeout decision when assessed', () => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId);
+      fixture.detectChanges();
+      (fixture.nativeElement.querySelector('[data-offboarding-check]') as HTMLButtonElement).click();
+      http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      fixture.detectChanges();
+
+      const textarea = fixture.nativeElement.querySelector('#offboarding-disposition-notes') as HTMLTextAreaElement;
+      expect(textarea).not.toBeNull();
+      textarea.value = 'Reviewed all open tasks and outstanding invoices with Partner.';
+      textarea.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      const closeoutBtn = fixture.nativeElement.querySelector('[data-offboarding-closeout]') as HTMLButtonElement;
+      expect(closeoutBtn.disabled).toBe(false);
+      closeoutBtn.click();
+
+      const postReq = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      expect(postReq.request.method).toBe('POST');
+      expect(postReq.request.body.dispositionNotes).toContain('Reviewed all open tasks');
+      expect(postReq.request.body.acknowledgedActionItems).toEqual(['OPEN_TASKS']);
+      postReq.flush({ recordId: clientId, status: 'COMPLETED' });
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Offboarding closeout recorded successfully');
+    });
   });
 });

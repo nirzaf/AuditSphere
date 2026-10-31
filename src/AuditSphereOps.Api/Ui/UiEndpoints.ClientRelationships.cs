@@ -29,6 +29,11 @@ public static partial class UiEndpoints
 
   public sealed record RevokeRoutingInput(string Reason);
   public sealed record SetClientArchiveInput(bool IsArchived, string ExpectedRevision);
+  public sealed record RecordClientOffboardingCloseoutInput(
+    string DispositionNotes,
+    IReadOnlyList<string>? AcknowledgedActionItems = null,
+    string? ExpectedRevision = null,
+    bool ArchiveClientOnCloseout = false);
   public sealed record ClientArchiveStateResponse(bool IsArchived, DateTimeOffset? LastArchivedAt, string Revision);
 
   /// <summary>Direct success body returned after a client relationship or routing is revoked.</summary>
@@ -88,6 +93,34 @@ public static partial class UiEndpoints
       .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
+
+    var closeout = group.MapPost("/clients/{id:guid}/offboarding-closeout", async (Guid id, RecordClientOffboardingCloseoutInput input,
+      HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 400); }
+
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var expRev = long.TryParse(input.ExpectedRevision, NumberStyles.Integer, CultureInfo.InvariantCulture, out var r) ? r : 0;
+      var result = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, actor,
+        new ClientOffboardingCloseoutRequest(id, input.DispositionNotes ?? string.Empty, input.AcknowledgedActionItems, expRev, input.ArchiveClientOnCloseout),
+        http.RequestAborted);
+      if (!result.Succeeded)
+        return Results.Json(new { code = result.ErrorCode, message = result.Message },
+          statusCode: result.ErrorCode == "crm.invalid" ? 400 : result.ErrorCode == ErrorCodes.GateBlocked ? 409 : 403);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return Results.Ok(result.Value);
+    }).WithSummary("Record client offboarding closeout")
+      .WithDescription("Records an immutable client offboarding closeout outcome, requiring all obligations to be assessed (non-UNKNOWN) and explicit disposition/acknowledgement of action items.");
+    closeout.Produces<ClientOffboardingCloseoutResult>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
 
     // Hierarchy
     var candidates = group.MapGet("/clients/{id:guid}/relationship-candidates", async (Guid id, string? search, int? page, int? pageSize,

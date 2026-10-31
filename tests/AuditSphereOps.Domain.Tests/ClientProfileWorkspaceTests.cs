@@ -89,6 +89,59 @@ public sealed class ClientProfileWorkspaceTests
   }
 
   [Fact]
+  public async Task OffboardingCloseout_EnforcesAssessedPrerequisites_AcknowledgesActionItems_AndRecordsImmutableOutcome()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var manager = PbcSeed.User(f.FirmId, "Staff");
+    db.Users.Add(manager);
+    db.RoleGrants.AddRange(
+      PbcSeed.Grant(f.FirmId, manager, "Manager", f.ClientId),
+      PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"),
+      PbcSeed.Grant(f.FirmId, f.Admin, "RecordsCustodian"));
+    var accountId = Guid.NewGuid();
+    db.BillingAccounts.Add(new BillingAccount { Id = accountId, FirmId = f.FirmId, PracticeClientId = f.ClientId, Currency = "USD", CreatedAt = DateTimeOffset.UtcNow });
+    db.Invoices.Add(new Invoice { Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = accountId, InvoiceNumber = "INV-OFF-1", Currency = "USD",
+      Subtotal = 50m, Total = 50m, Status = BillingStates.InvoicePosted, PostedAt = DateTimeOffset.UtcNow.AddDays(-1), CreatedAt = DateTimeOffset.UtcNow.AddDays(-2) });
+    db.WorkTasks.Add(new WorkTask { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, Title = "Open fieldwork item", CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+
+    var managerActor = PbcSeed.Actor(manager, "Manager");
+    var adminActor = PbcSeed.Actor(f.Admin, "Administrator");
+
+    // 1. Partial authority (manager cannot read finance/records -> UNKNOWN state) fails closed with GateBlocked
+    var partialRefusal = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, managerActor,
+      new ClientOffboardingCloseoutRequest(f.ClientId, "Disposition notes"));
+    Assert.False(partialRefusal.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, partialRefusal.ErrorCode);
+
+    // 2. Full authority but without acknowledging ACTION_REQUIRED items fails closed
+    var unacknowledgedRefusal = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, adminActor,
+      new ClientOffboardingCloseoutRequest(f.ClientId, "Disposition notes without acknowledging items", []));
+    Assert.False(unacknowledgedRefusal.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, unacknowledgedRefusal.ErrorCode);
+
+    // 3. Full authority with explicit acknowledgement of action items and disposition notes succeeds
+    var actionKeys = new[] { "OPEN_ENGAGEMENTS", "OPEN_TASKS", "OUTSTANDING_INVOICES", "ACTIVE_GRANTS" };
+    var success = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, adminActor,
+      new ClientOffboardingCloseoutRequest(f.ClientId, "All open items reviewed and approved for closeout.", actionKeys, ExpectedRevision: 0, ArchiveClientOnCloseout: true));
+    Assert.True(success.Succeeded, success.Message);
+    Assert.Equal(ClientOffboardingRecordStates.Completed, success.Value!.Status);
+    Assert.Equal(ClientOffboardingStates.ActionRequired, success.Value.ReadinessOverallState);
+    Assert.NotEmpty(success.Value.ReadinessDigest);
+    Assert.True(success.Value.IsArchived);
+    Assert.Equal(1, success.Value.ArchiveRevision);
+
+    // 4. Persistence verification: record is immutable, invoices and tasks remain intact (no silent write-offs)
+    var savedRecord = await db.ClientOffboardingRecords.SingleOrDefaultAsync(x => x.Id == success.Value.RecordId);
+    Assert.NotNull(savedRecord);
+    Assert.Equal(f.ClientId, savedRecord.ClientId);
+    Assert.Equal("All open items reviewed and approved for closeout.", savedRecord.DispositionNotes);
+    Assert.Equal(1, await db.Invoices.CountAsync(x => x.BillingAccountId == accountId));
+    Assert.Equal(1, await db.WorkTasks.CountAsync(x => x.ClientId == f.ClientId));
+  }
+
+  [Fact]
   public async Task ClientArchiveIsReversibleSearchableScopedAndAppendOnly()
   {
     await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);

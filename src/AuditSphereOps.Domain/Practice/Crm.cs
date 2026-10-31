@@ -228,6 +228,26 @@ public sealed class ClientLifecycleEvent
   public DateTimeOffset OccurredAt { get; set; }
 }
 
+public static class ClientOffboardingRecordStates
+{
+  public const string Completed = "COMPLETED";
+}
+
+public sealed class ClientOffboardingRecord
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public string Status { get; set; } = ClientOffboardingRecordStates.Completed;
+  public string ReadinessOverallState { get; set; } = string.Empty;
+  public string ReadinessSnapshotJson { get; set; } = string.Empty;
+  public string ReadinessDigest { get; set; } = string.Empty;
+  public string DispositionNotes { get; set; } = string.Empty;
+  public string AcknowledgedActionItemsJson { get; set; } = "[]";
+  public Guid DecidedByUserId { get; set; }
+  public DateTimeOffset DecidedAt { get; set; }
+}
+
 public sealed class ClientContact
 {
   public Guid Id { get; set; }

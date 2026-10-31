@@ -70,6 +70,41 @@ public sealed record ConsolidationReport(
 public sealed record AdvancedConsolidationMethodScheduleRequest(
   Guid ScopeVersionId, string Method, string Framework, string SourceManifestJson, string InputSnapshotJson);
 
+public sealed record GroupDeliverableResult(
+  Guid DeliverableId,
+  Guid GroupId,
+  Guid ScopeVersionId,
+  Guid RunId,
+  string RunHash,
+  string InputManifestDigest,
+  string DeliverableSha256,
+  string FormatVersion,
+  string Status,
+  Guid CreatedByUserId,
+  DateTimeOffset CreatedAt,
+  Guid? IssuedByUserId,
+  DateTimeOffset? IssuedAt,
+  string? AuthorizedReleaseKey,
+  Guid? ArchivedByUserId,
+  DateTimeOffset? ArchivedAt,
+  string? ArchiveReason,
+  string DeliverableJson);
+
+public sealed record IssueGroupDeliverableRequest(
+  Guid DeliverableId,
+  string? AuthorizedReleaseKey = null);
+
+public sealed record ArchiveGroupDeliverableRequest(
+  Guid DeliverableId,
+  string? Reason = null);
+
+public sealed record GroupDeliverableExport(
+  string FileName,
+  byte[] Content,
+  string ContentSha256,
+  string DeliverableSha256,
+  string Status);
+
 public static class ConsolidationEliminationKinds
 {
   public const string ReceivablePayable = "RECEIVABLE_PAYABLE";

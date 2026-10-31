@@ -141,6 +141,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<PracticeClient> PracticeClients => Set<PracticeClient>();
 
   public DbSet<ClientLifecycleEvent> ClientLifecycleEvents => Set<ClientLifecycleEvent>();
+  public DbSet<ClientOffboardingRecord> ClientOffboardingRecords => Set<ClientOffboardingRecord>();
 
   public DbSet<ClientContact> ClientContacts => Set<ClientContact>();
 
@@ -467,6 +468,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AdvancedConsolidationExecution> AdvancedConsolidationExecutions => Set<AdvancedConsolidationExecution>();
 
   public DbSet<ConsolidationRun> ConsolidationRuns => Set<ConsolidationRun>();
+  public DbSet<GroupDeliverable> GroupDeliverables => Set<GroupDeliverable>();
 
   public DbSet<ConsolidationRunLine> ConsolidationRunLines => Set<ConsolidationRunLine>();
 
