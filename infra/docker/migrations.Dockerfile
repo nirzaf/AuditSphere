@@ -20,7 +20,7 @@ RUN dotnet tool install --global dotnet-ef --version 10.0.12 \
     --configuration Release --no-restore -m:1 -p:BuildInParallel=false \
     -p:UseSharedCompilation=false -p:PublishAngularUi=false \
     -p:RunAnalyzers=false -p:DebugType=None -p:DebugSymbols=false \
-  && DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet ef migrations bundle --configuration Release --no-build -r linux-x64 \
+  && DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet ef migrations bundle --configuration Release --no-build \
     --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api \
     -o /out/efbundle
 

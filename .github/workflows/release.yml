@@ -173,7 +173,7 @@ jobs:
   release:
     needs: [verify-ci-passed, verify-release-source]
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     environment: ${{ inputs.environment }}
     defaults:
       run:

@@ -118,9 +118,11 @@ jobs:
           # the Api, so the default parallel solution build races on the Api's output files
           # (runtimeconfig.json and Roslyn satellite DLLs), causing intermittent MSB3026/MSB4018
           # "used by another process" failures.
-          # Match the successful container builds for migration-heavy projects.
+          # Match the successful container builds for migration-heavy projects. Analyzer output is
+          # not part of this release gate; the generated migration/model files otherwise push the
+          # single compiler past the hosted runner's useful build budget.
           dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1 \
-            -p:BuildInParallel=false -p:UseSharedCompilation=false
+            -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RunAnalyzers=false
 
       - name: Run fast database-free architecture and rounding guards
         run: |
