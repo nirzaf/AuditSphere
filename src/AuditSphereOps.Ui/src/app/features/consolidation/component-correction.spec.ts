@@ -26,8 +26,8 @@ function workspace(overrides: Record<string, unknown> = {}) {
       supersedesScopeVersionId: null, supersedesComponentId: null,
     },
     canPrepare: false, canReview: false, currentUserId: actorId,
-    canApproveScope: false, scopeApprovalBlocker: null,
-    canIssueDeliverable: false, canArchiveDeliverable: false,
+    canApproveScope: false, canIssueDeliverable: false, canArchiveDeliverable: false,
+    scopeApprovalBlocker: null,
     components: [{
       id: componentId, clientId, clientLegalName: 'Operating Company', sourceType: 'INTERNAL_PACKAGE',
       packageId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', externalComponentPackId: null, packageHash,

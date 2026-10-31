@@ -43599,7 +43599,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UiValueResponseOfboolean"
+                  "$ref": "#/components/schemas/UiValueResponseOfGuid"
                 }
               }
             }
@@ -119955,6 +119955,14 @@
               "null",
               "string"
             ]
+          },
+          "canIssueDeliverable": {
+            "type": "boolean",
+            "default": false
+          },
+          "canArchiveDeliverable": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -124817,7 +124825,9 @@
         "required": [
           "status",
           "notes",
-          "findingsDiscussed"
+          "findingsDiscussed",
+          "requestKey",
+          "expectedCaseRevision"
         ],
         "type": "object",
         "properties": {
@@ -124832,6 +124842,21 @@
           },
           "findingsDiscussed": {
             "type": "boolean"
+          },
+          "requestKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "expectedCaseRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },

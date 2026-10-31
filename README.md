@@ -282,8 +282,8 @@ Use the **exact versions pinned by this checkout**, not whichever SDK is newest.
 | .NET SDK | **10.0.300**, exact match; `global.json` disables roll-forward |
 | C# | 14; `Directory.Build.props` enables nullable references and warnings-as-errors |
 | EF Core / Npgsql | EF Core **10.0.12**, Npgsql EF provider **10.0.0** (central NuGet versions) |
-| Node.js | **26.8.1** from `src/AuditSphereOps.Ui/.nvmrc` |
-| npm | **11.19.0** declared in Angular `package.json` |
+| Node.js | **26.13.0 (LTS)** from `src/AuditSphereOps.Ui/.nvmrc` |
+| npm | **11.20.0** declared in Angular `package.json` |
 | Angular / Material/CDK | **22.2.1** dependency pins; Angular CLI **22.2.3** |
 | PostgreSQL | **18.6** project development/CI baseline; local port **5433** |
 | PowerShell (optional for M365) | PowerShell **7.4 or newer**; use pinned modules from `scripts/m365/modules.lock.json` |
@@ -335,6 +335,12 @@ npm --prefix src/AuditSphereOps.Ui start
 Open **http://localhost:4200/ui/app** for the staff workspace. Client sessions use `/ui/portal`, with separate role/scope checks. The development Angular server proxies backend requests to port `5100`; the script refuses to start another API when that port is already occupied. A new installation **does not have a preapproved default administrator**; follow the initial Microsoft-identity/bootstrap procedure in [Angular development](src/AuditSphereOps.Ui/auditsphere-angular-development.md) and the [tenant runbook](docs/operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md).
 
 For an **API-hosted** local preview, build Angular assets first, configure the approved private settings, and follow [the alternative preview procedure](src/AuditSphereOps.Ui/auditsphere-angular-development.md). Do not confuse the dev proxy with an authenticated production deployment.
+
+On a macOS sandbox that blocks System V IPC, the native LMDB compiler cache can abort the Angular build before its JavaScript fallback runs. The installed Angular build supports a per-command SQLite cache override; use it in that environment without changing the project cache configuration:
+
+```bash
+NG_BUILD_CACHE_STORE=sqlite npm --prefix src/AuditSphereOps.Ui run build
+```
 
 ## Fast verification and CI/CD
 

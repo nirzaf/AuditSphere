@@ -10,17 +10,25 @@ WORKDIR /repo
 COPY global.json Directory.Build.props Directory.Packages.props AuditSphereOps.slnx ./
 COPY docs/task_breakdown/tracking/pack_manifest.json docs/task_breakdown/tracking/pack_manifest.json
 COPY src/ src/
+# The migration bundle only needs executable IL, not analyzer diagnostics or PDBs. The model
+# snapshot and migration designers are large generated files; disabling analyzers/PDBs keeps
+# the compiler within the image-build runner's memory budget without changing runtime IL.
 RUN dotnet tool install --global dotnet-ef --version 10.0.12 \
   && export PATH="$PATH:/root/.dotnet/tools" \
   && dotnet restore src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --locked-mode \
   && DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj \
     --configuration Release --no-restore -m:1 -p:BuildInParallel=false \
     -p:UseSharedCompilation=false -p:PublishAngularUi=false \
-  && DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet ef migrations bundle --configuration Release --self-contained --no-build -r linux-x64 \
+    -p:RunAnalyzers=false -p:DebugType=None -p:DebugSymbols=false \
+  && DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet ef migrations bundle --configuration Release --no-build -r linux-x64 \
     --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api \
     -o /out/efbundle
 
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS runtime
+# Framework-dependent bundle: the self-contained publish of the full design-time host exceeded
+# the image job budget. The aspnet runtime supplies Microsoft.AspNetCore.App and the exact .NET 10
+# runtime; the bundle still carries the same migration IL and applies the same SQL.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+ENV DOTNET_ROLL_FORWARD=Major
 WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends libgssapi-krb5-2 \

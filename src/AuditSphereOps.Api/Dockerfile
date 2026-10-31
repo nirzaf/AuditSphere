@@ -3,7 +3,7 @@
 # Build context is the repository root so the pinned SDK, central package versions and the
 # Angular workspace resolve exactly as the CI build gate does.
 #   docker build -f src/AuditSphereOps.Api/Dockerfile -t auditsphere-api:<git-sha> .
-FROM mcr.microsoft.com/devcontainers/javascript-node:22-bookworm AS ui
+FROM mcr.microsoft.com/devcontainers/javascript-node:26-bookworm AS ui
 # The devcontainer image defaults to its non-root `node` user; this ephemeral build stage
 # writes npm dependencies and Angular output under /ui, so use root only for these build steps.
 USER root
@@ -30,9 +30,12 @@ COPY src/ src/
 # Finish the Angular build before the memory-intensive .NET compile starts.
 COPY --from=ui /ui/dist/auditsphere-ui/browser/ /ui-assets/
 # The Angular asset set is copied from the ui stage; publishing is backend-only here.
+# Runtime images do not need analyzer diagnostics or PDBs. The generated migration/model
+# files are large; omitting them keeps the compiler inside the image runner's memory budget.
 RUN DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet publish src/AuditSphereOps.Api/AuditSphereOps.Api.csproj \
   --configuration Release --no-restore -m:1 -p:BuildInParallel=false \
   -p:UseSharedCompilation=false -p:PublishAngularUi=false -o /out \
+  -p:RunAnalyzers=false -p:DebugType=None -p:DebugSymbols=false \
   && test -f /out/AuditSphereOps.Api.dll
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
