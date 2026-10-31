@@ -540,6 +540,10 @@ public static partial class AuditDeliverableService
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Only the Partner who decided the opinion signs the report.");
     if (await db.SignatureApplications.AnyAsync(x => x.FirmId == actor.FirmId && x.SourceDeliverableId == report.Id, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This report version is already signed.");
+    var eqr = await db.EqrCases.AsNoTracking().FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == report.EngagementId, ct);
+    if (eqr is not null && eqr.Status != "CONCURRED")
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        $"Engagement quality review (EQR) status is {eqr.Status}; concurrence is required before signing the independent auditor's report.");
     var gate = await ClientGateAsync(db, actor, report.EngagementId, ct);
     if (gate is not null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, gate);
     var specimen = await db.SignatureSpecimens.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null, ct);
@@ -573,6 +577,66 @@ public static partial class AuditDeliverableService
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return signed;
+  }
+
+  public static async Task<CommandResult> RecordEqrDecisionAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, string status, string? notes,
+    bool findingsDiscussed, CancellationToken ct = default)
+  {
+    status = (status ?? string.Empty).Trim().ToUpperInvariant();
+    if (status is not ("CONCURRED" or "CHANGES_REQUESTED" or "IN_PROGRESS"))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Invalid EQR status decision.");
+
+    var auth = await AuthorizeAsync(db, actor, engagementId, ["Partner", "Administrator"], ct);
+    if (!auth.Succeeded) return CommandResult.Fail(auth.ErrorCode!, auth.Message!);
+
+    var isEngagementPartner = await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x =>
+      x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.UserId == actor.UserId &&
+      x.RevokedAt == null && x.StaffingLevel == Domain.Practice.StaffingLevels.EngagementPartner, ct);
+    if (isEngagementPartner)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "The Engagement Partner cannot perform the independent Engagement Quality Review.");
+
+    if (status == "CONCURRED" && !findingsDiscussed)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Findings must be discussed before EQR concurrence.");
+
+    if (status == "CHANGES_REQUESTED" && string.IsNullOrWhiteSpace(notes))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Explain the required changes.");
+
+    var eqr = await db.EqrCases.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
+    if (eqr is null)
+    {
+      var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
+      if (engagement is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Engagement unavailable.");
+      eqr = new EqrCase
+      {
+        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = engagement.PracticeClientId,
+        EngagementId = engagementId, EqrPartnerUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      };
+      db.EqrCases.Add(eqr);
+    }
+    else if (eqr.EqrPartnerUserId != Guid.Empty && eqr.EqrPartnerUserId != actor.UserId)
+    {
+      var isAdmin = actor.Roles.Contains("Administrator", StringComparer.OrdinalIgnoreCase);
+      if (!isAdmin)
+        return CommandResult.Fail(ErrorCodes.ScopeDenied, "Only the assigned EQR Partner or Administrator can record the EQR decision.");
+    }
+
+    eqr.Status = status;
+    eqr.Notes = notes?.Trim();
+    eqr.FindingsDiscussed = findingsDiscussed;
+    if (status == "CONCURRED")
+    {
+      eqr.ConcurrenceDate = DateOnly.FromDateTime(DateTime.UtcNow);
+      eqr.CompletedAt = DateTimeOffset.UtcNow;
+    }
+    else
+    {
+      eqr.ConcurrenceDate = null;
+      eqr.CompletedAt = null;
+    }
+
+    await db.SaveChangesAsync(ct);
+    return CommandResult.Ok();
   }
 
   // ── Client review cycle (4.1-02) ──────────────────────────────────────────────────────────────────

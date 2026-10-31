@@ -1133,6 +1133,28 @@ public sealed partial class AuditDeliverablesTests
       Assert.True((await AuditDeliverableService.RegisterFirmSealAsync(db, partner, Png(100, 100))).Succeeded);
       // Only the deciding Engagement Partner signs, once, embedding the PNG into that exact version.
       Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.SignIndependentReportAsync(db, w.A("partner2", "Partner"), iar)).ErrorCode);
+
+      // EQR enforcement: when an EQR case exists, non-concurred status blocks signing
+      var eqrPartner = w.A("partner2", "Partner");
+      // The Engagement Partner cannot perform EQR on their own engagement
+      var epAttempt = await AuditDeliverableService.RecordEqrDecisionAsync(db, partner, w.EngagementId, "CONCURRED", "Attempt by EP", true);
+      Assert.False(epAttempt.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, epAttempt.ErrorCode);
+
+      // EQR Changes Requested blocks signing
+      var changesDecision = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId, "CHANGES_REQUESTED", "Review note on valuation", false);
+      Assert.True(changesDecision.Succeeded, changesDecision.Message);
+      Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar)).ErrorCode);
+
+      // Concurrence without findings discussed is refused
+      var prematureConcurrence = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId, "CONCURRED", "Premature concurrence", false);
+      Assert.False(prematureConcurrence.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, prematureConcurrence.ErrorCode);
+
+      // Independent EQR Partner concurrence with findings discussed unblocks signing
+      var concurred = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId, "CONCURRED", "All matters discussed and concurred.", true);
+      Assert.True(concurred.Succeeded, concurred.Message);
+
       var signed = await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar);
       Assert.True(signed.Succeeded, signed.Message);
       Assert.Equal(ErrorCodes.IdempotencyConflict, (await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar)).ErrorCode);

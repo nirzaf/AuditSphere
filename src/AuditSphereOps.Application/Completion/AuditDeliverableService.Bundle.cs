@@ -211,6 +211,9 @@ public static partial class AuditDeliverableService
     if (scan is null || letter is null || !await IsCurrentAsync(db, actor, letter, ct)) blockers.Add("A Partner-verified signed scan of the current representation letter is required.");
     var clientGate = await ClientGateAsync(db, actor, engagementId, ct);
     if (clientGate is not null && scan is not null) blockers.Add(clientGate);
+    var eqr = await db.EqrCases.AsNoTracking().FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
+    if (eqr is not null && eqr.Status != "CONCURRED")
+      blockers.Add($"Engagement quality review (EQR) status is {eqr.Status}; concurrence is required before releasing the deliverable bundle.");
     var release = await db.Releases.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
       db.ReleaseCandidates.Any(c => c.Id == x.ReleaseCandidateId && c.FirmId == actor.FirmId && c.TargetKind == ReleaseTargetKinds.FinancialPackage))
       .OrderByDescending(x => x.ReleasedAt).FirstOrDefaultAsync(ct);
