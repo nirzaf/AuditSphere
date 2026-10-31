@@ -649,6 +649,9 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Records.RecordsAction> RecordsActions => db.RecordsActions;
     public DbSet<AuditSphereOps.Domain.Records.LegalHold> LegalHolds => db.LegalHolds;
     public DbSet<AuditSphereOps.Domain.Completion.EqrCase> EqrCases => db.EqrCases;
+    public DbSet<AccountingCapabilityProfile> AccountingCapabilityProfiles => db.AccountingCapabilityProfiles;
+    public DbSet<AccountingCapabilityAcceptance> AccountingCapabilityAcceptances => db.AccountingCapabilityAcceptances;
+    public DbSet<ClientReportingPeriod> ClientReportingPeriods => db.ClientReportingPeriods;
 
     public DbSet<AuditSphereOps.Domain.Completion.WrittenRepresentation> WrittenRepresentations => db.WrittenRepresentations;
     public DbSet<AuditSphereOps.Domain.Engagements.EngagementAssignment> EngagementAssignments => db.EngagementAssignments;

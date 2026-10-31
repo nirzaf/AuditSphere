@@ -1,10 +1,13 @@
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using System.Data.Common;
+using System.Globalization;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -248,6 +251,94 @@ public sealed class PortfolioWorkspaceTests
     var denied = await EngagementProgressQuery.GetAsync(db, PbcSeed.Actor(f.Client, "ClientUser"), f.EngagementId);
     Assert.False(denied.Succeeded);
     Assert.Null(denied.Value);
+  }
+
+  [Fact]
+  public async Task NonAuditProgressReachesCompletionWhenProfileIsApprovedAndEvidenceIsCurrent()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var actor = PbcSeed.Actor(f.Admin, "Administrator");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var engagement = await db.Engagements.SingleAsync(x => x.Id == f.EngagementId);
+    engagement.ServiceRoute = "AccountingOnly";
+    engagement.PeriodStart = "2026-01-01";
+    engagement.PeriodEnd = "2026-12-31";
+    await db.SaveChangesAsync();
+
+    await PortfolioWorkspaceSeed.PopulateAsync(db, f);
+    var hold = await db.EngagementHolds.SingleAsync(x => x.EngagementId == f.EngagementId);
+    hold.Released = true;
+    hold.ReleasedAt = DateTimeOffset.UtcNow;
+    db.WorkTasks.Add(new WorkTask
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+      Title = "Completed synthetic commitment", Status = PracticeTimeStates.TaskCompleted, CreatedAt = DateTimeOffset.UtcNow
+    });
+
+    var profileId = Guid.CreateVersion7();
+    db.AccountingCapabilityProfiles.Add(new AccountingCapabilityProfile
+    {
+      Id = profileId, FirmId = f.FirmId, ClientId = f.ClientId, ServiceRoute = "AccountingOnly",
+      ServiceKind = AccountingCapabilityServiceKinds.ClientBookkeeping, Framework = "IFRS",
+      Status = AccountingWorkflowStates.Approved, CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.AccountingCapabilityAcceptances.Add(new AccountingCapabilityAcceptance
+    {
+      Id = Guid.CreateVersion7(), FirmId = f.FirmId, CapabilityProfileId = profileId,
+      Stage = AccountingCapabilityAcceptanceStages.Released, Status = AccountingWorkflowStates.Approved,
+      EvidenceReference = "APPROVED-CAPABILITY-001", DecidedByUserId = f.Admin.Id,
+      DecidedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
+    });
+
+    var periodId = Guid.CreateVersion7();
+    db.ClientReportingPeriods.Add(new ClientReportingPeriod
+    {
+      Id = periodId, FirmId = f.FirmId, ClientId = f.ClientId, PeriodCode = "FY2026",
+      StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+      Basis = "ACCRUAL", Currency = "USD", Status = AccountingWorkflowStates.Closed,
+      ClosedByUserId = f.Admin.Id, ClosedAt = DateTimeOffset.UtcNow,
+      CreatedByUserId = f.Admin.Id, CreatedAt = DateTimeOffset.UtcNow
+    });
+
+    await db.SaveChangesAsync();
+
+    var detail = (await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId)).Value!;
+    Assert.False(detail.LifecycleRoute);
+    Assert.Equal((1, 1, 0, 100, false), (detail.ApplicableRequired, detail.CompletedRequired,
+      detail.PendingRequired, detail.PercentComplete, detail.GateOpen));
+    Assert.Empty(detail.Gates);
+    Assert.Contains("IFRS", detail.Disclosure);
+
+    // Negative case 1: Open reporting period blocks completion
+    var period = await db.ClientReportingPeriods.SingleAsync(p => p.Id == periodId);
+    period.Status = AccountingWorkflowStates.Draft;
+    await db.SaveChangesAsync();
+    var unclosedDetail = (await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId)).Value!;
+    Assert.True(unclosedDetail.GateOpen);
+    Assert.Equal(99, unclosedDetail.PercentComplete);
+    Assert.Contains("The reporting period is not closed.", unclosedDetail.Gates);
+
+    // Negative case 2: An engagement without an issued release remains open
+    period.Status = AccountingWorkflowStates.Closed;
+    var unreleasedEngagementId = Guid.NewGuid();
+    db.Engagements.Add(new Engagement
+    {
+      Id = unreleasedEngagementId, FirmId = f.FirmId, PracticeClientId = f.ClientId,
+      ServiceRoute = "AccountingOnly", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+      Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.WorkTasks.Add(new WorkTask
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = unreleasedEngagementId,
+      Title = "Synthetic unreleased task", Status = PracticeTimeStates.TaskCompleted, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
+    var unreleasedDetail = (await EngagementProgressQuery.GetAsync(db, actor, unreleasedEngagementId)).Value!;
+    Assert.True(unreleasedDetail.GateOpen);
+    Assert.Equal(99, unreleasedDetail.PercentComplete);
+    Assert.Contains("No issued release exists for this engagement yet.", unreleasedDetail.Gates);
   }
 
   [Theory]

@@ -1,8 +1,10 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
@@ -10,6 +12,7 @@ using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
+using System.Globalization;
 
 namespace AuditSphereOps.Application.Practice;
 
@@ -207,6 +210,23 @@ public static class EngagementProgressQuery
       .Select(x => x.EngagementId).Distinct().ToListAsync(ct);
     var released = await db.Releases.AsNoTracking().Where(x => x.FirmId == f && ids.Contains(x.EngagementId))
       .Select(x => x.EngagementId).Distinct().ToListAsync(ct);
+    var nonAuditEngagements = engagements.Where(e => !LifecycleRoutes.Contains(e.ServiceRoute, StringComparer.Ordinal)).ToList();
+    var approvedProfiles = nonAuditEngagements.Count == 0 ? [] : await (from profile in db.AccountingCapabilityProfiles.AsNoTracking()
+      join acceptance in db.AccountingCapabilityAcceptances.AsNoTracking()
+        on new { profile.FirmId, CapabilityProfileId = profile.Id }
+        equals new { acceptance.FirmId, acceptance.CapabilityProfileId }
+      where profile.FirmId == f && profile.ClientId.HasValue && clientIds.Contains(profile.ClientId.Value) &&
+        profile.Status != AccountingWorkflowStates.Retired &&
+        (acceptance.Stage == AccountingCapabilityAcceptanceStages.MethodOwnerApproval ||
+         acceptance.Stage == AccountingCapabilityAcceptanceStages.Released) &&
+        acceptance.Status == AccountingWorkflowStates.Approved
+      select profile).ToListAsync(ct);
+    var clientPeriods = nonAuditEngagements.Count == 0 ? [] : await db.ClientReportingPeriods.AsNoTracking()
+      .Where(p => p.FirmId == f && clientIds.Contains(p.ClientId))
+      .ToListAsync(ct);
+    var packages = nonAuditEngagements.Count == 0 ? [] : await db.FinancialPackages.AsNoTracking()
+      .Where(p => p.FirmId == f && clientIds.Contains(p.ClientId))
+      .ToListAsync(ct);
     var now = DateTimeOffset.UtcNow;
 
     var views = new List<ProgressSnapshot>();
@@ -274,9 +294,41 @@ public static class EngagementProgressQuery
       }
       else
       {
-        if (!released.Contains(engagement.Id)) gates.Add("No issued release exists for this engagement yet.");
-        gates.Add("Completion profile is not approved for this service (D03).");
-        disclosure = "Progress reflects the task plan, holds and release; service-specific completion requirements await approval (D03).";
+        var profile = approvedProfiles.FirstOrDefault(p => p.ClientId == engagement.PracticeClientId && p.ServiceRoute == engagement.ServiceRoute);
+        if (profile is null)
+        {
+          if (!released.Contains(engagement.Id)) gates.Add("No issued release exists for this engagement yet.");
+          gates.Add("Completion profile is not approved for this service (D03).");
+          disclosure = "Progress reflects the task plan, holds and release; service-specific completion requirements await approval (D03).";
+        }
+        else
+        {
+          disclosure = $"Progress reflects the approved {profile.ServiceKind} profile ({profile.Framework}), period close, and released deliverables.";
+          if (!released.Contains(engagement.Id)) gates.Add("No issued release exists for this engagement yet.");
+
+          DateOnly.TryParse(engagement.PeriodStart, CultureInfo.InvariantCulture, out var pStart);
+          DateOnly.TryParse(engagement.PeriodEnd, CultureInfo.InvariantCulture, out var pEnd);
+          var period = clientPeriods.FirstOrDefault(p => p.ClientId == engagement.PracticeClientId && p.StartDate == pStart && p.EndDate == pEnd);
+          if (period is null || period.Status != AccountingWorkflowStates.Closed)
+            gates.Add("The reporting period is not closed.");
+
+          var clientPackages = packages.Where(x => x.ClientId == engagement.PracticeClientId &&
+            x.PeriodStart == engagement.PeriodStart && x.PeriodEnd == engagement.PeriodEnd).ToList();
+          if (profile.ServiceKind == AccountingCapabilityServiceKinds.EntityReporting && clientPackages.Count == 0)
+            gates.Add("An approved financial package is required before completion.");
+          else if (db is IClientAccountingDbContext clientDb)
+          {
+            foreach (var pkg in clientPackages)
+            {
+              var packageReview = await FinancialPackageReviewService.RequireCurrentAsync(clientDb, actor, pkg.Id, requirePartner: true, ct);
+              if (!packageReview.Succeeded)
+              {
+                gates.Add("Every financial package for the period needs current management, accounting, and partner approval.");
+                break;
+              }
+            }
+          }
+        }
       }
 
       // Some derived lifecycle stages omit holds. Keep the gate without disclosing its restricted reason.

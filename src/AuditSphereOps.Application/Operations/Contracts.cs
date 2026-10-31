@@ -276,6 +276,9 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<LedgerSourceLink> LedgerSourceLinks { get; }
   DbSet<LedgerPostingReceipt> LedgerPostingReceipts { get; }
   DbSet<PeriodCloseDecision> PeriodCloseDecisions { get; }
+  DbSet<AccountingCapabilityProfile> AccountingCapabilityProfiles { get; }
+  DbSet<AccountingCapabilityAcceptance> AccountingCapabilityAcceptances { get; }
+  DbSet<ClientReportingPeriod> ClientReportingPeriods { get; }
   DbSet<AppUser> Users { get; }
   DbSet<RoleGrant> RoleGrants { get; }
   DbSet<RoleGrantChangeEvidence> RoleGrantChangeEvidences { get; }
@@ -306,8 +309,6 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<NativeTrialBalanceSource> NativeTrialBalanceSources { get; }
   DbSet<NativeGeneralLedgerSource> NativeGeneralLedgerSources { get; }
   DbSet<AdjustmentPlanAction> AdjustmentPlanActions { get; }
-  DbSet<AccountingCapabilityProfile> AccountingCapabilityProfiles { get; }
-  DbSet<AccountingCapabilityAcceptance> AccountingCapabilityAcceptances { get; }
   DbSet<ClientBookkeepingCounterparty> ClientBookkeepingCounterparties { get; }
   DbSet<ClientSalesInvoiceDraft> ClientSalesInvoiceDrafts { get; }
   DbSet<ClientSalesInvoiceSubmission> ClientSalesInvoiceSubmissions { get; }
@@ -336,7 +337,6 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<ClientGroup> ClientGroups { get; }
   DbSet<ClientGroupMembership> ClientGroupMemberships { get; }
   DbSet<GroupAccessGrant> GroupAccessGrants { get; }
-  DbSet<ClientReportingPeriod> ClientReportingPeriods { get; }
   DbSet<ClientOperationalJournalReversal> ClientOperationalJournalReversals { get; }
   DbSet<ClientOperationalPostingReceipt> ClientOperationalPostingReceipts { get; }
   DbSet<ClientOperationalJournalSnapshot> ClientOperationalJournalSnapshots { get; }
