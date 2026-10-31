@@ -248,7 +248,7 @@ public sealed partial class AuditDeliverablesTests
     Assert.Contains(oldCatalog, x => x.Contains("FOREIGN KEY (result_id)", StringComparison.Ordinal));
     Assert.Contains(oldCatalog, x => x.Contains("FOREIGN KEY (note_id)", StringComparison.Ordinal));
     await using (var migrationDb = new AuditSphereDbContext(pg.Options))
-      await migrationDb.GetService<IMigrator>().MigrateAsync();
+      await migrationDb.GetService<IMigrator>().MigrateAsync(current);
     Assert.Equal(before, await SnapshotAsync());
     var upgraded = await CatalogAsync();
     Assert.All(oldCatalog, row => Assert.Contains(row, upgraded));
@@ -330,7 +330,9 @@ public sealed partial class AuditDeliverablesTests
       var applied = (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray();
       Assert.Equal(current, applied[^1]);
       await migrator.MigrateAsync(baseline);
-      Assert.Equal(applied[..^1], (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+      var baselineIndex = Array.IndexOf(applied, baseline);
+      Assert.True(baselineIndex >= 0);
+      Assert.Equal(applied[..(baselineIndex + 1)], (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
       Assert.Equal(oldCatalog, await CatalogAsync());
       Assert.Equal(before, await SnapshotAsync());
       await migrator.MigrateAsync(current);

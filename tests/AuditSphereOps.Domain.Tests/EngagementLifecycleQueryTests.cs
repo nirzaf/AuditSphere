@@ -289,7 +289,11 @@ public sealed class EngagementLifecycleQueryTests
     {
       var grant = PbcSeed.Grant(seed.FirmId, user, "Staff", seed.ClientId,
         scenario == "SIBLING" ? Guid.NewGuid() : seed.EngagementId);
-      if (scenario == "EXPIRED") grant.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+      if (scenario == "EXPIRED")
+      {
+        grant.GrantedAt = DateTimeOffset.UtcNow.AddDays(-1);
+        grant.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+      }
       db.RoleGrants.Add(grant);
       if (scenario == "MIXED") db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, user, "SeniorManager"));
       if (scenario == "MIXED_SCOPES")
@@ -300,6 +304,7 @@ public sealed class EngagementLifecycleQueryTests
       if (scenario == "EXPIRED_DETAIL")
       {
         var expiredDetail = PbcSeed.Grant(seed.FirmId, user, "SeniorManager");
+        expiredDetail.GrantedAt = DateTimeOffset.UtcNow.AddDays(-1);
         expiredDetail.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1);
         db.RoleGrants.Add(expiredDetail);
       }
@@ -1158,7 +1163,8 @@ public sealed class EngagementLifecycleQueryTests
       await db.ClientSafetyStates.Where(x => x.Id == seed.ClientId).ExecuteUpdateAsync(s => s.SetProperty(x => x.InputGeneration, 1));
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.Equal(CanonicalEngagementStages.AdvanceBilling, report.Value!.Summary.CanonicalStage);
-      Assert.Null(report.Value.Summary.BlockerDetails);
+      Assert.Equal(["ENGAGEMENT_LETTER_REQUIRED", "FEE_AGREEMENT_REQUIRED", "ADVANCE_PAYMENT_ALLOCATION_REQUIRED"],
+        report.Value.Summary.BlockerDetails!.Select(x => x.Code));
 
       // A later conditional decision supersedes the unconditional one for the same generation: it is not a clearance.
       db.AcceptanceDecisions.Add(new AcceptanceDecision

@@ -660,7 +660,7 @@ public sealed partial class AuditDeliverablesTests
   public async Task ArchiveCopyReceipts_RejectForeignOperationsAndPreserveExactEvidence()
   {
     const string baseline = "20261029104522_SamplingRunSelectionScope";
-    const string current = "20261029124914_ArchiveCopyOperationScope";
+    const string current = "20261031182610_EqrDecisionHistory";
     await using var pg = await PgTestSchema.CreateAsync(current);
     var checkpointRoot = Path.Combine(Path.GetTempPath(), "auditsphere-archive-operation-scope", Guid.NewGuid().ToString("N"));
     try
@@ -1012,6 +1012,10 @@ public sealed partial class AuditDeliverablesTests
       var migrator = migrationDb.GetService<IMigrator>();
       var applied = (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray();
       Assert.Equal(current, applied[^1]);
+      var baselineIndex = Array.IndexOf(applied, baseline);
+      Assert.InRange(baselineIndex, 0, applied.Length - 2);
+      Assert.Equal("20261029124914_ArchiveCopyOperationScope", applied[baselineIndex + 1]);
+      var baselineHistory = applied[..(baselineIndex + 1)];
       Assert.True(migrationDb.Model.FindEntityType(typeof(DurableOperation))!.FindProperty(nameof(DurableOperation.ClientId))!.IsNullable);
       Assert.True(migrationDb.Model.FindEntityType(typeof(DurableOperation))!.FindProperty(nameof(DurableOperation.EngagementId))!.IsNullable);
       async Task<string> CatalogAsync(bool newObjects)
@@ -1068,7 +1072,7 @@ public sealed partial class AuditDeliverablesTests
       var oldCatalog = await CatalogAsync(false);
       var retained = await SnapshotAsync();
       await migrator.MigrateAsync(baseline);
-      Assert.Equal(applied[..^1], (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+      Assert.Equal(baselineHistory, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
       Assert.Equal(oldCatalog, await CatalogAsync(false));
       Assert.Equal(retained, await SnapshotAsync());
       await AssertNewScopeAsync(false);
@@ -1103,7 +1107,7 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal("fk_archive_copy_file_operation_scope", refused.ConstraintName);
       Assert.Equal(invalidRetained, await SnapshotAsync());
       Assert.Equal(oldCatalog, await CatalogAsync(false));
-      Assert.Equal(applied[..^1], (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+      Assert.Equal(baselineHistory, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
       await AssertNewScopeAsync(false);
 
     }
