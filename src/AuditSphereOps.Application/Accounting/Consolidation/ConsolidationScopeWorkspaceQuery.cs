@@ -117,7 +117,8 @@ public sealed record ConsolidationScopeWorkspaceDto(
   ConsolidationPageInfo? ReadinessPaging,
   ConsolidationComponentDto? ResolvedComponent,
   bool CanApproveScope,
-  string? ScopeApprovalBlocker, string AccessMode = "OPERATIONAL", string? AccessReason = null);
+  string? ScopeApprovalBlocker, string AccessMode = "OPERATIONAL", string? AccessReason = null,
+  bool CanIssueDeliverable = false, bool CanArchiveDeliverable = false);
 
 /// <summary>
 /// Authoritative detailed read model for a single consolidation perimeter version:
@@ -298,6 +299,13 @@ public static class ConsolidationScopeWorkspaceQuery
         : scopeReadiness.Message ?? "Current scope approval readiness could not be established; reload the current scope.";
     }
 
+    var canIssueDeliverable = currentOperationalRead.Succeeded &&
+      (await AuthorizationDecision.AuthorizeGroupAsync(db, actor, snapshotScope.GroupId,
+        ["Partner", "Administrator"], ct)).Succeeded;
+    var canArchiveDeliverable = currentOperationalRead.Succeeded &&
+      (await AuthorizationDecision.AuthorizeGroupAsync(db, actor, snapshotScope.GroupId,
+        ["Partner", "Administrator", "RecordsCustodian"], ct)).Succeeded;
+
     return CommandResult<ConsolidationScopeWorkspaceDto>.Ok(workspace with
     {
       CanPrepare = canPrepareAtReturn,
@@ -308,7 +316,9 @@ public static class ConsolidationScopeWorkspaceQuery
       ScopeApprovalBlocker = scopeApprovalBlocker,
       EligiblePackages = canPrepareAtReturn ? workspace.EligiblePackages : new([], 0, eligiblePackagesPage, HistoryPageSize),
       AccessMode = currentOperationalRead.Succeeded ? "OPERATIONAL" : AdministratorOversightReadAuthorization.ReadOnly,
-      AccessReason = currentOperationalRead.Succeeded ? null : AdministratorOversightReadAuthorization.Reason
+      AccessReason = currentOperationalRead.Succeeded ? null : AdministratorOversightReadAuthorization.Reason,
+      CanIssueDeliverable = canIssueDeliverable,
+      CanArchiveDeliverable = canArchiveDeliverable
     });
   }
 

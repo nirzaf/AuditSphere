@@ -179,30 +179,53 @@ public static class EngagementLifecycleQuery
         Hashing.Sha256Hex(deliveredBundle.Content) == deliveredBundle.ContentSha256 &&
         Hashing.Sha256Hex(deliveredBundle.ManifestJson) == deliveredBundle.ManifestSha256;
       var countdownBlocked = new List<string>();
+      var countdownDetails = new List<EngagementLifecycleBlockerDetail>();
       if (holds.Count > 0) countdownBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
       if (!bundleAvailableToClient)
-        countdownBlocked.Add(deliveredBundle is null
-          ? "The current signed report and financial release are not yet assembled as a final bundle available in the client portal."
-          : "The final client bundle failed its stored-byte or manifest integrity check and is not treated as delivered.");
+      {
+        if (deliveredBundle is null)
+          AddGuidedBlocker(countdownBlocked, countdownDetails, "FINAL_BUNDLE_NOT_AVAILABLE",
+            "The current signed report and financial release are not yet assembled as a final bundle available in the client portal.",
+            "Engagement Partner",
+            "Waiting for the authorized Engagement Partner to assemble the current bundle through the existing completion workflow; this projection does not release it.");
+        else
+          AddGuidedBlocker(countdownBlocked, countdownDetails, "FINAL_BUNDLE_INTEGRITY_FAILED",
+            "The final client bundle failed its stored-byte or manifest integrity check and is not treated as delivered.",
+            "Unknown",
+            "No safe delivery action is offered here. Keep the bundle undelivered and use the existing authorized integrity review; this projection does not replace or release bytes.");
+      }
       if (freeze.State == FileFreezeStates.Scheduled && now >= freeze.DueAt)
-        countdownBlocked.Add("The freeze is due but has not committed; the file is not archived until the local freeze succeeds.");
+        AddGuidedBlocker(countdownBlocked, countdownDetails, "LOCAL_FREEZE_NOT_COMMITTED",
+          "The freeze is due but has not committed; the file is not archived until the local freeze succeeds.",
+          "Background freeze worker",
+          "No manual archive action is offered by this projection. Wait for the existing local freeze worker to commit before treating the file as archived.");
       var phaseDelivered = PostSignatureStage(freeze.State == FileFreezeStates.Scheduled, bundleAvailableToClient) ==
         CanonicalEngagementStages.ComplianceCountdown;
       return await ProjectAsync(new EngagementLifecycleSummary(
         PostSignatureStage(freeze.State == FileFreezeStates.Scheduled, bundleAvailableToClient),
         phaseDelivered ? "Compliance Countdown" : "Deliverable Release", phaseDelivered ? 10 : 9, countdownBlocked,
         "EngagementPartner", completionLink, remaining, false, false, ComplianceWarningFor(freeze),
-        freeze.State, freeze.ExternalReadOnly), includesHolds: holds.Count > 0);
+        freeze.State, freeze.ExternalReadOnly,
+        BlockerDetails: countdownDetails.Count == 0 ? null : countdownDetails), includesHolds: holds.Count > 0);
     }
 
     if (release is not null || signedReport is not null)
     {
+      var releaseBlockers = new List<string>();
+      var releaseDetails = new List<EngagementLifecycleBlockerDetail>();
+      if (signedReport is null)
+        AddGuidedBlocker(releaseBlockers, releaseDetails, "PARTNER_REPORT_SIGNATURE_REQUIRED",
+          "The compliance countdown starts when the Partner signs the Independent Auditor's Report.",
+          "Engagement Partner",
+          "Waiting for the authorized Engagement Partner to sign the current report. This projection neither creates a signature nor starts the countdown.");
+      else
+        AddGuidedBlocker(releaseBlockers, releaseDetails, "LOCAL_COMPLIANCE_FREEZE_MISSING",
+          "The signed report has no scheduled local compliance freeze; review the signature and archive workflow.",
+          "Unknown",
+          "No archive action is offered from this projection. Keep the file unarchived until the existing authorized workflow records a valid local freeze.");
       return await ProjectAsync(new EngagementLifecycleSummary(
-        CanonicalEngagementStages.DeliverableRelease, "Deliverable Release", 9,
-        [signedReport is null
-          ? "The compliance countdown starts when the Partner signs the Independent Auditor's Report."
-          : "The signed report has no scheduled local compliance freeze; review the signature and archive workflow."],
-        "EngagementPartner", completionLink, null, false, false));
+        CanonicalEngagementStages.DeliverableRelease, "Deliverable Release", 9, releaseBlockers,
+        "EngagementPartner", completionLink, null, false, false, BlockerDetails: releaseDetails));
     }
 
     // 9. Deliverable Release & 8. Partner Approval
@@ -240,34 +263,58 @@ public static class EngagementLifecycleQuery
     var allSubmittedForReview = procedures.Count > 0 && procedureProgress.All(x => x.IsSubmitted);
 
     var handoverBlockers = new List<string>();
-    if (openReviewNotes > 0) handoverBlockers.Add($"{openReviewNotes} open review note(s) require resolution");
+    var handoverDetails = new List<EngagementLifecycleBlockerDetail>();
+    if (openReviewNotes > 0)
+      AddGuidedBlocker(handoverBlockers, handoverDetails, "OPEN_REVIEW_NOTES_REQUIRE_RESOLUTION",
+        $"{openReviewNotes} open review note(s) require resolution", "Preparer and authorized reviewer",
+        "Waiting for the preparer to respond and an authorized reviewer to resolve each open thread. This projection does not respond to or resolve notes.");
     var completion = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, actor.FirmId, client.Id, engagementId, ct);
     handoverBlockers.AddRange(completion.Succeeded
       ? completion.Value!.Blockers.Select(b => $"Completion gate: {b}")
       : ["Completion gate could not be evaluated for your role."]);
     if (await AuditDeliverableService.CurrentSummaryReviewMemorandumAsync(db, actor, engagementId, ct) is null)
-      handoverBlockers.Add("A current Summary Review Memorandum is required for Partner handover.");
+      AddGuidedBlocker(handoverBlockers, handoverDetails, "CURRENT_SRM_REQUIRED",
+        "A current Summary Review Memorandum is required for Partner handover.", "Manager, Partner, or Administrator",
+        "Waiting for an authorized Manager, Partner, or Administrator to prepare the current factual memorandum after review. It does not record Partner clearance or an audit opinion.");
 
     if (PartnerHandoverReady(handoverBlockers.Count))
     {
       var partnerBlocked = new List<string>();
+      var partnerDetails = new List<EngagementLifecycleBlockerDetail>();
       if (holds.Count > 0) partnerBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
-      if (partnerClearance is null) partnerBlocked.Add("Partner clearance of the current Summary Review Memorandum is pending.");
-      if (opinion is null) partnerBlocked.Add("Partner audit opinion decision pending");
-      else partnerBlocked.Add("Partner signature of the current Independent Auditor's Report pending");
+      if (partnerClearance is null)
+        AddGuidedBlocker(partnerBlocked, partnerDetails, "PARTNER_CURRENT_SRM_CLEARANCE_REQUIRED",
+          "Partner clearance of the current Summary Review Memorandum is pending.", "Engagement Partner",
+          "Waiting for the authorized Engagement Partner to clear the exact current memorandum. This projection does not record clearance.");
+      if (opinion is null)
+        AddGuidedBlocker(partnerBlocked, partnerDetails, "PARTNER_AUDIT_OPINION_REQUIRED",
+          "Partner audit opinion decision pending", "Engagement Partner",
+          "Waiting for an authorized Engagement Partner to make and record the professional opinion decision; this projection does not choose an opinion.");
+      else
+        AddGuidedBlocker(partnerBlocked, partnerDetails, "PARTNER_REPORT_SIGNATURE_REQUIRED",
+          "Partner signature of the current Independent Auditor's Report pending", "Engagement Partner",
+          "Waiting for the authorized Engagement Partner to sign the current report. This projection does not create or apply a signature.");
       return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.PartnerApproval, "Partner Approval & Signing", 8, partnerBlocked,
-        "EngagementPartner", $"/app/engagements/{engagementId}/completion", null, false, false), includesHolds: holds.Count > 0);
+        "EngagementPartner", $"/app/engagements/{engagementId}/completion", null, false, false,
+        BlockerDetails: partnerDetails.Count == 0 ? null : partnerDetails), includesHolds: holds.Count > 0);
     }
 
     if (allSubmittedForReview || partnerClearance is not null)
     {
       var mgrBlocked = new List<string>();
+      var mgrDetails = new List<EngagementLifecycleBlockerDetail>();
       if (holds.Count > 0) mgrBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
+      var handoverBlockerOffset = mgrBlocked.Count;
       mgrBlocked.AddRange(handoverBlockers);
+      mgrDetails.AddRange(handoverDetails.Select(detail => detail with
+      {
+        BlockerIndex = detail.BlockerIndex + handoverBlockerOffset
+      }));
       return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.ManagerialReview, "Managerial Review", 7, mgrBlocked,
-        "AuditManager", $"/app/engagements/{engagementId}/audit-fieldwork", null, false, false), includesHolds: holds.Count > 0);
+        "AuditManager", $"/app/engagements/{engagementId}/audit-fieldwork", null, false, false,
+        BlockerDetails: mgrDetails.Count == 0 ? null : mgrDetails), includesHolds: holds.Count > 0);
     }
 
     // Planning approval means the CURRENT materiality is Partner-approved and not stale (STE 3.2), not merely calculated.
@@ -303,16 +350,27 @@ public static class EngagementLifecycleQuery
     if (activation is not null)
     {
       var planBlocked = new List<string>();
+      var planDetails = new List<EngagementLifecycleBlockerDetail>();
       if (holds.Count > 0) planBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
       var hasTb = await db.TrialBalanceDatasets.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
-      if (!hasTb) planBlocked.Add("Trial balance intake and acceptance required");
+      if (!hasTb)
+        AddGuidedBlocker(planBlocked, planDetails, "TRIAL_BALANCE_INTAKE_ACCEPTANCE_REQUIRED",
+          "Trial balance intake and acceptance required", "Authorized accounting preparer and reviewer",
+          "Waiting for an authorized user to provide the source and a scoped accounting reviewer to independently accept the exact sealed dataset; this projection imports and accepts nothing.");
       if (!planApproved && materiality?.State == MaterialityCalculationStates.Stale)
-        planBlocked.Add("Materiality is stale: the mapping or trial balance changed. Recalculate and re-approve before planning can advance.");
-      else if (!planApproved) planBlocked.Add("Materiality calculation and formal Partner planning approval required");
+        AddGuidedBlocker(planBlocked, planDetails, "MATERIALITY_STALE_REAPPROVAL_REQUIRED",
+          "Materiality is stale: the mapping or trial balance changed. Recalculate and re-approve before planning can advance.",
+          "Authorized planning role and Partner",
+          "Waiting for an authorized planning role to recalculate from current inputs and a Partner to record current planning approval. This projection does neither.");
+      else if (!planApproved)
+        AddGuidedBlocker(planBlocked, planDetails, "MATERIALITY_CALCULATION_PARTNER_APPROVAL_REQUIRED",
+          "Materiality calculation and formal Partner planning approval required", "Authorized planning role and Partner",
+          "Waiting for an authorized planning role to calculate materiality and a Partner to separately record planning approval. This projection does not calculate or approve materiality.");
       if (engagement.ProfessionalWorkBlocked) planBlocked.Add("Engagement professional work is currently blocked");
       return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.PortalActivePlanning, "Portal Active & Planning", 5, planBlocked,
-        "AuditManager", $"/app/engagements/{engagementId}/audit-plan", null, false, false), includesHolds: holds.Count > 0);
+        "AuditManager", $"/app/engagements/{engagementId}/audit-plan", null, false, false,
+        BlockerDetails: planDetails.Count == 0 ? null : planDetails), includesHolds: holds.Count > 0);
     }
 
     // 4. Advance Billing & 3. Dual-Key Pending. Both keys are read from the evidence the protected engagement-letter and
@@ -330,51 +388,85 @@ public static class EngagementLifecycleQuery
     if (acceptance is not null && proposal is not null && commercialAccepted)
     {
       var feeBlocked = new List<string>();
+      var feeDetails = new List<EngagementLifecycleBlockerDetail>();
       if (holds.Count > 0) feeBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
       // Both keys are current; the stage still needs the authorized letter for that exact risk clearance and the linked fee agreement.
       var letterIssued = await db.CommercialDocuments.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
         x.ProposalId == proposal.Id && x.Kind == CommercialDocumentKinds.EngagementLetter && x.AcceptanceDecisionId == acceptance.Id, ct);
-      if (!letterIssued) feeBlocked.Add("Issue the Engagement Letter for the current accepted offer");
+      if (!letterIssued)
+        AddGuidedBlocker(feeBlocked, feeDetails, "ENGAGEMENT_LETTER_REQUIRED",
+          "Issue the Engagement Letter for the current accepted offer", "Firm-wide Partner",
+          "Waiting for a current firm-wide Partner to generate the letter through the existing commercial-document workflow; this projection does not generate or sign it.");
       var agreement = await db.EngagementFeeAgreements.AsNoTracking()
         .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id, ct);
-      if (agreement is null) feeBlocked.Add("Create the fee agreement and its 50% advance milestone");
-      else if (agreement.EngagementId != engagementId) feeBlocked.Add("Link the fee agreement to this engagement");
+      if (agreement is null)
+        AddGuidedBlocker(feeBlocked, feeDetails, "FEE_AGREEMENT_REQUIRED",
+          "Create the fee agreement and its 50% advance milestone", "Firm-wide commercial role",
+          "Waiting for an authorized firm-wide commercial role to create the reviewed agreement from the exact accepted offer and approved quotation; this projection creates no agreement or milestone.");
+      else if (agreement.EngagementId != engagementId)
+        AddGuidedBlocker(feeBlocked, feeDetails, "FEE_AGREEMENT_LINK_REQUIRED",
+          "Link the fee agreement to this engagement", "Firm-wide commercial role",
+          "Waiting for an authorized firm-wide commercial role to link the agreement to this engagement; this projection changes no link.");
       // Use the activation predicate: retained paid evidence plus the effect of approved allocation reversals.
       var advancePaid = agreement is not null && await AuditSphereOps.Application.Practice.FeeAgreementService.AdvanceCurrentlyPaidAsync(db, actor.FirmId, agreement.Id, ct);
-      if (!advancePaid) feeBlocked.Add("50% advance invoice payment allocation required to activate portal onboarding");
+      if (!advancePaid)
+        AddGuidedBlocker(feeBlocked, feeDetails, "ADVANCE_PAYMENT_ALLOCATION_REQUIRED",
+          "50% advance invoice payment allocation required to activate portal onboarding", "FinanceManager or FinanceReviewer",
+          "Waiting for an authorized finance reviewer to record and apply the advance payment through the existing fee workflow; this projection records no payment or allocation.");
       return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.AdvanceBilling, "Advance Billing & Payment", 4, feeBlocked,
-        "FinanceManager", $"/app/finance", null, false, false), includesHolds: holds.Count > 0);
+        "FinanceManager", $"/app/finance", null, false, false,
+        BlockerDetails: feeDetails.Count == 0 ? null : feeDetails), includesHolds: holds.Count > 0);
     }
 
     if (proposal is { SentAt: not null, Status: CrmStates.ProposalSent or CrmStates.ProposalAccepted or CrmStates.ProposalDeclined })
     {
       var dualBlocked = new List<string>();
-      List<EngagementLifecycleBlockerDetail>? details = null;
+      var details = new List<EngagementLifecycleBlockerDetail>();
       if (acceptance is null)
-      {
-        const string reason = "Unconditional Partner risk acceptance decision required";
-        details = [new(dualBlocked.Count, "PARTNER_RISK_ACCEPTANCE_REQUIRED", reason, "Partner",
-          "Waiting for current unconditional Partner risk acceptance. An authorized Partner determines the appropriate next step.")];
-        dualBlocked.Add(reason);
-      }
+        AddGuidedBlocker(dualBlocked, details, "PARTNER_RISK_ACCEPTANCE_REQUIRED",
+          "Unconditional Partner risk acceptance decision required", "Partner",
+          "Waiting for current unconditional Partner risk acceptance. An authorized Partner determines the appropriate next step.");
       if (proposal.Status == CrmStates.ProposalDeclined)
-        dualBlocked.Add("The client declined the dispatched proposal; revise and resend or close the opportunity.");
+        AddGuidedBlocker(dualBlocked, details, "CLIENT_DECLINED_PROPOSAL",
+          "The client declined the dispatched proposal; revise and resend or close the opportunity.", "Commercial roles",
+          "Waiting for an authorized commercial role to decide whether to revise and dispatch a new offer or close the opportunity; this projection does not change proposal state.");
       else if (proposal.Status != CrmStates.ProposalAccepted)
-        dualBlocked.Add("Client commercial acceptance of proposal required");
+        AddGuidedBlocker(dualBlocked, details, "CLIENT_COMMERCIAL_ACCEPTANCE_REQUIRED",
+          "Client commercial acceptance of proposal required", "Dispatched client respondent",
+          "Waiting for the client's response to the exact dispatched offer. Staff must record acceptance only from the existing source evidence; this projection records no response.");
       else if (!commercialAccepted)
         dualBlocked.Add("Client acceptance does not cite the current dispatched offer or quotation revision; re-record acceptance against the exact current offer.");
       return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.DualKeyPending, "Dual-Key Acceptance Pending", 3, dualBlocked,
         "EngagementPartner", $"/app/assessments/{engagement.PracticeClientId}", null, false, false,
-        BlockerDetails: details));
+        BlockerDetails: details.Count == 0 ? null : details));
     }
 
     // 2. Proposal Generation & 1. Lead Ingestion
+    var proposalBlockers = new List<string>();
+    var proposalDetails = new List<EngagementLifecycleBlockerDetail>();
+    AddGuidedBlocker(proposalBlockers, proposalDetails, "COMMERCIAL_PROPOSAL_PREPARATION_REQUIRED",
+      "Commercial proposal preparation and dispatch required", "Commercial roles",
+      "Waiting for an authorized commercial role to prepare and dispatch the proposal through the existing workflow. This projection does not dispatch or record client acceptance.");
     return await ProjectAsync(new EngagementLifecycleSummary(
       CanonicalEngagementStages.ProposalGeneration, "Proposal Generation", 2,
-      ["Commercial proposal preparation and dispatch required"],
-      "CommercialManager", $"/app/clients/{engagement.PracticeClientId}", null, false, false));
+      proposalBlockers,
+      "CommercialManager", $"/app/clients/{engagement.PracticeClientId}", null, false, false,
+      BlockerDetails: proposalDetails));
+  }
+
+  private static void AddGuidedBlocker(
+    List<string> blockers,
+    List<EngagementLifecycleBlockerDetail> details,
+    string code,
+    string cause,
+    string responsibleRole,
+    string guidance)
+  {
+    var index = blockers.Count;
+    blockers.Add(cause);
+    details.Add(new(index, code, cause, responsibleRole, guidance));
   }
 
   internal static bool IsCurrentProcedureSubmittedForReview(

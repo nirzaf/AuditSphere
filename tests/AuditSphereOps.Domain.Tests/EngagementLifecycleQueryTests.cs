@@ -494,6 +494,20 @@ public sealed class EngagementLifecycleQueryTests
   [Fact]
   public async Task EngagementTraversesCanonicalStagesAndEnforcesScope()
   {
+    static EngagementLifecycleBlockerDetail AssertGuidedBlocker(
+      EngagementLifecycleSummary summary, string cause, string code, string responsibleRole)
+    {
+      var blockerIndex = Enumerable.Range(0, summary.BlockedReasons.Count)
+        .Single(index => summary.BlockedReasons[index] == cause);
+      Assert.NotNull(summary.BlockerDetails);
+      var detail = Assert.Single(summary.BlockerDetails!, item => item.BlockerIndex == blockerIndex);
+      Assert.Equal(cause, detail.Cause);
+      Assert.Equal(code, detail.Code);
+      Assert.Equal(responsibleRole, detail.ResponsibleRole);
+      Assert.False(string.IsNullOrWhiteSpace(detail.Guidance));
+      return detail;
+    }
+
     await using var pg = await PgTestSchema.CreateAsync();
     var seed = await PbcSeed.SeedAsync(pg);
     var partner = PbcSeed.Actor(seed.Admin, "Partner");
@@ -535,7 +549,8 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(CanonicalEngagementStages.ProposalGeneration, report.Value!.Summary.CanonicalStage);
       Assert.Equal(2, report.Value.Summary.StageIndex);
       Assert.Contains("Commercial proposal preparation and dispatch required", report.Value.Summary.BlockedReasons);
-      Assert.Null(report.Value.Summary.BlockerDetails);
+      AssertGuidedBlocker(report.Value.Summary, "Commercial proposal preparation and dispatch required",
+        "COMMERCIAL_PROPOSAL_PREPARATION_REQUIRED", "Commercial roles");
       Assert.Null(report.Value.Summary.LocalArchiveState);
       Assert.Null(report.Value.Summary.ProviderProtectionState);
 
@@ -582,18 +597,20 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(3, report.Value.Summary.StageIndex);
       Assert.Equal(["Unconditional Partner risk acceptance decision required", "Client commercial acceptance of proposal required"],
         report.Value.Summary.BlockedReasons);
-      var detail = Assert.Single(report.Value.Summary.BlockerDetails!);
+      var detail = AssertGuidedBlocker(report.Value.Summary,
+        "Unconditional Partner risk acceptance decision required", "PARTNER_RISK_ACCEPTANCE_REQUIRED", "Partner");
       Assert.Equal(0, detail.BlockerIndex);
-      Assert.Equal("PARTNER_RISK_ACCEPTANCE_REQUIRED", detail.Code);
       Assert.Equal(report.Value.Summary.BlockedReasons[detail.BlockerIndex], detail.Cause);
-      Assert.Equal("Partner", detail.ResponsibleRole);
       Assert.Contains("Waiting", detail.Guidance, StringComparison.Ordinal);
+      AssertGuidedBlocker(report.Value.Summary, "Client commercial acceptance of proposal required",
+        "CLIENT_COMMERCIAL_ACCEPTANCE_REQUIRED", "Dispatched client respondent");
+      Assert.Equal(2, report.Value.Summary.BlockerDetails!.Count);
 
       var workflow = await EngagementWorkflowWorkspaceQuery.GetAsync(db, partner, engagementId);
       Assert.True(workflow.Succeeded, workflow.Message);
       Assert.Equal(report.Value.Summary.CanonicalStage, workflow.Value!.CanonicalStage);
       Assert.Equal(report.Value.Summary.BlockedReasons, workflow.Value.Blockers);
-      Assert.Equal(detail, Assert.Single(workflow.Value.BlockerDetails!));
+      Assert.Equal(report.Value.Summary.BlockerDetails, workflow.Value.BlockerDetails);
       Assert.Equal(EngagementWorkflowPhaseStatuses.Blocked, workflow.Value.CurrentPhase.Status);
 
       var scopedActor = PbcSeed.Actor(scopedStaff, "Staff");
@@ -640,11 +657,12 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(CanonicalEngagementStages.DualKeyPending, report.Value!.Summary.CanonicalStage);
       Assert.Equal(3, report.Value.Summary.StageIndex);
       Assert.Contains("Client commercial acceptance of proposal required", report.Value.Summary.BlockedReasons);
-      Assert.Null(report.Value.Summary.BlockerDetails);
+      AssertGuidedBlocker(report.Value.Summary, "Client commercial acceptance of proposal required",
+        "CLIENT_COMMERCIAL_ACCEPTANCE_REQUIRED", "Dispatched client respondent");
       workflow = await EngagementWorkflowWorkspaceQuery.GetAsync(db, partner, engagementId);
       Assert.True(workflow.Succeeded, workflow.Message);
       Assert.Equal(EngagementWorkflowPhaseStatuses.Blocked, workflow.Value!.CurrentPhase.Status);
-      Assert.Null(workflow.Value.BlockerDetails);
+      Assert.Equal(report.Value.Summary.BlockerDetails, workflow.Value.BlockerDetails);
 
       // A real immutable response to the exact dispatch opens the client key.
       var accepted = await PracticeCrmService.RecordProposalResponseAsync(db, partner, proposal.Id,
@@ -676,6 +694,12 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(4, report.Value.Summary.StageIndex);
       Assert.Contains("Issue the Engagement Letter for the current accepted offer", report.Value.Summary.BlockedReasons);
       Assert.Contains("Create the fee agreement and its 50% advance milestone", report.Value.Summary.BlockedReasons);
+      AssertGuidedBlocker(report.Value.Summary, "Issue the Engagement Letter for the current accepted offer",
+        "ENGAGEMENT_LETTER_REQUIRED", "Firm-wide Partner");
+      AssertGuidedBlocker(report.Value.Summary, "Create the fee agreement and its 50% advance milestone",
+        "FEE_AGREEMENT_REQUIRED", "Firm-wide commercial role");
+      AssertGuidedBlocker(report.Value.Summary, "50% advance invoice payment allocation required to activate portal onboarding",
+        "ADVANCE_PAYMENT_ALLOCATION_REQUIRED", "FinanceManager or FinanceReviewer");
 
       // An engagement letter can only be issued by the protected command (the database refuses a hand-written letter without
       // a signature, seal and current risk clearance), so the issued-letter branch is covered by the real-command readiness tests.
@@ -698,6 +722,10 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(CanonicalEngagementStages.PortalActivePlanning, report.Value!.Summary.CanonicalStage);
       Assert.Equal(5, report.Value.Summary.StageIndex);
       Assert.Contains("Trial balance intake and acceptance required", report.Value.Summary.BlockedReasons);
+      AssertGuidedBlocker(report.Value.Summary, "Trial balance intake and acceptance required",
+        "TRIAL_BALANCE_INTAKE_ACCEPTANCE_REQUIRED", "Authorized accounting preparer and reviewer");
+      AssertGuidedBlocker(report.Value.Summary, "Materiality calculation and formal Partner planning approval required",
+        "MATERIALITY_CALCULATION_PARTNER_APPROVAL_REQUIRED", "Authorized planning role and Partner");
 
       // 5. Add TB & approve materiality & unblock professional work -> FieldworkExecution
       db.TrialBalanceDatasets.Add(new TrialBalanceDataset
@@ -834,17 +862,26 @@ public sealed class EngagementLifecycleQueryTests
       // A new submitted revision returns to Managerial Review; the historical returned revision does not control the projection.
       proc.CurrentResultRevision = 3;
       proc.Status = AuditProcedureStatuses.Submitted;
-      db.AuditProcedureResults.Add(new AuditProcedureResult
+      var resubmitted = new AuditProcedureResult
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
         AuditProcedureId = proc.Id, Revision = 3, InputGeneration = 1, WorkPerformed = "Synthetic corrected procedure work submitted.",
         StructuredResultJson = "{}", EvidenceReferencesJson = "[]", Conclusion = "Resubmitted for review.",
-        Status = AuditProcedureResultStatuses.Submitted, PreparedByUserId = seed.Admin.Id, SubmittedAt = now.AddSeconds(3)
-      });
+        Status = AuditProcedureResultStatuses.Submitted, PreparedByUserId = seed.Staff.Id, SubmittedAt = now.AddSeconds(3)
+      };
+      db.AuditProcedureResults.Add(resubmitted);
       await db.SaveChangesAsync();
+      var openNote = await AuditSphereOps.Application.Audit.ReviewNotesService.AddNoteAsync(db, partner,
+        new AuditSphereOps.Application.Audit.AddReviewNoteRequest(resubmitted.Id, ReviewNoteFields.WorkPerformed,
+          "Synthetic corrected procedure work", "Clarify the reviewed evidence linkage."));
+      Assert.True(openNote.Succeeded, openNote.Message);
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.Equal(CanonicalEngagementStages.ManagerialReview, report.Value!.Summary.CanonicalStage);
       Assert.Equal(7, report.Value.Summary.StageIndex);
+      AssertGuidedBlocker(report.Value.Summary, "1 open review note(s) require resolution",
+        "OPEN_REVIEW_NOTES_REQUIRE_RESOLUTION", "Preparer and authorized reviewer");
+      AssertGuidedBlocker(report.Value.Summary, "A current Summary Review Memorandum is required for Partner handover.",
+        "CURRENT_SRM_REQUIRED", "Manager, Partner, or Administrator");
 
       // 7. Add partner clearance and opinion -> PartnerApproval
       var srm = new AuditDeliverable
@@ -897,6 +934,9 @@ public sealed class EngagementLifecycleQueryTests
       Assert.True(report.Succeeded);
       Assert.Equal(CanonicalEngagementStages.DeliverableRelease, report.Value!.Summary.CanonicalStage);
       Assert.Equal(9, report.Value.Summary.StageIndex);
+      AssertGuidedBlocker(report.Value.Summary,
+        "The signed report has no scheduled local compliance freeze; review the signature and archive workflow.",
+        "LOCAL_COMPLIANCE_FREEZE_MISSING", "Unknown");
 
       // A signature starts the clock, but Report & Delivery remains current until the exact final bundle is available in the client portal.
       var freeze = new EngagementFileFreeze
@@ -917,6 +957,9 @@ public sealed class EngagementLifecycleQueryTests
       Assert.NotNull(report.Value.Summary.ComplianceCountdownDays);
       Assert.True(report.Value.Summary.ComplianceCountdownDays <= 51);
       Assert.Contains(report.Value.Summary.BlockedReasons, x => x.Contains("final bundle available in the client portal", StringComparison.Ordinal));
+      AssertGuidedBlocker(report.Value.Summary,
+        "The current signed report and financial release are not yet assembled as a final bundle available in the client portal.",
+        "FINAL_BUNDLE_NOT_AVAILABLE", "Engagement Partner");
       Assert.Equal(FileFreezeStates.Scheduled, report.Value.Summary.LocalArchiveState);
       Assert.Equal(ExternalReadOnlyStates.NotRequested, report.Value.Summary.ProviderProtectionState);
       Assert.Contains("does not claim provider immutability", report.Value.Summary.ComplianceWarning!);
@@ -948,6 +991,12 @@ public sealed class EngagementLifecycleQueryTests
       var staffed = await EngagementWorkflowWorkspaceQuery.GetAsync(db, partner, engagementId);
       Assert.Equal(["Staffed Partner"], staffed.Value!.ResponsibleUsers);
       Assert.Equal(report.Value.Summary.ComplianceCountdownDays, staffed.Value.Archive!.ComplianceCountdownDays);
+
+      var scopedStaffWorkflow = await EngagementWorkflowWorkspaceQuery.GetAsync(db, PbcSeed.Actor(scopedStaff, "Staff"), engagementId);
+      Assert.True(scopedStaffWorkflow.Succeeded, scopedStaffWorkflow.Message);
+      Assert.Equal([EngagementLifecycleQuery.RestrictedBlockers], scopedStaffWorkflow.Value!.Blockers);
+      Assert.Null(scopedStaffWorkflow.Value.BlockerDetails);
+      Assert.Empty(scopedStaffWorkflow.Value.ResponsibleUsers);
 
       // Revoke the displayed person's assignment at the workflow's final authorization boundary.
       var staffedAssignmentId = db.EngagementStaffAssignments.Local.Single(x => x.UserId == staffedPartner.Id).Id;
@@ -1000,6 +1049,9 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(0, report.Value.Summary.ComplianceCountdownDays.GetValueOrDefault());
       Assert.False(report.Value.Summary.IsArchived);
       Assert.Contains(report.Value.Summary.BlockedReasons, x => x.Contains("freeze is due but has not committed", StringComparison.Ordinal));
+      AssertGuidedBlocker(report.Value.Summary,
+        "The freeze is due but has not committed; the file is not archived until the local freeze succeeds.",
+        "LOCAL_FREEZE_NOT_COMMITTED", "Background freeze worker");
 
       // 10. Lock / freeze -> ArchivedReadOnly
       freeze.State = FileFreezeStates.Frozen;
@@ -1280,7 +1332,16 @@ public sealed class EngagementLifecycleQueryTests
       var before = await EngagementLifecycleQuery.GetAsync(setup, PbcSeed.Actor(user, "Staff"), engagementId);
       Assert.True(before.Succeeded, before.Message);
       if (typedBlocker)
-        Assert.Equal("PARTNER_RISK_ACCEPTANCE_REQUIRED", Assert.Single(before.Value!.Summary.BlockerDetails!).Code);
+      {
+        var details = before.Value!.Summary.BlockerDetails!;
+        Assert.Equal(2, details.Count);
+        var riskBlocker = Assert.Single(details, detail => detail.Code == "PARTNER_RISK_ACCEPTANCE_REQUIRED");
+        Assert.Equal(0, riskBlocker.BlockerIndex);
+        Assert.Equal("Unconditional Partner risk acceptance decision required", riskBlocker.Cause);
+        var clientBlocker = Assert.Single(details, detail => detail.Code == "CLIENT_COMMERCIAL_ACCEPTANCE_REQUIRED");
+        Assert.Equal(1, clientBlocker.BlockerIndex);
+        Assert.Equal("Client commercial acceptance of proposal required", clientBlocker.Cause);
+      }
       else
       {
         Assert.Equal(CanonicalEngagementStages.ArchivedReadOnly, before.Value!.Summary.CanonicalStage);

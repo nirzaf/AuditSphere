@@ -1262,6 +1262,10 @@ public sealed class GroupDeliverable
   public Guid? ArchivedByUserId { get; set; }
   public DateTimeOffset? ArchivedAt { get; set; }
   public string? ArchiveReason { get; set; }
+  public string? RequestKey { get; set; }
+  public string? IssueRequestKey { get; set; }
+  public string? ArchiveRequestKey { get; set; }
+  public long Revision { get; set; } = 1;
 }
 
 public sealed class ConsolidationRunLine

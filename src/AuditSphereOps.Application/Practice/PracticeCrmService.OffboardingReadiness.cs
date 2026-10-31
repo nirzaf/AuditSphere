@@ -1,4 +1,7 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -32,7 +35,7 @@ public sealed record ClientOffboardingSection(
 /// </summary>
 public sealed record ClientOffboardingReadiness(
   Guid ClientId, bool IsArchived, string ArchiveRevision, DateTimeOffset AssessedAt, string OverallState,
-  IReadOnlyList<ClientOffboardingSection> Sections, IReadOnlyList<string> CoverageNotes);
+  IReadOnlyList<ClientOffboardingSection> Sections, IReadOnlyList<string> CoverageNotes, string ReadinessDigest);
 
 public static partial class PracticeCrmService
 {
@@ -71,7 +74,7 @@ public static partial class PracticeCrmService
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, gate, ct)).Succeeded)
       return CommandResult<ClientOffboardingReadiness>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
-    return CommandResult<ClientOffboardingReadiness>.Ok(new ClientOffboardingReadiness(
+    var readiness = new ClientOffboardingReadiness(
       clientId, latest?.EventKind == ClientLifecycleEventKinds.Archived,
       (latest?.Revision ?? 0).ToString(CultureInfo.InvariantCulture), DateTimeOffset.UtcNow,
       Aggregate(sections.Select(s => s.State)), sections,
@@ -79,8 +82,25 @@ public static partial class PracticeCrmService
         "Findings cover only the listed items. NO_FINDINGS is not evidence that offboarding is complete.",
         "Unallocated cash, unbilled approved time, fee-agreement milestones and Microsoft 365 / SharePoint / Entra access are not assessed here.",
         "This assessment changes nothing; archive remains a separate profile marker."
-      ]));
+      ], string.Empty);
+    var digestPayload = JsonSerializer.Serialize(new
+    {
+      readiness.ClientId,
+      readiness.IsArchived,
+      readiness.ArchiveRevision,
+      readiness.OverallState,
+      readiness.Sections,
+      readiness.CoverageNotes
+    }, OffboardingReadinessDigestJsonOptions);
+    var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(digestPayload))).ToLowerInvariant();
+    return CommandResult<ClientOffboardingReadiness>.Ok(readiness with { ReadinessDigest = digest });
   }
+
+  private static readonly JsonSerializerOptions OffboardingReadinessDigestJsonOptions = new()
+  {
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    WriteIndented = false
+  };
 
   private static string Aggregate(IEnumerable<string> states)
   {

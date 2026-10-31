@@ -151,6 +151,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<RecordsAction> RecordsActions { get; }
   DbSet<LegalHold> LegalHolds { get; }
   DbSet<EqrCase> EqrCases { get; }
+  DbSet<EqrDecision> EqrDecisions { get; }
   DbSet<WrittenRepresentation> WrittenRepresentations { get; }
   DbSet<EngagementAssignment> EngagementAssignments { get; }
   DbSet<global::AuditSphereOps.Domain.Audit.EngagementMilestonePlan> EngagementMilestonePlans { get; }

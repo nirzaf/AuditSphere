@@ -1,4 +1,5 @@
 import { Component, DestroyRef, ElementRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
 import { arr, bool, date, decode, guid, instant, int, nullable, obj, oneOf, str } from '../../core/decode';
@@ -106,7 +107,7 @@ function isPendingPlan(value: unknown): value is PendingPlan {
 
 @Component({
   selector: 'audit-engagement-task-plan',
-  imports: [MatButtonModule, WorkflowEvidenceSourcePicker, ...SHARED],
+  imports: [MatButtonModule, RouterLink, WorkflowEvidenceSourcePicker, ...SHARED],
   template: `
     <section class="task-plan" aria-labelledby="task-plan-heading">
       <h2 id="task-plan-heading">Operational task plan</h2>
@@ -241,7 +242,11 @@ function isPendingPlan(value: unknown): value is PendingPlan {
                 <p>Task group: {{ step.taskGroupName ?? 'Ungrouped' }} · {{ step.requiredTask === null ? 'Requiredness unavailable' : !step.requiredTask ? 'Optional' : step.applicabilityCondition ? 'Conditional' : 'Required' }}</p>
                 @if (step.applicabilityCondition) { <p>Applies when: {{ step.applicabilityCondition }}</p> }
                 <p>{{ step.instructions }}</p>
-                <p [id]="planInputId(step.templateStepId, 'schedule')" tabindex="-1"><audit-status [value]="step.phase" /> · {{ step.dueDate ?? 'No due date' }} · {{ step.plannedEffortMinutes ?? 'No effort estimate' }} min@if (!step.dueDate) { · The preview has no date editor; review the engagement schedule or set a task date later. }</p>
+                <p><audit-status [value]="step.phase" /> · {{ step.dueDate ?? 'No due date' }} · {{ step.plannedEffortMinutes ?? 'No effort estimate' }} min@if (!step.dueDate) { · No date is available in this preview. }</p>
+                @if (!step.dueDate) {
+                  <a matButton [id]="planInputId(step.templateStepId, 'schedule')"
+                    [routerLink]="['/app/engagements', engagementId(), 'audit-plan']">Review dates in the Audit Plan</a>
+                }
                 @if (step.dependsOnStepKeys.length) { <p>Prerequisites: {{ step.dependsOnStepKeys.join(', ') }}</p> }
                 @if (step.eligibleOwners.length) {
                   <label>Assigned engagement staff
@@ -407,8 +412,8 @@ export class EngagementTaskPlan {
     if (!target) return;
     const details = target.closest('details');
     if (details) details.open = true;
-    const focusable = target.matches('button,input,select,textarea,[tabindex]') ? target :
-      target.querySelector<HTMLElement>('button,input,select,textarea,[tabindex]');
+    const focusable = target.matches('a[href],button,input,select,textarea,[tabindex]') ? target :
+      target.querySelector<HTMLElement>('a[href],button,input,select,textarea,[tabindex]');
     focusable?.focus();
   }
   readonly referenceUnavailable = computed(() => !!this.suggestedRevisionId() &&

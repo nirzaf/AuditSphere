@@ -33,7 +33,9 @@ public static partial class UiEndpoints
     string DispositionNotes,
     IReadOnlyList<string>? AcknowledgedActionItems = null,
     string? ExpectedRevision = null,
-    bool ArchiveClientOnCloseout = false);
+    bool ArchiveClientOnCloseout = false,
+    string? ExpectedReadinessDigest = null,
+    string? RequestKey = null);
   public sealed record ClientArchiveStateResponse(bool IsArchived, DateTimeOffset? LastArchivedAt, string Revision);
 
   /// <summary>Direct success body returned after a client relationship or routing is revoked.</summary>
@@ -104,18 +106,19 @@ public static partial class UiEndpoints
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 400); }
 
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var expRev = long.TryParse(input.ExpectedRevision, NumberStyles.Integer, CultureInfo.InvariantCulture, out var r) ? r : 0;
+      if (!long.TryParse(input.ExpectedRevision, NumberStyles.None, CultureInfo.InvariantCulture, out var expRev) || expRev < 0)
+        return Results.Json(new { code = "crm.invalid", message = "A non-negative expected archive revision is required." }, statusCode: 400);
       var result = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, actor,
-        new ClientOffboardingCloseoutRequest(id, input.DispositionNotes ?? string.Empty, input.AcknowledgedActionItems, expRev, input.ArchiveClientOnCloseout),
+        new ClientOffboardingCloseoutRequest(id, input.DispositionNotes ?? string.Empty, input.AcknowledgedActionItems, expRev, input.ArchiveClientOnCloseout, input.ExpectedReadinessDigest, input.RequestKey),
         http.RequestAborted);
       if (!result.Succeeded)
         return Results.Json(new { code = result.ErrorCode, message = result.Message },
-          statusCode: result.ErrorCode == "crm.invalid" ? 400 : result.ErrorCode == ErrorCodes.GateBlocked ? 409 : 403);
+          statusCode: result.ErrorCode == "crm.invalid" ? 400 : result.ErrorCode is ErrorCodes.GateBlocked or ErrorCodes.GenerationStale or ErrorCodes.IdempotencyConflict ? 409 : 403);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
     }).WithSummary("Record client offboarding closeout")
-      .WithDescription("Records an immutable client offboarding closeout outcome, requiring all obligations to be assessed (non-UNKNOWN) and explicit disposition/acknowledgement of action items.");
+      .WithDescription("Records an immutable BLOCKED_DECISION review snapshot. UNKNOWN and action-required items remain unresolved; this route never approves offboarding, archives the client, or changes access, work, money or retention.");
     closeout.Produces<ClientOffboardingCloseoutResult>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")

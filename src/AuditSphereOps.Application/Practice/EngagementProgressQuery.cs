@@ -6,6 +6,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
@@ -208,8 +209,12 @@ public static class EngagementProgressQuery
     var openHoldEngagements = await db.EngagementHolds.AsNoTracking()
       .Where(x => x.FirmId == f && ids.Contains(x.EngagementId) && !x.Released)
       .Select(x => x.EngagementId).Distinct().ToListAsync(ct);
-    var released = await db.Releases.AsNoTracking().Where(x => x.FirmId == f && ids.Contains(x.EngagementId))
-      .Select(x => x.EngagementId).Distinct().ToListAsync(ct);
+    var releases = await (from release in db.Releases.AsNoTracking()
+      join candidate in db.ReleaseCandidates.AsNoTracking()
+        on new { release.FirmId, Id = release.ReleaseCandidateId } equals new { candidate.FirmId, candidate.Id }
+      where release.FirmId == f && ids.Contains(release.EngagementId)
+      select new { release.EngagementId, release.PackageId, candidate.TargetKind }).ToListAsync(ct);
+    var released = releases.Select(x => x.EngagementId).Distinct().ToHashSet();
     var nonAuditEngagements = engagements.Where(e => !LifecycleRoutes.Contains(e.ServiceRoute, StringComparer.Ordinal)).ToList();
     var approvedProfiles = nonAuditEngagements.Count == 0 ? [] : await (from profile in db.AccountingCapabilityProfiles.AsNoTracking()
       join acceptance in db.AccountingCapabilityAcceptances.AsNoTracking()
@@ -225,7 +230,7 @@ public static class EngagementProgressQuery
       .Where(p => p.FirmId == f && clientIds.Contains(p.ClientId))
       .ToListAsync(ct);
     var packages = nonAuditEngagements.Count == 0 ? [] : await db.FinancialPackages.AsNoTracking()
-      .Where(p => p.FirmId == f && clientIds.Contains(p.ClientId))
+      .Where(p => p.FirmId == f && ids.Contains(p.EngagementId))
       .ToListAsync(ct);
     var now = DateTimeOffset.UtcNow;
 
@@ -294,7 +299,21 @@ public static class EngagementProgressQuery
       }
       else
       {
-        var profile = approvedProfiles.FirstOrDefault(p => p.ClientId == engagement.PracticeClientId && p.ServiceRoute == engagement.ServiceRoute);
+        var matchingProfiles = approvedProfiles.Where(p => p.ClientId == engagement.PracticeClientId && p.ServiceRoute == engagement.ServiceRoute).ToList();
+        AccountingCapabilityProfile? profile = null;
+        if (!string.IsNullOrWhiteSpace(engagement.ServiceProfileId) && Guid.TryParse(engagement.ServiceProfileId, out var profileGuid))
+        {
+          profile = matchingProfiles.FirstOrDefault(p => p.Id == profileGuid);
+        }
+        else if (matchingProfiles.Count == 1)
+        {
+          profile = matchingProfiles[0];
+        }
+        else if (matchingProfiles.Count > 1)
+        {
+          gates.Add("Ambiguous completion profiles exist for this service; exact profile selection is required.");
+        }
+
         if (profile is null)
         {
           if (!released.Contains(engagement.Id)) gates.Add("No issued release exists for this engagement yet.");
@@ -304,15 +323,24 @@ public static class EngagementProgressQuery
         else
         {
           disclosure = $"Progress reflects the approved {profile.ServiceKind} profile ({profile.Framework}), period close, and released deliverables.";
-          if (!released.Contains(engagement.Id)) gates.Add("No issued release exists for this engagement yet.");
 
           DateOnly.TryParse(engagement.PeriodStart, CultureInfo.InvariantCulture, out var pStart);
           DateOnly.TryParse(engagement.PeriodEnd, CultureInfo.InvariantCulture, out var pEnd);
-          var period = clientPeriods.FirstOrDefault(p => p.ClientId == engagement.PracticeClientId && p.StartDate == pStart && p.EndDate == pEnd);
+          var candidatePeriods = clientPeriods.Where(p => p.ClientId == engagement.PracticeClientId && p.StartDate == pStart && p.EndDate == pEnd).ToList();
+          if (!string.IsNullOrWhiteSpace(profile.AccountingMethod))
+          {
+            candidatePeriods = candidatePeriods.Where(p => string.Equals(p.Basis, profile.AccountingMethod, StringComparison.OrdinalIgnoreCase)).ToList();
+          }
+
+          if (candidatePeriods.Count > 1)
+          {
+            gates.Add("Ambiguous reporting periods exist for this context; exact period basis selection is required.");
+          }
+          var period = candidatePeriods.Count == 1 ? candidatePeriods[0] : null;
           if (period is null || period.Status != AccountingWorkflowStates.Closed)
             gates.Add("The reporting period is not closed.");
 
-          var clientPackages = packages.Where(x => x.ClientId == engagement.PracticeClientId &&
+          var clientPackages = packages.Where(x => x.EngagementId == engagement.Id &&
             x.PeriodStart == engagement.PeriodStart && x.PeriodEnd == engagement.PeriodEnd).ToList();
           if (profile.ServiceKind == AccountingCapabilityServiceKinds.EntityReporting && clientPackages.Count == 0)
             gates.Add("An approved financial package is required before completion.");
@@ -328,6 +356,16 @@ public static class EngagementProgressQuery
               }
             }
           }
+
+          var entityReporting = profile.ServiceKind == AccountingCapabilityServiceKinds.EntityReporting;
+          var hasExactRelease = releases.Any(r => r.EngagementId == engagement.Id &&
+            (entityReporting
+              ? r.TargetKind == ReleaseTargetKinds.FinancialPackage && clientPackages.Any(p => p.Id == r.PackageId)
+              : r.TargetKind is ReleaseTargetKinds.Workpaper or ReleaseTargetKinds.FinancialPackage));
+          if (!hasExactRelease)
+            gates.Add(entityReporting
+              ? "No issued release of the exact approved financial package exists for this period."
+              : "No issued release exists for this engagement yet.");
         }
       }
 

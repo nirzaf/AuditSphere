@@ -65,10 +65,18 @@ public sealed record ConsolidationReportLine(
 
 public sealed record ConsolidationReport(
   Guid ScopeVersionId, Guid? RunId, string State, DateTimeOffset? ApprovedAt,
-  IReadOnlyList<ConsolidationReportLine> Lines);
+  IReadOnlyList<ConsolidationReportLine> Lines,
+  string? RunHash = null);
 
 public sealed record AdvancedConsolidationMethodScheduleRequest(
   Guid ScopeVersionId, string Method, string Framework, string SourceManifestJson, string InputSnapshotJson);
+
+public sealed record BuildGroupDeliverableRequest(
+  Guid ScopeVersionId,
+  Guid RunId,
+  string? ExpectedRunHash,
+  string? RequestKey,
+  long ExpectedGroupRevision);
 
 public sealed record GroupDeliverableResult(
   Guid DeliverableId,
@@ -88,15 +96,47 @@ public sealed record GroupDeliverableResult(
   Guid? ArchivedByUserId,
   DateTimeOffset? ArchivedAt,
   string? ArchiveReason,
-  string DeliverableJson);
+  string DeliverableJson,
+  string? RequestKey = null,
+  string? IssueRequestKey = null,
+  string? ArchiveRequestKey = null,
+  long Revision = 1);
 
 public sealed record IssueGroupDeliverableRequest(
+  Guid ScopeVersionId,
   Guid DeliverableId,
-  string? AuthorizedReleaseKey = null);
+  long ExpectedDeliverableRevision,
+  long ExpectedGroupRevision,
+  string? ExpectedDeliverableSha256,
+  string? AuthorizedReleaseKey,
+  string? RequestKey);
 
 public sealed record ArchiveGroupDeliverableRequest(
+  Guid ScopeVersionId,
   Guid DeliverableId,
-  string? Reason = null);
+  long ExpectedDeliverableRevision,
+  string? ExpectedDeliverableSha256,
+  string? Reason,
+  string? RequestKey);
+
+public sealed record GroupDeliverableSummary(
+  Guid DeliverableId,
+  string Status,
+  string RunHash,
+  string DeliverableSha256,
+  DateTimeOffset CreatedAt,
+  Guid CreatedByUserId,
+  DateTimeOffset? IssuedAt,
+  Guid? IssuedByUserId,
+  DateTimeOffset? ArchivedAt,
+  Guid? ArchivedByUserId,
+  long Revision);
+
+public sealed record GroupDeliverablePage(
+  int Page,
+  int PageSize,
+  int TotalCount,
+  IReadOnlyList<GroupDeliverableSummary> Items);
 
 public sealed record GroupDeliverableExport(
   string FileName,

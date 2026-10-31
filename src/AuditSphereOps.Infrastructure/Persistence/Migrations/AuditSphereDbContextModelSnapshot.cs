@@ -10241,6 +10241,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("archive_reason");
 
+                    b.Property<string>("ArchiveRequestKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("archive_request_key");
+
                     b.Property<DateTimeOffset?>("ArchivedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("archived_at");
@@ -10293,6 +10298,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("input_manifest_digest");
 
+                    b.Property<string>("IssueRequestKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("issue_request_key");
+
                     b.Property<DateTimeOffset?>("IssuedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("issued_at");
@@ -10300,6 +10310,18 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("IssuedByUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("issued_by_user_id");
+
+                    b.Property<string>("RequestKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("request_key");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("revision");
 
                     b.Property<string>("RunHash")
                         .IsRequired()
@@ -10332,6 +10354,21 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "IssuedByUserId");
 
+                    b.HasIndex("FirmId", "ScopeVersionId", "ArchiveRequestKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_group_deliverables_scope_archive_request_key")
+                        .HasFilter("archive_request_key IS NOT NULL");
+
+                    b.HasIndex("FirmId", "ScopeVersionId", "IssueRequestKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_group_deliverables_scope_issue_request_key")
+                        .HasFilter("issue_request_key IS NOT NULL");
+
+                    b.HasIndex("FirmId", "ScopeVersionId", "RequestKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_group_deliverables_scope_request_key")
+                        .HasFilter("request_key IS NOT NULL");
+
                     b.HasIndex("FirmId", "GroupId", "ScopeVersionId", "RunId");
 
                     b.HasIndex("FirmId", "ScopeVersionId", "RunId", "Status")
@@ -10339,7 +10376,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("group_deliverables", null, t =>
                         {
-                            t.HasCheckConstraint("ck_group_deliverable_values", "format_version <> '' AND run_hash ~ '^[0-9a-f]{64}$' AND input_manifest_digest ~ '^[0-9a-f]{64}$' AND deliverable_sha256 ~ '^[0-9a-f]{64}$' AND status IN ('BUILT','ISSUED','ARCHIVED')");
+                            t.HasCheckConstraint("ck_group_deliverable_values", "format_version <> '' AND run_hash ~ '^[0-9a-f]{64}$' AND input_manifest_digest ~ '^[0-9a-f]{64}$' AND deliverable_sha256 ~ '^[0-9a-f]{64}$' AND status IN ('BUILT','ISSUED','ARCHIVED') AND revision >= 1 AND ((status = 'BUILT' AND issued_by_user_id IS NULL AND issued_at IS NULL AND archived_by_user_id IS NULL AND archived_at IS NULL) OR (status = 'ISSUED' AND issued_by_user_id IS NOT NULL AND issued_at IS NOT NULL AND archived_by_user_id IS NULL AND archived_at IS NULL) OR (status = 'ARCHIVED' AND issued_by_user_id IS NOT NULL AND issued_at IS NOT NULL AND archived_by_user_id IS NOT NULL AND archived_at IS NOT NULL))");
                         });
                 });
 
@@ -19556,6 +19593,16 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<Guid?>("CurrentDecisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("current_decision_id");
+
+                    b.Property<long>("CurrentDecisionRevision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("current_decision_revision");
+
                     b.Property<Guid>("EngagementId")
                         .HasColumnType("uuid")
                         .HasColumnName("engagement_id");
@@ -19576,6 +19623,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("notes");
 
+                    b.Property<long>("Revision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("revision");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -19594,7 +19647,107 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("eqr_cases", null, t =>
                         {
-                            t.HasCheckConstraint("ck_eqr_case_values", "status IN ('PENDING','IN_PROGRESS','CONCURRED','CHANGES_REQUESTED') AND ((status = 'CONCURRED' AND concurrence_date IS NOT NULL AND completed_at IS NOT NULL)   OR status <> 'CONCURRED')");
+                            t.HasCheckConstraint("ck_eqr_case_values", "status IN ('PENDING','IN_PROGRESS','CONCURRED','CHANGES_REQUESTED') AND revision >= 0 AND current_decision_revision >= 0 AND (current_decision_id IS NULL OR current_decision_revision = revision) AND ((status = 'CONCURRED' AND concurrence_date IS NOT NULL AND completed_at IS NOT NULL)   OR status <> 'CONCURRED')");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Completion.EqrDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid>("DecidedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by_user_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("EqrCaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("eqr_case_id");
+
+                    b.Property<bool>("FindingsDiscussed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("findings_discussed");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)")
+                        .HasColumnName("notes");
+
+                    b.Property<Guid?>("PreviousDecisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("previous_decision_id");
+
+                    b.Property<string>("RequestKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_key");
+
+                    b.Property<string>("ReviewedFactsDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("reviewed_facts_digest");
+
+                    b.Property<Guid?>("ReviewedReportDeliverableId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_report_deliverable_id");
+
+                    b.Property<string>("ReviewedReportSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("reviewed_report_sha256");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EqrCaseId");
+
+                    b.HasIndex("FirmId", "DecidedByUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId");
+
+                    b.HasIndex("FirmId", "EngagementId", "DecidedAt")
+                        .HasDatabaseName("ix_eqr_decision_engagement_decided");
+
+                    b.HasIndex("FirmId", "EngagementId", "RequestKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_eqr_decision_request");
+
+                    b.HasIndex("FirmId", "EqrCaseId", "Revision")
+                        .IsUnique()
+                        .HasDatabaseName("ux_eqr_decision_revision");
+
+                    b.ToTable("eqr_decisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_eqr_decision_values", "revision > 0 AND status IN ('IN_PROGRESS','CONCURRED','CHANGES_REQUESTED') AND length(trim(request_key)) > 0 AND reviewed_facts_digest ~ '^[0-9a-f]{64}$' AND (reviewed_report_sha256 IS NULL OR reviewed_report_sha256 ~ '^[0-9a-f]{64}$') AND ((status = 'CONCURRED' AND findings_discussed) OR status <> 'CONCURRED') AND ((status = 'CHANGES_REQUESTED' AND notes IS NOT NULL AND length(trim(notes)) > 0) OR status <> 'CHANGES_REQUESTED')");
                         });
                 });
 
@@ -25033,6 +25186,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("readiness_snapshot_json");
 
+                    b.Property<string>("RequestKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("request_key");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -25048,9 +25206,14 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ClientId", "DecidedAt");
 
+                    b.HasIndex("FirmId", "ClientId", "RequestKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_client_offboarding_records_request_key")
+                        .HasFilter("request_key IS NOT NULL");
+
                     b.ToTable("client_offboarding_records", null, t =>
                         {
-                            t.HasCheckConstraint("ck_client_offboarding_record_values", "length(trim(status)) > 0 AND length(trim(disposition_notes)) > 0 AND readiness_digest ~ '^[0-9a-f]{64}$'");
+                            t.HasCheckConstraint("ck_client_offboarding_record_values", "length(trim(status)) > 0 AND length(trim(disposition_notes)) > 0 AND readiness_digest ~ '^[0-9a-f]{64}$' AND readiness_overall_state IN ('ACTION_REQUIRED','UNKNOWN','NO_FINDINGS')");
                         });
                 });
 
@@ -37610,6 +37773,29 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "EqrPartnerUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Completion.EqrDecision", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Completion.EqrCase", null)
+                        .WithMany()
+                        .HasForeignKey("EqrCaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "DecidedByUserId")
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

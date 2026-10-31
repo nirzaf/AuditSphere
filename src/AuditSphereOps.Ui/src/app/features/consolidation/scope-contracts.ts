@@ -158,9 +158,31 @@ export const decodeConsolidationReportLine = obj({
 export const decodeConsolidationReport = obj({
   scopeVersionId: guid,
   runId: nullable(guid),
+  runHash: nullable(text),
   state: reportState,
   approvedAt: nullable(instant),
   lines: arr(decodeConsolidationReportLine, 20000),
+});
+
+export const decodeGroupDeliverable = obj({
+  deliverableId: guid,
+  status: text,
+  runHash: text,
+  deliverableSha256: text,
+  createdAt: instant,
+  createdByUserId: guid,
+  issuedAt: nullable(instant),
+  issuedByUserId: nullable(guid),
+  archivedAt: nullable(instant),
+  archivedByUserId: nullable(guid),
+  revision: nat,
+});
+
+export const decodeGroupDeliverablePage = obj({
+  page: int,
+  pageSize: int,
+  totalCount: int,
+  items: arr(decodeGroupDeliverable, 100),
 });
 
 export const decodeComponentReadiness = obj({
@@ -274,6 +296,8 @@ const decodeScopeWorkspaceShape = obj({
   canPrepare: bool,
   canReview: bool,
   canApproveScope: bool,
+  canIssueDeliverable: bool,
+  canArchiveDeliverable: bool,
   scopeApprovalBlocker: nullable(text),
   currentUserId: guid,
   components: arr(decodeConsolidationComponent, 100),
@@ -297,7 +321,7 @@ export const decodeScopeWorkspace = (value: unknown, path: string) => {
   const workspace = decodeScopeWorkspaceShape(value, path);
   const components = [...workspace.components, ...(workspace.resolvedComponent ? [workspace.resolvedComponent] : [])];
   if (workspace.accessMode === 'READ_ONLY' && (workspace.canPrepare || workspace.canReview || workspace.canApproveScope ||
-      components.some(component => component.canApprove)))
+      workspace.canIssueDeliverable || workspace.canArchiveDeliverable || components.some(component => component.canApprove)))
     throw new Error(`${path || 'response'}: oversight cannot grant operational capabilities`);
   if (workspace.canApproveScope && workspace.scopeApprovalBlocker !== null)
     throw new Error(`${path || 'response'}: approvable scope cannot have an approval blocker`);

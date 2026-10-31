@@ -212,8 +212,18 @@ public static partial class AuditDeliverableService
     var clientGate = await ClientGateAsync(db, actor, engagementId, ct);
     if (clientGate is not null && scan is not null) blockers.Add(clientGate);
     var eqr = await db.EqrCases.AsNoTracking().FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
-    if (eqr is not null && eqr.Status != "CONCURRED")
-      blockers.Add($"Engagement quality review (EQR) status is {eqr.Status}; concurrence is required before releasing the deliverable bundle.");
+    if (eqr is not null)
+    {
+      var concurrence = await CurrentEqrDecisionAsync(db, actor.FirmId, eqr, ct);
+      if (eqr.Status != "CONCURRED" || concurrence is null || concurrence.Status != "CONCURRED")
+        blockers.Add($"Engagement quality review (EQR) status is {eqr.Status}; a current retained concurrence is required before releasing the deliverable bundle.");
+      else
+      {
+        var expected = await ExpectedDigestAsync(db, actor, engagementId, DeliverableKinds.IndependentAuditorsReport, ct);
+        if (concurrence.ReviewedFactsDigest != expected)
+          blockers.Add("The EQR concurrence was recorded against a different completion basis; re-review the current evidence.");
+      }
+    }
     var release = await db.Releases.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
       db.ReleaseCandidates.Any(c => c.Id == x.ReleaseCandidateId && c.FirmId == actor.FirmId && c.TargetKind == ReleaseTargetKinds.FinancialPackage))
       .OrderByDescending(x => x.ReleasedAt).FirstOrDefaultAsync(ct);
