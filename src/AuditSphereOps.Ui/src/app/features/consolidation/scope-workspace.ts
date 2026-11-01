@@ -46,6 +46,7 @@ export class ConsolidationScopeWorkspace {
   readonly eligiblePackagesPageNumber = signal(1);
   readonly journalsPageNumber = signal(1);
   readonly runsPageNumber = signal(1);
+  readonly deliverablePageNumber = signal(1);
   readonly selectedComponentCorrection = signal<{ scopeId: string; componentId: string } | null>(null);
   readonly externalPacksScopeId = signal<string | null>(null);
   readonly uncertainScopeId = signal<string | null>(null);
@@ -73,8 +74,13 @@ export class ConsolidationScopeWorkspace {
     'The requested consolidation scope is not available in the current firm and group grant.',
   );
   readonly deliverablePage = this.api.resource(
-    () => this.id() ? `/api/ui/consolidation/scopes/${this.id()}/deliverables?page=1&pageSize=100` : null,
-    decodeGroupDeliverablePage,
+    () => this.id() ? `/api/ui/consolidation/scopes/${this.id()}/deliverables?page=${this.deliverablePageNumber()}&pageSize=100` : null,
+    (value, path) => {
+      const page = decodeGroupDeliverablePage(value, path);
+      if (page.page !== this.deliverablePageNumber() || page.pageSize !== 100)
+        throw new Error('Retained group deliverables belong to a different page.');
+      return page;
+    },
     'The retained group deliverables are not available in the current group grant.',
   );
   readonly cmd = new CommandState(this.api);
@@ -105,6 +111,7 @@ export class ConsolidationScopeWorkspace {
       this.eligiblePackagesPageNumber.set(1);
       this.journalsPageNumber.set(1);
       this.runsPageNumber.set(1);
+      this.deliverablePageNumber.set(1);
       this.selectedComponentCorrection.set(null);
       this.externalPacksScopeId.set(null);
       this.selectedPackageId = '';
@@ -246,6 +253,10 @@ export class ConsolidationScopeWorkspace {
   nextJournalsPage(page: ScopeWorkspace['journals']): void {
     if (page.page * page.pageSize < page.totalCount) this.journalsPageNumber.set(page.page + 1);
   }
+  previousDeliverablePage(): void { this.deliverablePageNumber.update(page => Math.max(1, page - 1)); }
+  nextDeliverablePage(page: ReturnType<typeof decodeGroupDeliverablePage>): void {
+    if (page.page * page.pageSize < page.totalCount) this.deliverablePageNumber.set(page.page + 1);
+  }
   previousRunsPage(): void { this.runsPageNumber.update(page => Math.max(1, page - 1)); }
   nextRunsPage(page: ScopeWorkspace['runs']): void {
     if (page.page * page.pageSize < page.totalCount) this.runsPageNumber.set(page.page + 1);
@@ -383,6 +394,7 @@ export class ConsolidationScopeWorkspace {
 
   private deliverableReviewKey(workspace: ScopeWorkspace, deliverable: ReturnType<typeof decodeGroupDeliverablePage>['items'][number], action: 'issue' | 'archive'): string {
     return JSON.stringify([this.ownerKey(), workspace.scope.id.toLowerCase(), workspace.scope.groupRevision,
+      workspace.latestReport.available, workspace.latestReport.value?.state,
       workspace.latestReport.value?.runId, workspace.latestReport.value?.runHash,
       deliverable.deliverableId.toLowerCase(), deliverable.status, deliverable.revision,
       deliverable.runHash, deliverable.deliverableSha256, action,

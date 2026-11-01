@@ -296,6 +296,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
     component.deliverableReleaseKey = 'GROUP-REL-001';
     component.setDeliverableReviewed(workspace, built, 'issue', true);
     expect(component.isDeliverableReviewed(workspace, { ...built, revision: 2 }, 'issue')).toBe(false);
+    expect(component.isDeliverableReviewed({ ...workspace, latestReport: { ...workspace.latestReport, available: false } }, built, 'issue')).toBe(false);
     component.issueDeliverable(workspace, { ...built, deliverableId: id3 });
     expect(api.command).toHaveBeenCalledTimes(1);
     component.updateDeliverableInput('release', 'CHANGED');
@@ -320,6 +321,28 @@ describe('Consolidation Scope Workspace Contracts', () => {
       expect.objectContaining({ expectedDeliverableRevision: 2, expectedDeliverableSha256: hash64,
         reason: 'Superseded by reviewed close.' }),
       'POST'));
+  });
+
+  it('shows retained exact artifacts when the current report is stale and pages through history', () => {
+    const { fixture, component } = open(workspacePayload({ latestReport: {
+      scopeVersionId: id1, runId: id3, runHash: hash64, state: 'STALE', approvedAt: null, lines: []
+    } }));
+    deliverableResource.data.set({ page: 1, pageSize: 100, totalCount: 101, items: [{
+      deliverableId: id2, status: 'ISSUED', runHash: hash64, deliverableSha256: hash64,
+      createdAt: '2026-10-01T12:00:00Z', createdByUserId: id1, issuedAt: null, issuedByUserId: null,
+      archivedAt: null, archivedByUserId: null, revision: 2,
+    }] });
+    fixture.detectChanges();
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.textContent).toContain('Report evidence is stale');
+    expect(page.textContent).toContain('Retained group deliverables');
+    expect(page.querySelector(`a[href="${scopeUrl}/deliverables/${id2}/download"]`)).not.toBeNull();
+    component.nextDeliverablePage(deliverableResource.data()!);
+    expect(component.deliverablePageNumber()).toBe(2);
+    const url = api.resource.mock.calls[1][0] as () => string;
+    expect(url()).toContain('page=2&pageSize=100');
+    const decoder = api.resource.mock.calls[1][1] as (value: unknown, path: string) => unknown;
+    expect(() => decoder({ page: 1, pageSize: 100, totalCount: 101, items: [] }, 'root')).toThrow();
   });
 
   it('opens external pack history only for the active scope and clears it on a route change', () => {

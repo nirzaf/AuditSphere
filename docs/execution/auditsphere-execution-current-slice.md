@@ -5,7 +5,7 @@
 
 ## Lifecycle audit work in progress (2026-11-01)
 
-REM-01/02: group issue/archive handlers now use their own capabilities and bind review to the exact retained artifact and release input. The focused `scope-workspace.spec.ts` passed 25/25 on Node 24.19.0; this is local evidence, not exact-source CI or release acceptance. Other lifecycle tasks remain open. The untracked root audit document is user-owned and is not staged.
+REM-01/02: group issue/archive handlers now use their own capabilities and bind review to the exact retained artifact and release input. The focused `scope-workspace.spec.ts` passed 25/25 on Node 24.19.0; this is local evidence, not exact-source CI or release acceptance. REM-07: retained history is independent of current-report readiness and uses bounded pages; the focused `scope-workspace.spec.ts` passed 26/26 on Node 26.13.0. Other lifecycle tasks remain open. The untracked root audit document is user-owned and is not staged.
 
 ## Checkout and preservation
 The main checkout is `master` at published source `d6eedc65f646b17960026c5da5f8d98cefcd2cce`. Its current local change is the bounded WU-004 PBC delegation-scope fix, with the aligned test, migration and documentation/status evidence recorded below. The exact pre-update status ledger and handoff were archived before editing; no peer-owned paths are included. Fetch `origin` and inspect incoming paths again immediately before the scoped commit.
