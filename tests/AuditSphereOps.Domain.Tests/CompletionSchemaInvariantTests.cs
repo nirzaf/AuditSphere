@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using System.Security.Cryptography;
 using Npgsql;
 using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Completion;
@@ -40,6 +41,301 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     output.WriteLine($"Triggers expected from migrations: {expected.Count}; present: {expected.Count - missing.Count}; disabled: {disabled.Count}");
     Assert.True(missing.Count == 0, "Missing: " + string.Join(", ", missing));
     Assert.True(disabled.Count == 0, "Disabled: " + string.Join(", ", disabled));
+  }
+
+  [Fact]
+  public async Task EngagementFileFreezeParents_RejectCrossScopeReferences()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    // Set this flag only for the paired legacy-schema counterfactual; normal CI exercises the current migration.
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_FILE_FREEZE_SCOPE_BASELINE") == "1")
+    {
+      await using var migrationDb = new AuditSphereDbContext(pg.Options);
+      await migrationDb.GetService<IMigrator>().MigrateAsync("20261101041254_ClientDeliverableReviewScope");
+    }
+
+    var own = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    Assert.NotEqual(own.FirmId, foreign.FirmId);
+
+    var otherClientId = Guid.NewGuid();
+    var otherClientEngagementId = Guid.NewGuid();
+    var siblingEngagementId = Guid.NewGuid();
+    var foreignReportProbeEngagementId = Guid.NewGuid();
+    var otherClientReportProbeEngagementId = Guid.NewGuid();
+    var siblingReportProbeEngagementId = Guid.NewGuid();
+    var otherClientScopeProbeEngagementId = Guid.NewGuid();
+    var clientMismatchProbeEngagementId = Guid.NewGuid();
+    var engagementMismatchProbeEngagementId = Guid.NewGuid();
+    var now = DateTimeOffset.UtcNow;
+
+    AuditDeliverable StructuralHeader(
+      Guid firmId, Guid clientId, Guid engagementId, Guid createdByUserId, int version, byte marker)
+    {
+      var content = new byte[] { marker, (byte)(marker + 1), (byte)(marker + 2) };
+      var digest = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+      return new AuditDeliverable
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+        Kind = DeliverableKinds.ManagementLetter, Version = version, TemplateVersion = "STRUCTURAL-TEST",
+        InputDigest = digest, InputSummaryJson = "{}", FileName = "structural-only.txt",
+        ContentType = "text/plain", Content = content, ContentSha256 = digest,
+        CreatedByUserId = createdByUserId, CreatedAt = now
+      };
+    }
+
+    // All records in this probe are synthetic structural fixtures. No report is generated, issued, signed,
+    // approved, archived, or represented as a real Partner decision.
+    var ownDeliverable = StructuralHeader(own.FirmId, own.ClientId, own.EngagementId, own.Staff.Id, 1, 0x11);
+    var ownSecondDeliverable = StructuralHeader(own.FirmId, own.ClientId, own.EngagementId, own.Staff.Id, 2, 0x21);
+    var scopeControlDeliverable = StructuralHeader(
+      own.FirmId, own.ClientId, foreignReportProbeEngagementId, own.Staff.Id, 3, 0x61);
+    var foreignDeliverable = StructuralHeader(foreign.FirmId, foreign.ClientId, foreign.EngagementId, foreign.Staff.Id, 1, 0x31);
+    var otherClientDeliverable = StructuralHeader(own.FirmId, otherClientId, otherClientEngagementId, own.Staff.Id, 1, 0x41);
+    var siblingDeliverable = StructuralHeader(own.FirmId, own.ClientId, siblingEngagementId, own.Staff.Id, 1, 0x51);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = otherClientId, FirmId = own.FirmId, LegalName = "SYNTHETIC OTHER CLIENT", CreatedAt = now
+      });
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = otherClientId, FirmId = own.FirmId });
+      db.Engagements.AddRange(
+        new Engagement
+        {
+          Id = otherClientEngagementId, FirmId = own.FirmId, PracticeClientId = otherClientId,
+          Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+        },
+        new Engagement
+        {
+          Id = siblingEngagementId, FirmId = own.FirmId, PracticeClientId = own.ClientId,
+          Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+        },
+        new Engagement
+        {
+          Id = foreignReportProbeEngagementId, FirmId = own.FirmId, PracticeClientId = own.ClientId,
+          Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+        },
+        new Engagement
+        {
+          Id = otherClientReportProbeEngagementId, FirmId = own.FirmId, PracticeClientId = own.ClientId,
+          Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+        },
+        new Engagement
+        {
+          Id = siblingReportProbeEngagementId, FirmId = own.FirmId, PracticeClientId = own.ClientId,
+          Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+        },
+        new Engagement
+        {
+          Id = otherClientScopeProbeEngagementId, FirmId = own.FirmId, PracticeClientId = otherClientId,
+          Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+        },
+        new Engagement
+        {
+          Id = clientMismatchProbeEngagementId, FirmId = own.FirmId, PracticeClientId = own.ClientId,
+          Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+        },
+        new Engagement
+        {
+          Id = engagementMismatchProbeEngagementId, FirmId = own.FirmId, PracticeClientId = own.ClientId,
+          Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+        });
+      db.AuditDeliverables.AddRange(
+        ownDeliverable, ownSecondDeliverable, scopeControlDeliverable, foreignDeliverable,
+        otherClientDeliverable, siblingDeliverable);
+      await db.SaveChangesAsync();
+    }
+
+    var signedAt = now;
+    var dueAt = signedAt.AddDays(60);
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+    async Task ExecuteAsync(string sql)
+    {
+      await using var command = new NpgsqlCommand(sql, connection, transaction);
+      await command.ExecuteNonQueryAsync();
+    }
+
+    await ExecuteAsync("SET CONSTRAINTS ALL IMMEDIATE");
+
+    async Task<int> InsertFreezeAsync(
+      Guid id, Guid firmId, Guid clientId, Guid engagementId, Guid reportDeliverableId)
+    {
+      await using var command = new NpgsqlCommand("""
+        INSERT INTO engagement_file_freezes
+          (id, firm_id, client_id, engagement_id, report_deliverable_id, report_signed_at, due_at,
+           state, revision, frozen_at, external_read_only, updated_at)
+        VALUES
+          (@id, @firm_id, @client_id, @engagement_id, @report_deliverable_id, @report_signed_at, @due_at,
+           'SCHEDULED', 1, NULL, 'NOT_REQUESTED', @updated_at)
+        """, connection, transaction);
+      command.Parameters.AddWithValue("id", id);
+      command.Parameters.AddWithValue("firm_id", firmId);
+      command.Parameters.AddWithValue("client_id", clientId);
+      command.Parameters.AddWithValue("engagement_id", engagementId);
+      command.Parameters.AddWithValue("report_deliverable_id", reportDeliverableId);
+      command.Parameters.AddWithValue("report_signed_at", signedAt);
+      command.Parameters.AddWithValue("due_at", dueAt);
+      command.Parameters.AddWithValue("updated_at", signedAt);
+      return await command.ExecuteNonQueryAsync();
+    }
+
+    async Task<int> InsertAmendmentAsync(
+      Guid id, Guid firmId, Guid engagementId, Guid freezeId, Guid requestedByUserId)
+    {
+      await using var command = new NpgsqlCommand("""
+        INSERT INTO file_freeze_amendments
+          (id, firm_id, freeze_id, engagement_id, reason, requested_by_user_id, requested_at,
+           approved_by_user_id, opened_at, closed_by_user_id, closed_at)
+        VALUES
+          (@id, @firm_id, @freeze_id, @engagement_id, 'synthetic scope probe', @requested_by_user_id,
+           @requested_at, NULL, NULL, NULL, NULL)
+        """, connection, transaction);
+      command.Parameters.AddWithValue("id", id);
+      command.Parameters.AddWithValue("firm_id", firmId);
+      command.Parameters.AddWithValue("freeze_id", freezeId);
+      command.Parameters.AddWithValue("engagement_id", engagementId);
+      command.Parameters.AddWithValue("requested_by_user_id", requestedByUserId);
+      command.Parameters.AddWithValue("requested_at", now);
+      return await command.ExecuteNonQueryAsync();
+    }
+
+    async Task<int> InsertEarlyLockAsync(
+      Guid id, Guid firmId, Guid clientId, Guid engagementId, Guid freezeId, Guid reportDeliverableId)
+    {
+      await using var command = new NpgsqlCommand("""
+        INSERT INTO file_freeze_early_locks
+          (id, firm_id, client_id, engagement_id, freeze_id, report_deliverable_id, freeze_revision,
+           release_id, archive_readiness_digest, rationale, locked_by_user_id, locked_at)
+        VALUES
+          (@id, @firm_id, @client_id, @engagement_id, @freeze_id, @report_deliverable_id, 1,
+           @release_id, @archive_readiness_digest, 'synthetic scope probe only', @locked_by_user_id, @locked_at)
+        """, connection, transaction);
+      command.Parameters.AddWithValue("id", id);
+      command.Parameters.AddWithValue("firm_id", firmId);
+      command.Parameters.AddWithValue("client_id", clientId);
+      command.Parameters.AddWithValue("engagement_id", engagementId);
+      command.Parameters.AddWithValue("freeze_id", freezeId);
+      command.Parameters.AddWithValue("report_deliverable_id", reportDeliverableId);
+      command.Parameters.AddWithValue("release_id", Guid.NewGuid());
+      command.Parameters.AddWithValue("archive_readiness_digest", new string('c', 64));
+      command.Parameters.AddWithValue("locked_by_user_id", own.Staff.Id);
+      command.Parameters.AddWithValue("locked_at", now);
+      return await command.ExecuteNonQueryAsync();
+    }
+
+    var unexpected = new List<string>();
+    async Task ProbeAsync(
+      string label, bool shouldAccept, Func<Task<int>> insert, params string[] expectedConstraints)
+    {
+      await ExecuteAsync("SAVEPOINT freeze_parent_scope_probe");
+      PostgresException? observed = null;
+      var affected = 0;
+      try
+      {
+        affected = await insert();
+      }
+      catch (PostgresException exception)
+      {
+        observed = exception;
+      }
+
+      await ExecuteAsync("ROLLBACK TO SAVEPOINT freeze_parent_scope_probe");
+      await ExecuteAsync("RELEASE SAVEPOINT freeze_parent_scope_probe");
+      output.WriteLine(observed is null
+        ? $"{label}: {(affected == 1 ? "ACCEPTED" : $"AFFECTED_{affected}")}"
+        : $"{label}: REFUSED SqlState={observed.SqlState} constraint={observed.ConstraintName}");
+
+      if (shouldAccept)
+      {
+        if (observed is not null || affected != 1)
+          unexpected.Add($"{label}: expected one accepted row, got SQLSTATE={observed?.SqlState ?? "none"} rows={affected}.");
+      }
+      else if (observed is null || observed.SqlState != "23503" ||
+               !expectedConstraints.Contains(observed.ConstraintName, StringComparer.Ordinal))
+      {
+        unexpected.Add($"{label}: expected SQLSTATE 23503 from [{string.Join(", ", expectedConstraints)}], " +
+          $"got SQLSTATE={observed?.SqlState ?? "none"} constraint={observed?.ConstraintName ?? "none"} rows={affected}.");
+      }
+    }
+
+    var ownFreezeId = Guid.NewGuid();
+    var foreignFreezeId = Guid.NewGuid();
+    var otherClientFreezeId = Guid.NewGuid();
+    var siblingFreezeId = Guid.NewGuid();
+    Assert.Equal(1, await InsertFreezeAsync(ownFreezeId, own.FirmId, own.ClientId, own.EngagementId, ownDeliverable.Id));
+    Assert.Equal(1, await InsertFreezeAsync(foreignFreezeId, foreign.FirmId, foreign.ClientId, foreign.EngagementId, foreignDeliverable.Id));
+    Assert.Equal(1, await InsertFreezeAsync(otherClientFreezeId, own.FirmId, otherClientId, otherClientEngagementId, otherClientDeliverable.Id));
+    Assert.Equal(1, await InsertFreezeAsync(siblingFreezeId, own.FirmId, own.ClientId, siblingEngagementId, siblingDeliverable.Id));
+    output.WriteLine("VALID_SYNTHETIC_FREEZE_PARENTS: ACCEPTED for firm/client/engagement-matched structural headers");
+
+    const string engagementScope = "fk_engagement_file_freeze_engagement_scope";
+    const string deliverableScope = "fk_engagement_file_freeze_deliverable_scope";
+    const string amendmentScope = "fk_file_freeze_amendment_freeze_scope";
+    const string earlyLockScope = "fk_file_freeze_early_lock_parent_scope";
+
+    // Freeze report-parent swaps: original global ID relationships accept these unrelated headers.
+    await ProbeAsync("FREEZE_FOREIGN_REPORT_PARENT", false,
+      () => InsertFreezeAsync(Guid.NewGuid(), own.FirmId, own.ClientId, foreignReportProbeEngagementId, foreignDeliverable.Id), deliverableScope);
+    await ProbeAsync("FREEZE_SAME_FIRM_OTHER_CLIENT_REPORT_PARENT", false,
+      () => InsertFreezeAsync(Guid.NewGuid(), own.FirmId, own.ClientId, otherClientReportProbeEngagementId, otherClientDeliverable.Id), deliverableScope);
+    await ProbeAsync("FREEZE_SIBLING_ENGAGEMENT_REPORT_PARENT", false,
+      () => InsertFreezeAsync(Guid.NewGuid(), own.FirmId, own.ClientId, siblingReportProbeEngagementId, siblingDeliverable.Id), deliverableScope);
+    await ProbeAsync("FREEZE_FOREIGN_ENGAGEMENT_SCOPE", false,
+      () => InsertFreezeAsync(Guid.NewGuid(), own.FirmId, own.ClientId, foreign.EngagementId, ownDeliverable.Id),
+      engagementScope, deliverableScope);
+    await ProbeAsync("FREEZE_SAME_FIRM_OTHER_CLIENT_ENGAGEMENT_SCOPE", false,
+      () => InsertFreezeAsync(Guid.NewGuid(), own.FirmId, own.ClientId, otherClientScopeProbeEngagementId, ownDeliverable.Id),
+      engagementScope, deliverableScope);
+    await ProbeAsync("FREEZE_CHILD_FIRM_ONLY_MISMATCH", false,
+      () => InsertFreezeAsync(Guid.NewGuid(), foreign.FirmId, own.ClientId, own.EngagementId, ownDeliverable.Id),
+      engagementScope, deliverableScope);
+    await ProbeAsync("FREEZE_CHILD_CLIENT_ONLY_MISMATCH", false,
+      () => InsertFreezeAsync(Guid.NewGuid(), own.FirmId, otherClientId, clientMismatchProbeEngagementId, ownDeliverable.Id),
+      engagementScope, deliverableScope);
+    await ProbeAsync("FREEZE_CHILD_ENGAGEMENT_ONLY_MISMATCH", false,
+      () => InsertFreezeAsync(Guid.NewGuid(), own.FirmId, own.ClientId, engagementMismatchProbeEngagementId, ownDeliverable.Id),
+      deliverableScope);
+    await ProbeAsync("FREEZE_SAME_SCOPE_CONTROL", true,
+      () => InsertFreezeAsync(
+        Guid.NewGuid(), own.FirmId, own.ClientId, foreignReportProbeEngagementId, scopeControlDeliverable.Id));
+
+    // Amendment rows have no ClientId; scope is therefore the persisted firm/engagement/freeze tuple.
+    await ProbeAsync("AMENDMENT_FOREIGN_FREEZE_PARENT", false,
+      () => InsertAmendmentAsync(Guid.NewGuid(), own.FirmId, own.EngagementId, foreignFreezeId, own.Staff.Id), amendmentScope);
+    await ProbeAsync("AMENDMENT_SAME_FIRM_OTHER_CLIENT_FREEZE_PARENT", false,
+      () => InsertAmendmentAsync(Guid.NewGuid(), own.FirmId, own.EngagementId, otherClientFreezeId, own.Staff.Id), amendmentScope);
+    await ProbeAsync("AMENDMENT_SIBLING_ENGAGEMENT_FREEZE_PARENT", false,
+      () => InsertAmendmentAsync(Guid.NewGuid(), own.FirmId, own.EngagementId, siblingFreezeId, own.Staff.Id), amendmentScope);
+    await ProbeAsync("AMENDMENT_CHILD_FIRM_ONLY_MISMATCH", false,
+      () => InsertAmendmentAsync(Guid.NewGuid(), foreign.FirmId, own.EngagementId, ownFreezeId, foreign.Staff.Id), amendmentScope);
+    await ProbeAsync("AMENDMENT_CHILD_ENGAGEMENT_ONLY_MISMATCH", false,
+      () => InsertAmendmentAsync(Guid.NewGuid(), own.FirmId, siblingEngagementId, ownFreezeId, own.Staff.Id), amendmentScope);
+    await ProbeAsync("AMENDMENT_SAME_SCOPE_UNAPPROVED_REQUEST_CONTROL", true,
+      () => InsertAmendmentAsync(Guid.NewGuid(), own.FirmId, own.EngagementId, ownFreezeId, own.Staff.Id));
+
+    // Early-lock rows are synthetic append-only test data. The exact freeze/report pair is part of their scope.
+    await ProbeAsync("EARLY_LOCK_FOREIGN_FREEZE_AND_REPORT_PARENT", false,
+      () => InsertEarlyLockAsync(Guid.NewGuid(), own.FirmId, own.ClientId, own.EngagementId, foreignFreezeId, foreignDeliverable.Id), earlyLockScope);
+    await ProbeAsync("EARLY_LOCK_SAME_FIRM_OTHER_CLIENT_PARENT", false,
+      () => InsertEarlyLockAsync(Guid.NewGuid(), own.FirmId, own.ClientId, own.EngagementId, otherClientFreezeId, otherClientDeliverable.Id), earlyLockScope);
+    await ProbeAsync("EARLY_LOCK_SIBLING_ENGAGEMENT_PARENT", false,
+      () => InsertEarlyLockAsync(Guid.NewGuid(), own.FirmId, own.ClientId, own.EngagementId, siblingFreezeId, siblingDeliverable.Id), earlyLockScope);
+    await ProbeAsync("EARLY_LOCK_REPORT_ONLY_SAME_SCOPE_MISMATCH", false,
+      () => InsertEarlyLockAsync(Guid.NewGuid(), own.FirmId, own.ClientId, own.EngagementId, ownFreezeId, ownSecondDeliverable.Id), earlyLockScope);
+    await ProbeAsync("EARLY_LOCK_CHILD_FIRM_ONLY_MISMATCH", false,
+      () => InsertEarlyLockAsync(Guid.NewGuid(), foreign.FirmId, own.ClientId, own.EngagementId, ownFreezeId, ownDeliverable.Id), earlyLockScope);
+    await ProbeAsync("EARLY_LOCK_CHILD_CLIENT_ONLY_MISMATCH", false,
+      () => InsertEarlyLockAsync(Guid.NewGuid(), own.FirmId, otherClientId, own.EngagementId, ownFreezeId, ownDeliverable.Id), earlyLockScope);
+    await ProbeAsync("EARLY_LOCK_CHILD_ENGAGEMENT_ONLY_MISMATCH", false,
+      () => InsertEarlyLockAsync(Guid.NewGuid(), own.FirmId, own.ClientId, siblingEngagementId, ownFreezeId, ownDeliverable.Id), earlyLockScope);
+    await ProbeAsync("EARLY_LOCK_SAME_SCOPE_FREEZE_AND_REPORT_CONTROL", true,
+      () => InsertEarlyLockAsync(Guid.NewGuid(), own.FirmId, own.ClientId, own.EngagementId, ownFreezeId, ownDeliverable.Id));
+
+    Assert.True(unexpected.Count == 0, "Unexpected file-freeze scope outcomes:\n" + string.Join("\n", unexpected));
+    await transaction.RollbackAsync();
   }
 
   [Fact]

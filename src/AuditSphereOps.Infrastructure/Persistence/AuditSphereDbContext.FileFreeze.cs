@@ -12,6 +12,12 @@ public sealed partial class AuditSphereDbContext
   {
     b.Entity<EngagementFileFreeze>(e =>
     {
+      // FileFreezeParentScope adds database-enforced full-scope references while retaining the original global-ID
+      // EF relationships below. These parent keys support the existing amendment and early-lock child identities.
+      e.HasAlternateKey(x => new { x.FirmId, x.EngagementId, x.Id })
+        .HasName("ak_engagement_file_freeze_firm_engagement_id");
+      e.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id, x.ReportDeliverableId })
+        .HasName("ak_engagement_file_freeze_scope_report_id");
       e.HasIndex(x => new { x.FirmId, x.EngagementId }).IsUnique();
       e.HasIndex(x => new { x.FirmId, x.State, x.DueAt });
       e.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Restrict);

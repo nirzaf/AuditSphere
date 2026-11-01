@@ -31925,6 +31925,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "EngagementId", "Id")
+                        .HasName("ak_engagement_file_freeze_firm_engagement_id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id", "ReportDeliverableId")
+                        .HasName("ak_engagement_file_freeze_scope_report_id");
+
                     b.HasIndex("EngagementId");
 
                     b.HasIndex("ReportDeliverableId");
