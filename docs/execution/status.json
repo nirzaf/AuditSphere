@@ -99,12 +99,6 @@
     }
   ],
   "targetedVerification": {
-    "lifecycleRemainingAudit20261101": {
-      "source": "34ee411e4b856ad7d2f7fa96b26f10cae08386e5",
-      "groupReviewAndHistory": "Focused scope-workspace suite passed 26/26 on Node 26.13.0; exact-source fast CI run 41286328810 passed; a subsequent local capability-denial assertion passed in the 27/27 focused suite.",
-      "remaining": "EQR basis and interrupted-command recovery remain open. Finance and profile changes are uncommitted; PostgreSQL tests did not start because infrastructure compilation exhausted memory.",
-      "fullReleaseVerification": "NOT_RUN"
-    },
     "sharePointPrimary": {
       "handoff": "auditsphere-execution-sharepoint-primary-storage-current.md"
     },
