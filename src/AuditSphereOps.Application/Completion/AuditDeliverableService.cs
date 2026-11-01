@@ -923,18 +923,27 @@ public static partial class AuditDeliverableService
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagementId,
       client ? ["ClientUser"] : ReaderRoles, InternalOnly: !client), ct);
     if (!auth.Succeeded) return [];
-    var reviews = await db.ClientDeliverableReviews.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderByDescending(x => x.SharedAt).ToListAsync(ct);
-    var ids = reviews.Select(x => x.DeliverableId).ToArray();
-    var deliverables = await db.AuditDeliverables.AsNoTracking().Where(x => ids.Contains(x.Id))
-      .Select(x => new { x.Id, x.Kind, x.Version, x.ContentSha256 }).ToDictionaryAsync(x => x.Id, ct);
-    var reviewIds = reviews.Select(x => x.Id).ToArray();
-    var comments = await db.ClientDeliverableComments.AsNoTracking().Where(x => reviewIds.Contains(x.ReviewId)).OrderBy(x => x.CreatedAt).ToListAsync(ct);
-    return reviews.Select(r =>
-    {
-      var d = deliverables[r.DeliverableId];
-      return new SharedDeliverableView(r.Id, d.Id, d.Kind, DeliverableKinds.Title(d.Kind), d.Version, d.ContentSha256, r.SharedAt, r.AcknowledgedAt,
-        comments.Where(c => c.ReviewId == r.Id).ToList());
-    }).ToList();
+    var shared = await (
+      from review in db.ClientDeliverableReviews.AsNoTracking()
+      join deliverable in db.AuditDeliverables.AsNoTracking()
+        on new { review.FirmId, review.ClientId, review.EngagementId, DeliverableId = review.DeliverableId }
+        equals new { deliverable.FirmId, deliverable.ClientId, deliverable.EngagementId, DeliverableId = deliverable.Id }
+      where review.FirmId == actor.FirmId && review.ClientId == engagement.PracticeClientId && review.EngagementId == engagementId
+      orderby review.SharedAt descending
+      select new
+      {
+        Review = review,
+        DeliverableId = deliverable.Id,
+        deliverable.Kind,
+        deliverable.Version,
+        deliverable.ContentSha256
+      }).ToListAsync(ct);
+    var reviewIds = shared.Select(x => x.Review.Id).ToArray();
+    var comments = await db.ClientDeliverableComments.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && reviewIds.Contains(x.ReviewId)).OrderBy(x => x.CreatedAt).ToListAsync(ct);
+    return shared.Select(x => new SharedDeliverableView(x.Review.Id, x.DeliverableId, x.Kind, DeliverableKinds.Title(x.Kind),
+      x.Version, x.ContentSha256, x.Review.SharedAt, x.Review.AcknowledgedAt,
+      comments.Where(c => c.ReviewId == x.Review.Id).ToList())).ToList();
   }
 
   // ── Listing and plumbing ──────────────────────────────────────────────────────────────────────────

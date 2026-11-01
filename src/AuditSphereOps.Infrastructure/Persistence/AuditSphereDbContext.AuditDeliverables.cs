@@ -129,8 +129,13 @@ public sealed partial class AuditSphereDbContext
     });
     b.Entity<ClientDeliverableReview>(e =>
     {
+      e.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("ak_client_deliverable_review_firm_id_id");
       e.HasIndex(x => new { x.FirmId, x.DeliverableId }).IsUnique();
       e.HasOne<AuditDeliverable>().WithMany().HasForeignKey(x => x.DeliverableId).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AuditDeliverable>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.DeliverableId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_client_deliverable_review_deliverable_scope");
       e.ToTable("client_deliverable_reviews", t => t.HasCheckConstraint("ck_client_deliverable_review_values",
         "(acknowledged_at IS NULL) = (acknowledged_sha256 IS NULL)"));
     });
@@ -152,6 +157,9 @@ public sealed partial class AuditSphereDbContext
       e.HasIndex(x => new { x.FirmId, x.ReviewId, x.CreatedAt });
       e.HasIndex(x => new { x.FirmId, x.AuthorUserId, x.RequestId }).IsUnique().HasFilter("request_id IS NOT NULL");
       e.HasOne<ClientDeliverableReview>().WithMany().HasForeignKey(x => x.ReviewId).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<ClientDeliverableReview>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReviewId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_client_deliverable_comment_review_scope");
       e.ToTable("client_deliverable_comments", t => t.HasCheckConstraint("ck_client_deliverable_comment_values",
         "length(body) > 0 AND ((resolved_at IS NULL) = (resolution IS NULL)) AND ((request_id IS NULL) = (request_sha256 IS NULL))"));
       e.Property(x => x.RequestSha256).HasMaxLength(64);

@@ -19243,10 +19243,15 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("ak_client_deliverable_review_firm_id_id");
+
                     b.HasIndex("DeliverableId");
 
                     b.HasIndex("FirmId", "DeliverableId")
                         .IsUnique();
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "DeliverableId");
 
                     b.ToTable("client_deliverable_reviews", null, t =>
                         {
@@ -37667,6 +37672,14 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ReviewId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Completion.ClientDeliverableReview", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_client_deliverable_comment_review_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.ClientDeliverableReview", b =>
@@ -37676,6 +37689,14 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("DeliverableId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Completion.AuditDeliverable", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "DeliverableId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_client_deliverable_review_deliverable_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.ClientSafetyState", b =>

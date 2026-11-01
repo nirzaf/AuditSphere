@@ -2,7 +2,9 @@ using System.Text.RegularExpressions;
 using System.Text.Json;
 using Npgsql;
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -589,6 +591,326 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     Assert.True(ownWorkspace.Succeeded, ownWorkspace.Message);
     Assert.Equal(ownRecipientEmail, ownWorkspace.Value!.PortalIntent!.RecipientEmail);
     Assert.NotEqual(foreignContactId, ownContactId);
+  }
+
+  [Fact]
+  public async Task SharedDeliverables_ExcludeCrossFirmReviewAndCommentRows()
+  {
+    const string previousMigration = "20261101024300_ClientPortalIntentContactScope";
+    await using var pg = await PgTestSchema.CreateAsync(previousMigration);
+    await using (var migrationDb = new AuditSphereDbContext(pg.Options))
+    {
+      var migrations = migrationDb.Database.GetMigrations().ToArray();
+      Assert.Contains(previousMigration, migrations);
+      if (!string.Equals(migrations[^1], previousMigration, StringComparison.Ordinal))
+        await migrationDb.GetService<IMigrator>().MigrateAsync(previousMigration);
+    }
+
+    var own = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    static AuditDeliverable SyntheticHeader(PbcSeed.Fixture fixture, string marker, char hash) => new()
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+      Kind = DeliverableKinds.ManagementLetter, Version = 1, TemplateVersion = "STRUCTURAL-TEST",
+      InputDigest = new string(hash, 64), InputSummaryJson = "{}", FileName = $"{marker}.txt", ContentType = "text/plain",
+      Content = [1, 2, 3], ContentSha256 = new string(hash, 64), CreatedByUserId = fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+    };
+
+    // These are structural headers only; this test does not generate, issue, sign, or approve a report.
+    var ownDeliverable = SyntheticHeader(own, "own-synthetic-deliverable", 'a');
+    var foreignDeliverable = SyntheticHeader(foreign, "foreign-synthetic-deliverable", 'b');
+    var now = DateTimeOffset.UtcNow;
+    var ownReview = new ClientDeliverableReview
+    {
+      Id = Guid.NewGuid(), FirmId = own.FirmId, ClientId = own.ClientId, EngagementId = own.EngagementId,
+      DeliverableId = ownDeliverable.Id, SharedByUserId = own.Staff.Id, SharedAt = now
+    };
+    const string sameFirmComment = "same-firm synthetic review comment";
+    var ownComment = new ClientDeliverableComment
+    {
+      Id = Guid.NewGuid(), FirmId = own.FirmId, ReviewId = ownReview.Id, Body = sameFirmComment,
+      AuthorUserId = own.Client.Id, FromClient = true, CreatedAt = now
+    };
+    await using (var seedDb = new AuditSphereDbContext(pg.Options))
+    {
+      seedDb.AuditDeliverables.AddRange(ownDeliverable, foreignDeliverable);
+      seedDb.ClientDeliverableReviews.Add(ownReview);
+      seedDb.ClientDeliverableComments.Add(ownComment);
+      await seedDb.SaveChangesAsync();
+      await seedDb.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO client_deliverable_reviews
+          (id, firm_id, client_id, engagement_id, deliverable_id, shared_by_user_id, shared_at,
+           acknowledged_by_user_id, acknowledged_at, acknowledged_sha256)
+        VALUES ({Guid.NewGuid()}, {own.FirmId}, {own.ClientId}, {own.EngagementId}, {foreignDeliverable.Id},
+                {own.Staff.Id}, {now}, NULL, NULL, NULL)
+        """);
+      await seedDb.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO client_deliverable_comments
+          (id, firm_id, review_id, body, author_user_id, from_client, created_at,
+           resolved_by_user_id, resolved_at, resolution, request_id, request_sha256)
+        VALUES ({Guid.NewGuid()}, {foreign.FirmId}, {ownReview.Id}, {"foreign-firm comment marker"},
+                {foreign.Client.Id}, TRUE, {now}, NULL, NULL, NULL, NULL, NULL)
+        """);
+    }
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var shared = await AuditDeliverableService.SharedAsync(db, PbcSeed.Actor(own.Client, "ClientUser"), own.EngagementId);
+    Assert.Contains(shared, x => x.DeliverableId == ownDeliverable.Id && x.ContentSha256 == ownDeliverable.ContentSha256);
+    var ownView = Assert.Single(shared, x => x.ReviewId == ownReview.Id);
+    Assert.Contains(ownView.Comments, x => x.Body == sameFirmComment);
+
+    var foreignDeliverableMetadataLeaked = shared.Any(x => x.DeliverableId == foreignDeliverable.Id && x.ContentSha256 == foreignDeliverable.ContentSha256);
+    var foreignCommentLeaked = ownView.Comments.Any(x => x.Body == "foreign-firm comment marker");
+    Assert.True(!foreignDeliverableMetadataLeaked && !foreignCommentLeaked,
+      $"Cross-firm portal data leaked: deliverableMetadata={foreignDeliverableMetadataLeaked}; comment={foreignCommentLeaked}.");
+  }
+
+  [Fact]
+  public async Task ClientDeliverableScopeUpgradeAndRollbackPreserveHistoryAndRejectInvalidLinks()
+  {
+    const string previousMigration = "20261101024300_ClientPortalIntentContactScope";
+    const string scopeMigration = "20261101041254_ClientDeliverableReviewScope";
+
+    static async Task<string[]> ReadRowsAsync(PgTestSchema pg, string sql)
+    {
+      await using var connection = new NpgsqlConnection(pg.ConnectionString);
+      await connection.OpenAsync();
+      await using var command = new NpgsqlCommand(sql, connection);
+      await using var reader = await command.ExecuteReaderAsync();
+      var values = new List<string>();
+      while (await reader.ReadAsync()) values.Add(reader.GetString(0));
+      return values.ToArray();
+    }
+
+    static Task<string[]> ReadForeignKeysAsync(PgTestSchema pg) => ReadRowsAsync(pg, """
+      SELECT conrelid::regclass::text || '|' || conname || '|' || pg_get_constraintdef(oid)
+      FROM pg_constraint
+      WHERE contype = 'f' AND conrelid IN ('client_deliverable_reviews'::regclass, 'client_deliverable_comments'::regclass)
+      ORDER BY conrelid::regclass::text, conname
+      """);
+
+    static Task<string[]> ReadIndexesAsync(PgTestSchema pg) => ReadRowsAsync(pg, """
+      SELECT tablename || '|' || indexname || '|' || indexdef
+      FROM pg_indexes
+      WHERE schemaname = current_schema() AND tablename IN ('client_deliverable_reviews', 'client_deliverable_comments')
+      ORDER BY tablename, indexname
+      """);
+
+    static async Task<string> ReadLatestMigrationAsync(PgTestSchema pg)
+    {
+      var rows = await ReadRowsAsync(pg,
+        "SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" ORDER BY \"MigrationId\" DESC LIMIT 1");
+      return Assert.Single(rows);
+    }
+
+    static async Task MigrateAsync(PgTestSchema pg, string migration)
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      await db.GetService<IMigrator>().MigrateAsync(migration);
+    }
+
+    static AuditDeliverable SyntheticHeader(PbcSeed.Fixture fixture, string marker, char hash,
+      int version = 1, Guid? clientId = null, Guid? engagementId = null) => new()
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, ClientId = clientId ?? fixture.ClientId,
+      EngagementId = engagementId ?? fixture.EngagementId,
+      Kind = DeliverableKinds.ManagementLetter, Version = version, TemplateVersion = "STRUCTURAL-TEST",
+      InputDigest = new string(hash, 64), InputSummaryJson = "{}", FileName = $"{marker}.txt", ContentType = "text/plain",
+      Content = [1, 2, 3], ContentSha256 = new string(hash, 64), CreatedByUserId = fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+    };
+
+    await using var pg = await PgTestSchema.CreateAsync(previousMigration);
+    var own = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    Assert.NotEqual(own.FirmId, foreign.FirmId);
+    var ownDeliverable = SyntheticHeader(own, "own-synthetic-deliverable", 'a');
+    var foreignDeliverable = SyntheticHeader(foreign, "foreign-synthetic-deliverable", 'b');
+    var otherClientDeliverable = SyntheticHeader(own, "same-firm-other-client", 'c', version: 2, clientId: Guid.NewGuid());
+    var siblingEngagementDeliverable = SyntheticHeader(own, "same-client-sibling-engagement", 'd', engagementId: Guid.NewGuid());
+    var childFirmMismatchDeliverable = SyntheticHeader(own, "child-firm-mismatch", 'e', version: 3);
+    var childClientMismatchDeliverable = SyntheticHeader(own, "child-client-mismatch", 'f', version: 4);
+    var childEngagementMismatchDeliverable = SyntheticHeader(own, "child-engagement-mismatch", 'g', version: 5);
+    var now = DateTimeOffset.UtcNow;
+    var ownReview = new ClientDeliverableReview
+    {
+      Id = Guid.NewGuid(), FirmId = own.FirmId, ClientId = own.ClientId, EngagementId = own.EngagementId,
+      DeliverableId = ownDeliverable.Id, SharedByUserId = own.Staff.Id, SharedAt = now
+    };
+    var ownComment = new ClientDeliverableComment
+    {
+      Id = Guid.NewGuid(), FirmId = own.FirmId, ReviewId = ownReview.Id, Body = "same-firm synthetic review comment",
+      AuthorUserId = own.Client.Id, FromClient = true, CreatedAt = now
+    };
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.AuditDeliverables.AddRange(ownDeliverable, foreignDeliverable, otherClientDeliverable,
+        siblingEngagementDeliverable, childFirmMismatchDeliverable, childClientMismatchDeliverable,
+        childEngagementMismatchDeliverable);
+      db.ClientDeliverableReviews.Add(ownReview);
+      db.ClientDeliverableComments.Add(ownComment);
+      await db.SaveChangesAsync();
+    }
+
+    var originalReviewRows = await ReadRowsAsync(pg,
+      "SELECT to_jsonb(r)::text FROM client_deliverable_reviews r ORDER BY id");
+    var originalCommentRows = await ReadRowsAsync(pg,
+      "SELECT to_jsonb(c)::text FROM client_deliverable_comments c ORDER BY id");
+    Assert.Single(originalReviewRows);
+    Assert.Single(originalCommentRows);
+    var originalForeignKeys = await ReadForeignKeysAsync(pg);
+    var originalIndexes = await ReadIndexesAsync(pg);
+    Assert.Contains(originalForeignKeys, x => x.Contains("client_deliverable_reviews|FK_client_deliverable_reviews_audit_deliverables_deliverable_id|", StringComparison.Ordinal));
+    Assert.Contains(originalForeignKeys, x => x.Contains("client_deliverable_comments|FK_client_deliverable_comments_client_deliverable_reviews_revi", StringComparison.Ordinal));
+
+    var invalidReviewId = Guid.NewGuid();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO client_deliverable_reviews
+          (id, firm_id, client_id, engagement_id, deliverable_id, shared_by_user_id, shared_at,
+           acknowledged_by_user_id, acknowledged_at, acknowledged_sha256)
+        VALUES ({invalidReviewId}, {own.FirmId}, {own.ClientId}, {own.EngagementId}, {foreignDeliverable.Id},
+                {own.Staff.Id}, {now}, NULL, NULL, NULL)
+        """);
+    var invalidReviewRows = await ReadRowsAsync(pg,
+      "SELECT to_jsonb(r)::text FROM client_deliverable_reviews r ORDER BY id");
+    Assert.Equal(2, invalidReviewRows.Length);
+    var reviewRefusal = await Assert.ThrowsAsync<PostgresException>(() => MigrateAsync(pg, scopeMigration));
+    Assert.Equal("23503", reviewRefusal.SqlState);
+    Assert.Equal("fk_client_deliverable_review_deliverable_scope", reviewRefusal.ConstraintName);
+    output.WriteLine($"INVALID_REVIEW: REFUSED SqlState={reviewRefusal.SqlState} Constraint={reviewRefusal.ConstraintName}");
+    Assert.Equal(previousMigration, await ReadLatestMigrationAsync(pg));
+    Assert.Equal(invalidReviewRows, await ReadRowsAsync(pg,
+      "SELECT to_jsonb(r)::text FROM client_deliverable_reviews r ORDER BY id"));
+    Assert.Equal(originalCommentRows, await ReadRowsAsync(pg,
+      "SELECT to_jsonb(c)::text FROM client_deliverable_comments c ORDER BY id"));
+    Assert.Equal(originalForeignKeys, await ReadForeignKeysAsync(pg));
+    Assert.Equal(originalIndexes, await ReadIndexesAsync(pg));
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM client_deliverable_reviews WHERE id = {invalidReviewId}");
+    Assert.Equal(originalReviewRows, await ReadRowsAsync(pg,
+      "SELECT to_jsonb(r)::text FROM client_deliverable_reviews r ORDER BY id"));
+
+    var invalidCommentId = Guid.NewGuid();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO client_deliverable_comments
+          (id, firm_id, review_id, body, author_user_id, from_client, created_at,
+           resolved_by_user_id, resolved_at, resolution, request_id, request_sha256)
+        VALUES ({invalidCommentId}, {foreign.FirmId}, {ownReview.Id}, {"foreign-firm comment marker"},
+                {foreign.Client.Id}, TRUE, {now}, NULL, NULL, NULL, NULL, NULL)
+        """);
+    var invalidCommentRows = await ReadRowsAsync(pg,
+      "SELECT to_jsonb(c)::text FROM client_deliverable_comments c ORDER BY id");
+    Assert.Equal(2, invalidCommentRows.Length);
+    var commentRefusal = await Assert.ThrowsAsync<PostgresException>(() => MigrateAsync(pg, scopeMigration));
+    Assert.Equal("23503", commentRefusal.SqlState);
+    Assert.Equal("fk_client_deliverable_comment_review_scope", commentRefusal.ConstraintName);
+    output.WriteLine($"INVALID_COMMENT: REFUSED SqlState={commentRefusal.SqlState} Constraint={commentRefusal.ConstraintName}");
+    Assert.Equal(previousMigration, await ReadLatestMigrationAsync(pg));
+    Assert.Equal(originalReviewRows, await ReadRowsAsync(pg,
+      "SELECT to_jsonb(r)::text FROM client_deliverable_reviews r ORDER BY id"));
+    Assert.Equal(invalidCommentRows, await ReadRowsAsync(pg,
+      "SELECT to_jsonb(c)::text FROM client_deliverable_comments c ORDER BY id"));
+    Assert.Equal(originalForeignKeys, await ReadForeignKeysAsync(pg));
+    Assert.Equal(originalIndexes, await ReadIndexesAsync(pg));
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM client_deliverable_comments WHERE id = {invalidCommentId}");
+    Assert.Equal(originalCommentRows, await ReadRowsAsync(pg,
+      "SELECT to_jsonb(c)::text FROM client_deliverable_comments c ORDER BY id"));
+
+    await MigrateAsync(pg, scopeMigration);
+    Assert.Equal(scopeMigration, await ReadLatestMigrationAsync(pg));
+    Assert.Equal(originalReviewRows, await ReadRowsAsync(pg,
+      "SELECT to_jsonb(r)::text FROM client_deliverable_reviews r ORDER BY id"));
+    Assert.Equal(originalCommentRows, await ReadRowsAsync(pg,
+      "SELECT to_jsonb(c)::text FROM client_deliverable_comments c ORDER BY id"));
+    var scopedForeignKeys = await ReadForeignKeysAsync(pg);
+    Assert.Contains(scopedForeignKeys, x => x.StartsWith("client_deliverable_reviews|fk_client_deliverable_review_deliverable_scope|", StringComparison.Ordinal)
+      && x.Contains("FOREIGN KEY (firm_id, client_id, engagement_id, deliverable_id) REFERENCES audit_deliverables(firm_id, client_id, engagement_id, id) ON DELETE RESTRICT", StringComparison.Ordinal));
+    Assert.Contains(scopedForeignKeys, x => x.StartsWith("client_deliverable_comments|fk_client_deliverable_comment_review_scope|", StringComparison.Ordinal)
+      && x.Contains("FOREIGN KEY (firm_id, review_id) REFERENCES client_deliverable_reviews(firm_id, id) ON DELETE RESTRICT", StringComparison.Ordinal));
+    Assert.Equal(originalForeignKeys, scopedForeignKeys.Where(x =>
+      !x.Contains("|fk_client_deliverable_review_deliverable_scope|", StringComparison.Ordinal)
+      && !x.Contains("|fk_client_deliverable_comment_review_scope|", StringComparison.Ordinal)).ToArray());
+    var scopedIndexes = await ReadIndexesAsync(pg);
+    var addedIndexes = scopedIndexes.Except(originalIndexes).ToArray();
+    Assert.Equal(2, addedIndexes.Length);
+    var newSupportingIndex = Assert.Single(addedIndexes, x => x.Contains("firm_id, client_id, engagement_id, deliverable_id", StringComparison.Ordinal));
+    Assert.Contains("firm_id, client_id, engagement_id, deliverable_id", newSupportingIndex, StringComparison.Ordinal);
+    Assert.Contains(addedIndexes, x => x.Contains("CREATE UNIQUE INDEX", StringComparison.Ordinal)
+      && x.Contains("firm_id, id", StringComparison.Ordinal));
+    Assert.Equal(originalIndexes, scopedIndexes.Except(addedIndexes).ToArray());
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var postMigrationReviewRefusal = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO client_deliverable_reviews
+          (id, firm_id, client_id, engagement_id, deliverable_id, shared_by_user_id, shared_at,
+           acknowledged_by_user_id, acknowledged_at, acknowledged_sha256)
+        VALUES ({invalidReviewId}, {own.FirmId}, {own.ClientId}, {own.EngagementId}, {foreignDeliverable.Id},
+                {own.Staff.Id}, {now}, NULL, NULL, NULL)
+        """));
+      Assert.Equal("23503", postMigrationReviewRefusal.SqlState);
+      Assert.Equal("fk_client_deliverable_review_deliverable_scope", postMigrationReviewRefusal.ConstraintName);
+      var postMigrationCommentRefusal = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO client_deliverable_comments
+          (id, firm_id, review_id, body, author_user_id, from_client, created_at,
+           resolved_by_user_id, resolved_at, resolution, request_id, request_sha256)
+        VALUES ({invalidCommentId}, {foreign.FirmId}, {ownReview.Id}, {"foreign-firm comment marker"},
+                {foreign.Client.Id}, TRUE, {now}, NULL, NULL, NULL, NULL, NULL)
+        """));
+      Assert.Equal("23503", postMigrationCommentRefusal.SqlState);
+      Assert.Equal("fk_client_deliverable_comment_review_scope", postMigrationCommentRefusal.ConstraintName);
+    }
+
+    var independentScopeMismatches = new[]
+    {
+      (Name: "parent-other-client", FirmId: own.FirmId, ClientId: own.ClientId, EngagementId: own.EngagementId,
+        DeliverableId: otherClientDeliverable.Id),
+      (Name: "parent-sibling-engagement", FirmId: own.FirmId, ClientId: own.ClientId, EngagementId: own.EngagementId,
+        DeliverableId: siblingEngagementDeliverable.Id),
+      (Name: "child-firm-only", FirmId: foreign.FirmId, ClientId: own.ClientId, EngagementId: own.EngagementId,
+        DeliverableId: childFirmMismatchDeliverable.Id),
+      (Name: "child-client-only", FirmId: own.FirmId, ClientId: foreign.ClientId, EngagementId: own.EngagementId,
+        DeliverableId: childClientMismatchDeliverable.Id),
+      (Name: "child-engagement-only", FirmId: own.FirmId, ClientId: own.ClientId, EngagementId: foreign.EngagementId,
+        DeliverableId: childEngagementMismatchDeliverable.Id)
+    };
+    foreach (var mismatch in independentScopeMismatches)
+    {
+      var mismatchedId = Guid.NewGuid();
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var refusal = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO client_deliverable_reviews
+          (id, firm_id, client_id, engagement_id, deliverable_id, shared_by_user_id, shared_at,
+           acknowledged_by_user_id, acknowledged_at, acknowledged_sha256)
+        VALUES ({mismatchedId}, {mismatch.FirmId}, {mismatch.ClientId}, {mismatch.EngagementId}, {mismatch.DeliverableId},
+                {own.Staff.Id}, {now}, NULL, NULL, NULL)
+        """));
+      Assert.Equal("23503", refusal.SqlState);
+      Assert.Equal("fk_client_deliverable_review_deliverable_scope", refusal.ConstraintName);
+      Assert.False(await db.ClientDeliverableReviews.AnyAsync(x => x.Id == mismatchedId));
+      output.WriteLine($"{mismatch.Name}: REFUSED SqlState={refusal.SqlState} Constraint={refusal.ConstraintName}");
+    }
+
+    await MigrateAsync(pg, previousMigration);
+    Assert.Equal(previousMigration, await ReadLatestMigrationAsync(pg));
+    Assert.Equal(originalReviewRows, await ReadRowsAsync(pg,
+      "SELECT to_jsonb(r)::text FROM client_deliverable_reviews r ORDER BY id"));
+    Assert.Equal(originalCommentRows, await ReadRowsAsync(pg,
+      "SELECT to_jsonb(c)::text FROM client_deliverable_comments c ORDER BY id"));
+    Assert.Equal(originalForeignKeys, await ReadForeignKeysAsync(pg));
+    Assert.Equal(originalIndexes, await ReadIndexesAsync(pg));
+
+    await MigrateAsync(pg, scopeMigration);
+    Assert.Equal(scopeMigration, await ReadLatestMigrationAsync(pg));
+    Assert.Equal(originalReviewRows, await ReadRowsAsync(pg,
+      "SELECT to_jsonb(r)::text FROM client_deliverable_reviews r ORDER BY id"));
+    Assert.Equal(originalCommentRows, await ReadRowsAsync(pg,
+      "SELECT to_jsonb(c)::text FROM client_deliverable_comments c ORDER BY id"));
   }
 
   [Fact]
