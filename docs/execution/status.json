@@ -1,4 +1,5 @@
 {
+  "lifecycleCloudResidual": {"base":"538bc79f","candidateSha":"6b1b05606162a81d0289c7826e59cc034278e539","candidateShaRole":"code SHA; PR-head SHA in Actions","state":"AWAITING_EXACT_SOURCE_CI","local":"34f3 UI18/18; Angular build/lint PASS; infra csc process killed exit137; 5 DB tests NOT_RUN/BLOCKED_TEST_ENV","scope":"offboarding; EQR/profile"},
   "schemaVersion": "1",
   "documentationReconciliation": {
     "result": "DOCS_RECONCILED_SOURCE_AND_VALIDATORS_PASS",

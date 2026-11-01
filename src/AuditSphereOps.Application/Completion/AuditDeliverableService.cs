@@ -552,8 +552,7 @@ public static partial class AuditDeliverableService
       if (eqr.Status != "CONCURRED" || concurrence is null || concurrence.Status != "CONCURRED")
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
           $"Engagement quality review (EQR) status is {eqr.Status}; a current retained concurrence is required before signing the independent auditor's report.");
-      if (concurrence.ReviewedFactsDigest != report.InputDigest ||
-          concurrence.ReviewedReportDeliverableId is { } reviewedReport && reviewedReport != report.Id)
+      if (!EqrDecisionMatchesReportBasis(concurrence, report))
         return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
           "The EQR concurrence was recorded against different completion or report evidence; re-review the current basis before signing.");
     }
@@ -773,7 +772,11 @@ public static partial class AuditDeliverableService
     return CommandResult<Guid>.Ok(decision.Id);
   }
 
-  private static async Task<EqrDecision?> CurrentEqrDecisionAsync(IAuditSphereDbContext db, Guid firmId, EqrCase eqr,
+  internal static bool EqrDecisionMatchesReportBasis(EqrDecision decision, AuditDeliverable report) =>
+    decision.ReviewedFactsDigest == report.InputDigest &&
+    (decision.ReviewedReportDeliverableId is not { } reviewedReport || reviewedReport == report.Id);
+
+  internal static async Task<EqrDecision?> CurrentEqrDecisionAsync(IAuditSphereDbContext db, Guid firmId, EqrCase eqr,
     CancellationToken ct)
   {
     if (eqr.CurrentDecisionId is not { } decisionId || eqr.Revision < 1 ||

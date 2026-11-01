@@ -6,6 +6,7 @@ import { Api, CommandState, routeGuid } from '../../core/api';
 import { arr, bool, dec, guid, instant, int, nat, nullable, obj, oneOf, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { SessionService } from '../../core/session';
+import { EqrDecision } from './eqr-decision';
 
 const deliverable = obj({ id: guid, kind: text, title: text, version: nat, signed: bool, current: bool, contentSha256: text, createdAt: instant,
   signatureKind: oneOf('NONE', 'VISUAL', 'CERTIFICATE'), certificateSubject: nullable(text) });
@@ -53,7 +54,7 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
 
 @Component({
   selector: 'audit-completion',
-  imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED],
+  imports: [FormsModule, RouterLink, MatButtonModule, EqrDecision, ...SHARED],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a [routerLink]="['/app/engagements', id()]">Engagement</a> / <span>Completion</span></nav>
     <audit-page-header title="Engagement completion checklist" eyebrow="Engagement audit" description="Completion gates, unresolved items, and the exact state required before release." />
@@ -329,8 +330,17 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
       <section class="panel" aria-labelledby="fs-heading">
         <h2 id="fs-heading">Final financial statements</h2>
         <dl class="facts"><dt>Package ID</dt><dd>{{ w.packageId ?? 'None' }}</dd><dt>Package status</dt><dd>{{ w.packageStatus }}</dd>
-          <dt>Partner approval</dt><dd>{{ w.partnerApproved ? 'Current approval' : 'Current approval not established' }}</dd><dt>EQR status</dt><dd>{{ w.eqrStatus }}</dd></dl>
+          <dt>Partner approval</dt><dd>{{ w.partnerApproved ? 'Current approval' : 'Current approval not established' }}</dd>
+          <dt>Recorded EQR case status</dt><dd>{{ w.eqrStatus }}</dd></dl>
       </section>
+      @if (w.eqrStatus === 'NOT_ASSIGNED') {
+        <section class="panel" aria-labelledby="eqr-unassigned-heading">
+          <h2 id="eqr-unassigned-heading">Independent EQR review</h2>
+          <p>No EQR case is assigned. Applicability is not established here, and this page does not create or assign a case.</p>
+        </section>
+      } @else {
+        <audit-eqr-decision [engagementId]="w.engagementId" [caseStatus]="w.eqrStatus" (decisionRecorded)="refreshCompletion($event)" />
+      }
       @if (w.freeze; as fz) {
         @if (fz.state === 'SCHEDULED' && readiness.error() !== partnerOnlyMessage) {
           <section class="panel" aria-labelledby="early-lock-heading">
@@ -392,6 +402,9 @@ export class EngagementCompletion {
     statementsReviewed: false, amendment: '', lockKey: '', workprogramRationale: '', workprogramReviewed: false };
 
   base(): string { return `/api/ui/engagements/${this.id()}/completion`; }
+  refreshCompletion(engagementId: string): void {
+    if (this.id()?.toLowerCase() === engagementId.toLowerCase()) this.ws.reload();
+  }
   label(t: string): string { return OPINION_LABELS[t] ?? t; }
   srm(w: Completion) { return w.deliverables.filter((d) => d.kind === 'SUMMARY_REVIEW_MEMORANDUM').sort((a, b) => b.version - a.version)[0] ?? null; }
   obtained(w: Completion): number { return w.representations.filter((r) => r.obtained).length; }

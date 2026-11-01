@@ -11,6 +11,82 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed partial class AuditDeliverablesTests
 {
   [Fact]
+  public async Task CompletionProjectionRequiresCurrentRetainedEqrDecisionAndExactCurrentReport()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var reportId = await ReportReadyForSigningAsync(pg, w);
+    var engagementPartner = w.A("partner", "Partner");
+    var reviewer = w.A("partner2", "Partner");
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    var withoutCase = await EngagementCompletionWorkspaceQuery.GetAsync(db, engagementPartner, w.EngagementId, DateTimeOffset.UtcNow);
+    Assert.True(withoutCase.Succeeded, withoutCase.Message);
+    Assert.Equal("NOT_ASSIGNED", withoutCase.Value!.EqrStatus);
+    Assert.Equal("NOT_ASSIGNED", Assert.Single(withoutCase.Value.Gates, x => x.Name == "EQR completed").Status);
+
+    // A legacy case can say CONCURRED without a retained current-decision pointer or reviewed-report basis.
+    var completedAt = DateTimeOffset.UtcNow;
+    db.EqrCases.Add(new EqrCase
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+      EqrPartnerUserId = reviewer.UserId, Status = "CONCURRED", ConcurrenceDate = DateOnly.FromDateTime(completedAt.UtcDateTime),
+      FindingsDiscussed = true, CompletedAt = completedAt,
+      Revision = 0, CurrentDecisionId = null, CurrentDecisionRevision = 0, CreatedAt = completedAt
+    });
+    await db.SaveChangesAsync();
+
+    var legacy = await EngagementCompletionWorkspaceQuery.GetAsync(db, engagementPartner, w.EngagementId, DateTimeOffset.UtcNow);
+    Assert.True(legacy.Succeeded, legacy.Message);
+    Assert.Equal("RECORDED_CONCURRENCE_NOT_CURRENT", legacy.Value!.EqrStatus);
+    var legacyGate = Assert.Single(legacy.Value.Gates, x => x.Name == "EQR completed");
+    Assert.Equal("RECORDED_CONCURRENCE_NOT_CURRENT", legacyGate.Status);
+    Assert.Equal("pending", legacyGate.Tone);
+    Assert.Equal(completedAt, legacyGate.Date);
+
+    var basis = await AuditDeliverableService.GetEqrReviewBasisAsync(db, reviewer, w.EngagementId);
+    Assert.True(basis.Succeeded, basis.Message);
+    Assert.Equal(reportId, basis.Value!.ReportDeliverableId);
+    var request = new RecordEqrDecisionRequest("CONCURRED", "Reviewed the exact current report.", true,
+      Guid.NewGuid().ToString("D"), basis.Value.CaseRevision, basis.Value.FactsDigest,
+      basis.Value.ReportDeliverableId, basis.Value.ReportSha256);
+    var decision = await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId, request);
+    Assert.True(decision.Succeeded, decision.Message);
+
+    var current = await EngagementCompletionWorkspaceQuery.GetAsync(db, engagementPartner, w.EngagementId, DateTimeOffset.UtcNow);
+    Assert.True(current.Succeeded, current.Message);
+    Assert.Equal("CONCURRED", current.Value!.EqrStatus);
+    Assert.Equal("ok", Assert.Single(current.Value.Gates, x => x.Name == "EQR completed").Tone);
+
+    var nextReport = await AuditDeliverableService.GenerateReportAsync(db, w.A("manager", "Manager"), w.EngagementId,
+      DeliverableKinds.IndependentAuditorsReport);
+    Assert.True(nextReport.Succeeded, nextReport.Message);
+    Assert.NotEqual(reportId, nextReport.Value!.DeliverableId);
+    var stale = await EngagementCompletionWorkspaceQuery.GetAsync(db, engagementPartner, w.EngagementId, DateTimeOffset.UtcNow);
+    Assert.True(stale.Succeeded, stale.Message);
+    Assert.Equal("RECORDED_CONCURRENCE_NOT_CURRENT", stale.Value!.EqrStatus);
+    Assert.Equal("pending", Assert.Single(stale.Value.Gates, x => x.Name == "EQR completed").Tone);
+    var retainedCase = await db.EqrCases.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId);
+    Assert.Equal(("CONCURRED", decision.Value), (retainedCase.Status, retainedCase.CurrentDecisionId));
+    Assert.Single(await db.EqrDecisions.AsNoTracking().Where(x => x.EngagementId == w.EngagementId).ToListAsync());
+
+    var laterBasis = await AuditDeliverableService.GetEqrReviewBasisAsync(db, reviewer, w.EngagementId);
+    Assert.True(laterBasis.Succeeded, laterBasis.Message);
+    var inProgress = await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId,
+      new RecordEqrDecisionRequest("IN_PROGRESS", "Review remains in progress.", false, Guid.NewGuid().ToString("D"),
+        laterBasis.Value!.CaseRevision, laterBasis.Value.FactsDigest, laterBasis.Value.ReportDeliverableId, laterBasis.Value.ReportSha256));
+    Assert.True(inProgress.Succeeded, inProgress.Message);
+    var notConcurred = await EngagementCompletionWorkspaceQuery.GetAsync(db, engagementPartner, w.EngagementId, DateTimeOffset.UtcNow);
+    Assert.True(notConcurred.Succeeded, notConcurred.Message);
+    Assert.Equal("IN_PROGRESS", notConcurred.Value!.EqrStatus);
+    Assert.Equal("pending", Assert.Single(notConcurred.Value.Gates, x => x.Name == "EQR completed").Tone);
+    retainedCase = await db.EqrCases.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId);
+    Assert.Equal(("IN_PROGRESS", inProgress.Value), (retainedCase.Status, retainedCase.CurrentDecisionId));
+    Assert.Equal(2, await db.EqrDecisions.AsNoTracking().CountAsync(x => x.EngagementId == w.EngagementId));
+    Assert.Equal("CONCURRED", (await db.EqrDecisions.AsNoTracking().SingleAsync(x => x.Id == decision.Value)).Status);
+  }
+
+  [Fact]
   public async Task ReleaseCandidateReplayRequiresCurrentAuthorityAndPackageEvidence()
   {
     await using var pg = await PgTestSchema.CreateAsync();

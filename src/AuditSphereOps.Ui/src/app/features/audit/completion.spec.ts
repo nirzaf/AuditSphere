@@ -42,7 +42,7 @@ const validPayload = {
         presentationCompositionId: id3, compositionManifestDigest: hash64, stage: 'PARTNER_APPROVAL', decision: 'APPROVED',
         evidenceMode: 'SIGNED_IN', evidenceReference: 'partner-review-4', decidedByUserId: id2, decidedAt: '2026-10-02T12:10:00Z', sequence: 3 }],
       partnerApproved: true,
-      eqrStatus: 'CONCURRED',
+      eqrStatus: 'NOT_ASSIGNED',
       releaseCandidateId: id3,
       release: {
         candidateId: id3,
@@ -245,6 +245,38 @@ describe('Early compliance lock panel (STE 4.4.3)', () => {
   afterEach(() => {
     TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true });
     TestBed.resetTestingModule();
+  });
+
+  it('does not create an EQR case or request reviewer-only evidence when no case is assigned', () => {
+    const http = setup();
+    const f = load(http, validPayload);
+    expect((f.nativeElement as HTMLElement).textContent).toContain('No EQR case is assigned. Applicability is not established here');
+    expect((f.nativeElement as HTMLElement).querySelector('audit-eqr-decision')).toBeNull();
+    http.expectNone(`/api/ui/engagements/${id1}/completion/eqr-review-basis`);
+  });
+
+  it('renders a retained but non-current EQR concurrence as pending and loads only its existing basis', async () => {
+    const http = setup();
+    const f = TestBed.createComponent(EngagementCompletion);
+    f.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({ ...validPayload,
+      eqrStatus: 'RECORDED_CONCURRENCE_NOT_CURRENT',
+      gates: [...validPayload.gates, { name: 'EQR completed', status: 'RECORDED_CONCURRENCE_NOT_CURRENT', tone: 'pending', authority: null, date: null }] });
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(programBasis);
+    await f.whenStable();
+    f.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion/eqr-review-basis`).flush({ caseRevision: 4, factsDigest: hash64,
+      reportDeliverableId: id2, reportSha256: hash64 });
+    await f.whenStable();
+    f.detectChanges();
+    const host = f.nativeElement as HTMLElement;
+    expect(host.querySelector('audit-eqr-decision')).not.toBeNull();
+    expect(host.textContent).toContain('Recorded EQR case status');
+    expect(host.textContent).toContain('RECORDED_CONCURRENCE_NOT_CURRENT');
+    const gateRow = Array.from(host.querySelectorAll('tbody tr')).find(row => row.textContent?.includes('EQR completed'));
+    expect(gateRow?.querySelector('audit-status .status-chip')?.getAttribute('data-status')).toBe('RECORDED_CONCURRENCE_NOT_CURRENT');
+    expect(gateRow?.textContent).toContain('recorded concurrence not current');
+    expect(host.textContent).toContain('Download exact report');
   });
 
   it('shows the digest-bound confirmation to a Partner when readiness has no blockers', () => {
