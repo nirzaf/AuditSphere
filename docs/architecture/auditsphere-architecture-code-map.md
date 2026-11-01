@@ -22,6 +22,8 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 ## Current presentation ownership
 
+- Group deliverable recovery: Angular features/consolidation/scope-workspace.ts keeps an actor-scoped tab reference for build, issue and archive. After a fresh authorized scope read it retries only the original request and validates its receipt; release references and archive reasons are retained only as salted hashes.
+
 - Offboarding recovery: Angular features/clients/client-offboarding-readiness.ts retains a tab-scoped request reference and salted notes hash across view/session replacement. A fresh authorized readiness read and the original notes are required before exact replay; validated blocked-review receipts clear the fence.
 
 - EQR review basis: `Application/Completion/AuditDeliverableService.cs` supplies an authorized snapshot of the case revision, facts digest and latest unsigned report identity; the completion API exposes it for exact reviewed decisions. Replays bind the original revision and evidence, and legacy decisions are not treated as having supplied that basis.

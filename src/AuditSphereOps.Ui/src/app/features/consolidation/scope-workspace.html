@@ -814,6 +814,16 @@
         <h2 id="unknown-outcome-heading">Action outcome not confirmed</h2>
         <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
         @if (uncertainScopeId() === id()?.toLowerCase()) {
+          @if (pendingDeliverable(); as pending) {
+            <p>Retry the original {{ pending.action }} request. A fresh scope read is required; this does not create a new request identity.</p>
+            @if (pending.action !== 'build') {
+              <label for="group-recovery-input">Original {{ pending.action === 'issue' ? 'release reference' : 'archive reason' }}</label>
+              <input id="group-recovery-input" [(ngModel)]="recoveryInput" maxlength="500" autocomplete="off" />
+            }
+            <button matButton="filled" type="button" (click)="retryDeliverableRecovery()" [disabled]="cmd.busy() || ws.loading() || !ws.data()">
+              Retry original deliverable action
+            </button>
+          }
           <p>This read-only refresh shows the currently persisted scope. It cannot confirm whether the original command completed, so server actions stay blocked until that command outcome is confirmed.</p>
           <button matButton="outlined" type="button" (click)="refreshUnknownOutcome()" [disabled]="ws.loading()">
             {{ ws.loading() ? 'Refreshing persisted scope…' : 'Refresh persisted scope' }}

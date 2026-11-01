@@ -1,9 +1,11 @@
 # AuditSphere — current-slice handoff
 
 **Updated:** 2026-11-01
-**Whole assignment:** INCOMPLETE. Lifecycle audit REM-01, REM-02 and REM-07 have focused UI verification; REM-04 has focused domain and HTTP verification. Group-command recovery remains open. Finance and profile changes passed their focused PostgreSQL regressions locally using the unchanged infrastructure assembly from the published `34ee411e` worker image; exact-source CI remains outstanding. Full release verification remains outstanding.
+**Whole assignment:** INCOMPLETE. Lifecycle audit REM-01, REM-02 and REM-07 have focused UI verification; REM-04 has focused domain and HTTP verification. Both interrupted-command recovery slices have focused UI verification; exact-source CI and release verification remain open. Finance and profile changes passed their focused PostgreSQL regressions locally using the unchanged infrastructure assembly from the published `34ee411e` worker image; exact-source CI remains outstanding. Full release verification remains outstanding.
 
 ## Lifecycle audit work in progress (2026-11-01)
+
+REM-08: group build, issue and archive retain actor-scoped tab references and retry the original request after a fresh authorized scope read. Release references and archive reasons are not stored; their salted hashes require re-entry. The two focused recovery suites passed 38/38, including changed input, session and navigation replacement, denial, malformed receipt and issue replay after archival. Browser and exact-source CI verification remain outstanding.
 
 REM-06: the offboarding UI retains the original scoped request reference and a salted notes hash without storing notes. The focused client-offboarding-readiness.spec.ts passed 7/7, including edited intent, session and navigation replacement, malformed receipt and exact-key retry. Browser and exact-source CI verification remain outstanding.
 
