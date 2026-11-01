@@ -272,8 +272,9 @@ public sealed class ClientProfileWorkspaceTests
       manager.SessionEpoch++;
       await writer.SaveChangesAsync(deadline.Token);
       await mutation.CommitAsync(deadline.Token);
-      var refused = await Assert.ThrowsAnyAsync<Exception>(() => publication);
-      Assert.Equal(PostgresErrorCodes.SerializationFailure, Assert.IsType<PostgresException>(refused.GetBaseException()).SqlState);
+      var refused = await publication;
+      Assert.False(refused.Succeeded, refused.Message);
+      Assert.Equal(ErrorCodes.GenerationStale, refused.ErrorCode);
     }
     finally
     {

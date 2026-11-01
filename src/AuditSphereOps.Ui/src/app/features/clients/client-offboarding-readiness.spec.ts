@@ -300,6 +300,7 @@ describe('client offboarding readiness', () => {
       { status: 429, error: {}, retained: true },
       { status: 409, error: {}, retained: true },
       { status: 409, error: { code: 'generation.stale' }, retained: false },
+      { status: 403, error: { code: 'scope.denied' }, retained: false },
     ])('clears only an authoritative first-attempt rejection ($status, $retained)', async ({ status, error, retained }) => {
       const fixture = TestBed.createComponent(ClientOffboardingReadiness);
       fixture.componentRef.setInput('clientId', clientId); fixture.detectChanges();
@@ -331,6 +332,7 @@ describe('client offboarding readiness', () => {
     it.each([
       { status: 400, code: 'crm.invalid' },
       { status: 409, code: 'generation.stale' },
+      { status: 403, code: 'scope.denied' },
     ])('resolves a received first-attempt $status rejection after session invalidation without updating the new view', async ({ status, code }) => {
       const fixture = TestBed.createComponent(ClientOffboardingReadiness);
       fixture.componentRef.setInput('clientId', clientId); fixture.detectChanges();

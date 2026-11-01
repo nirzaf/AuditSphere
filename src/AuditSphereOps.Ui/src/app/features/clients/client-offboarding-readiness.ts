@@ -228,8 +228,9 @@ export class ClientOffboardingReadiness {
         }
       },
       error: (err: unknown) => {
-        const rejected = !recovering && err instanceof HttpErrorResponse && [400, 409].includes(err.status) &&
-          ['crm.invalid', 'gate.blocked', 'generation.stale'].includes(err.error?.code);
+        const rejected = !recovering && err instanceof HttpErrorResponse && (
+          ([400, 409].includes(err.status) && ['crm.invalid', 'gate.blocked', 'generation.stale'].includes(err.error?.code)) ||
+          (err.status === 403 && err.error?.code === 'scope.denied'));
         let cleared = false;
         if (rejected) {
           // A received definitive first-attempt rejection resolves only its exact stored
