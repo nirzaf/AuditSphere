@@ -20,6 +20,7 @@ import {
 import { ConsolidationScopeWorkspace } from './scope-workspace';
 import { ConsolidationExternalPacks } from './external-packs';
 import { formatOwnershipPercent } from './scope-amounts';
+import { deliverableInputHash, matchesDeliverableReceipt, type DeliverableRecovery } from './deliverable-recovery';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
@@ -154,6 +155,22 @@ function consolidationComponent(id: string, clientId: string) {
 }
 
 describe('Consolidation Scope Workspace Contracts', () => {
+  it('accepts only original build and archive receipts for their respective request keys', () => {
+    const ref: DeliverableRecovery = { action: 'build', scopeId: id1, groupId: id2, actorId: actor,
+      requestKey: id3, runId: id3, runHash: hash64, groupRevision: 1, deliverableId: null,
+      deliverableHash: null, revision: 0, salt: null, inputHash: null };
+    const result = { deliverableId: id2, groupId: id2, scopeVersionId: id1, runId: id3,
+      runHash: hash64, deliverableSha256: hash64, status: 'BUILT', revision: 1,
+      createdByUserId: actor, requestKey: id3 };
+    expect(matchesDeliverableReceipt(result, ref, '')).toBe(true);
+    expect(matchesDeliverableReceipt({ ...result, requestKey: id2 }, ref, '')).toBe(false);
+    const archive: DeliverableRecovery = { ...ref, action: 'archive', runId: null, deliverableId: id2,
+      deliverableHash: hash64, revision: 2, salt: 'a'.repeat(32), inputHash: hash64 };
+    const archived = { ...result, status: 'ARCHIVED', revision: 3, archivedByUserId: actor,
+      archiveRequestKey: id3, archiveReason: 'Reviewed archive reason' };
+    expect(matchesDeliverableReceipt(archived, archive, 'Reviewed archive reason')).toBe(true);
+    expect(matchesDeliverableReceipt({ ...archived, archiveRequestKey: id2 }, archive, 'Reviewed archive reason')).toBe(false);
+  });
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let workspaceData: WritableSignal<ReturnType<typeof decodeScopeWorkspace> | null>;
   let api: { resource: ReturnType<typeof vi.fn>; command: ReturnType<typeof vi.fn> };
@@ -191,6 +208,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
   };
 
   beforeEach(() => {
+    sessionStorage.clear();
     params = new BehaviorSubject(convertToParamMap({ id: id1 }));
     workspaceData = signal<ReturnType<typeof decodeScopeWorkspace> | null>(null);
     resource = { data: workspaceData, loading: signal(false), error: signal(''), reload: vi.fn() };
@@ -226,6 +244,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
 
   afterEach(() => {
     TestBed.resetTestingModule();
+    sessionStorage.clear();
     vi.restoreAllMocks();
   });
 
@@ -271,6 +290,14 @@ describe('Consolidation Scope Workspace Contracts', () => {
   });
 
   it('dispatches exact build, issue and archive intents with pinned revisions and SHA-256', async () => {
+    api.command.mockImplementation(async (url: string, request: Record<string, unknown>) => ({ ok: true, value: {
+      deliverableId: id2, groupId: id2, scopeVersionId: id1, runId: id3, runHash: hash64, deliverableSha256: hash64,
+      status: url.endsWith('/build') ? 'BUILT' : url.endsWith('/issue') ? 'ISSUED' : 'ARCHIVED',
+      revision: url.endsWith('/build') ? 1 : url.endsWith('/issue') ? 2 : 3,
+      createdByUserId: actor, issuedByUserId: actor, archivedByUserId: actor,
+      requestKey: request['requestKey'], issueRequestKey: request['requestKey'], archiveRequestKey: request['requestKey'],
+      authorizedReleaseKey: request['authorizedReleaseKey'], archiveReason: request['reason'],
+    } }));
     const { component } = open(workspacePayload({
       canApproveScope: false,
       canIssueDeliverable: true,
@@ -284,6 +311,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
       `/api/ui/consolidation/scopes/${id1}/deliverables/build`,
       expect.objectContaining({ runId: id3, expectedRunHash: hash64, expectedGroupRevision: 1 }),
       'POST'));
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
 
     const built: ReturnType<typeof decodeGroupDeliverablePage>['items'][number] = {
       deliverableId: id2, status: 'BUILT', runHash: hash64, deliverableSha256: hash64,
@@ -310,6 +338,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
       expect.objectContaining({ expectedDeliverableRevision: 1, expectedGroupRevision: 1,
         expectedDeliverableSha256: hash64, authorizedReleaseKey: 'GROUP-REL-001' }),
       'POST'));
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
 
     const issued = { ...built, status: 'ISSUED', revision: 2 } as const;
     deliverableResource.data.set({ items: [issued], page: 1, pageSize: 100, totalCount: 1 });
@@ -341,6 +370,191 @@ describe('Consolidation Scope Workspace Contracts', () => {
     component.setDeliverableReviewed(workspace, issued, 'archive', true);
     component.archiveDeliverable(workspace, issued);
     expect(api.command).not.toHaveBeenCalled();
+  });
+
+  it('recovers an unknown issue using its original request after navigation and later archival', async () => {
+    const raw = workspacePayload({ canIssueDeliverable: true, latestReport: {
+      scopeVersionId: id1, runId: id3, runHash: hash64, state: 'CURRENT_APPROVED',
+      approvedAt: '2026-10-01T12:00:00Z', lines: [] } });
+    const { fixture, component } = open(raw);
+    const decoder = api.resource.mock.calls[0][1] as (value: unknown, path: string) => ScopeWorkspace;
+    workspaceData.set(decoder(raw, 'root')); fixture.detectChanges();
+    const built: ReturnType<typeof decodeGroupDeliverablePage>['items'][number] = {
+      deliverableId: id2, status: 'BUILT', runHash: hash64, deliverableSha256: hash64,
+      createdAt: '2026-10-01T12:00:00Z', createdByUserId: id1, issuedAt: null, issuedByUserId: null,
+      archivedAt: null, archivedByUserId: null, revision: 1,
+    };
+    deliverableResource.data.set({ items: [built], page: 1, pageSize: 100, totalCount: 1 });
+    component.deliverableReleaseKey = 'PRIVATE-RELEASE-REFERENCE';
+    component.setDeliverableReviewed(component.ws.data()!, built, 'issue', true);
+    api.command.mockResolvedValueOnce({ ok: false, unknown: true, code: 'outcome.unknown', status: 0, message: UNKNOWN_OUTCOME });
+    component.issueDeliverable(component.ws.data()!, built);
+    await vi.waitFor(() => expect(component.cmd.uncertain()).toBe(true));
+    const original = api.command.mock.calls[0][1] as Record<string, unknown>;
+    expect(Array.from({ length: sessionStorage.length }, (_, i) => sessionStorage.getItem(sessionStorage.key(i)!)).join()).not.toContain('PRIVATE-RELEASE-REFERENCE');
+    workspaceData.set(null); params.next(convertToParamMap({ id: id2 })); fixture.detectChanges();
+    expect(component.pendingDeliverable()).toBeNull();
+    await component.retryDeliverableRecovery();
+    expect(api.command).toHaveBeenCalledTimes(1);
+    params.next(convertToParamMap({ id: id1 })); fixture.detectChanges();
+    workspaceData.set(decoder(raw, 'root')); fixture.detectChanges();
+    await vi.waitFor(() => expect(component.pendingDeliverable()?.requestKey).toBe(original['requestKey']));
+    TestBed.inject(SessionService).invalidation.update(value => value + 1);
+    fixture.detectChanges();
+    expect(component.pendingDeliverable()).toBeNull();
+    await component.retryDeliverableRecovery();
+    expect(api.command).toHaveBeenCalledTimes(1);
+    workspaceData.set(null); fixture.detectChanges();
+    workspaceData.set(decoder(raw, 'root')); fixture.detectChanges();
+    await vi.waitFor(() => expect(component.pendingDeliverable()?.requestKey).toBe(original['requestKey']));
+    component.recoveryInput = 'different';
+    await component.retryDeliverableRecovery();
+    expect(api.command).toHaveBeenCalledTimes(1);
+    deliverableResource.data.set({ items: [{ ...built, status: 'ARCHIVED', revision: 3 }], page: 1, pageSize: 100, totalCount: 1 });
+    api.command.mockResolvedValueOnce({ ok: false, unknown: false, code: 'scope.denied', status: 403, message: 'Denied' });
+    component.recoveryInput = 'PRIVATE-RELEASE-REFERENCE';
+    await component.retryDeliverableRecovery();
+    expect(component.cmd.uncertain()).toBe(true);
+    expect(component.pendingDeliverable()).not.toBeNull();
+    api.command.mockResolvedValueOnce({ ok: true, value: { deliverableId: id2, groupId: id2, scopeVersionId: id1,
+      runId: id3, runHash: hash64, deliverableSha256: hash64, status: 'ISSUED', revision: 2,
+      issuedByUserId: id3, issueRequestKey: original['requestKey'], authorizedReleaseKey: 'PRIVATE-RELEASE-REFERENCE' } });
+    component.recoveryInput = 'PRIVATE-RELEASE-REFERENCE';
+    await component.retryDeliverableRecovery();
+    expect(component.cmd.uncertain()).toBe(true);
+    expect(component.pendingDeliverable()).not.toBeNull();
+    api.command.mockResolvedValueOnce({ ok: true, value: { deliverableId: id2, groupId: id2, scopeVersionId: id1,
+      runId: id3, runHash: hash64, deliverableSha256: hash64, status: 'ISSUED', revision: 2,
+      issuedByUserId: actor, issueRequestKey: original['requestKey'], authorizedReleaseKey: 'PRIVATE-RELEASE-REFERENCE' } });
+    component.recoveryInput = 'PRIVATE-RELEASE-REFERENCE';
+    await component.retryDeliverableRecovery();
+    expect(api.command).toHaveBeenCalledTimes(4);
+    expect(api.command.mock.calls[3][1]).toEqual(original);
+    expect(component.cmd.uncertain()).toBe(false);
+    expect(component.pendingDeliverable()).toBeNull();
+  });
+
+  it.each(['build', 'archive'] as const)('retries the retained %s request with its original identity', async action => {
+    const salt = 'a'.repeat(32), input = action === 'archive' ? 'Reviewed archive reason' : '';
+    const ref: DeliverableRecovery = { action, scopeId: id1, groupId: id2, actorId: actor, requestKey: id3,
+      runId: action === 'build' ? id3 : null, runHash: hash64, groupRevision: 1,
+      deliverableId: action === 'build' ? null : id2, deliverableHash: action === 'build' ? null : hash64,
+      revision: action === 'build' ? 0 : 2, salt: action === 'build' ? null : salt,
+      inputHash: action === 'build' ? null : await deliverableInputHash(salt, input) };
+    sessionStorage.setItem('auditsphere-group-pending-v1:' + id2 + ':' + actor + ':' + id1, JSON.stringify(ref));
+    const raw = workspacePayload();
+    const { fixture, component } = open(raw);
+    const decoder = api.resource.mock.calls[0][1] as (value: unknown, path: string) => ScopeWorkspace;
+    workspaceData.set(decoder(raw, 'root')); fixture.detectChanges();
+    await vi.waitFor(() => expect(component.pendingDeliverable()?.requestKey).toBe(id3));
+    api.command.mockResolvedValueOnce({ ok: true, value: { deliverableId: id2, groupId: id2, scopeVersionId: id1,
+      runId: id3, runHash: hash64, deliverableSha256: hash64, status: action === 'build' ? 'BUILT' : 'ARCHIVED',
+      revision: action === 'build' ? 1 : 3, createdByUserId: actor, archivedByUserId: actor,
+      requestKey: id3, archiveRequestKey: id3, archiveReason: input } });
+    component.recoveryInput = input;
+    await component.retryDeliverableRecovery();
+    expect(api.command).toHaveBeenCalledWith(action === 'build' ? scopeUrl + '/deliverables/build' : scopeUrl + '/deliverables/' + id2 + '/archive',
+      expect.objectContaining({ requestKey: id3 }), 'POST');
+    expect(component.cmd.uncertain()).toBe(false);
+    expect(component.pendingDeliverable()).toBeNull();
+  });
+
+  it('does not overwrite another same-tab deliverable reference while preparing an issue', async () => {
+    const raw = workspacePayload({ canIssueDeliverable: true });
+    const { component } = open(raw);
+    const built: ReturnType<typeof decodeGroupDeliverablePage>['items'][number] = {
+      deliverableId: id2, status: 'BUILT', runHash: hash64, deliverableSha256: hash64,
+      createdAt: '2026-10-01T12:00:00Z', createdByUserId: id1, issuedAt: null, issuedByUserId: null,
+      archivedAt: null, archivedByUserId: null, revision: 1,
+    };
+    deliverableResource.data.set({ items: [built], page: 1, pageSize: 100, totalCount: 1 });
+    component.deliverableReleaseKey = 'Reviewed reference';
+    component.setDeliverableReviewed(component.ws.data()!, built, 'issue', true);
+    component.issueDeliverable(component.ws.data()!, built);
+    const existing: DeliverableRecovery = { action: 'build', scopeId: id1, groupId: id2, actorId: actor,
+      requestKey: id3, runId: id3, runHash: hash64, groupRevision: 1, deliverableId: null,
+      deliverableHash: null, revision: 0, salt: null, inputHash: null };
+    const key = 'auditsphere-group-pending-v1:' + id2 + ':' + actor + ':' + id1;
+    sessionStorage.setItem(key, JSON.stringify(existing));
+    await vi.waitFor(() => expect(component.cmd.uncertain()).toBe(true));
+    expect(api.command).not.toHaveBeenCalled();
+    expect(JSON.parse(sessionStorage.getItem(key)!).requestKey).toBe(id3);
+  });
+
+  it('does not retry from another component while the original deliverable request is in flight', async () => {
+    const raw = workspacePayload({ canIssueDeliverable: true, latestReport: { scopeVersionId: id1, runId: id3,
+      runHash: hash64, state: 'CURRENT_APPROVED', approvedAt: '2026-10-01T12:00:00Z', lines: [] } });
+    const { component } = open(raw);
+    const built: ReturnType<typeof decodeGroupDeliverablePage>['items'][number] = {
+      deliverableId: id2, status: 'BUILT', runHash: hash64, deliverableSha256: hash64,
+      createdAt: '2026-10-01T12:00:00Z', createdByUserId: id1, issuedAt: null, issuedByUserId: null,
+      archivedAt: null, archivedByUserId: null, revision: 1,
+    };
+    deliverableResource.data.set({ items: [built], page: 1, pageSize: 100, totalCount: 1 });
+    let finish!: (result: unknown) => void;
+    api.command.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    component.deliverableReleaseKey = 'Reviewed reference';
+    component.setDeliverableReviewed(component.ws.data()!, built, 'issue', true);
+    component.issueDeliverable(component.ws.data()!, built);
+    await vi.waitFor(() => expect(api.command).toHaveBeenCalledTimes(1));
+    const original = api.command.mock.calls[0][1] as Record<string, unknown>;
+    let index = 0;
+    api.resource.mockImplementation(() => [resource, deliverableResource, intercompanyOptionsResource, intercompanyMatchesResource][index++] ??
+      { data: signal(null), loading: signal(false), error: signal(''), reload: vi.fn() });
+    const base = api.resource.mock.calls.length;
+    const second = TestBed.createComponent(ConsolidationScopeWorkspace);
+    second.detectChanges();
+    const decoder = api.resource.mock.calls[base][1] as (value: unknown, path: string) => ScopeWorkspace;
+    workspaceData.set(decoder(raw, 'root')); second.detectChanges();
+    await vi.waitFor(() => expect(second.componentInstance.pendingDeliverable()?.requestKey).toBe(original['requestKey']));
+    second.componentInstance.recoveryInput = 'Reviewed reference';
+    await second.componentInstance.retryDeliverableRecovery();
+    expect(api.command).toHaveBeenCalledTimes(1);
+    expect(second.componentInstance.cmd.message()).toContain('still in flight');
+    finish({ ok: true, value: { deliverableId: id2, groupId: id2, scopeVersionId: id1, runId: id3,
+      runHash: hash64, deliverableSha256: hash64, status: 'ISSUED', revision: 2, issuedByUserId: actor,
+      issueRequestKey: original['requestKey'], authorizedReleaseKey: 'Reviewed reference' } });
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
+  });
+
+  it('does not clear a replacement reference when an older deliverable receipt arrives', async () => {
+    const raw = workspacePayload({ latestReport: { scopeVersionId: id1, runId: id3, runHash: hash64,
+      state: 'CURRENT_APPROVED', approvedAt: '2026-10-01T12:00:00Z', lines: [] } });
+    const { component } = open(raw);
+    let finish!: (result: unknown) => void;
+    api.command.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    component.buildDeliverable(component.ws.data()!);
+    await vi.waitFor(() => expect(api.command).toHaveBeenCalledTimes(1));
+    const original = api.command.mock.calls[0][1] as Record<string, unknown>;
+    const key = 'auditsphere-group-pending-v1:' + id2 + ':' + actor + ':' + id1;
+    const replacement = { ...JSON.parse(sessionStorage.getItem(key)!), requestKey: id3 };
+    sessionStorage.setItem(key, JSON.stringify(replacement));
+    finish({ ok: true, value: { deliverableId: id2, groupId: id2, scopeVersionId: id1, runId: id3,
+      runHash: hash64, deliverableSha256: hash64, status: 'BUILT', revision: 1, createdByUserId: actor,
+      requestKey: original['requestKey'] } });
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
+    expect(component.cmd.uncertain()).toBe(true);
+    expect(JSON.parse(sessionStorage.getItem(key)!).requestKey).toBe(id3);
+  });
+
+  it('uses a new identity for a new build after the original build is recovered', async () => {
+    const raw = workspacePayload({ latestReport: { scopeVersionId: id1, runId: id3, runHash: hash64,
+      state: 'CURRENT_APPROVED', approvedAt: '2026-10-01T12:00:00Z', lines: [] } });
+    const { fixture, component } = open(raw);
+    const decoder = api.resource.mock.calls[0][1] as (value: unknown, path: string) => ScopeWorkspace;
+    workspaceData.set(decoder(raw, 'root')); fixture.detectChanges();
+    api.command.mockResolvedValueOnce({ ok: false, unknown: true, code: 'outcome.unknown', status: 0, message: UNKNOWN_OUTCOME });
+    component.buildDeliverable(component.ws.data()!);
+    await vi.waitFor(() => expect(component.cmd.uncertain()).toBe(true));
+    const originalKey = (api.command.mock.calls[0][1] as Record<string, unknown>)['requestKey'];
+    api.command.mockImplementation(async (_url: string, body: Record<string, unknown>) => ({ ok: true, value: {
+      deliverableId: id2, groupId: id2, scopeVersionId: id1, runId: id3, runHash: hash64,
+      deliverableSha256: hash64, status: 'BUILT', revision: 1, createdByUserId: actor, requestKey: body['requestKey'] } }));
+    await component.retryDeliverableRecovery();
+    expect(component.cmd.uncertain()).toBe(false);
+    component.buildDeliverable(component.ws.data()!);
+    await vi.waitFor(() => expect(api.command).toHaveBeenCalledTimes(3));
+    expect((api.command.mock.calls[2][1] as Record<string, unknown>)['requestKey']).not.toBe(originalKey);
   });
 
   it('shows retained exact artifacts when the current report is stale and pages through history', () => {

@@ -1153,34 +1153,46 @@ public sealed partial class AuditDeliverablesTests
       await db.SaveChangesAsync();
       var eqrAdmin = new ActorContext(adminId, w.FirmId, 1, ["Administrator"]);
 
+      async Task<RecordEqrDecisionRequest> Reviewed(ActorContext reviewer, string status, string notes, bool discussed)
+      {
+        var basis = await AuditDeliverableService.GetEqrReviewBasisAsync(db, reviewer, w.EngagementId);
+        Assert.True(basis.Succeeded, basis.Message);
+        return new(status, notes, discussed, Guid.NewGuid().ToString("D"), basis.Value!.CaseRevision,
+          basis.Value.FactsDigest, basis.Value.ReportDeliverableId, basis.Value.ReportSha256);
+      }
+
       // The Engagement Partner cannot perform EQR on their own engagement
       var epAttempt = await AuditDeliverableService.RecordEqrDecisionAsync(db, partner, w.EngagementId,
-        new RecordEqrDecisionRequest("CONCURRED", "Attempt by EP", true, Guid.NewGuid().ToString("D"), 0));
+        new RecordEqrDecisionRequest("CONCURRED", "Attempt by EP", true, Guid.NewGuid().ToString("D"), 0, new string('a', 64)));
       Assert.False(epAttempt.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, epAttempt.ErrorCode);
 
       // EQR Changes Requested blocks signing and establishes the assigned reviewer.
       var changesDecision = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId,
-        new RecordEqrDecisionRequest("CHANGES_REQUESTED", "Review note on valuation", false, Guid.NewGuid().ToString("D"), 0));
+        await Reviewed(eqrPartner, "CHANGES_REQUESTED", "Review note on valuation", false));
       Assert.True(changesDecision.Succeeded, changesDecision.Message);
       Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar)).ErrorCode);
 
       // An Administrator may override the assigned reviewer; the retained decision
       // identifies the actual decider, while the case assignment remains with partner2.
       var adminChanges = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrAdmin, w.EngagementId,
-        new RecordEqrDecisionRequest("CHANGES_REQUESTED", "Administrative review note", false, Guid.NewGuid().ToString("D"), 1));
+        await Reviewed(eqrAdmin, "CHANGES_REQUESTED", "Administrative review note", false));
       Assert.True(adminChanges.Succeeded, adminChanges.Message);
       var adminDecision = await db.EqrDecisions.AsNoTracking().SingleAsync(x => x.Id == adminChanges.Value);
       Assert.Equal(adminId, adminDecision.DecidedByUserId);
       Assert.Equal(2, adminDecision.Revision);
 
       // Concurrence without findings discussed is refused
-      var concurrenceRequest = new RecordEqrDecisionRequest("CONCURRED", "All matters discussed and concurred.", true,
-        Guid.NewGuid().ToString("D"), 2);
+      var concurrenceRequest = await Reviewed(eqrPartner, "CONCURRED", "All matters discussed and concurred.", true);
       var prematureConcurrence = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId,
         concurrenceRequest with { FindingsDiscussed = false, Notes = "Premature concurrence" });
       Assert.False(prematureConcurrence.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, prematureConcurrence.ErrorCode);
+
+      var staleBasis = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId,
+        concurrenceRequest with { ExpectedFactsDigest = new string('0', 64) });
+      Assert.False(staleBasis.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleBasis.ErrorCode);
 
       // Independent EQR Partner concurrence with findings discussed unblocks signing
       var concurred = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId, concurrenceRequest);
@@ -1202,6 +1214,12 @@ public sealed partial class AuditDeliverablesTests
         concurrenceRequest with { Status = "CHANGES_REQUESTED", Notes = "Different intent" });
       Assert.False(concurredConflict.Succeeded);
       Assert.Equal(ErrorCodes.IdempotencyConflict, concurredConflict.ErrorCode);
+      var changedRevisionReplay = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId,
+        concurrenceRequest with { ExpectedCaseRevision = 0 });
+      Assert.Equal(ErrorCodes.IdempotencyConflict, changedRevisionReplay.ErrorCode);
+      var changedBasisReplay = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId,
+        concurrenceRequest with { ExpectedFactsDigest = new string('0', 64) });
+      Assert.Equal(ErrorCodes.IdempotencyConflict, changedBasisReplay.ErrorCode);
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
         $"UPDATE eqr_decisions SET notes = 'tampered' WHERE id = {concurred.Value}"));
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
@@ -1228,21 +1246,81 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal((ReportSignatureKinds.Visual, ReportSignatureStates.NotCertificateSigned), (imageOnly.Value!.SignatureKind, imageOnly.Value.State));
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE audit_deliverables SET content_sha256 = {new string('f', 64)} WHERE id = {signed.Value}"));
 
-      // A later report makes the earlier concurrence superseded; a new report cannot reuse it.
+      // A report can change without changing the EQR case revision.
+      var reviewedOldReport = await Reviewed(eqrPartner, "CONCURRED", "Reviewed the prior report.", true);
       var nextIar = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId,
         DeliverableKinds.IndependentAuditorsReport)).Value!.DeliverableId!.Value;
+      var staleSubmission = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId, reviewedOldReport);
+      Assert.False(staleSubmission.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleSubmission.ErrorCode);
+      Assert.Equal(3, await db.EqrDecisions.CountAsync(x => x.EngagementId == w.EngagementId));
       var staleSign = await AuditDeliverableService.SignIndependentReportAsync(db, partner, nextIar);
       Assert.False(staleSign.Succeeded);
       Assert.Equal(ErrorCodes.GenerationStale, staleSign.ErrorCode);
 
       var reconcur = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId,
-        new RecordEqrDecisionRequest("CONCURRED", "Re-reviewed the current report and evidence.", true,
-          Guid.NewGuid().ToString("D"), 3));
+        await Reviewed(eqrPartner, "CONCURRED", "Re-reviewed the current report and evidence.", true));
       Assert.True(reconcur.Succeeded, reconcur.Message);
+      var oldReplay = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId, concurrenceRequest);
+      Assert.True(oldReplay.Succeeded, oldReplay.Message);
+      Assert.Equal(concurred.Value, oldReplay.Value);
       var nextSigned = await AuditDeliverableService.SignIndependentReportAsync(db, partner, nextIar);
       Assert.True(nextSigned.Succeeded, nextSigned.Message);
       Assert.Equal(4, await db.EqrDecisions.CountAsync(x => x.EngagementId == w.EngagementId));
     }
+  }
+
+  [Fact]
+  public async Task EqrDecisionRequiresExactReviewedBasisAndRecoversOriginalIntent()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var firstReport = await ReportReadyForSigningAsync(pg, w);
+    var reviewer = w.A("partner2", "Partner");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var basis = await AuditDeliverableService.GetEqrReviewBasisAsync(db, reviewer, w.EngagementId);
+    Assert.True(basis.Succeeded, basis.Message);
+    Assert.Equal(firstReport, basis.Value!.ReportDeliverableId);
+    var original = new RecordEqrDecisionRequest("CONCURRED", "Reviewed the exact report.", true,
+      Guid.NewGuid().ToString("D"), basis.Value.CaseRevision, basis.Value.FactsDigest,
+      basis.Value.ReportDeliverableId, basis.Value.ReportSha256);
+    var nextReport = await AuditDeliverableService.GenerateReportAsync(db, w.A("manager", "Manager"), w.EngagementId,
+      DeliverableKinds.IndependentAuditorsReport);
+    Assert.True(nextReport.Succeeded, nextReport.Message);
+    Assert.NotEqual(firstReport, nextReport.Value!.DeliverableId);
+    var stale = await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId, original);
+    Assert.Equal(ErrorCodes.GenerationStale, stale.ErrorCode);
+    Assert.Empty(await db.EqrDecisions.Where(x => x.EngagementId == w.EngagementId).ToListAsync());
+    basis = await AuditDeliverableService.GetEqrReviewBasisAsync(db, reviewer, w.EngagementId);
+    Assert.True(basis.Succeeded, basis.Message);
+    original = original with { ExpectedCaseRevision = basis.Value!.CaseRevision, ExpectedFactsDigest = basis.Value.FactsDigest,
+      ExpectedReportDeliverableId = basis.Value.ReportDeliverableId, ExpectedReportSha256 = basis.Value.ReportSha256 };
+    var decided = await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId, original);
+    Assert.True(decided.Succeeded, decided.Message);
+    var retained = await db.EqrDecisions.AsNoTracking().SingleAsync(x => x.Id == decided.Value);
+    Assert.Equal((reviewer.UserId, basis.Value.FactsDigest, basis.Value.ReportDeliverableId, basis.Value.ReportSha256),
+      (retained.DecidedByUserId, retained.ReviewedFactsDigest, retained.ReviewedReportDeliverableId, retained.ReviewedReportSha256));
+    var laterBasis = await AuditDeliverableService.GetEqrReviewBasisAsync(db, reviewer, w.EngagementId);
+    Assert.True(laterBasis.Succeeded, laterBasis.Message);
+    var later = await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId,
+      new("IN_PROGRESS", null, false, Guid.NewGuid().ToString("D"), laterBasis.Value!.CaseRevision,
+        laterBasis.Value.FactsDigest, laterBasis.Value.ReportDeliverableId, laterBasis.Value.ReportSha256));
+    Assert.True(later.Succeeded, later.Message);
+    var otherReviewer = NewUser(w.FirmId, "unassigned-eqr");
+    db.Users.Add(otherReviewer);
+    db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = otherReviewer.Id,
+      Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = reviewer.UserId });
+    await db.SaveChangesAsync();
+    var otherActor = new ActorContext(otherReviewer.Id, w.FirmId, otherReviewer.SessionEpoch, ["Partner"]);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.GetEqrReviewBasisAsync(db, otherActor, w.EngagementId)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.RecordEqrDecisionAsync(db, otherActor, w.EngagementId, original)).ErrorCode);
+    var replay = await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId, original);
+    Assert.True(replay.Succeeded, replay.Message);
+    Assert.Equal(decided.Value, replay.Value);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, (await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer,
+      w.EngagementId, original with { ExpectedCaseRevision = original.ExpectedCaseRevision + 1 })).ErrorCode);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, (await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer,
+      w.EngagementId, original with { ExpectedFactsDigest = new string('0', 64) })).ErrorCode);
   }
 
   private sealed class FixedClock(DateTimeOffset now) : TimeProvider

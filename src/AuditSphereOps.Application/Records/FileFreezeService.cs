@@ -30,7 +30,7 @@ public static class FileFreezeService
   /// <summary>Called when a report is signed, inside the signing unit of work.</summary>
   internal static async Task ScheduleAsync(IAuditSphereDbContext db, AuditDeliverable signedReport, DateTimeOffset signedAt, CancellationToken ct)
   {
-    var freeze = await db.EngagementFileFreezes.SingleOrDefaultAsync(x => x.FirmId == signedReport.FirmId && x.EngagementId == signedReport.EngagementId, ct);
+    var freeze = await db.EngagementFileFreezes.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == signedReport.FirmId && x.EngagementId == signedReport.EngagementId, ct);
     if (freeze is null)
     {
       db.EngagementFileFreezes.Add(new EngagementFileFreeze
@@ -41,11 +41,24 @@ public static class FileFreezeService
       return;
     }
     if (freeze.State != FileFreezeStates.Scheduled) return; // an amended, re-signed report does not move an existing freeze
-    freeze.ReportDeliverableId = signedReport.Id;
-    freeze.ReportSignedAt = signedAt;
-    freeze.DueAt = DueAt(signedAt);
-    freeze.Revision++;
-    freeze.UpdatedAt = signedAt;
+    // The report identity is an EF alternate key; update the scheduled row without mutating a tracked key.
+    var tracked = db.EngagementFileFreezes.Local.FirstOrDefault(x => x.Id == freeze.Id);
+    if (tracked is not null)
+    {
+      if (db is not DbContext context || context.Entry(tracked).State != EntityState.Unchanged)
+        throw new OperationBlockedException("freeze-tracked-changes");
+      context.Entry(tracked).State = EntityState.Detached;
+    }
+    var updated = await db.EngagementFileFreezes.Where(x => x.Id == freeze.Id && x.FirmId == signedReport.FirmId &&
+        x.ClientId == signedReport.ClientId && x.EngagementId == signedReport.EngagementId &&
+        x.State == FileFreezeStates.Scheduled && x.Revision == freeze.Revision)
+      .ExecuteUpdateAsync(setters => setters
+        .SetProperty(x => x.ReportDeliverableId, signedReport.Id)
+        .SetProperty(x => x.ReportSignedAt, signedAt)
+        .SetProperty(x => x.DueAt, DueAt(signedAt))
+        .SetProperty(x => x.Revision, freeze.Revision + 1)
+        .SetProperty(x => x.UpdatedAt, signedAt), ct);
+    if (updated != 1) throw new OperationBlockedException("freeze-rescheduled-concurrently");
   }
 
   /// <summary>Freezes one due file under its row lock. Used by the worker handler and idempotent on retry.</summary>
