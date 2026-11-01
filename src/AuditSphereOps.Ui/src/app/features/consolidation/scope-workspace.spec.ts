@@ -323,6 +323,26 @@ describe('Consolidation Scope Workspace Contracts', () => {
       'POST'));
   });
 
+  it('refuses issue and archive when their projected capabilities are absent', () => {
+    const { component } = open(workspacePayload({ canApproveScope: false, canIssueDeliverable: false, canArchiveDeliverable: false }));
+    const workspace = component.ws.data()!;
+    const built: ReturnType<typeof decodeGroupDeliverablePage>['items'][number] = {
+      deliverableId: id2, status: 'BUILT', runHash: hash64, deliverableSha256: hash64,
+      createdAt: '2026-10-01T12:00:00Z', createdByUserId: id1, issuedAt: null, issuedByUserId: null,
+      archivedAt: null, archivedByUserId: null, revision: 1,
+    };
+    deliverableResource.data.set({ items: [built], page: 1, pageSize: 100, totalCount: 1 });
+    component.deliverableReleaseKey = 'GROUP-REL-001';
+    component.setDeliverableReviewed(workspace, built, 'issue', true);
+    component.issueDeliverable(workspace, built);
+    const issued = { ...built, status: 'ISSUED', revision: 2 } as const;
+    deliverableResource.data.set({ items: [issued], page: 1, pageSize: 100, totalCount: 1 });
+    component.deliverableArchiveReason = 'Reviewed archive reason';
+    component.setDeliverableReviewed(workspace, issued, 'archive', true);
+    component.archiveDeliverable(workspace, issued);
+    expect(api.command).not.toHaveBeenCalled();
+  });
+
   it('shows retained exact artifacts when the current report is stale and pages through history', () => {
     const { fixture, component } = open(workspacePayload({ latestReport: {
       scopeVersionId: id1, runId: id3, runHash: hash64, state: 'STALE', approvedAt: null, lines: []

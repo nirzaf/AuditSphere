@@ -22,6 +22,8 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 ## Current presentation ownership
 
+- Non-audit progress: `Application/Practice/EngagementProgressQuery.cs` qualifies each capability profile by accepted-stage existence, preserving distinct-profile ambiguity and explicit selection.
+
 - Group deliverable review: Angular `features/consolidation/scope-workspace.ts` binds issue/archive assent to the current owner, scope, artifact revision and hashes, and release input; the existing backend remains the authority for both actions. Retained exact-artifact history is available independently of current-run readiness in bounded pages.
 
 - My Work package-review handoff: `Application/Practice/WorkspaceAvailabilityQuery.cs` includes independently authorized package reviewers in the My Work destination; Angular `features/practice/work-queue.ts` presents the separate accounting-review link while its bounded hint is current. It does not load package counts/rows or authorize decisions.

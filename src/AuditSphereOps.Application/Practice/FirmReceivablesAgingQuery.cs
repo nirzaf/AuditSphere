@@ -7,6 +7,7 @@ using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace AuditSphereOps.Application.Practice;
 
@@ -54,6 +55,23 @@ public static class FirmReceivablesAgingQuery
       return CommandResult<FirmReceivablesAgingReport>.Fail(ErrorCodes.GateBlocked,
         "Open this report in a separate read context so its source snapshot and current access can be verified.");
     await using var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+    var result = await GetForLockedSnapshotAsync(db, actor, asOfDate, ct);
+    if (!result.Succeeded) return result;
+    await snapshot.CommitAsync(ct);
+    auth = await AuthorizeAsync(db, actor, ct);
+    return auth.Succeeded ? result : CommandResult<FirmReceivablesAgingReport>.Fail(auth.ErrorCode!, auth.Message!);
+  }
+
+  // The caller owns the repeatable-read snapshot; closeout holds its firm safety lock through publication.
+  internal static async Task<CommandResult<FirmReceivablesAgingReport>> GetForLockedSnapshotAsync(
+    IAuditSphereDbContext db, ActorContext actor, DateOnly asOfDate, CancellationToken ct = default)
+  {
+    if (asOfDate == DateOnly.MaxValue)
+      return CommandResult<FirmReceivablesAgingReport>.Fail("finance.as-of-invalid", "Choose a valid report date.");
+    if (db.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.RepeatableRead)
+      return CommandResult<FirmReceivablesAgingReport>.Fail(ErrorCodes.GateBlocked, "A repeatable-read snapshot is required.");
+    var auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<FirmReceivablesAgingReport>.Fail(auth.ErrorCode!, auth.Message!);
 
     var cutoff = new DateTimeOffset(asOfDate.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
     var invoiceRows = await (from invoice in db.Invoices.AsNoTracking()
@@ -214,15 +232,10 @@ public static class FirmReceivablesAgingQuery
     var currencySubtotals = rows.GroupBy(x => x.Currency).OrderBy(g => g.Key, StringComparer.Ordinal)
       .Select(g => Subtotal(null, null, null, null, g.Key, g)).ToArray();
 
-    // End the financial snapshot before rechecking access; a committed revocation must remain visible.
-    await snapshot.CommitAsync(ct);
-    auth = await AuthorizeAsync(db, actor, ct);
-    return auth.Succeeded
-      ? CommandResult<FirmReceivablesAgingReport>.Ok(new FirmReceivablesAgingReport(asOfDate,
+    return CommandResult<FirmReceivablesAgingReport>.Ok(new FirmReceivablesAgingReport(asOfDate,
           "UTC invoice posting, receipt received/allocated, approved allocation-reversal review, credit issue, and terms-review dates; exclusive cutoff is midnight after the selected date. Reopened accounting periods do not rewrite these billing event timestamps.",
           "Due on or after the as-of date is Current / Not Yet Due; overdue day 1–30, 31–60, 61–90, and >90. Zero balance is Settled. Invoices without approved terms are undated; a pending or rejected change does not replace the last approved due date. There is no separate billing-dispute state; an outstanding balance remains aged until a credit or allocation reversal is approved. Unallocated cash is excluded. Currency totals are never combined.",
-          rows, clientSubtotals, engagementSubtotals, currencySubtotals))
-      : CommandResult<FirmReceivablesAgingReport>.Fail(auth.ErrorCode!, auth.Message!);
+          rows, clientSubtotals, engagementSubtotals, currencySubtotals));
   }
 
   public static async Task<CommandResult<FirmReceivablesAgingExport>> ExportAsync(

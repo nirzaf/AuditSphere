@@ -110,7 +110,7 @@ public static partial class PracticeCrmService
       return CommandResult<ClientOffboardingCloseoutResult>.Fail(ErrorCodes.GenerationStale,
         "Client archive state changed while readiness was being recorded; refresh and review again.");
 
-    var readinessResult = await GetClientOffboardingReadinessAsync(db, actor, request.ClientId, ct);
+    var readinessResult = await GetClientOffboardingReadinessCoreAsync(db, actor, request.ClientId, true, ct);
     if (!readinessResult.Succeeded || readinessResult.Value is null)
       return CommandResult<ClientOffboardingCloseoutResult>.Fail(readinessResult.ErrorCode!, readinessResult.Message!);
     var readiness = readinessResult.Value;

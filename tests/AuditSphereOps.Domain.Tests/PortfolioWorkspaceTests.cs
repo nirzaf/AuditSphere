@@ -291,6 +291,14 @@ public sealed class PortfolioWorkspaceTests
       DecidedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
     });
 
+    db.AccountingCapabilityAcceptances.Add(new AccountingCapabilityAcceptance
+    {
+      Id = Guid.CreateVersion7(), FirmId = f.FirmId, CapabilityProfileId = profileId,
+      Stage = AccountingCapabilityAcceptanceStages.MethodOwnerApproval, Status = AccountingWorkflowStates.Approved,
+      EvidenceReference = "APPROVED-METHOD-001", DecidedByUserId = f.Admin.Id,
+      DecidedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
+    });
+
     var periodId = Guid.CreateVersion7();
     db.ClientReportingPeriods.Add(new ClientReportingPeriod
     {
@@ -309,6 +317,12 @@ public sealed class PortfolioWorkspaceTests
       detail.PendingRequired, detail.PercentComplete, detail.GateOpen));
     Assert.Empty(detail.Gates);
     Assert.Contains("IFRS", detail.Disclosure);
+    var clientProgress = await EngagementProgressQuery.ForClientAsync(db, actor, f.ClientId);
+    var portfolioProgress = await PortfolioQuery.ProgressAsync(db, actor);
+    Assert.True(clientProgress.Succeeded, clientProgress.Message);
+    Assert.True(portfolioProgress.Succeeded, portfolioProgress.Message);
+    Assert.Equal(detail.GateOpen, Assert.Single(clientProgress.Value!.Items, x => x.EngagementId == f.EngagementId).GateOpen);
+    Assert.Equal(detail.GateOpen, Assert.Single(portfolioProgress.Value!.Items, x => x.EngagementId == f.EngagementId).GateOpen);
 
     // Negative case 1: Open reporting period blocks completion
     var period = await db.ClientReportingPeriods.SingleAsync(p => p.Id == periodId);
