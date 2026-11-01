@@ -210,16 +210,14 @@ public static class EngagementProgressQuery
       select new { release.EngagementId, release.PackageId, candidate.TargetKind }).ToListAsync(ct);
     var released = releases.Select(x => x.EngagementId).Distinct().ToHashSet();
     var nonAuditEngagements = engagements.Where(e => !LifecycleRoutes.Contains(e.ServiceRoute, StringComparer.Ordinal)).ToList();
-    var approvedProfiles = nonAuditEngagements.Count == 0 ? [] : await (from profile in db.AccountingCapabilityProfiles.AsNoTracking()
-      join acceptance in db.AccountingCapabilityAcceptances.AsNoTracking()
-        on new { profile.FirmId, CapabilityProfileId = profile.Id }
-        equals new { acceptance.FirmId, acceptance.CapabilityProfileId }
-      where profile.FirmId == f && profile.ClientId.HasValue && clientIds.Contains(profile.ClientId.Value) &&
-        profile.Status != AccountingWorkflowStates.Retired &&
-        (acceptance.Stage == AccountingCapabilityAcceptanceStages.MethodOwnerApproval ||
-         acceptance.Stage == AccountingCapabilityAcceptanceStages.Released) &&
-        acceptance.Status == AccountingWorkflowStates.Approved
-      select profile).ToListAsync(ct);
+    var approvedProfiles = nonAuditEngagements.Count == 0 ? [] : await db.AccountingCapabilityProfiles.AsNoTracking()
+      .Where(profile => profile.FirmId == f && profile.ClientId.HasValue && clientIds.Contains(profile.ClientId.Value) &&
+        profile.Status != AccountingWorkflowStates.Retired && db.AccountingCapabilityAcceptances.Any(acceptance =>
+          acceptance.FirmId == profile.FirmId && acceptance.CapabilityProfileId == profile.Id &&
+          (acceptance.Stage == AccountingCapabilityAcceptanceStages.MethodOwnerApproval ||
+           acceptance.Stage == AccountingCapabilityAcceptanceStages.Released) &&
+          acceptance.Status == AccountingWorkflowStates.Approved))
+      .ToListAsync(ct);
     var clientPeriods = nonAuditEngagements.Count == 0 ? [] : await db.ClientReportingPeriods.AsNoTracking()
       .Where(p => p.FirmId == f && clientIds.Contains(p.ClientId))
       .ToListAsync(ct);
