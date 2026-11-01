@@ -193,6 +193,11 @@ public sealed partial class AuditDeliverablesTests
       Revision = 0, CurrentDecisionId = null, CurrentDecisionRevision = 0, CreatedAt = completedAt
     });
     await db.SaveChangesAsync();
+    var persistedCompletedAt = await db.EqrCases.AsNoTracking()
+      .Where(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId)
+      .Select(x => x.CompletedAt)
+      .SingleAsync();
+    Assert.NotNull(persistedCompletedAt);
 
     var legacy = await EngagementCompletionWorkspaceQuery.GetAsync(db, engagementPartner, w.EngagementId, DateTimeOffset.UtcNow);
     Assert.True(legacy.Succeeded, legacy.Message);
@@ -200,7 +205,8 @@ public sealed partial class AuditDeliverablesTests
     var legacyGate = Assert.Single(legacy.Value.Gates, x => x.Name == "EQR completed");
     Assert.Equal("RECORDED_CONCURRENCE_NOT_CURRENT", legacyGate.Status);
     Assert.Equal("pending", legacyGate.Tone);
-    Assert.Equal(completedAt, legacyGate.Date);
+    // PostgreSQL retains microseconds; compare the projection with the exact persisted timestamp.
+    Assert.Equal(persistedCompletedAt, legacyGate.Date);
 
     var basis = await AuditDeliverableService.GetEqrReviewBasisAsync(db, reviewer, w.EngagementId);
     Assert.True(basis.Succeeded, basis.Message);
