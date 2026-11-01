@@ -228,15 +228,25 @@ export class ClientOffboardingReadiness {
         }
       },
       error: (err: unknown) => {
-        if (revision !== this.revision || context !== this.currentContext() || key !== this.storageKey(id)) return;
-        this.closeoutLoading.set(false);
-        if (!recovering && err instanceof HttpErrorResponse && [400, 409].includes(err.status) &&
-            ['crm.invalid', 'gate.blocked', 'generation.stale'].includes(err.error?.code)) {
+        const rejected = !recovering && err instanceof HttpErrorResponse && [400, 409].includes(err.status) &&
+          ['crm.invalid', 'gate.blocked', 'generation.stale'].includes(err.error?.code);
+        let cleared = false;
+        if (rejected) {
+          // A received definitive first-attempt rejection resolves only its exact stored
+          // reference, even if the view changed. Cancellation or a retry rejection does
+          // not prove the original outcome. Never project an old response into a new view.
           try {
             if (sessionStorage.getItem(key) !== JSON.stringify(original)) throw new Error('Recovery reference changed');
-            sessionStorage.removeItem(key); this.pending.set(null);
-          } catch { this.pendingUnavailable = true; }
-          this.error.set('The review was not accepted. Refresh and review the current readiness.');
+            sessionStorage.removeItem(key); cleared = true;
+          } catch { /* Retain a changed or unavailable reference. */ }
+        }
+        if (revision !== this.revision || context !== this.currentContext() || key !== this.storageKey(id)) return;
+        this.closeoutLoading.set(false);
+        if (rejected) {
+          if (cleared) this.pending.set(null);
+          else this.pendingUnavailable = true;
+          this.error.set(cleared ? 'The review was not accepted. Refresh and review the current readiness.'
+            : 'The review was not accepted, but its recovery reference could not be cleared. Reload this client before continuing.');
         } else {
           this.error.set('The review outcome is unconfirmed. Retry the exact original request before recording another review.');
         }

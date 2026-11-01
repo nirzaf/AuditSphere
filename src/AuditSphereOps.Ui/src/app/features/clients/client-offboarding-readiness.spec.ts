@@ -327,5 +327,61 @@ describe('client offboarding readiness', () => {
       fixture.detectChanges();
       expect(component.result()).toBeNull(); expect(component.closeoutLoading()).toBe(false);
     });
+
+    it.each([
+      { status: 400, code: 'crm.invalid' },
+      { status: 409, code: 'generation.stale' },
+    ])('resolves a received first-attempt $status rejection after session invalidation without updating the new view', async ({ status, code }) => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId); fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.load(); http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      component.dispositionNotes = 'Original notes'; await component.recordCloseout(component.result()!);
+      const request = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      TestBed.inject(SessionService).invalidation.update(value => value + 1);
+      // The response arrives before the reset effect can cancel the subscription.
+      request.flush({ code }, { status, statusText: 'Rejected' });
+      expect(component.error()).toBe('');
+      expect(component.closeoutSuccess()).toBe(false);
+      fixture.detectChanges();
+      component.load(); http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      expect(component.pending()).toBeNull();
+      expect(sessionStorage.length).toBe(0);
+    });
+
+    it('retains an unknown original through session replacement and a later definitive retry rejection', async () => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId); fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.load(); http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      component.dispositionNotes = 'Original notes'; await component.recordCloseout(component.result()!);
+      const request = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`), originalKey = request.request.body.requestKey;
+      TestBed.inject(SessionService).invalidation.update(value => value + 1);
+      request.error(new ProgressEvent('error'));
+      fixture.detectChanges();
+      component.load(); http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      expect(component.pending()?.requestKey).toBe(originalKey);
+      component.dispositionNotes = 'Original notes'; await component.recordCloseout(component.result()!);
+      const retry = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      expect(retry.request.body.requestKey).toBe(originalKey);
+      retry.flush({ code: 'generation.stale' }, { status: 409, statusText: 'Rejected' });
+      expect(component.pending()?.requestKey).toBe(originalKey);
+      expect(sessionStorage.length).toBe(1);
+    });
+
+    it('does not clear a changed recovery reference on an old definitive rejection', async () => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId); fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.load(); http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      component.dispositionNotes = 'Original notes'; await component.recordCloseout(component.result()!);
+      const request = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      const key = sessionStorage.key(0)!, replacement = JSON.stringify({ ...component.pending()!, requestKey: otherId });
+      sessionStorage.setItem(key, replacement);
+      TestBed.inject(SessionService).invalidation.update(value => value + 1);
+      request.flush({ code: 'generation.stale' }, { status: 409, statusText: 'Rejected' });
+      expect(sessionStorage.getItem(key)).toBe(replacement);
+      expect(component.error()).toBe('');
+    });
   });
 });

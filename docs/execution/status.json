@@ -1,5 +1,5 @@
 {
-  "lifecycleCloudResidual": {"base":"538bc79f","state":"AWAITING_EXACT_SOURCE_CI","local":"UI14/build/lint PASS; Infrastructure csc137, DB tests NOT_RUN","scope":"offboarding epoch/session fences; EQR/profile regressions"},
+  "lifecycleCloudResidual": {"base":"538bc79f","state":"AWAITING_EXACT_SOURCE_CI","local":"UI18/build/lint PASS; Infrastructure csc137, DB tests NOT_RUN","scope":"offboarding epoch/session fences; EQR/profile regressions"},
   "schemaVersion": "1",
   "documentationReconciliation": {
     "result": "DOCS_RECONCILED_SOURCE_AND_VALIDATORS_PASS",
