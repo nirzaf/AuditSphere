@@ -31,11 +31,11 @@ interface PendingDecision {
 const activeRequests = new Set<string>();
 const sha256 = /^[a-f0-9]{64}$/;
 
-function validPending(raw: unknown, owner: { firmId: string; userId: string; generation: string; engagementId: string }): raw is PendingDecision {
+function validPending(raw: unknown, owner: { firmId: string; userId: string; engagementId: string }): raw is PendingDecision {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
   const p = raw as Record<string, unknown>;
   return p['version'] === 1 && p['firmId'] === owner.firmId && p['actorUserId'] === owner.userId &&
-    p['sessionGeneration'] === owner.generation && p['engagementId'] === owner.engagementId &&
+    typeof p['sessionGeneration'] === 'string' && /^[0-9]{1,19}$/.test(p['sessionGeneration']) && p['engagementId'] === owner.engagementId &&
     typeof p['requestKey'] === 'string' && guidPattern.test(p['requestKey']) &&
     typeof p['caseRevision'] === 'number' && Number.isSafeInteger(p['caseRevision']) && p['caseRevision'] >= 0 &&
     typeof p['factsDigest'] === 'string' && sha256.test(p['factsDigest']) &&
@@ -89,21 +89,21 @@ async function notesDigest(salt: string, notes: string): Promise<string> {
             <dt>Original report</dt><dd>{{ p.reportDeliverableId ?? 'None recorded' }} · {{ p.reportSha256 ?? 'No report hash recorded' }}</dd>
           </dl>
           <label for="eqr-recovery-notes">Re-enter the exact original notes</label>
-          <textarea id="eqr-recovery-notes" name="eqrRecoveryNotes" [(ngModel)]="notes" rows="3" maxlength="8000"></textarea>
-          <button matButton="filled" data-eqr-retry [disabled]="busy() || !notes.trim() && p.status === 'CHANGES_REQUESTED' || !basis.data()" (click)="recordDecision()">
+          <textarea id="eqr-recovery-notes" name="eqrRecoveryNotes" [(ngModel)]="notes" [disabled]="busy()" rows="3" maxlength="8000"></textarea>
+          <button matButton="filled" data-eqr-retry [disabled]="busy() || pendingUnavailable() || !notes.trim() && p.status === 'CHANGES_REQUESTED' || !basis.data()" (click)="recordDecision()">
             {{ busy() ? 'Checking original request…' : 'Retry exact EQR request' }}
           </button>
         } @else if (!pendingUnavailable()) {
           <label for="eqr-decision-status">Decision</label>
-          <select id="eqr-decision-status" name="eqrDecisionStatus" [(ngModel)]="status">
+          <select id="eqr-decision-status" name="eqrDecisionStatus" [(ngModel)]="status" (ngModelChange)="invalidateAssent()" [disabled]="busy()">
             <option value="IN_PROGRESS">In progress</option>
             <option value="CHANGES_REQUESTED">Changes requested</option>
             <option value="CONCURRED">Concurred</option>
           </select>
           <label for="eqr-decision-notes">Review notes</label>
-          <textarea id="eqr-decision-notes" name="eqrDecisionNotes" [(ngModel)]="notes" rows="3" maxlength="8000"></textarea>
-          <label><input type="checkbox" name="eqr-findings-discussed" [(ngModel)]="findingsDiscussed" /> Findings were discussed (required for concurrence).</label>
-          <label><input type="checkbox" name="eqr-exact-basis-reviewed" [(ngModel)]="reviewedExactBasis" (change)="acceptBasis(b)" /> I reviewed this exact case revision, facts digest and current unsigned report, if present.</label>
+          <textarea id="eqr-decision-notes" name="eqrDecisionNotes" [(ngModel)]="notes" (ngModelChange)="invalidateAssent()" [disabled]="busy()" rows="3" maxlength="8000"></textarea>
+          <label><input type="checkbox" name="eqr-findings-discussed" [(ngModel)]="findingsDiscussed" (ngModelChange)="invalidateAssent()" [disabled]="busy()" /> Findings were discussed (required for concurrence).</label>
+          <label><input #eqrAssent type="checkbox" name="eqr-exact-basis-reviewed" [checked]="reviewedExactBasis()" (change)="reviewedExactBasis.set(eqrAssent.checked); acceptBasis(b)" [disabled]="busy()" /> I reviewed this exact case revision, facts digest and current unsigned report, if present.</label>
           <button matButton="filled" data-eqr-submit [disabled]="!canSubmit(b)" (click)="recordDecision()">
             {{ busy() ? 'Recording…' : 'Record EQR decision' }}
           </button>
@@ -115,7 +115,7 @@ async function notesDigest(salt: string, notes: string): Promise<string> {
 export class EqrDecision {
   readonly engagementId = input.required<string>();
   readonly caseStatus = input.required<string>();
-  readonly decisionRecorded = output<string>();
+  readonly decisionRecorded = output<{ engagementId: string; decisionId: string }>();
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
   readonly basis = this.api.resource(() => {
@@ -193,25 +193,47 @@ export class EqrDecision {
       engagementId: engagementId.toLowerCase(),
     } : null;
     if (!current) return;
-    const key = this.storageKey(current);
     try {
-      const raw = sessionStorage.getItem(key);
-      if (raw === null) return;
-      const parsed: unknown = JSON.parse(raw);
-      if (!validPending(parsed, current)) throw new Error('Invalid pending request');
-      this.pending.set(parsed);
-      this.status = parsed.status;
-      this.findingsDiscussed.set(parsed.findingsDiscussed);
-      this.recoveryRaw = raw;
-      this.recoveryKey = key;
+      const reference = this.findRecovery(current);
+      if (!reference) return;
+      this.pending.set(reference.pending);
+      this.status = reference.pending.status;
+      this.findingsDiscussed.set(reference.pending.findingsDiscussed);
+      this.recoveryRaw = reference.raw;
+      this.recoveryKey = reference.key;
     } catch {
       this.pendingUnavailable.set(true);
       this.error.set('The pending EQR request could not be verified. No new request will be sent.');
     }
   }
 
-  private storageKey(owner: { firmId: string; userId: string; generation: string; engagementId: string }): string {
-    return `auditsphere-eqr-pending-v1:${owner.firmId}:${owner.userId}:${owner.generation}:${owner.engagementId}`;
+  private storageKey(owner: { firmId: string; userId: string; engagementId: string }): string {
+    // The reference outlives session replacement; authorization and UI state remain session-bound.
+    return `auditsphere-eqr-pending-v2:${owner.firmId}:${owner.userId}:${owner.engagementId}`;
+  }
+
+  // Keep legacy references in place: moving or rewriting one could lose the only replay identity.
+  private findRecovery(owner: { firmId: string; userId: string; engagementId: string }): { key: string; raw: string; pending: PendingDecision } | null {
+    const stable = this.storageKey(owner);
+    const legacyPrefix = `auditsphere-eqr-pending-v1:${owner.firmId}:${owner.userId}:`;
+    const legacySuffix = `:${owner.engagementId}`;
+    const keys: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key === null) throw new Error('Storage enumeration failed');
+      if (key === stable || key.startsWith(legacyPrefix) && key.endsWith(legacySuffix)) keys.push(key);
+    }
+    // Also verify direct access, rather than relying on enumeration alone.
+    const stableRaw = sessionStorage.getItem(stable);
+    if ((stableRaw !== null) !== keys.includes(stable)) throw new Error('Storage enumeration inconsistent');
+    if (keys.length > 1) throw new Error('Ambiguous pending requests');
+    if (!keys.length) return null;
+    const key = keys[0], raw = sessionStorage.getItem(key);
+    if (raw === null) throw new Error('Pending request unavailable');
+    const pending: unknown = JSON.parse(raw);
+    if (!validPending(pending, owner) || key !== stable &&
+        key !== `${legacyPrefix}${pending.sessionGeneration}${legacySuffix}`) throw new Error('Invalid pending request');
+    return { key, raw, pending };
   }
 
   validBasis(basis: ReviewBasis): boolean {
@@ -225,6 +247,11 @@ export class EqrDecision {
   }
 
   basisIdentityFor(basis: ReviewBasis): string { return basisIdentity(basis); }
+
+  invalidateAssent(): void {
+    this.reviewedExactBasis.set(false);
+    this.reviewedIdentity = null;
+  }
 
   acceptBasis(basis: ReviewBasis): void {
     if (!this.reviewedExactBasis()) { this.reviewedIdentity = null; return; }
@@ -246,18 +273,20 @@ export class EqrDecision {
     const recovering = this.pending();
     if (!basis || !owner || this.busy() || this.pendingUnavailable() || !this.validBasis(basis) ||
         this.loadedOwner !== this.currentOwnerIdentity() || this.basis.loading() || this.basis.error()) return;
-    const operation = ++this.operation;
-    const notes = this.notes.trim();
+    const draftNotes = this.notes, notes = draftNotes.trim();
+    const draftStatus = this.status, draftFindings = this.findingsDiscussed();
     if (recovering) {
-      if (this.recoveryKey !== this.storageKey(owner) || this.recoveryRaw === null) return;
+      if (this.recoveryKey === null || this.recoveryRaw === null) return;
       if (notes.length > 8000 || (recovering.status === 'CHANGES_REQUESTED' && !notes)) {
         this.error.set('Enter the exact original EQR notes before retrying.'); return;
       }
     } else if (!this.canSubmit(basis)) return;
 
+    const operation = ++this.operation;
     this.busy.set(true); this.error.set(''); this.message.set('');
     const storageKey = recovering ? this.recoveryKey! : this.storageKey(owner);
-    if (activeRequests.has(storageKey)) {
+    const claimKey = this.storageKey(owner);
+    if (activeRequests.has(claimKey)) {
       this.error.set('The original EQR request is still in flight. Wait before retrying.');
       this.busy.set(false);
       return;
@@ -265,16 +294,22 @@ export class EqrDecision {
     let pending = recovering;
     let raw = this.recoveryRaw;
     let dispatchStarted = false;
-    let claimed = false;
+    activeRequests.add(claimKey);
     try {
       if (pending) {
-        if (await notesDigest(pending.notesSalt, notes) !== pending.notesHash) {
+        const digest = await notesDigest(pending.notesSalt, notes);
+        if (!this.isCurrent(operation, owner)) return;
+        if (this.basis.data() !== basis || this.basis.loading() || this.basis.error() || this.loadedOwner !== this.currentOwnerIdentity()) {
+          this.error.set('The review basis changed while checking the original request. Refresh before retrying.');
+          return;
+        }
+        if (digest !== pending.notesHash || this.notes !== draftNotes) {
           this.error.set('The notes differ from the original EQR request. Re-enter the exact original notes.');
           this.busy.set(false);
           return;
         }
-        if (!this.isCurrent(operation, owner)) return;
-        if (raw === null || sessionStorage.getItem(storageKey) !== raw) {
+        const reference = this.findRecovery(owner);
+        if (raw === null || !reference || reference.key !== storageKey || reference.raw !== raw) {
           this.pendingUnavailable.set(true);
           this.error.set('The original EQR recovery reference changed or is unavailable. No request was sent.');
           this.busy.set(false);
@@ -285,14 +320,15 @@ export class EqrDecision {
         pending = { version: 1, firmId: owner.firmId, actorUserId: owner.userId, sessionGeneration: owner.generation,
           engagementId: owner.engagementId, requestKey: crypto.randomUUID(), caseRevision: basis.caseRevision,
           factsDigest: basis.factsDigest, reportDeliverableId: basis.reportDeliverableId, reportSha256: basis.reportSha256,
-          status: this.status, findingsDiscussed: this.findingsDiscussed(), notesSalt: salt, notesHash: await notesDigest(salt, notes) };
-        if (!this.isCurrent(operation, owner) || this.basis.data() !== basis || !this.reviewedExactBasis() || this.reviewedIdentity !== basisIdentity(basis)) {
+          status: draftStatus, findingsDiscussed: draftFindings, notesSalt: salt, notesHash: await notesDigest(salt, notes) };
+        if (!this.isCurrent(operation, owner) || this.basis.data() !== basis || this.basis.loading() || this.basis.error() ||
+            this.loadedOwner !== this.currentOwnerIdentity() || !this.reviewedExactBasis() || this.reviewedIdentity !== basisIdentity(basis) ||
+            this.status !== draftStatus || this.findingsDiscussed() !== draftFindings || this.notes !== draftNotes) {
           if (this.isCurrent(operation, owner)) this.busy.set(false);
           return;
         }
         raw = JSON.stringify(pending);
-        const existing = sessionStorage.getItem(storageKey);
-        if (existing !== null) {
+        if (this.findRecovery(owner) !== null) {
           this.pendingUnavailable.set(true);
           this.error.set('A different EQR request reference already exists. Resolve it before creating another request.');
           this.busy.set(false);
@@ -305,59 +341,62 @@ export class EqrDecision {
           throw new Error('Recovery reference could not be confirmed');
         }
       }
-    } catch {
-      if (this.isCurrent(operation, owner)) {
-        if (recovering || pending) this.pendingUnavailable.set(true);
-        this.error.set('The exact EQR recovery reference could not be saved or checked. No request was sent.');
-        this.busy.set(false);
+      if (!pending || !raw || !this.isCurrent(operation, owner) || this.recoveryKey !== storageKey) {
+        if (this.isCurrent(operation, owner)) this.busy.set(false);
+        return;
       }
-      return;
-    }
-    if (!pending || !raw || !this.isCurrent(operation, owner) || this.recoveryKey !== storageKey || activeRequests.has(storageKey)) {
-      if (this.isCurrent(operation, owner)) this.busy.set(false);
-      return;
-    }
-    activeRequests.add(storageKey);
-    claimed = true;
-    try {
       dispatchStarted = true;
       const outcome = await this.api.command<unknown>(`/api/ui/engagements/${owner.engagementId}/completion/eqr-decision`, {
         status: pending.status, notes, findingsDiscussed: pending.findingsDiscussed, requestKey: pending.requestKey,
         expectedCaseRevision: pending.caseRevision, expectedFactsDigest: pending.factsDigest,
         expectedReportDeliverableId: pending.reportDeliverableId, expectedReportSha256: pending.reportSha256,
       });
-      if (!this.isCurrent(operation, owner)) return;
+      if (!this.isCurrent(operation, owner)) {
+        // A definitive refusal of the first transmission can clear only its exact saved reference,
+        // even after navigation. An unknown outcome or replay refusal never proves non-commit.
+        if (!recovering && !outcome.ok && !outcome.unknown && outcome.status !== 408 && outcome.code !== 'idempotency.conflict') {
+          try {
+            const reference = this.findRecovery(owner);
+            if (reference?.key === storageKey && reference.raw === raw) sessionStorage.removeItem(storageKey);
+          } catch { /* Preserve the reference when storage cannot be reconciled. */ }
+        }
+        return;
+      }
       if (outcome.ok) {
         const decisionId = outcome.value;
         if (typeof decisionId !== 'string' || !guidPattern.test(decisionId)) {
           this.error.set('The server response could not confirm the EQR decision identity. The original request remains unconfirmed.');
           return;
         }
-        if (!this.clearExactRecovery(storageKey, raw)) return;
+        if (!this.clearExactRecovery(owner, storageKey, raw)) return;
         this.pending.set(null); this.recoveryRaw = null; this.recoveryKey = null;
         this.notes = ''; this.reviewedExactBasis.set(false); this.reviewedIdentity = null;
         this.findingsDiscussed.set(false); this.status = 'IN_PROGRESS';
         this.message.set(`The server confirmed EQR decision ${decisionId}. Refreshing the current review basis; current concurrence is not assumed.`);
         this.basis.reload();
-        this.decisionRecorded.emit(owner.engagementId);
+        this.decisionRecorded.emit({ engagementId: owner.engagementId, decisionId });
         return;
       }
       if (outcome.unknown || outcome.status === 408) {
         this.error.set('The EQR outcome is unconfirmed. Re-enter the exact original notes and retry the same request when ready.');
         return;
       }
+      // A refusal of an exact replay does not prove the earlier transmission did not commit.
       if (!recovering && outcome.code !== 'idempotency.conflict') {
-        if (!this.clearExactRecovery(storageKey, raw)) return;
+        if (!this.clearExactRecovery(owner, storageKey, raw)) return;
         this.pending.set(null); this.recoveryRaw = null; this.recoveryKey = null;
         this.reviewedExactBasis.set(false); this.reviewedIdentity = null;
       }
       this.error.set(outcome.message);
     } catch {
-      if (this.isCurrent(operation, owner)) this.error.set(dispatchStarted
-        ? 'The EQR outcome is unconfirmed. Re-enter the exact original notes and retry the same request when ready.'
-        : 'The exact EQR recovery reference could not be saved or checked. No request was sent.');
+      if (this.isCurrent(operation, owner)) {
+        if (!dispatchStarted) this.pendingUnavailable.set(true);
+        this.error.set(dispatchStarted
+          ? 'The EQR outcome is unconfirmed. Re-enter the exact original notes and retry the same request when ready.'
+          : 'The exact EQR recovery reference could not be saved or checked. No request was sent.');
+      }
     } finally {
-      if (claimed) activeRequests.delete(storageKey);
+      activeRequests.delete(claimKey);
       if (this.isCurrent(operation, owner)) this.busy.set(false);
     }
   }
@@ -375,9 +414,10 @@ export class EqrDecision {
       current.generation === owner.generation && current.epoch === owner.epoch && current.engagementId === owner.engagementId;
   }
 
-  private clearExactRecovery(key: string, raw: string): boolean {
+  private clearExactRecovery(owner: { firmId: string; userId: string; engagementId: string }, key: string, raw: string): boolean {
     try {
-      if (sessionStorage.getItem(key) !== raw) {
+      const reference = this.findRecovery(owner);
+      if (!reference || reference.key !== key || reference.raw !== raw) {
         this.error.set('The recovery reference changed. It was preserved for reconciliation.');
         this.pendingUnavailable.set(true);
         return false;

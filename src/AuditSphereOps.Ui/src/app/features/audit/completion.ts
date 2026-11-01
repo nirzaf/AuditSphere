@@ -1,4 +1,4 @@
-import { Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -59,6 +59,9 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a [routerLink]="['/app/engagements', id()]">Engagement</a> / <span>Completion</span></nav>
     <audit-page-header title="Engagement completion checklist" eyebrow="Engagement audit" description="Completion gates, unresolved items, and the exact state required before release." />
     <audit-state [loading]="ws.loading()" [error]="ws.error()" label="completion state" />
+    @if (confirmedEqrDecision(); as decisionId) {
+      <p role="status" data-eqr-confirmation>The server confirmed EQR decision {{ decisionId }}. Current concurrence is not assumed; the completion state is refreshed separately.</p>
+    }
     @if (ws.data(); as w) {
       <p class="actions" aria-label="Completion navigation"><a [routerLink]="['/app/engagements', w.engagementId, 'audit-plan']">Audit plan</a>
         <a [routerLink]="['/app/engagements', w.engagementId, 'audit-fieldwork']">Fieldwork control center</a><a [routerLink]="['/app/engagements', w.engagementId]">Engagement</a></p>
@@ -308,7 +311,7 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
       <p role="status">{{ w.gates.length }} gate rows · {{ obtained(w) }} / {{ w.representations.length }} representations obtained · release candidate {{ w.releaseCandidateId ? 'recorded' : 'not recorded' }}</p>
       <section class="panel" aria-labelledby="gates-heading">
         <h2 id="gates-heading">Completion gates</h2>
-        <p>All gates must be satisfied before issuance. Projections reflect persisted commands; a paid invoice cannot clear any professional gate.</p>
+        <p>Gates reflect recorded evidence; applicability and issuance are determined by the authoritative commands. A paid invoice cannot clear any professional gate.</p>
         <div class="table-scroll"><table>
           <thead><tr><th scope="col">Gate</th><th scope="col">Status</th><th scope="col">Authority</th><th scope="col">Date</th></tr></thead>
           <tbody>@for (g of w.gates; track g.name) { <tr><td>{{ g.name }}</td><td><audit-status [value]="g.status" /></td><td>{{ g.authority ?? '—' }}</td><td>{{ g.date ? g.date.slice(0, 16).replace('T', ' ') : '—' }}</td></tr> }</tbody>
@@ -401,9 +404,26 @@ export class EngagementCompletion {
   f = { recommendations: '', risks: '', notes: '', opinion: 'UNMODIFIED', focus: '', basis: '', resolution: '', scanReason: '', scanReviewed: false,
     statementsReviewed: false, amendment: '', lockKey: '', workprogramRationale: '', workprogramReviewed: false };
 
+  private readonly eqrReceipt = signal<{ context: string; decisionId: string } | null>(null);
+  private receiptContext: string | null = null;
+  readonly confirmedEqrDecision = computed(() => {
+    const receipt = this.eqrReceipt();
+    return receipt && receipt.context === this.eqrContext() ? receipt.decisionId : null;
+  });
+
+  private eqrContext(): string | null {
+    const actor = this.signatureSession.current(), id = this.id();
+    return actor?.staff && id ? `${actor.firmId.toLowerCase()}:${actor.userId.toLowerCase()}:${actor.generation}:${this.signatureSession.invalidation()}:${id.toLowerCase()}` : null;
+  }
+
   base(): string { return `/api/ui/engagements/${this.id()}/completion`; }
-  refreshCompletion(engagementId: string): void {
-    if (this.id()?.toLowerCase() === engagementId.toLowerCase()) this.ws.reload();
+  refreshCompletion(result: { engagementId: string; decisionId: string }): void {
+    const context = this.eqrContext();
+    if (!context || this.id()?.toLowerCase() !== result.engagementId.toLowerCase() ||
+        this.ws.data()?.engagementId.toLowerCase() !== result.engagementId.toLowerCase()) return;
+    this.receiptContext = context;
+    this.eqrReceipt.set({ context, decisionId: result.decisionId });
+    this.ws.reload();
   }
   label(t: string): string { return OPINION_LABELS[t] ?? t; }
   srm(w: Completion) { return w.deliverables.filter((d) => d.kind === 'SUMMARY_REVIEW_MEMORANDUM').sort((a, b) => b.version - a.version)[0] ?? null; }
@@ -433,6 +453,15 @@ export class EngagementCompletion {
   private signatureRequest = 0;
   private signatureDestroyed = false;
   constructor() {
+    effect(() => {
+      const context = this.eqrContext();
+      untracked(() => {
+        if (context !== this.receiptContext) {
+          this.receiptContext = context;
+          this.eqrReceipt.set(null);
+        }
+      });
+    });
     this.signatureLifetime.onDestroy(() => { this.signatureDestroyed = true; ++this.signatureRequest; this.signatureCheck.set(null); });
     effect(() => {
       this.id(); this.ws.data(); this.signatureSession.current(); this.signatureSession.invalidation();

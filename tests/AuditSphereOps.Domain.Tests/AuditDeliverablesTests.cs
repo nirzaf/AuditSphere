@@ -1307,11 +1307,15 @@ public sealed partial class AuditDeliverablesTests
         laterBasis.Value.FactsDigest, laterBasis.Value.ReportDeliverableId, laterBasis.Value.ReportSha256));
     Assert.True(later.Succeeded, later.Message);
     var otherReviewer = NewUser(w.FirmId, "unassigned-eqr");
+    var siblingEngagement = Guid.NewGuid();
+    db.Engagements.Add(new Engagement { Id = siblingEngagement, FirmId = w.FirmId, PracticeClientId = w.ClientId, CreatedAt = DateTimeOffset.UtcNow });
     db.Users.Add(otherReviewer);
     db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = otherReviewer.Id,
-      Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = reviewer.UserId });
+      Role = "Partner", ClientId = w.ClientId, EngagementId = w.EngagementId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = reviewer.UserId });
+    db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = otherReviewer.Id,
+      Role = "Administrator", ClientId = w.ClientId, EngagementId = siblingEngagement, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = reviewer.UserId });
     await db.SaveChangesAsync();
-    var otherActor = new ActorContext(otherReviewer.Id, w.FirmId, otherReviewer.SessionEpoch, ["Partner"]);
+    var otherActor = new ActorContext(otherReviewer.Id, w.FirmId, otherReviewer.SessionEpoch, ["Partner", "Administrator"]);
     Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.GetEqrReviewBasisAsync(db, otherActor, w.EngagementId)).ErrorCode);
     Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.RecordEqrDecisionAsync(db, otherActor, w.EngagementId, original)).ErrorCode);
     var replay = await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId, original);
@@ -1321,6 +1325,29 @@ public sealed partial class AuditDeliverablesTests
       w.EngagementId, original with { ExpectedCaseRevision = original.ExpectedCaseRevision + 1 })).ErrorCode);
     Assert.Equal(ErrorCodes.IdempotencyConflict, (await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer,
       w.EngagementId, original with { ExpectedFactsDigest = new string('0', 64) })).ErrorCode);
+
+    var freshBasis = await AuditDeliverableService.GetEqrReviewBasisAsync(db, reviewer, w.EngagementId);
+    Assert.True(freshBasis.Succeeded, freshBasis.Message);
+    var fresh = new RecordEqrDecisionRequest("IN_PROGRESS", "Further review", false, Guid.NewGuid().ToString("D"),
+      freshBasis.Value!.CaseRevision, freshBasis.Value.FactsDigest, freshBasis.Value.ReportDeliverableId, freshBasis.Value.ReportSha256);
+    var hold = new EngagementHold { Id = Guid.NewGuid(), FirmId = w.FirmId, EngagementId = w.EngagementId,
+      HoldKind = "Independence", Reason = "Synthetic unresolved hold", CreatedAt = DateTimeOffset.UtcNow };
+    db.EngagementHolds.Add(hold);
+    await db.SaveChangesAsync();
+    Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId, fresh)).ErrorCode);
+    Assert.Equal(decided.Value, (await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId, original)).Value);
+    hold.Released = true;
+    hold.ReleasedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync();
+    var frozenAt = DateTimeOffset.UtcNow;
+    db.EngagementFileFreezes.Add(new EngagementFileFreeze { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId,
+      EngagementId = w.EngagementId, ReportDeliverableId = Assert.IsType<Guid>(nextReport.Value!.DeliverableId), ReportSignedAt = frozenAt.AddDays(-61),
+      DueAt = frozenAt.AddDays(-1), State = FileFreezeStates.Frozen, FrozenAt = frozenAt, UpdatedAt = frozenAt });
+    await db.SaveChangesAsync();
+    Assert.Equal(ErrorCodes.ProtectedState, (await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId, fresh)).ErrorCode);
+    Assert.Equal(decided.Value, (await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId, original)).Value);
+    Assert.Single(await db.FrozenAccessAttempts.AsNoTracking().Where(x => x.EngagementId == w.EngagementId && x.Action == "record EQR decision").ToListAsync());
+    Assert.Equal(2, await db.EqrDecisions.CountAsync(x => x.EngagementId == w.EngagementId));
   }
 
   private sealed class FixedClock(DateTimeOffset now) : TimeProvider

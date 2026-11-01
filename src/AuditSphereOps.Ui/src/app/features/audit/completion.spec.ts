@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SessionService } from '../../core/session';
 import { EngagementCompletion, decodeCompletion, decodeSignatureCheck } from './completion';
 
@@ -277,6 +277,53 @@ describe('Early compliance lock panel (STE 4.4.3)', () => {
     expect(gateRow?.querySelector('audit-status .status-chip')?.getAttribute('data-status')).toBe('RECORDED_CONCURRENCE_NOT_CURRENT');
     expect(gateRow?.textContent).toContain('recorded concurrence not current');
     expect(host.textContent).toContain('Download exact report');
+  });
+
+  it('retains the confirmed EQR decision through parent reload and clears it on session replacement', async () => {
+    sessionStorage.clear();
+    const http = setup();
+    const payload = { ...validPayload, eqrStatus: 'IN_PROGRESS' };
+    const f = load(http, payload);
+    const basisUrl = `/api/ui/engagements/${id1}/completion/eqr-review-basis`;
+    const decisionUrl = `/api/ui/engagements/${id1}/completion/eqr-decision`;
+    http.expectOne(basisUrl).flush({ caseRevision: 4, factsDigest: hash64, reportDeliverableId: id2, reportSha256: hash64 });
+    await f.whenStable();
+    f.detectChanges();
+    const host = f.nativeElement as HTMLElement;
+    const notes = host.querySelector<HTMLTextAreaElement>('#eqr-decision-notes')!;
+    notes.value = 'Reviewed the report'; notes.dispatchEvent(new Event('input', { bubbles: true }));
+    f.detectChanges();
+    const assent = host.querySelector<HTMLInputElement>('input[name="eqr-exact-basis-reviewed"]')!;
+    assent.checked = true; assent.dispatchEvent(new Event('change', { bubbles: true }));
+    f.detectChanges();
+    host.querySelector<HTMLButtonElement>('[data-eqr-submit]')!.click();
+    let posts = http.match(decisionUrl);
+    if (!posts.length) await vi.waitFor(() => { posts = http.match(decisionUrl); expect(posts.length).toBeGreaterThan(0); });
+    expect(posts).toHaveLength(1);
+    posts[0].flush({ value: id3 });
+    http.expectNone(decisionUrl);
+    await vi.waitFor(() => expect(f.componentInstance.confirmedEqrDecision()).toBe(id3));
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush(payload);
+    f.detectChanges();
+    const basisRequests = http.match(basisUrl);
+    for (const request of basisRequests.filter(request => !request.cancelled))
+      request.flush({ caseRevision: 5, factsDigest: hash64, reportDeliverableId: id2, reportSha256: hash64 });
+    f.detectChanges();
+    for (const request of http.match(basisUrl).filter(request => !request.cancelled))
+      request.flush({ caseRevision: 5, factsDigest: hash64, reportDeliverableId: id2, reportSha256: hash64 });
+    await f.whenStable(); f.detectChanges();
+    expect(host.querySelector('[data-eqr-confirmation]')?.textContent).toContain(id3);
+    expect(host.querySelector('[data-eqr-confirmation]')?.textContent).toContain('Current concurrence is not assumed');
+    TestBed.inject(SessionService).current.set({ userId: id3, firmId: id2, generation: '2', staff: true });
+    f.detectChanges();
+    expect(host.querySelector('[data-eqr-confirmation]')).toBeNull();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush(payload);
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(programBasis);
+    f.detectChanges();
+    http.expectOne(basisUrl).flush({ caseRevision: 5, factsDigest: hash64, reportDeliverableId: id2, reportSha256: hash64 });
+    await f.whenStable(); f.detectChanges();
+    expect(host.querySelector('[data-eqr-confirmation]')).toBeNull();
+    f.destroy();
   });
 
   it('shows the digest-bound confirmation to a Partner when readiness has no blockers', () => {

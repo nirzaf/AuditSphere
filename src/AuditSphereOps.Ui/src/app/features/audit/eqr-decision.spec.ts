@@ -15,6 +15,8 @@ const basisB = { ...basisA, caseRevision: 5, factsDigest: 'c'.repeat(64), report
 const basisUrl = `/api/ui/engagements/${engagementId}/completion/eqr-review-basis`;
 const decisionUrl = `/api/ui/engagements/${engagementId}/completion/eqr-decision`;
 const firstSession = { userId: '44444444-4444-4444-8444-444444444444', firmId: '55555555-5555-4555-8555-555555555555', generation: '7', staff: true };
+const storageKey = `auditsphere-eqr-pending-v2:${firstSession.firmId}:${firstSession.userId}:${engagementId}`;
+const legacyKey = `auditsphere-eqr-pending-v1:${firstSession.firmId}:${firstSession.userId}:${firstSession.generation}:${engagementId}`;
 
 describe('native EQR decision panel', () => {
   function setup() {
@@ -69,6 +71,7 @@ describe('native EQR decision panel', () => {
   afterEach(() => {
     TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true });
     TestBed.resetTestingModule();
+    vi.restoreAllMocks();
     sessionStorage.clear();
   });
 
@@ -98,7 +101,7 @@ describe('native EQR decision panel', () => {
     });
     const requestKey = post.request.body.requestKey as string;
     expect(requestKey).toMatch(/^[0-9a-f-]{36}$/i);
-    const saved = JSON.parse(sessionStorage.getItem(`auditsphere-eqr-pending-v1:${firstSession.firmId}:${firstSession.userId}:${firstSession.generation}:${engagementId}`)!);
+    const saved = JSON.parse(sessionStorage.getItem(storageKey)!);
     expect(JSON.stringify(saved)).not.toContain('Reviewed the exact current report');
     post.flush({ value: decisionId });
     await vi.waitFor(() => expect(page.busy()).toBe(false));
@@ -108,7 +111,7 @@ describe('native EQR decision panel', () => {
     expect(sessionStorage.length).toBe(0);
   });
 
-  it('recovers an unknown outcome with the same request, basis and content without storing notes', async () => {
+  it.each([false, true])('recovers an unknown outcome across session replacement (legacy key: %s)', async (legacy) => {
     const first = setup();
     await loadBasis(first.http, first.fixture);
     const notes = 'The inventory valuation evidence requires a documented correction.';
@@ -119,7 +122,6 @@ describe('native EQR decision panel', () => {
     (first.fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-eqr-submit]')!.click();
     const original = await waitForRequest(first.http, decisionUrl);
     const originalBody = original.request.body;
-    const storageKey = `auditsphere-eqr-pending-v1:${firstSession.firmId}:${firstSession.userId}:${firstSession.generation}:${engagementId}`;
     const raw = sessionStorage.getItem(storageKey)!;
     expect(raw).not.toContain(notes);
     original.flush({ code: 'temporarily.unavailable', message: 'try later' }, { status: 503, statusText: 'Unavailable' });
@@ -128,6 +130,11 @@ describe('native EQR decision panel', () => {
     expect(first.page.error()).toContain('outcome is unconfirmed');
 
     first.fixture.destroy();
+    if (legacy) {
+      sessionStorage.setItem(legacyKey, raw);
+      sessionStorage.removeItem(storageKey);
+    }
+    first.session.current.set({ ...firstSession, generation: '8' });
     const resumed = TestBed.createComponent(EqrDecision);
     resumed.componentRef.setInput('engagementId', engagementId);
     resumed.componentRef.setInput('caseStatus', 'RECORDED_CONCURRENCE_NOT_CURRENT');
@@ -147,7 +154,147 @@ describe('native EQR decision panel', () => {
     expect(resumed.componentInstance.message()).toContain('current concurrence is not assumed');
     first.http.expectOne(basisUrl).flush(basisA);
     await resumed.whenStable();
+    expect(sessionStorage.getItem(legacy ? legacyKey : storageKey)).toBeNull();
+    resumed.destroy();
+  });
+
+  it('requires renewed assent after editing each decision field', async () => {
+    const { fixture, page, http } = setup();
+    await loadBasis(http, fixture);
+    const host = fixture.nativeElement as HTMLElement;
+    enterNewDecision(fixture, 'CONCURRED', 'Original notes', true);
+    fixture.detectChanges();
+    for (const edit of [
+      () => { const field = host.querySelector<HTMLSelectElement>('#eqr-decision-status')!; field.value = 'IN_PROGRESS'; field.dispatchEvent(new Event('change')); },
+      () => { const field = host.querySelector<HTMLTextAreaElement>('#eqr-decision-notes')!; field.value = 'Changed notes'; field.dispatchEvent(new Event('input')); },
+      () => { const field = host.querySelector<HTMLInputElement>('input[name="eqr-findings-discussed"]')!; field.checked = false; field.dispatchEvent(new Event('change')); },
+    ]) {
+      reviewExactBasis(fixture);
+      fixture.detectChanges();
+      expect(page.canSubmit(page.basis.data()!)).toBe(true);
+      edit();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(page.reviewedExactBasis()).toBe(false);
+      expect(page.canSubmit(page.basis.data()!)).toBe(false);
+      expect(host.querySelector<HTMLInputElement>('input[name="eqr-exact-basis-reviewed"]')!.checked).toBe(false);
+    }
+    http.expectNone(decisionUrl);
+  });
+
+  it('freezes controls during hashing and dispatch and sends the reviewed snapshot', async () => {
+    const { fixture, page, http } = setup();
+    await loadBasis(http, fixture);
+    enterNewDecision(fixture, 'CHANGES_REQUESTED', 'Original notes', true);
+    fixture.detectChanges();
+    reviewExactBasis(fixture);
+    fixture.detectChanges();
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(crypto.subtle, 'digest').mockImplementation(async (algorithm, data) => { await gate; return digest(algorithm, data); });
+    const recording = page.recordDecision();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    for (const selector of ['#eqr-decision-status', '#eqr-decision-notes', 'input[name="eqr-findings-discussed"]', 'input[name="eqr-exact-basis-reviewed"]'])
+      expect(host.querySelector<HTMLInputElement>(selector)!.disabled).toBe(true);
+    http.expectNone(decisionUrl);
+    release();
+    const post = await waitForRequest(http, decisionUrl);
+    fixture.detectChanges();
+    expect(host.querySelector<HTMLTextAreaElement>('#eqr-recovery-notes')!.disabled).toBe(true);
+    expect(post.request.body).toMatchObject({ status: 'CHANGES_REQUESTED', notes: 'Original notes', findingsDiscussed: true });
+    post.flush({ value: decisionId });
+    await recording;
+    http.expectOne(basisUrl).flush(basisA);
+  });
+
+  it('keeps the actor claim during delayed hashing across session replacement', async () => {
+    const { fixture, page, http, session } = setup();
+    await loadBasis(http, fixture);
+    enterNewDecision(fixture, 'CHANGES_REQUESTED', 'First notes', false);
+    fixture.detectChanges(); reviewExactBasis(fixture); fixture.detectChanges();
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(crypto.subtle, 'digest').mockImplementation(async (algorithm, data) => { await gate; return digest(algorithm, data); });
+    const first = page.recordDecision();
+    session.current.set({ ...firstSession, generation: '8' });
+    fixture.detectChanges();
+    http.expectOne(basisUrl).flush(basisA);
+    fixture.detectChanges();
+    enterNewDecision(fixture, 'CHANGES_REQUESTED', 'Replacement notes', false);
+    fixture.detectChanges(); reviewExactBasis(fixture); fixture.detectChanges();
+    await page.recordDecision();
+    expect(page.error()).toContain('still in flight');
+    release();
+    await first;
+    http.expectNone(decisionUrl);
     expect(sessionStorage.getItem(storageKey)).toBeNull();
+    fixture.destroy();
+  });
+
+  it('ignores a delayed decision response after session replacement and retains the original reference', async () => {
+    const { fixture, page, http, session } = setup();
+    await loadBasis(http, fixture);
+    enterNewDecision(fixture, 'CHANGES_REQUESTED', 'Original notes', false);
+    fixture.detectChanges();
+    reviewExactBasis(fixture);
+    fixture.detectChanges();
+    const emitted = vi.fn();
+    page.decisionRecorded.subscribe(emitted);
+    const recording = page.recordDecision();
+    const post = await waitForRequest(http, decisionUrl);
+    const raw = sessionStorage.getItem(storageKey);
+    session.current.set({ ...firstSession, generation: '8' });
+    fixture.detectChanges();
+    http.expectOne(basisUrl).flush(basisB);
+    post.flush({ value: decisionId });
+    await recording;
+    expect(emitted).not.toHaveBeenCalled();
+    expect(page.message()).toBe('');
+    expect(sessionStorage.getItem(storageKey)).toBe(raw);
+    expect(page.pending()?.requestKey).toBe(post.request.body.requestKey);
+    fixture.destroy();
+  });
+
+  it('clears only a definitive first-send refusal after navigating away', async () => {
+    const { fixture, page, http } = setup();
+    await loadBasis(http, fixture);
+    enterNewDecision(fixture, 'CHANGES_REQUESTED', 'Original notes', false);
+    fixture.detectChanges(); reviewExactBasis(fixture); fixture.detectChanges();
+    const recording = page.recordDecision();
+    const post = await waitForRequest(http, decisionUrl);
+    expect(sessionStorage.getItem(storageKey)).not.toBeNull();
+    fixture.destroy();
+    post.flush({ code: 'generation.stale', message: 'The reviewed basis changed.' }, { status: 409, statusText: 'Conflict' });
+    await recording;
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it('blocks ambiguous legacy references and storage errors without replacing them', async () => {
+    const raw = JSON.stringify({ version: 1, firmId: firstSession.firmId, actorUserId: firstSession.userId, sessionGeneration: '7',
+      engagementId, requestKey: decisionId, ...basisA, status: 'IN_PROGRESS', findingsDiscussed: false, notesSalt: 'a'.repeat(32), notesHash: 'b'.repeat(64) });
+    sessionStorage.setItem(legacyKey, raw);
+    sessionStorage.setItem(storageKey, raw);
+    const { fixture, page, http, session } = setup();
+    await loadBasis(http, fixture);
+    expect(page.pendingUnavailable()).toBe(true);
+    expect(sessionStorage.getItem(legacyKey)).toBe(raw);
+    expect(sessionStorage.getItem(storageKey)).toBe(raw);
+    http.expectNone(decisionUrl);
+    sessionStorage.removeItem(storageKey);
+    vi.spyOn(Storage.prototype, 'key').mockImplementation(() => { throw new Error('unavailable'); });
+    session.current.set({ ...firstSession, generation: '8' });
+    fixture.detectChanges();
+    await loadBasis(http, fixture);
+    expect(page.pendingUnavailable()).toBe(true);
+    expect(sessionStorage.getItem(legacyKey)).toBe(raw);
+    http.expectNone(decisionUrl);
+    fixture.destroy();
   });
 
   it('keeps the form unavailable when the server denies basis access', async () => {
@@ -164,11 +311,12 @@ describe('native EQR decision panel', () => {
   it('clears decision assent and draft when the reviewed basis or session changes', async () => {
     const { fixture, page, http, session } = setup();
     await loadBasis(http, fixture);
-    page.reviewedExactBasis.set(true);
-    page.acceptBasis(page.basis.data()!);
     page.status = 'CONCURRED';
     page.notes = 'Draft for the first report';
     page.findingsDiscussed.set(true);
+    fixture.detectChanges();
+    page.reviewedExactBasis.set(true);
+    page.acceptBasis(page.basis.data()!);
     expect(page.canSubmit(page.basis.data()!)).toBe(true);
 
     page.basis.reload();

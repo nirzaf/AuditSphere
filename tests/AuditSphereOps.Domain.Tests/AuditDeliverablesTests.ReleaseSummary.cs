@@ -57,6 +57,17 @@ public sealed partial class AuditDeliverablesTests
     Assert.True(current.Succeeded, current.Message);
     Assert.Equal("CONCURRED", current.Value!.EqrStatus);
     Assert.Equal("ok", Assert.Single(current.Value.Gates, x => x.Name == "EQR completed").Tone);
+    var leader = NewUser(w.FirmId, "eqr-completion-leader");
+    db.Users.Add(leader);
+    db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = leader.Id,
+      Role = "EngagementLeader", ClientId = w.ClientId, EngagementId = w.EngagementId, GrantedAt = DateTimeOffset.UtcNow,
+      GrantedByUserId = reviewer.UserId });
+    await db.SaveChangesAsync();
+    var leaderView = await EngagementCompletionWorkspaceQuery.GetAsync(db,
+      new ActorContext(leader.Id, w.FirmId, leader.SessionEpoch, ["EngagementLeader"]), w.EngagementId, DateTimeOffset.UtcNow);
+    Assert.True(leaderView.Succeeded, leaderView.Message);
+    Assert.Equal("CONCURRED", leaderView.Value!.EqrStatus);
+    Assert.Equal("ok", Assert.Single(leaderView.Value.Gates, x => x.Name == "EQR completed").Tone);
 
     var nextReport = await AuditDeliverableService.GenerateReportAsync(db, w.A("manager", "Manager"), w.EngagementId,
       DeliverableKinds.IndependentAuditorsReport);
