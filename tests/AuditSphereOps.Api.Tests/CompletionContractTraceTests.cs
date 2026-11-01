@@ -4,6 +4,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using AuditSphereOps.Domain.Tests;
+using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using AuditSphereOps.Testing;
 
 namespace AuditSphereOps.Api.Tests;
@@ -93,6 +95,36 @@ public sealed partial class CompletionContractTraceTests(Xunit.Abstractions.ITes
     using var deniedResponse = await client.SendAsync(denied);
     Assert.Equal(HttpStatusCode.Forbidden, deniedResponse.StatusCode);
     Assert.Contains("scope.denied", await deniedResponse.Content.ReadAsStringAsync());
+  }
+
+  [Fact]
+  public async Task EqrDecisionBoundary_RejectsMissingReviewedBasis()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("EQR-REVIEW-BASIS");
+    var seed = await PbcSeed.SeedAsync(pg);
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
+      ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:Subject"] = seed.Admin.Subject,
+      ["DevelopmentIdentity:TenantId"] = seed.Admin.TenantId,
+      ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false"
+    });
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    Assert.Equal(HttpStatusCode.Redirect, (await client.GetAsync("/auth/sign-in?returnUrl=%2Fui%2Fapp")).StatusCode);
+    using var session = await client.GetAsync("/api/ui/session");
+    var token = Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie")
+      .Single(h => h.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..]);
+    using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/ui/engagements/{seed.EngagementId}/completion/eqr-decision")
+    {
+      Content = JsonContent.Create(new { status = "IN_PROGRESS", notes = "Review started", findingsDiscussed = false,
+        requestKey = Guid.NewGuid().ToString("D"), expectedCaseRevision = 0 })
+    };
+    request.Headers.Add("X-XSRF-TOKEN", token);
+    using var response = await client.SendAsync(request);
+    Assert.InRange((int)response.StatusCode, 400, 499);
+    Assert.Contains("audit-planning.invalid", await response.Content.ReadAsStringAsync());
+    await using var db = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await db.EqrDecisions.Where(x => x.EngagementId == seed.EngagementId).ToListAsync());
   }
 
   private static bool SegmentMatches(string caller, string template) =>

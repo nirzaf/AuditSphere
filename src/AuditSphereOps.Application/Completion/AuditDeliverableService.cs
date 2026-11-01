@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
@@ -19,8 +20,10 @@ public sealed record ReportSignatureCheck(string SignatureKind, string State, st
 public sealed record ReportAttempt(Guid? DeliverableId, Guid? HoldingLetterId, string Message);
 public sealed record ConfirmationDashboardRow(Guid CaseId, string Type, string Respondent, decimal BookedAmount, string Currency, string Status,
   string Monitoring, int? DaysSinceDispatch, bool Critical, string? CriticalityRationale, bool ReturnedEvaluatedResponse = false);
+public sealed record EqrReviewBasis(long CaseRevision, string FactsDigest, Guid? ReportDeliverableId, string? ReportSha256);
 public sealed record RecordEqrDecisionRequest(string Status, string? Notes, bool FindingsDiscussed,
-  string RequestKey, long ExpectedCaseRevision);
+  string RequestKey, long ExpectedCaseRevision, string? ExpectedFactsDigest = null,
+  Guid? ExpectedReportDeliverableId = null, string? ExpectedReportSha256 = null);
 
 /// <summary>
 /// Completion deliverables. Every generated document records a digest of the reviewed facts it was built from; a
@@ -589,6 +592,45 @@ public static partial class AuditDeliverableService
     return signed;
   }
 
+  public static async Task<CommandResult<EqrReviewBasis>> GetEqrReviewBasisAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  {
+    var auth = await AuthorizeAsync(db, actor, engagementId, ["Partner", "Administrator"], ct);
+    if (!auth.Succeeded) return CommandResult<EqrReviewBasis>.Fail(auth.ErrorCode!, auth.Message!);
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<EqrReviewBasis>.Fail(ErrorCodes.GateBlocked, "EQR review requires an independent read snapshot.");
+    EqrReviewBasis basis;
+    await using (var tx = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
+    {
+      auth = await AuthorizeAsync(db, actor, engagementId, ["Partner", "Administrator"], ct);
+      if (!auth.Succeeded) return CommandResult<EqrReviewBasis>.Fail(auth.ErrorCode!, auth.Message!);
+      if (await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+          x.EngagementId == engagementId && x.UserId == actor.UserId && x.RevokedAt == null &&
+          x.StaffingLevel == Domain.Practice.StaffingLevels.EngagementPartner, ct))
+        return CommandResult<EqrReviewBasis>.Fail(ErrorCodes.ScopeDenied, "The Engagement Partner cannot perform the independent Engagement Quality Review.");
+      var eqr = await db.EqrCases.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
+      if (eqr is not null && eqr.EqrPartnerUserId != Guid.Empty && eqr.EqrPartnerUserId != actor.UserId &&
+          !actor.Roles.Contains("Administrator", StringComparer.OrdinalIgnoreCase))
+        return CommandResult<EqrReviewBasis>.Fail(ErrorCodes.ScopeDenied, "Only the assigned EQR Partner or Administrator can review this case.");
+      var facts = await ExpectedDigestAsync(db, actor, engagementId, DeliverableKinds.IndependentAuditorsReport, ct);
+      var report = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
+          x.Kind == DeliverableKinds.IndependentAuditorsReport && x.SignedFromDeliverableId == null)
+        .OrderByDescending(x => x.Version).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+      basis = new(eqr?.Revision ?? 0, facts, report?.Id, report?.ContentSha256);
+      await tx.CommitAsync(ct);
+    }
+    auth = await AuthorizeAsync(db, actor, engagementId, ["Partner", "Administrator"], ct);
+    if (!auth.Succeeded) return CommandResult<EqrReviewBasis>.Fail(auth.ErrorCode!, auth.Message!);
+    var currentCase = await db.EqrCases.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
+    if (await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+          x.EngagementId == engagementId && x.UserId == actor.UserId && x.RevokedAt == null &&
+          x.StaffingLevel == Domain.Practice.StaffingLevels.EngagementPartner, ct) ||
+        (currentCase is not null && currentCase.EqrPartnerUserId != Guid.Empty && currentCase.EqrPartnerUserId != actor.UserId &&
+          !actor.Roles.Contains("Administrator", StringComparer.OrdinalIgnoreCase)))
+      return CommandResult<EqrReviewBasis>.Fail(ErrorCodes.ScopeDenied, "EQR review access changed.");
+    return CommandResult<EqrReviewBasis>.Ok(basis);
+  }
+
   public static async Task<CommandResult<Guid>> RecordEqrDecisionAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, RecordEqrDecisionRequest request,
     CancellationToken ct = default)
@@ -614,30 +656,62 @@ public static partial class AuditDeliverableService
     if (isEngagementPartner)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The Engagement Partner cannot perform the independent Engagement Quality Review.");
 
+    static bool Sha(string? value) => value is { Length: 64 } && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
+    if (!Sha(request.ExpectedFactsDigest) || (request.ExpectedReportDeliverableId.HasValue != (request.ExpectedReportSha256 is not null)) ||
+        (request.ExpectedReportDeliverableId == Guid.Empty) || (request.ExpectedReportSha256 is not null && !Sha(request.ExpectedReportSha256)))
+      return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "The exact reviewed evidence basis is required.");
+
     if (status == "CONCURRED" && !request.FindingsDiscussed)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Findings must be discussed before EQR concurrence.");
     if (status == "CHANGES_REQUESTED" && notes is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Explain the required changes.");
 
-    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "EQR decisions require an independent serializable transaction.");
+    await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
     var digest = Hashing.Sha256Hex(JsonSerializer.Serialize(new { Namespace = "eqr-decision-v1", actor.FirmId, engagementId }));
     var lockKey = unchecked((long)Convert.ToUInt64(digest[..16], 16));
     await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockKey})", ct);
+    auth = await AuthorizeAsync(db, actor, engagementId, ["Partner", "Administrator"], ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+        x.EngagementId == engagementId && x.UserId == actor.UserId && x.RevokedAt == null &&
+        x.StaffingLevel == Domain.Practice.StaffingLevels.EngagementPartner, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The Engagement Partner cannot perform the independent Engagement Quality Review.");
+
+    var assigned = await db.EqrCases.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
+    if (assigned is not null && assigned.EqrPartnerUserId != Guid.Empty && assigned.EqrPartnerUserId != actor.UserId &&
+        !actor.Roles.Contains("Administrator", StringComparer.OrdinalIgnoreCase))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Only the assigned EQR Partner or Administrator can record the EQR decision.");
 
     // An exact replay returns the original retained decision even after later
     // decisions advanced the case; a reused identity with changed intent conflicts.
+    // The prefix distinguishes requests that actually supplied a reviewed basis from legacy provenance.
+    var rawKey = requestKey.ToString("D");
+    var reviewedKey = "v2:" + rawKey;
     var replay = await db.EqrDecisions.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.RequestKey == requestKey.ToString("D"), ct);
+      x.FirmId == actor.FirmId && x.EngagementId == engagementId && (x.RequestKey == rawKey || x.RequestKey == reviewedKey), ct);
     if (replay is not null)
     {
-      if (replay.DecidedByUserId != actor.UserId || replay.Status != status ||
-          replay.Notes != notes || replay.FindingsDiscussed != request.FindingsDiscussed)
+      if (replay.RequestKey != reviewedKey || replay.DecidedByUserId != actor.UserId || replay.Status != status ||
+          replay.Notes != notes || replay.FindingsDiscussed != request.FindingsDiscussed ||
+          replay.Revision - 1 != request.ExpectedCaseRevision || replay.ReviewedFactsDigest != request.ExpectedFactsDigest ||
+          replay.ReviewedReportDeliverableId != request.ExpectedReportDeliverableId || replay.ReviewedReportSha256 != request.ExpectedReportSha256)
         return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
           "This EQR request identity is already bound to a different decision intent.");
       if (tx is not null) await tx.CommitAsync(ct);
       return CommandResult<Guid>.Ok(replay.Id);
     }
 
+    var reviewedFactsDigest = await ExpectedDigestAsync(db, actor, engagementId, DeliverableKinds.IndependentAuditorsReport, ct);
+    var reviewedReport = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.EngagementId == engagementId && x.Kind == DeliverableKinds.IndependentAuditorsReport &&
+        x.SignedFromDeliverableId == null)
+      .OrderByDescending(x => x.Version).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    if (reviewedFactsDigest != request.ExpectedFactsDigest || reviewedReport?.Id != request.ExpectedReportDeliverableId ||
+        reviewedReport?.ContentSha256 != request.ExpectedReportSha256)
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The reviewed EQR evidence changed; review the current basis before deciding.");
     var eqr = await db.EqrCases.FromSqlInterpolated($"""
       SELECT * FROM eqr_cases WHERE firm_id = {actor.FirmId} AND engagement_id = {engagementId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
@@ -667,18 +741,13 @@ public static partial class AuditDeliverableService
           "Only the assigned EQR Partner or Administrator can record the EQR decision.");
     }
 
-    var reviewedFactsDigest = await ExpectedDigestAsync(db, actor, engagementId, DeliverableKinds.IndependentAuditorsReport, ct);
-    var reviewedReport = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
-        x.EngagementId == engagementId && x.Kind == DeliverableKinds.IndependentAuditorsReport &&
-        x.SignedFromDeliverableId == null)
-      .OrderByDescending(x => x.Version).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
     var decision = new EqrDecision
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = eqr.ClientId, EngagementId = engagementId,
       EqrCaseId = eqr.Id, Revision = eqr.Revision + 1, Status = status, Notes = notes,
       FindingsDiscussed = request.FindingsDiscussed, DecidedByUserId = actor.UserId, DecidedAt = DateTimeOffset.UtcNow,
       ReviewedFactsDigest = reviewedFactsDigest, ReviewedReportDeliverableId = reviewedReport?.Id,
-      ReviewedReportSha256 = reviewedReport?.ContentSha256, RequestKey = requestKey.ToString("D"),
+      ReviewedReportSha256 = reviewedReport?.ContentSha256, RequestKey = reviewedKey,
       PreviousDecisionId = eqr.CurrentDecisionId
     };
     db.EqrDecisions.Add(decision);

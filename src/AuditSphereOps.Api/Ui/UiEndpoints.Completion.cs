@@ -12,7 +12,8 @@ public static partial class UiEndpoints
   public sealed record ClearanceInput(Guid SrmId, string KeyRiskAreasComment, string NotesComment);
   public sealed record OpinionInput(string OpinionType, string? FocusArea, string? Basis);
   public sealed record EqrDecisionInput(string Status, string? Notes, bool FindingsDiscussed,
-    string? RequestKey, long? ExpectedCaseRevision);
+    string? RequestKey, long? ExpectedCaseRevision, string? ExpectedFactsDigest,
+    Guid? ExpectedReportDeliverableId, string? ExpectedReportSha256);
   public sealed record ReportInput(string Kind);
   public sealed record CommentResolutionInput(string Resolution);
   public sealed record ScanVerificationInput(string ExpectedSha256, string Reason, bool Reviewed);
@@ -50,10 +51,13 @@ public static partial class UiEndpoints
     group.MapPost("/engagements/{id:guid}/completion/opinion", (Guid id, OpinionInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditDeliverableService.DecideOpinionAsync(db, actor, id, i.OpinionType, i.FocusArea, i.Basis, ct)))
       .WithUiResponse<UiValueResponse<Guid>>();
+    group.MapGet("/engagements/{id:guid}/completion/eqr-review-basis", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditDeliverableService.GetEqrReviewBasisAsync(db, actor, id, ct)))
+      .WithUiResponse<EqrReviewBasis>();
     group.MapPost("/engagements/{id:guid}/completion/eqr-decision", (Guid id, EqrDecisionInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditDeliverableService.RecordEqrDecisionAsync(db, actor, id,
         new RecordEqrDecisionRequest(i.Status, i.Notes, i.FindingsDiscussed, i.RequestKey ?? "",
-          i.ExpectedCaseRevision ?? -1), ct)))
+          i.ExpectedCaseRevision ?? -1, i.ExpectedFactsDigest, i.ExpectedReportDeliverableId, i.ExpectedReportSha256), ct)))
       .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/engagements/{id:guid}/completion/reports", (Guid id, ReportInput i, HttpContext http) =>
       CommandAsync(http, async (db, actor, ct) =>

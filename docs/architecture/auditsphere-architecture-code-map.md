@@ -22,6 +22,9 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 ## Current presentation ownership
 
+- EQR review basis: `Application/Completion/AuditDeliverableService.cs` supplies an authorized snapshot of the case revision, facts digest and latest unsigned report identity; the completion API exposes it for exact reviewed decisions. Replays bind the original revision and evidence, and legacy decisions are not treated as having supplied that basis.
+- File-freeze rescheduling: `Application/Records/FileFreezeService.cs` uses a revision-checked scheduled-row update when a report is re-signed; the retained parent-scope constraints continue to fence early-lock evidence.
+
 - Non-audit progress: `Application/Practice/EngagementProgressQuery.cs` qualifies each capability profile by accepted-stage existence, preserving distinct-profile ambiguity and explicit selection.
 
 - Group deliverable review: Angular `features/consolidation/scope-workspace.ts` binds issue/archive assent to the current owner, scope, artifact revision and hashes, and release input; the existing backend remains the authority for both actions. Retained exact-artifact history is available independently of current-run readiness in bounded pages.
