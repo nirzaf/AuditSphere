@@ -13,7 +13,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "d8e07328dba05f17baca0f50f5e2b8c48eea3512",
+  "headCommit": "c03de267555abdca3e97c390996f71b0e5034808",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": false,
   "verifiedCommitWasRemoteHead": false,
@@ -1139,15 +1139,15 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceSha": "d8e07328dba05f17baca0f50f5e2b8c48eea3512",
+    "sourceSha": "c03de267555abdca3e97c390996f71b0e5034808",
     "fastRun": null,
-    "fast": "NOT_DISPATCHED_FOR_LOCAL_MERGE; upstream 51bb exact-source fast 41295059510 PASS (Angular 1958/195 files, Node 26.13.0; Release 0 warnings/errors).",
+    "fast": "NOT_DISPATCHED_FOR_LOCAL_CANDIDATE. Upstream 51bb run 41295059510 passed all three actual checkouts; not transferable.",
     "imagesRun": null,
-    "images": "NOT_DISPATCHED_FOR_LOCAL_MERGE; upstream 51bb image 41295059520 remains active (migrations and worker passed; API active).",
+    "images": "NOT_DISPATCHED_FOR_LOCAL_CANDIDATE. Upstream 51bb run 41295059520 passed all three actual checkouts and published pins; see terminal review.",
     "fullRun": null,
-    "full": "NOT_DISPATCHED_FOR_LOCAL_MERGE; upstream 51bb full 41295130735 remains RUNNING with source MATCH; no full pass.",
+    "full": "NOT_DISPATCHED_FOR_LOCAL_CANDIDATE. Upstream 51bb run 41295130735 was RUNNING at 10:22:58Z; build/Angular passed, unfiltered tests active.",
     "aggregatePass": false,
-    "evidence": ".local/autonomous/evidence/ci-51bb321e-current-20261101/fast-ci-review.json"
+    "evidence": ".local/autonomous/evidence/ci-51bb321e-current-20261101/"
   },
-  "updatedAtUtc": "2026-11-01T10:15:37Z"
+  "updatedAtUtc": "2026-11-01T10:25:56Z"
 }
