@@ -705,7 +705,7 @@
       "docs": "PASS: Markdown 257, canonical 19, links 4,026, paths 540; filenames 257; narrative 6; audit source 20 sections/165 paragraphs; diff check.",
       "baseCi": "32d95 fast/images PASS; predecessor only, not f62"
     },
-    "pendingLifecycleAudit20261101": {"attachmentSha256":"be6fa902689c49439fd0eb9ad45c3ae6e9cf71f8727dcc8e7960e690db3c4333","sourceCommit":"13821bc6fdf37e07c42955cfd081ad0e21eeb164","status":"PEND01_PEND02_REM09_FOCUSED_PASS; CANDIDATE_CI_PENDING","checks":"Domain 5/5; Angular EQR 14/14; Playwright E2E 3/3; build PASS (two existing CSS warnings).","acceptance":"Exact candidate CI, live acceptance and qualified OQ-01/02/05 decisions remain open.","evidence":".local/autonomous/evidence/eqr-followup-20261101/pending-lifecycle-verification.json"}
+    "pendingLifecycleAudit20261101": {"attachmentSha256":"be6fa902689c49439fd0eb9ad45c3ae6e9cf71f8727dcc8e7960e690db3c4333","sourceCommit":"13821bc6fdf37e07c42955cfd081ad0e21eeb164","status":"PEND01_PEND02_REM09_FOCUSED_PASS; EXACT_FULL_CI_PENDING","checks":"Domain EQR 4/4; REM-09 measurement 1/1; Angular EQR 14/14; Playwright E2E 3/3; build PASS (two existing CSS warnings).","acceptance":"Fast 41341862685 PASS on db5 test/docs candidate; final-doc-tip fast and exact full CI pending. Images remain valid for unchanged app 13821; live and qualified OQ-01/02/05 remain open.","evidence":".local/autonomous/evidence/eqr-followup-20261101/pending-lifecycle-verification.json"}
   },
   "externalGates": [
     {
