@@ -440,25 +440,22 @@ public static partial class PracticeTimeService
     }
     if (workflowBinding is not null)
     {
-      var evidence = await WorkflowTaskEvidenceQuery.EvaluateManyAsync(db, actor.FirmId, [workflowBinding], ct);
+      var currentnessResult = await WorkflowTaskCurrentnessQuery.ForBindingsAsync(db, actor.FirmId,
+        new Dictionary<Guid, Guid> { [workflowBinding.Id] = workflowBinding.EngagementId }, ct);
+      if (!currentnessResult.Succeeded)
+        return CommandResult.Fail(currentnessResult.ErrorCode!, currentnessResult.Message!);
+      var currentness = currentnessResult.Value!;
+      var evidence = currentness.EvidenceBySeed;
       var evidenceBlocker = evidence.GetValueOrDefault(workflowBinding.Id)?.FirstOrDefault(x =>
         x.State == WorkflowEvidenceRuleStates.Required && !x.Satisfied);
       if (evidenceBlocker is not null)
         return CommandResult.Fail(ErrorCodes.GateBlocked, evidenceBlocker.Message);
-      var hasIncompletePredecessor = await (from dependency in WorkflowTaskDependencyQuery.Effective(db, actor.FirmId)
-        join predecessor in db.WorkflowTaskBindings.AsNoTracking()
-          on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.PredecessorBindingId }
-          equals new { predecessor.FirmId, predecessor.ClientId, predecessor.EngagementId, predecessor.Id }
-        join predecessorTask in db.WorkTasks.AsNoTracking()
-          on new { predecessor.FirmId, WorkTaskId = predecessor.WorkTaskId }
-          equals new { predecessorTask.FirmId, WorkTaskId = predecessorTask.Id }
-        where dependency.FirmId == actor.FirmId && dependency.ClientId == task.ClientId &&
-          dependency.EngagementId == task.EngagementId && dependency.SuccessorBindingId == workflowBinding.Id &&
-          predecessorTask.Status != PracticeTimeStates.TaskCompleted
-        select dependency.SuccessorBindingId).AnyAsync(ct);
+      var hasIncompletePredecessor = currentness.Dependencies.Any(dependency =>
+        dependency.SuccessorBindingId == workflowBinding.Id &&
+        !currentness.CurrentCompletedBindingIds.Contains(dependency.PredecessorBindingId));
       if (hasIncompletePredecessor)
         return CommandResult.Fail(ErrorCodes.GateBlocked,
-          "Complete the prerequisite workflow task before completing this task.");
+          "A required prerequisite is not currently complete. Resolve its current evidence before completing this task.");
     }
     auth = await AuthorizeTaskAsync(db, actor, task, WorkRoles, ct);
     if (!auth.Succeeded) return auth;

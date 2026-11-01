@@ -148,19 +148,16 @@ public static class EngagementWorkflowTaskService
         b => b.FirmId == actor.FirmId && b.EngagementId == engagementId && b.WorkTaskId == targetRow.Id, ct);
       if (targetBinding is not null)
       {
-        unmetDependencies = await (from dependency in WorkflowTaskDependencyQuery.Effective(db, actor.FirmId)
-          join predecessor in db.WorkflowTaskBindings.AsNoTracking()
-            on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.PredecessorBindingId }
-            equals new { predecessor.FirmId, predecessor.ClientId, predecessor.EngagementId, predecessor.Id }
-          join predecessorTask in db.WorkTasks.AsNoTracking()
-            on new { predecessor.FirmId, WorkTaskId = predecessor.WorkTaskId }
-            equals new { predecessorTask.FirmId, WorkTaskId = predecessorTask.Id }
-          where dependency.FirmId == actor.FirmId && dependency.EngagementId == engagementId &&
-            dependency.SuccessorBindingId == targetBinding.Id &&
-            predecessorTask.Status != PracticeTimeStates.TaskCompleted
-          select dependency.PredecessorBindingId).Distinct().CountAsync(ct);
+        var currentnessResult = await WorkflowTaskCurrentnessQuery.ForBindingsAsync(db, actor.FirmId,
+          new Dictionary<Guid, Guid> { [targetBinding.Id] = targetBinding.EngagementId }, ct);
+        if (!currentnessResult.Succeeded)
+          return CommandResult<WorkflowTaskWorkspace>.Fail(currentnessResult.ErrorCode!, currentnessResult.Message!);
+        var currentness = currentnessResult.Value!;
+        unmetDependencies = currentness.Dependencies.Count(dependency =>
+          dependency.SuccessorBindingId == targetBinding.Id &&
+          !currentness.CurrentCompletedBindingIds.Contains(dependency.PredecessorBindingId));
 
-        var evidence = await WorkflowTaskEvidenceQuery.EvaluateManyAsync(db, actor.FirmId, [targetBinding], ct);
+        var evidence = currentness.EvidenceBySeed;
         unmetEvidence = evidence.GetValueOrDefault(targetBinding.Id)?.Count(r =>
           r.State == WorkflowEvidenceRuleStates.Required && !r.Satisfied) ?? 0;
 

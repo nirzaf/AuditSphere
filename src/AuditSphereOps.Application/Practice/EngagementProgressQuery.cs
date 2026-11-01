@@ -180,7 +180,7 @@ public static class EngagementProgressQuery
         on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.PredecessorBindingId }
         equals new { predecessor.FirmId, predecessor.ClientId, predecessor.EngagementId, predecessor.Id }
       where dependency.FirmId == f && bindingIds.Contains(dependency.SuccessorBindingId)
-      select new { dependency.PredecessorBindingId, dependency.SuccessorBindingId }).ToListAsync(ct);
+      select new WorkflowTaskRequiredDependency(dependency.PredecessorBindingId, dependency.SuccessorBindingId)).ToListAsync(ct);
     var evidence = new Dictionary<Guid, IReadOnlyList<WorkflowEvidenceRuleView>>();
     var taskApplicability = new Dictionary<Guid, bool>();
     foreach (var page in rows.Select(x => x.Binding).Chunk(WorkflowTaskEvidenceQuery.MaximumBindings))
@@ -190,16 +190,10 @@ public static class EngagementProgressQuery
       foreach (var (bindingId, current) in await WorkflowTaskApplicabilityQuery.EffectiveManyAsync(db, f, page, ct))
         taskApplicability.Add(bindingId, current);
     }
-    var currentCompleted = rows.Where(x => x.Status == PracticeTimeStates.TaskCompleted &&
+    var currentCompleted = WorkflowTaskCurrentnessQuery.ResolveCurrentCompletedBindings(
+      rows.Select(row => new WorkflowTaskCompletionFact(row.Binding.Id, row.Status,
         // Follow-up task completion requires the linked PBC to be accepted or closed; recheck its current state.
-        (!x.Binding.PbcRequestId.HasValue || x.PbcState is PbcStates.Accepted or PbcStates.Closed) &&
-        !evidence[x.Binding.Id].Any(rule => rule.State == WorkflowEvidenceRuleStates.Required && !rule.Satisfied))
-      .Select(x => x.Binding.Id).ToHashSet();
-    var dependents = dependencies.ToLookup(edge => edge.PredecessorBindingId, edge => edge.SuccessorBindingId);
-    var invalidPrerequisites = new Queue<Guid>(dependents.Select(group => group.Key).Where(id => !currentCompleted.Contains(id)));
-    while (invalidPrerequisites.TryDequeue(out var predecessorId))
-      foreach (var successorId in dependents[predecessorId])
-        if (currentCompleted.Remove(successorId)) invalidPrerequisites.Enqueue(successorId);
+        !row.Binding.PbcRequestId.HasValue || row.PbcState is PbcStates.Accepted or PbcStates.Closed)), evidence, dependencies);
     var unmetByBinding = dependencies.Where(edge => !currentCompleted.Contains(edge.PredecessorBindingId))
       .GroupBy(edge => edge.SuccessorBindingId).ToDictionary(group => group.Key, group => group.Count());
     var assigneeIds = rows.Select(x => x.AssigneeUserId).Concat(unboundTasks.Select(x => x.AssigneeUserId))

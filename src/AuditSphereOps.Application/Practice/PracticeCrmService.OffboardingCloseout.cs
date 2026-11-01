@@ -134,6 +134,8 @@ public static partial class PracticeCrmService
     var normalizedAcknowledged = acknowledged.Order(StringComparer.Ordinal).ToArray();
     var acknowledgedJson = JsonSerializer.Serialize(normalizedAcknowledged, OffboardingJsonOptions);
     var snapshotJson = JsonSerializer.Serialize(readiness, OffboardingJsonOptions);
+    var instant = DateTimeOffset.UtcNow;
+    var decidedAt = new DateTimeOffset(instant.Ticks - instant.Ticks % 10, TimeSpan.Zero);
 
     var record = new ClientOffboardingRecord
     {
@@ -147,7 +149,7 @@ public static partial class PracticeCrmService
       DispositionNotes = notes,
       AcknowledgedActionItemsJson = acknowledgedJson,
       DecidedByUserId = actor.UserId,
-      DecidedAt = DateTimeOffset.UtcNow,
+      DecidedAt = decidedAt,
       RequestKey = normalizedKey
     };
 

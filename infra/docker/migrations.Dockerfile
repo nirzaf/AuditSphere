@@ -13,6 +13,9 @@ COPY src/ src/
 # The migration bundle only needs executable IL, not analyzer diagnostics or PDBs. The model
 # snapshot and migration designers are large generated files; disabling analyzers/PDBs keeps
 # the compiler within the image-build runner's memory budget without changing runtime IL.
+# EF also generates a RID-specific bundle project and invokes a second `dotnet publish`; pass
+# the same compiler, project-reference, and API-host publication limits through the inherited
+# MSBuild environment.
 RUN dotnet tool install --global dotnet-ef --version 10.0.12 \
   && export PATH="$PATH:/root/.dotnet/tools" \
   && dotnet restore src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --locked-mode \
@@ -20,7 +23,9 @@ RUN dotnet tool install --global dotnet-ef --version 10.0.12 \
     --configuration Release --no-restore -m:1 -p:BuildInParallel=false \
     -p:UseSharedCompilation=false -p:PublishAngularUi=false \
     -p:RunAnalyzers=false -p:DebugType=None -p:DebugSymbols=false \
-  && DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet ef migrations bundle --configuration Release --no-build \
+  && RunAnalyzers=false BuildInParallel=false UseSharedCompilation=false \
+    PublishAngularUi=false DebugType=None DebugSymbols=false \
+    DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet ef migrations bundle --configuration Release --no-build \
     --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api \
     -o /out/efbundle
 

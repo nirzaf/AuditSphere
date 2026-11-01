@@ -1,7 +1,9 @@
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using Npgsql;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -36,6 +38,557 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     output.WriteLine($"Triggers expected from migrations: {expected.Count}; present: {expected.Count - missing.Count}; disabled: {disabled.Count}");
     Assert.True(missing.Count == 0, "Missing: " + string.Join(", ", missing));
     Assert.True(disabled.Count == 0, "Disabled: " + string.Join(", ", disabled));
+  }
+
+  [Fact]
+  public async Task ClientConversionPublicationGuardRejectsForeignFirmParents()
+  {
+    static async Task ExerciseAsync(PgTestSchema pg, bool disablePublicationGuard, bool foreignProposalReference)
+    {
+      var own = await PbcSeed.SeedAsync(pg);
+      var foreign = await PbcSeed.SeedAsync(pg);
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var proposalId = await ClientConversionReviewSeed.PopulateAsync(db, own);
+      var foreignProposalId = await ClientConversionReviewSeed.PopulateAsync(db, foreign);
+      var actor = PbcSeed.Actor(own.Admin, "Administrator");
+      var request = new ClientConversionRequest(Guid.CreateVersion7(),
+        new ClientConversionFields("PBC TEST CLIENT"));
+      var preview = await ClientConversionWorkspace.PreviewAsync(db, actor, proposalId, request);
+      Assert.True(preview.Succeeded, preview.Message);
+      Assert.Equal(own.ClientId, preview.Value!.ExistingClientId);
+
+      await using var transaction = await db.Database.BeginTransactionAsync();
+      var linked = await PracticeCrmService.ConvertToClientDraftAsync(db, actor,
+        new ConvertToClientDraftRequest(proposalId, request.Fields.LegalName,
+          request.Fields.CommercialName, request.Fields.RegistrationNumber,
+          request.Fields.Jurisdiction, request.Fields.RestrictedProfile));
+      Assert.True(linked.Succeeded, linked.Message);
+      Assert.Equal(own.ClientId, linked.Value);
+
+      var receipt = new ClientConversion
+      {
+        Id = Guid.CreateVersion7(),
+        FirmId = own.FirmId,
+        // Change only one parent at a time. The existing global FK accepts either reference;
+        // the publication guard must bind each one to the reviewed firm's commercial handover.
+        ProposalId = foreignProposalReference ? foreignProposalId : proposalId,
+        ClientId = foreignProposalReference ? own.ClientId : foreign.ClientId,
+        ActorId = actor.UserId,
+        ActorEpoch = actor.SessionEpoch,
+        RequestId = request.RequestId,
+        RequestHash = preview.Value.RequestHash,
+        ReviewBasis = preview.Value.ReviewBasis,
+        PreviewJson = JsonSerializer.Serialize(preview.Value),
+        CreatedAt = DateTimeOffset.UtcNow
+      };
+
+      if (disablePublicationGuard)
+        await db.Database.ExecuteSqlRawAsync(
+          "ALTER TABLE client_conversions DISABLE TRIGGER client_conversion_publication_guard");
+
+      db.ClientConversions.Add(receipt);
+      await db.SaveChangesAsync();
+      if (disablePublicationGuard)
+      {
+        // The counterfactual lives only in this disposable, owner-created test database.
+        await transaction.CommitAsync();
+        await using var accepted = new AuditSphereDbContext(pg.Options);
+        Assert.True(await accepted.ClientConversions.AnyAsync(x => x.Id == receipt.Id));
+        var parentFirm = foreignProposalReference
+          ? await accepted.Proposals.Where(x => x.Id == receipt.ProposalId).Select(x => x.FirmId).SingleAsync()
+          : await accepted.PracticeClients.Where(x => x.Id == receipt.ClientId).Select(x => x.FirmId).SingleAsync();
+        Assert.Equal(foreign.FirmId, parentFirm);
+        Assert.NotEqual(receipt.FirmId, parentFirm);
+        return;
+      }
+
+      var refusal = await Assert.ThrowsAsync<PostgresException>(() => transaction.CommitAsync());
+      Assert.Equal("23514", refusal.SqlState);
+      Assert.Contains("Conversion requires exact authorized committed commercial handover", refusal.MessageText);
+
+      await using var persisted = new AuditSphereDbContext(pg.Options);
+      Assert.False(await persisted.ClientConversions.AnyAsync(x => x.Id == receipt.Id));
+      Assert.Null((await persisted.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).PracticeClientId);
+      Assert.Empty(await persisted.AcceptanceDecisions.Where(x => x.PracticeClientId == own.ClientId).ToListAsync());
+      Assert.Empty(await persisted.ClientPortalIntents.Where(x => x.PracticeClientId == own.ClientId).ToListAsync());
+    }
+
+    foreach (var foreignProposalReference in new[] { false, true })
+    {
+      await using (var counterfactual = await PgTestSchema.CreateAsync())
+        await ExerciseAsync(counterfactual, disablePublicationGuard: true, foreignProposalReference);
+
+      await using (var guarded = await PgTestSchema.CreateAsync())
+        await ExerciseAsync(guarded, disablePublicationGuard: false, foreignProposalReference);
+    }
+  }
+
+  [Fact]
+  public async Task NativeEngagementActivationGuardRejectsForeignFirmEngagementParent()
+  {
+    static async Task<EngagementActivationReceipt> ActivateAsync(AuditSphereDbContext db, PbcSeed.Fixture fixture)
+    {
+      await EngagementActivationReviewSeed.PopulateAsync(db, fixture);
+      var actor = PbcSeed.Actor(fixture.Staff, "Partner");
+      var state = await EngagementActivationWorkspace.StateAsync(db, actor, fixture.EngagementId);
+      Assert.True(state.Succeeded, state.Message);
+      Assert.True(state.Value!.Eligible);
+      var request = new EngagementActivationRequest(Guid.CreateVersion7(), state.Value.ReviewBasis);
+      var preview = await EngagementActivationWorkspace.PreviewAsync(db, actor, fixture.EngagementId, request);
+      Assert.True(preview.Succeeded, preview.Message);
+      request = request with { Reviewed = true, ExpectedRequestHash = preview.Value!.RequestHash };
+      var activated = await EngagementActivationWorkspace.ExecuteAsync(db, actor, fixture.EngagementId, request);
+      Assert.True(activated.Succeeded, activated.Message);
+      return activated.Value!;
+    }
+
+    static async Task ExerciseAsync(PgTestSchema pg, bool disableScopeGuard)
+    {
+      var own = await PbcSeed.SeedAsync(pg);
+      var foreign = await PbcSeed.SeedAsync(pg);
+      Guid sourceId;
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var ownReceipt = await ActivateAsync(db, own);
+        var foreignReceipt = await ActivateAsync(db, foreign);
+        Assert.Equal(own.EngagementId, ownReceipt.EngagementId);
+        Assert.Equal(foreign.EngagementId, foreignReceipt.EngagementId);
+        sourceId = ownReceipt.Id;
+      }
+
+      if (disableScopeGuard)
+        await using (var db = new AuditSphereDbContext(pg.Options))
+          await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE engagement_activations DISABLE TRIGGER native_engagement_activation_scope_guard");
+
+      var forgedId = Guid.CreateVersion7();
+      await using var connection = new NpgsqlConnection(pg.ConnectionString);
+      await connection.OpenAsync();
+      await using (var transaction = await connection.BeginTransactionAsync())
+      {
+        await using var insert = new NpgsqlCommand("""
+          INSERT INTO engagement_activations
+          SELECT (jsonb_populate_record(NULL::engagement_activations, to_jsonb(a) || jsonb_build_object(
+            'id', @id, 'request_id', @request_id, 'engagement_id', @engagement_id))).*
+          FROM engagement_activations a WHERE a.id = @source_id
+          """, connection, transaction);
+        insert.Parameters.AddWithValue("id", forgedId);
+        insert.Parameters.AddWithValue("request_id", Guid.CreateVersion7());
+        insert.Parameters.AddWithValue("engagement_id", foreign.EngagementId);
+        insert.Parameters.AddWithValue("source_id", sourceId);
+        Assert.Equal(1, await insert.ExecuteNonQueryAsync());
+
+        if (disableScopeGuard)
+        {
+          await transaction.CommitAsync();
+          await using var accepted = new AuditSphereDbContext(pg.Options);
+          var receipt = await accepted.EngagementActivations.AsNoTracking().SingleAsync(x => x.Id == forgedId);
+          Assert.Equal(own.FirmId, receipt.FirmId);
+          Assert.Equal(foreign.EngagementId, receipt.EngagementId);
+          Assert.Equal(foreign.FirmId, await accepted.Engagements.Where(x => x.Id == receipt.EngagementId)
+            .Select(x => x.FirmId).SingleAsync());
+          Assert.NotEqual(receipt.FirmId, foreign.FirmId);
+          return;
+        }
+
+        var refusal = await Assert.ThrowsAsync<PostgresException>(() => transaction.CommitAsync());
+        // RAISE EXCEPTION without an explicit ERRCODE uses PostgreSQL's default P0001.
+        Assert.Equal("P0001", refusal.SqlState);
+        Assert.Equal("Native activation requires the exact current scoped activation and accepted decision", refusal.MessageText);
+      }
+
+      await using var persisted = new AuditSphereDbContext(pg.Options);
+      Assert.False(await persisted.EngagementActivations.AnyAsync(x => x.Id == forgedId));
+      Assert.Single(await persisted.EngagementActivations.Where(x => x.EngagementId == own.EngagementId).ToListAsync());
+      Assert.Single(await persisted.EngagementActivations.Where(x => x.EngagementId == foreign.EngagementId).ToListAsync());
+    }
+
+    await using (var counterfactual = await PgTestSchema.CreateAsync())
+      await ExerciseAsync(counterfactual, disableScopeGuard: true);
+
+    await using (var guarded = await PgTestSchema.CreateAsync())
+      await ExerciseAsync(guarded, disableScopeGuard: false);
+  }
+
+  [Fact]
+  public async Task EngagementCreationPublicationGuardRejectsForeignFirmEngagementParent()
+  {
+    static async Task<EngagementCreationReceipt> CreateAsync(AuditSphereDbContext db, PbcSeed.Fixture fixture)
+    {
+      await EngagementCreationReviewSeed.PopulateAsync(db, fixture);
+      var actor = PbcSeed.Actor(fixture.Staff, "Manager");
+      var state = await EngagementCreationWorkspace.StateAsync(db, actor, fixture.ClientId);
+      Assert.True(state.Succeeded, state.Message);
+      var request = new EngagementCreationRequest(Guid.CreateVersion7(), state.Value!.ReviewBasis,
+        new EngagementCreationFields("AccountingOnly", "SYNTHETIC", "2027-01-01", "2027-12-31"));
+      var preview = await EngagementCreationWorkspace.PreviewAsync(db, actor, fixture.ClientId, request);
+      Assert.True(preview.Succeeded, preview.Message);
+      var created = await EngagementCreationWorkspace.ExecuteAsync(db, actor, fixture.ClientId,
+        request with { Reviewed = true, ExpectedRequestHash = preview.Value!.RequestHash });
+      Assert.True(created.Succeeded, created.Message);
+      return created.Value!;
+    }
+
+    static async Task ExerciseAsync(PgTestSchema pg, bool disablePublicationGuard)
+    {
+      var own = await PbcSeed.SeedAsync(pg);
+      var foreign = await PbcSeed.SeedAsync(pg);
+      EngagementCreationReceipt ownReceipt;
+      EngagementCreationReceipt foreignReceipt;
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        ownReceipt = await CreateAsync(db, own);
+        foreignReceipt = await CreateAsync(db, foreign);
+      }
+      Assert.NotEqual(own.FirmId, foreign.FirmId);
+      var ownNative = await ReadReceiptAsync(pg, ownReceipt.Id);
+      var foreignNative = await ReadReceiptAsync(pg, foreignReceipt.Id);
+      Assert.Equal(own.FirmId, ownNative.FirmId);
+      Assert.Equal(own.ClientId, ownNative.ClientId);
+      Assert.Equal(ownReceipt.EngagementId, ownNative.EngagementId);
+      Assert.Equal(foreign.FirmId, foreignNative.FirmId);
+      Assert.Equal(foreign.ClientId, foreignNative.ClientId);
+      Assert.Equal(foreignReceipt.EngagementId, foreignNative.EngagementId);
+
+      var forgedId = Guid.CreateVersion7();
+      await using var connection = new NpgsqlConnection(pg.ConnectionString);
+      await connection.OpenAsync();
+      await using var transaction = await connection.BeginTransactionAsync();
+      if (disablePublicationGuard)
+      {
+        await using var disable = new NpgsqlCommand(
+          "ALTER TABLE engagement_creations DISABLE TRIGGER engagement_creation_publication_guard", connection, transaction);
+        await disable.ExecuteNonQueryAsync();
+      }
+
+      await using (var insert = new NpgsqlCommand("""
+        INSERT INTO engagement_creations
+        SELECT (jsonb_populate_record(NULL::engagement_creations, to_jsonb(c) || jsonb_build_object(
+          'id', @id, 'request_id', @request_id, 'engagement_id', @engagement_id))).*
+        FROM engagement_creations c WHERE c.id = @source_id
+        """, connection, transaction))
+      {
+        insert.Parameters.AddWithValue("id", forgedId);
+        insert.Parameters.AddWithValue("request_id", Guid.CreateVersion7());
+        insert.Parameters.AddWithValue("engagement_id", foreignReceipt.EngagementId);
+        insert.Parameters.AddWithValue("source_id", ownReceipt.Id);
+        Assert.Equal(1, await insert.ExecuteNonQueryAsync());
+      }
+
+      if (disablePublicationGuard)
+      {
+        // The counterfactual is confined to this disposable test database. The global FK alone
+        // accepts the foreign engagement; the deferred publication guard supplies the scope rule.
+        await transaction.CommitAsync();
+        await using var accepted = new AuditSphereDbContext(pg.Options);
+        var receipt = await accepted.EngagementCreations.AsNoTracking().SingleAsync(x => x.Id == forgedId);
+        Assert.Equal(own.FirmId, receipt.FirmId);
+        Assert.Equal(foreignReceipt.EngagementId, receipt.EngagementId);
+        Assert.Equal(foreign.FirmId, await accepted.Engagements.Where(x => x.Id == receipt.EngagementId)
+          .Select(x => x.FirmId).SingleAsync());
+        Assert.NotEqual(receipt.FirmId, foreign.FirmId);
+        return;
+      }
+
+      var refusal = await Assert.ThrowsAsync<PostgresException>(() => transaction.CommitAsync());
+      Assert.Equal("23514", refusal.SqlState);
+      Assert.Equal("Creation receipt requires exact current scoped blocked publication", refusal.MessageText);
+
+      await using var persisted = new AuditSphereDbContext(pg.Options);
+      Assert.False(await persisted.EngagementCreations.AnyAsync(x => x.Id == forgedId));
+      Assert.Equal(2, await persisted.EngagementCreations.CountAsync());
+      Assert.Equal(ownReceipt.EngagementId, (await ReadReceiptAsync(pg, ownReceipt.Id)).EngagementId);
+      Assert.Equal(foreignReceipt.EngagementId, (await ReadReceiptAsync(pg, foreignReceipt.Id)).EngagementId);
+    }
+
+    static async Task<EngagementCreation> ReadReceiptAsync(PgTestSchema pg, Guid id)
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      return await db.EngagementCreations.AsNoTracking().SingleAsync(x => x.Id == id);
+    }
+
+    await using (var counterfactual = await PgTestSchema.CreateAsync())
+      await ExerciseAsync(counterfactual, disablePublicationGuard: true);
+
+    await using (var guarded = await PgTestSchema.CreateAsync())
+      await ExerciseAsync(guarded, disablePublicationGuard: false);
+  }
+
+  [Theory]
+  [InlineData("client")]
+  [InlineData("contact")]
+  public async Task ClientPortalIntentRequiresItsExactFirmAndClientContact(string foreignParent)
+  {
+    static async Task<(Guid ClientId, Guid IntentId, Guid ContactId, string RecipientEmail)> ConvertAsync(
+      AuditSphereDbContext db, PbcSeed.Fixture fixture, string legalName)
+    {
+      var proposalId = await ClientConversionReviewSeed.PopulateAsync(db, fixture);
+      var actor = PbcSeed.Actor(fixture.Admin, "Administrator");
+      var request = new ClientConversionRequest(Guid.CreateVersion7(), new ClientConversionFields(legalName));
+      var preview = await ClientConversionWorkspace.PreviewAsync(db, actor, proposalId, request);
+      Assert.True(preview.Succeeded, preview.Message);
+      Assert.Null(preview.Value!.ExistingClientId);
+      request = request with { Reviewed = true, RequestHash = preview.Value.RequestHash, ReviewBasis = preview.Value.ReviewBasis };
+      var converted = await ClientConversionWorkspace.ExecuteAsync(db, actor, proposalId, request);
+      Assert.True(converted.Succeeded, converted.Message);
+      var receipt = converted.Value!;
+      var intent = await db.ClientPortalIntents.AsNoTracking().SingleAsync(x =>
+        x.FirmId == fixture.FirmId && x.PracticeClientId == receipt.ClientId);
+      return (receipt.ClientId, intent.Id, intent.ClientContactId, intent.RecipientEmail);
+    }
+
+    Assert.Contains(foreignParent, new[] { "client", "contact" });
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    Guid ownClientId;
+    Guid ownIntentId;
+    Guid ownContactId;
+    string ownRecipientEmail;
+    Guid foreignClientId;
+    Guid foreignContactId;
+    string foreignRecipientEmail;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      (ownClientId, ownIntentId, ownContactId, ownRecipientEmail) = await ConvertAsync(db, own, "PORTAL SCOPE OWN CLIENT");
+      (foreignClientId, _, foreignContactId, foreignRecipientEmail) = await ConvertAsync(db, foreign, "PORTAL SCOPE FOREIGN CLIENT");
+      Assert.NotEqual(own.FirmId, foreign.FirmId);
+      Assert.NotEqual(ownClientId, foreignClientId);
+      Assert.Equal(own.FirmId, await db.ClientContacts.Where(x => x.Id == ownContactId).Select(x => x.FirmId).SingleAsync());
+      Assert.Equal(ownClientId, await db.ClientContacts.Where(x => x.Id == ownContactId).Select(x => x.PracticeClientId).SingleAsync());
+      Assert.Equal(foreign.FirmId, await db.ClientContacts.Where(x => x.Id == foreignContactId).Select(x => x.FirmId).SingleAsync());
+      Assert.Equal(foreignClientId, await db.ClientContacts.Where(x => x.Id == foreignContactId).Select(x => x.PracticeClientId).SingleAsync());
+
+      if (foreignParent == "contact")
+      {
+        foreignRecipientEmail = "firm-b-contact@example.test";
+        await db.ClientContacts.Where(x => x.Id == foreignContactId)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.Email, foreignRecipientEmail));
+      }
+
+      await using var transaction = await db.Database.BeginTransactionAsync();
+      var refusal = await Record.ExceptionAsync(async () =>
+      {
+        if (foreignParent == "client")
+          await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE client_portal_intents SET practice_client_id = {foreignClientId} WHERE id = {ownIntentId}");
+        else
+          await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE client_portal_intents SET client_contact_id = {foreignContactId}, recipient_email = {foreignRecipientEmail} WHERE id = {ownIntentId}");
+      });
+
+      if (refusal is not null)
+      {
+        var postgres = Assert.IsType<PostgresException>(refusal);
+        Assert.Equal("23503", postgres.SqlState);
+        Assert.Equal("fk_client_portal_intents_contact_scope", postgres.ConstraintName);
+        await transaction.RollbackAsync();
+      }
+      else
+      {
+        await transaction.CommitAsync();
+        await using var accepted = new AuditSphereDbContext(pg.Options);
+        var row = await accepted.ClientPortalIntents.AsNoTracking().SingleAsync(x => x.Id == ownIntentId);
+        if (foreignParent == "client")
+        {
+          Assert.Equal(own.FirmId, row.FirmId);
+          Assert.Equal(foreignClientId, row.PracticeClientId);
+          Assert.Equal(foreign.FirmId, await accepted.PracticeClients.Where(x => x.Id == row.PracticeClientId)
+            .Select(x => x.FirmId).SingleAsync());
+        }
+        else
+        {
+          Assert.Equal(ownClientId, row.PracticeClientId);
+          Assert.Equal(foreignContactId, row.ClientContactId);
+          var workspace = await WorkspaceQuery.ClientAsync(accepted, PbcSeed.Actor(own.Admin, "Administrator"), ownClientId);
+          Assert.True(workspace.Succeeded, workspace.Message);
+          Assert.Equal(foreignRecipientEmail, workspace.Value!.PortalIntent!.RecipientEmail);
+          output.WriteLine($"Accepted contact-scope counterfactual exposed recipient {workspace.Value.PortalIntent.RecipientEmail} through the own-client workspace.");
+        }
+        Assert.Fail("The database accepted a client portal intent parent from the wrong firm or client.");
+      }
+    }
+
+    await using var persisted = new AuditSphereDbContext(pg.Options);
+    var ownIntent = await persisted.ClientPortalIntents.AsNoTracking().SingleAsync(x => x.Id == ownIntentId);
+    Assert.Equal(own.FirmId, ownIntent.FirmId);
+    Assert.Equal(ownClientId, ownIntent.PracticeClientId);
+    Assert.Equal(ownContactId, ownIntent.ClientContactId);
+    Assert.Equal(ownRecipientEmail, ownIntent.RecipientEmail);
+    Assert.Equal(2, await persisted.ClientPortalIntents.CountAsync());
+    var currentWorkspace = await WorkspaceQuery.ClientAsync(persisted, PbcSeed.Actor(own.Admin, "Administrator"), ownClientId);
+    Assert.True(currentWorkspace.Succeeded, currentWorkspace.Message);
+    Assert.Equal(ownRecipientEmail, currentWorkspace.Value!.PortalIntent!.RecipientEmail);
+    Assert.Equal("AWAITING_ACCEPTANCE", currentWorkspace.Value.PortalIntent.State);
+    Assert.False(currentWorkspace.Value.PortalIntent.ContactHasClientAccess);
+  }
+
+  [Fact]
+  public async Task ClientPortalIntentScopeUpgradeAndRollbackPreserveHistoryAndRejectInvalidLink()
+  {
+    const string previousMigration = "20261031182610_EqrDecisionHistory";
+    const string scopeMigration = "20261101024300_ClientPortalIntentContactScope";
+
+    static async Task<(Guid ClientId, Guid IntentId, Guid ContactId, string RecipientEmail)> ConvertAsync(
+      AuditSphereDbContext db, PbcSeed.Fixture fixture, string legalName)
+    {
+      var proposalId = await ClientConversionReviewSeed.PopulateAsync(db, fixture);
+      var actor = PbcSeed.Actor(fixture.Admin, "Administrator");
+      var request = new ClientConversionRequest(Guid.CreateVersion7(), new ClientConversionFields(legalName));
+      var preview = await ClientConversionWorkspace.PreviewAsync(db, actor, proposalId, request);
+      Assert.True(preview.Succeeded, preview.Message);
+      request = request with { Reviewed = true, RequestHash = preview.Value!.RequestHash, ReviewBasis = preview.Value.ReviewBasis };
+      var converted = await ClientConversionWorkspace.ExecuteAsync(db, actor, proposalId, request);
+      Assert.True(converted.Succeeded, converted.Message);
+      var receipt = converted.Value!;
+      var intent = await db.ClientPortalIntents.AsNoTracking().SingleAsync(x =>
+        x.FirmId == fixture.FirmId && x.PracticeClientId == receipt.ClientId);
+      return (receipt.ClientId, intent.Id, intent.ClientContactId, intent.RecipientEmail);
+    }
+
+    static async Task<string[]> ReadColumnAsync(PgTestSchema pg, string sql)
+    {
+      await using var connection = new NpgsqlConnection(pg.ConnectionString);
+      await connection.OpenAsync();
+      await using var command = new NpgsqlCommand(sql, connection);
+      await using var reader = await command.ExecuteReaderAsync();
+      var values = new List<string>();
+      while (await reader.ReadAsync()) values.Add(reader.GetString(0));
+      return values.ToArray();
+    }
+
+    static async Task<string> ReadLatestMigrationAsync(PgTestSchema pg)
+    {
+      await using var connection = new NpgsqlConnection(pg.ConnectionString);
+      await connection.OpenAsync();
+      await using var command = new NpgsqlCommand(
+        "SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" ORDER BY \"MigrationId\" DESC LIMIT 1", connection);
+      return (string)(await command.ExecuteScalarAsync())!;
+    }
+
+    static async Task MigrateAsync(PgTestSchema pg, string migration)
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      await db.GetService<IMigrator>().MigrateAsync(migration);
+    }
+
+    await using var pg = await PgTestSchema.CreateAsync(previousMigration);
+    var own = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    Guid ownIntentId;
+    Guid ownContactId;
+    Guid foreignContactId;
+    string ownRecipientEmail;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var ownPortal = await ConvertAsync(db, own, "PORTAL MIGRATION OWN CLIENT");
+      var foreignPortal = await ConvertAsync(db, foreign, "PORTAL MIGRATION FOREIGN CLIENT");
+      ownIntentId = ownPortal.IntentId;
+      ownContactId = ownPortal.ContactId;
+      ownRecipientEmail = ownPortal.RecipientEmail;
+      foreignContactId = foreignPortal.ContactId;
+    }
+
+    Assert.NotEqual(own.FirmId, foreign.FirmId);
+    var retainedRows = await ReadColumnAsync(pg,
+      "SELECT to_jsonb(i)::text FROM client_portal_intents i ORDER BY id");
+    Assert.Equal(2, retainedRows.Length);
+    var originalForeignKeys = await ReadColumnAsync(pg, """
+      SELECT conname || '|' || pg_get_constraintdef(oid)
+      FROM pg_constraint
+      WHERE conrelid = 'client_portal_intents'::regclass AND contype = 'f'
+      ORDER BY conname
+      """);
+    var originalIndexes = await ReadColumnAsync(pg, """
+      SELECT indexname || '|' || indexdef
+      FROM pg_indexes
+      WHERE schemaname = current_schema() AND tablename = 'client_portal_intents'
+      ORDER BY indexname
+      """);
+    Assert.Contains(originalForeignKeys, x => x.StartsWith("FK_client_portal_intents_client_contacts_client_contact_id|", StringComparison.Ordinal));
+    Assert.Contains(originalForeignKeys, x => x.StartsWith("FK_client_portal_intents_practice_clients_practice_client_id|", StringComparison.Ordinal));
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      await db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE client_portal_intents SET client_contact_id = {foreignContactId} WHERE id = {ownIntentId}");
+    var invalidRows = await ReadColumnAsync(pg,
+      "SELECT to_jsonb(i)::text FROM client_portal_intents i ORDER BY id");
+    Assert.NotEqual(retainedRows, invalidRows);
+
+    var refusal = await Assert.ThrowsAsync<PostgresException>(() => MigrateAsync(pg, scopeMigration));
+    Assert.Equal("23503", refusal.SqlState);
+    Assert.Equal("fk_client_portal_intents_contact_scope", refusal.ConstraintName);
+    Assert.Equal(previousMigration, await ReadLatestMigrationAsync(pg));
+    Assert.Equal(invalidRows, await ReadColumnAsync(pg,
+      "SELECT to_jsonb(i)::text FROM client_portal_intents i ORDER BY id"));
+    Assert.Equal(originalForeignKeys, await ReadColumnAsync(pg, """
+      SELECT conname || '|' || pg_get_constraintdef(oid)
+      FROM pg_constraint
+      WHERE conrelid = 'client_portal_intents'::regclass AND contype = 'f'
+      ORDER BY conname
+      """));
+    Assert.Equal(originalIndexes, await ReadColumnAsync(pg, """
+      SELECT indexname || '|' || indexdef
+      FROM pg_indexes
+      WHERE schemaname = current_schema() AND tablename = 'client_portal_intents'
+      ORDER BY indexname
+      """));
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      await db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE client_portal_intents SET client_contact_id = {ownContactId} WHERE id = {ownIntentId}");
+    Assert.Equal(retainedRows, await ReadColumnAsync(pg,
+      "SELECT to_jsonb(i)::text FROM client_portal_intents i ORDER BY id"));
+
+    await MigrateAsync(pg, scopeMigration);
+    Assert.Equal(scopeMigration, await ReadLatestMigrationAsync(pg));
+    Assert.Equal(retainedRows, await ReadColumnAsync(pg,
+      "SELECT to_jsonb(i)::text FROM client_portal_intents i ORDER BY id"));
+    var scopedForeignKeys = await ReadColumnAsync(pg, """
+      SELECT conname || '|' || pg_get_constraintdef(oid)
+      FROM pg_constraint
+      WHERE conrelid = 'client_portal_intents'::regclass AND contype = 'f'
+      ORDER BY conname
+      """);
+    var newScopeForeignKey = Assert.Single(scopedForeignKeys,
+      x => x.StartsWith("fk_client_portal_intents_contact_scope|", StringComparison.Ordinal));
+    Assert.Contains("FOREIGN KEY (firm_id, practice_client_id, client_contact_id) REFERENCES client_contacts(firm_id, practice_client_id, id) ON DELETE RESTRICT", newScopeForeignKey);
+    Assert.Equal(originalForeignKeys, scopedForeignKeys
+      .Where(x => !x.StartsWith("fk_client_portal_intents_contact_scope|", StringComparison.Ordinal)).ToArray());
+    Assert.Equal(originalIndexes, await ReadColumnAsync(pg, """
+      SELECT indexname || '|' || indexdef
+      FROM pg_indexes
+      WHERE schemaname = current_schema() AND tablename = 'client_portal_intents'
+      ORDER BY indexname
+      """));
+
+    await MigrateAsync(pg, previousMigration);
+    Assert.Equal(previousMigration, await ReadLatestMigrationAsync(pg));
+    Assert.Equal(retainedRows, await ReadColumnAsync(pg,
+      "SELECT to_jsonb(i)::text FROM client_portal_intents i ORDER BY id"));
+    Assert.Equal(originalForeignKeys, await ReadColumnAsync(pg, """
+      SELECT conname || '|' || pg_get_constraintdef(oid)
+      FROM pg_constraint
+      WHERE conrelid = 'client_portal_intents'::regclass AND contype = 'f'
+      ORDER BY conname
+      """));
+    Assert.Equal(originalIndexes, await ReadColumnAsync(pg, """
+      SELECT indexname || '|' || indexdef
+      FROM pg_indexes
+      WHERE schemaname = current_schema() AND tablename = 'client_portal_intents'
+      ORDER BY indexname
+      """));
+
+    await MigrateAsync(pg, scopeMigration);
+    await using var migrated = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(retainedRows, await ReadColumnAsync(pg,
+      "SELECT to_jsonb(i)::text FROM client_portal_intents i ORDER BY id"));
+    var ownWorkspace = await WorkspaceQuery.ClientAsync(migrated,
+      PbcSeed.Actor(own.Admin, "Administrator"), (await migrated.ClientPortalIntents
+        .AsNoTracking().SingleAsync(x => x.Id == ownIntentId)).PracticeClientId);
+    Assert.True(ownWorkspace.Succeeded, ownWorkspace.Message);
+    Assert.Equal(ownRecipientEmail, ownWorkspace.Value!.PortalIntent!.RecipientEmail);
+    Assert.NotEqual(foreignContactId, ownContactId);
   }
 
   [Fact]

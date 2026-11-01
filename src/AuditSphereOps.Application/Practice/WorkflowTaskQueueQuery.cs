@@ -295,16 +295,14 @@ public static class WorkflowTaskQueueQuery
         : CommandResult<WorkflowTaskQueue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     var bindingIds = page.Select(x => x.BindingId).ToArray();
-    var unmet = await (from dependency in WorkflowTaskDependencyQuery.Effective(db, actor.FirmId)
-      join predecessor in db.WorkflowTaskBindings.AsNoTracking()
-        on new { dependency.FirmId, dependency.ClientId, dependency.EngagementId, Id = dependency.PredecessorBindingId }
-        equals new { predecessor.FirmId, predecessor.ClientId, predecessor.EngagementId, predecessor.Id }
-      join predecessorTask in db.WorkTasks.AsNoTracking()
-        on new { predecessor.FirmId, WorkTaskId = predecessor.WorkTaskId }
-        equals new { predecessorTask.FirmId, WorkTaskId = predecessorTask.Id }
-      where dependency.FirmId == actor.FirmId && bindingIds.Contains(dependency.SuccessorBindingId) &&
-        predecessorTask.Status != PracticeTimeStates.TaskCompleted
-      select dependency.SuccessorBindingId).ToListAsync(ct);
+    var currentnessResult = await WorkflowTaskCurrentnessQuery.ForBindingsAsync(db, actor.FirmId,
+      page.ToDictionary(x => x.BindingId, x => x.EngagementId), ct);
+    if (!currentnessResult.Succeeded)
+      return CommandResult<WorkflowTaskQueue>.Fail(currentnessResult.ErrorCode!, currentnessResult.Message!);
+    var currentness = currentnessResult.Value!;
+    var unmet = currentness.Dependencies.Where(dependency => bindingIds.Contains(dependency.SuccessorBindingId) &&
+        !currentness.CurrentCompletedBindingIds.Contains(dependency.PredecessorBindingId))
+      .Select(dependency => dependency.SuccessorBindingId).ToArray();
     var unmetByBinding = unmet.GroupBy(x => x).ToDictionary(x => x.Key, x => x.Count());
     var completedPageIds = page.Where(x => x.Status == PracticeTimeStates.TaskCompleted).Select(x => x.BindingId).ToArray();
     var completedDependents = completedPageIds.Length == 0 ? [] : (await (
@@ -318,9 +316,7 @@ public static class WorkflowTaskQueueQuery
       where dependency.FirmId == actor.FirmId && completedPageIds.Contains(dependency.PredecessorBindingId) &&
         successorTask.Status == PracticeTimeStates.TaskCompleted
       select dependency.PredecessorBindingId).Distinct().ToListAsync(ct)).ToHashSet();
-    var evidenceBindings = await db.WorkflowTaskBindings.AsNoTracking().Where(x =>
-      x.FirmId == actor.FirmId && bindingIds.Contains(x.Id)).ToListAsync(ct);
-    var evidence = await WorkflowTaskEvidenceQuery.EvaluateManyAsync(db, actor.FirmId, evidenceBindings, ct);
+    var evidence = currentness.EvidenceBySeed;
     var assigneeIds = page.Where(x => x.AssigneeUserId.HasValue).Select(x => x.AssigneeUserId!.Value).Distinct().ToArray();
     var assignees = assigneeIds.Length == 0 ? new Dictionary<Guid, string>() :
       await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && assigneeIds.Contains(x.Id))

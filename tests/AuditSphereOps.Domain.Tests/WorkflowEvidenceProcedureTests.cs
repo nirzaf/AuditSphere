@@ -110,5 +110,32 @@ public sealed class WorkflowEvidenceProcedureTests
     // Current readiness changes; the retained operational completion history is not rewritten.
     Assert.Equal(3, await db.WorkTasks.AsNoTracking().CountAsync(x => completedTasks.Contains(x.Id) &&
       x.Status == PracticeTimeStates.TaskCompleted));
+
+    // A completed task does not satisfy a new successor when one of its own required prerequisites is stale.
+    var successor = await EngagementWorkflowTaskService.CreateAsync(db, manager, f.EngagementId,
+      new("Continue after current prerequisites", WorkflowTaskPhases.AuditPlanning, 4, IdempotencyKey: Guid.NewGuid()));
+    Assert.True(successor.Succeeded, successor.Message);
+    var completedPredecessor = completedTasks[^1];
+    var completedPredecessorRevision = await db.WorkflowTaskBindings.AsNoTracking()
+      .Where(x => x.WorkTaskId == completedPredecessor).Select(x => x.Revision).SingleAsync();
+    var dependency = await PracticeTimeService.ChangeWorkflowDependencyAsync(db, manager, f.EngagementId, successor.Value,
+      new(completedPredecessor, true, 1, completedPredecessorRevision,
+        "Continue only after the full prerequisite chain remains current.", Guid.NewGuid()));
+    Assert.True(dependency.Succeeded, dependency.Message);
+
+    var queueRow = Assert.Single((await WorkflowTaskQueueQuery.GetAsync(db, manager, new("TEAM"))).Value!.Tasks,
+      x => x.TaskId == successor.Value);
+    Assert.False(queueRow.CanComplete);
+    Assert.Equal(1, queueRow.UnmetTaskDependencies);
+    var workspaceRow = Assert.Single((await EngagementWorkflowTaskService.GetAsync(db, manager, f.EngagementId,
+      successor.Value)).Value!.Tasks);
+    Assert.False(workspaceRow.CanComplete);
+    Assert.Equal(1, workspaceRow.UnmetTaskDependencies);
+    Assert.Equal(ErrorCodes.GateBlocked,
+      (await EngagementWorkflowTaskService.CompleteAsync(db, manager, successor.Value, dependency.Value!.TaskRevision)).ErrorCode);
+    Assert.Equal(PracticeTimeStates.TaskOpen,
+      await db.WorkTasks.AsNoTracking().Where(x => x.Id == successor.Value).Select(x => x.Status).SingleAsync());
+    Assert.Equal(3, await db.WorkTasks.AsNoTracking().CountAsync(x => completedTasks.Contains(x.Id) &&
+      x.Status == PracticeTimeStates.TaskCompleted));
   }
 }
