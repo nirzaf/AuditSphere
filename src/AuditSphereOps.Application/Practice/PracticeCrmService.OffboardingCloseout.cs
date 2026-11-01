@@ -78,6 +78,11 @@ public static partial class PracticeCrmService
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<ClientOffboardingCloseoutResult>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
 
+    // A role mutation that committed while the RepeatableRead firm lock waited must not
+    // remain hidden in that snapshot. The user lock fences session-epoch changes (or
+    // PostgreSQL refuses the stale snapshot), as in the existing CRM publication paths.
+    await db.Users.FromSqlInterpolated(
+      $"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor, gate, ct);
     if (!auth.Succeeded)
       return CommandResult<ClientOffboardingCloseoutResult>.Fail(auth.ErrorCode!, auth.Message!);

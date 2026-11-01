@@ -69,6 +69,12 @@ export class ClientOffboardingReadiness {
   private request?: Subscription;
   private closeoutRequest?: Subscription;
   private revision = 0;
+  private readinessContext: string | null = null;
+  private currentContext(): string {
+    const session = this.session.current();
+    return JSON.stringify([this.clientId()?.toLowerCase(), session?.firmId, session?.userId,
+      session?.generation, session?.staff, this.session.invalidation()]);
+  }
   private storageKey(id: string): string | null {
     const session = this.session.current();
     return session?.staff ? 'auditsphere-offboarding-pending-v1:' + session.firmId.toLowerCase() + ':' + session.userId.toLowerCase() + ':' + id : null;
@@ -108,6 +114,7 @@ export class ClientOffboardingReadiness {
     this.revision++;
     this.request?.unsubscribe();
     this.closeoutRequest?.unsubscribe();
+    this.readinessContext = null;
     this.result.set(null); this.error.set(''); this.loading.set(false);
     this.closeoutLoading.set(false); this.closeoutSuccess.set(false);
     this.dispositionNotes = '';
@@ -117,22 +124,23 @@ export class ClientOffboardingReadiness {
   load(): void {
     const id = this.clientId()?.toLowerCase();
     if (!id || !guidPattern.test(id) || this.loading() || this.closeoutLoading() || !this.session.current()?.staff) return;
-    const revision = ++this.revision;
+    const revision = ++this.revision, context = this.currentContext();
     this.loading.set(true); this.error.set('');
     this.request?.unsubscribe();
     this.request = this.http.get<unknown>(`/api/ui/clients/${id}/offboarding-readiness`).pipe(timeout(30000)).subscribe({
       next: (value) => {
-        if (revision !== this.revision) return;
+        if (revision !== this.revision || context !== this.currentContext()) return;
         this.loading.set(false);
         try {
           const decoded = decodeOffboardingReadiness(value);
           if (decoded.clientId.toLowerCase() !== id) throw new Error('Unexpected client');
+          this.readinessContext = context;
           this.result.set(decoded);
           this.readPending(id);
         } catch { this.result.set(null); this.error.set('The server returned an unsupported readiness response. Refresh to try again.'); }
       },
       error: () => {
-        if (revision !== this.revision) return;
+        if (revision !== this.revision || context !== this.currentContext()) return;
         this.loading.set(false); this.result.set(null);
         this.error.set('Offboarding readiness is unavailable for your current access. Nothing was changed.');
       },
@@ -141,9 +149,9 @@ export class ClientOffboardingReadiness {
 
   async recordCloseout(r: OffboardingReadiness): Promise<void> {
     const id = this.clientId()?.toLowerCase();
-    const notes = this.dispositionNotes.trim();
+    const notes = this.dispositionNotes.trim(), context = this.currentContext();
     if (!id || !guidPattern.test(id) || r !== this.result() || r.clientId.toLowerCase() !== id ||
-        this.closeoutLoading() || this.pendingUnavailable || !notes || notes.length > 2000) return;
+        this.readinessContext !== context || this.closeoutLoading() || this.pendingUnavailable || !notes || notes.length > 2000) return;
     const key = this.storageKey(id);
     if (!key) return;
     const revision = this.revision;
@@ -159,10 +167,10 @@ export class ClientOffboardingReadiness {
           requestKey: crypto.randomUUID(), notesHash: await offboardingNotesHash(salt, notes), salt,
           isArchived: r.isArchived, overallState: r.overallState };
       } else if (await offboardingNotesHash(intent.salt, notes) !== intent.notesHash) {
-        if (revision === this.revision) this.error.set('The notes differ from the original review. Re-enter the original notes.');
+        if (revision === this.revision && context === this.currentContext()) this.error.set('The notes differ from the original review. Re-enter the original notes.');
         return;
       }
-      if (revision !== this.revision || key !== this.storageKey(id) || r !== this.result()) return;
+      if (revision !== this.revision || context !== this.currentContext() || key !== this.storageKey(id) || r !== this.result()) return;
       if (activeOffboardingRequests.has(key)) {
         this.error.set('The original review request is still in flight. Wait before retrying.');
         return;
@@ -180,13 +188,13 @@ export class ClientOffboardingReadiness {
       this.pending.set(intent);
       willDispatch = true;
     } catch {
-      if (revision === this.revision) this.error.set('The recovery reference could not be saved. No review was sent.');
+      if (revision === this.revision && context === this.currentContext()) this.error.set('The recovery reference could not be saved. No review was sent.');
       return;
     } finally {
       if (claimed && !willDispatch) activeOffboardingRequests.delete(key);
-      if (revision === this.revision) this.closeoutLoading.set(false);
+      if (revision === this.revision && context === this.currentContext()) this.closeoutLoading.set(false);
     }
-    if (!intent || revision !== this.revision) { if (claimed) activeOffboardingRequests.delete(key); return; }
+    if (!intent || revision !== this.revision || context !== this.currentContext()) { if (claimed) activeOffboardingRequests.delete(key); return; }
     const original = intent;
     this.closeoutLoading.set(true);
     this.closeoutRequest?.unsubscribe();
@@ -195,7 +203,7 @@ export class ClientOffboardingReadiness {
       archiveClientOnCloseout: false, expectedReadinessDigest: original.readinessDigest, requestKey: original.requestKey
     }).pipe(timeout(30000), finalize(() => activeOffboardingRequests.delete(key))).subscribe({
       next: (res) => {
-        if (revision !== this.revision || key !== this.storageKey(id)) return;
+        if (revision !== this.revision || context !== this.currentContext() || key !== this.storageKey(id)) return;
         this.closeoutLoading.set(false);
         const receipt = res as {
           recordId?: unknown; clientId?: unknown; status?: unknown; readinessDigest?: unknown;
@@ -220,9 +228,10 @@ export class ClientOffboardingReadiness {
         }
       },
       error: (err: unknown) => {
-        if (revision !== this.revision || key !== this.storageKey(id)) return;
+        if (revision !== this.revision || context !== this.currentContext() || key !== this.storageKey(id)) return;
         this.closeoutLoading.set(false);
-        if (!recovering && err instanceof HttpErrorResponse && err.status >= 400 && err.status < 500 && err.status !== 408) {
+        if (!recovering && err instanceof HttpErrorResponse && [400, 409].includes(err.status) &&
+            ['crm.invalid', 'gate.blocked', 'generation.stale'].includes(err.error?.code)) {
           try {
             if (sessionStorage.getItem(key) !== JSON.stringify(original)) throw new Error('Recovery reference changed');
             sessionStorage.removeItem(key); this.pending.set(null);

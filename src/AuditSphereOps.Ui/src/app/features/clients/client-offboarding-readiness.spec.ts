@@ -53,7 +53,7 @@ describe('client offboarding readiness', () => {
       http = TestBed.inject(HttpTestingController);
       TestBed.inject(SessionService).current.set({ userId: clientId, firmId: clientId, generation: '1', staff: true });
     });
-    afterEach(() => { http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); sessionStorage.clear(); });
+    afterEach(() => { http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); sessionStorage.clear(); vi.restoreAllMocks(); });
 
     it('loads only on request, shows unreadable evidence as Unknown, and clears when the client changes', () => {
       const fixture = TestBed.createComponent(ClientOffboardingReadiness);
@@ -295,6 +295,37 @@ describe('client offboarding readiness', () => {
         isArchived: false, archiveRevision: '0', requestKey: request.request.body.requestKey });
       expect(component.closeoutSuccess()).toBe(false);
       expect(JSON.parse(sessionStorage.getItem(key)!).requestKey).toBe(otherId);
+    });
+    it.each([
+      { status: 429, error: {}, retained: true },
+      { status: 409, error: {}, retained: true },
+      { status: 409, error: { code: 'generation.stale' }, retained: false },
+    ])('clears only an authoritative first-attempt rejection ($status, $retained)', async ({ status, error, retained }) => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId); fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.load(); http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      component.dispositionNotes = 'Original notes'; await component.recordCloseout(component.result()!);
+      http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`).flush(error, { status, statusText: 'Rejected' });
+      expect(component.pending() !== null).toBe(retained);
+      expect(sessionStorage.length).toBe(retained ? 1 : 0);
+    });
+
+    it('fences a session change during hashing before effects reset the displayed readiness', async () => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId); fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.load(); http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      component.dispositionNotes = 'Original notes';
+      let release!: (value: ArrayBuffer) => void;
+      vi.spyOn(crypto.subtle, 'digest').mockImplementationOnce(() => new Promise<ArrayBuffer>(resolve => { release = resolve; }));
+      const command = component.recordCloseout(component.result()!);
+      TestBed.inject(SessionService).invalidation.update(value => value + 1);
+      release(new ArrayBuffer(32)); await command;
+      http.expectNone(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      expect(sessionStorage.length).toBe(0);
+      fixture.detectChanges();
+      expect(component.result()).toBeNull(); expect(component.closeoutLoading()).toBe(false);
     });
   });
 });

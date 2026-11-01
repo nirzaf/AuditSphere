@@ -229,6 +229,63 @@ public sealed class ClientProfileWorkspaceTests
   }
 
   [Fact]
+  public async Task OffboardingCloseout_RefusesEpochRevokedWhileWaitingForFirmFence()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    await using var writer = new AuditSphereDbContext(pg.Options);
+    var manager = PbcSeed.User(f.FirmId, "Staff");
+    var grant = PbcSeed.Grant(f.FirmId, manager, "Manager", f.ClientId);
+    writer.Users.Add(manager); writer.RoleGrants.Add(grant);
+    await writer.SaveChangesAsync();
+    var actor = PbcSeed.Actor(manager, "Manager");
+    await using var reader = new AuditSphereDbContext(pg.Options);
+    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(reader, actor, f.ClientId);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    var invoiceCount = await writer.Invoices.CountAsync();
+    var archiveCount = await writer.ClientLifecycleEvents.CountAsync();
+
+    await using var mutation = await writer.Database.BeginTransactionAsync();
+    await writer.Database.ExecuteSqlInterpolatedAsync(
+      $"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR UPDATE");
+    await reader.Database.OpenConnectionAsync();
+    var readerPid = ((NpgsqlConnection)reader.Database.GetDbConnection()).ProcessID;
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+    var publication = PracticeCrmService.RecordOffboardingCloseoutAsync(reader, actor,
+      new ClientOffboardingCloseoutRequest(f.ClientId, "Reviewed before access revocation.", [], 0,
+        ExpectedReadinessDigest: readiness.Value!.ReadinessDigest, RequestKey: Guid.NewGuid().ToString("D")), deadline.Token);
+    try
+    {
+      // Observe the real server-side wait, not just dispatch: its RepeatableRead snapshot
+      // now predates the epoch mutation that the firm's lock will publish first.
+      await using var observer = new NpgsqlConnection(pg.ConnectionString);
+      await observer.OpenAsync(deadline.Token);
+      await using var blocked = new NpgsqlCommand("SELECT cardinality(pg_blocking_pids(@pid)) > 0", observer);
+      blocked.Parameters.AddWithValue("pid", readerPid);
+      while (!(bool)(await blocked.ExecuteScalarAsync(deadline.Token))!)
+      {
+        Assert.False(publication.IsCompleted, "Closeout must wait for the firm fence before publication.");
+        await Task.Delay(10, deadline.Token);
+      }
+      // Match the persisted effects of RoleAdministrationService's serialized revocation.
+      grant.RevokedAt = DateTimeOffset.UtcNow;
+      manager.SessionEpoch++;
+      await writer.SaveChangesAsync(deadline.Token);
+      await mutation.CommitAsync(deadline.Token);
+      var refused = await Assert.ThrowsAnyAsync<Exception>(() => publication);
+      Assert.Equal(PostgresErrorCodes.SerializationFailure, Assert.IsType<PostgresException>(refused.GetBaseException()).SqlState);
+    }
+    finally
+    {
+      deadline.Cancel();
+      if (writer.Database.CurrentTransaction is not null) await mutation.RollbackAsync();
+    }
+    Assert.Empty(await writer.ClientOffboardingRecords.ToListAsync());
+    Assert.Equal(invoiceCount, await writer.Invoices.CountAsync());
+    Assert.Equal(archiveCount, await writer.ClientLifecycleEvents.CountAsync());
+  }
+
+  [Fact]
   public async Task ClientArchiveIsReversibleSearchableScopedAndAppendOnly()
   {
     await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
