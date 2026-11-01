@@ -329,6 +329,16 @@ export class ConsolidationScopeWorkspace {
         ref.inputHash = await deliverableInputHash(ref.salt, input);
       }
       if (this.destroyed || owner !== this.ownerKey() || this.currentWorkspace() !== workspace || !guard()) return;
+      const intervening = sessionStorage.getItem(key);
+      if (intervening !== null) {
+        this.cmd.uncertain.set(true); this.uncertainScopeId.set(ref.scopeId.toLowerCase());
+        const pending = decodeDeliverableRecovery(JSON.parse(intervening));
+        if (pending && pending.scopeId.toLowerCase() === ref.scopeId.toLowerCase() &&
+            pending.groupId.toLowerCase() === ref.groupId.toLowerCase() && pending.actorId.toLowerCase() === ref.actorId.toLowerCase())
+          this.pendingDeliverable.set(pending);
+        this.cmd.message.set('A previous deliverable request must be recovered before another action.');
+        return;
+      }
       const raw = JSON.stringify(ref);
       sessionStorage.setItem(key, raw);
       if (sessionStorage.getItem(key) !== raw) throw new Error('Recovery reference unavailable');

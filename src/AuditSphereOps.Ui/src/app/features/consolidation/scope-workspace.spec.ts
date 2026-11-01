@@ -459,6 +459,28 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(component.pendingDeliverable()).toBeNull();
   });
 
+  it('does not overwrite another same-tab deliverable reference while preparing an issue', async () => {
+    const raw = workspacePayload({ canIssueDeliverable: true });
+    const { component } = open(raw);
+    const built: ReturnType<typeof decodeGroupDeliverablePage>['items'][number] = {
+      deliverableId: id2, status: 'BUILT', runHash: hash64, deliverableSha256: hash64,
+      createdAt: '2026-10-01T12:00:00Z', createdByUserId: id1, issuedAt: null, issuedByUserId: null,
+      archivedAt: null, archivedByUserId: null, revision: 1,
+    };
+    deliverableResource.data.set({ items: [built], page: 1, pageSize: 100, totalCount: 1 });
+    component.deliverableReleaseKey = 'Reviewed reference';
+    component.setDeliverableReviewed(component.ws.data()!, built, 'issue', true);
+    component.issueDeliverable(component.ws.data()!, built);
+    const existing: DeliverableRecovery = { action: 'build', scopeId: id1, groupId: id2, actorId: actor,
+      requestKey: id3, runId: id3, runHash: hash64, groupRevision: 1, deliverableId: null,
+      deliverableHash: null, revision: 0, salt: null, inputHash: null };
+    const key = 'auditsphere-group-pending-v1:' + id2 + ':' + actor + ':' + id1;
+    sessionStorage.setItem(key, JSON.stringify(existing));
+    await vi.waitFor(() => expect(component.cmd.uncertain()).toBe(true));
+    expect(api.command).not.toHaveBeenCalled();
+    expect(JSON.parse(sessionStorage.getItem(key)!).requestKey).toBe(id3);
+  });
+
   it('shows retained exact artifacts when the current report is stale and pages through history', () => {
     const { fixture, component } = open(workspacePayload({ latestReport: {
       scopeVersionId: id1, runId: id3, runHash: hash64, state: 'STALE', approvedAt: null, lines: []

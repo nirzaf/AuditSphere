@@ -5,7 +5,7 @@
 
 ## Lifecycle audit work in progress (2026-11-01)
 
-REM-08: group build, issue and archive retain actor-scoped tab references and retry the original request after a fresh authorized scope read. Release references and archive reasons are not stored; their salted hashes require re-entry. The two focused recovery suites passed 38/38, including changed input, session and navigation replacement, denial, malformed receipt and issue replay after archival. Browser and exact-source CI verification remain outstanding.
+REM-08: group build, issue and archive retain actor-scoped tab references and retry the original request after a fresh authorized scope read. Release references and archive reasons are not stored; their salted hashes require re-entry. The two focused recovery suites passed 40/40, including changed input, session and navigation replacement, denial, malformed receipt, issue replay after archival and concurrent same-tab reference fencing. Browser and exact-source CI verification remain outstanding.
 
 REM-06: the offboarding UI retains the original scoped request reference and a salted notes hash without storing notes. The focused client-offboarding-readiness.spec.ts passed 7/7, including edited intent, session and navigation replacement, malformed receipt and exact-key retry. Browser and exact-source CI verification remain outstanding.
 

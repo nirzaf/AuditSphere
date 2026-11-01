@@ -160,6 +160,12 @@ export class ClientOffboardingReadiness {
       }
       if (revision !== this.revision || key !== this.storageKey(id) || r !== this.result()) return;
       const raw = JSON.stringify(intent);
+      const existing = sessionStorage.getItem(key);
+      if ((!recovering && existing !== null) || (recovering && existing !== raw)) {
+        this.pendingUnavailable = true;
+        this.error.set('The recovery reference changed. Reload this client and resolve the original request.');
+        return;
+      }
       sessionStorage.setItem(key, raw);
       if (sessionStorage.getItem(key) !== raw) throw new Error('Recovery reference unavailable');
       this.pending.set(intent);

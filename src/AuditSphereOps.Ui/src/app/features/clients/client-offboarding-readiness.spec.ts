@@ -232,5 +232,29 @@ describe('client offboarding readiness', () => {
       expect(component.closeoutSuccess()).toBe(true);
       expect(component.pending()).toBeNull();
     });
+
+    it('does not overwrite a concurrent same-tab review reference', async () => {
+      const first = TestBed.createComponent(ClientOffboardingReadiness);
+      const second = TestBed.createComponent(ClientOffboardingReadiness);
+      first.componentRef.setInput('clientId', clientId);
+      second.componentRef.setInput('clientId', clientId);
+      for (const fixture of [first, second]) {
+        fixture.detectChanges();
+        fixture.componentInstance.load();
+        http.expectOne('/api/ui/clients/' + clientId + '/offboarding-readiness').flush(body());
+      }
+      first.componentInstance.dispositionNotes = 'First review';
+      second.componentInstance.dispositionNotes = 'Second review';
+      await Promise.all([first.componentInstance.recordCloseout(first.componentInstance.result()!),
+        second.componentInstance.recordCloseout(second.componentInstance.result()!)]);
+      const requests = http.match('/api/ui/clients/' + clientId + '/offboarding-closeout');
+      expect(requests).toHaveLength(1);
+      const sent = requests[0].request.body;
+      const blocked = sent.dispositionNotes === 'First review' ? second.componentInstance : first.componentInstance;
+      expect(blocked.error()).toContain('recovery reference changed');
+      requests[0].flush({ recordId: otherId, clientId, status: 'BLOCKED_DECISION', readinessOverallState: 'ACTION_REQUIRED',
+        readinessDigest, dispositionNotes: sent.dispositionNotes, acknowledgedActionItems: [], decidedByUserId: clientId,
+        isArchived: false, archiveRevision: '0', requestKey: sent.requestKey });
+    });
   });
 });
