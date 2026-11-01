@@ -2,15 +2,15 @@
   "name": "auditsphere-ui",
   "version": "0.0.0",
   "scripts": {
-    "ng": "ng",
-    "start": "ng serve",
-    "build": "ng build",
-    "watch": "ng build --watch --configuration development",
-    "test": "ng test",
-    "test:ci": "ng test --watch=false",
-    "lint": "ng lint auditsphere-ui",
+    "ng": "node ./scripts/run-angular-cli.cjs",
+    "start": "node ./scripts/run-angular-cli.cjs serve",
+    "build": "node ./scripts/run-angular-cli.cjs build",
+    "watch": "node ./scripts/run-angular-cli.cjs build --watch --configuration development",
+    "test": "node ./scripts/run-angular-cli.cjs test",
+    "test:ci": "node ./scripts/run-angular-cli.cjs test --watch=false",
+    "lint": "node ./scripts/run-angular-cli.cjs lint auditsphere-ui",
     "lint:files": "eslint --cache --cache-strategy content --cache-location .angular/cache/eslint --max-warnings 0",
-    "lint:ci": "ng lint auditsphere-ui --cache=false --max-warnings=0"
+    "lint:ci": "node ./scripts/run-angular-cli.cjs lint auditsphere-ui --cache=false --max-warnings=0"
   },
   "private": true,
   "packageManager": "npm@11.20.0",

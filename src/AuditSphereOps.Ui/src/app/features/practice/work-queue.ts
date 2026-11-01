@@ -9,7 +9,7 @@ import { SHARED } from '../../core/ui';
 import { SessionService } from '../../core/session';
 import { WorkspaceAvailability } from '../../core/workspace-availability';
 import { QUEUE_DISPLAYS, QueueDisplay, boardColumns, groupedTasks, queueCalendar } from './work-queue-views';
-import { hasUnsupportedQueueContext, parseWorkQueueLocation, type QueueOwner, type QueueView, type WorkQueueLocation } from './work-queue-location';
+import { parseWorkQueueLocation, type QueueOwner, type QueueView, type WorkQueueLocation } from './work-queue-location';
 import { WorkflowTaskDependenciesPanel } from './workflow-task-dependencies';
 import { WorkflowTaskEvidencePanel } from './workflow-task-evidence';
 import { WorkflowTaskApplicabilityPanel } from './workflow-task-applicability';
@@ -71,6 +71,11 @@ const exactCount = (value: unknown, path: string): string => {
   if (typeof value === 'string' && /^(0|[1-9][0-9]{0,18})$/.test(value)) return value;
   throw new Error(`${path}: expected exact count`);
 };
+const contextKey = (value: unknown, path: string): string => {
+  const key = str(64)(value, path);
+  if (!/^[A-F0-9]{64}$/i.test(key)) throw new Error(`${path}: expected queue context key`);
+  return key;
+};
 const summaryShape = obj({ asOfDateUtc: date, counts: arr(obj({ view: str(30), count: exactCount }), 7) });
 /** Complete authorized counts for every work overview view; duplicate, missing or unexpected views are refused. */
 export const decodeQueueSummary = (value: unknown, path: string) => {
@@ -82,7 +87,7 @@ export const decodeQueueSummary = (value: unknown, path: string) => {
 };
 const decodeQueue = obj({
   view: str(30), tasks: arr(queueTask, 100), hasMore: bool,
-  nextCursor: nullable(obj({ dueDate: nullable(date), taskId: guid })),
+  nextCursor: nullable(obj({ dueDate: nullable(date), taskId: guid, contextKey })),
   summary: nullable(decodeQueueSummary),
 });
 type ReminderTaskSelection = { engagementId: string; taskId: string };
@@ -220,7 +225,7 @@ const queueViews: { key: QueueView; label: string }[] = [
       @if (queue.data(); as result) {
         @if (result.summary; as summary) {
           <p>As of {{ summary.asOfDateUtc }} (UTC)</p>
-          <p class="queue-note">Counts cover each default authorized view and may overlap. Assignment filters affect the list below.</p>
+          <p class="queue-note">{{ summaryBasis() }} Counts may overlap. Assignment filters affect the task list below.</p>
           <div class="summary-cards">
             @for (card of summary.cards; track card.key) {
               <button type="button" class="summary-card" [attr.aria-pressed]="selectedView() === card.key" (click)="selectView(card.key)">
@@ -268,6 +273,13 @@ const queueViews: { key: QueueView; label: string }[] = [
     @if (taskAccessCurrent()) {
     @if (queueLocationError()) {
       <p role="alert">{{ queueLocationError() }} <button matButton (click)="resetQueueLocation()">Reset queue filters</button></p>
+    }
+    @if (queueLocationValid() && (clientFilterId() || engagementFilterId())) {
+      <p class="queue-note">Work and overview counts are scoped within the selected client or engagement filters.
+        @if (clientFilterId()) { Client {{ clientFilterId() }}. }
+        @if (engagementFilterId()) { Engagement {{ engagementFilterId() }}. }
+        <button matButton (click)="clearQueueContextFilters()">Clear context filters</button>
+      </p>
     }
     <audit-state [loading]="queue.loading()" [error]="queue.error()" label="work queue" />
     <section aria-label="Saved task receipts">
@@ -756,6 +768,8 @@ export class WorkflowWorkQueue {
   private readonly receiptOrderingPanel = viewChild<WorkflowTaskDependenciesPanel>('receiptOrdering');
   private readonly receiptApplicabilityPanel = viewChild<WorkflowTaskApplicabilityPanel>('receiptApplicability');
   readonly ownerFilter = signal<QueueOwner>('ALL');
+  readonly clientFilterId = signal<string | null>(null);
+  readonly engagementFilterId = signal<string | null>(null);
   readonly views = queueViews;
   readonly displays = QUEUE_DISPLAYS;
   /** How the loaded page is arranged. It never changes which tasks are requested or shown. */
@@ -798,12 +812,14 @@ export class WorkflowWorkQueue {
   private cancellationTrigger: { taskId: string; engagementId: string; action: WorkflowTaskRecoveryAction; element: HTMLButtonElement } | null = null;
   private focusInteraction = 0;
   private workQueueDestroyed = false;
-  private readonly cursor = signal<{ dueDate: string | null; taskId: string } | null>(null);
+  private readonly cursor = signal<{ dueDate: string | null; taskId: string; contextKey: string } | null>(null);
   private readonly reviewCursor = signal<{ submittedAt: string; resultId: string } | null>(null);
   private readonly activityCursor = signal<{ occurredAt: string; activityId: string } | null>(null);
   readonly queue = this.api.resource(() => {
     if (!this.taskAccessCurrent() || !this.queueLocationValid()) return null;
     const params = new URLSearchParams({ view: this.selectedView(), pageSize: '50', includeSummary: 'true' });
+    if (this.clientFilterId()) params.set('clientFilterId', this.clientFilterId()!);
+    if (this.engagementFilterId()) params.set('engagementFilterId', this.engagementFilterId()!);
     if (this.selectedView() !== 'MY_TASKS') {
       if (this.ownerFilter() === 'ME') {
         const user = this.session.current()?.userId;
@@ -815,6 +831,7 @@ export class WorkflowWorkQueue {
     if (after) {
       if (after.dueDate) params.set('afterDueDate', after.dueDate);
       params.set('afterTaskId', after.taskId);
+      params.set('afterContextKey', after.contextKey);
     }
     return `/api/ui/work/tasks?${params.toString()}`;
   }, decodeQueue, 'The work queue is unavailable in your current scope or is not enabled on this server.',
@@ -1133,9 +1150,7 @@ export class WorkflowWorkQueue {
     const location = parseWorkQueueLocation(params);
     if (!location) {
       this.queueLocationValid.set(false);
-      this.queueLocationError.set(hasUnsupportedQueueContext(params)
-        ? 'Client and engagement queue filters are not supported yet. Reset queue filters to open the default view.'
-        : 'This queue link has invalid filters. Reset them to open the default view.');
+      this.queueLocationError.set('This queue link has invalid filters. Reset them to open the default view.');
       this.cursor.set(null);
       this.clearSettledPanels(); this.clearSettledCancellation();
       return;
@@ -1144,31 +1159,36 @@ export class WorkflowWorkQueue {
   }
 
   private applyQueueLocation(location: WorkQueueLocation): void {
-    if (location.view !== this.selectedView() || location.owner !== this.ownerFilter()) {
+    if (location.view !== this.selectedView() || location.owner !== this.ownerFilter() ||
+        location.clientFilterId !== this.clientFilterId() || location.engagementFilterId !== this.engagementFilterId()) {
       this.cursor.set(null);
       this.clearSettledPanels(); this.clearSettledCancellation();
     }
     this.selectedView.set(location.view);
     this.ownerFilter.set(location.owner);
     this.display.set(location.display);
+    this.clientFilterId.set(location.clientFilterId);
+    this.engagementFilterId.set(location.engagementFilterId);
     this.queueLocationError.set('');
     this.queueLocationValid.set(true);
   }
 
-  private navigateQueueLocation(location: WorkQueueLocation, resetContext = false): void {
+  private navigateQueueLocation(location: WorkQueueLocation): void {
     if (!this.queueLocationPending && this.queueLocationValid() && this.selectedView() === location.view &&
-        this.ownerFilter() === location.owner && this.display() === location.display) return;
+        this.ownerFilter() === location.owner && this.display() === location.display &&
+        this.clientFilterId() === location.clientFilterId && this.engagementFilterId() === location.engagementFilterId) return;
     const navigation = ++this.queueLocationNavigation;
     this.queueLocationPending = true;
     void this.router.navigate([], { relativeTo: this.route, queryParamsHandling: 'merge', preserveFragment: true,
       queryParams: { queueView: location.view, queueAssignment: location.owner, queueDisplay: location.display,
-        ...(resetContext ? { queueClientId: null, queueEngagementId: null } : {}) } })
+        queueClientId: location.clientFilterId, queueEngagementId: location.engagementFilterId } })
       .then(success => {
         if (this.workQueueDestroyed || navigation !== this.queueLocationNavigation) return;
         this.queueLocationPending = false;
         if (success) return;
         const actual = parseWorkQueueLocation(this.route.snapshot.queryParamMap);
-        if (actual && actual.view === location.view && actual.owner === location.owner && actual.display === location.display) {
+        if (actual && actual.view === location.view && actual.owner === location.owner && actual.display === location.display &&
+            actual.clientFilterId === location.clientFilterId && actual.engagementFilterId === location.engagementFilterId) {
           this.applyQueueLocation(actual);
           return;
         }
@@ -1185,7 +1205,17 @@ export class WorkflowWorkQueue {
   }
 
   resetQueueLocation(): void {
-    this.navigateQueueLocation({ view: 'MY_TASKS', owner: 'ALL', display: 'LIST' }, true);
+    this.navigateQueueLocation({ view: 'MY_TASKS', owner: 'ALL', display: 'LIST', clientFilterId: null, engagementFilterId: null });
+  }
+
+  clearQueueContextFilters(): void {
+    if (!this.queueLocationValid()) return;
+    this.navigateQueueLocation({ ...this.currentQueueLocation(), clientFilterId: null, engagementFilterId: null });
+  }
+
+  private currentQueueLocation(): WorkQueueLocation {
+    return { view: this.selectedView(), owner: this.ownerFilter(), display: this.display(),
+      clientFilterId: this.clientFilterId(), engagementFilterId: this.engagementFilterId() };
   }
 
   private focusReminderTaskHeading(selection: ReminderTaskSelection): void {
@@ -1209,12 +1239,18 @@ export class WorkflowWorkQueue {
     return value.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
+  summaryBasis(): string {
+    return this.clientFilterId() || this.engagementFilterId()
+      ? 'Counts cover each default view within these context filters and your current authorized scope.'
+      : 'Counts cover each default view in your current authorized scope.';
+  }
+
   selectView(value: QueueView): void {
     if (!this.queueLocationValid()) return;
     if (this.selectedView() === value && this.ownerFilter() === 'ALL') {
       this.clearSettledPanels(); this.clearSettledCancellation(); this.cursor.set(null);
     }
-    this.navigateQueueLocation({ view: value, owner: 'ALL', display: this.display() });
+    this.navigateQueueLocation({ ...this.currentQueueLocation(), view: value, owner: 'ALL' });
   }
 
   selectOwnerFilter(value: string): void {
@@ -1222,15 +1258,15 @@ export class WorkflowWorkQueue {
     if (this.ownerFilter() === value) {
       this.clearSettledPanels(); this.clearSettledCancellation(); this.cursor.set(null);
     }
-    this.navigateQueueLocation({ view: this.selectedView(), owner: value as QueueOwner, display: this.display() });
+    this.navigateQueueLocation({ ...this.currentQueueLocation(), owner: value as QueueOwner });
   }
 
   selectDisplay(value: QueueDisplay): void {
     if (!this.queueLocationValid() || !this.displays.some(item => item.key === value)) return;
-    this.navigateQueueLocation({ view: this.selectedView(), owner: this.ownerFilter(), display: value });
+    this.navigateQueueLocation({ ...this.currentQueueLocation(), display: value });
   }
 
-  nextPage(cursor: { dueDate: string | null; taskId: string }): void {
+  nextPage(cursor: { dueDate: string | null; taskId: string; contextKey: string }): void {
     this.clearSettledPanels(); this.clearSettledCancellation();
     this.cursor.set(cursor);
   }

@@ -161,8 +161,8 @@ describe('workflow queue assignment filters', () => {
       flushQueue('/api/ui/work/tasks?view=TEAM&pageSize=50&includeSummary=true', 'TEAM');
       component.selectOwnerFilter('ME'); await fixture.whenStable(); TestBed.tick();
       flushQueue(`/api/ui/work/tasks?view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}`, 'TEAM');
-      component.nextPage({ dueDate: null, taskId: userId }); TestBed.tick();
-      flushQueue(`/api/ui/work/tasks?view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}&afterTaskId=${userId}`, 'TEAM');
+      component.nextPage({ dueDate: null, taskId: userId, contextKey: queueContextKey }); TestBed.tick();
+      flushQueue(`/api/ui/work/tasks?view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}&afterTaskId=${userId}&afterContextKey=${queueContextKey}`, 'TEAM');
       component.selectOwnerFilter('UNASSIGNED'); await fixture.whenStable(); TestBed.tick();
       flushQueue('/api/ui/work/tasks?view=TEAM&pageSize=50&includeSummary=true&unassignedOnly=true', 'TEAM');
       component.selectView('MY_TASKS'); await fixture.whenStable(); TestBed.tick();
@@ -214,6 +214,7 @@ describe('workflow queue assignment filters', () => {
   });
 
   const tasksUrl = (query: string) => `/api/ui/work/tasks?${query}`;
+  const queueContextKey = 'A'.repeat(64);
   const task = {
     taskId: '22222222-2222-4222-8222-222222222222', clientId: '33333333-3333-4333-8333-333333333333', clientName: 'Client A',
     engagementId: '44444444-4444-4444-8444-444444444444', engagementServiceRoute: 'AUDIT', engagementPeriod: 'FY2026',
@@ -744,7 +745,8 @@ describe('workflow queue assignment filters', () => {
       expect(countOf('Due today')).toBe('0');
       expect(host.textContent).toContain('1 assigned to you.');
       expect(overview().textContent).toContain('As of 2026-10-15 (UTC)');
-      expect(overview().textContent).toContain('Counts cover each default authorized view and may overlap. Assignment filters affect the list below.');
+      expect(overview().textContent).toContain('Counts cover each default view in your current authorized scope.');
+      expect(overview().textContent).toContain('Counts may overlap. Assignment filters affect the task list below.');
       expect(card('My tasks').getAttribute('aria-pressed')).toBe('true');
       expect(card('Due today').getAttribute('aria-pressed')).toBe('false');
       for (const item of cards()) {
@@ -769,8 +771,8 @@ describe('workflow queue assignment filters', () => {
       http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true')).flush({ view: 'TEAM', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
       component.selectOwnerFilter('ME'); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}`)).flush({ view: 'TEAM', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
-      component.nextPage({ dueDate: '2026-10-15', taskId: task.taskId }); TestBed.tick();
-      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}&afterDueDate=2026-10-15&afterTaskId=${task.taskId}`))
+      component.nextPage({ dueDate: '2026-10-15', taskId: task.taskId, contextKey: queueContextKey }); TestBed.tick();
+      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}&afterDueDate=2026-10-15&afterTaskId=${task.taskId}&afterContextKey=${queueContextKey}`))
         .flush({ view: 'TEAM', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
       TestBed.tick();
       card('Due today').click(); await fixture.whenStable(); TestBed.tick();
@@ -782,8 +784,8 @@ describe('workflow queue assignment filters', () => {
 
       component.selectOwnerFilter('UNASSIGNED'); await fixture.whenStable(); TestBed.tick();
       http.expectOne(tasksUrl('view=DUE_TODAY&pageSize=50&includeSummary=true&unassignedOnly=true')).flush({ view: 'DUE_TODAY', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
-      component.nextPage({ dueDate: null, taskId: task.taskId }); TestBed.tick();
-      http.expectOne(tasksUrl(`view=DUE_TODAY&pageSize=50&includeSummary=true&unassignedOnly=true&afterTaskId=${task.taskId}`))
+      component.nextPage({ dueDate: null, taskId: task.taskId, contextKey: queueContextKey }); TestBed.tick();
+      http.expectOne(tasksUrl(`view=DUE_TODAY&pageSize=50&includeSummary=true&unassignedOnly=true&afterTaskId=${task.taskId}&afterContextKey=${queueContextKey}`))
         .flush({ view: 'DUE_TODAY', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
       TestBed.tick();
       card('Rework required').click(); await fixture.whenStable(); TestBed.tick();
@@ -2081,59 +2083,104 @@ describe('workflow queue assignment filters', () => {
     router.setUpLocationChangeListener();
     const harness = await RouterTestingHarness.create();
     const reminderUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`;
+    const filterClientId = '11111111-1111-4111-8111-111111111111';
+    const filterEngagementId = '22222222-2222-4222-8222-222222222222';
+    const changedEngagementId = '33333333-3333-4333-8333-333333333333';
     const queueResponse = (view: string) => ({ view, tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
     try {
       const component = await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${task.taskId}` +
-        '&queueView=TEAM&queueAssignment=ME&queueDisplay=BOARD', WorkflowWorkQueue);
+        `&queueView=TEAM&queueAssignment=ME&queueDisplay=BOARD&queueClientId=${filterClientId}&queueEngagementId=${filterEngagementId}`,
+        WorkflowWorkQueue);
       TestBed.tick();
-      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&assigneeUserId=${userId}`)).flush(queueResponse('TEAM'));
+      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&clientFilterId=${filterClientId}` +
+        `&engagementFilterId=${filterEngagementId}&assigneeUserId=${userId}`))
+        .flush({ ...queueResponse('TEAM'), hasMore: true,
+          nextCursor: { dueDate: task.dueDate, taskId: task.taskId, contextKey: queueContextKey } });
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
       http.expectOne(reminderUrl).flush(reminderWorkspace(task.taskId, task.title, task.revision, task.taskStatus));
       TestBed.tick(); harness.fixture.detectChanges();
       expect(component.selectedView()).toBe('TEAM');
       expect(component.ownerFilter()).toBe('ME');
       expect(component.display()).toBe('BOARD');
+      expect(component.clientFilterId()).toBe(filterClientId);
+      expect(component.engagementFilterId()).toBe(filterEngagementId);
       expect(component.reminderTaskSelection()).toEqual({ engagementId: task.engagementId, taskId: task.taskId });
+      expect(harness.routeNativeElement!.textContent).toContain(
+        'Counts cover each default view within these context filters and your current authorized scope.');
+
+      const nextTasks = [...harness.routeNativeElement!.querySelectorAll<HTMLButtonElement>('button')]
+        .find(button => button.textContent?.trim() === 'Next tasks')!;
+      nextTasks.click(); await harness.fixture.whenStable(); TestBed.tick();
+      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&clientFilterId=${filterClientId}` +
+        `&engagementFilterId=${filterEngagementId}&assigneeUserId=${userId}&afterDueDate=${task.dueDate}` +
+        `&afterTaskId=${task.taskId}&afterContextKey=${queueContextKey}`)).flush(queueResponse('TEAM'));
+      await harness.fixture.whenStable();
 
       component.selectDisplay('CALENDAR'); await harness.fixture.whenStable(); TestBed.tick();
       await harness.fixture.whenStable();
       expect(router.parseUrl(router.url).queryParams['queueDisplay']).toBe('CALENDAR');
+      expect(router.parseUrl(router.url).queryParams).toMatchObject({
+        queueClientId: filterClientId, queueEngagementId: filterEngagementId,
+      });
       http.expectNone(request => request.url === '/api/ui/work/tasks');
 
       component.selectOwnerFilter('UNASSIGNED'); await harness.fixture.whenStable(); TestBed.tick();
-      http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true&unassignedOnly=true')).flush({ ...queueResponse('TEAM'), tasks: [] });
+      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&clientFilterId=${filterClientId}` +
+        `&engagementFilterId=${filterEngagementId}&unassignedOnly=true`))
+        .flush({ ...queueResponse('TEAM'), tasks: [] });
       await harness.fixture.whenStable();
-      component.nextPage({ dueDate: null, taskId: task.taskId }); TestBed.tick();
-      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&unassignedOnly=true&afterTaskId=${task.taskId}`))
+      component.nextPage({ dueDate: null, taskId: task.taskId, contextKey: queueContextKey }); TestBed.tick();
+      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&clientFilterId=${filterClientId}` +
+        `&engagementFilterId=${filterEngagementId}&unassignedOnly=true&afterTaskId=${task.taskId}&afterContextKey=${queueContextKey}`))
         .flush({ ...queueResponse('TEAM'), tasks: [] });
       harness.fixture.detectChanges();
 
       const dueToday = [...harness.routeNativeElement!.querySelectorAll<HTMLButtonElement>('button.summary-card')]
         .find(button => button.textContent?.includes('Due today'))!;
       dueToday.click(); await harness.fixture.whenStable(); TestBed.tick();
-      http.expectOne(tasksUrl('view=DUE_TODAY&pageSize=50&includeSummary=true')).flush(queueResponse('DUE_TODAY'));
+      http.expectOne(tasksUrl(`view=DUE_TODAY&pageSize=50&includeSummary=true&clientFilterId=${filterClientId}` +
+        `&engagementFilterId=${filterEngagementId}`)).flush(queueResponse('DUE_TODAY'));
       await harness.fixture.whenStable();
       expect(component.ownerFilter()).toBe('ALL');
       expect(harness.routeNativeElement!.textContent).toContain('As of 2026-10-15 (UTC)');
-      expect(router.parseUrl(router.url).queryParams).toMatchObject({ engagementId: task.engagementId, taskId: task.taskId });
+      expect(router.parseUrl(router.url).queryParams).toMatchObject({ engagementId: task.engagementId, taskId: task.taskId,
+        queueClientId: filterClientId, queueEngagementId: filterEngagementId });
 
       location.back();
       expect(router.parseUrl(location.path()).queryParams).toMatchObject({ queueView: 'TEAM', queueAssignment: 'UNASSIGNED',
-        queueDisplay: 'CALENDAR', engagementId: task.engagementId, taskId: task.taskId });
+        queueDisplay: 'CALENDAR', queueClientId: filterClientId, queueEngagementId: filterEngagementId,
+        engagementId: task.engagementId, taskId: task.taskId });
       await vi.waitFor(() => expect(component.selectedView()).toBe('TEAM'));
       TestBed.tick();
       expect(component.ownerFilter()).toBe('UNASSIGNED');
       expect(component.display()).toBe('CALENDAR');
-      http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true&unassignedOnly=true')).flush({ ...queueResponse('TEAM'), tasks: [] });
+      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&clientFilterId=${filterClientId}` +
+        `&engagementFilterId=${filterEngagementId}&unassignedOnly=true`)).flush({ ...queueResponse('TEAM'), tasks: [] });
       location.forward();
       expect(router.parseUrl(location.path()).queryParams).toMatchObject({ queueView: 'DUE_TODAY', queueAssignment: 'ALL',
-        queueDisplay: 'CALENDAR', engagementId: task.engagementId, taskId: task.taskId });
+        queueDisplay: 'CALENDAR', queueClientId: filterClientId, queueEngagementId: filterEngagementId,
+        engagementId: task.engagementId, taskId: task.taskId });
       await vi.waitFor(() => expect(component.selectedView()).toBe('DUE_TODAY'));
       TestBed.tick();
       expect(component.ownerFilter()).toBe('ALL');
-      http.expectOne(tasksUrl('view=DUE_TODAY&pageSize=50&includeSummary=true')).flush(queueResponse('DUE_TODAY'));
+      http.expectOne(tasksUrl(`view=DUE_TODAY&pageSize=50&includeSummary=true&clientFilterId=${filterClientId}` +
+        `&engagementFilterId=${filterEngagementId}`)).flush(queueResponse('DUE_TODAY'));
       expect(component.reminderTaskSelection()).toEqual({ engagementId: task.engagementId, taskId: task.taskId });
       http.expectNone(reminderUrl);
+
+      component.nextPage({ dueDate: null, taskId: task.taskId, contextKey: queueContextKey }); TestBed.tick();
+      const priorContextPage = http.expectOne(tasksUrl(`view=DUE_TODAY&pageSize=50&includeSummary=true&clientFilterId=${filterClientId}` +
+        `&engagementFilterId=${filterEngagementId}&afterTaskId=${task.taskId}&afterContextKey=${queueContextKey}`));
+      await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${task.taskId}` +
+        `&queueView=TEAM&queueAssignment=ALL&queueDisplay=CALENDAR&queueClientId=${filterClientId}&queueEngagementId=${changedEngagementId}`,
+        WorkflowWorkQueue);
+      TestBed.tick();
+      expect(priorContextPage.cancelled).toBe(true);
+      http.expectOne(tasksUrl(`view=TEAM&pageSize=50&includeSummary=true&clientFilterId=${filterClientId}` +
+        `&engagementFilterId=${changedEngagementId}`)).flush(queueResponse('TEAM'));
+      expect(component.clientFilterId()).toBe(filterClientId);
+      expect(component.engagementFilterId()).toBe(changedEngagementId);
+      http.expectNone(request => request.url.includes('afterTaskId'));
       http.verify({ ignoreCancelled: true });
     } finally { harness.fixture.destroy(); TestBed.resetTestingModule(); }
   });

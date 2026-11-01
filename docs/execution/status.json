@@ -13,7 +13,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "c03de267555abdca3e97c390996f71b0e5034808",
+  "headCommit": "32d95ed07e8aca5d20bada061ec3676ddb9d64f6",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": false,
   "verifiedCommitWasRemoteHead": false,
@@ -698,7 +698,20 @@
     "wu004ClientPortalIntentContactScope20261101": {"sourceCommit":"119fb2bffd774a5e5f65321a74d116011ecc2889","result":"FOCUSED_PASS_PUBLISHED","migration":"20261101024300_ClientPortalIntentContactScope","checks":"Original foreign-client/contact probes RED 2/2; corrected GREEN 2/2; invalid-history refusal/down-up GREEN 1/1; API Release and EF drift PASS.","evidence":".local/autonomous/evidence/wu004-client-portal-intent-scope-20261101/"},
     "wu004ClientDeliverableReviewScope20261101": {"result":"PUBLISHED_FOCUSED_PASS","commit":"1fdbf31480cc617a4d2a89b328b5002b007f48a0","migration":"20261101041254_ClientDeliverableReviewScope","finding":"SharedAsync global-ID joins leaked foreign deliverable metadata and a foreign-firm comment.","verification":"Focused query/migration cohort 2/2; method byte identity is not claimed; EF drift passed.","evidence":".local/autonomous/evidence/wu004-client-deliverable-scope-20261101/review-evidence.json","exactCi":"Exact d6eed fast/images PASS; full gate not dispatched.","history":"status-archive-2026-11-01-pre-pbc-delegation.json#targetedVerification.wu004ClientDeliverableReviewScope20261101"},
     "wu004FileFreezeParentScope20261101": {"result":"PUBLISHED_FOCUSED_PASS","commit":"e2827a10d60ea7c4c0a5c562f88e941b339bf124","migration":"20261101061145_FileFreezeParentScope","verification":"Identical regression RED/GREEN; migration 5/5; API Release and EF drift pass.","evidence":".local/autonomous/evidence/wu004-file-freeze-scope-20261101/paired-red-green-and-migration-review.json","exactCi":"Exact d6eed fast/images PASS; no full gate.","acceptance":"WU-004 and whole assignment remain incomplete."},
-    "pbcRequestDelegationScope20261101": {"result":"FOCUSED_PASS_UNPUBLISHED","sourceBase":"d6eedc65f646b17960026c5da5f8d98cefcd2cce","migration":"20261101074826_PbcRequestDelegationScope","regression":"Same method body: RED 1/1 on baseline; GREEN 1/1 after query/FK repair.","migrationTests":"4/4; valid rows/catalog/history round-trip; firm/client/engagement legacy links refused atomically (SQLSTATE 23503).","build":"API Release 0 warnings/errors; EF drift none; diff check passes.","docs":"244 Markdown files, 19 canonical documents, 3,879 links and 515 repository paths; filenames and narrative metrics pass.","evidence":".local/autonomous/evidence/wu004-file-freeze-scope-20261101/pbc-delegation-final-review.json","exactCi":"Not run for this candidate."}
+    "pbcRequestDelegationScope20261101": {"result":"FOCUSED_PASS_UNPUBLISHED","sourceBase":"d6eedc65f646b17960026c5da5f8d98cefcd2cce","migration":"20261101074826_PbcRequestDelegationScope","regression":"Same method body: RED 1/1 on baseline; GREEN 1/1 after query/FK repair.","migrationTests":"4/4; valid rows/catalog/history round-trip; firm/client/engagement legacy links refused atomically (SQLSTATE 23503).","build":"API Release 0 warnings/errors; EF drift none; diff check passes.","docs":"244 Markdown files, 19 canonical documents, 3,879 links and 515 repository paths; filenames and narrative metrics pass.","evidence":".local/autonomous/evidence/wu004-file-freeze-scope-20261101/pbc-delegation-final-review.json","exactCi":"Not run for this candidate."},
+    "uxU02PortfolioContextChoices20261101": {"sourceCommit":"32d95ed07e8aca5d20bada061ec3676ddb9d64f6","implementationCommit":"0cc17f8c473e66e5506690552eaae9e5d55b1589","angular":"PASS: portfolio.spec.ts 19/19 with Node 26.13.0.","domainApiPostgres":"NOT_RUN: test database 127.0.0.1:5433 unavailable; Docker API socket denied.","remaining":"Exact-source fast/images/full CI, browser workflow, and integrated role acceptance."},
+    "uxU04WorkQueueFilters20261101": {
+      "status": "PARTIAL",
+      "source": "32d95 (dirty local candidate)",
+      "evidence": ".local/autonomous/evidence/ux-u04-work-queue-filters-20261101/verification.json",
+      "angular": "68/68 specs and production build PASS on Node 26.13.0/npm 11.20.0",
+      "dotnet": "API and Domain.Tests source compiles PASS (references skipped); full Infra compile canceled",
+      "openapi": "Canonical contract regenerated; verifier PASS",
+      "postgres": "BLOCKED_TEST_ENV: localhost:5433 unavailable",
+      "browser": "NOT_RUN",
+      "docs": "Markdown 248, filenames 248, narrative 6; diff check PASS",
+      "baseCi": "32d95 fast/images PASS; not dirty candidate"
+    }
   },
   "externalGates": [
     {
@@ -1139,15 +1152,16 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceSha": "c03de267555abdca3e97c390996f71b0e5034808",
-    "fastRun": null,
-    "fast": "NOT_DISPATCHED_FOR_LOCAL_CANDIDATE. Upstream 51bb run 41295059510 passed all three actual checkouts; not transferable.",
-    "imagesRun": null,
-    "images": "NOT_DISPATCHED_FOR_LOCAL_CANDIDATE. Upstream 51bb run 41295059520 passed all three actual checkouts and published pins; see terminal review.",
+    "sourceSha": "32d95ed07e8aca5d20bada061ec3676ddb9d64f6",
+    "fastRun": 41297691912,
+    "fast": "IN_PROGRESS at last metadata 2026-11-01T10:30:01Z; exact-ID poll at 2026-11-01T11:42:33Z could not connect; actual checkouts/results remain unverified.",
+    "imagesRun": 41297691755,
+    "images": "IN_PROGRESS at last metadata 2026-11-01T10:30:01Z; exact-ID poll at 2026-11-01T11:42Z could not connect; actual checkouts and pins remain unverified.",
     "fullRun": null,
-    "full": "NOT_DISPATCHED_FOR_LOCAL_CANDIDATE. Upstream 51bb run 41295130735 was RUNNING at 10:22:58Z; build/Angular passed, unfiltered tests active.",
+    "full": "NOT_DISPATCHED; dispatch once only after exact-source fast and images both pass.",
     "aggregatePass": false,
-    "evidence": ".local/autonomous/evidence/ci-51bb321e-current-20261101/"
+    "evidence": ".local/autonomous/evidence/ci-32d95ed0-current-20261101/"
   },
-  "updatedAtUtc": "2026-11-01T10:25:56Z"
+  "uxU03ContextSwitcher": {"status":"PARTIAL","baseSha":"32d95ed07e8aca5d20bada061ec3676ddb9d64f6","focusedAngular":"39/39; app-navigation.spec.ts and portfolio.spec.ts; Node v26.13.0/npm 11.20.0.","productionBuild":"PASS; macOS SQLite cache workaround; two existing stylesheet budget warnings.","open":"Complete route inventory, real Workpaper guard and browser keyboard/focus/responsive acceptance.","exactCi":"41297691912/41297691755 base 32d95 PASS; actual checkouts/pins verified; dirty candidate not covered.","evidence":".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"},
+  "updatedAtUtc": "2026-11-01T12:37:49Z"
 }

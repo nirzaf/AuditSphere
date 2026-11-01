@@ -88309,6 +88309,29 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "clientFilterId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "engagementFilterId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "afterContextKey",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -165654,7 +165677,8 @@
       "WorkflowTaskQueueCursor": {
         "required": [
           "dueDate",
-          "taskId"
+          "taskId",
+          "contextKey"
         ],
         "type": "object",
         "properties": {
@@ -165668,6 +165692,9 @@
           "taskId": {
             "type": "string",
             "format": "uuid"
+          },
+          "contextKey": {
+            "type": "string"
           }
         }
       },

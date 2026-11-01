@@ -1,5 +1,7 @@
 using System.Data;
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -13,8 +15,9 @@ namespace AuditSphereOps.Application.Practice;
 
 public sealed record WorkflowTaskQueueRequest(string View = "MY_TASKS", DateOnly? AfterDueDate = null,
   Guid? AfterTaskId = null, int PageSize = 50, Guid? AssigneeUserId = null, bool UnassignedOnly = false,
-  bool IncludeSummary = false);
-public sealed record WorkflowTaskQueueCursor(DateOnly? DueDate, Guid TaskId);
+  bool IncludeSummary = false, Guid? ClientFilterId = null, Guid? EngagementFilterId = null,
+  string? AfterContextKey = null);
+public sealed record WorkflowTaskQueueCursor(DateOnly? DueDate, Guid TaskId, string ContextKey);
 public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string ClientName, Guid EngagementId,
   string EngagementServiceRoute, string EngagementPeriod, string Title, string Phase, int Ordinal,
   string TaskStatus, Guid? AssigneeUserId, string? AssigneeDisplayName, DateOnly? DueDate,
@@ -33,9 +36,9 @@ public sealed record WorkflowTaskQueueSummary(
 
 /// <summary>
 /// Grant-scoped queue over existing workflow bindings and WorkTask records. Queue views are filters over operational
-/// state; audit review decisions remain in their authoritative review services. The optional summary counts the
-/// complete authorized population of each default view as of the UTC calendar date; it is read-only and never
-/// persisted.
+/// state; audit review decisions remain in their authoritative review services. Optional client/engagement filters
+/// only narrow the authorized population. The optional summary counts the complete filtered population of each
+/// default view as of the UTC calendar date; assignment filters remain list-only. It is read-only and never persisted.
 /// </summary>
 public static class WorkflowTaskQueueQuery
 {
@@ -62,6 +65,19 @@ public static class WorkflowTaskQueueQuery
   private static Task<CommandResult> AuthorizeReadAsync(IAuditSphereDbContext db, ActorContext actor,
     CancellationToken ct) => AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
+
+  private static string CursorContextKey(ActorContext actor, string view, WorkflowTaskQueueRequest request,
+    IReadOnlyCollection<QueueGrant> grants, DateOnly today)
+  {
+    var grantsKey = string.Join(";", grants.OrderBy(x => x.Role, StringComparer.Ordinal)
+      .ThenBy(x => x.ClientId).ThenBy(x => x.EngagementId)
+      .Select(x => $"{x.Role}:{x.ClientId?.ToString("N") ?? "-"}:{x.EngagementId?.ToString("N") ?? "-"}"));
+    var material = string.Join('\n', actor.FirmId.ToString("N"), actor.UserId.ToString("N"), view,
+      today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+      request.ClientFilterId?.ToString("N") ?? "-", request.EngagementFilterId?.ToString("N") ?? "-",
+      request.AssigneeUserId?.ToString("N") ?? "-", request.UnassignedOnly ? "1" : "0", grantsKey);
+    return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
+  }
 
   private static async Task<QueueScope?> ResolveScopeAsync(IAuditSphereDbContext db, ActorContext actor,
     DateTimeOffset now, CancellationToken ct)
@@ -118,6 +134,10 @@ public static class WorkflowTaskQueueQuery
     var view = request.View?.Trim().ToUpperInvariant();
     if (view is not (MyTasks or Team or DueToday or Upcoming or Overdue or Completed or Cancelled or WaitingForClient or ChangesRequired or UnderReview or OnHold) || request.PageSize is < 1 or > 100 ||
         (request.AfterTaskId is null && request.AfterDueDate.HasValue) || request.AssigneeUserId == Guid.Empty ||
+        request.ClientFilterId == Guid.Empty || request.EngagementFilterId == Guid.Empty ||
+        (request.AfterTaskId is null && request.AfterContextKey is not null) ||
+        (request.AfterTaskId is not null && request.AfterContextKey is null) ||
+        (request.AfterContextKey is not null && (request.AfterContextKey.Length != 64 || !request.AfterContextKey.All(Uri.IsHexDigit))) ||
         (request.UnassignedOnly && request.AssigneeUserId.HasValue) ||
         (view == MyTasks && (request.UnassignedOnly ||
           (request.AssigneeUserId.HasValue && request.AssigneeUserId != actor.UserId))))
@@ -139,6 +159,11 @@ public static class WorkflowTaskQueueQuery
     var firmWide = scope.FirmWide;
     var clientIds = scope.Clients;
     var engagementIds = scope.Engagements;
+    var cursorContextKey = CursorContextKey(actor, view!, request, grants, today);
+    if (request.AfterTaskId.HasValue &&
+        !StringComparer.OrdinalIgnoreCase.Equals(request.AfterContextKey, cursorContextKey))
+      return CommandResult<WorkflowTaskQueue>.Fail("workflow.queue-invalid",
+        "The queue cursor does not match the current filters. Reset the queue filters and start again.");
 
     var query = from binding in db.WorkflowTaskBindings.AsNoTracking()
       join task in db.WorkTasks.AsNoTracking() on new { binding.FirmId, WorkTaskId = binding.WorkTaskId }
@@ -215,6 +240,11 @@ public static class WorkflowTaskQueueQuery
         ReviewComment = representsCurrentCorrection ? currentResult.ReviewComment :
           representsExactResubmission ? reviewResult.ReviewComment : null
       };
+
+    if (request.ClientFilterId.HasValue)
+      query = query.Where(x => x.ClientId == request.ClientFilterId.Value);
+    if (request.EngagementFilterId.HasValue)
+      query = query.Where(x => x.EngagementId == request.EngagementFilterId.Value);
 
     var waitingEvidenceRules = WorkflowTaskEvidenceQuery.Heads(db, actor.FirmId).Where(x =>
       x.State == WorkflowEvidenceRuleStates.Required && x.Kind == WorkflowEvidenceKinds.AcceptedPbc);
@@ -353,7 +383,7 @@ public static class WorkflowTaskQueueQuery
     }).ToArray();
     var last = page[^1];
     return CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, rows, hasMore,
-      hasMore ? new WorkflowTaskQueueCursor(last.DueDate, last.Id) : null, summary));
+      hasMore ? new WorkflowTaskQueueCursor(last.DueDate, last.Id, cursorContextKey) : null, summary));
 
     // Releases the owned snapshot, then confirms the effective grant population and authority still hold before
     // any row or count leaves this query. A lost or changed scope releases nothing.

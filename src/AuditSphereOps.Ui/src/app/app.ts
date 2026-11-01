@@ -14,9 +14,10 @@ import { presentationBase, workspaceSignInHref } from './core/navigation';
 import { WorkspaceNavigation } from './core/workspace-navigation';
 import { WorkspaceNavigationIcon } from './core/workspace-navigation-icon';
 import type { WorkspaceNavigationDialog } from './core/workspace-navigation-dialog';
+import { WorkspaceContext } from './core/workspace-context';
 @Component({
   selector: 'app-root',
-  imports: [GlobalSearch, WorkspaceNavigation, WorkspaceNavigationIcon, RouterOutlet, PendingOutcomesBanner, UserAccount],
+  imports: [GlobalSearch, WorkspaceNavigation, WorkspaceNavigationIcon, RouterOutlet, PendingOutcomesBanner, UserAccount, WorkspaceContext],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

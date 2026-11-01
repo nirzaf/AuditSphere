@@ -83,8 +83,10 @@ public static partial class UiEndpoints
       .WithT046Response<ProcedureReviewInbox>();
 
     group.MapGet("/work/tasks", (string? view, DateOnly? afterDueDate, Guid? afterTaskId, int? pageSize,
-      Guid? assigneeUserId, bool? unassignedOnly, bool? includeSummary, HttpContext http) =>
-      WorkflowQueueAsync(http, view, afterDueDate, afterTaskId, pageSize, assigneeUserId, unassignedOnly, includeSummary))
+      Guid? assigneeUserId, bool? unassignedOnly, bool? includeSummary, Guid? clientFilterId,
+      Guid? engagementFilterId, string? afterContextKey, HttpContext http) =>
+      WorkflowQueueAsync(http, view, afterDueDate, afterTaskId, pageSize, assigneeUserId, unassignedOnly,
+        includeSummary, clientFilterId, engagementFilterId, afterContextKey))
       .WithT046Response<WorkflowTaskQueue>();
 
     group.MapGet("/engagements/{id:guid}/deadline-reminders", (Guid id, HttpContext http) =>
@@ -311,7 +313,8 @@ public static partial class UiEndpoints
   }
 
   private static Task<IResult> WorkflowQueueAsync(HttpContext http, string? view, DateOnly? afterDueDate,
-    Guid? afterTaskId, int? pageSize, Guid? assigneeUserId, bool? unassignedOnly, bool? includeSummary) =>
+    Guid? afterTaskId, int? pageSize, Guid? assigneeUserId, bool? unassignedOnly, bool? includeSummary,
+    Guid? clientFilterId, Guid? engagementFilterId, string? afterContextKey) =>
     ReadAsync(http, async (db, actor, ct) =>
     {
       var configuration = http.RequestServices.GetRequiredService<IConfiguration>();
@@ -319,7 +322,8 @@ public static partial class UiEndpoints
         return CommandResult<WorkflowTaskQueue>.Fail(ErrorCodes.ScopeDenied, "Workflow task experience is not enabled on this server.");
       return await WorkflowTaskQueueQuery.GetAsync(db, actor,
         new WorkflowTaskQueueRequest(view ?? "MY_TASKS", afterDueDate, afterTaskId, pageSize ?? 50,
-          assigneeUserId, unassignedOnly ?? false, includeSummary ?? false), ct);
+          assigneeUserId, unassignedOnly ?? false, includeSummary ?? false, clientFilterId, engagementFilterId,
+          afterContextKey), ct);
     });
 
   private static void MapWorkflowTemplateEndpoints(RouteGroupBuilder group)

@@ -40,6 +40,9 @@
     </button>
   }
 </header>
+@if (session.current()?.staff && !publicSetup()) {
+  <audit-workspace-context />
+}
 <audit-pending-outcomes />
 <div class="workspace" [class.nav-compact]="navigationCompact()"
   [class.full-width]="!session.current() || publicSetup()">

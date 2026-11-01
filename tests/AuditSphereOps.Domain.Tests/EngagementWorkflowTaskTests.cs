@@ -165,7 +165,7 @@ public sealed class EngagementWorkflowTaskTests
       Assert.Equal(engagementA, firstPage.Value.Tasks[0].EngagementId);
       var cursor = Assert.IsType<WorkflowTaskQueueCursor>(firstPage.Value.NextCursor);
       var secondPage = await WorkflowTaskQueueQuery.GetAsync(db, staffAActor,
-        new WorkflowTaskQueueRequest("TEAM", cursor.DueDate, cursor.TaskId, 1));
+        new WorkflowTaskQueueRequest("TEAM", cursor.DueDate, cursor.TaskId, 1, AfterContextKey: cursor.ContextKey));
       Assert.True(secondPage.Succeeded, secondPage.Message);
       Assert.False(secondPage.Value!.HasMore);
       Assert.Equal(taskA, Assert.Single(secondPage.Value.Tasks).TaskId);
@@ -997,7 +997,8 @@ public sealed class EngagementWorkflowTaskTests
 
       var cursor = Assert.IsType<WorkflowTaskQueueCursor>(first.Value.NextCursor);
       var second = await WorkflowTaskQueueQuery.GetAsync(db, managerActor,
-        new WorkflowTaskQueueRequest("DUE_TODAY", cursor.DueDate, cursor.TaskId, 1, IncludeSummary: true));
+        new WorkflowTaskQueueRequest("DUE_TODAY", cursor.DueDate, cursor.TaskId, 1, IncludeSummary: true,
+          AfterContextKey: cursor.ContextKey));
       Assert.True(second.Succeeded, second.Message);
       Assert.NotEqual(firstRow.TaskId, Assert.Single(second.Value!.Tasks).TaskId);
       Assert.Equal(summary.Counts, second.Value.Summary!.Counts);
@@ -1029,6 +1030,95 @@ public sealed class EngagementWorkflowTaskTests
 
       Assert.Equal(before, await QueueStateFingerprintAsync(db, firmId));
     }
+  }
+
+  [Fact]
+  public async Task QueueContextFiltersNarrowRowsAndCountsAndBindContinuationCursors()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientA = Guid.NewGuid();
+    var clientB = Guid.NewGuid();
+    var engagementA = Guid.NewGuid();
+    var engagementSibling = Guid.NewGuid();
+    var engagementOtherClient = Guid.NewGuid();
+    var manager = User(firmId, "ContextFilterManager");
+    var staff = User(firmId, "ContextFilterStaff");
+    var clientManager = User(firmId, "ContextFilterClientManager");
+    var managerActor = Actor(manager, "Manager");
+    await SeedQueueScopeAsync(pg, firmId,
+      [(clientA, engagementA), (clientA, engagementSibling), (clientB, engagementOtherClient)],
+      [manager, staff, clientManager],
+      () => [Grant(firmId, manager, "Manager"), Grant(firmId, clientManager, "Manager", clientA)]);
+
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      foreach (var (engagementId, title, ordinal) in new[]
+        {
+          (engagementA, "Selected engagement first", 1), (engagementA, "Selected engagement second", 2),
+          (engagementSibling, "Sibling engagement", 3), (engagementOtherClient, "Other client", 4)
+        })
+      {
+        var taskId = await CreateQueueTaskAsync(db, managerActor, engagementId, title, ordinal, today);
+        var assigned = await EngagementWorkflowTaskService.AssignAsync(db, managerActor, taskId, staff.Id, 1);
+        Assert.True(assigned.Succeeded, assigned.Message);
+      }
+    }
+
+    await using var queryDb = new AuditSphereDbContext(pg.Options);
+    var first = await WorkflowTaskQueueQuery.GetAsync(queryDb, managerActor,
+      new WorkflowTaskQueueRequest("TEAM", PageSize: 1, AssigneeUserId: staff.Id, IncludeSummary: true,
+        ClientFilterId: clientA, EngagementFilterId: engagementA));
+    Assert.True(first.Succeeded, first.Message);
+    var firstRow = Assert.Single(first.Value!.Tasks);
+    Assert.Equal(engagementA, firstRow.EngagementId);
+    Assert.True(first.Value.HasMore);
+    Assert.Equal("2", SummaryCount(first.Value.Summary!, "DUE_TODAY"));
+    var cursor = Assert.IsType<WorkflowTaskQueueCursor>(first.Value.NextCursor);
+
+    var continued = await WorkflowTaskQueueQuery.GetAsync(queryDb, managerActor,
+      new WorkflowTaskQueueRequest("TEAM", cursor.DueDate, cursor.TaskId, 1, AssigneeUserId: staff.Id,
+        IncludeSummary: true, ClientFilterId: clientA, EngagementFilterId: engagementA,
+        AfterContextKey: cursor.ContextKey));
+    Assert.True(continued.Succeeded, continued.Message);
+    Assert.Equal(engagementA, Assert.Single(continued.Value!.Tasks).EngagementId);
+    Assert.False(continued.Value.HasMore);
+
+    var reused = await WorkflowTaskQueueQuery.GetAsync(queryDb, managerActor,
+      new WorkflowTaskQueueRequest("TEAM", cursor.DueDate, cursor.TaskId, 1, AssigneeUserId: staff.Id,
+        ClientFilterId: clientA, EngagementFilterId: engagementSibling, AfterContextKey: cursor.ContextKey));
+    Assert.False(reused.Succeeded);
+    Assert.Equal("workflow.queue-invalid", reused.ErrorCode);
+    Assert.Null(reused.Value);
+
+    var missingContext = await WorkflowTaskQueueQuery.GetAsync(queryDb, managerActor,
+      new WorkflowTaskQueueRequest("TEAM", cursor.DueDate, cursor.TaskId, 1, AssigneeUserId: staff.Id,
+        ClientFilterId: clientA, EngagementFilterId: engagementA));
+    Assert.False(missingContext.Succeeded);
+    Assert.Equal("workflow.queue-invalid", missingContext.ErrorCode);
+    Assert.Null(missingContext.Value);
+
+    var mismatchedParents = await WorkflowTaskQueueQuery.GetAsync(queryDb, managerActor,
+      new WorkflowTaskQueueRequest("TEAM", PageSize: 10, IncludeSummary: true,
+        ClientFilterId: clientA, EngagementFilterId: engagementOtherClient));
+    Assert.True(mismatchedParents.Succeeded, mismatchedParents.Message);
+    Assert.Empty(mismatchedParents.Value!.Tasks);
+    Assert.Equal("0", SummaryCount(mismatchedParents.Value.Summary!, "DUE_TODAY"));
+
+    var clientActor = Actor(clientManager, "Manager");
+    var scopedSibling = await WorkflowTaskQueueQuery.GetAsync(queryDb, clientActor,
+      new WorkflowTaskQueueRequest("TEAM", IncludeSummary: true, ClientFilterId: clientA,
+        EngagementFilterId: engagementSibling));
+    Assert.True(scopedSibling.Succeeded, scopedSibling.Message);
+    Assert.Equal(engagementSibling, Assert.Single(scopedSibling.Value!.Tasks).EngagementId);
+
+    var cannotWidenGrant = await WorkflowTaskQueueQuery.GetAsync(queryDb, clientActor,
+      new WorkflowTaskQueueRequest("TEAM", IncludeSummary: true, ClientFilterId: clientB,
+        EngagementFilterId: engagementOtherClient));
+    Assert.True(cannotWidenGrant.Succeeded, cannotWidenGrant.Message);
+    Assert.Empty(cannotWidenGrant.Value!.Tasks);
+    Assert.Equal("0", SummaryCount(cannotWidenGrant.Value.Summary!, "DUE_TODAY"));
   }
 
   [Fact]
@@ -1390,11 +1480,14 @@ public sealed class EngagementWorkflowTaskTests
   {
     await using var seed = new AuditSphereDbContext(pg.Options);
     seed.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
-    foreach (var (clientId, engagementId) in scopes)
+    foreach (var clientId in scopes.Select(x => x.ClientId).Distinct())
     {
       seed.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = firmId });
       seed.PracticeClients.Add(new PracticeClient
         { Id = clientId, FirmId = firmId, LegalName = $"Queue Client {clientId:N}", CreatedAt = DateTimeOffset.UtcNow });
+    }
+    foreach (var (clientId, engagementId) in scopes)
+    {
       seed.Engagements.Add(Engagement(engagementId, firmId, clientId));
     }
     seed.Users.AddRange(users);
