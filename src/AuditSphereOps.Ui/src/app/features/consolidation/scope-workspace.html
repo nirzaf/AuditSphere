@@ -496,14 +496,15 @@
                           <a matButton [href]="deliverableDownload(w.scope.id, d.deliverableId)" target="_blank">Download exact artifact</a>
                           @if (w.canIssueDeliverable && d.status === 'BUILT') {
                             <label [attr.for]="'deliverable-release-' + d.deliverableId">Authorized release key</label>
-                            <input [id]="'deliverable-release-' + d.deliverableId" [ngModel]="deliverableReleaseKey" (ngModelChange)="deliverableReleaseKey = $event" maxlength="100" autocomplete="off" />
-                            <label><input type="checkbox" [ngModel]="deliverableAssent" (ngModelChange)="deliverableAssent = $event" /> I reviewed this exact revision, run hash and artifact SHA-256.</label>
-                            <button matButton="filled" type="button" (click)="issueDeliverable(w, d)" [disabled]="cmd.busy() || cmd.uncertain() || !deliverableReleaseKey.trim() || !deliverableAssent">Issue exact artifact</button>
+                            <input [id]="'deliverable-release-' + d.deliverableId" [ngModel]="deliverableReleaseKey" (ngModelChange)="updateDeliverableInput('release', $event)" maxlength="100" autocomplete="off" />
+                            <label><input type="checkbox" [ngModel]="isDeliverableReviewed(w, d, 'issue')" (ngModelChange)="setDeliverableReviewed(w, d, 'issue', $event)" /> I reviewed this exact revision, run hash and artifact SHA-256.</label>
+                            <button matButton="filled" type="button" (click)="issueDeliverable(w, d)" [disabled]="cmd.busy() || cmd.uncertain() || !deliverableReleaseKey.trim() || !isDeliverableReviewed(w, d, 'issue')">Issue exact artifact</button>
                           }
                           @if (w.canArchiveDeliverable && d.status === 'ISSUED') {
                             <label [attr.for]="'deliverable-archive-' + d.deliverableId">Archive reason</label>
-                            <input [id]="'deliverable-archive-' + d.deliverableId" [ngModel]="deliverableArchiveReason" (ngModelChange)="deliverableArchiveReason = $event" maxlength="500" />
-                            <button matButton type="button" (click)="archiveDeliverable(w, d)" [disabled]="cmd.busy() || cmd.uncertain()">Archive exact artifact</button>
+                            <input [id]="'deliverable-archive-' + d.deliverableId" [ngModel]="deliverableArchiveReason" (ngModelChange)="updateDeliverableInput('archive', $event)" maxlength="500" />
+                            <label><input type="checkbox" [ngModel]="isDeliverableReviewed(w, d, 'archive')" (ngModelChange)="setDeliverableReviewed(w, d, 'archive', $event)" /> I reviewed this exact artifact and archive reason.</label>
+                            <button matButton type="button" (click)="archiveDeliverable(w, d)" [disabled]="cmd.busy() || cmd.uncertain() || !deliverableArchiveReason.trim() || !isDeliverableReviewed(w, d, 'archive')">Archive exact artifact</button>
                           }
                         </td>
                       </tr>

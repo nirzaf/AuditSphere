@@ -3,6 +3,10 @@
 **Updated:** 2026-11-01
 **Whole assignment:** INCOMPLETE; all 48 completion tasks remain unaccepted. The run-state validator reports RUN-003 / POLL_CI; exact `1fdbf314` fast and image runs are terminal PASS, while its full run was not dispatched. The current unpublished FileFreezeParentScope candidate still needs exact-source CI. UX16 and the original, Axelor, practice, Atomic, Claude, role, and Technical Stories registers remain independent.
 
+## Lifecycle audit work in progress (2026-11-01)
+
+REM-01/02: group issue/archive handlers now use their own capabilities and bind review to the exact retained artifact and release input. The focused `scope-workspace.spec.ts` passed 25/25 on Node 24.19.0; this is local evidence, not exact-source CI or release acceptance. Other lifecycle tasks remain open. The untracked root audit document is user-owned and is not staged.
+
 ## Checkout and preservation
 The main checkout is `master` at `1fdbf31480cc617a4d2a89b328b5002b007f48a0`; a fresh fetch at 2026-11-01T06:39Z found `origin/master` matched with no incoming paths. The current candidate adds only the WU-004 `FileFreezeParentScope` model keys, migration, snapshot and focused tests; this change is uncommitted and the earlier WU-004 contact and deliverable-scope repairs are already in `1fdb`. No unrelated peer paths are being staged.
 

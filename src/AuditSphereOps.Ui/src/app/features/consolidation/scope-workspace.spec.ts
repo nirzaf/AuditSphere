@@ -178,7 +178,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
     reload: ReturnType<typeof vi.fn>;
   };
   let deliverableResource: {
-    data: WritableSignal<null>;
+    data: WritableSignal<ReturnType<typeof decodeGroupDeliverablePage> | null>;
     loading: WritableSignal<boolean>;
     error: WritableSignal<string>;
     reload: ReturnType<typeof vi.fn>;
@@ -198,7 +198,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
     intercompanyMatchesData = signal(decodeIntercompanyExceptionsPage(intercompanyPagePayload([]), 'root'));
     intercompanyOptionsResource = { data: intercompanyOptionsData, loading: signal(false), error: signal(''), reload: vi.fn() };
     intercompanyMatchesResource = { data: intercompanyMatchesData, loading: signal(false), error: signal(''), reload: vi.fn() };
-    deliverableResource = { data: signal(null), loading: signal(false), error: signal(''), reload: vi.fn() };
+    deliverableResource = { data: signal<ReturnType<typeof decodeGroupDeliverablePage> | null>(null), loading: signal(false), error: signal(''), reload: vi.fn() };
     correctionResource = { data: workspaceData, loading: signal(false), error: signal(''), reload: vi.fn() };
     let resourceIndex = 0;
     api = {
@@ -272,7 +272,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
 
   it('dispatches exact build, issue and archive intents with pinned revisions and SHA-256', async () => {
     const { component } = open(workspacePayload({
-      canApproveScope: true,
+      canApproveScope: false,
       canIssueDeliverable: true,
       canArchiveDeliverable: true,
       latestReport: { scopeVersionId: id1, runId: id3, runHash: hash64, state: 'CURRENT_APPROVED',
@@ -290,10 +290,19 @@ describe('Consolidation Scope Workspace Contracts', () => {
       createdAt: '2026-10-01T12:00:00Z', createdByUserId: id1, issuedAt: null, issuedByUserId: null,
       archivedAt: null, archivedByUserId: null, revision: 1,
     };
+    deliverableResource.data.set({ items: [built], page: 1, pageSize: 100, totalCount: 1 });
     component.issueDeliverable(workspace, built);
     expect(api.command).toHaveBeenCalledTimes(1);
     component.deliverableReleaseKey = 'GROUP-REL-001';
-    component.deliverableAssent = true;
+    component.setDeliverableReviewed(workspace, built, 'issue', true);
+    expect(component.isDeliverableReviewed(workspace, { ...built, revision: 2 }, 'issue')).toBe(false);
+    component.issueDeliverable(workspace, { ...built, deliverableId: id3 });
+    expect(api.command).toHaveBeenCalledTimes(1);
+    component.updateDeliverableInput('release', 'CHANGED');
+    component.issueDeliverable(workspace, built);
+    expect(api.command).toHaveBeenCalledTimes(1);
+    component.updateDeliverableInput('release', 'GROUP-REL-001');
+    component.setDeliverableReviewed(workspace, built, 'issue', true);
     component.issueDeliverable(workspace, built);
     await vi.waitFor(() => expect(api.command).toHaveBeenCalledWith(
       `/api/ui/consolidation/scopes/${id1}/deliverables/${id2}/issue`,
@@ -302,7 +311,9 @@ describe('Consolidation Scope Workspace Contracts', () => {
       'POST'));
 
     const issued = { ...built, status: 'ISSUED', revision: 2 } as const;
+    deliverableResource.data.set({ items: [issued], page: 1, pageSize: 100, totalCount: 1 });
     component.deliverableArchiveReason = 'Superseded by reviewed close.';
+    component.setDeliverableReviewed(workspace, issued, 'archive', true);
     component.archiveDeliverable(workspace, issued);
     await vi.waitFor(() => expect(api.command).toHaveBeenCalledWith(
       `/api/ui/consolidation/scopes/${id1}/deliverables/${id2}/archive`,

@@ -54,7 +54,7 @@ export class ConsolidationScopeWorkspace {
   private readonly deliverableArchiveRequestKeys = new Map<string, string>();
   deliverableReleaseKey = '';
   deliverableArchiveReason = '';
-  deliverableAssent = false;
+  private deliverableReview: { key: string; deliverableId: string; action: 'issue' | 'archive' } | null = null;
   readonly Math = Math;
   readonly ws = this.api.resource(
     () => this.id()
@@ -108,7 +108,23 @@ export class ConsolidationScopeWorkspace {
       this.selectedComponentCorrection.set(null);
       this.externalPacksScopeId.set(null);
       this.selectedPackageId = '';
+      this.deliverableReleaseKey = '';
+      this.deliverableArchiveReason = '';
+      this.deliverableReview = null;
       this.journal.resetForOwnerChange();
+    });
+  });
+
+  private readonly invalidateChangedDeliverableReview = effect(() => {
+    const workspace = this.ws.data();
+    const page = this.deliverablePage.data();
+    this.ownerKey();
+    untracked(() => {
+      const review = this.deliverableReview;
+      if (!review) return;
+      const item = page?.items.find(d => d.deliverableId.toLowerCase() === review.deliverableId);
+      if (!workspace || !item || review.key !== this.deliverableReviewKey(workspace, item, review.action))
+        this.deliverableReview = null;
     });
   });
 
@@ -359,13 +375,39 @@ export class ConsolidationScopeWorkspace {
     return `/api/ui/consolidation/scopes/${scopeId}/deliverables/${deliverableId}/download`;
   }
 
+  updateDeliverableInput(field: 'release' | 'archive', value: string): void {
+    if (field === 'release') this.deliverableReleaseKey = value;
+    else this.deliverableArchiveReason = value;
+    this.deliverableReview = null;
+  }
+
+  private deliverableReviewKey(workspace: ScopeWorkspace, deliverable: ReturnType<typeof decodeGroupDeliverablePage>['items'][number], action: 'issue' | 'archive'): string {
+    return JSON.stringify([this.ownerKey(), workspace.scope.id.toLowerCase(), workspace.scope.groupRevision,
+      workspace.latestReport.value?.runId, workspace.latestReport.value?.runHash,
+      deliverable.deliverableId.toLowerCase(), deliverable.status, deliverable.revision,
+      deliverable.runHash, deliverable.deliverableSha256, action,
+      action === 'issue' ? this.deliverableReleaseKey.trim() : this.deliverableArchiveReason.trim()]);
+  }
+
+  isDeliverableReviewed(workspace: ScopeWorkspace, deliverable: ReturnType<typeof decodeGroupDeliverablePage>['items'][number], action: 'issue' | 'archive'): boolean {
+    return this.deliverableReview?.key === this.deliverableReviewKey(workspace, deliverable, action) &&
+      this.deliverablePage.data()?.items.some(item => item.deliverableId.toLowerCase() === deliverable.deliverableId.toLowerCase() &&
+        this.deliverableReviewKey(workspace, item, action) === this.deliverableReview?.key) === true;
+  }
+
+  setDeliverableReviewed(workspace: ScopeWorkspace, deliverable: ReturnType<typeof decodeGroupDeliverablePage>['items'][number], action: 'issue' | 'archive', reviewed: boolean): void {
+    this.deliverableReview = reviewed ? { key: this.deliverableReviewKey(workspace, deliverable, action),
+      deliverableId: deliverable.deliverableId.toLowerCase(), action } : null;
+  }
+
   issueDeliverable(workspace: ScopeWorkspace,
     deliverable: ReturnType<typeof decodeGroupDeliverablePage>['items'][number]): void {
     const scopeId = workspace.scope.id;
-    if (scopeId.toLowerCase() !== this.id()?.toLowerCase() || !workspace.canApproveScope ||
+    if (scopeId.toLowerCase() !== this.id()?.toLowerCase() || !this.currentWorkspace()?.canIssueDeliverable || workspace !== this.currentWorkspace() ||
         deliverable.status !== 'BUILT' || !deliverable.revision ||
-        !this.deliverableReleaseKey.trim() || !this.deliverableAssent) return;
+        !this.deliverableReleaseKey.trim() || !this.isDeliverableReviewed(workspace, deliverable, 'issue')) return;
     const releaseKey = this.deliverableReleaseKey.trim();
+    const review = this.deliverableReview;
     const intentKey = [this.ownerKey(), scopeId.toLowerCase(), deliverable.deliverableId.toLowerCase(),
       deliverable.revision, deliverable.deliverableSha256, releaseKey].join(':');
     const requestKey = this.deliverableIssueRequestKeys.get(intentKey) ?? crypto.randomUUID();
@@ -378,17 +420,21 @@ export class ConsolidationScopeWorkspace {
       requestKey
     }, 'Group deliverable issued.', () => {
       this.deliverableIssueRequestKeys.delete(intentKey);
-      this.deliverableReleaseKey = '';
-      this.deliverableAssent = false;
+      if (this.deliverableReview === review) {
+        this.deliverableReleaseKey = '';
+        this.deliverableReview = null;
+      }
     }, () => { this.deliverablePage.reload(); this.ws.reload(); });
   }
 
   archiveDeliverable(workspace: ScopeWorkspace,
     deliverable: ReturnType<typeof decodeGroupDeliverablePage>['items'][number]): void {
     const scopeId = workspace.scope.id;
-    const reason = this.deliverableArchiveReason.trim() || 'Superseded or closed';
-    if (scopeId.toLowerCase() !== this.id()?.toLowerCase() || !workspace.canApproveScope ||
-        deliverable.status !== 'ISSUED' || !deliverable.revision) return;
+    const reason = this.deliverableArchiveReason.trim();
+    if (scopeId.toLowerCase() !== this.id()?.toLowerCase() || !this.currentWorkspace()?.canArchiveDeliverable || workspace !== this.currentWorkspace() ||
+        deliverable.status !== 'ISSUED' || !deliverable.revision || !reason ||
+        !this.isDeliverableReviewed(workspace, deliverable, 'archive')) return;
+    const review = this.deliverableReview;
     const intentKey = [this.ownerKey(), scopeId.toLowerCase(), deliverable.deliverableId.toLowerCase(),
       deliverable.revision, deliverable.deliverableSha256, reason].join(':');
     const requestKey = this.deliverableArchiveRequestKeys.get(intentKey) ?? crypto.randomUUID();
@@ -400,7 +446,10 @@ export class ConsolidationScopeWorkspace {
       requestKey
     }, 'Group deliverable archived.', () => {
       this.deliverableArchiveRequestKeys.delete(intentKey);
-      this.deliverableArchiveReason = '';
+      if (this.deliverableReview === review) {
+        this.deliverableArchiveReason = '';
+        this.deliverableReview = null;
+      }
     }, () => { this.deliverablePage.reload(); this.ws.reload(); });
   }
 }

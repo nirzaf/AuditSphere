@@ -22,6 +22,8 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 ## Current presentation ownership
 
+- Group deliverable review: Angular `features/consolidation/scope-workspace.ts` binds issue/archive assent to the current owner, scope, artifact revision and hashes, and release input; the existing backend remains the authority for both actions.
+
 - My Work package-review handoff: `Application/Practice/WorkspaceAvailabilityQuery.cs` includes independently authorized package reviewers in the My Work destination; Angular `features/practice/work-queue.ts` presents the separate accounting-review link while its bounded hint is current. It does not load package counts/rows or authorize decisions.
 - Financial-package review discovery: `Application/Accounting/FinancialPackageReviewService.cs` owns bounded candidate continuation, final readiness and current scope checks including cursor disclosure. `Api/Ui/UiEndpoints.Packages.cs` exposes an additive page contract while retaining the legacy list shape; Angular `features/accounting/reviews.ts` owns page-local selection, session invalidation and honest continuation/empty states.
 - Operational task presentation: Angular `features/practice/work-queue.ts` uses native labelled source/action disclosures across existing views. Server capabilities still govern commands; recovery focus opens the replacement task's disclosure after a display change before returning to its action. The task list keeps its task column readable and retains horizontal keyboard scrolling.
