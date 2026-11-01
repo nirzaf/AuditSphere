@@ -51,6 +51,10 @@ public static partial class PracticeCrmService
   /// </summary>
   public static async Task<CommandResult<ClientOffboardingReadiness>> GetClientOffboardingReadinessAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct = default)
+    => await GetClientOffboardingReadinessCoreAsync(db, actor, clientId, false, ct);
+
+  private static async Task<CommandResult<ClientOffboardingReadiness>> GetClientOffboardingReadinessCoreAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid clientId, bool lockedSnapshot, CancellationToken ct)
   {
     if (clientId == Guid.Empty)
       return CommandResult<ClientOffboardingReadiness>.Fail("crm.invalid", "A client is required.");
@@ -63,8 +67,8 @@ public static partial class PracticeCrmService
     var latest = await db.ClientLifecycleEvents.AsNoTracking().Where(e => e.FirmId == actor.FirmId && e.ClientId == clientId)
       .OrderByDescending(e => e.Revision).Select(e => new { e.Revision, e.EventKind }).FirstOrDefaultAsync(ct);
 
-    // The receivables report owns balance arithmetic and opens its own snapshot, so it runs before any other read here.
-    var finance = await FinanceSectionAsync(db, actor, clientId, ct);
+    // The receivables report owns balance arithmetic; closeout composes it inside its locked snapshot.
+    var finance = await FinanceSectionAsync(db, actor, clientId, lockedSnapshot, ct);
     var work = await WorkSectionAsync(db, actor, clientId, ct);
     var access = await AccessSectionAsync(db, actor, clientId, ct);
     var retention = await RetentionSectionAsync(db, actor, clientId, ct);
@@ -152,10 +156,13 @@ public static partial class PracticeCrmService
   }
 
   private static async Task<ClientOffboardingSection> FinanceSectionAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct)
+    IAuditSphereDbContext db, ActorContext actor, Guid clientId, bool lockedSnapshot, CancellationToken ct)
   {
     const string reason = "Your access does not include firm finance for this client.";
-    var aging = await FirmReceivablesAgingQuery.GetAsync(db, actor, DateOnly.FromDateTime(DateTime.UtcNow), ct);
+    var asOf = DateOnly.FromDateTime(DateTime.UtcNow);
+    var aging = lockedSnapshot
+      ? await FirmReceivablesAgingQuery.GetForLockedSnapshotAsync(db, actor, asOf, ct)
+      : await FirmReceivablesAgingQuery.GetAsync(db, actor, asOf, ct);
     if (!aging.Succeeded || aging.Value is null)
       return Section("FINANCE", "Money", null,
         Unavailable("OUTSTANDING_INVOICES", "Posted invoices with an outstanding balance",

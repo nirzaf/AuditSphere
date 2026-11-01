@@ -187,6 +187,29 @@ public sealed class ClientProfileWorkspaceTests
     Assert.Equal(1, await db.Invoices.CountAsync(x => x.BillingAccountId == accountId));
     Assert.Equal(3, await db.WorkTasks.CountAsync(x => x.ClientId == f.ClientId));
 
+    var financeReadiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, adminActor, f.ClientId);
+    Assert.True(financeReadiness.Succeeded, financeReadiness.Message);
+    Assert.Contains(financeReadiness.Value!.Sections, section => section.Key == "FINANCE" &&
+      section.Items.Any(item => item.Key == "OUTSTANDING_INVOICES" && item.Count == 1));
+    var financeRequest = new ClientOffboardingCloseoutRequest(f.ClientId, "Reviewed finance-visible state.", [], 0,
+      ExpectedReadinessDigest: financeReadiness.Value.ReadinessDigest, RequestKey: "44444444-4444-4444-8444-444444444444");
+    db.Invoices.Add(new Invoice { Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = accountId,
+      InvoiceNumber = "INV-OFF-DRAFT", Currency = "USD", Subtotal = 10m, Total = 10m,
+      Status = BillingStates.InvoiceDraft, CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    var staleFinance = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, adminActor, financeRequest);
+    Assert.False(staleFinance.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, staleFinance.ErrorCode);
+    financeReadiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, adminActor, f.ClientId);
+    Assert.True(financeReadiness.Succeeded, financeReadiness.Message);
+    financeRequest = financeRequest with { ExpectedReadinessDigest = financeReadiness.Value!.ReadinessDigest };
+    var financeRecord = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, adminActor, financeRequest);
+    Assert.True(financeRecord.Succeeded, financeRecord.Message);
+    Assert.Equal(financeReadiness.Value.ReadinessDigest, financeRecord.Value!.ReadinessDigest);
+    var financeReplay = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, adminActor, financeRequest);
+    Assert.True(financeReplay.Succeeded, financeReplay.Message);
+    Assert.Equal(financeRecord.Value.RecordId, financeReplay.Value!.RecordId);
+
     await using (var update = new AuditSphereDbContext(pg.Options))
       await Assert.ThrowsAsync<PostgresException>(() => update.Database.ExecuteSqlInterpolatedAsync(
         $"UPDATE client_offboarding_records SET disposition_notes = 'changed' WHERE id = {recorded.Value.RecordId}"));
@@ -202,7 +225,7 @@ public sealed class ClientProfileWorkspaceTests
     var downgrade = await Assert.ThrowsAnyAsync<Exception>(() => db.GetService<IMigrator>().MigrateAsync(migrations[index - 1]));
     Assert.Equal("55000", Assert.IsType<PostgresException>(downgrade.GetBaseException()).SqlState);
     Assert.Contains(migrations[index], await db.Database.GetAppliedMigrationsAsync());
-    Assert.Single(await db.ClientOffboardingRecords.Where(x => x.ClientId == f.ClientId).ToListAsync());
+    Assert.Equal(2, await db.ClientOffboardingRecords.CountAsync(x => x.ClientId == f.ClientId));
   }
 
   [Fact]
