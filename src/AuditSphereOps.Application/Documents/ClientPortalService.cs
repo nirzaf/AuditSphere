@@ -275,7 +275,9 @@ public static class ClientPortalService
     IAuditSphereDbContext db, ActorContext actor, PbcRequest request, CancellationToken ct = default)
   {
     if (!(await AuthorizeDelegatorAsync(db, actor, request, ct)).Succeeded) return [];
-    var rows = await db.PbcRequestDelegations.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PbcRequestId == request.Id && x.RevokedAt == null)
+    var rows = await db.PbcRequestDelegations.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.ClientId == request.ClientId && x.EngagementId == request.EngagementId &&
+        x.PbcRequestId == request.Id && x.RevokedAt == null)
       .OrderBy(x => x.CreatedAt).ToListAsync(ct);
     var ids = rows.Select(x => x.DelegateUserId).ToArray();
     var names = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && ids.Contains(x.Id))

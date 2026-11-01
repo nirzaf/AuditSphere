@@ -11,6 +11,8 @@ using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -23,6 +25,11 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class ClientPortalOnboardingTests
 {
+  private const string PbcDelegationScopeBaselineMigration = "20261101061145_FileFreezeParentScope";
+  private const string PbcDelegationScopeMigration = "20261101074826_PbcRequestDelegationScope";
+  private const string PbcDelegationScopeConstraint = "fk_pbc_request_delegations_request_scope";
+  private static readonly string[] PbcDelegationScopeTables = ["pbc_request_delegations", "pbc_requests"];
+
   private static StartPbcUploadRequest Upload(Guid requestId) =>
     new(requestId, "ledger.csv", "text/csv", 10, new string('a', 64));
 
@@ -394,6 +401,274 @@ public sealed class ClientPortalOnboardingTests
     Assert.Equal("pbc.engagement-inactive",
       (await PbcService.ChangeStateAsync(db, client, new PbcStateChangeRequest(requestId, PbcStates.Resubmitted, 4))).ErrorCode);
     Assert.Equal("pbc.engagement-inactive", (await PbcService.StartUploadAsync(db, client, Upload(requestId))).ErrorCode);
+  }
+
+  [Fact]
+  public async Task PortalRequest_DoesNotExposeDelegationOutsideTheRequestClientAndEngagement()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var primaryEmail = $"primary-{Guid.NewGuid():N}@example.test";
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      await seed.Users.Where(x => x.Id == f.Client.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.Email, primaryEmail));
+      seed.ClientContacts.Add(new ClientContact
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, FullName = "Primary",
+        Email = primaryEmail.ToUpperInvariant(), Role = "Finance director", Primary = true
+      });
+      await seed.SaveChangesAsync();
+    }
+
+    var colleague = await AddClientUserAsync(pg, f, f.ClientId, f.EngagementId, onboarded: true);
+    var siblingClientId = Guid.NewGuid();
+    var siblingEngagementId = Guid.NewGuid();
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.PracticeClients.Add(new PracticeClient
+      {
+        Id = siblingClientId, FirmId = f.FirmId, LegalName = "SIBLING", CreatedAt = DateTimeOffset.UtcNow
+      });
+      seed.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
+      {
+        Id = siblingEngagementId, FirmId = f.FirmId, PracticeClientId = siblingClientId,
+        Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+    }
+    var sibling = await AddClientUserAsync(pg, f, siblingClientId, siblingEngagementId, onboarded: true);
+    var requestId = await SentRequestAsync(pg, f, f.Client.Id);
+    var primary = PbcSeed.Actor(f.Client, "ClientUser");
+
+    await using (var native = new AuditSphereDbContext(pg.Options))
+    {
+      var valid = await ClientPortalService.DelegateRequestAsync(native, primary, requestId, colleague.Id);
+      Assert.True(valid.Succeeded, valid.Message);
+      Assert.Equal("pbc.delegation.ineligible",
+        (await ClientPortalService.DelegateRequestAsync(native, primary, requestId, sibling.Id)).ErrorCode);
+    }
+
+    // Simulate a legacy row that passed the original global request FK despite carrying sibling scope.
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      // The focused test database may already include the new guard. Drop only that test-only constraint so the
+      // projection remains defensive when reading rows that predate a migration or bypassed ordinary persistence.
+      await seed.Database.ExecuteSqlRawAsync(
+        "ALTER TABLE pbc_request_delegations DROP CONSTRAINT IF EXISTS fk_pbc_request_delegations_request_scope");
+      seed.PbcRequestDelegations.Add(new PbcRequestDelegation
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = siblingClientId, EngagementId = siblingEngagementId,
+        PbcRequestId = requestId, DelegatorUserId = f.Client.Id, DelegateUserId = sibling.Id,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+    }
+
+    await using var detail = new AuditSphereDbContext(pg.Options);
+    var workspace = await ClientPortalWorkspaceQuery.RequestAsync(detail, primary, requestId);
+    Assert.True(workspace.Succeeded, workspace.Message);
+    Assert.True(workspace.Value!.CanManageDelegations);
+    Assert.Contains(workspace.Value.Delegations, x => x.DelegateUserId == colleague.Id);
+    Assert.DoesNotContain(workspace.Value.Delegations, x => x.DelegateUserId == sibling.Id);
+  }
+
+  [Fact]
+  [Trait("CompletionUnit", "WU-004")]
+  public async Task PbcRequestDelegationScopeMigration_RoundTripsValidRowsAndRetainsPriorCatalog()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var requestId = await SentRequestAsync(pg, f, f.Client.Id);
+    var retained = new PbcRequestDelegation
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+      PbcRequestId = requestId, DelegatorUserId = f.Client.Id, DelegateUserId = f.Staff.Id,
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.PbcRequestDelegations.Add(retained);
+      await seed.SaveChangesAsync();
+    }
+
+    await using var migrationDb = new AuditSphereDbContext(pg.Options);
+    var migrator = migrationDb.GetService<IMigrator>();
+    var currentHistory = (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray();
+    Assert.Equal(PbcDelegationScopeMigration, currentHistory[^1]);
+    var currentCatalog = await ReadPbcDelegationCatalogAsync(pg);
+    var currentRows = await ReadPbcDelegationRowsAsync(pg);
+    AssertPbcDelegationScopeConstraint(currentCatalog);
+    Assert.Contains(retained.Id.ToString(), currentRows, StringComparison.OrdinalIgnoreCase);
+
+    await migrator.MigrateAsync(PbcDelegationScopeBaselineMigration);
+    var baselineHistory = (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray();
+    Assert.Equal(currentHistory[..^1], baselineHistory);
+    var baselineCatalog = await ReadPbcDelegationCatalogAsync(pg);
+    AssertPbcDelegationScopeConstraintAbsent(baselineCatalog);
+    Assert.Equal(currentRows, await ReadPbcDelegationRowsAsync(pg));
+    AssertOnlyPbcDelegationScopeConstraintAdded(baselineCatalog, currentCatalog);
+
+    await migrator.MigrateAsync();
+    Assert.Equal(currentHistory, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+    Assert.Equal(currentCatalog, await ReadPbcDelegationCatalogAsync(pg));
+    Assert.Equal(currentRows, await ReadPbcDelegationRowsAsync(pg));
+
+    await using var invalidWrite = new AuditSphereDbContext(pg.Options);
+    var denied = await Assert.ThrowsAsync<PostgresException>(async () =>
+      await invalidWrite.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO pbc_request_delegations
+          (id, firm_id, client_id, engagement_id, pbc_request_id, delegator_user_id, delegate_user_id, created_at)
+        VALUES
+          ({Guid.NewGuid()}, {f.FirmId}, {Guid.NewGuid()}, {f.EngagementId}, {requestId},
+           {f.Client.Id}, {f.Reviewer.Id}, {DateTimeOffset.UtcNow})
+        """));
+    Assert.Equal("23503", denied.SqlState);
+    Assert.Equal(PbcDelegationScopeConstraint, denied.ConstraintName);
+    Assert.Equal(currentRows, await ReadPbcDelegationRowsAsync(pg));
+  }
+
+  [Theory]
+  [InlineData("firm")]
+  [InlineData("client")]
+  [InlineData("engagement")]
+  [Trait("CompletionUnit", "WU-004")]
+  public async Task PbcRequestDelegationScopeMigration_RefusesEachInvalidRetainedLinkAtomically(string mismatch)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var requestId = await SentRequestAsync(pg, f, f.Client.Id);
+    var (siblingClientId, siblingEngagementId) = await AddSiblingPbcScopeAsync(pg, f.FirmId);
+    var firmId = mismatch == "firm" ? Guid.NewGuid() : f.FirmId;
+    var clientId = mismatch == "client" ? siblingClientId : f.ClientId;
+    var engagementId = mismatch == "engagement" ? siblingEngagementId : f.EngagementId;
+
+    await using (var migrationDb = new AuditSphereDbContext(pg.Options))
+      await migrationDb.GetService<IMigrator>().MigrateAsync(PbcDelegationScopeBaselineMigration);
+
+    await using (var legacy = new AuditSphereDbContext(pg.Options))
+    {
+      legacy.PbcRequestDelegations.Add(CreatePbcDelegation(f, firmId, requestId, clientId, engagementId, f.Reviewer.Id));
+      await legacy.SaveChangesAsync();
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var migrationIds = verify.Database.GetMigrations().ToArray();
+    var migrationIndex = Array.IndexOf(migrationIds, PbcDelegationScopeMigration);
+    Assert.True(migrationIndex > 0, $"Could not locate {PbcDelegationScopeMigration} in the migration list.");
+    var expectedHistory = migrationIds[..migrationIndex];
+    Assert.Equal(expectedHistory, (await verify.Database.GetAppliedMigrationsAsync()).ToArray());
+    var oldCatalog = await ReadPbcDelegationCatalogAsync(pg);
+    AssertPbcDelegationScopeConstraintAbsent(oldCatalog);
+    var legacyRows = await ReadPbcDelegationRowsAsync(pg);
+
+    await using var migrationAttempt = new AuditSphereDbContext(pg.Options);
+    var refused = await Assert.ThrowsAsync<PostgresException>(
+      () => migrationAttempt.GetService<IMigrator>().MigrateAsync());
+    Assert.Equal("23503", refused.SqlState);
+    Assert.Equal(PbcDelegationScopeConstraint, refused.ConstraintName);
+    Assert.Equal(expectedHistory, (await verify.Database.GetAppliedMigrationsAsync()).ToArray());
+    Assert.Equal(oldCatalog, await ReadPbcDelegationCatalogAsync(pg));
+    Assert.Equal(legacyRows, await ReadPbcDelegationRowsAsync(pg));
+  }
+
+  private static PbcRequestDelegation CreatePbcDelegation(
+    PbcSeed.Fixture f, Guid firmId, Guid requestId, Guid clientId, Guid engagementId, Guid delegateUserId) => new()
+  {
+    Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+    PbcRequestId = requestId, DelegatorUserId = f.Client.Id, DelegateUserId = delegateUserId,
+    CreatedAt = DateTimeOffset.UtcNow
+  };
+
+  private static async Task<(Guid ClientId, Guid EngagementId)> AddSiblingPbcScopeAsync(PgTestSchema pg, Guid firmId)
+  {
+    var now = DateTimeOffset.UtcNow;
+    var clientId = Guid.NewGuid();
+    var engagementId = Guid.NewGuid();
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.PracticeClients.Add(new PracticeClient
+    {
+      Id = clientId, FirmId = firmId, LegalName = "SYNTHETIC SIBLING CLIENT", CreatedAt = now
+    });
+    db.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = firmId });
+    db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
+    {
+      Id = engagementId, FirmId = firmId, PracticeClientId = clientId,
+      Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+    });
+    await db.SaveChangesAsync();
+    return (clientId, engagementId);
+  }
+
+  private static async Task<string> ReadPbcDelegationRowsAsync(ITestPostgresDatabase pg)
+  {
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using var command = new NpgsqlCommand("""
+      SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.id), '[]'::jsonb)::text
+      FROM pbc_request_delegations t
+      """, connection);
+    return (string)(await command.ExecuteScalarAsync())!;
+  }
+
+  private static async Task<string> ReadPbcDelegationCatalogAsync(ITestPostgresDatabase pg)
+  {
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using var command = new NpgsqlCommand("""
+      SELECT jsonb_build_object(
+        'constraints', COALESCE((
+          SELECT jsonb_agg(jsonb_build_array(r.relname, c.conname, c.contype::text,
+            pg_get_constraintdef(c.oid, true), c.convalidated, c.condeferrable)
+            ORDER BY r.relname, c.conname)
+          FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid
+          WHERE c.connamespace=current_schema()::regnamespace AND r.relname=ANY(@tables)
+        ), '[]'::jsonb),
+        'indexes', COALESCE((
+          SELECT jsonb_agg(jsonb_build_array(tablename, indexname, indexdef) ORDER BY tablename, indexname)
+          FROM pg_indexes WHERE schemaname=current_schema() AND tablename=ANY(@tables)
+        ), '[]'::jsonb)
+      )::text
+      """, connection);
+    command.Parameters.AddWithValue("tables", PbcDelegationScopeTables);
+    return (string)(await command.ExecuteScalarAsync())!;
+  }
+
+  private static void AssertPbcDelegationScopeConstraintAbsent(string catalog)
+  {
+    using var document = System.Text.Json.JsonDocument.Parse(catalog);
+    var names = document.RootElement.GetProperty("constraints").EnumerateArray()
+      .Select(row => row[1].GetString()!).ToHashSet(StringComparer.Ordinal);
+    Assert.DoesNotContain(PbcDelegationScopeConstraint, names);
+  }
+
+  private static void AssertPbcDelegationScopeConstraint(string catalog)
+  {
+    using var document = System.Text.Json.JsonDocument.Parse(catalog);
+    var constraints = document.RootElement.GetProperty("constraints").EnumerateArray()
+      .Where(row => row[1].GetString() == PbcDelegationScopeConstraint).ToArray();
+    var scope = Assert.Single(constraints);
+    Assert.Equal("pbc_request_delegations", scope[0].GetString());
+    Assert.Equal("f", scope[2].GetString());
+    Assert.Contains("FOREIGN KEY (firm_id, client_id, engagement_id, pbc_request_id)", scope[3].GetString());
+    Assert.Contains("REFERENCES pbc_requests(firm_id, client_id, engagement_id, id)", scope[3].GetString());
+    Assert.Contains("ON DELETE RESTRICT", scope[3].GetString());
+    Assert.True(scope[4].GetBoolean());
+    Assert.False(scope[5].GetBoolean());
+  }
+
+  private static void AssertOnlyPbcDelegationScopeConstraintAdded(string baseline, string current)
+  {
+    using var baselineDocument = System.Text.Json.JsonDocument.Parse(baseline);
+    using var currentDocument = System.Text.Json.JsonDocument.Parse(current);
+    var priorConstraints = baselineDocument.RootElement.GetProperty("constraints").EnumerateArray()
+      .Select(row => row.GetRawText()).ToArray();
+    var currentPriorConstraints = currentDocument.RootElement.GetProperty("constraints").EnumerateArray()
+      .Where(row => row[1].GetString() != PbcDelegationScopeConstraint)
+      .Select(row => row.GetRawText()).ToArray();
+    Assert.Equal(priorConstraints, currentPriorConstraints);
+    Assert.Equal(
+      baselineDocument.RootElement.GetProperty("indexes").EnumerateArray().Select(row => row.GetRawText()).ToArray(),
+      currentDocument.RootElement.GetProperty("indexes").EnumerateArray().Select(row => row.GetRawText()).ToArray());
   }
 
   [Fact]
