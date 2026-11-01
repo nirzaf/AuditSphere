@@ -371,6 +371,7 @@ export class ConsolidationScopeWorkspace {
     if (outcome.ok && matchesDeliverableReceipt(outcome.value, ref, input)) {
       try { sessionStorage.removeItem(key); } catch { this.cmd.uncertain.set(true); this.uncertainScopeId.set(ref.scopeId.toLowerCase()); return; }
       this.pendingDeliverable.set(null); this.cmd.uncertain.set(false); this.uncertainScopeId.set(null);
+      this.deliverableBuildRequestKeys.clear(); this.deliverableIssueRequestKeys.clear(); this.deliverableArchiveRequestKeys.clear();
       this.recoveryInput = ''; this.cmd.failed.set(false); this.cmd.message.set('The original group deliverable action was confirmed.');
       after?.(); this.deliverablePage.reload(); this.ws.reload();
     } else if (!outcome.ok && !outcome.unknown && !recovering) {

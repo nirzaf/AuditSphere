@@ -5,6 +5,10 @@
 
 ## Lifecycle audit work in progress (2026-11-01)
 
+After a validated group recovery, cached intent keys are cleared so a later new action gets a fresh identity. The two focused recovery suites passed 41/41. Production Angular build passed with the existing stylesheet budget warnings; exact-source CI and full release verification remain pending.
+
+Synthetic browser check: the client readiness screen loaded and a synthetic blocked review returned a BLOCKED_DECISION receipt. An attempted offline interruption could not be driven reliably by browser control, and the synthetic workspace did not contain a consolidation group; neither recovery flow is claimed as browser-verified. Same-tab concurrency checks passed in the 40-test focused UI cohort.
+
 REM-08: group build, issue and archive retain actor-scoped tab references and retry the original request after a fresh authorized scope read. Release references and archive reasons are not stored; their salted hashes require re-entry. The two focused recovery suites passed 40/40, including changed input, session and navigation replacement, denial, malformed receipt, issue replay after archival and concurrent same-tab reference fencing. Browser and exact-source CI verification remain outstanding.
 
 REM-06: the offboarding UI retains the original scoped request reference and a salted notes hash without storing notes. The focused client-offboarding-readiness.spec.ts passed 7/7, including edited intent, session and navigation replacement, malformed receipt and exact-key retry. Browser and exact-source CI verification remain outstanding.

@@ -481,6 +481,26 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(JSON.parse(sessionStorage.getItem(key)!).requestKey).toBe(id3);
   });
 
+  it('uses a new identity for a new build after the original build is recovered', async () => {
+    const raw = workspacePayload({ latestReport: { scopeVersionId: id1, runId: id3, runHash: hash64,
+      state: 'CURRENT_APPROVED', approvedAt: '2026-10-01T12:00:00Z', lines: [] } });
+    const { fixture, component } = open(raw);
+    const decoder = api.resource.mock.calls[0][1] as (value: unknown, path: string) => ScopeWorkspace;
+    workspaceData.set(decoder(raw, 'root')); fixture.detectChanges();
+    api.command.mockResolvedValueOnce({ ok: false, unknown: true, code: 'outcome.unknown', status: 0, message: UNKNOWN_OUTCOME });
+    component.buildDeliverable(component.ws.data()!);
+    await vi.waitFor(() => expect(component.cmd.uncertain()).toBe(true));
+    const originalKey = (api.command.mock.calls[0][1] as Record<string, unknown>)['requestKey'];
+    api.command.mockImplementation(async (_url: string, body: Record<string, unknown>) => ({ ok: true, value: {
+      deliverableId: id2, groupId: id2, scopeVersionId: id1, runId: id3, runHash: hash64,
+      deliverableSha256: hash64, status: 'BUILT', revision: 1, createdByUserId: actor, requestKey: body['requestKey'] } }));
+    await component.retryDeliverableRecovery();
+    expect(component.cmd.uncertain()).toBe(false);
+    component.buildDeliverable(component.ws.data()!);
+    await vi.waitFor(() => expect(api.command).toHaveBeenCalledTimes(3));
+    expect((api.command.mock.calls[2][1] as Record<string, unknown>)['requestKey']).not.toBe(originalKey);
+  });
+
   it('shows retained exact artifacts when the current report is stale and pages through history', () => {
     const { fixture, component } = open(workspacePayload({ latestReport: {
       scopeVersionId: id1, runId: id3, runHash: hash64, state: 'STALE', approvedAt: null, lines: []
