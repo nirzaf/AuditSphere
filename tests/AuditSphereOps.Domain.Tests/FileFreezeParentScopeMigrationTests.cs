@@ -49,13 +49,16 @@ public sealed class FileFreezeParentScopeMigrationTests
     await using var db = new AuditSphereDbContext(pg.Options);
     var migrator = db.GetService<IMigrator>();
     var currentHistory = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
-    Assert.Equal(ScopeMigration, currentHistory[^1]);
+    var baselineIndex = Array.IndexOf(currentHistory, BaselineMigration);
+    var scopeIndex = Array.IndexOf(currentHistory, ScopeMigration);
+    Assert.True(baselineIndex >= 0, $"Baseline migration {BaselineMigration} is absent.");
+    Assert.True(scopeIndex > baselineIndex, $"Scope migration {ScopeMigration} must follow its baseline.");
     var currentCatalog = await ReadCatalogAsync(pg);
     var retainedRows = await ReadRowsAsync(pg);
 
     await migrator.MigrateAsync(BaselineMigration);
     var baselineHistory = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
-    Assert.Equal(currentHistory[..^1], baselineHistory);
+    Assert.Equal(currentHistory[..(baselineIndex + 1)], baselineHistory);
     var baselineCatalog = await ReadCatalogAsync(pg);
     AssertScopeObjectsAbsent(baselineCatalog);
     Assert.Equal(retainedRows, await ReadRowsAsync(pg));
