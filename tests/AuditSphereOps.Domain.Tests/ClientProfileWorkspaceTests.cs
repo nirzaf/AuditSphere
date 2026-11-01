@@ -172,6 +172,7 @@ public sealed class ClientProfileWorkspaceTests
     var persistedDecisionAt = await db.ClientOffboardingRecords
       .Where(x => x.FirmId == f.FirmId && x.Id == recorded.Value.RecordId).Select(x => x.DecidedAt).SingleAsync();
     Assert.Equal(recorded.Value.DecidedAt, persistedDecisionAt);
+    Assert.Equal(persistedDecisionAt, replay.Value.DecidedAt);
 
     var changedNotes = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, managerActor,
       request with { DispositionNotes = "Different review intent." });
