@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 12702)
-Total output lines: 201
-
 # AuditSphere — current-slice handoff
 
 **Updated:** 2026-11-01
@@ -97,7 +94,15 @@ This repair was published in `e2827a10d60ea7c4c0a5c562f88e941b339bf124`; `d6eed`
 
 ## WU-004 PBC request delegation scope — exact-source CI pending
 
-The owner request detail was projecting an active delegation row carrying a sibling client's and engagement's scope. Native same-client delegation succeeded and native sibling-user delegation was denied, but the old global request-ID FK acc…702 tokens truncated…ntness-20261101/prior/`; its prior-archive manifest records their byte identities.
+The owner request detail was projecting an active delegation row carrying a sibling client's and engagement's scope. Native same-client delegation succeeded and native sibling-user delegation was denied, but the old global request-ID FK accepted a malformed same-firm sibling row and the owner detail exposed that sibling delegate. The focused regression reproduced the leak on the unchanged `d6eed` product source (RED 1/1).
+
+`ClientPortalService.DelegationsAsync` now filters active rows by firm, the authorized request's client and engagement, and request ID. Additive migration `20261101074826_PbcRequestDelegationScope` adds one restrictive FK over `(firm_id, client_id, engagement_id, pbc_request_id)` to the existing full-scope PBC request key. The old global-ID relationship and indexes remain; no child index, model snapshot, API, role, owner-eligibility or revocation behavior changed.
+
+The final regression passed 1/1 and its extracted method body is byte-identical to the preserved RED method (SHA-256 `33d8673189e4f98af64d89b03fe1606e273741503052630168186c8d00012c57`; 3,505 bytes). The focused migration cohort passed 4/4: valid rows/catalog/history round-tripped, a new invalid insert was refused, and separate retained wrong-firm, wrong-client and wrong-engagement rows each caused atomic SQLSTATE `23503` refusal with old rows/catalog/history preserved. The API Release build passed with 0 warnings/errors, EF reported no pending model changes, and `git diff --check` passed. Documentation health passed (244 Markdown files/19 canonical documents/3,879 links/515 repository paths); filename and narrative-metric checks passed. Evidence and exact log digests are in `.local/autonomous/evidence/wu004-file-freeze-scope-20261101/pbc-delegation-final-review.json` (SHA-256 `fedd66f6d736136e6781ac64a78dc38aa11a42fae1cda2056bc5a89b70285be3`). This backend query/schema change did not require interactive browser verification.
+
+The PBC source, migration and regression are published in `d286a7b0`, included in the current `32d95` source, and have exact fast/image runs `41297691912` and `41297691755` terminal PASS with verified checkouts and pins. That predecessor result does not cover the locally committed `f62` U03/U04 changes or their docs-only descendants; exact-source CI remains pending. Focused checks do not complete the wider WU-004 or whole assignment.
+
+The exact pre-lifecycle ledger and handoff are preserved in [status-archive-2026-10-31-pre-lifecycle.json](status-archive-2026-10-31-pre-lifecycle.json) and [auditsphere-execution-current-slice-archive-2026-10-31-pre-lifecycle.md](auditsphere-execution-current-slice-archive-2026-10-31-pre-lifecycle.md). Their retained byte identities are SHA-256 `7300e983f352d71b7109537b737205cbf93e031283e258f30766af4269665a96` and `d19a1cc6ca82680cb5446aadd7ef3f90a7c5f2df01f1a3ee220d844a48f9cd7e`, respectively. The exact prior status, current-slice handoff and autonomous checkpoints before the practice update are preserved in `.local/autonomous/evidence/practice-progress-currentness-20261101/prior/`; its prior-archive manifest records their byte identities.
 
 Before this file-freeze update, the exact prior ledger and handoff were also archived as [status-archive-2026-11-01-pre-file-freeze.json](status-archive-2026-11-01-pre-file-freeze.json) and [auditsphere-execution-current-slice-archive-2026-11-01-pre-file-freeze.md](auditsphere-execution-current-slice-archive-2026-11-01-pre-file-freeze.md), SHA-256 `11c97e598718e38bd04649b218e623040b09a95bedefc421c357998771402b0a` and `e28fba933fc53eebbb6d984deafdd4314af5ea1409db1451370cd0d7964034ad`. `.local/autonomous/evidence/wu004-file-freeze-scope-20261101/archive-before-additions-proof.json` confirms both copies are byte-identical.
 
