@@ -1,5 +1,13 @@
 import { guidPattern } from '../../core/contracts';
 
+const activeRequests = new Set<string>();
+export function claimDeliverableRequest(key: string): boolean {
+  if (activeRequests.has(key)) return false;
+  activeRequests.add(key);
+  return true;
+}
+export function releaseDeliverableRequest(key: string): void { activeRequests.delete(key); }
+
 export interface DeliverableRecovery {
   action: 'build' | 'issue' | 'archive'; scopeId: string; groupId: string; actorId: string; requestKey: string;
   runId: string | null; runHash: string; groupRevision: number; deliverableId: string | null;

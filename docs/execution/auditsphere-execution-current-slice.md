@@ -5,6 +5,8 @@
 
 ## Lifecycle audit work in progress (2026-11-01)
 
+Same-tab transmissions are serialized while an original request is in flight; receipt and rejection cleanup only remove the matching stored reference. The focused recovery suites passed 45/45, including concurrent component and replacement-reference cases. Exact-source CI and full release verification remain pending.
+
 After a validated group recovery, cached intent keys are cleared so a later new action gets a fresh identity. The two focused recovery suites passed 41/41. Production Angular build passed with the existing stylesheet budget warnings; exact-source CI and full release verification remain pending.
 
 Synthetic browser check: the client readiness screen loaded and a synthetic blocked review returned a BLOCKED_DECISION receipt. An attempted offline interruption could not be driven reliably by browser control, and the synthetic workspace did not contain a consolidation group; neither recovery flow is claimed as browser-verified. Same-tab concurrency checks passed in the 40-test focused UI cohort.

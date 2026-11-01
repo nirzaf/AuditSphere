@@ -251,10 +251,50 @@ describe('client offboarding readiness', () => {
       expect(requests).toHaveLength(1);
       const sent = requests[0].request.body;
       const blocked = sent.dispositionNotes === 'First review' ? second.componentInstance : first.componentInstance;
-      expect(blocked.error()).toContain('recovery reference changed');
+      expect(blocked.error()).toMatch(/still in flight|recovery reference changed/);
       requests[0].flush({ recordId: otherId, clientId, status: 'BLOCKED_DECISION', readinessOverallState: 'ACTION_REQUIRED',
         readinessDigest, dispositionNotes: sent.dispositionNotes, acknowledgedActionItems: [], decidedByUserId: clientId,
         isArchived: false, archiveRevision: '0', requestKey: sent.requestKey });
+    });
+
+    it('does not send a retry from another component while the original request is in flight', async () => {
+      const first = TestBed.createComponent(ClientOffboardingReadiness);
+      const second = TestBed.createComponent(ClientOffboardingReadiness);
+      first.componentRef.setInput('clientId', clientId); second.componentRef.setInput('clientId', clientId);
+      first.detectChanges(); second.detectChanges();
+      first.componentInstance.load();
+      http.expectOne('/api/ui/clients/' + clientId + '/offboarding-readiness').flush(body());
+      first.componentInstance.dispositionNotes = 'Original review';
+      await first.componentInstance.recordCloseout(first.componentInstance.result()!);
+      const original = http.expectOne('/api/ui/clients/' + clientId + '/offboarding-closeout');
+      second.componentInstance.load();
+      http.expectOne('/api/ui/clients/' + clientId + '/offboarding-readiness').flush(body());
+      second.componentInstance.dispositionNotes = 'Original review';
+      await second.componentInstance.recordCloseout(second.componentInstance.result()!);
+      http.expectNone('/api/ui/clients/' + clientId + '/offboarding-closeout');
+      expect(second.componentInstance.error()).toContain('still in flight');
+      original.flush({ recordId: otherId, clientId, status: 'BLOCKED_DECISION', readinessOverallState: 'ACTION_REQUIRED',
+        readinessDigest, dispositionNotes: 'Original review', acknowledgedActionItems: [], decidedByUserId: clientId,
+        isArchived: false, archiveRevision: '0', requestKey: original.request.body.requestKey });
+      expect(first.componentInstance.closeoutSuccess()).toBe(true);
+    });
+
+    it('does not clear a replacement reference when an older receipt arrives', async () => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId); fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.load(); http.expectOne('/api/ui/clients/' + clientId + '/offboarding-readiness').flush(body());
+      component.dispositionNotes = 'Original review';
+      await component.recordCloseout(component.result()!);
+      const request = http.expectOne('/api/ui/clients/' + clientId + '/offboarding-closeout');
+      const key = sessionStorage.key(0)!;
+      const replacement = { ...component.pending()!, requestKey: otherId };
+      sessionStorage.setItem(key, JSON.stringify(replacement));
+      request.flush({ recordId: otherId, clientId, status: 'BLOCKED_DECISION', readinessOverallState: 'ACTION_REQUIRED',
+        readinessDigest, dispositionNotes: 'Original review', acknowledgedActionItems: [], decidedByUserId: clientId,
+        isArchived: false, archiveRevision: '0', requestKey: request.request.body.requestKey });
+      expect(component.closeoutSuccess()).toBe(false);
+      expect(JSON.parse(sessionStorage.getItem(key)!).requestKey).toBe(otherId);
     });
   });
 });

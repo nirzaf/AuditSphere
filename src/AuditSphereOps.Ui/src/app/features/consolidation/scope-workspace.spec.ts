@@ -481,6 +481,62 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(JSON.parse(sessionStorage.getItem(key)!).requestKey).toBe(id3);
   });
 
+  it('does not retry from another component while the original deliverable request is in flight', async () => {
+    const raw = workspacePayload({ canIssueDeliverable: true, latestReport: { scopeVersionId: id1, runId: id3,
+      runHash: hash64, state: 'CURRENT_APPROVED', approvedAt: '2026-10-01T12:00:00Z', lines: [] } });
+    const { component } = open(raw);
+    const built: ReturnType<typeof decodeGroupDeliverablePage>['items'][number] = {
+      deliverableId: id2, status: 'BUILT', runHash: hash64, deliverableSha256: hash64,
+      createdAt: '2026-10-01T12:00:00Z', createdByUserId: id1, issuedAt: null, issuedByUserId: null,
+      archivedAt: null, archivedByUserId: null, revision: 1,
+    };
+    deliverableResource.data.set({ items: [built], page: 1, pageSize: 100, totalCount: 1 });
+    let finish!: (result: unknown) => void;
+    api.command.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    component.deliverableReleaseKey = 'Reviewed reference';
+    component.setDeliverableReviewed(component.ws.data()!, built, 'issue', true);
+    component.issueDeliverable(component.ws.data()!, built);
+    await vi.waitFor(() => expect(api.command).toHaveBeenCalledTimes(1));
+    const original = api.command.mock.calls[0][1] as Record<string, unknown>;
+    let index = 0;
+    api.resource.mockImplementation(() => [resource, deliverableResource, intercompanyOptionsResource, intercompanyMatchesResource][index++] ??
+      { data: signal(null), loading: signal(false), error: signal(''), reload: vi.fn() });
+    const base = api.resource.mock.calls.length;
+    const second = TestBed.createComponent(ConsolidationScopeWorkspace);
+    second.detectChanges();
+    const decoder = api.resource.mock.calls[base][1] as (value: unknown, path: string) => ScopeWorkspace;
+    workspaceData.set(decoder(raw, 'root')); second.detectChanges();
+    await vi.waitFor(() => expect(second.componentInstance.pendingDeliverable()?.requestKey).toBe(original['requestKey']));
+    second.componentInstance.recoveryInput = 'Reviewed reference';
+    await second.componentInstance.retryDeliverableRecovery();
+    expect(api.command).toHaveBeenCalledTimes(1);
+    expect(second.componentInstance.cmd.message()).toContain('still in flight');
+    finish({ ok: true, value: { deliverableId: id2, groupId: id2, scopeVersionId: id1, runId: id3,
+      runHash: hash64, deliverableSha256: hash64, status: 'ISSUED', revision: 2, issuedByUserId: actor,
+      issueRequestKey: original['requestKey'], authorizedReleaseKey: 'Reviewed reference' } });
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
+  });
+
+  it('does not clear a replacement reference when an older deliverable receipt arrives', async () => {
+    const raw = workspacePayload({ latestReport: { scopeVersionId: id1, runId: id3, runHash: hash64,
+      state: 'CURRENT_APPROVED', approvedAt: '2026-10-01T12:00:00Z', lines: [] } });
+    const { component } = open(raw);
+    let finish!: (result: unknown) => void;
+    api.command.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    component.buildDeliverable(component.ws.data()!);
+    await vi.waitFor(() => expect(api.command).toHaveBeenCalledTimes(1));
+    const original = api.command.mock.calls[0][1] as Record<string, unknown>;
+    const key = 'auditsphere-group-pending-v1:' + id2 + ':' + actor + ':' + id1;
+    const replacement = { ...JSON.parse(sessionStorage.getItem(key)!), requestKey: id3 };
+    sessionStorage.setItem(key, JSON.stringify(replacement));
+    finish({ ok: true, value: { deliverableId: id2, groupId: id2, scopeVersionId: id1, runId: id3,
+      runHash: hash64, deliverableSha256: hash64, status: 'BUILT', revision: 1, createdByUserId: actor,
+      requestKey: original['requestKey'] } });
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
+    expect(component.cmd.uncertain()).toBe(true);
+    expect(JSON.parse(sessionStorage.getItem(key)!).requestKey).toBe(id3);
+  });
+
   it('uses a new identity for a new build after the original build is recovered', async () => {
     const raw = workspacePayload({ latestReport: { scopeVersionId: id1, runId: id3, runHash: hash64,
       state: 'CURRENT_APPROVED', approvedAt: '2026-10-01T12:00:00Z', lines: [] } });

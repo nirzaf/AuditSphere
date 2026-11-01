@@ -3,11 +3,13 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
-import { Subscription, timeout } from 'rxjs';
+import { finalize, Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { guidPattern } from '../../core/contracts';
 import { decodeOffboardingReadiness, OffboardingReadiness, offboardingStateLabel } from './client-contracts';
 import { offboardingNotesHash, pendingOffboarding, type PendingOffboarding } from './offboarding-pending';
+
+const activeOffboardingRequests = new Set<string>();
 
 /** On-demand, read-only closeout assessment; it never changes the client, work, money or access. */
 @Component({
@@ -148,6 +150,8 @@ export class ClientOffboardingReadiness {
     const recovering = this.pending() !== null;
     this.closeoutLoading.set(true); this.error.set('');
     let intent = this.pending();
+    let claimed = false;
+    let willDispatch = false;
     try {
       if (!intent) {
         const salt = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
@@ -159,6 +163,11 @@ export class ClientOffboardingReadiness {
         return;
       }
       if (revision !== this.revision || key !== this.storageKey(id) || r !== this.result()) return;
+      if (activeOffboardingRequests.has(key)) {
+        this.error.set('The original review request is still in flight. Wait before retrying.');
+        return;
+      }
+      activeOffboardingRequests.add(key); claimed = true;
       const raw = JSON.stringify(intent);
       const existing = sessionStorage.getItem(key);
       if ((!recovering && existing !== null) || (recovering && existing !== raw)) {
@@ -169,20 +178,22 @@ export class ClientOffboardingReadiness {
       sessionStorage.setItem(key, raw);
       if (sessionStorage.getItem(key) !== raw) throw new Error('Recovery reference unavailable');
       this.pending.set(intent);
+      willDispatch = true;
     } catch {
       if (revision === this.revision) this.error.set('The recovery reference could not be saved. No review was sent.');
       return;
     } finally {
+      if (claimed && !willDispatch) activeOffboardingRequests.delete(key);
       if (revision === this.revision) this.closeoutLoading.set(false);
     }
-    if (!intent || revision !== this.revision) return;
+    if (!intent || revision !== this.revision) { if (claimed) activeOffboardingRequests.delete(key); return; }
     const original = intent;
     this.closeoutLoading.set(true);
     this.closeoutRequest?.unsubscribe();
     this.closeoutRequest = this.http.post<unknown>('/api/ui/clients/' + id + '/offboarding-closeout', {
       dispositionNotes: notes, acknowledgedActionItems: [], expectedRevision: original.archiveRevision,
       archiveClientOnCloseout: false, expectedReadinessDigest: original.readinessDigest, requestKey: original.requestKey
-    }).pipe(timeout(30000)).subscribe({
+    }).pipe(timeout(30000), finalize(() => activeOffboardingRequests.delete(key))).subscribe({
       next: (res) => {
         if (revision !== this.revision || key !== this.storageKey(id)) return;
         this.closeoutLoading.set(false);
@@ -199,7 +210,10 @@ export class ClientOffboardingReadiness {
             receipt.isArchived === original.isArchived && receipt.readinessOverallState === original.overallState &&
             receipt.dispositionNotes === notes && Array.isArray(receipt.acknowledgedActionItems) && receipt.acknowledgedActionItems.length === 0 &&
             typeof receipt.decidedByUserId === 'string' && receipt.decidedByUserId.toLowerCase() === expectedActor) {
-          try { sessionStorage.removeItem(key); } catch { this.error.set('The receipt was confirmed but its recovery reference could not be cleared.'); return; }
+          try {
+            if (sessionStorage.getItem(key) !== JSON.stringify(original)) throw new Error('Recovery reference changed');
+            sessionStorage.removeItem(key);
+          } catch { this.error.set('The receipt was confirmed but its recovery reference could not be cleared.'); return; }
           this.pending.set(null); this.closeoutSuccess.set(true); this.dispositionNotes = '';
         } else {
           this.error.set('The server returned an invalid blocked-review receipt. The original outcome remains unconfirmed.');
@@ -209,7 +223,10 @@ export class ClientOffboardingReadiness {
         if (revision !== this.revision || key !== this.storageKey(id)) return;
         this.closeoutLoading.set(false);
         if (!recovering && err instanceof HttpErrorResponse && err.status >= 400 && err.status < 500 && err.status !== 408) {
-          try { sessionStorage.removeItem(key); this.pending.set(null); } catch { this.pendingUnavailable = true; }
+          try {
+            if (sessionStorage.getItem(key) !== JSON.stringify(original)) throw new Error('Recovery reference changed');
+            sessionStorage.removeItem(key); this.pending.set(null);
+          } catch { this.pendingUnavailable = true; }
           this.error.set('The review was not accepted. Refresh and review the current readiness.');
         } else {
           this.error.set('The review outcome is unconfirmed. Retry the exact original request before recording another review.');

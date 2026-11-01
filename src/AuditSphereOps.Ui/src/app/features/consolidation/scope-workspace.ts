@@ -13,7 +13,7 @@ import { decodeGroupDeliverablePage, decodeScopeWorkspace, type ScopeWorkspace, 
 import { formatOwnershipPercent, isValidOwnershipPercent } from './scope-amounts';
 import { ScopeIntercompanyState, type IntercompanyForm } from './scope-intercompany-state';
 import { ScopeJournalState, type NewJournalLine } from './scope-journal-state';
-import { decodeDeliverableRecovery, deliverableInputHash, matchesDeliverableReceipt, type DeliverableRecovery } from './deliverable-recovery';
+import { claimDeliverableRequest, decodeDeliverableRecovery, deliverableInputHash, matchesDeliverableReceipt, releaseDeliverableRequest, type DeliverableRecovery } from './deliverable-recovery';
 
 export { formatOwnershipPercent } from './scope-amounts';
 
@@ -313,6 +313,7 @@ export class ConsolidationScopeWorkspace {
     const owner = this.ownerKey(), key = this.deliverableStorageKey(ref.scopeId);
     if (!key) return;
     this.cmd.busy.set(true); this.cmd.message.set('');
+    let claimed = false;
     try {
       const existing = sessionStorage.getItem(key);
       if (existing !== null) {
@@ -329,6 +330,17 @@ export class ConsolidationScopeWorkspace {
         ref.inputHash = await deliverableInputHash(ref.salt, input);
       }
       if (this.destroyed || owner !== this.ownerKey() || this.currentWorkspace() !== workspace || !guard()) return;
+      if (!claimDeliverableRequest(key)) {
+        const stored = sessionStorage.getItem(key);
+        const pending = stored === null ? null : decodeDeliverableRecovery(JSON.parse(stored));
+        if (pending && pending.scopeId.toLowerCase() === ref.scopeId.toLowerCase() &&
+            pending.groupId.toLowerCase() === ref.groupId.toLowerCase() && pending.actorId.toLowerCase() === ref.actorId.toLowerCase())
+          this.pendingDeliverable.set(pending);
+        this.cmd.uncertain.set(true); this.uncertainScopeId.set(ref.scopeId.toLowerCase());
+        this.cmd.message.set('The original deliverable request is still in flight.');
+        return;
+      }
+      claimed = true;
       const intervening = sessionStorage.getItem(key);
       if (intervening !== null) {
         this.cmd.uncertain.set(true); this.uncertainScopeId.set(ref.scopeId.toLowerCase());
@@ -350,6 +362,7 @@ export class ConsolidationScopeWorkspace {
         this.cmd.message.set('The recovery reference is unavailable. Server actions remain blocked.');
       }
     } finally {
+      if (claimed) releaseDeliverableRequest(key);
       this.cmd.busy.set(false);
     }
   }
@@ -369,13 +382,19 @@ export class ConsolidationScopeWorkspace {
     catch { outcome = { ok: false as const, unknown: true as const, code: 'outcome.unknown', message: 'Outcome unconfirmed.', status: 0 }; }
     if (this.destroyed || owner !== this.ownerKey()) return;
     if (outcome.ok && matchesDeliverableReceipt(outcome.value, ref, input)) {
-      try { sessionStorage.removeItem(key); } catch { this.cmd.uncertain.set(true); this.uncertainScopeId.set(ref.scopeId.toLowerCase()); return; }
+      try {
+        if (sessionStorage.getItem(key) !== JSON.stringify(ref)) throw new Error('Recovery reference changed');
+        sessionStorage.removeItem(key);
+      } catch { this.cmd.uncertain.set(true); this.uncertainScopeId.set(ref.scopeId.toLowerCase()); return; }
       this.pendingDeliverable.set(null); this.cmd.uncertain.set(false); this.uncertainScopeId.set(null);
       this.deliverableBuildRequestKeys.clear(); this.deliverableIssueRequestKeys.clear(); this.deliverableArchiveRequestKeys.clear();
       this.recoveryInput = ''; this.cmd.failed.set(false); this.cmd.message.set('The original group deliverable action was confirmed.');
       after?.(); this.deliverablePage.reload(); this.ws.reload();
     } else if (!outcome.ok && !outcome.unknown && !recovering) {
-      try { sessionStorage.removeItem(key); this.pendingDeliverable.set(null); }
+      try {
+        if (sessionStorage.getItem(key) !== JSON.stringify(ref)) throw new Error('Recovery reference changed');
+        sessionStorage.removeItem(key); this.pendingDeliverable.set(null);
+      }
       catch { this.cmd.uncertain.set(true); this.uncertainScopeId.set(ref.scopeId.toLowerCase()); }
       this.cmd.failed.set(true); this.cmd.message.set(outcome.message);
     } else {
@@ -391,16 +410,20 @@ export class ConsolidationScopeWorkspace {
         workspace.scope.id.toLowerCase() !== ref.scopeId.toLowerCase() || workspace.scope.groupId.toLowerCase() !== ref.groupId.toLowerCase() ||
         this.session.current()?.userId.toLowerCase() !== ref.actorId.toLowerCase()) return;
     const input = this.recoveryInput.trim();
+    if (!claimDeliverableRequest(key)) { this.cmd.message.set('The original deliverable request is still in flight.'); return; }
     this.cmd.busy.set(true);
     try {
       if (ref.action !== 'build' && (!ref.salt || await deliverableInputHash(ref.salt, input) !== ref.inputHash)) {
         this.cmd.message.set('Re-enter the exact original release reference or archive reason.'); return;
       }
       if (this.destroyed || owner !== this.ownerKey() || this.currentWorkspace() !== workspace) return;
+      if (sessionStorage.getItem(key) !== JSON.stringify(ref)) {
+        this.cmd.message.set('The recovery reference changed. Reload this scope and resolve the original request.'); return;
+      }
       await this.sendDeliverableRecovery(owner, key, ref, input, true);
     } catch {
       if (!this.destroyed && owner === this.ownerKey()) this.cmd.message.set('The original outcome remains unconfirmed.');
-    } finally { this.cmd.busy.set(false); }
+    } finally { releaseDeliverableRequest(key); this.cmd.busy.set(false); }
   }
 
   selectedPackageId = '';
