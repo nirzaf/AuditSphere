@@ -394,6 +394,7 @@ export class ConsolidationScopeWorkspace {
 
   private deliverableReviewKey(workspace: ScopeWorkspace, deliverable: ReturnType<typeof decodeGroupDeliverablePage>['items'][number], action: 'issue' | 'archive'): string {
     return JSON.stringify([this.ownerKey(), workspace.scope.id.toLowerCase(), workspace.scope.groupRevision,
+      workspace.latestReport.available, workspace.latestReport.value?.state,
       workspace.latestReport.value?.runId, workspace.latestReport.value?.runHash,
       deliverable.deliverableId.toLowerCase(), deliverable.status, deliverable.revision,
       deliverable.runHash, deliverable.deliverableSha256, action,

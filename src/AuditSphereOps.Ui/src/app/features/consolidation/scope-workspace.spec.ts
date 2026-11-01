@@ -296,6 +296,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
     component.deliverableReleaseKey = 'GROUP-REL-001';
     component.setDeliverableReviewed(workspace, built, 'issue', true);
     expect(component.isDeliverableReviewed(workspace, { ...built, revision: 2 }, 'issue')).toBe(false);
+    expect(component.isDeliverableReviewed({ ...workspace, latestReport: { ...workspace.latestReport, available: false } }, built, 'issue')).toBe(false);
     component.issueDeliverable(workspace, { ...built, deliverableId: id3 });
     expect(api.command).toHaveBeenCalledTimes(1);
     component.updateDeliverableInput('release', 'CHANGED');
