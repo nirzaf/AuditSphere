@@ -58,12 +58,12 @@ describe('native EQR decision panel', () => {
     field.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  async function waitForRequest(http: HttpTestingController, url: string): Promise<TestRequest> {
+  async function waitForRequest(http: HttpTestingController, url: string, description = url): Promise<TestRequest> {
     let request: TestRequest | undefined;
     await vi.waitFor(() => {
       const matches = http.match(url);
       if (matches.length) request = matches[0];
-      expect(request).toBeDefined();
+      expect(request, `Expected ${description}`).toBeDefined();
     });
     return request!;
   }
@@ -155,6 +155,94 @@ describe('native EQR decision panel', () => {
     first.http.expectOne(basisUrl).flush(basisA);
     await resumed.whenStable();
     expect(sessionStorage.getItem(legacy ? legacyKey : storageKey)).toBeNull();
+    resumed.destroy();
+  });
+
+  it('recovers multiple legacy references individually before allowing a new decision', async () => {
+    const first = setup();
+    await loadBasis(first.http, first.fixture);
+    const notes = 'The inventory valuation evidence requires a documented correction.';
+    enterNewDecision(first.fixture, 'CHANGES_REQUESTED', notes, false);
+    reviewExactBasis(first.fixture);
+    await first.fixture.whenStable();
+    first.fixture.detectChanges();
+    (first.fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-eqr-submit]')!.click();
+    const original = await waitForRequest(first.http, decisionUrl);
+    const originalBody = original.request.body;
+    const originalRaw = sessionStorage.getItem(storageKey)!;
+    original.flush({ code: 'temporarily.unavailable', message: 'try later' }, { status: 503, statusText: 'Unavailable' });
+    await vi.waitFor(() => expect(first.page.busy()).toBe(false));
+
+    const firstPending = JSON.parse(originalRaw) as Record<string, unknown>;
+    const firstLegacyKey = legacyKey;
+    const secondGeneration = '6';
+    const secondRequestKey = '66666666-6666-4666-8666-666666666666';
+    const secondLegacyKey = `auditsphere-eqr-pending-v1:${firstSession.firmId}:${firstSession.userId}:${secondGeneration}:${engagementId}`;
+    const secondPending = { ...firstPending, sessionGeneration: secondGeneration, requestKey: secondRequestKey };
+    sessionStorage.removeItem(storageKey);
+    sessionStorage.setItem(firstLegacyKey, originalRaw);
+    sessionStorage.setItem(secondLegacyKey, JSON.stringify(secondPending));
+
+    first.fixture.destroy();
+    first.session.current.set({ ...firstSession, generation: '8' });
+    const resumed = TestBed.createComponent(EqrDecision);
+    resumed.componentRef.setInput('engagementId', engagementId);
+    resumed.componentRef.setInput('caseStatus', 'RECORDED_CONCURRENCE_NOT_CURRENT');
+    resumed.detectChanges();
+    await loadBasis(first.http, resumed);
+    const page = resumed.componentInstance;
+    const host = resumed.nativeElement as HTMLElement;
+    expect(page.recoveryReferences()).toHaveLength(2);
+    expect(host.querySelectorAll('[data-eqr-recovery-choice] option')).toHaveLength(3);
+    expect(host.querySelector('[data-eqr-submit]')).toBeNull();
+    first.http.expectNone(decisionUrl);
+
+    const choice = host.querySelector<HTMLSelectElement>('[data-eqr-recovery-choice]')!;
+    choice.value = firstLegacyKey;
+    choice.dispatchEvent(new Event('change', { bubbles: true }));
+    resumed.detectChanges();
+    host.querySelector<HTMLButtonElement>('[data-eqr-select-recovery]')!.click();
+    resumed.detectChanges();
+    expect(page.pending()?.requestKey).toBe(originalBody.requestKey);
+    const recoveryNotes = host.querySelector<HTMLTextAreaElement>('#eqr-recovery-notes')!;
+    recoveryNotes.value = notes;
+    recoveryNotes.dispatchEvent(new Event('input', { bubbles: true }));
+    resumed.detectChanges();
+    host.querySelector<HTMLButtonElement>('[data-eqr-retry]')!.click();
+    const firstReplay = await waitForRequest(first.http, decisionUrl);
+    expect(firstReplay.request.body).toEqual(originalBody);
+    firstReplay.flush({ value: decisionId });
+    await vi.waitFor(() => expect(page.busy()).toBe(false));
+    first.http.expectOne(basisUrl).flush(basisA);
+    await resumed.whenStable();
+    resumed.detectChanges();
+    expect(page.recoveryReferences()).toHaveLength(1);
+    expect(sessionStorage.getItem(firstLegacyKey)).toBeNull();
+    expect(sessionStorage.getItem(secondLegacyKey)).not.toBeNull();
+    expect(host.querySelector('[data-eqr-submit]')).toBeNull();
+
+    const secondChoice = host.querySelector<HTMLSelectElement>('[data-eqr-recovery-choice]')!;
+    secondChoice.value = secondLegacyKey;
+    secondChoice.dispatchEvent(new Event('change', { bubbles: true }));
+    resumed.detectChanges();
+    host.querySelector<HTMLButtonElement>('[data-eqr-select-recovery]')!.click();
+    resumed.detectChanges();
+    expect(page.pending()?.requestKey).toBe(secondRequestKey);
+    const secondRecoveryNotes = host.querySelector<HTMLTextAreaElement>('#eqr-recovery-notes')!;
+    secondRecoveryNotes.value = notes;
+    secondRecoveryNotes.dispatchEvent(new Event('input', { bubbles: true }));
+    resumed.detectChanges();
+    host.querySelector<HTMLButtonElement>('[data-eqr-retry]')!.click();
+    const secondReplay = await waitForRequest(first.http, decisionUrl);
+    expect(secondReplay.request.body).toEqual({ ...originalBody, requestKey: secondRequestKey });
+    secondReplay.flush({ value: decisionId });
+    await vi.waitFor(() => expect(page.busy()).toBe(false));
+    first.http.expectOne(basisUrl).flush(basisA);
+    await resumed.whenStable();
+    resumed.detectChanges();
+    expect(page.recoveryReferences()).toHaveLength(0);
+    expect(sessionStorage.getItem(secondLegacyKey)).toBeNull();
+    expect(host.querySelector<HTMLButtonElement>('[data-eqr-submit]')?.disabled).toBe(true);
     resumed.destroy();
   });
 
@@ -275,24 +363,134 @@ describe('native EQR decision panel', () => {
     expect(sessionStorage.getItem(storageKey)).toBeNull();
   });
 
-  it('blocks ambiguous legacy references and storage errors without replacing them', async () => {
+  it('clears a definitive refusal from the replacement session context', async () => {
+    const { fixture, page, http, session } = setup();
+    await loadBasis(http, fixture);
+    enterNewDecision(fixture, 'CHANGES_REQUESTED', 'Original notes', false);
+    fixture.detectChanges(); reviewExactBasis(fixture); fixture.detectChanges();
+    const recording = page.recordDecision();
+    const post = await waitForRequest(http, decisionUrl);
+    const requestKey = post.request.body.requestKey as string;
+    session.current.set({ ...firstSession, generation: '8' });
+    fixture.detectChanges();
+    http.expectOne(basisUrl).flush(basisB);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(page.pending()?.requestKey).toBe(requestKey);
+
+    post.flush({ code: 'scope.denied', message: 'The role changed.' }, { status: 403, statusText: 'Forbidden' });
+    await recording;
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+    expect(page.pending()).toBeNull();
+    expect(page.recoveryReferences()).toHaveLength(0);
+    expect(page.error()).toContain('earlier EQR request was refused');
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-eqr-submit]')).not.toBeNull();
+    fixture.destroy();
+  });
+
+  it('recovers multiple saved requests one at a time and blocks new decisions', async () => {
+    const first = setup();
+    await loadBasis(first.http, first.fixture);
+    const notes = 'The inventory valuation evidence requires a documented correction.';
+    enterNewDecision(first.fixture, 'CHANGES_REQUESTED', notes, false);
+    reviewExactBasis(first.fixture);
+    await first.fixture.whenStable();
+    first.fixture.detectChanges();
+    const firstAttempt = first.page.recordDecision();
+    const firstPost = await waitForRequest(first.http, decisionUrl, 'initial EQR decision');
+    const firstBody = firstPost.request.body;
+    const firstRaw = sessionStorage.getItem(storageKey)!;
+    firstPost.flush({ code: 'temporarily.unavailable', message: 'try later' }, { status: 503, statusText: 'Unavailable' });
+    await firstAttempt;
+
+    const secondPending = JSON.parse(firstRaw) as Record<string, unknown>;
+    secondPending['requestKey'] = '99999999-9999-4999-8999-999999999999';
+    const secondRaw = JSON.stringify(secondPending);
+    sessionStorage.setItem(legacyKey, secondRaw);
+    first.fixture.destroy();
+    first.session.current.set({ ...firstSession, generation: '8' });
+
+    const resumed = TestBed.createComponent(EqrDecision);
+    resumed.componentRef.setInput('engagementId', engagementId);
+    resumed.componentRef.setInput('caseStatus', 'RECORDED_CONCURRENCE_NOT_CURRENT');
+    resumed.detectChanges();
+    await loadBasis(first.http, resumed);
+    const page = resumed.componentInstance;
+    const host = resumed.nativeElement as HTMLElement;
+    expect(page.pendingUnavailable()).toBe(false);
+    expect(page.pending()).toBeNull();
+    expect(page.recoveryReferences()).toHaveLength(2);
+    expect(host.querySelector('[data-eqr-submit]')).toBeNull();
+
+    const recoveryChoice = host.querySelector<HTMLSelectElement>('[data-eqr-recovery-choice]')!;
+    recoveryChoice.value = legacyKey;
+    recoveryChoice.dispatchEvent(new Event('change', { bubbles: true }));
+    resumed.detectChanges();
+    host.querySelector<HTMLButtonElement>('[data-eqr-select-recovery]')!.click();
+    resumed.detectChanges();
+    expect(page.pending()?.requestKey).toBe(secondPending['requestKey']);
+    const recoveryNotes = host.querySelector<HTMLTextAreaElement>('#eqr-recovery-notes')!;
+    recoveryNotes.value = notes;
+    recoveryNotes.dispatchEvent(new Event('input', { bubbles: true }));
+    resumed.detectChanges();
+    expect(host.querySelector<HTMLButtonElement>('[data-eqr-retry]')!.disabled).toBe(false);
+    host.querySelector<HTMLButtonElement>('[data-eqr-retry]')!.click();
+    const secondReplay = await waitForRequest(first.http, decisionUrl, 'selected legacy EQR replay');
+    expect(secondReplay.request.body.requestKey).toBe(secondPending['requestKey']);
+    expect(secondReplay.request.body.notes).toBe(notes);
+    secondReplay.flush({ value: decisionId });
+    await vi.waitFor(() => expect(page.busy()).toBe(false));
+    first.http.expectOne(basisUrl).flush(basisB);
+    await resumed.whenStable();
+    resumed.detectChanges();
+    expect(sessionStorage.getItem(legacyKey)).toBeNull();
+    expect(sessionStorage.getItem(storageKey)).toBe(firstRaw);
+    expect(page.pending()).toBeNull();
+    expect(page.recoveryReferences()).toHaveLength(1);
+    expect(host.querySelector('[data-eqr-submit]')).toBeNull();
+
+    const remainingChoice = host.querySelector<HTMLSelectElement>('[data-eqr-recovery-choice]')!;
+    remainingChoice.value = storageKey;
+    remainingChoice.dispatchEvent(new Event('change', { bubbles: true }));
+    resumed.detectChanges();
+    host.querySelector<HTMLButtonElement>('[data-eqr-select-recovery]')!.click();
+    resumed.detectChanges();
+    expect(page.pending()?.requestKey).toBe(firstBody.requestKey);
+    const remainingNotes = host.querySelector<HTMLTextAreaElement>('#eqr-recovery-notes')!;
+    remainingNotes.value = notes;
+    remainingNotes.dispatchEvent(new Event('input', { bubbles: true }));
+    resumed.detectChanges();
+    host.querySelector<HTMLButtonElement>('[data-eqr-retry]')!.click();
+    const firstReplay = await waitForRequest(first.http, decisionUrl, 'remaining stable EQR replay');
+    expect(firstReplay.request.body).toEqual(firstBody);
+    firstReplay.flush({ value: decisionId });
+    await vi.waitFor(() => expect(page.busy()).toBe(false));
+    first.http.expectOne(basisUrl).flush(basisB);
+    await resumed.whenStable();
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+    expect(sessionStorage.length).toBe(0);
+    expect(host.querySelector('[data-eqr-submit]')).not.toBeNull();
+    resumed.destroy();
+  });
+
+  it('keeps recovery unavailable when storage enumeration fails without replacing references', async () => {
     const raw = JSON.stringify({ version: 1, firmId: firstSession.firmId, actorUserId: firstSession.userId, sessionGeneration: '7',
       engagementId, requestKey: decisionId, ...basisA, status: 'IN_PROGRESS', findingsDiscussed: false, notesSalt: 'a'.repeat(32), notesHash: 'b'.repeat(64) });
     sessionStorage.setItem(legacyKey, raw);
-    sessionStorage.setItem(storageKey, raw);
     const { fixture, page, http, session } = setup();
     await loadBasis(http, fixture);
-    expect(page.pendingUnavailable()).toBe(true);
-    expect(sessionStorage.getItem(legacyKey)).toBe(raw);
-    expect(sessionStorage.getItem(storageKey)).toBe(raw);
-    http.expectNone(decisionUrl);
-    sessionStorage.removeItem(storageKey);
+    expect(page.pending()?.requestKey).toBe(decisionId);
     vi.spyOn(Storage.prototype, 'key').mockImplementation(() => { throw new Error('unavailable'); });
     session.current.set({ ...firstSession, generation: '8' });
     fixture.detectChanges();
     await loadBasis(http, fixture);
     expect(page.pendingUnavailable()).toBe(true);
+    expect(page.pending()).toBeNull();
     expect(sessionStorage.getItem(legacyKey)).toBe(raw);
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-eqr-submit]')).toBeNull();
     http.expectNone(decisionUrl);
     fixture.destroy();
   });
@@ -317,6 +515,18 @@ describe('native EQR decision panel', () => {
     fixture.detectChanges();
     page.reviewedExactBasis.set(true);
     page.acceptBasis(page.basis.data()!);
+    expect(page.canSubmit(page.basis.data()!)).toBe(true);
+
+    page.basis.reload();
+    http.expectOne(basisUrl).flush({ ...basisB, reportDeliverableId: null, reportSha256: null });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    page.status = 'CONCURRED';
+    page.findingsDiscussed.set(true);
+    page.reviewedExactBasis.set(true);
+    page.acceptBasis(page.basis.data()!);
+    expect(page.canSubmit(page.basis.data()!)).toBe(false);
+    page.status = 'IN_PROGRESS';
     expect(page.canSubmit(page.basis.data()!)).toBe(true);
 
     page.basis.reload();

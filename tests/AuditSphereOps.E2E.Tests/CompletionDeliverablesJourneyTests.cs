@@ -53,7 +53,14 @@ public sealed class CompletionDeliverablesJourneyTests
       if (canonicalAngular) await db.PracticeClients.Where(x => x.FirmId == f.FirmId && x.Id == f.ClientId)
         .ExecuteUpdateAsync(update => update.SetProperty(x => x.LegalName, "SYNTHETIC " + new string('C', 160)));
       db.Users.AddRange(partner, manager, accountingReviewer, financeReviewer);
-      db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, partner, "Partner"), PbcSeed.Grant(f.FirmId, manager, "Manager"));
+      db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, partner, "Partner"), PbcSeed.Grant(f.FirmId, manager, "Manager"),
+        PbcSeed.Grant(f.FirmId, accountingReviewer, "Partner"));
+      db.EqrCases.Add(new EqrCase
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        EqrPartnerUserId = accountingReviewer.Id, Status = "IN_PROGRESS", CreatedAt = now,
+        Revision = 0, CurrentDecisionRevision = 0
+      });
       await db.Engagements.Where(x => x.Id == f.EngagementId).ExecuteUpdateAsync(s => s.SetProperty(x => x.ServiceRoute, "FinancialStatementAudit").SetProperty(x => x.PeriodStart, "2026-01-01").SetProperty(x => x.PeriodEnd, "2026-12-31"));
       db.GoingConcernAssessments.Add(new GoingConcernAssessment { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, AssessmentDate = new DateOnly(2027, 2, 1),
         PeriodCoveredTo = new DateOnly(2028, 3, 31), ForecastReviewOutcome = "Reviewed", DisclosureAdequate = true, Conclusion = GoingConcernConclusions.NoMaterialUncertainty, Rationale = "Forecast reviewed",
@@ -190,6 +197,37 @@ public sealed class CompletionDeliverablesJourneyTests
     await Assertions.Expect(table).ToContainTextAsync("Independent Auditor's Report");
     var download = await page.RunAndWaitForDownloadAsync(() => table.GetByRole(AriaRole.Link, new() { Name = "Independent Auditor's Report" }).ClickAsync());
     Assert.EndsWith(".docx", download.SuggestedFilename);
+
+    // The assigned independent reviewer records concurrence in the native completion workspace
+    // against the exact generated unsigned report before the Partner signs it.
+    var reviewerOrigin = await StartIdentityAsync(accountingReviewer);
+    var reviewerPage = await (await browser.NewContextAsync()).NewPageAsync();
+    reviewerPage.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
+    reviewerPage.Console += (_, message) => diagnostics.Add($"console-{message.Type}: {message.Text}");
+    await reviewerPage.GotoAsync($"{reviewerOrigin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/engagements/{f.EngagementId:D}/completion")}");
+    await reviewerPage.GetByRole(AriaRole.Heading, new() { Name = "Independent EQR review", Exact = true }).WaitForAsync(new() { Timeout = 20000 });
+    await reviewerPage.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15000 });
+    var eqrBasis = reviewerPage.GetByRole(AriaRole.Region, new() { Name = "Exact EQR review basis", Exact = true });
+    await Assertions.Expect(eqrBasis).ToContainTextAsync("Current unsigned report");
+    await reviewerPage.GetByLabel("Decision", new() { Exact = true }).SelectOptionAsync("CONCURRED");
+    await reviewerPage.GetByLabel("Review notes", new() { Exact = true }).FillAsync("Reviewed the exact current report and completion facts in this synthetic browser journey.");
+    await reviewerPage.GetByLabel("Findings were discussed (required for concurrence).", new() { Exact = true }).CheckAsync();
+    await reviewerPage.GetByLabel("I reviewed this exact case revision, facts digest and current unsigned report, if present.", new() { Exact = true }).CheckAsync();
+    await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Record EQR decision", Exact = true }).ClickAsync();
+    await Assertions.Expect(reviewerPage.GetByText("The server confirmed EQR decision", new() { Exact = false })).ToBeVisibleAsync();
+    await using (var db = host.CreateDbContext())
+    {
+      var decision = await db.EqrDecisions.AsNoTracking().SingleAsync(x => x.FirmId == f.FirmId &&
+        x.EngagementId == f.EngagementId && x.DecidedByUserId == accountingReviewer.Id);
+      var report = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.FirmId == f.FirmId &&
+        x.EngagementId == f.EngagementId && x.Kind == DeliverableKinds.IndependentAuditorsReport &&
+        x.SignedFromDeliverableId == null);
+      Assert.Equal("CONCURRED", decision.Status);
+      Assert.True(decision.FindingsDiscussed);
+      Assert.Equal(report.Id, decision.ReviewedReportDeliverableId);
+      Assert.Equal(report.ContentSha256, decision.ReviewedReportSha256);
+      Assert.Equal(report.InputDigest, decision.ReviewedFactsDigest);
+    }
     var representationLetter = table.GetByRole(AriaRole.Row).Filter(new() { HasText = "Management Representation Letter" });
     await Assertions.Expect(representationLetter).ToContainTextAsync("v1");
     await representationLetter.GetByRole(AriaRole.Button, new() { Name = "Share Management Representation Letter v1 with the client", Exact = true }).ClickAsync();

@@ -669,15 +669,20 @@ public static partial class AuditDeliverableService
 
     if (status == "CONCURRED" && !request.FindingsDiscussed)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Findings must be discussed before EQR concurrence.");
+    if (status == "CONCURRED" && (!request.ExpectedReportDeliverableId.HasValue || request.ExpectedReportSha256 is null))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A current unsigned independent auditor's report is required before EQR concurrence.");
     if (status == "CHANGES_REQUESTED" && notes is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Explain the required changes.");
 
     if (db.Database.CurrentTransaction is not null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "EQR decisions require an independent serializable transaction.");
-    await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
     var digest = Hashing.Sha256Hex(JsonSerializer.Serialize(new { Namespace = "eqr-decision-v1", actor.FirmId, engagementId }));
     var lockKey = unchecked((long)Convert.ToUInt64(digest[..16], 16));
-    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockKey})", ct);
+    // Wait for the engagement decision lock before opening the serializable transaction.
+    // At SERIALIZABLE, the first SELECT fixes the transaction snapshot; waiting for an
+    // xact lock inside the transaction could therefore authorize against pre-wait grants.
+    await using var decisionLock = await AcquireEqrDecisionLockAsync(db, lockKey, ct);
+    await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
     auth = await AuthorizeAsync(db, actor, engagementId, ["Partner", "Administrator"], ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
@@ -793,7 +798,48 @@ public static partial class AuditDeliverableService
 
   internal static bool EqrDecisionMatchesReportBasis(EqrDecision decision, AuditDeliverable report) =>
     decision.ReviewedFactsDigest == report.InputDigest &&
-    (decision.ReviewedReportDeliverableId is not { } reviewedReport || reviewedReport == report.Id);
+    decision.ReviewedReportDeliverableId == report.Id && decision.ReviewedReportSha256 == report.ContentSha256;
+
+  private sealed class EqrDecisionLockLease(IAuditSphereDbContext db, long lockKey) : IAsyncDisposable
+  {
+    public async ValueTask DisposeAsync()
+    {
+      try
+      {
+        var released = await db.Database.SqlQuery<bool>($"SELECT pg_advisory_unlock({lockKey}) AS \"Value\"")
+          .SingleAsync(CancellationToken.None);
+        if (!released) throw new InvalidOperationException("The EQR decision advisory lock was not held by its owning connection.");
+      }
+      finally
+      {
+        await db.Database.CloseConnectionAsync();
+      }
+    }
+  }
+
+  private static async Task<EqrDecisionLockLease> AcquireEqrDecisionLockAsync(
+    IAuditSphereDbContext db, long lockKey, CancellationToken ct)
+  {
+    await db.Database.OpenConnectionAsync(ct);
+    try
+    {
+      await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_lock({lockKey})", ct);
+      return new EqrDecisionLockLease(db, lockKey);
+    }
+    catch
+    {
+      // Cancellation can race with lock acquisition: the server may have acquired the
+      // session lock even though the client did not receive the command result.
+      try
+      {
+        await db.Database.SqlQuery<bool>($"SELECT pg_advisory_unlock({lockKey}) AS \"Value\"")
+          .SingleAsync(CancellationToken.None);
+      }
+      catch { /* Closing the connection below remains the final cleanup boundary. */ }
+      await db.Database.CloseConnectionAsync();
+      throw;
+    }
+  }
 
   internal static async Task<EqrDecision?> CurrentEqrDecisionAsync(IAuditSphereDbContext db, Guid firmId, EqrCase eqr,
     CancellationToken ct)

@@ -28,6 +28,12 @@ interface PendingDecision {
   notesHash: string;
 }
 
+interface RecoveryReference {
+  key: string;
+  raw: string;
+  pending: PendingDecision;
+}
+
 const activeRequests = new Set<string>();
 const sha256 = /^[a-f0-9]{64}$/;
 
@@ -93,12 +99,27 @@ async function notesDigest(salt: string, notes: string): Promise<string> {
           <button matButton="filled" data-eqr-retry [disabled]="busy() || pendingUnavailable() || !notes.trim() && p.status === 'CHANGES_REQUESTED' || !basis.data()" (click)="recordDecision()">
             {{ busy() ? 'Checking original request…' : 'Retry exact EQR request' }}
           </button>
+          @if (recoveryReferences().length > 1) {
+            <p role="status">Other unconfirmed requests remain saved. Resolve each original request before creating a new decision.</p>
+            <button matButton="outlined" data-eqr-choose-another [disabled]="busy()" (click)="chooseAnotherRecovery()">Choose another saved request</button>
+          }
+        } @else if (recoveryReferences().length > 0) {
+          <p role="status">{{ recoveryReferences().length }} saved EQR request(s) need individual recovery. Each original request remains unchanged; new decisions stay blocked until all are resolved.</p>
+          <label for="eqr-recovery-choice">Select one original request</label>
+          <select id="eqr-recovery-choice" data-eqr-recovery-choice [ngModel]="selectedRecoveryKey()"
+            (ngModelChange)="selectedRecoveryKey.set($event)" [disabled]="busy()">
+            <option value="">Choose a saved request</option>
+            @for (reference of recoveryReferences(); track reference.key) {
+              <option [value]="reference.key">{{ reference.pending.status }} · revision {{ reference.pending.caseRevision }} · report {{ reference.pending.reportDeliverableId ?? 'none' }} · request {{ reference.pending.requestKey }}</option>
+            }
+          </select>
+          <button matButton="filled" data-eqr-select-recovery [disabled]="busy() || !selectedRecoveryKey()" (click)="selectRecovery()">Use selected request</button>
         } @else if (!pendingUnavailable()) {
           <label for="eqr-decision-status">Decision</label>
           <select id="eqr-decision-status" name="eqrDecisionStatus" [(ngModel)]="status" (ngModelChange)="invalidateAssent()" [disabled]="busy()">
             <option value="IN_PROGRESS">In progress</option>
             <option value="CHANGES_REQUESTED">Changes requested</option>
-            <option value="CONCURRED">Concurred</option>
+            <option value="CONCURRED" [disabled]="!b.reportDeliverableId || !b.reportSha256">Concurred</option>
           </select>
           <label for="eqr-decision-notes">Review notes</label>
           <textarea id="eqr-decision-notes" name="eqrDecisionNotes" [(ngModel)]="notes" (ngModelChange)="invalidateAssent()" [disabled]="busy()" rows="3" maxlength="8000"></textarea>
@@ -127,6 +148,8 @@ export class EqrDecision {
   readonly error = signal('');
   readonly message = signal('');
   readonly pending = signal<PendingDecision | null>(null);
+  readonly recoveryReferences = signal<RecoveryReference[]>([]);
+  readonly selectedRecoveryKey = signal('');
   readonly pendingUnavailable = signal(false);
   readonly reviewedExactBasis = signal(false);
   readonly findingsDiscussed = signal(false);
@@ -186,7 +209,8 @@ export class EqrDecision {
     this.error.set(''); this.message.set(''); this.reviewedExactBasis.set(false);
     this.reviewedIdentity = null;
     this.findingsDiscussed.set(false); this.status = 'IN_PROGRESS'; this.notes = '';
-    this.pending.set(null); this.pendingUnavailable.set(false); this.recoveryRaw = null; this.recoveryKey = null;
+    this.pending.set(null); this.pendingUnavailable.set(false); this.recoveryReferences.set([]); this.selectedRecoveryKey.set('');
+    this.recoveryRaw = null; this.recoveryKey = null;
     this.busy.set(false);
     const current = actor?.staff && guidPattern.test(engagementId) ? {
       firmId: actor.firmId.toLowerCase(), userId: actor.userId.toLowerCase(), generation: actor.generation,
@@ -194,13 +218,9 @@ export class EqrDecision {
     } : null;
     if (!current) return;
     try {
-      const reference = this.findRecovery(current);
-      if (!reference) return;
-      this.pending.set(reference.pending);
-      this.status = reference.pending.status;
-      this.findingsDiscussed.set(reference.pending.findingsDiscussed);
-      this.recoveryRaw = reference.raw;
-      this.recoveryKey = reference.key;
+      const references = this.findRecoveries(current);
+      this.recoveryReferences.set(references);
+      if (references.length === 1) this.activateRecovery(references[0]);
     } catch {
       this.pendingUnavailable.set(true);
       this.error.set('The pending EQR request could not be verified. No new request will be sent.');
@@ -213,7 +233,7 @@ export class EqrDecision {
   }
 
   // Keep legacy references in place: moving or rewriting one could lose the only replay identity.
-  private findRecovery(owner: { firmId: string; userId: string; engagementId: string }): { key: string; raw: string; pending: PendingDecision } | null {
+  private findRecoveries(owner: { firmId: string; userId: string; engagementId: string }): RecoveryReference[] {
     const stable = this.storageKey(owner);
     const legacyPrefix = `auditsphere-eqr-pending-v1:${owner.firmId}:${owner.userId}:`;
     const legacySuffix = `:${owner.engagementId}`;
@@ -226,14 +246,54 @@ export class EqrDecision {
     // Also verify direct access, rather than relying on enumeration alone.
     const stableRaw = sessionStorage.getItem(stable);
     if ((stableRaw !== null) !== keys.includes(stable)) throw new Error('Storage enumeration inconsistent');
-    if (keys.length > 1) throw new Error('Ambiguous pending requests');
-    if (!keys.length) return null;
-    const key = keys[0], raw = sessionStorage.getItem(key);
-    if (raw === null) throw new Error('Pending request unavailable');
-    const pending: unknown = JSON.parse(raw);
-    if (!validPending(pending, owner) || key !== stable &&
-        key !== `${legacyPrefix}${pending.sessionGeneration}${legacySuffix}`) throw new Error('Invalid pending request');
-    return { key, raw, pending };
+    return keys.map(key => {
+      const raw = sessionStorage.getItem(key);
+      if (raw === null) throw new Error('Pending request unavailable');
+      const pending: unknown = JSON.parse(raw);
+      if (!validPending(pending, owner) || key !== stable &&
+          key !== `${legacyPrefix}${pending.sessionGeneration}${legacySuffix}`) throw new Error('Invalid pending request');
+      return { key, raw, pending };
+    });
+  }
+
+  private activateRecovery(reference: RecoveryReference): void {
+    this.pending.set(reference.pending);
+    this.status = reference.pending.status;
+    this.findingsDiscussed.set(reference.pending.findingsDiscussed);
+    this.notes = '';
+    this.recoveryRaw = reference.raw;
+    this.recoveryKey = reference.key;
+  }
+
+  selectRecovery(): void {
+    const owner = this.captureOwner(), key = this.selectedRecoveryKey();
+    if (!owner || !key || this.busy()) return;
+    try {
+      const observed = this.recoveryReferences().find(reference => reference.key === key);
+      const current = this.findRecoveries(owner);
+      const reference = current.find(candidate => candidate.key === key);
+      if (!observed || !reference || observed.raw !== reference.raw) {
+        this.pendingUnavailable.set(true);
+        this.error.set('The selected EQR recovery reference changed or is unavailable. No request was sent.');
+        return;
+      }
+      this.recoveryReferences.set(current);
+      this.activateRecovery(reference);
+      this.selectedRecoveryKey.set(key);
+      this.error.set('');
+    } catch {
+      this.pendingUnavailable.set(true);
+      this.error.set('The selected EQR recovery reference could not be verified. No request was sent.');
+    }
+  }
+
+  chooseAnotherRecovery(): void {
+    if (this.busy() || this.recoveryReferences().length < 2) return;
+    this.pending.set(null);
+    this.recoveryRaw = null;
+    this.recoveryKey = null;
+    this.notes = '';
+    this.selectedRecoveryKey.set('');
   }
 
   validBasis(basis: ReviewBasis): boolean {
@@ -262,9 +322,10 @@ export class EqrDecision {
   }
 
   canSubmit(basis: ReviewBasis): boolean {
-    return !this.busy() && !this.pending() && !this.pendingUnavailable() && !this.basis.loading() && !this.basis.error() &&
+    return !this.busy() && !this.pending() && this.recoveryReferences().length === 0 && !this.pendingUnavailable() && !this.basis.loading() && !this.basis.error() &&
       this.validBasis(basis) && this.basis.data() === basis && this.loadedOwner === this.currentOwnerIdentity() &&
-      this.reviewedExactBasis() && this.reviewedIdentity === basisIdentity(basis) && (this.status !== 'CONCURRED' || this.findingsDiscussed()) &&
+      this.reviewedExactBasis() && this.reviewedIdentity === basisIdentity(basis) &&
+      (this.status !== 'CONCURRED' || this.findingsDiscussed() && !!basis.reportDeliverableId && !!basis.reportSha256) &&
       (this.status !== 'CHANGES_REQUESTED' || !!this.notes.trim()) && this.notes.trim().length <= 8000;
   }
 
@@ -308,8 +369,8 @@ export class EqrDecision {
           this.busy.set(false);
           return;
         }
-        const reference = this.findRecovery(owner);
-        if (raw === null || !reference || reference.key !== storageKey || reference.raw !== raw) {
+        const reference = this.findRecoveries(owner).find(candidate => candidate.key === storageKey);
+        if (raw === null || !reference || reference.raw !== raw) {
           this.pendingUnavailable.set(true);
           this.error.set('The original EQR recovery reference changed or is unavailable. No request was sent.');
           this.busy.set(false);
@@ -328,9 +389,11 @@ export class EqrDecision {
           return;
         }
         raw = JSON.stringify(pending);
-        if (this.findRecovery(owner) !== null) {
-          this.pendingUnavailable.set(true);
-          this.error.set('A different EQR request reference already exists. Resolve it before creating another request.');
+        const existingReferences = this.findRecoveries(owner);
+        if (existingReferences.length > 0) {
+          this.recoveryReferences.set(existingReferences);
+          this.selectedRecoveryKey.set('');
+          this.error.set('Saved EQR requests must be resolved individually before creating another request.');
           this.busy.set(false);
           return;
         }
@@ -355,10 +418,25 @@ export class EqrDecision {
         // A definitive refusal of the first transmission can clear only its exact saved reference,
         // even after navigation. An unknown outcome or replay refusal never proves non-commit.
         if (!recovering && !outcome.ok && !outcome.unknown && outcome.status !== 408 && outcome.code !== 'idempotency.conflict') {
-          try {
-            const reference = this.findRecovery(owner);
-            if (reference?.key === storageKey && reference.raw === raw) sessionStorage.removeItem(storageKey);
-          } catch { /* Preserve the reference when storage cannot be reconciled. */ }
+          if (raw !== null && this.removeExactRecoveryReference(owner, storageKey, raw)) {
+            const currentOwner = this.captureOwner();
+            if (currentOwner?.firmId === owner.firmId && currentOwner.userId === owner.userId &&
+                currentOwner.engagementId === owner.engagementId) {
+              try {
+                this.recoveryReferences.set(this.findRecoveries(currentOwner));
+                if (this.recoveryKey === storageKey && this.recoveryRaw === raw) {
+                  this.pending.set(null);
+                  this.recoveryKey = null;
+                  this.recoveryRaw = null;
+                  this.selectedRecoveryKey.set('');
+                }
+                this.error.set('The earlier EQR request was refused. Review the current basis before making another decision.');
+              } catch {
+                this.pendingUnavailable.set(true);
+                this.error.set('The earlier EQR request was refused, but remaining recovery references could not be verified. No new request will be sent.');
+              }
+            }
+          }
         }
         return;
       }
@@ -416,19 +494,25 @@ export class EqrDecision {
 
   private clearExactRecovery(owner: { firmId: string; userId: string; engagementId: string }, key: string, raw: string): boolean {
     try {
-      const reference = this.findRecovery(owner);
-      if (!reference || reference.key !== key || reference.raw !== raw) {
+      if (!this.removeExactRecoveryReference(owner, key, raw)) {
         this.error.set('The recovery reference changed. It was preserved for reconciliation.');
         this.pendingUnavailable.set(true);
         return false;
       }
-      sessionStorage.removeItem(key);
-      if (sessionStorage.getItem(key) !== null) throw new Error('Reference remained');
+      this.recoveryReferences.set(this.findRecoveries(owner));
+      this.selectedRecoveryKey.set('');
       return true;
     } catch {
       this.error.set('The EQR request was confirmed or refused, but its recovery reference could not be updated safely.');
       this.pendingUnavailable.set(true);
       return false;
     }
+  }
+
+  private removeExactRecoveryReference(owner: { firmId: string; userId: string; engagementId: string }, key: string, raw: string): boolean {
+    const reference = this.findRecoveries(owner).find(candidate => candidate.key === key);
+    if (!reference || reference.raw !== raw) return false;
+    sessionStorage.removeItem(key);
+    return sessionStorage.getItem(key) === null;
   }
 }

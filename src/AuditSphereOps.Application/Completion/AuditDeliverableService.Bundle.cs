@@ -193,6 +193,9 @@ public static partial class AuditDeliverableService
     var rows = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
       .OrderByDescending(x => x.Version).ThenByDescending(x => x.CreatedAt).ToListAsync(ct);
     var report = rows.FirstOrDefault(x => x.Kind == DeliverableKinds.IndependentAuditorsReport && x.SignedFromDeliverableId != null);
+    var reportBasis = report?.SignedFromDeliverableId is { } sourceReportId
+      ? rows.SingleOrDefault(x => x.Id == sourceReportId && x.Kind == DeliverableKinds.IndependentAuditorsReport && x.SignedFromDeliverableId == null)
+      : null;
     if (report is null || report.CreatedByUserId != actor.UserId || !await IsCurrentAsync(db, actor, report, ct))
       blockers.Add("The deciding Engagement Partner must sign a current auditor's report.");
     if (report is not null)
@@ -220,8 +223,8 @@ public static partial class AuditDeliverableService
       else
       {
         var expected = await ExpectedDigestAsync(db, actor, engagementId, DeliverableKinds.IndependentAuditorsReport, ct);
-        if (concurrence.ReviewedFactsDigest != expected)
-          blockers.Add("The EQR concurrence was recorded against a different completion basis; re-review the current evidence.");
+        if (reportBasis is null || !EqrDecisionMatchesReportBasis(concurrence, reportBasis) || concurrence.ReviewedFactsDigest != expected)
+          blockers.Add("The EQR concurrence was not recorded against the exact report and current completion basis; re-review the current evidence.");
       }
     }
     var release = await db.Releases.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&

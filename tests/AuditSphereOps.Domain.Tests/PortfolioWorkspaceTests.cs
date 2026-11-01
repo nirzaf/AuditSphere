@@ -9,11 +9,14 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 using System.Data.Common;
 using System.Globalization;
+using Xunit.Abstractions;
 
 namespace AuditSphereOps.Domain.Tests;
 
-public sealed class PortfolioWorkspaceTests
+public sealed class PortfolioWorkspaceTests(ITestOutputHelper output)
 {
+  private readonly ITestOutputHelper _output = output;
+
   [Theory]
   [InlineData("detail")]
   [InlineData("client")]
@@ -350,6 +353,35 @@ public sealed class PortfolioWorkspaceTests
 
     await db.SaveChangesAsync();
 
+    // Measure the pre-REM-09 candidate predicates on the same isolated detail context.
+    // These are the former materialization queries, without the route/date restrictions.
+    var broadRecorder = new CandidateQueryRecorder(requireCurrentContextFilters: false);
+    (int Profiles, int Periods, int Packages) broadCounts;
+    IReadOnlyList<(string Name, string Json)> broadPlans;
+    int broadCandidateSelectCount;
+    await using (var broadDb = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(broadRecorder).Options))
+    {
+      var evaluatedClientIds = new[] { f.ClientId };
+      var evaluatedEngagementIds = new[] { f.EngagementId };
+      _ = await broadDb.AccountingCapabilityProfiles.AsNoTracking()
+        .Where(profile => profile.FirmId == f.FirmId && profile.ClientId.HasValue && evaluatedClientIds.Contains(profile.ClientId.Value) &&
+          profile.Status != AccountingWorkflowStates.Retired && broadDb.AccountingCapabilityAcceptances.Any(acceptance =>
+            acceptance.FirmId == profile.FirmId && acceptance.CapabilityProfileId == profile.Id &&
+            (acceptance.Stage == AccountingCapabilityAcceptanceStages.MethodOwnerApproval ||
+             acceptance.Stage == AccountingCapabilityAcceptanceStages.Released) &&
+            acceptance.Status == AccountingWorkflowStates.Approved))
+        .ToListAsync();
+      _ = await broadDb.ClientReportingPeriods.AsNoTracking()
+        .Where(period => period.FirmId == f.FirmId && evaluatedClientIds.Contains(period.ClientId)).ToListAsync();
+      _ = await broadDb.FinancialPackages.AsNoTracking()
+        .Where(package => package.FirmId == f.FirmId && evaluatedEngagementIds.Contains(package.EngagementId)).ToListAsync();
+      broadCounts = await broadRecorder.MeasureLastBatchAsync(pg.ConnectionString);
+      broadPlans = broadRecorder.LastPlans;
+      broadCandidateSelectCount = broadRecorder.CandidateSelectCount;
+      Assert.Equal(3, broadRecorder.CandidateSelectCount);
+    }
+
     var candidateRecorder = new CandidateQueryRecorder();
     await using var measuredDb = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
       .AddInterceptors(candidateRecorder).Options);
@@ -359,7 +391,17 @@ public sealed class PortfolioWorkspaceTests
       detail.PendingRequired, detail.PercentComplete, detail.GateOpen));
     Assert.Empty(detail.Gates);
     Assert.Contains("IFRS", detail.Disclosure);
-    Assert.Equal((1, 1, 0), await candidateRecorder.MeasureLastBatchAsync(pg.ConnectionString));
+    var scopedCounts = await candidateRecorder.MeasureLastBatchAsync(pg.ConnectionString);
+    Assert.Equal((3, 4, 0), broadCounts);
+    Assert.Equal((1, 1, 0), scopedCounts);
+    Assert.Equal(3, candidateRecorder.CandidateSelectCount);
+    _output.WriteLine($"REM-09 isolated PostgreSQL candidates (profiles, periods, packages): old predicates {broadCounts}; evaluated context {scopedCounts}.");
+    _output.WriteLine($"Candidate SELECTs per BuildAsync: old predicates {broadCandidateSelectCount}; evaluated context {candidateRecorder.CandidateSelectCount}; EXPLAIN/count queries are test-only.");
+    foreach (var plan in broadPlans)
+      _output.WriteLine($"REM-09 old {plan.Name} EXPLAIN JSON: {plan.Json}");
+    foreach (var plan in candidateRecorder.LastPlans)
+      _output.WriteLine($"REM-09 scoped {plan.Name} EXPLAIN JSON: {plan.Json}");
+
     var clientProgress = await EngagementProgressQuery.ForClientAsync(measuredDb, actor, f.ClientId);
     Assert.Equal((1, 1, 0), await candidateRecorder.MeasureLastBatchAsync(pg.ConnectionString));
     var portfolioProgress = await PortfolioQuery.ProgressAsync(measuredDb, actor);
@@ -369,53 +411,53 @@ public sealed class PortfolioWorkspaceTests
     Assert.Equal(detail.GateOpen, Assert.Single(clientProgress.Value!.Items, x => x.EngagementId == f.EngagementId).GateOpen);
     Assert.Equal(detail.GateOpen, Assert.Single(portfolioProgress.Value!.Items, x => x.EngagementId == f.EngagementId).GateOpen);
 
-    // Genuinely distinct period bases for the same evaluated dates remain ambiguous until profile AccountingMethod narrows them.
-    var cashPeriodId = Guid.CreateVersion7();
-    db.ClientReportingPeriods.Add(new ClientReportingPeriod
-    {
-      Id = cashPeriodId, FirmId = f.FirmId, ClientId = f.ClientId, PeriodCode = "FY2026-CASH",
-      StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
-      Basis = "CASH", Currency = "USD", Status = AccountingWorkflowStates.Closed,
-      ClosedByUserId = f.Admin.Id, ClosedAt = DateTimeOffset.UtcNow,
-      CreatedByUserId = f.Admin.Id, CreatedAt = DateTimeOffset.UtcNow
-    });
-    await db.SaveChangesAsync();
-    var ambiguousPeriodDetail = (await EngagementProgressQuery.GetAsync(measuredDb, actor, f.EngagementId)).Value!;
-    Assert.True(ambiguousPeriodDetail.GateOpen);
-    Assert.Contains("Ambiguous reporting periods exist for this context; exact period basis selection is required.", ambiguousPeriodDetail.Gates);
-    Assert.Equal((1, 2, 0), await candidateRecorder.MeasureLastBatchAsync(pg.ConnectionString));
-    db.ClientReportingPeriods.Remove(await db.ClientReportingPeriods.SingleAsync(p => p.Id == cashPeriodId));
-    await db.SaveChangesAsync();
+      // Genuinely distinct period bases for the same evaluated dates remain ambiguous until profile AccountingMethod narrows them.
+      var cashPeriodId = Guid.CreateVersion7();
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = cashPeriodId, FirmId = f.FirmId, ClientId = f.ClientId, PeriodCode = "FY2026-CASH",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "CASH", Currency = "USD", Status = AccountingWorkflowStates.Closed,
+        ClosedByUserId = f.Admin.Id, ClosedAt = DateTimeOffset.UtcNow,
+        CreatedByUserId = f.Admin.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      var ambiguousPeriodDetail = (await EngagementProgressQuery.GetAsync(measuredDb, actor, f.EngagementId)).Value!;
+      Assert.True(ambiguousPeriodDetail.GateOpen);
+      Assert.Contains("Ambiguous reporting periods exist for this context; exact period basis selection is required.", ambiguousPeriodDetail.Gates);
+      Assert.Equal((1, 2, 0), await candidateRecorder.MeasureLastBatchAsync(pg.ConnectionString));
+      db.ClientReportingPeriods.Remove(await db.ClientReportingPeriods.SingleAsync(p => p.Id == cashPeriodId));
+      await db.SaveChangesAsync();
 
-    // Negative case 1: Open reporting period blocks completion
-    var period = await db.ClientReportingPeriods.SingleAsync(p => p.Id == periodId);
-    period.Status = AccountingWorkflowStates.Draft;
-    await db.SaveChangesAsync();
-    var unclosedDetail = (await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId)).Value!;
-    Assert.True(unclosedDetail.GateOpen);
-    Assert.Equal(99, unclosedDetail.PercentComplete);
-    Assert.Contains("The reporting period is not closed.", unclosedDetail.Gates);
+      // Negative case 1: Open reporting period blocks completion
+      var period = await db.ClientReportingPeriods.SingleAsync(p => p.Id == periodId);
+      period.Status = AccountingWorkflowStates.Draft;
+      await db.SaveChangesAsync();
+      var unclosedDetail = (await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId)).Value!;
+      Assert.True(unclosedDetail.GateOpen);
+      Assert.Equal(99, unclosedDetail.PercentComplete);
+      Assert.Contains("The reporting period is not closed.", unclosedDetail.Gates);
 
-    // Negative case 2: An engagement without an issued release remains open
-    period.Status = AccountingWorkflowStates.Closed;
-    var unreleasedEngagementId = Guid.NewGuid();
-    db.Engagements.Add(new Engagement
-    {
-      Id = unreleasedEngagementId, FirmId = f.FirmId, PracticeClientId = f.ClientId,
-      ServiceRoute = "AccountingOnly", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
-      Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
-    });
-    db.WorkTasks.Add(new WorkTask
-    {
-      Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = unreleasedEngagementId,
-      Title = "Synthetic unreleased task", Status = PracticeTimeStates.TaskCompleted, CreatedAt = DateTimeOffset.UtcNow
-    });
-    await db.SaveChangesAsync();
+      // Negative case 2: An engagement without an issued release remains open
+      period.Status = AccountingWorkflowStates.Closed;
+      var unreleasedEngagementId = Guid.NewGuid();
+      db.Engagements.Add(new Engagement
+      {
+        Id = unreleasedEngagementId, FirmId = f.FirmId, PracticeClientId = f.ClientId,
+        ServiceRoute = "AccountingOnly", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+        Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.WorkTasks.Add(new WorkTask
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = unreleasedEngagementId,
+        Title = "Synthetic unreleased task", Status = PracticeTimeStates.TaskCompleted, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
 
-    var unreleasedDetail = (await EngagementProgressQuery.GetAsync(db, actor, unreleasedEngagementId)).Value!;
-    Assert.True(unreleasedDetail.GateOpen);
-    Assert.Equal(99, unreleasedDetail.PercentComplete);
-    Assert.Contains("No issued release exists for this engagement yet.", unreleasedDetail.Gates);
+      var unreleasedDetail = (await EngagementProgressQuery.GetAsync(db, actor, unreleasedEngagementId)).Value!;
+      Assert.True(unreleasedDetail.GateOpen);
+      Assert.Equal(99, unreleasedDetail.PercentComplete);
+      Assert.Contains("No issued release exists for this engagement yet.", unreleasedDetail.Gates);
 
     // T07: Ambiguous profiles without explicit ServiceProfileId selection blocks completion
     var secondProfileId = Guid.CreateVersion7();
@@ -563,9 +605,15 @@ public sealed class PortfolioWorkspaceTests
 
   private sealed class CandidateQueryRecorder : DbCommandInterceptor
   {
+    private readonly bool _requireCurrentContextFilters;
     private (string Sql, NpgsqlParameter[] Parameters)? _profiles;
     private (string Sql, NpgsqlParameter[] Parameters)? _periods;
     private (string Sql, NpgsqlParameter[] Parameters)? _packages;
+    public int CandidateSelectCount { get; private set; }
+    public IReadOnlyList<(string Name, string Json)> LastPlans { get; private set; } = [];
+
+    public CandidateQueryRecorder(bool requireCurrentContextFilters = true) =>
+      _requireCurrentContextFilters = requireCurrentContextFilters;
 
     public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
       CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
@@ -574,21 +622,30 @@ public sealed class PortfolioWorkspaceTests
       var parameters = command.Parameters.Cast<NpgsqlParameter>().Select(p => p.Clone()).ToArray();
       if (sql.Contains("FROM accounting_capability_profiles", StringComparison.Ordinal))
       {
-        Assert.Contains("service_route", sql, StringComparison.Ordinal);
+        CandidateSelectCount++;
+        if (_requireCurrentContextFilters) Assert.Contains("service_route", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("LIMIT", sql, StringComparison.Ordinal);
         _profiles = (sql, parameters);
       }
       else if (sql.Contains("FROM client_reporting_periods", StringComparison.Ordinal))
       {
-        Assert.Contains("start_date", sql, StringComparison.Ordinal);
-        Assert.Contains("end_date", sql, StringComparison.Ordinal);
+        CandidateSelectCount++;
+        if (_requireCurrentContextFilters)
+        {
+          Assert.Contains("start_date", sql, StringComparison.Ordinal);
+          Assert.Contains("end_date", sql, StringComparison.Ordinal);
+        }
         Assert.DoesNotContain("LIMIT", sql, StringComparison.Ordinal);
         _periods = (sql, parameters);
       }
       else if (sql.Contains("FROM financial_packages", StringComparison.Ordinal))
       {
-        Assert.Contains("period_start", sql, StringComparison.Ordinal);
-        Assert.Contains("period_end", sql, StringComparison.Ordinal);
+        CandidateSelectCount++;
+        if (_requireCurrentContextFilters)
+        {
+          Assert.Contains("period_start", sql, StringComparison.Ordinal);
+          Assert.Contains("period_end", sql, StringComparison.Ordinal);
+        }
         Assert.DoesNotContain("LIMIT", sql, StringComparison.Ordinal);
         _packages = (sql, parameters);
       }
@@ -599,22 +656,26 @@ public sealed class PortfolioWorkspaceTests
     {
       await using var connection = new NpgsqlConnection(connectionString);
       await connection.OpenAsync();
-      return (await CountAndExplainAsync(connection, _profiles!.Value),
-        await CountAndExplainAsync(connection, _periods!.Value),
-        await CountAndExplainAsync(connection, _packages!.Value));
+      var profiles = await CountAndExplainAsync(connection, _profiles!.Value);
+      var periods = await CountAndExplainAsync(connection, _periods!.Value);
+      var packages = await CountAndExplainAsync(connection, _packages!.Value);
+      LastPlans = [("profiles", profiles.Plan), ("periods", periods.Plan), ("packages", packages.Plan)];
+      return (profiles.Count, periods.Count, packages.Count);
     }
 
-    private static async Task<int> CountAndExplainAsync(NpgsqlConnection connection, (string Sql, NpgsqlParameter[] Parameters) captured)
+    private static async Task<(int Count, string Plan)> CountAndExplainAsync(
+      NpgsqlConnection connection, (string Sql, NpgsqlParameter[] Parameters) captured)
     {
-      await using (var explain = new NpgsqlCommand("EXPLAIN " + captured.Sql, connection))
+      string plan;
+      await using (var explain = new NpgsqlCommand("EXPLAIN (FORMAT JSON) " + captured.Sql, connection))
       {
         foreach (var parameter in captured.Parameters) explain.Parameters.Add(parameter.Clone());
-        var plan = Convert.ToString(await explain.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+        plan = Convert.ToString(await explain.ExecuteScalarAsync(), CultureInfo.InvariantCulture)!;
         Assert.False(string.IsNullOrWhiteSpace(plan));
       }
       await using var count = new NpgsqlCommand($"SELECT count(*)::int FROM ({captured.Sql}) AS candidate_rows", connection);
       foreach (var parameter in captured.Parameters) count.Parameters.Add(parameter.Clone());
-      return Convert.ToInt32(await count.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+      return (Convert.ToInt32(await count.ExecuteScalarAsync(), CultureInfo.InvariantCulture), plan);
     }
   }
 
