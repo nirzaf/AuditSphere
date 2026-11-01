@@ -1,4 +1,6 @@
+using System.Text.Json;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -7,6 +9,131 @@ namespace AuditSphereOps.E2E.Tests;
 
 public sealed class AngularClientProfileJourneyTests
 {
+  [Fact]
+  [Trait("CaseId", "ANGULAR-CLIENT-OFFBOARDING-RECOVERY-E2E")]
+  public async Task BlockedOffboardingReviewRecoversTheSameIntentAfterACommittedResponseIsLost()
+  {
+    const string notes = "Reviewed the current limited-visibility closeout snapshot.";
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-CLIENT-OFFBOARDING-RECOVERY-E2E");
+    var f = host.Fixture;
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Manager", f.ClientId));
+      db.WorkTasks.Add(new WorkTask
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        Title = "Synthetic open offboarding work", CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartApiForIdentityAsync(f.Staff, new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = "true"
+    });
+    var path = $"/app/clients/{f.ClientId:D}";
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    var closeoutBodies = new List<string>();
+    var firstServerStatus = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+    page.PageError += (_, error) => errors.Add(error);
+    await page.RouteAsync("**/api/ui/clients/*/offboarding-closeout", async route =>
+    {
+      if (route.Request.Method != "POST")
+      {
+        await route.ContinueAsync();
+        return;
+      }
+
+      closeoutBodies.Add(route.Request.PostData ?? throw new InvalidOperationException("The closeout body was missing."));
+      if (closeoutBodies.Count == 1)
+      {
+        try
+        {
+          await using var committed = await route.FetchAsync();
+          firstServerStatus.TrySetResult(committed.Status);
+          await route.AbortAsync("failed");
+        }
+        catch (Exception exception)
+        {
+          firstServerStatus.TrySetException(exception);
+          throw;
+        }
+      }
+      else
+      {
+        await route.ContinueAsync();
+      }
+    });
+
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Client profile", Exact = true })).ToBeVisibleAsync();
+    var readiness = page.Locator("audit-client-offboarding-readiness");
+    await readiness.GetByRole(AriaRole.Button, new() { Name = "Check offboarding readiness", Exact = true }).ClickAsync();
+    await Assertions.Expect(readiness.GetByRole(AriaRole.Heading,
+      new() { Name = "Record a blocked review", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(readiness).ToContainTextAsync("Action required");
+    await Assertions.Expect(readiness).ToContainTextAsync("Unknown");
+    await readiness.Locator("#offboarding-disposition-notes").FillAsync(notes);
+    await readiness.GetByRole(AriaRole.Button, new() { Name = "Record blocked review", Exact = true }).ClickAsync();
+    await Assertions.Expect(readiness).ToContainTextAsync("outcome is unconfirmed");
+    Assert.Equal(200, await firstServerStatus.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+
+    Guid firstRecordId;
+    string firstRequestKey;
+    string readinessDigest;
+    await using (var proof = host.CreateDbContext())
+    {
+      var record = await proof.ClientOffboardingRecords.AsNoTracking().SingleAsync(x => x.ClientId == f.ClientId);
+      firstRecordId = record.Id;
+      firstRequestKey = record.RequestKey!;
+      readinessDigest = record.ReadinessDigest;
+      Assert.Equal("BLOCKED_DECISION", record.Status);
+      Assert.Equal(notes, record.DispositionNotes);
+      Assert.Empty(await proof.ClientLifecycleEvents.AsNoTracking().Where(x => x.ClientId == f.ClientId).ToListAsync());
+      Assert.Equal(1, await proof.WorkTasks.AsNoTracking().CountAsync(x => x.ClientId == f.ClientId && x.Title == "Synthetic open offboarding work"));
+    }
+
+    // Recreate the Angular component through a full page/session bootstrap. Its sessionStorage receipt
+    // must recover the exact request instead of generating another closeout decision.
+    await page.ReloadAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Client profile", Exact = true })).ToBeVisibleAsync();
+    await readiness.GetByRole(AriaRole.Button, new() { Name = "Check offboarding readiness", Exact = true }).ClickAsync();
+    await Assertions.Expect(readiness).ToContainTextAsync("A previous review outcome is unconfirmed");
+    await readiness.Locator("#offboarding-disposition-notes").FillAsync(notes);
+    await readiness.GetByRole(AriaRole.Button, new() { Name = "Retry original review", Exact = true }).ClickAsync();
+    await Assertions.Expect(readiness).ToContainTextAsync("A BLOCKED_DECISION review record was saved");
+    Assert.Equal(2, closeoutBodies.Count);
+
+    using (var original = JsonDocument.Parse(closeoutBodies[0]))
+    using (var replay = JsonDocument.Parse(closeoutBodies[1]))
+    {
+      Assert.Equal(firstRequestKey, original.RootElement.GetProperty("requestKey").GetString());
+      Assert.Equal(firstRequestKey, replay.RootElement.GetProperty("requestKey").GetString());
+      Assert.Equal(readinessDigest, original.RootElement.GetProperty("expectedReadinessDigest").GetString());
+      Assert.Equal(readinessDigest, replay.RootElement.GetProperty("expectedReadinessDigest").GetString());
+      Assert.Equal(notes, replay.RootElement.GetProperty("dispositionNotes").GetString());
+      Assert.False(replay.RootElement.GetProperty("archiveClientOnCloseout").GetBoolean());
+    }
+
+    await using (var proof = host.CreateDbContext())
+    {
+      var records = await proof.ClientOffboardingRecords.AsNoTracking().Where(x => x.ClientId == f.ClientId).ToListAsync();
+      Assert.Single(records);
+      Assert.Equal(firstRecordId, records[0].Id);
+      Assert.Equal(firstRequestKey, records[0].RequestKey);
+      Assert.Equal("BLOCKED_DECISION", records[0].Status);
+      Assert.Empty(await proof.ClientLifecycleEvents.AsNoTracking().Where(x => x.ClientId == f.ClientId).ToListAsync());
+      Assert.Empty(errors);
+    }
+  }
+
   [Theory]
   [InlineData(false)]
   [InlineData(true)]

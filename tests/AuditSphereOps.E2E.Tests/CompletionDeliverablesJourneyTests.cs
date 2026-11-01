@@ -202,18 +202,39 @@ public sealed class CompletionDeliverablesJourneyTests
     // against the exact generated unsigned report before the Partner signs it.
     var reviewerOrigin = await StartIdentityAsync(accountingReviewer);
     var reviewerPage = await (await browser.NewContextAsync()).NewPageAsync();
-    reviewerPage.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
-    reviewerPage.Console += (_, message) => diagnostics.Add($"console-{message.Type}: {message.Text}");
+    var reviewerDiagnostics = new List<string>();
+    var eqrResponses = new List<(string Url, int Status)>();
+    reviewerPage.PageError += (_, error) => reviewerDiagnostics.Add($"page-error: {error}");
+    reviewerPage.Console += (_, message) => reviewerDiagnostics.Add($"console-{message.Type}: {message.Text}");
+    reviewerPage.Response += (_, response) =>
+    {
+      if (response.Url.Contains("/completion/eqr-", StringComparison.Ordinal))
+        eqrResponses.Add((response.Url, response.Status));
+    };
     await reviewerPage.GotoAsync($"{reviewerOrigin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/engagements/{f.EngagementId:D}/completion")}");
     await reviewerPage.GetByRole(AriaRole.Heading, new() { Name = "Independent EQR review", Exact = true }).WaitForAsync(new() { Timeout = 20000 });
     await reviewerPage.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15000 });
-    var eqrBasis = reviewerPage.GetByRole(AriaRole.Region, new() { Name = "Exact EQR review basis", Exact = true });
+    var eqrBasis = reviewerPage.Locator("dl[aria-label='Exact EQR review basis']");
     await Assertions.Expect(eqrBasis).ToContainTextAsync("Current unsigned report");
-    await reviewerPage.GetByLabel("Decision", new() { Exact = true }).SelectOptionAsync("CONCURRED");
-    await reviewerPage.GetByLabel("Review notes", new() { Exact = true }).FillAsync("Reviewed the exact current report and completion facts in this synthetic browser journey.");
-    await reviewerPage.GetByLabel("Findings were discussed (required for concurrence).", new() { Exact = true }).CheckAsync();
-    await reviewerPage.GetByLabel("I reviewed this exact case revision, facts digest and current unsigned report, if present.", new() { Exact = true }).CheckAsync();
-    await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Record EQR decision", Exact = true }).ClickAsync();
+    var decisionChoice = reviewerPage.GetByLabel("Decision", new() { Exact = true });
+    await decisionChoice.FocusAsync();
+    await Assertions.Expect(decisionChoice).ToBeFocusedAsync();
+    await decisionChoice.SelectOptionAsync("CONCURRED");
+    var reviewNotes = reviewerPage.GetByLabel("Review notes", new() { Exact = true });
+    await reviewNotes.FillAsync("Reviewed the exact current report and completion facts in this synthetic browser journey.");
+    var findingsDiscussed = reviewerPage.GetByLabel("Findings were discussed (required for concurrence).", new() { Exact = true });
+    await findingsDiscussed.FocusAsync();
+    await findingsDiscussed.PressAsync("Space");
+    await Assertions.Expect(findingsDiscussed).ToBeCheckedAsync();
+    var exactBasisAssent = reviewerPage.GetByLabel("I reviewed this exact case revision, facts digest and current unsigned report, if present.", new() { Exact = true });
+    await exactBasisAssent.FocusAsync();
+    await exactBasisAssent.PressAsync("Space");
+    await Assertions.Expect(exactBasisAssent).ToBeCheckedAsync();
+    var submitEqr = reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Record EQR decision", Exact = true });
+    await Assertions.Expect(submitEqr).ToBeEnabledAsync();
+    await exactBasisAssent.PressAsync("Tab");
+    await Assertions.Expect(submitEqr).ToBeFocusedAsync();
+    await reviewerPage.Keyboard.PressAsync("Enter");
     await Assertions.Expect(reviewerPage.GetByText("The server confirmed EQR decision", new() { Exact = false })).ToBeVisibleAsync();
     await using (var db = host.CreateDbContext())
     {
@@ -228,6 +249,10 @@ public sealed class CompletionDeliverablesJourneyTests
       Assert.Equal(report.ContentSha256, decision.ReviewedReportSha256);
       Assert.Equal(report.InputDigest, decision.ReviewedFactsDigest);
     }
+    Assert.Contains(eqrResponses, response => response.Url.Contains("/completion/eqr-review-basis", StringComparison.Ordinal) && response.Status == 200);
+    Assert.Contains(eqrResponses, response => response.Url.Contains("/completion/eqr-decision", StringComparison.Ordinal) && response.Status == 200);
+    Assert.DoesNotContain(reviewerDiagnostics, message => message.StartsWith("page-error:", StringComparison.Ordinal) ||
+      message.StartsWith("console-error:", StringComparison.Ordinal));
     var representationLetter = table.GetByRole(AriaRole.Row).Filter(new() { HasText = "Management Representation Letter" });
     await Assertions.Expect(representationLetter).ToContainTextAsync("v1");
     await representationLetter.GetByRole(AriaRole.Button, new() { Name = "Share Management Representation Letter v1 with the client", Exact = true }).ClickAsync();
