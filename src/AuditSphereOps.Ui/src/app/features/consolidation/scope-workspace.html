@@ -479,6 +479,18 @@
               }
             </div>
 
+
+          </div>
+        } @else if (w.latestReport.value?.state === 'STALE') {
+          <p class="error-text" role="alert">Report evidence is stale. Review the current scope, component evidence and approvals before creating a new group run. Historical runs remain unchanged.</p>
+        } @else if (w.latestReport.value?.state === 'REVIEW_REQUIRED') {
+          <p role="status">This group run needs independent review before a current report can be shown.</p>
+        } @else if (w.latestReport.value?.state === 'ADVANCED_PROFILE') {
+          <p role="status">This report view does not support the selected advanced method.</p>
+        } @else {
+          <p role="status">No group run is available for this scope.</p>
+        }
+        <div class="panel" style="margin-top: 1.5rem;">
             @if (deliverablePage.data(); as page) {
               <h3>Retained group deliverables</h3>
               @if (!page.items.length) {
@@ -513,21 +525,17 @@
                 </table></div>
                 <p>Showing {{ page.items.length }} of {{ page.totalCount }} retained builds. Issue requires the exact release reference and a fresh review; archive applies only to an issued build and never deletes retained bytes.</p>
               }
+              <nav class="actions" aria-label="Retained group deliverable pages">
+                <span>Page {{ page.page }} of {{ Math.max(1, Math.ceil(page.totalCount / page.pageSize)) }}</span>
+                <button matButton="outlined" type="button" (click)="previousDeliverablePage()" [disabled]="page.page <= 1 || deliverablePage.loading()">Previous</button>
+                <button matButton="outlined" type="button" (click)="nextDeliverablePage(page)" [disabled]="page.page * page.pageSize >= page.totalCount || deliverablePage.loading()">Next</button>
+              </nav>
             } @else if (deliverablePage.loading()) {
               <p role="status">Loading retained group deliverables…</p>
             } @else if (deliverablePage.error()) {
               <p class="error-text" role="alert">{{ deliverablePage.error() }}</p>
             }
-          </div>
-        } @else if (w.latestReport.value?.state === 'STALE') {
-          <p class="error-text" role="alert">Report evidence is stale. Review the current scope, component evidence and approvals before creating a new group run. Historical runs remain unchanged.</p>
-        } @else if (w.latestReport.value?.state === 'REVIEW_REQUIRED') {
-          <p role="status">This group run needs independent review before a current report can be shown.</p>
-        } @else if (w.latestReport.value?.state === 'ADVANCED_PROFILE') {
-          <p role="status">This report view does not support the selected advanced method.</p>
-        } @else {
-          <p role="status">No group run is available for this scope.</p>
-        }
+        </div>
       </section>
 
       <!-- Component Readiness -->
