@@ -50,7 +50,7 @@ public sealed class AngularPortfolioJourneyTests
     page.PageError += (_, error) => errors.Add(error);
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fapp");
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync(
+    await Assertions.Expect(page.GetByRole(AriaRole.Main).GetByRole(AriaRole.Alert)).ToContainTextAsync(
       "No portfolio data is shown without an active AuditSphere grant");
     Assert.DoesNotContain(hiddenClientName, await page.Locator("body").InnerTextAsync());
     Assert.Empty(await page.Locator(".portfolio-metrics").AllAsync());
@@ -148,7 +148,7 @@ public sealed class AngularPortfolioJourneyTests
     page.Download += (_, _) => downloadCount++;
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fapp");
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = privateClientName, Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.Locator(".portfolio-clients").GetByText(privateClientName, new() { Exact = true })).ToBeVisibleAsync();
 
     var firstDownloadTask = page.WaitForDownloadAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Download scoped CSV", Exact = true }).ClickAsync();
@@ -242,12 +242,20 @@ public sealed class AngularPortfolioJourneyTests
       var download = await downloadTask; Assert.Equal("auditsphere-portfolio.csv", download.SuggestedFilename);
       var text = await File.ReadAllTextAsync((await download.PathAsync())!);
       Assert.Contains("9007199254740993", text); Assert.Contains("FINANCIAL_PACKAGE", text); Assert.DoesNotContain("HIDDEN-PORTFOLIO-B", text);
-      await page.GetByRole(AriaRole.Link, new() { Name = "PORTFOLIO-A Holdings", Exact = true }).ClickAsync();
-      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Client unavailable", Exact = true })).ToBeVisibleAsync();
-      await page.Locator("audit-client").GetByRole(AriaRole.Link, new() { Name = "Portfolio", Exact = true }).ClickAsync();
+      await page.GetByRole(AriaRole.Button, new() { Name = "Destinations for PORTFOLIO-A Holdings", Exact = true }).ClickAsync();
+      var engagementLink = page.GetByRole(AriaRole.Link, new() { Name = "Open FinancialStatementAudit · 2026-01-01 to 2026-12-31", Exact = true });
+      await Assertions.Expect(engagementLink).ToHaveAttributeAsync("href", $"{prefix}/app/engagements/{a.Fixture.EngagementId:D}");
+      await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Open client details", Exact = true })).ToHaveCountAsync(0);
+      await engagementLink.ClickAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "FinancialStatementAudit — PORTFOLIO-A Holdings", Exact = true })).ToBeVisibleAsync();
+      await page.Locator("audit-engagement").GetByRole(AriaRole.Link, new() { Name = "Portfolio", Exact = true }).ClickAsync();
       await Assertions.Expect(page.GetByRole(AriaRole.Textbox, new() { Name = "Search client name or ID" })).ToHaveValueAsync("PORTFOLIO-A");
       await Assertions.Expect(page.Locator(".portfolio-clients tr.selected")).ToHaveCountAsync(1);
       await page.ReloadAsync(); await Assertions.Expect(page.Locator(".portfolio-clients tr.selected")).ToHaveCountAsync(1);
+      var deniedClient = await context.NewPageAsync();
+      await deniedClient.GotoAsync(origin + $"{prefix}/app/clients/{a.Fixture.ClientId:D}");
+      await Assertions.Expect(deniedClient.GetByRole(AriaRole.Heading, new() { Name = "Client unavailable", Exact = true })).ToBeVisibleAsync();
+      await deniedClient.CloseAsync();
       await page.SetViewportSizeAsync(390,844); Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
       await using (var db = host.CreateDbContext()) { var user = await db.Users.SingleAsync(u => u.Id == a.Fixture.Staff.Id); user.SessionEpoch++; await db.SaveChangesAsync(); }
       await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });

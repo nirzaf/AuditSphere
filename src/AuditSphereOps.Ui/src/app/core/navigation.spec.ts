@@ -46,6 +46,11 @@ describe('Angular workspace navigation ownership', () => {
       ['/app/finance/invoices?page=2', 'firm-finance'],
     ]) expect(navigationOwner(path)?.groupId).toBe(group);
   });
+  it('keeps the root landing route in the portfolio navigation section', () => {
+    const portfolioOwner = { groupId: 'work', icon: 'layout-dashboard' };
+    expect(navigationOwner('/')).toEqual(portfolioOwner);
+    expect(navigationOwner('/ui/')).toEqual(portfolioOwner);
+  });
   it('assigns every declared staff workspace route an owner', () => {
     for (const route of routes.filter(item => item.path === 'app' || item.path?.startsWith('app/'))) {
       const path = '/' + route.path!.replace(/:kind/g, 'ECL')

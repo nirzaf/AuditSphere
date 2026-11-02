@@ -212,6 +212,41 @@ describe('portfolio destination choices', () => {
     finish(fixture, http);
   });
 
+  it('retains no-grant guidance after a forbidden workspace read invalidates availability', async () => {
+    const { http, fixture, available, revision, session } = setup();
+    const component = fixture.componentInstance;
+    component.view.reload();
+    http.expectOne(request => request.url.split('?')[0] === '/api/ui/portfolio/workspace')
+      .flush({}, { status: 403, statusText: 'Forbidden' });
+    expect(available()).toBe(false);
+    await fixture.whenStable();
+    expect(component.workspaceData()).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Client A');
+    const alerts = (fixture.nativeElement as HTMLElement).querySelectorAll('[role="alert"]');
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].textContent)
+      .toContain('No portfolio data is shown without an active AuditSphere grant');
+    session.current.set({ userId: client, firmId: other, generation: '2', staff: true });
+    await fixture.whenStable();
+    expect((fixture.nativeElement as HTMLElement).textContent)
+      .not.toContain('No portfolio data is shown without an active AuditSphere grant');
+    session.current.set({ userId: other, firmId: other, generation: '1', staff: true });
+    await fixture.whenStable();
+    expect((fixture.nativeElement as HTMLElement).textContent)
+      .not.toContain('No portfolio data is shown without an active AuditSphere grant');
+    session.current.set({ userId: client, firmId: other, generation: '2', staff: true });
+    await fixture.whenStable();
+    available.set(true);
+    revision.update(value => value + 1);
+    fixture.detectChanges();
+    http.expectOne(request => request.url.split('?')[0] === '/api/ui/portfolio/workspace').flush(workspace());
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Client A');
+    expect((fixture.nativeElement as HTMLElement).textContent)
+      .not.toContain('No portfolio data is shown without an active AuditSphere grant');
+    finish(fixture, http);
+  });
+
   it('keeps normal navigation in the SPA, preserves modified clicks and prevents stale clicks before rerender', () => {
     let clock = 1000;
     vi.spyOn(performance, 'now').mockImplementation(() => clock);

@@ -5,6 +5,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Application.Records;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
@@ -172,8 +173,14 @@ public static partial class AuditDeliverableService
     var client = actor.Roles.Contains("ClientUser");
     if (deliverable.FirmId != actor.FirmId || !(await AuthorizationDecision.AuthorizeAsync(db, actor,
         new(actor.FirmId, deliverable.ClientId, deliverable.EngagementId, client ? ["ClientUser"] : ReaderRoles, InternalOnly: !client), ct)).Succeeded) return false;
+    return await IsCurrentForAuthorizedScopeAsync(db, actor, deliverable, ct);
+  }
+
+  internal static async Task<bool> IsCurrentForAuthorizedScopeAsync(IAuditSphereDbContext db, ActorContext actor, AuditDeliverable deliverable, CancellationToken ct)
+  {
     if (deliverable.SignedFromDeliverableId is { } source)
-      return await db.AuditDeliverables.AsNoTracking().SingleOrDefaultAsync(x => x.Id == source, ct) is { } unsigned && await IsCurrentAsync(db, actor, unsigned, ct);
+      return await db.AuditDeliverables.AsNoTracking().SingleOrDefaultAsync(x => x.Id == source && x.FirmId == deliverable.FirmId &&
+        x.EngagementId == deliverable.EngagementId, ct) is { } unsigned && await IsCurrentForAuthorizedScopeAsync(db, actor, unsigned, ct);
     var latest = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == deliverable.FirmId && x.EngagementId == deliverable.EngagementId &&
       x.Kind == deliverable.Kind && x.SignedFromDeliverableId == null).MaxAsync(x => (int?)x.Version, ct);
     if (latest != deliverable.Version) return false;
@@ -552,8 +559,7 @@ public static partial class AuditDeliverableService
       if (eqr.Status != "CONCURRED" || concurrence is null || concurrence.Status != "CONCURRED")
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
           $"Engagement quality review (EQR) status is {eqr.Status}; a current retained concurrence is required before signing the independent auditor's report.");
-      if (concurrence.ReviewedFactsDigest != report.InputDigest ||
-          concurrence.ReviewedReportDeliverableId is { } reviewedReport && reviewedReport != report.Id)
+      if (!EqrDecisionMatchesReportBasis(concurrence, report))
         return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
           "The EQR concurrence was recorded against different completion or report evidence; re-review the current basis before signing.");
     }
@@ -610,7 +616,7 @@ public static partial class AuditDeliverableService
         return CommandResult<EqrReviewBasis>.Fail(ErrorCodes.ScopeDenied, "The Engagement Partner cannot perform the independent Engagement Quality Review.");
       var eqr = await db.EqrCases.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
       if (eqr is not null && eqr.EqrPartnerUserId != Guid.Empty && eqr.EqrPartnerUserId != actor.UserId &&
-          !actor.Roles.Contains("Administrator", StringComparer.OrdinalIgnoreCase))
+          !(await AuthorizeAsync(db, actor, engagementId, ["Administrator"], ct)).Succeeded)
         return CommandResult<EqrReviewBasis>.Fail(ErrorCodes.ScopeDenied, "Only the assigned EQR Partner or Administrator can review this case.");
       var facts = await ExpectedDigestAsync(db, actor, engagementId, DeliverableKinds.IndependentAuditorsReport, ct);
       var report = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
@@ -626,7 +632,7 @@ public static partial class AuditDeliverableService
           x.EngagementId == engagementId && x.UserId == actor.UserId && x.RevokedAt == null &&
           x.StaffingLevel == Domain.Practice.StaffingLevels.EngagementPartner, ct) ||
         (currentCase is not null && currentCase.EqrPartnerUserId != Guid.Empty && currentCase.EqrPartnerUserId != actor.UserId &&
-          !actor.Roles.Contains("Administrator", StringComparer.OrdinalIgnoreCase)))
+          !(await AuthorizeAsync(db, actor, engagementId, ["Administrator"], ct)).Succeeded))
       return CommandResult<EqrReviewBasis>.Fail(ErrorCodes.ScopeDenied, "EQR review access changed.");
     return CommandResult<EqrReviewBasis>.Ok(basis);
   }
@@ -663,15 +669,20 @@ public static partial class AuditDeliverableService
 
     if (status == "CONCURRED" && !request.FindingsDiscussed)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Findings must be discussed before EQR concurrence.");
+    if (status == "CONCURRED" && (!request.ExpectedReportDeliverableId.HasValue || request.ExpectedReportSha256 is null))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A current unsigned independent auditor's report is required before EQR concurrence.");
     if (status == "CHANGES_REQUESTED" && notes is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Explain the required changes.");
 
     if (db.Database.CurrentTransaction is not null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "EQR decisions require an independent serializable transaction.");
-    await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
     var digest = Hashing.Sha256Hex(JsonSerializer.Serialize(new { Namespace = "eqr-decision-v1", actor.FirmId, engagementId }));
     var lockKey = unchecked((long)Convert.ToUInt64(digest[..16], 16));
-    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockKey})", ct);
+    // Wait for the engagement decision lock before opening the serializable transaction.
+    // At SERIALIZABLE, the first SELECT fixes the transaction snapshot; waiting for an
+    // xact lock inside the transaction could therefore authorize against pre-wait grants.
+    await using var decisionLock = await AcquireEqrDecisionLockAsync(db, lockKey, ct);
+    await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
     auth = await AuthorizeAsync(db, actor, engagementId, ["Partner", "Administrator"], ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
@@ -682,7 +693,7 @@ public static partial class AuditDeliverableService
     var assigned = await db.EqrCases.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
     if (assigned is not null && assigned.EqrPartnerUserId != Guid.Empty && assigned.EqrPartnerUserId != actor.UserId &&
-        !actor.Roles.Contains("Administrator", StringComparer.OrdinalIgnoreCase))
+        !(await AuthorizeAsync(db, actor, engagementId, ["Administrator"], ct)).Succeeded)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Only the assigned EQR Partner or Administrator can record the EQR decision.");
 
     // An exact replay returns the original retained decision even after later
@@ -703,6 +714,18 @@ public static partial class AuditDeliverableService
       if (tx is not null) await tx.CommitAsync(ct);
       return CommandResult<Guid>.Ok(replay.Id);
     }
+
+    // Replay above is read-only; new professional decisions must respect the engagement freeze and holds.
+    var writable = await FileFreezeService.RequireWritableAsync(db, actor, engagementId, "record EQR decision", ct);
+    if (!writable.Succeeded)
+    {
+      await tx.CommitAsync(ct); // retain the frozen-write refusal
+      return CommandResult<Guid>.Fail(writable.ErrorCode!, writable.Message!);
+    }
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, EngagementId: engagementId, RequiredRoles: ["Partner", "Administrator"],
+        InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
     var reviewedFactsDigest = await ExpectedDigestAsync(db, actor, engagementId, DeliverableKinds.IndependentAuditorsReport, ct);
     var reviewedReport = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
@@ -736,7 +759,7 @@ public static partial class AuditDeliverableService
         return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
           "The EQR case changed after review; refresh and record the decision again.");
       if (eqr.EqrPartnerUserId != Guid.Empty && eqr.EqrPartnerUserId != actor.UserId &&
-          !actor.Roles.Contains("Administrator", StringComparer.OrdinalIgnoreCase))
+          !(await AuthorizeAsync(db, actor, engagementId, ["Administrator"], ct)).Succeeded)
         return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied,
           "Only the assigned EQR Partner or Administrator can record the EQR decision.");
     }
@@ -773,7 +796,52 @@ public static partial class AuditDeliverableService
     return CommandResult<Guid>.Ok(decision.Id);
   }
 
-  private static async Task<EqrDecision?> CurrentEqrDecisionAsync(IAuditSphereDbContext db, Guid firmId, EqrCase eqr,
+  internal static bool EqrDecisionMatchesReportBasis(EqrDecision decision, AuditDeliverable report) =>
+    decision.ReviewedFactsDigest == report.InputDigest &&
+    decision.ReviewedReportDeliverableId == report.Id && decision.ReviewedReportSha256 == report.ContentSha256;
+
+  private sealed class EqrDecisionLockLease(IAuditSphereDbContext db, long lockKey) : IAsyncDisposable
+  {
+    public async ValueTask DisposeAsync()
+    {
+      try
+      {
+        var released = await db.Database.SqlQuery<bool>($"SELECT pg_advisory_unlock({lockKey}) AS \"Value\"")
+          .SingleAsync(CancellationToken.None);
+        if (!released) throw new InvalidOperationException("The EQR decision advisory lock was not held by its owning connection.");
+      }
+      finally
+      {
+        await db.Database.CloseConnectionAsync();
+      }
+    }
+  }
+
+  private static async Task<EqrDecisionLockLease> AcquireEqrDecisionLockAsync(
+    IAuditSphereDbContext db, long lockKey, CancellationToken ct)
+  {
+    await db.Database.OpenConnectionAsync(ct);
+    try
+    {
+      await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_lock({lockKey})", ct);
+      return new EqrDecisionLockLease(db, lockKey);
+    }
+    catch
+    {
+      // Cancellation can race with lock acquisition: the server may have acquired the
+      // session lock even though the client did not receive the command result.
+      try
+      {
+        await db.Database.SqlQuery<bool>($"SELECT pg_advisory_unlock({lockKey}) AS \"Value\"")
+          .SingleAsync(CancellationToken.None);
+      }
+      catch { /* Closing the connection below remains the final cleanup boundary. */ }
+      await db.Database.CloseConnectionAsync();
+      throw;
+    }
+  }
+
+  internal static async Task<EqrDecision?> CurrentEqrDecisionAsync(IAuditSphereDbContext db, Guid firmId, EqrCase eqr,
     CancellationToken ct)
   {
     if (eqr.CurrentDecisionId is not { } decisionId || eqr.Revision < 1 ||
@@ -1086,8 +1154,9 @@ public static partial class AuditDeliverableService
   {
     var clearance = await db.PartnerCompletionClearances.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderByDescending(x => x.ClearedAt).FirstOrDefaultAsync(ct);
     if (clearance is null) return null;
-    var srm = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == clearance.SummaryReviewMemorandumId, ct);
-    return await IsCurrentAsync(db, actor, srm, ct) ? clearance : null;
+    var srm = await db.AuditDeliverables.AsNoTracking().SingleOrDefaultAsync(x => x.Id == clearance.SummaryReviewMemorandumId &&
+      x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
+    return srm is not null && await IsCurrentForAuthorizedScopeAsync(db, actor, srm, ct) ? clearance : null;
   }
 
   private static async Task<AuditOpinionDecision?> CurrentOpinionForAuthorizedScopeAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)

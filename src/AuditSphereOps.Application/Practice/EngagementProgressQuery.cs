@@ -210,8 +210,16 @@ public static class EngagementProgressQuery
       select new { release.EngagementId, release.PackageId, candidate.TargetKind }).ToListAsync(ct);
     var released = releases.Select(x => x.EngagementId).Distinct().ToHashSet();
     var nonAuditEngagements = engagements.Where(e => !LifecycleRoutes.Contains(e.ServiceRoute, StringComparer.Ordinal)).ToList();
+    var nonAuditIds = nonAuditEngagements.Select(e => e.Id).Distinct().ToArray();
+    var nonAuditClientIds = nonAuditEngagements.Select(e => e.PracticeClientId).Distinct().ToArray();
+    var nonAuditRoutes = nonAuditEngagements.Select(e => e.ServiceRoute).Distinct().ToArray();
+    var nonAuditPeriodStarts = nonAuditEngagements.Select(e => e.PeriodStart).Distinct().ToArray();
+    var nonAuditPeriodEnds = nonAuditEngagements.Select(e => e.PeriodEnd).Distinct().ToArray();
+    var nonAuditStartDates = nonAuditPeriodStarts.Select(s => DateOnly.TryParse(s, CultureInfo.InvariantCulture, out var d) ? d : default).Distinct().ToArray();
+    var nonAuditEndDates = nonAuditPeriodEnds.Select(s => DateOnly.TryParse(s, CultureInfo.InvariantCulture, out var d) ? d : default).Distinct().ToArray();
     var approvedProfiles = nonAuditEngagements.Count == 0 ? [] : await db.AccountingCapabilityProfiles.AsNoTracking()
-      .Where(profile => profile.FirmId == f && profile.ClientId.HasValue && clientIds.Contains(profile.ClientId.Value) &&
+      .Where(profile => profile.FirmId == f && profile.ClientId.HasValue &&
+        nonAuditClientIds.Contains(profile.ClientId.Value) && nonAuditRoutes.Contains(profile.ServiceRoute) &&
         profile.Status != AccountingWorkflowStates.Retired && db.AccountingCapabilityAcceptances.Any(acceptance =>
           acceptance.FirmId == profile.FirmId && acceptance.CapabilityProfileId == profile.Id &&
           (acceptance.Stage == AccountingCapabilityAcceptanceStages.MethodOwnerApproval ||
@@ -219,10 +227,12 @@ public static class EngagementProgressQuery
           acceptance.Status == AccountingWorkflowStates.Approved))
       .ToListAsync(ct);
     var clientPeriods = nonAuditEngagements.Count == 0 ? [] : await db.ClientReportingPeriods.AsNoTracking()
-      .Where(p => p.FirmId == f && clientIds.Contains(p.ClientId))
+      .Where(p => p.FirmId == f && nonAuditClientIds.Contains(p.ClientId) &&
+        nonAuditStartDates.Contains(p.StartDate) && nonAuditEndDates.Contains(p.EndDate))
       .ToListAsync(ct);
     var packages = nonAuditEngagements.Count == 0 ? [] : await db.FinancialPackages.AsNoTracking()
-      .Where(p => p.FirmId == f && ids.Contains(p.EngagementId))
+      .Where(p => p.FirmId == f && nonAuditIds.Contains(p.EngagementId) &&
+        nonAuditPeriodStarts.Contains(p.PeriodStart) && nonAuditPeriodEnds.Contains(p.PeriodEnd))
       .ToListAsync(ct);
     var now = DateTimeOffset.UtcNow;
 

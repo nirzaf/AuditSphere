@@ -24,6 +24,8 @@ interface ChoiceState {
   deadline: number; wallDeadline: number; first: boolean; seen: string[]; cursors: string[];
 }
 
+const NO_PORTFOLIO_SCOPE = 'No portfolio data is shown without an active AuditSphere grant. Ask a firm administrator to review your access, then retry.';
+
 @Component({
   selector: 'audit-portfolio',
   imports: [RouterLink, FormField, MatButtonModule, MatFormFieldModule, MatInputModule, PortfolioProgress, WorkspaceNavigationIcon, ...SHARED],
@@ -44,6 +46,9 @@ export class Portfolio {
   readonly model = signal({ search: '' });
   readonly fields = form(this.model, (p) => maxLength(p.search, 100));
   private readonly identityFence = signal(false);
+  private readonly deniedOwner = signal('');
+  readonly scopeDenied = computed(() => !!this.owner() && this.deniedOwner() === this.owner());
+  readonly scopeDeniedMessage = NO_PORTFOLIO_SCOPE;
   private workspaceRequest = '';
   readonly view = this.api.resource(() => {
     const q = this.location();
@@ -54,10 +59,11 @@ export class Portfolio {
     if (this.identityFence() || !q || !this.workspaceRequest || this.workspaceRequest !== this.portfolioContext() ||
         value.search !== q.search || value.clients.page !== q.page || value.clients.pageSize !== q.pageSize)
       throw new Error('Wrong portfolio context');
+    this.deniedOwner.set('');
     return value;
   }, 'Portfolio is unavailable in your current scope.',
-  'No portfolio data is shown without an active AuditSphere grant. Ask a firm administrator to review your access, then retry.',
-  () => this.availability.invalidate());
+  NO_PORTFOLIO_SCOPE,
+  () => { this.deniedOwner.set(this.owner()); this.availability.invalidate(); });
   readonly exporting = signal(false);
   readonly message = signal('');
   readonly failed = signal(false);
@@ -87,6 +93,7 @@ export class Portfolio {
         this.message.set(''); this.failed.set(false); this.exporting.set(false);
         this.candidatePage.set(0); this.packagePage.set(0);
         const owner = this.owner();
+        if (owner !== previousOwner) this.deniedOwner.set('');
         if (previousOwner && owner !== previousOwner) {
           this.identityFence.set(true); this.model.set({ search: '' }); this.navigation.read();
           if (owner) {
@@ -134,6 +141,7 @@ export class Portfolio {
   accessCurrent(): boolean { return !!this.portfolioContext(); }
   refreshWorkspace(): void {
     this.closeChoices();
+    this.deniedOwner.set('');
     if (this.portfolioContext() && this.workspaceRequest === this.portfolioContext()) this.view.reload();
     else this.availability.refresh();
   }

@@ -346,6 +346,10 @@ public sealed class AngularRouteAndShellMigrationSweepTests
       return;
     }
 
+    var expectedSection = page.GetByRole(AriaRole.Navigation,
+        new() { Name = "Workspace navigation", Exact = true })
+      .GetByRole(AriaRole.Heading, new() { Name = expected, Exact = true });
+    await Assertions.Expect(expectedSection).ToHaveAttributeAsync("aria-current", "location");
     var headings = await marked.AllInnerTextsAsync();
     Assert.True(headings.Count == 1, $"{route} should mark only the {expected} navigation section as current; found [{string.Join(", ", headings)}].");
     Assert.Equal(expected.ToUpperInvariant(), headings[0].Trim().ToUpperInvariant());

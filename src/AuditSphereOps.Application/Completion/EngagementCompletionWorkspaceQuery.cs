@@ -1,3 +1,4 @@
+using System.Data;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
@@ -115,9 +116,11 @@ public static class EngagementCompletionWorkspaceQuery
       .Select(r => new CompletionRepresentation(r.Id, r.Code, r.Title, r.Narrative, r.Obtained, r.ObtainedAt, r.SignatoryName)).ToListAsync(ct);
     var allObtained = representations.Count > 0 && representations.All(r => r.Obtained);
     gates.Add(new("Written representations obtained", representations.Count == 0 ? "PENDING_REQUEST" : allObtained ? "OBTAINED" : "PENDING", allObtained ? "ok" : "pending", null, null));
-    var eqr = await db.EqrCases.AsNoTracking().FirstOrDefaultAsync(e => e.EngagementId == engagementId && e.FirmId == actor.FirmId, ct);
+    var eqrProjection = await EqrCompletionStatusAsync(db, actor, engagementId, ct);
+    var eqr = eqrProjection.Case;
     gates.Add(eqr is null ? new("EQR completed", "NOT_ASSIGNED", "neutral", null, null)
-      : new("EQR completed", eqr.Status, eqr.Status == "CONCURRED" ? "ok" : "pending", $"Partner {eqr.EqrPartnerUserId.ToString()[..8]}", eqr.CompletedAt));
+      : new("EQR completed", eqrProjection.Status, eqrProjection.Status == "CONCURRED" ? "ok" : "pending",
+        eqr.EqrPartnerUserId == Guid.Empty ? null : $"Assigned reviewer {eqr.EqrPartnerUserId.ToString()[..8]}", eqr.CompletedAt));
     var candidate = await db.ReleaseCandidates.AsNoTracking().Where(r => r.EngagementId == engagementId && r.FirmId == actor.FirmId)
       .OrderByDescending(r => r.CreatedAt).FirstOrDefaultAsync(ct);
     var release = candidate is null ? null : await ReleaseSummaryAsync(db, candidate, ct);
@@ -154,7 +157,7 @@ public static class EngagementCompletionWorkspaceQuery
       (latestProcedureReviewAt is null || workprogramApproval.CreatedAt >= latestProcedureReviewAt);
     var canApproveWorkprograms = await AuditFieldworkService.CanApproveWorkprogramsAsync(db, actor, engagementId, ct);
     return CommandResult<EngagementCompletionWorkspace>.Ok(new(engagementId, gates, representations, package?.Id, package?.Status ?? "—", partnerApproved,
-      eqr?.Status ?? "NOT_ASSIGNED", candidate?.Id, release,
+      eqrProjection.Status, candidate?.Id, release,
       releaseAuthority.Succeeded && packageEvidence?.Current == true,
       dashboard.Succeeded ? dashboard.Value! : [], await AuditDeliverableService.ListAsync(db, actor, engagementId, ct),
       clearance is null ? null : new CompletionClearance(clearance.Id, clearance.SummaryReviewMemorandumId, clearance.PartnerUserId, clearance.ClearedAt),
@@ -169,6 +172,36 @@ public static class EngagementCompletionWorkspaceQuery
       await HoldingLetterDispatch.StatusAsync(db, actor.FirmId, engagementId, ct),
       ReportCertificateSigning.Status(signing, now), new CompletionWorkprogramApproval(workprogramApproval is not null, approvalIsCurrent,
         workprogramApproval?.CreatedAt, canApproveWorkprograms), packageEvidence));
+  }
+
+  private static async Task<(EqrCase? Case, string Status)> EqrCompletionStatusAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
+  {
+    await using var snapshot = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct)
+      : null;
+    var eqr = await db.EqrCases.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
+    if (eqr is null)
+    {
+      if (snapshot is not null) await snapshot.CommitAsync(ct);
+      return (null, "NOT_ASSIGNED");
+    }
+
+    var status = eqr.Status;
+    if (eqr.Status == "CONCURRED")
+    {
+      var decision = await AuditDeliverableService.CurrentEqrDecisionAsync(db, actor.FirmId, eqr, ct);
+      var report = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
+          x.Kind == DeliverableKinds.IndependentAuditorsReport && x.SignedFromDeliverableId == null)
+        .OrderByDescending(x => x.Version).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+      var isCurrent = report is not null && await AuditDeliverableService.IsCurrentForAuthorizedScopeAsync(db, actor, report, ct) &&
+        decision is { Status: "CONCURRED" } && AuditDeliverableService.EqrDecisionMatchesReportBasis(decision, report) &&
+        decision.ReviewedReportDeliverableId == report.Id && decision.ReviewedReportSha256 == report.ContentSha256;
+      if (!isCurrent) status = "RECORDED_CONCURRENCE_NOT_CURRENT";
+    }
+
+    if (snapshot is not null) await snapshot.CommitAsync(ct);
+    return (eqr, status);
   }
 
   private static async Task<CompletionRelease> ReleaseSummaryAsync(IAuditSphereDbContext db, AuditSphereOps.Domain.Completion.ReleaseCandidate candidate, CancellationToken ct)

@@ -29,7 +29,8 @@ public sealed class AngularClientContactCreationJourneyTests
     await page.GetByLabel("Role or title",new(){Exact=true}).FillAsync("Finance");
     await page.GetByLabel("Set as primary contact",new(){Exact=true}).CheckAsync();
     await page.GetByRole(AriaRole.Button,new(){Name="Save contact draft",Exact=true}).ClickAsync();
-    await page.GetByRole(AriaRole.Link,new(){Name="Client profile",Exact=true}).ClickAsync();
+    await page.GetByRole(AriaRole.Navigation,new(){Name="Breadcrumb",Exact=true})
+      .GetByRole(AriaRole.Link,new(){Name="Client profile",Exact=true}).ClickAsync();
     await page.GetByRole(AriaRole.Button,new(){Name="Save draft and continue",Exact=true}).ClickAsync();
     await page.GetByRole(AriaRole.Link,new(){Name="Add client contact",Exact=true}).ClickAsync();
     await page.GetByRole(AriaRole.Button,new(){Name="Restore contact draft",Exact=true}).ClickAsync();

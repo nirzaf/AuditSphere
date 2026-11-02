@@ -449,6 +449,25 @@ public sealed class AngularWorkflowEvidenceJourneyTests
       await panel.GetByRole(AriaRole.Button, new() { Name = "Read saved prerequisite change", Exact = true }).ClickAsync();
       await firstReceiptReadEntered.Task.WaitAsync(TimeSpan.FromSeconds(15));
       await secondRow.GetByRole(AriaRole.Button, new() { Name = "Review prerequisites", Exact = true }).ClickAsync();
+      await Assertions.Expect(panel).ToContainTextAsync(title);
+      await Assertions.Expect(panel).Not.ToContainTextAsync(secondTitle);
+      var recovery = panel.GetByRole(AriaRole.Button, new() { Name = "Read saved prerequisite change", Exact = true });
+      await Assertions.Expect(recovery).ToBeDisabledAsync();
+      Assert.Equal(pendingKey, await page.EvaluateAsync<string>("key => sessionStorage.getItem(key) ?? ''", pendingStorageKey));
+      releaseFirstReceiptRead.TrySetResult();
+      await Assertions.Expect(panel).ToContainTextAsync(
+        "A saved receipt was not confirmed. Keep the recovery key and review the task; no change was resent.");
+      await Assertions.Expect(recovery).ToBeEnabledAsync();
+      await secondRow.GetByRole(AriaRole.Button, new() { Name = "Review prerequisites", Exact = true }).ClickAsync();
+      await Assertions.Expect(page.GetByText("Resolve or explicitly close the pending task workspace before opening another task. Its recovery reference is retained.", new() { Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(panel).ToContainTextAsync(title);
+      await Assertions.Expect(panel).Not.ToContainTextAsync(secondTitle);
+      Assert.Equal(pendingKey, await page.EvaluateAsync<string>("key => sessionStorage.getItem(key) ?? ''", pendingStorageKey));
+      await recovery.ClickAsync();
+      await Assertions.Expect(recovery).ToHaveCountAsync(0);
+      Assert.Null(await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", pendingStorageKey));
+      Assert.Equal(2, receiptReadCount);
+      await secondRow.GetByRole(AriaRole.Button, new() { Name = "Review prerequisites", Exact = true }).ClickAsync();
       await Assertions.Expect(panel).ToContainTextAsync(secondTitle);
       await Assertions.Expect(panel).Not.ToContainTextAsync(title);
       var secondReason = panel.GetByLabel("Reason for the change", new() { Exact = true });
@@ -456,23 +475,10 @@ public sealed class AngularWorkflowEvidenceJourneyTests
       const string secondReasonDraft = "Keep the second task's independently reviewed source draft.";
       await secondReason.FillAsync(secondReasonDraft);
       var reviewPrerequisite = panel.GetByRole(AriaRole.Button, new() { Name = "Review prerequisite", Exact = true });
-      await Assertions.Expect(reviewPrerequisite).ToBeDisabledAsync();
-      releaseFirstReceiptRead.TrySetResult();
       await Assertions.Expect(reviewPrerequisite).ToBeEnabledAsync();
       await Assertions.Expect(secondReason).ToHaveValueAsync(secondReasonDraft);
       await Assertions.Expect(panel).Not.ToContainTextAsync(
         "A saved receipt was not confirmed. Keep the recovery key and review the task; no change was resent.");
-
-      await row.GetByRole(AriaRole.Button, new() { Name = "Review prerequisites", Exact = true }).ClickAsync();
-      await Assertions.Expect(panel).ToContainTextAsync(title);
-      await Assertions.Expect(panel).Not.ToContainTextAsync(secondTitle);
-      var recovery = panel.GetByRole(AriaRole.Button, new() { Name = "Read saved prerequisite change", Exact = true });
-      await Assertions.Expect(recovery).ToBeVisibleAsync();
-      Assert.Equal(pendingKey, await page.EvaluateAsync<string>("key => sessionStorage.getItem(key) ?? ''", pendingStorageKey));
-      await recovery.ClickAsync();
-      await Assertions.Expect(recovery).ToHaveCountAsync(0);
-      Assert.Null(await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", pendingStorageKey));
-      Assert.Equal(2, receiptReadCount);
     }
     finally {
       releaseFirstReceiptRead.TrySetResult();

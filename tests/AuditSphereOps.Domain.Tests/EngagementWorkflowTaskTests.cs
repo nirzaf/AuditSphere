@@ -1049,7 +1049,14 @@ public sealed class EngagementWorkflowTaskTests
     await SeedQueueScopeAsync(pg, firmId,
       [(clientA, engagementA), (clientA, engagementSibling), (clientB, engagementOtherClient)],
       [manager, staff, clientManager],
-      () => [Grant(firmId, manager, "Manager"), Grant(firmId, clientManager, "Manager", clientA)]);
+      () =>
+      [
+        Grant(firmId, manager, "Manager"),
+        Grant(firmId, staff, "Staff", clientA, engagementA),
+        Grant(firmId, staff, "Staff", clientA, engagementSibling),
+        Grant(firmId, staff, "Staff", clientB, engagementOtherClient),
+        Grant(firmId, clientManager, "Manager", clientA)
+      ]);
 
     var today = DateOnly.FromDateTime(DateTime.UtcNow);
     await using (var db = new AuditSphereDbContext(pg.Options))

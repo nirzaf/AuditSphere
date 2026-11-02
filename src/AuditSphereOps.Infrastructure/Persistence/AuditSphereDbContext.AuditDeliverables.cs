@@ -168,6 +168,9 @@ public sealed partial class AuditSphereDbContext
     {
       e.HasIndex(x => new { x.FirmId, x.ConfirmationCaseId, x.SetAt });
       e.HasOne<AuditConfirmationCase>().WithMany().HasForeignKey(x => x.ConfirmationCaseId).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AuditConfirmationCase>().WithMany().HasForeignKey(x => new { x.FirmId, x.ConfirmationCaseId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+        .HasConstraintName("fk_confirmation_criticality_case_scope");
       e.ToTable("confirmation_criticalities", t => t.HasCheckConstraint("ck_confirmation_criticality_values", "length(rationale) > 0"));
     });
   }

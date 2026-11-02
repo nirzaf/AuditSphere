@@ -9,6 +9,7 @@
 </form>
 @if (!location()) { <p role="alert">Invalid portfolio filters. <button matButton (click)="go(0, '')">Reset filters</button></p> }
 <audit-state [loading]="view.loading()" [error]="view.error()" label="portfolio" />
+@if (scopeDenied() && !view.error()) { <p role="alert">{{ scopeDeniedMessage }}</p> }
 @if (view.error()) { <h2>Portfolio unavailable</h2><button matButton (click)="refreshWorkspace()">Retry</button> }
 @if (location() && !accessCurrent()) { <p role="status">Portfolio access is being checked or is unavailable.</p> }
 <audit-command-message [message]="message()" [failed]="failed()" />

@@ -476,7 +476,7 @@ public sealed class ClientPortalOnboardingTests
   [Trait("CompletionUnit", "WU-004")]
   public async Task PbcRequestDelegationScopeMigration_RoundTripsValidRowsAndRetainsPriorCatalog()
   {
-    await using var pg = await PgTestSchema.CreateAsync();
+    await using var pg = await PgTestSchema.CreateAsync(PbcDelegationScopeMigration);
     var f = await PbcSeed.SeedAsync(pg);
     var requestId = await SentRequestAsync(pg, f, f.Client.Id);
     var retained = new PbcRequestDelegation
@@ -508,7 +508,7 @@ public sealed class ClientPortalOnboardingTests
     Assert.Equal(currentRows, await ReadPbcDelegationRowsAsync(pg));
     AssertOnlyPbcDelegationScopeConstraintAdded(baselineCatalog, currentCatalog);
 
-    await migrator.MigrateAsync();
+    await migrator.MigrateAsync(PbcDelegationScopeMigration);
     Assert.Equal(currentHistory, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
     Assert.Equal(currentCatalog, await ReadPbcDelegationCatalogAsync(pg));
     Assert.Equal(currentRows, await ReadPbcDelegationRowsAsync(pg));

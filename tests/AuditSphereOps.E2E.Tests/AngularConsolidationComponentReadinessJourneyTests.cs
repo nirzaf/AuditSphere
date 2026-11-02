@@ -17,6 +17,213 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
   private const string CorrectionLineageCaseId = "AS-PAR-002-ANG-CONSOL-CORRECTION-LINEAGE-01";
 
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANG-CONSOL-DELIVERABLE-RECOVERY-01")]
+  [Trait("CompletionUnit", "OQ-04")]
+  public async Task GroupDeliverableIssueAndArchiveRecoverTheExactRequestAfterLostResponses()
+  {
+    const string releaseKey = "SYNTHETIC-EXACT-GROUP-RELEASE-01";
+    const string archiveReason = "Synthetic exact artifact retention review.";
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANG-CONSOL-DELIVERABLE-RECOVERY-01");
+    var f = host.Fixture;
+    var seeded = await SeedReadinessFixtureAsync(host);
+    var preparer = PbcSeed.Actor(f.Staff, "AccountingPreparer");
+    var reviewer = PbcSeed.Actor(f.Reviewer, "AccountingReviewer");
+    var partner = PbcSeed.Actor(f.Reviewer, "Partner");
+    var methodOwner = PbcSeed.User(f.FirmId, "Staff");
+    var methodOwnerActor = PbcSeed.Actor(methodOwner, "Partner");
+    var methodOwnerGroupGrant = new GroupAccessGrant
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, GroupId = seeded.GroupId, UserId = methodOwner.Id,
+      Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = f.Admin.Id
+    };
+    Guid deliverableId;
+    long groupRevision;
+    string runHash;
+    string deliverableSha256;
+    string deliverableJson;
+
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(methodOwner);
+      db.GroupAccessGrants.AddRange(methodOwnerGroupGrant, new GroupAccessGrant
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, GroupId = seeded.GroupId, UserId = f.Reviewer.Id,
+        Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = f.Admin.Id
+      });
+      await db.SaveChangesAsync();
+
+      var capability = await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
+        new CapabilityProfileRequest(null, seeded.GroupId, AccountingCapabilityServiceKinds.GroupReporting,
+          "IFRS", "2026", "ANNUAL", "QAR", "STATUTORY", ConsolidationCalculator.RestrictedMethod,
+          "PARTNER", "GROUP"));
+      Assert.True(capability.Succeeded, capability.Message);
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, reviewer, capability.Value,
+        AccountingCapabilityAcceptanceStages.LocalConstruction, "synthetic-browser-deliverable-local")).Succeeded);
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, methodOwnerActor, capability.Value,
+        AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "synthetic-browser-deliverable-method-owner")).Succeeded);
+      Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, seeded.ComponentId)).Succeeded);
+      Assert.True((await ConsolidationService.ApproveScopeAsync(db, reviewer, seeded.ScopeId)).Succeeded);
+
+      var run = await ConsolidationService.RunAsync(db, preparer, seeded.ScopeId);
+      Assert.True(run.Succeeded, run.Message);
+      Assert.True((await ConsolidationService.ApproveRunAsync(db, reviewer, run.Value)).Succeeded);
+      var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleAsync(x => x.Id == seeded.ScopeId);
+      groupRevision = scope.GroupRevision;
+      runHash = await db.ConsolidationRuns.AsNoTracking().Where(x => x.Id == run.Value)
+        .Select(x => x.RunHash).SingleAsync();
+
+      var built = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer,
+        new BuildGroupDeliverableRequest(seeded.ScopeId, run.Value, runHash,
+          "dddddddd-dddd-4ddd-8ddd-dddddddddddd", groupRevision));
+      Assert.True(built.Succeeded, built.Message);
+      Assert.Equal(GroupDeliverableStates.Built, built.Value!.Status);
+      deliverableId = built.Value.DeliverableId;
+      deliverableSha256 = built.Value.DeliverableSha256;
+      deliverableJson = built.Value.DeliverableJson;
+    }
+
+    var origin = await host.StartApiForIdentityAsync(f.Reviewer, new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = "true"
+    });
+    var path = $"/app/consolidation/scopes/{seeded.ScopeId:D}";
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var pageErrors = new List<string>();
+    var issueBodies = new List<string>();
+    var archiveBodies = new List<string>();
+    var firstIssueStatus = 0;
+    var firstArchiveStatus = 0;
+    page.PageError += (_, error) => pageErrors.Add(error);
+    await page.RouteAsync("**/api/ui/consolidation/scopes/*/deliverables/*/issue", async route =>
+    {
+      if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
+      issueBodies.Add(route.Request.PostData ?? throw new InvalidOperationException("The issue request body was missing."));
+      if (issueBodies.Count == 1)
+      {
+        await using var committed = await route.FetchAsync();
+        firstIssueStatus = committed.Status;
+        await route.AbortAsync("failed");
+      }
+      else await route.ContinueAsync();
+    });
+    await page.RouteAsync("**/api/ui/consolidation/scopes/*/deliverables/*/archive", async route =>
+    {
+      if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
+      archiveBodies.Add(route.Request.PostData ?? throw new InvalidOperationException("The archive request body was missing."));
+      if (archiveBodies.Count == 1)
+      {
+        await using var committed = await route.FetchAsync();
+        firstArchiveStatus = committed.Status;
+        await route.AbortAsync("failed");
+      }
+      else await route.ContinueAsync();
+    });
+
+    var scopePath = $"/api/ui/consolidation/scopes/{seeded.ScopeId:D}";
+    var initialWorkspace = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
+      new Uri(response.Url).AbsolutePath == scopePath);
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+    Assert.Equal(200, (await initialWorkspace).Status);
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = $"{seeded.GroupName} ({seeded.GroupCode}) · v1", Exact = true })).ToBeVisibleAsync();
+
+    var artifactRow = page.GetByRole(AriaRole.Row).Filter(new() { HasText = deliverableSha256 });
+    await Assertions.Expect(artifactRow).ToHaveCountAsync(1);
+    await Assertions.Expect(artifactRow.Locator("td").First).ToHaveTextAsync("BUILT");
+    await artifactRow.Locator($"#deliverable-release-{deliverableId:D}").FillAsync(releaseKey);
+    await artifactRow.GetByLabel("I reviewed this exact revision, run hash and artifact SHA-256.", new() { Exact = true }).CheckAsync();
+    var issue = artifactRow.GetByRole(AriaRole.Button, new() { Name = "Issue exact artifact", Exact = true });
+    await Assertions.Expect(issue).ToBeEnabledAsync();
+    await issue.ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Action outcome not confirmed", Exact = true })).ToBeVisibleAsync();
+    Assert.Equal(200, firstIssueStatus);
+    string issueRequestKey;
+    await using (var proof = host.CreateDbContext())
+    {
+      var persisted = await proof.GroupDeliverables.AsNoTracking().SingleAsync(x => x.Id == deliverableId);
+      Assert.Equal(GroupDeliverableStates.Issued, persisted.Status);
+      Assert.Equal(deliverableSha256, persisted.DeliverableSha256);
+      Assert.Equal(releaseKey, persisted.AuthorizedReleaseKey);
+      Assert.Equal(f.Reviewer.Id, persisted.IssuedByUserId);
+      Assert.Equal(2, persisted.Revision);
+      issueRequestKey = persisted.IssueRequestKey!;
+    }
+
+    var issueRefresh = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
+      new Uri(response.Url).AbsolutePath == scopePath);
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh persisted scope", Exact = true }).ClickAsync();
+    Assert.Equal(200, (await issueRefresh).Status);
+    await page.Locator("#group-recovery-input").FillAsync(releaseKey);
+    var issueReplay = page.WaitForResponseAsync(response => response.Request.Method == "POST" &&
+      new Uri(response.Url).AbsolutePath.EndsWith($"/deliverables/{deliverableId:D}/issue", StringComparison.Ordinal));
+    await page.GetByRole(AriaRole.Button, new() { Name = "Retry original deliverable action", Exact = true }).ClickAsync();
+    Assert.Equal(200, (await issueReplay).Status);
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Action outcome not confirmed", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(artifactRow.Locator("td").First).ToHaveTextAsync("ISSUED");
+    Assert.Equal(2, issueBodies.Count);
+    using (var first = JsonDocument.Parse(issueBodies[0]))
+    using (var replay = JsonDocument.Parse(issueBodies[1]))
+    {
+      Assert.Equal(issueRequestKey, first.RootElement.GetProperty("requestKey").GetString());
+      Assert.Equal(issueRequestKey, replay.RootElement.GetProperty("requestKey").GetString());
+      Assert.Equal(deliverableSha256, replay.RootElement.GetProperty("expectedDeliverableSha256").GetString());
+      Assert.Equal(releaseKey, replay.RootElement.GetProperty("authorizedReleaseKey").GetString());
+      Assert.Equal(1, replay.RootElement.GetProperty("expectedDeliverableRevision").GetInt64());
+    }
+
+    await artifactRow.Locator($"#deliverable-archive-{deliverableId:D}").FillAsync(archiveReason);
+    await artifactRow.GetByLabel("I reviewed this exact artifact and archive reason.", new() { Exact = true }).CheckAsync();
+    var archive = artifactRow.GetByRole(AriaRole.Button, new() { Name = "Archive exact artifact", Exact = true });
+    await Assertions.Expect(archive).ToBeEnabledAsync();
+    await archive.ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Action outcome not confirmed", Exact = true })).ToBeVisibleAsync();
+    Assert.Equal(200, firstArchiveStatus);
+    string archiveRequestKey;
+    await using (var proof = host.CreateDbContext())
+    {
+      var persisted = await proof.GroupDeliverables.AsNoTracking().SingleAsync(x => x.Id == deliverableId);
+      Assert.Equal(GroupDeliverableStates.Archived, persisted.Status);
+      Assert.Equal(3, persisted.Revision);
+      Assert.Equal(deliverableSha256, persisted.DeliverableSha256);
+      Assert.Equal(deliverableJson, persisted.DeliverableJson);
+      Assert.Equal(archiveReason, persisted.ArchiveReason);
+      archiveRequestKey = persisted.ArchiveRequestKey!;
+    }
+
+    var archiveRefresh = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
+      new Uri(response.Url).AbsolutePath == scopePath);
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh persisted scope", Exact = true }).ClickAsync();
+    Assert.Equal(200, (await archiveRefresh).Status);
+    await page.Locator("#group-recovery-input").FillAsync(archiveReason);
+    var archiveReplay = page.WaitForResponseAsync(response => response.Request.Method == "POST" &&
+      new Uri(response.Url).AbsolutePath.EndsWith($"/deliverables/{deliverableId:D}/archive", StringComparison.Ordinal));
+    await page.GetByRole(AriaRole.Button, new() { Name = "Retry original deliverable action", Exact = true }).ClickAsync();
+    Assert.Equal(200, (await archiveReplay).Status);
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Action outcome not confirmed", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(artifactRow.Locator("td").First).ToHaveTextAsync("ARCHIVED");
+    Assert.Equal(2, archiveBodies.Count);
+    using (var first = JsonDocument.Parse(archiveBodies[0]))
+    using (var replay = JsonDocument.Parse(archiveBodies[1]))
+    {
+      Assert.Equal(archiveRequestKey, first.RootElement.GetProperty("requestKey").GetString());
+      Assert.Equal(archiveRequestKey, replay.RootElement.GetProperty("requestKey").GetString());
+      Assert.Equal(deliverableSha256, replay.RootElement.GetProperty("expectedDeliverableSha256").GetString());
+      Assert.Equal(archiveReason, replay.RootElement.GetProperty("reason").GetString());
+      Assert.Equal(2, replay.RootElement.GetProperty("expectedDeliverableRevision").GetInt64());
+    }
+    Assert.Empty(pageErrors);
+  }
+
+  [Fact]
   [Trait("CaseId", CaseId)]
   public async Task ReviewerApprovalReadinessTracksTheCurrentGroupPerimeter()
   {

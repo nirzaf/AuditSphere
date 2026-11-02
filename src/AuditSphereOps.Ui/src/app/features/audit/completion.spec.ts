@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SessionService } from '../../core/session';
 import { EngagementCompletion, decodeCompletion, decodeSignatureCheck } from './completion';
 
@@ -42,7 +42,7 @@ const validPayload = {
         presentationCompositionId: id3, compositionManifestDigest: hash64, stage: 'PARTNER_APPROVAL', decision: 'APPROVED',
         evidenceMode: 'SIGNED_IN', evidenceReference: 'partner-review-4', decidedByUserId: id2, decidedAt: '2026-10-02T12:10:00Z', sequence: 3 }],
       partnerApproved: true,
-      eqrStatus: 'CONCURRED',
+      eqrStatus: 'NOT_ASSIGNED',
       releaseCandidateId: id3,
       release: {
         candidateId: id3,
@@ -245,6 +245,85 @@ describe('Early compliance lock panel (STE 4.4.3)', () => {
   afterEach(() => {
     TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true });
     TestBed.resetTestingModule();
+  });
+
+  it('does not create an EQR case or request reviewer-only evidence when no case is assigned', () => {
+    const http = setup();
+    const f = load(http, validPayload);
+    expect((f.nativeElement as HTMLElement).textContent).toContain('No EQR case is assigned. Applicability is not established here');
+    expect((f.nativeElement as HTMLElement).querySelector('audit-eqr-decision')).toBeNull();
+    http.expectNone(`/api/ui/engagements/${id1}/completion/eqr-review-basis`);
+  });
+
+  it('renders a retained but non-current EQR concurrence as pending and loads only its existing basis', async () => {
+    const http = setup();
+    const f = TestBed.createComponent(EngagementCompletion);
+    f.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({ ...validPayload,
+      eqrStatus: 'RECORDED_CONCURRENCE_NOT_CURRENT',
+      gates: [...validPayload.gates, { name: 'EQR completed', status: 'RECORDED_CONCURRENCE_NOT_CURRENT', tone: 'pending', authority: null, date: null }] });
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(programBasis);
+    await f.whenStable();
+    f.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion/eqr-review-basis`).flush({ caseRevision: 4, factsDigest: hash64,
+      reportDeliverableId: id2, reportSha256: hash64 });
+    await f.whenStable();
+    f.detectChanges();
+    const host = f.nativeElement as HTMLElement;
+    expect(host.querySelector('audit-eqr-decision')).not.toBeNull();
+    expect(host.textContent).toContain('Recorded EQR case status');
+    expect(host.textContent).toContain('RECORDED_CONCURRENCE_NOT_CURRENT');
+    const gateRow = Array.from(host.querySelectorAll('tbody tr')).find(row => row.textContent?.includes('EQR completed'));
+    expect(gateRow?.querySelector('audit-status .status-chip')?.getAttribute('data-status')).toBe('RECORDED_CONCURRENCE_NOT_CURRENT');
+    expect(gateRow?.textContent).toContain('recorded concurrence not current');
+    expect(host.textContent).toContain('Download exact report');
+  });
+
+  it('retains the confirmed EQR decision through parent reload and clears it on session replacement', async () => {
+    sessionStorage.clear();
+    const http = setup();
+    const payload = { ...validPayload, eqrStatus: 'IN_PROGRESS' };
+    const f = load(http, payload);
+    const basisUrl = `/api/ui/engagements/${id1}/completion/eqr-review-basis`;
+    const decisionUrl = `/api/ui/engagements/${id1}/completion/eqr-decision`;
+    http.expectOne(basisUrl).flush({ caseRevision: 4, factsDigest: hash64, reportDeliverableId: id2, reportSha256: hash64 });
+    await f.whenStable();
+    f.detectChanges();
+    const host = f.nativeElement as HTMLElement;
+    const notes = host.querySelector<HTMLTextAreaElement>('#eqr-decision-notes')!;
+    notes.value = 'Reviewed the report'; notes.dispatchEvent(new Event('input', { bubbles: true }));
+    f.detectChanges();
+    const assent = host.querySelector<HTMLInputElement>('input[name="eqr-exact-basis-reviewed"]')!;
+    assent.checked = true; assent.dispatchEvent(new Event('change', { bubbles: true }));
+    f.detectChanges();
+    host.querySelector<HTMLButtonElement>('[data-eqr-submit]')!.click();
+    let posts = http.match(decisionUrl);
+    if (!posts.length) await vi.waitFor(() => { posts = http.match(decisionUrl); expect(posts.length).toBeGreaterThan(0); });
+    expect(posts).toHaveLength(1);
+    posts[0].flush({ value: id3 });
+    http.expectNone(decisionUrl);
+    await vi.waitFor(() => expect(f.componentInstance.confirmedEqrDecision()).toBe(id3));
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush(payload);
+    f.detectChanges();
+    const basisRequests = http.match(basisUrl);
+    for (const request of basisRequests.filter(request => !request.cancelled))
+      request.flush({ caseRevision: 5, factsDigest: hash64, reportDeliverableId: id2, reportSha256: hash64 });
+    f.detectChanges();
+    for (const request of http.match(basisUrl).filter(request => !request.cancelled))
+      request.flush({ caseRevision: 5, factsDigest: hash64, reportDeliverableId: id2, reportSha256: hash64 });
+    await f.whenStable(); f.detectChanges();
+    expect(host.querySelector('[data-eqr-confirmation]')?.textContent).toContain(id3);
+    expect(host.querySelector('[data-eqr-confirmation]')?.textContent).toContain('Current concurrence is not assumed');
+    TestBed.inject(SessionService).current.set({ userId: id3, firmId: id2, generation: '2', staff: true });
+    f.detectChanges();
+    expect(host.querySelector('[data-eqr-confirmation]')).toBeNull();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush(payload);
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(programBasis);
+    f.detectChanges();
+    http.expectOne(basisUrl).flush({ caseRevision: 5, factsDigest: hash64, reportDeliverableId: id2, reportSha256: hash64 });
+    await f.whenStable(); f.detectChanges();
+    expect(host.querySelector('[data-eqr-confirmation]')).toBeNull();
+    f.destroy();
   });
 
   it('shows the digest-bound confirmation to a Partner when readiness has no blockers', () => {
