@@ -20,7 +20,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "d306f1b066c991cb6d873816b6e303027be563dc",
+  "headCommit": "465271b5f4e4d7f7aab796d2445d9bf6d1897561",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
   "remoteHeadVerified": false,
   "verifiedCommitWasRemoteHead": true,
@@ -1625,21 +1625,19 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "aggregatePass": false,
-    "applicationSourceSha": "6fc3933e3afd50dd0e4c008f8e5ca975694a76cf",
+    "sourceSha": "465271b5f4e4d7f7aab796d2445d9bf6d1897561",
     "branch": "master",
-    "fastRunId": 41366085889,
+    "fastRunId": 41371281979,
     "fastStatus": "PASS",
-    "imagesRunId": 41366085710,
-    "imagesStatus": "PASS",
-    "fullRunId": null,
-    "fullStatus": "NOT_DISPATCHED_FOR_6FC",
-    "localCandidateStatus": "FOCUSED_PASS_COMMITTED_LOCAL; exact candidate CI pending publication.",
-    "localCandidateCodeDiffSha256": "76ea49afac33f7b034920414792e15c0821884e92c177315e6d14c01ef11582c",
-    "evidence": ".local/autonomous/evidence/ci-6fc3933-current-20261102/terminal-proof.json",
-    "evidenceSha256": "8f028bcd106d172c2123c8448da8b5182fa6882a41599e2d7e4d5bdcd7d5b11d",
-    "notes": "Base fast/images PASS; candidate exact CI and full release verification remain pending. Per-job checkouts and image pins are in terminal-proof.json.",
-    "localCandidateCommitSha": "d306f1b066c991cb6d873816b6e303027be563dc"
+    "imagesRunId": 41371282043,
+    "imagesStatus": "PASS_AGGREGATE_PINS_NOT_RETAINED",
+    "fullRunId": 41373256282,
+    "fullStatus": "IN_PROGRESS_DOMAIN_FAILED_API_E2E_ACTIVE",
+    "domain": "1971 passed / 1 failed: PBC migration fixture assumed an older migration was latest.",
+    "localCandidate": "PBC fixture now starts and reapplies the exact migration; existing assertions retained. Focused PostgreSQL test 1/1 passed; final candidate CI pending.",
+    "evidence": ".local/autonomous/evidence/ci-465271b-current-20261102/domain-125052362266-terminal-review.json",
+    "focusedEvidence": ".local/autonomous/evidence/ci-465271b-current-20261102/pbc-migration-fix-d6d5d78824/focused-review.json",
+    "aggregatePass": false
   },
   "uxU03ContextSwitcher": {
     "status": "PARTIAL",
@@ -1650,5 +1648,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-02T01:12:06Z"
+  "updatedAtUtc": "2026-11-02T03:27:15Z"
 }
