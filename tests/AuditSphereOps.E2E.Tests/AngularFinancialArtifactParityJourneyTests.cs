@@ -567,7 +567,10 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     await queuePage.SetViewportSizeAsync(1280, 900);
     await Assertions.Expect(reviewQueuePage.GetByRole(AriaRole.Heading,
       new() { Name = "Financial package reviews", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(reviewQueuePage.GetByText(packageId.ToString("D"), new() { Exact = true }))
+    var packageRow = reviewQueuePage.Locator("tr").Filter(new() { Has = reviewQueuePage.GetByRole(AriaRole.Checkbox,
+      new() { Name = $"Select package {packageId:D}", Exact = true }) });
+    await packageRow.GetByText("Package identity", new() { Exact = true }).ClickAsync();
+    await Assertions.Expect(packageRow.GetByText(packageId.ToString("D"), new() { Exact = true }))
       .ToBeVisibleAsync();
     var reviewQueueCommands = 0;
     reviewQueuePage.Request += (_, request) =>

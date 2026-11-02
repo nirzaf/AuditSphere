@@ -16,10 +16,16 @@ A forbidden portfolio workspace read invalidated availability and cleared its sp
 
 The no-grant fix is published at `1cd2a8403422d7fe9ab2789e4167271669c0bbea`; its exact fast run `41398147680` passed with all three actual checkouts; image run `41398147683` passed with actual checkouts and manifest pins. Two separate focused test corrections reproduce previous failures and pass: the export case locates visible table text while retaining CSV and actual revocation checks; the scoped canonical journey opens the authorized engagement, preserves return filters and checks direct client denial separately. The modified methods match the separately tested methods; the combined file also passed the focused preview-route case. Evidence: `.local/autonomous/evidence/practice-portfolio-scoped-20261102/combined-test-method-parity-review.json`.
 
+## Package review journey
+
+Portfolio journey reconciliation is published in `84c6d585db2a10807b79d4d3ebef1d59dd62d7a0`; exact fast run `41400253445` passed with all three actual checkouts. A separate package-review test previously expected a package ID to be visible inside a closed disclosure. The corrected test opens the target row’s disclosure before the same ID assertion and passed its existing selection, preview, route and revocation checks. The methods differ between the reproduced failure and focused pass. Evidence: `.local/autonomous/evidence/practice-package-review-20261102/green-db1f8cf8/paired-review.json`.
+
 ## Continuation and boundaries
 
-Review and publish the test corrections after incoming paths and active image jobs are checked. Continue independent practice-management work and obtain exact-source gates at final freeze. D-OV04 has already been requested; professional policy, provider/custody, human review and live HTTPS acceptance remain separate. Do not merge PR #56 without `AUDITSPHERE-MERGE-APPROVED` or deploy before all applicable gates.
+Review and publish the separate package-review test correction after incoming paths and active image jobs are checked; preserve the independent ordering test correction. Continue independent practice-management work and obtain exact-source gates at final freeze. D-OV04 has already been requested; professional policy, provider/custody, human review and live HTTPS acceptance remain separate. Do not merge PR #56 without `AUDITSPHERE-MERGE-APPROVED` or deploy before all applicable gates.
 
 **Prior bytes preserved:** [status snapshot](status-archive-2026-11-02-before-portfolio-guidance.json), SHA-256 `660ff1f7192c96e11f3889540c39a84930415e98315f6ae9d0b555695f3b264d`; [handoff snapshot](auditsphere-execution-current-slice-archive-2026-11-02-before-portfolio-guidance.md), SHA-256 `208b14ef6e8c1b2314786878e70b42c2c85870435353869f2f27a0681e08e4bd`.
 
 **Immediate prior bytes preserved:** [status](status-archive-2026-11-02-before-portfolio-journey.json), SHA-256 `cc906a9fdc8ec0aaede61f3e506e650be55586fe378f306ab1319bbf9f2e6154`; [handoff](auditsphere-execution-current-slice-archive-2026-11-02-before-portfolio-journey.md), SHA-256 `5ded803df2a1e9b35a493476edbefef40d198ae56fdac12d6aff61a612a5c5d0`.
+
+**Immediate prior bytes preserved:** [status](status-archive-2026-11-02-before-package-review.json), SHA-256 `3d17fe3a8be5aaaec1c30643ce5c4a7bd49a7875107657b0daf3a3a7543d4e7e`; [handoff](auditsphere-execution-current-slice-archive-2026-11-02-before-package-review.md), SHA-256 `3a7673c968877bd068e6e1bb3d16b7d19bbd4f58c76e2687374f150727c0de7e`.
