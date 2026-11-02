@@ -20,7 +20,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "d274d43fa6bc01634133698d6cb122e99fc16d80",
+  "headCommit": "5e3a898b33c5e18e649981da1c13ec8cb30fa33b",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
   "remoteHeadVerified": false,
   "verifiedCommitWasRemoteHead": true,
@@ -1625,18 +1625,18 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceSha": "d274d43fa6bc01634133698d6cb122e99fc16d80",
+    "sourceSha": "5e3a898b33c5e18e649981da1c13ec8cb30fa33b",
     "branch": "master",
-    "fastRunId": 41393586427,
-    "fastStatus": "PASS",
+    "fastRunId": 41396230897,
+    "fastStatus": "PASS; all three actual 5e3a checkouts",
     "imagesStatus": "NOT_AUTOTRIGGERED_PATH_FILTER",
     "fullStatus": "NOT_DISPATCHED",
-    "predecessorSourceSha": "095798eee8616bf36f629173acdf6103dcf2ab69",
+    "predecessorSourceSha": "d274d43fa6bc01634133698d6cb122e99fc16d80",
     "predecessorFast": "PASS",
     "predecessorFullRunId": 41373256282,
     "predecessorFullStatus": "FAILURE",
-    "localCandidate": "Release E2E job builds Worker apphost alongside API before unchanged unfiltered tests; controlled output and adapter checks.",
-    "evidence": ".local/autonomous/evidence/practice-workflow-evidence-20261102/worker-output-probe/workflow-change-review.json",
+    "localCandidate": "Portfolio no-grant guidance survives availability invalidation, remains session bound, clears on retry or current access. Focused Angular and owned browser checks passed.",
+    "evidence": ".local/autonomous/evidence/practice-portfolio-no-scope-20261102/session-return-paired-review.json",
     "aggregatePass": false
   },
   "uxU03ContextSwitcher": {
@@ -1648,5 +1648,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-02T05:23:30Z"
+  "updatedAtUtc": "2026-11-02T05:49:59Z"
 }

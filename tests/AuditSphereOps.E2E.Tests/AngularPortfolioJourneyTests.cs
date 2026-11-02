@@ -50,7 +50,7 @@ public sealed class AngularPortfolioJourneyTests
     page.PageError += (_, error) => errors.Add(error);
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fapp");
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync(
+    await Assertions.Expect(page.GetByRole(AriaRole.Main).GetByRole(AriaRole.Alert)).ToContainTextAsync(
       "No portfolio data is shown without an active AuditSphere grant");
     Assert.DoesNotContain(hiddenClientName, await page.Locator("body").InnerTextAsync());
     Assert.Empty(await page.Locator(".portfolio-metrics").AllAsync());
