@@ -20,7 +20,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "465271b5f4e4d7f7aab796d2445d9bf6d1897561",
+  "headCommit": "0350c46a4a8ecc6d75c71409ccca8f34b3602131",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
   "remoteHeadVerified": false,
   "verifiedCommitWasRemoteHead": true,
@@ -1625,19 +1625,20 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceSha": "465271b5f4e4d7f7aab796d2445d9bf6d1897561",
+    "sourceSha": "0350c46a4a8ecc6d75c71409ccca8f34b3602131",
     "branch": "master",
-    "fastRunId": 41371281979,
-    "fastStatus": "PASS",
-    "imagesRunId": 41371282043,
-    "imagesStatus": "PASS_AGGREGATE_PINS_NOT_RETAINED",
-    "fullRunId": 41373256282,
-    "fullStatus": "IN_PROGRESS_DOMAIN_FAILED_API_E2E_ACTIVE",
-    "domain": "1971 passed / 1 failed: PBC migration fixture assumed an older migration was latest.",
-    "localCandidate": "PBC fixture now starts and reapplies the exact migration; existing assertions retained. Focused PostgreSQL test 1/1 passed; final candidate CI pending.",
-    "evidence": ".local/autonomous/evidence/ci-465271b-current-20261102/domain-125052362266-terminal-review.json",
-    "focusedEvidence": ".local/autonomous/evidence/ci-465271b-current-20261102/pbc-migration-fix-d6d5d78824/focused-review.json",
-    "aggregatePass": false
+    "fastRunId": 41383305677,
+    "fastStatus": "PASS_EXACT_CHECKOUTS",
+    "imagesStatus": "NOT_OBSERVED_FOR_0350",
+    "fullStatus": "NOT_DISPATCHED_FOR_0350",
+    "predecessorFullRunId": 41373256282,
+    "predecessorFullStatus": "TERMINAL_FAILURE",
+    "localCandidate": "Client archive response/event/replay timestamp normalized to PostgreSQL microseconds; fixed-clock regression RED 1 then GREEN 1; final candidate CI pending.",
+    "evidence": ".local/autonomous/evidence/practice-archive-timestamp-20261102-7be05120/paired-red-green-review.json",
+    "aggregatePass": false,
+    "fastEvidence": ".local/autonomous/evidence/ci-0350c46a-current-20261102/fast-terminal-proof.json",
+    "predecessorSummary": "Domain 1971/1972; API runner shutdown exit 143; E2E 322 passed, 16 failed then inactivity abort. Causes unconfirmed.",
+    "predecessorEvidence": ".local/autonomous/evidence/ci-465271b-current-20261102/full-465-terminal-review.json"
   },
   "uxU03ContextSwitcher": {
     "status": "PARTIAL",
@@ -1648,5 +1649,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-02T03:27:15Z"
+  "updatedAtUtc": "2026-11-02T03:43:37Z"
 }

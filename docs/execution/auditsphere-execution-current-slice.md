@@ -1,16 +1,17 @@
 # AuditSphere — current-slice handoff
 
-**Observed:** 2026-11-02T03:27:15Z
-**Whole assignment:** INCOMPLETE. Preserve the independent original, Axelor, practice, Atomic, Claude, role, Technical Stories, UX16 and 48-task registers.
+**Observed:** 2026-11-02T03:39:46Z
 
-## Current verification and correction
+**Whole assignment:** INCOMPLETE. Preserve the original 48 tasks and independent original, Axelor, practice, Atomic, Claude, role, Technical Stories and UX16 registers.
 
-The observed `master` and `origin/master` source is `465271b5f4e4d7f7aab796d2445d9bf6d1897561`. Exact fast run `41371281979` passed; image run `41371282043` passed in aggregate, while the image pins were not retained. Full run `41373256282` resolved that exact source. Angular full specs and Release build/contracts/documentation jobs passed. Domain job `125052362266` failed one of 1,972 tests because its PBC delegation migration fixture assumed that migration was the latest; API and E2E jobs were still active at the observation. Full release verification has not passed.
+## Practice-management correction
 
-The pending test-only correction starts the fixture at `20261101074826_PbcRequestDelegationScope` and reapplies that exact migration after the baseline rollback. Existing history, catalog, retained-row and scope-constraint assertions remain. The named focused test passed 1/1 against isolated PostgreSQL 18.6; the owned cluster, socket and listener were removed. Evidence: `.local/autonomous/evidence/ci-465271b-current-20261102/pbc-migration-fix-d6d5d78824/focused-review.json`. This check does not establish CI on the correction.
+The client archive command now normalizes its event time to PostgreSQL microseconds before persistence and response. This keeps the first archive response, retained event and same-state replay consistent without changing archive authorization or lifecycle decisions. With a fixed clock at `2026-11-02T03:04:05.1234567Z`, the existing scoped archive/history regression failed before the correction because PostgreSQL stored `...1234560Z`, then passed after it. The identical test source ran against separate isolated PostgreSQL 18.6 clusters; owned postmasters, data roots, sockets and listeners were absent after both runs. Evidence: `.local/autonomous/evidence/practice-archive-timestamp-20261102-7be05120/paired-red-green-review.json`. This is focused verification; current-candidate CI and complete practice-management acceptance remain open.
 
-## Continuation and boundaries
+## Current CI and continuation
 
-Review and publish this coherent correction only after fetching and inspecting incoming paths, then require current-source gates. Continue monitoring the existing full run without cancelling or duplicating it; retain newly terminal evidence once. Continue independent practice-management work under the current requirements and qualified owner decisions. D-OV04 has already been requested; professional policy, provider/custody and human acceptance remain separate. Do not merge PR #56 without `AUDITSPHERE-MERGE-APPROVED` or deploy before all applicable gates.
+The observed `master` base is `0350c46a4a8ecc6d75c71409ccca8f34b3602131`. Its fast run `41383305677` passed all three jobs with actual checkout evidence. Images and full verification for this SHA have not been observed. Earlier full run `41373256282` for `465271b5f4e4d7f7aab796d2445d9bf6d1897561` failed: Domain 1971/1972 passed, API received a runner shutdown signal and exited 143, and E2E had 322 partial passes and 16 failures before an inactivity abort. The PBC test-only correction was published in 0350 after focused verification; other failure causes remain unconfirmed. Evidence is retained in `.local/autonomous/evidence/ci-465271b-current-20261102/full-465-terminal-review.json`.
 
-**Prior bytes preserved:** [status snapshot](status-archive-2026-11-02-before-pbc-ci-fix.json), SHA-256 `d7a9237f89585848af55b69e22c8b3bcc8d2c35fa634d009dcdd21ed29b2a493`; [handoff snapshot](auditsphere-execution-current-slice-archive-2026-11-02-before-pbc-ci-fix.md), SHA-256 `535aaaf739dc41f22a855941847c9312b197f48199ca89f9e893dadfe8f05dd2`.
+Continue the exact CI monitors, review and publish this focused archive correction only after fetching and checking incoming paths and active image jobs, then obtain current-source gates. D-OV04 has already been requested. Professional policy, provider/custody, human review and live HTTPS acceptance remain separate. Do not merge PR #56 without `AUDITSPHERE-MERGE-APPROVED` or deploy before all applicable gates.
+
+**Prior bytes preserved:** [status snapshot](status-archive-2026-11-02-before-client-archive-time.json), SHA-256 `9ca8bc05d60c0d1e659ea63f4fc09bc5628cb20a0ebbcd39b587df2680ad37ca`; [handoff snapshot](auditsphere-execution-current-slice-archive-2026-11-02-before-client-archive-time.md), SHA-256 `5828e64106312f5041c5b89e019ff0e6ca17926186a65c66e288947d34f3f97c`.

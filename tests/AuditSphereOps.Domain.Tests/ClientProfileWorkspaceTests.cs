@@ -13,6 +13,11 @@ namespace AuditSphereOps.Domain.Tests;
 
 public sealed class ClientProfileWorkspaceTests
 {
+  private sealed class ArchiveClock(DateTimeOffset now) : TimeProvider
+  {
+    public override DateTimeOffset GetUtcNow() => now;
+  }
+
   [Fact]
   public async Task OffboardingReadiness_ReadsEachSectionUnderItsOwnAuthority_ShowsUnreadableEvidenceAsUnknown_AndChangesNothing()
   {
@@ -243,7 +248,8 @@ public sealed class ClientProfileWorkspaceTests
     Assert.False(before.Value!.IsArchived);
     Assert.Equal("0", before.Value.LifecycleRevision);
 
-    var archived = await PracticeCrmService.SetClientArchivedAsync(db, manager, new(f.ClientId, true, 0));
+    var nonMicrosecondTime = new DateTimeOffset(2026, 11, 2, 3, 4, 5, TimeSpan.Zero).AddTicks(1_234_567);
+    var archived = await PracticeCrmService.SetClientArchivedAsync(db, manager, new(f.ClientId, true, 0), new ArchiveClock(nonMicrosecondTime));
     Assert.True(archived.Succeeded, archived.Message);
     Assert.True(archived.Value!.IsArchived);
     Assert.Equal(1, archived.Value.Revision);
@@ -252,6 +258,11 @@ public sealed class ClientProfileWorkspaceTests
     var replay = await PracticeCrmService.SetClientArchivedAsync(db, manager, new(f.ClientId, true, 1));
     Assert.True(replay.Succeeded, replay.Message);
     Assert.Equal(1, replay.Value!.Revision);
+    var persistedArchivedAt = await db.ClientLifecycleEvents.AsNoTracking()
+      .Where(e => e.ClientId == f.ClientId && e.EventKind == ClientLifecycleEventKinds.Archived)
+      .Select(e => e.OccurredAt).SingleAsync();
+    Assert.Equal(persistedArchivedAt, archived.Value.LastArchivedAt);
+    Assert.Equal(persistedArchivedAt, replay.Value.LastArchivedAt);
     Assert.Single(await db.ClientLifecycleEvents.Where(e => e.ClientId == f.ClientId).ToListAsync());
     Assert.Equal(ErrorCodes.GenerationStale,
       (await PracticeCrmService.SetClientArchivedAsync(db, manager, new(f.ClientId, false, 0))).ErrorCode);

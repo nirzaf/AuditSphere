@@ -82,8 +82,12 @@ public sealed record ClientOrganizationHierarchyDto(
 
 public static partial class PracticeCrmService
 {
-  public static async Task<CommandResult<ClientArchiveState>> SetClientArchivedAsync(
+  public static Task<CommandResult<ClientArchiveState>> SetClientArchivedAsync(
     IAuditSphereDbContext db, ActorContext actor, SetClientArchiveRequest request, CancellationToken ct = default)
+    => SetClientArchivedAsync(db, actor, request, TimeProvider.System, ct);
+
+  internal static async Task<CommandResult<ClientArchiveState>> SetClientArchivedAsync(
+    IAuditSphereDbContext db, ActorContext actor, SetClientArchiveRequest request, TimeProvider clock, CancellationToken ct = default)
   {
     if (request.ClientId == Guid.Empty || request.ExpectedRevision < 0)
       return CommandResult<ClientArchiveState>.Fail("crm.invalid", "A client and non-negative archive revision are required.");
@@ -123,7 +127,9 @@ public static partial class PracticeCrmService
     }
 
     var nextRevision = checked(revision + 1);
-    var occurredAt = DateTimeOffset.UtcNow;
+    // PostgreSQL timestamptz retains microseconds; return the same instant that is persisted.
+    var utcTicks = clock.GetUtcNow().UtcDateTime.Ticks;
+    var occurredAt = new DateTimeOffset(utcTicks - utcTicks % 10, TimeSpan.Zero);
     db.ClientLifecycleEvents.Add(new ClientLifecycleEvent
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, Revision = nextRevision,
