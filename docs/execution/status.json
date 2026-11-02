@@ -1118,7 +1118,7 @@
       "attachmentSha256": "e4f9d65743f402502c172ce6d1d9b6ce6e9974b3af96a92b3fa71db227a49a15",
       "sourceBaseSha": "26013476c412ae4373460207a5328d1dfb107d4b",
       "focusedResult": "8 PM pass; compatibility 1/1; finance scope/revocation 4/4.",
-      "scope": "PM-01..06 only; exact-candidate CI, browser and live acceptance open.",
+      "scope": "PM-01..06 published c9d6bc60; fast 41494650468 failed Docs Health, images 41494650579 passed; full not run; browser/live acceptance open.",
       "evidence": ".local/autonomous/evidence/practice-management-audit-20261102/final-candidate-focused-review.json",
       "financeResponseBoundaryEvidence": ".local/autonomous/evidence/practice-management-audit-20261102/finance-scope-compatibility-review.json"
     }
