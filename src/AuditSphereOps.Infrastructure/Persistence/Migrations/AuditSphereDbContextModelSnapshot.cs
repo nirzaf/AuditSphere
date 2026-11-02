@@ -37226,6 +37226,14 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ConfirmationCaseId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditConfirmationCase", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ConfirmationCaseId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_confirmation_criticality_case_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.EngagementAuditProgram", b =>

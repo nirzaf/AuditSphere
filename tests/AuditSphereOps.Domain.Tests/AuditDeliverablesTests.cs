@@ -1921,6 +1921,143 @@ public sealed partial class AuditDeliverablesTests
     }
   }
 
+  [Fact]
+  public async Task ConfirmationCriticalityRejectsCrossFirmCaseScope()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var (foreignFirmId, _, _) = await pg.SeedScopeAsync();
+    var manager = w.A("manager", "Manager");
+    var now = DateTimeOffset.UtcNow;
+    var caseId = Guid.NewGuid();
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.AuditConfirmationCases.Add(new AuditConfirmationCase
+    {
+      Id = caseId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+      AreaCode = "BANK", SourceRecordId = "BANK-CRITICALITY-SCOPE", BookedAmount = 100m,
+      Currency = "QAR", ConfirmationDate = new DateOnly(2026, 12, 31), Respondent = "Test bank",
+      ContactValidationSource = "Independently verified channel", CreatedByUserId = w.U["senior"].Id,
+      CreatedAt = now
+    });
+    await db.SaveChangesAsync();
+    Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(
+      db, manager, caseId, true, "Approved critical confirmation")).Succeeded);
+
+    var foreignActor = NewUser(foreignFirmId, "foreign-criticality-actor");
+    db.Users.Add(foreignActor);
+    await db.SaveChangesAsync();
+    db.ConfirmationCriticalities.Add(new ConfirmationCriticality
+    {
+      Id = Guid.NewGuid(), FirmId = foreignFirmId, ConfirmationCaseId = caseId, Critical = false,
+      Rationale = "Cross-firm row must not replace the case decision", SetByUserId = foreignActor.Id,
+      SetAt = now.AddMinutes(1)
+    });
+
+    var refusal = await Record.ExceptionAsync(() => db.SaveChangesAsync());
+    if (refusal is null)
+    {
+      var dashboard = await AuditDeliverableService.ConfirmationDashboardAsync(db, manager, w.EngagementId);
+      Assert.True(dashboard.Succeeded);
+      Assert.True(dashboard.Value!.Single(x => x.CaseId == caseId).Critical,
+        "a cross-firm criticality row replaced the target firm's critical hold");
+      Assert.Fail("PostgreSQL accepted a criticality row whose firm does not own its confirmation case.");
+    }
+
+    var postgres = Assert.IsType<PostgresException>(refusal.GetBaseException());
+    Assert.Equal("23503", postgres.SqlState);
+    db.ChangeTracker.Clear();
+    var current = await AuditDeliverableService.ConfirmationDashboardAsync(db, manager, w.EngagementId);
+    Assert.True(current.Succeeded);
+    Assert.True(current.Value!.Single(x => x.CaseId == caseId).Critical);
+  }
+
+  [Fact]
+  public async Task ConfirmationCriticalityFirmScopeMigrationRefusesInvalidHistoryAndPreservesPriorCatalog()
+  {
+    const string priorMigration = "20261101074826_PbcRequestDelegationScope";
+    const string scopeMigration = "20261101235427_ConfirmationCriticalityFirmScope";
+    await using var pg = await PgTestSchema.CreateAsync();
+    await using (var migrationDb = new AuditSphereDbContext(pg.Options))
+      await migrationDb.GetService<IMigrator>().MigrateAsync(priorMigration);
+
+    var w = await SeedAsync(pg);
+    var (foreignFirmId, _, _) = await pg.SeedScopeAsync();
+    var manager = w.A("manager", "Manager");
+    var caseId = Guid.NewGuid();
+    var now = DateTimeOffset.UtcNow;
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.AuditConfirmationCases.Add(new AuditConfirmationCase
+    {
+      Id = caseId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+      AreaCode = "BANK", SourceRecordId = "BANK-CRITICALITY-UPGRADE", BookedAmount = 100m,
+      Currency = "QAR", ConfirmationDate = new DateOnly(2026, 12, 31), Respondent = "Test bank",
+      ContactValidationSource = "Independently verified channel", CreatedByUserId = w.U["senior"].Id,
+      CreatedAt = now
+    });
+    await db.SaveChangesAsync();
+    Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(
+      db, manager, caseId, true, "Approved critical confirmation")).Succeeded);
+
+    async Task<string[]> ConstraintCatalog() => await db.Database.SqlQuery<string>($"""
+      SELECT conname || ':' || pg_get_constraintdef(oid) AS "Value"
+      FROM pg_constraint
+      WHERE conrelid = 'confirmation_criticalities'::regclass AND contype = 'f'
+      ORDER BY conname
+      """).ToArrayAsync();
+    async Task<string[]> IndexCatalog() => await db.Database.SqlQuery<string>($"""
+      SELECT indexname || ':' || indexdef AS "Value"
+      FROM pg_indexes
+      WHERE schemaname = current_schema() AND tablename = 'confirmation_criticalities'
+      ORDER BY indexname
+      """).ToArrayAsync();
+    async Task<string[]> RetainedRows() => await db.Database.SqlQuery<string>($"""
+      SELECT to_jsonb(row_data)::text AS "Value"
+      FROM (
+        SELECT id, firm_id, confirmation_case_id, critical, rationale, set_by_user_id, set_at
+        FROM confirmation_criticalities ORDER BY id
+      ) AS row_data
+      ORDER BY id
+      """).ToArrayAsync();
+
+    var priorConstraints = await ConstraintCatalog();
+    var priorIndexes = await IndexCatalog();
+    var priorRows = await RetainedRows();
+    Assert.Single(priorRows);
+
+    await db.GetService<IMigrator>().MigrateAsync(scopeMigration);
+    var upgradedConstraints = await ConstraintCatalog();
+    Assert.Equal(priorConstraints.Length + 1, upgradedConstraints.Length);
+    Assert.Contains(upgradedConstraints, x => x.StartsWith("fk_confirmation_criticality_case_scope:"));
+    Assert.Equal(priorIndexes, await IndexCatalog());
+    Assert.Equal(priorRows, await RetainedRows());
+
+    await db.GetService<IMigrator>().MigrateAsync(priorMigration);
+    Assert.Equal(priorConstraints, await ConstraintCatalog());
+    Assert.Equal(priorIndexes, await IndexCatalog());
+    Assert.Equal(priorRows, await RetainedRows());
+
+    var foreignActor = NewUser(foreignFirmId, "foreign-criticality-upgrade-actor");
+    db.Users.Add(foreignActor);
+    await db.SaveChangesAsync();
+    db.ConfirmationCriticalities.Add(new ConfirmationCriticality
+    {
+      Id = Guid.NewGuid(), FirmId = foreignFirmId, ConfirmationCaseId = caseId, Critical = false,
+      Rationale = "Retained invalid cross-firm link", SetByUserId = foreignActor.Id,
+      SetAt = DateTimeOffset.UtcNow.AddMinutes(1)
+    });
+    await db.SaveChangesAsync();
+    var refusalRows = await RetainedRows();
+    Assert.Equal(2, refusalRows.Length);
+
+    var refusal = await Record.ExceptionAsync(() => db.GetService<IMigrator>().MigrateAsync(scopeMigration));
+    var postgres = Assert.IsType<PostgresException>(refusal?.GetBaseException());
+    Assert.Equal("23503", postgres.SqlState);
+    Assert.Equal(priorConstraints, await ConstraintCatalog());
+    Assert.Equal(priorIndexes, await IndexCatalog());
+    Assert.Equal(refusalRows, await RetainedRows());
+    Assert.DoesNotContain(scopeMigration, await db.Database.GetAppliedMigrationsAsync());
+  }
+
   /// <summary>A small, valid grayscale PNG.</summary>
   public static byte[] Png(int width, int height)
   {
