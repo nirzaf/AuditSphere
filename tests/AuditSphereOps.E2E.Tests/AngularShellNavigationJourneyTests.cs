@@ -25,22 +25,32 @@ public sealed class AngularShellNavigationJourneyTests
     await menu.FocusAsync(); await menu.PressAsync("Enter");
     var dialog = page.GetByRole(AriaRole.Dialog,new(){Name="Workspace navigation",Exact=true});
     await Assertions.Expect(dialog).ToBeVisibleAsync();
+    var portfolio = dialog.GetByRole(AriaRole.Link,new(){Name="Portfolio",Exact=true});
+    var technicalLibrary = dialog.GetByRole(AriaRole.Link,new(){Name="Technical library",Exact=true});
+    // Destination links arrive from the session-bound availability query after the dialog opens.
+    // Wait for that server projection before asserting its role-specific omissions or tab order.
+    await Assertions.Expect(portfolio).ToBeVisibleAsync();
+    await Assertions.Expect(technicalLibrary).ToBeVisibleAsync();
     // Material correctly hides the background from accessibility while its modal is open.
     await Assertions.Expect(page.Locator("button.navigation-toggle")).ToHaveAttributeAsync("aria-expanded","true");
     var close = dialog.GetByRole(AriaRole.Button,new(){Name="Close navigation",Exact=true});
     await Assertions.Expect(close).ToBeFocusedAsync();
+    await Assertions.Expect(dialog.GetByRole(AriaRole.Link,new(){Name="Operations",Exact=true})).ToHaveCountAsync(0);
+    await Assertions.Expect(dialog.GetByRole(AriaRole.Link,new(){Name="Accounting",Exact=true})).ToHaveCountAsync(0);
+    var lastAllowedDestination = dialog.GetByRole(AriaRole.Link).Last;
+    await Assertions.Expect(lastAllowedDestination).ToBeVisibleAsync();
     await close.PressAsync("Shift+Tab");
-    await Assertions.Expect(dialog.GetByRole(AriaRole.Link,new(){Name="Operations",Exact=true})).ToBeFocusedAsync();
+    await Assertions.Expect(lastAllowedDestination).ToBeFocusedAsync();
     await page.Keyboard.PressAsync("Tab"); await Assertions.Expect(close).ToBeFocusedAsync();
     await page.Keyboard.PressAsync("Escape"); await Assertions.Expect(dialog).ToHaveCountAsync(0); await Assertions.Expect(menu).ToBeFocusedAsync();
-    await menu.PressAsync("Enter"); await dialog.GetByRole(AriaRole.Link,new(){Name="Accounting",Exact=true}).ClickAsync();
+    await menu.PressAsync("Enter"); await dialog.GetByRole(AriaRole.Link,new(){Name="Time",Exact=true}).ClickAsync();
     await Assertions.Expect(dialog).ToHaveCountAsync(0);
-    await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Accounting workspace",Exact=true})).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Practice time & task records",Exact=true})).ToBeVisibleAsync();
     await Assertions.Expect(page.Locator("main")).ToBeFocusedAsync();
-    Assert.Equal(origin+prefix+"/app/accounting",page.Url);
+    Assert.Equal(origin+prefix+"/app/practice/time",page.Url);
     await menu.ClickAsync(); await dialog.GetByRole(AriaRole.Link,new(){Name="Portfolio",Exact=true}).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Portfolio",Exact=true})).ToBeVisibleAsync();
-    await page.GoBackAsync(); await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Accounting workspace",Exact=true})).ToBeVisibleAsync();
+    await page.GoBackAsync(); await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Practice time & task records",Exact=true})).ToBeVisibleAsync();
     await page.GoForwardAsync(); await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Portfolio",Exact=true})).ToBeVisibleAsync();
     await menu.ClickAsync(); await Assertions.Expect(dialog).ToBeVisibleAsync(); await page.SetViewportSizeAsync(1100,800);
     await Assertions.Expect(dialog).ToHaveCountAsync(0); await Assertions.Expect(page.Locator("aside:has(> audit-workspace-navigation)")).ToBeVisibleAsync();

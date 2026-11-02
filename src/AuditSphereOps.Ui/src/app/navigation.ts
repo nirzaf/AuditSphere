@@ -77,6 +77,7 @@ const CONTEXT_OWNERS: ReadonlyArray<{ pattern: RegExp; owner: NavigationOwner }>
 /** Resolve one owner for a current route; this hint does not grant access or retain context. */
 export function navigationOwner(url: string): NavigationOwner | null {
   const path = url.split(/[?#]/, 1)[0].replace(/^\/ui(?=\/)/, '');
+  if (path === '/') return { groupId: 'work', icon: 'layout-dashboard' };
   let best: { item: NavItem; groupId: NavGroupId } | null = null;
   for (const group of NAVIGATION) for (const item of group.items) {
     if ((path === item.path || (!item.exact && path.startsWith(item.path + '/'))) &&

@@ -303,7 +303,8 @@ public sealed class AngularClientProfileJourneyTests
       await siblingPage.GotoAsync(siblingOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(siblingPath));
       await Assertions.Expect(siblingPage.GetByRole(AriaRole.Heading,
         new() { Name = "Client profile", Exact = true })).ToBeVisibleAsync();
-      await Assertions.Expect(siblingPage.GetByText(sibling.Marker + " Holdings", new() { Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(siblingPage.GetByRole(AriaRole.Heading,
+        new() { Name = sibling.Marker + " Holdings", Exact = true })).ToBeVisibleAsync();
 
       var siblingDocumentToken = Guid.NewGuid().ToString("N");
       await siblingPage.EvaluateAsync("token => window.__clientProfileSiblingRouteToken = token", siblingDocumentToken);
@@ -317,6 +318,8 @@ public sealed class AngularClientProfileJourneyTests
         Assert.False(status is >= 200 and < 300, $"A sibling client unexpectedly returned HTTP {status}.");
         await Assertions.Expect(siblingPage.GetByRole(AriaRole.Heading,
           new() { Name = "Client unavailable", Exact = true })).ToBeVisibleAsync();
+        await Assertions.Expect(siblingPage.GetByLabel("Current workspace context")
+          .GetByRole(AriaRole.Status)).ToHaveTextAsync("Current context unavailable");
         return await siblingPage.Locator("body").InnerTextAsync();
       }
 

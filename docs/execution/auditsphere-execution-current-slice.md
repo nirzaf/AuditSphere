@@ -1,34 +1,39 @@
 # AuditSphere — current-slice handoff
 
-**Updated:** 2026-11-02 01:10 UTC
-**Whole assignment:** INCOMPLETE; the original 48 completion tasks and independent original/Axelor/practice/Atomic/Claude/role/Technical Stories/UX16 registers remain separate. Actual main checkout is `master` at `d81767769ba5fe22677662351286951828060911`, matching `origin/master` at last observation. The local WU-004 criticality scope candidate is focused-verified but uncommitted and unpushed.
+**Updated:** 2026-11-02 01:09:26 UTC
+**Whole assignment:** INCOMPLETE. Preserve the 48 completion tasks and independent original/Axelor/practice/Atomic/Claude/role/Technical Stories/UX16 registers. Automation remains ACTIVE.
+**Checkout:** main worktree, `master`, published base `6fc3933e3afd50dd0e4c008f8e5ca975694a76cf` matched `origin/master` at the latest observation. The Angular/E2E code candidate is an owned local diff, SHA-256 `76ea49afac33f7b034920414792e15c0821884e92c177315e6d14c01ef11582c`; it is uncommitted and unpublished.
 
-## Current engineering candidate — WU-004
+## Published source and terminal gates
 
-The original `ConfirmationCriticality` relation used only the global case ID although both rows carried a firm ID. The identical regression test reproduced a wrong-firm row overriding the target firm’s critical confirmation hold (RED 1); after an additive restrictive `(firm_id, confirmation_case_id)` foreign key to `(firm_id, id)`, the same test passed (GREEN 1). The original global FK, all indexes, command behavior and M3-06 Critical policy remain unchanged.
+WU-004 confirmation-criticality firm/case scope is already published in `6fc3933e3afd50dd0e4c008f8e5ca975694a76cf` as migration `20261101235427_ConfirmationCriticalityFirmScope`. The same regression changed from RED 1 to GREEN 1. Migration round-trip, SQLSTATE 23503 refusal for invalid retained history, EF model drift and documentation checks passed. Evidence: `.local/autonomous/evidence/wu004-confirmation-criticality-20261102/`.
 
-`ConfirmationCriticalityFirmScopeMigrationRefusesInvalidHistoryAndPreservesPriorCatalog` passed 1/1: valid evidence, prior constraints and indexes survived upgrade/downgrade; an inconsistent retained row caused SQLSTATE 23503 and atomic upgrade refusal. EF model drift and the three documentation validators passed. No full local suite ran. The first migration-test attempt tried to delete an append-only fixture row and was rejected by the existing trigger; the test was reordered to verify rollback without deleting evidence. Logs and hashes remain in `.local/autonomous/evidence/wu004-confirmation-criticality-20261102/`.
+Exact 6fc fast CI run `41366085889` and images run `41366085710` are terminal SUCCESS. Docs job `125026437580`, Angular job `125026437902`, and .NET Release job `125027211449` checked out `6fc3933e3afd50dd0e4c008f8e5ca975694a76cf`. Migrations `125026437671`, API `125026437937`, and worker `125026438017` checked out the same SHA and pushed immutable manifests:
 
-The disposable PostgreSQL 18.6 test cluster is owned at `127.0.0.1:15433`, PID 56362, under `/tmp/auditsphere-wu004-pg18-6fbf021851a243d0a05f695ad0f653fc`. Stop only this cluster and remove only that directory after any remaining local checks.
+- migrations: `sha256:854ed928eca49bdc50970a3c70a516bc26cc300697d749c194321a4a7a7a372f`
+- API: `sha256:1dc96894d7457a4e0da76bc52942096019fe0c272bfdbd899664a80ca64b0e8c`
+- worker: `sha256:99ce4f62f025e4d03d2ad7d1c504d291a0c04b6d51e381d6a259abb1f6305fc5`
 
-## Pending lifecycle audit
+Per-job checkout/pin metadata and retained log digests are in `.local/autonomous/evidence/ci-6fc3933-current-20261102/terminal-proof.json`. No full release run exists for `6fc3933e3afd50dd0e4c008f8e5ca975694a76cf`; these gates do not verify the local candidate.
 
-The attached `AUDITSPHERE-PENDING-LIFECYCLE-AUDIT.md` is proposal/audit input, SHA-256 `be6fa902689c49439fd0eb9ad45c3ae6e9cf71f8727dcc8e7960e690db3c4333`; it supplies no professional policy or external approval. PEND-01 and PEND-02 implementation, including authorization recheck after EQR lock wait and report-bound concurrence for signing, is present in commit `13821bc6fdf37e07c42955cfd081ad0e21eeb164`. REM-09 was measured only on synthetic PostgreSQL fixtures: candidate rows changed from `(3 profiles, 4 periods, 0 packages)` to `(1, 1, 0)`, with three candidate SELECTs in both paths and no latency or production claim. Prior focused domain, Angular, and Chromium evidence is retained in `.local/autonomous/evidence/eqr-followup-20261101/`.
+## Pending Angular/E2E candidate
 
-## Exact-source CI and unresolved failures
+`navigation.ts` maps the root landing route to Work & Portfolio for active-section display. Server authorization and access decisions are unchanged. Focused browser tests use unique context/region/heading locators, wait for route/denial state before assertions, and check keyboard focus on an authorized compact-nav item.
 
-- Exact d817 fast CI `41350093534`: PASS. Exact full run `41352724349` is terminal FAILURE: Domain 1970/1970 PASS; Angular, Release build/contracts/publication PASS; API `124992912452` and E2E `124992912430` failed, so the aggregate gate failed.
-- E2E job `124992912430` failed: TRX reports 313 passed and 25 failed of 338. The test host then crashed after its 15-minute inactivity limit while the sibling-client test was running; the output says that test may or may not have caused the crash. Root cause remains unproven.
-- All 25 failed test names also failed in predecessor full run `41345585154` at `8cc742901fadb0d6ad17216ef6112b3b45f86253`; that run had 28 failed names, three additional. This confirms recurrence only. Full release verification is **not** PASS.
-- The E2E TRX/log artifacts were retained and digest-checked once. Review: `.local/autonomous/evidence/eqr-followup-20261101/full-41352724349/e2e-terminal-review.json`. The API job log was fetched once; the artifact inventory exposed no API TRX/log artifact and its exact failure cause is not established. The release aggregate job `125025133394` failed because a required .NET gate failed. Do not repeat the same full cohort without an evidenced repair.
-- No image run exists for exact d817 in the current checkpoint. Image inputs through d817 were unchanged since `13821`; the new uncommitted migration changes that, so the published candidate needs its own image verification.
+Focused candidate verification: `core/navigation.spec.ts` 7/7; Angular production build passed with two existing CSS budget warnings; focused Playwright E2E passed 11/11 (navigation 3, client-profile context recovery 2, annual/contact/engagement creation 6). The first client-profile attempt saw a transient loading state; its test now waits for the denied-context state and rerun passed. Initial and corrected logs are retained. Owned PostgreSQL 18.6 clusters on loopback ports 15433, 15434 and 15435 and their databases were stopped/removed. Aggregate evidence: `.local/autonomous/evidence/angular-e2e-corrections-20261102/final-review.json` (SHA-256 `2b1171547194d5325a091f6d6b7ff510478833835a9883a90f7c76b4ee77e6bb`). Full local suites and manual/built-in-browser acceptance are not claimed.
+
+## Lifecycle audit and previous exact-source failure
+
+The attached lifecycle audit (SHA-256 `be6fa902689c49439fd0eb9ad45c3ae6e9cf71f8727dcc8e7960e690db3c4333`) is proposal/audit input, not policy. PEND-01/PEND-02 implementation is in the source history; REM-09 uses synthetic fixture counts (3 profiles/4 periods to 1/1; three SELECTs on both paths), without latency or production claims.
+
+Prior full run `41352724349` for exact `d81767769ba5fe22677662351286951828060911` failed: Domain 1970/1970 passed, E2E recorded 313/338 then a 15-minute inactivity abort, and API exited 143. Shutdown actor/root cause remain unproven. Some strict-locator/transient-state failures have focused corrections; other failures remain unverified. Preserve accepted artifacts and do not repeat the unchanged full cohort. Review: `.local/autonomous/evidence/eqr-followup-20261101/full-41352724349/e2e-terminal-review.json`.
 
 ## Next actions and boundaries
 
-1. The exact d817 API and E2E jobs are terminal failures. Diagnose distinct repeated E2E failure causes narrowly; no unverified root cause or same-source rerun is claimed. Keep full suites in CI.
-2. Finish review of the seven owned paths. Fetch `origin/master`, inspect incoming paths, preserve peers, then commit and push the coherent candidate directly to `master`. Preserve active release jobs; do not dispatch duplicate full/image workflows.
-3. Require exact-candidate fast, image and full CI after publication. Record browser acceptance separately. Do not merge PR #56 without `AUDITSPHERE-MERGE-APPROVED` or deploy without the previously documented release gates.
+1. Fetch `origin/master` and inspect incoming paths; preserve peers. Then commit and push the scoped candidate to `master` as a fast-forward.
+2. Require exact-candidate fast and image workflows. If both pass, dispatch one exact-SHA full release-verification run. On failure, review only new terminal evidence and repair demonstrated causes; full suites remain CI-only.
+3. Continue other independent ready tasks. Do not merge PR #56 without `AUDITSPHERE-MERGE-APPROVED`; do not deploy until the previously recorded exact release, fresh-backup, D-OV04 and genuine public authenticated acceptance gates pass.
 
-D-OV04 remains missing and was already requested; do not repeat or infer it. OQ-01/OQ-02/OQ-05, professional approval, custody/provider and live authenticated public-browser acceptance remain separate. No deployment, tenant grant or provider action is claimed. Keep all independent source/task registers and the automation state active; a focused pass or commit does not complete the whole assignment.
+D-OV04 remains missing and was already requested; do not repeat or infer it. OQ-01/OQ-02/OQ-05, professional sign-off, custody/provider acceptance, live authenticated HTTPS and interactive browser acceptance remain separate. No deployment, tenant grant, provider action or whole-application acceptance is claimed.
 
-**Prior exact ledger/handoff bytes:** [status snapshot](status-archive-2026-11-02-pre-confirmation-criticality.json), SHA-256 `621eb83503ed7ef37fbfc6d2016ba892d315161a32e62258858b9fc2c2b5c98a`; [handoff snapshot](auditsphere-execution-current-slice-archive-2026-11-02-pre-confirmation-criticality.md), SHA-256 `d38b2b6544269cd22644bb1d520195c7425e9894f4b2d58615bb165272544339`.
+**Prior bytes retained before this refresh:** [status snapshot](status-archive-2026-11-02-pre-angular-e2e-corrections.json), SHA-256 `322cae2409d23defeca016727c1e4cdfa643f06e0dea048518962db6ece89291`; [handoff snapshot](auditsphere-execution-current-slice-archive-2026-11-02-pre-angular-e2e-corrections.md), SHA-256 `83cfc54d5aef00a1eec74c8d2b130f94d2251c1033c3aaf593da5579e994ef0d`.

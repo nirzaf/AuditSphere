@@ -157,7 +157,8 @@ public sealed class AngularAnnualEngagementJourneyTests
     if (role == "Manager")
     {
       // Preserve an annual draft through normal navigation, then restore it on the manual route.
-      await page.GetByRole(AriaRole.Link, new() { Name = "Client profile", Exact = true }).ClickAsync();
+      await page.GetByRole(AriaRole.Navigation, new() { Name = "Breadcrumb", Exact = true })
+        .GetByRole(AriaRole.Link, new() { Name = "Client profile", Exact = true }).ClickAsync();
       await page.GetByRole(AriaRole.Dialog).GetByRole(AriaRole.Button,
         new() { Name = "Save draft and continue", Exact = true }).ClickAsync();
       await page.GetByRole(AriaRole.Link, new() { Name = "Review new engagement", Exact = true }).ClickAsync();
@@ -210,7 +211,8 @@ public sealed class AngularAnnualEngagementJourneyTests
       await page.GetByRole(AriaRole.Link, new() { Name = "Review current-year task plan", Exact = true }).ClickAsync();
       await Assertions.Expect(page.GetByRole(AriaRole.Radio, new() { Name = "Synthetic annual tasks" })).ToBeCheckedAsync();
       await page.GetByRole(AriaRole.Button, new() { Name = "Preview task plan", Exact = true }).ClickAsync();
-      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "1. Prepare fresh annual work", Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Operational task plan", Exact = true })
+        .GetByText("1. Prepare fresh annual work", new() { Exact = true })).ToBeVisibleAsync();
       var createTasks = page.GetByRole(AriaRole.Button, new() { Name = "Create operational tasks", Exact = true });
       await Assertions.Expect(createTasks).ToBeDisabledAsync();
       await page.GetByLabel("I reviewed this exact plan, staffing, dates, and template revision.", new() { Exact = true }).CheckAsync();
@@ -225,7 +227,8 @@ public sealed class AngularAnnualEngagementJourneyTests
       Assert.Equal(1, await db.WorkTasks.CountAsync(x => x.EngagementId == sourceId));
       Assert.True((await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == created.EngagementId)).ProfessionalWorkBlocked);
     }
-    await page.GetByRole(AriaRole.Link, new() { Name = "Client profile", Exact = true }).ClickAsync();
+    await page.GetByRole(AriaRole.Region, new() { Name = "Current workspace context", Exact = true })
+      .GetByRole(AriaRole.Link, new() { Name = "Client profile", Exact = true }).ClickAsync();
     var table = page.GetByRole(AriaRole.Table, new() { Name = "Authorized client engagements", Exact = true });
     await Assertions.Expect(table).ToBeVisibleAsync();
     await Assertions.Expect(table.GetByRole(AriaRole.Cell, new() { Name = "2027-01-01 to 2027-12-31", Exact = true })).ToBeVisibleAsync();

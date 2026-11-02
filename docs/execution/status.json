@@ -20,7 +20,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "d81767769ba5fe22677662351286951828060911",
+  "headCommit": "6fc3933e3afd50dd0e4c008f8e5ca975694a76cf",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -1076,31 +1076,41 @@
     },
     "pendingLifecycleAudit20261101": {
       "attachmentSha256": "be6fa902689c49439fd0eb9ad45c3ae6e9cf71f8727dcc8e7960e690db3c4333",
-      "implementationSource": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
-      "latestExactSource": "d81767769ba5fe22677662351286951828060911",
-      "status": "PEND01_PEND02_FOCUSED_PASS_REM09_MEASURED; D817_FULL_RELEASE_TERMINAL_FAILURE",
-      "focused": "Domain EQR 4/4; REM-09 fixture 1/1; Angular EQR 14/14; focused Chromium journeys 3/3; Release build pass with two existing CSS budget warnings.",
-      "fullRun": "41352724349 exact d817 terminal FAILURE: Domain 1970/1970 PASS; Angular/build/contracts/publication PASS; E2E 313/338 with 25 failed and 15-minute inactivity host termination; API terminal FAILURE; release aggregate failed.",
-      "failureComparison": "All 25 current failed test names also failed in predecessor run 41345585154 at 8cc74290; that run had 28 failures and three additional names. Recurrence does not prove cause or resolution.",
+      "status": "PEND01/PEND02 implemented; REM09 synthetic fixture measured; d817 full failed; 6fc fast/images pass; candidate full pending.",
+      "previousFull": "41352724349 on d817: E2E 313/338 then inactivity abort; API exited 143; actor/cause unproven.",
+      "rem09": "Synthetic rows 3/4 to 1/1; three SELECTs both paths; no latency/production claim.",
+      "currentBase": "6fc3933e3afd50dd0e4c008f8e5ca975694a76cf",
+      "candidateCodeDiffSha256": "76ea49afac33f7b034920414792e15c0821884e92c177315e6d14c01ef11582c",
       "evidence": ".local/autonomous/evidence/eqr-followup-20261101/full-41352724349/e2e-terminal-review.json",
-      "next": "Finish review and publish the separately focused WU-004 confirmation-criticality scope repair; then run exact-candidate fast, image and full gates. Diagnose only evidenced E2E/API causes; professional and live browser acceptance remain separate."
+      "open": "Exact candidate full CI, browser, D-OV04, OQ-01/OQ-02/OQ-05, professional/live/provider/custody acceptance."
     },
     "wu004ConfirmationCriticality20261102": {
-      "status": "FOCUSED_PASS_READY_TO_PUBLISH",
-      "candidate": "ConfirmationCriticality exact firm/case integrity",
-      "schemaChange": "Additive restrictive FK fk_confirmation_criticality_case_scope on (firm_id, confirmation_case_id); original global FK and indexes remain; no policy or command changes.",
-      "redGreen": {
-        "test": "ConfirmationCriticalityRejectsCrossFirmCaseScope",
-        "testSourceSha256": "94a109f000c2fb866ea9d8484188d3fc5673488f5e86a983c2cf57508d395f14",
-        "original": "1 failed: foreign-firm newer row replaced the target firm critical hold.",
-        "repaired": "1 passed; same regression test source."
-      },
-      "migrationTest": "1 passed; exact valid rows/index/FK round trip preserved; inconsistent retained link refused with SQLSTATE 23503 and prior catalog/history unchanged.",
-      "modelDrift": "PASS; no pending model changes.",
-      "documentation": "PASS: 265 Markdown/19 canonical/4,131 relative links/564 repository paths; filename and narrative validators passed.",
+      "status": "PUBLISHED_ON_6FC; FOCUSED_PASS",
+      "migration": "20261101235427_ConfirmationCriticalityFirmScope; restrictive firm/case FK added; original global FK/indexes retained.",
+      "redGreen": "Same regression: original 1 failed; repaired 1 passed.",
+      "migrationSafety": "Valid history/catalog round trip preserved; invalid retained link refused with 23503; prior catalog/history unchanged.",
+      "modelDrift": "PASS",
+      "sourceCommit": "6fc3933e3afd50dd0e4c008f8e5ca975694a76cf",
       "evidence": ".local/autonomous/evidence/wu004-confirmation-criticality-20261102/",
-      "sourceBase": "d81767769ba5fe22677662351286951828060911",
-      "localCandidateDiffSha256": "3ffe1338e268cada3c9f63fd3545b3ecad5b662b34875c9b838fa0b7595cf7b5"
+      "prepublicationHistory": "docs/execution/status-archive-2026-11-02-pre-angular-e2e-corrections.json#targetedVerification.wu004ConfirmationCriticality20261102"
+    },
+    "angularNavigationE2eCorrections20261102": {
+      "status": "FOCUSED_PASS_11_E2E_CASES; CANDIDATE_CI_PENDING",
+      "baseSourceSha": "6fc3933e3afd50dd0e4c008f8e5ca975694a76cf",
+      "candidateCodeDiffSha256": "76ea49afac33f7b034920414792e15c0821884e92c177315e6d14c01ef11582c",
+      "behavior": "Root landing maps to Work & Portfolio active-section display only; server authorization unchanged.",
+      "testCorrections": "Unique context/region/heading locators; wait for expected route/denial state; keyboard focus assertion targets last authorized compact-nav item.",
+      "focusedAngular": "core/navigation.spec.ts 7/7; production build PASS with two existing CSS budget warnings.",
+      "focusedE2e": {
+        "navigation": "3/3",
+        "clientProfileContextRecovery": "2/2 after waiting for intended denied-context state; original attempt retained",
+        "annualContactEngagementCreation": "6/6",
+        "total": "11 passed, 0 failed, 0 skipped"
+      },
+      "cleanup": "Owned PostgreSQL test clusters on loopback ports 15433-15435 stopped; owned databases/temp dirs removed.",
+      "interactiveBrowser": "NOT_CLAIMED; focused Playwright only; full E2E/manual browser acceptance remain separate.",
+      "evidence": ".local/autonomous/evidence/angular-e2e-corrections-20261102/final-review.json",
+      "evidenceSha256": "2b1171547194d5325a091f6d6b7ff510478833835a9883a90f7c76b4ee77e6bb"
     }
   },
   "externalGates": [
@@ -1614,24 +1624,19 @@
   },
   "currentSourceCi": {
     "aggregatePass": false,
-    "applicationSourceSha": "d81767769ba5fe22677662351286951828060911",
+    "applicationSourceSha": "6fc3933e3afd50dd0e4c008f8e5ca975694a76cf",
     "branch": "master",
-    "fastRunId": 41350093534,
-    "fastStatus": "PASS_EXACT_D817",
-    "fullRunId": 41352724349,
-    "fullStatus": "FAILURE_E2E_AND_API; release aggregate FAILURE",
-    "domainJobId": 124992912560,
-    "domainStatus": "PASS_1970_1970",
-    "apiJobId": 124992912452,
-    "apiStatus": "TERMINAL_FAILURE; failure details not preserved in artifact set",
-    "e2eJobId": 124992912430,
-    "e2eStatus": "FAILURE_25_OF_338; host inactivity termination; same failed names as predecessor",
-    "imagesRunId": null,
-    "imagesStatus": "NO_EXACT_D817_RUN; local migration candidate requires image verification after publication.",
-    "localCandidateStatus": "UNCOMMITTED_FOCUSED_PASS; exact candidate CI not run",
-    "localCandidateDiffSha256": "3ffe1338e268cada3c9f63fd3545b3ecad5b662b34875c9b838fa0b7595cf7b5",
-    "evidence": ".local/autonomous/evidence/eqr-followup-20261101/full-41352724349/e2e-terminal-review.json",
-    "apiEvidence": "Job log was fetched once; artifact inventory contained no API TRX/log artifact. Exact API failure cause is not established."
+    "fastRunId": 41366085889,
+    "fastStatus": "PASS",
+    "imagesRunId": 41366085710,
+    "imagesStatus": "PASS",
+    "fullRunId": null,
+    "fullStatus": "NOT_DISPATCHED_FOR_6FC",
+    "localCandidateStatus": "FOCUSED_PASS_UNCOMMITTED; exact-candidate CI pending",
+    "localCandidateCodeDiffSha256": "76ea49afac33f7b034920414792e15c0821884e92c177315e6d14c01ef11582c",
+    "evidence": ".local/autonomous/evidence/ci-6fc3933-current-20261102/terminal-proof.json",
+    "evidenceSha256": "8f028bcd106d172c2123c8448da8b5182fa6882a41599e2d7e4d5bdcd7d5b11d",
+    "notes": "Base fast/images PASS; candidate exact CI and full release verification remain pending. Per-job checkouts and image pins are in terminal-proof.json."
   },
   "uxU03ContextSwitcher": {
     "status": "PARTIAL",
@@ -1642,5 +1647,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-02T01:10:00Z"
+  "updatedAtUtc": "2026-11-02T01:09:26Z"
 }
