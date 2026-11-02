@@ -6,7 +6,7 @@
 
 ## Lifecycle residual PR integration
 
-PR 56 adds offboarding actor-epoch fencing and first-transmission rejection recovery, with EQR and profile regression coverage. Its prior head `4c8cb17f` passed fast CI `41319815157`; full release run `41321320377` failed in Domain, API and Playwright and does not establish a full pass. The merge with current master requires its own verification.
+PR 56 adds offboarding actor-epoch fencing and first-transmission rejection recovery, with EQR and profile regression coverage. Its prior head `4c8cb17f` passed fast CI `41319815157`; full release run `41321320377` failed in Domain, API and Playwright and does not establish a full pass. The owner merged PR 56 as `82128c54e4f751be66efe68a017f952dd45997a9`; its exact fast run `41414362455` and image run `41414362389` passed with actual checkouts and pushed image manifest pins retained. Its full verification and release acceptance remain open.
 
 ## Current CI and worker preparation
 
@@ -24,12 +24,20 @@ The no-grant fix is published at `1cd2a8403422d7fe9ab2789e4167271669c0bbea`; its
 
 Portfolio journey reconciliation is published in `84c6d585db2a10807b79d4d3ebef1d59dd62d7a0`; exact fast run `41400253445` passed with all three actual checkouts. A separate package-review test previously expected a package ID to be visible inside a closed disclosure. The corrected test opens the target row’s disclosure before the same ID assertion and passed its existing selection, preview, route and revocation checks. The methods differ between the reproduced failure and focused pass. Evidence: `.local/autonomous/evidence/practice-package-review-20261102/green-db1f8cf8/paired-review.json`.
 
+## Task ordering journey
+
+Package-review test reconciliation is published in `efb1dd4e866e9152fcf788d032d96ebd5548c8cf`; exact fast run `41407981200` passed with all three actual checkouts. A separate task-ordering journey now opens the exact row action disclosures. Its lost cancellation response check asserts revision advancement and explicit non-attribution before reviewing retained activity; dependency, no-duplicate, cancellation, reopening and professional-boundary checks remain. The original and modified methods differ; the focused modified test passed. Evidence: `.local/autonomous/evidence/practice-ordering-disclosure-20261102/recovery-b17780eb/paired-review.json`.
+
 ## Continuation and boundaries
 
-Review and publish the separate package-review test correction after incoming paths and active image jobs are checked; preserve the independent ordering test correction. Continue independent practice-management work and obtain exact-source gates at final freeze. D-OV04 has already been requested; professional policy, provider/custody, human review and live HTTPS acceptance remain separate. Do not merge PR #56 without `AUDITSPHERE-MERGE-APPROVED` or deploy before all applicable gates.
+Review and publish the separate ordering test correction after incoming paths and active image jobs are checked. Continue independent practice-management work and obtain exact-source gates at final freeze. D-OV04 has already been requested; professional policy, provider/custody, human review and live HTTPS acceptance remain separate. The owner performed the PR 56 merge; deploy only after all applicable gates.
 
 **Prior bytes preserved:** [status snapshot](status-archive-2026-11-02-before-portfolio-guidance.json), SHA-256 `660ff1f7192c96e11f3889540c39a84930415e98315f6ae9d0b555695f3b264d`; [handoff snapshot](auditsphere-execution-current-slice-archive-2026-11-02-before-portfolio-guidance.md), SHA-256 `208b14ef6e8c1b2314786878e70b42c2c85870435353869f2f27a0681e08e4bd`.
 
 **Immediate prior bytes preserved:** [status](status-archive-2026-11-02-before-portfolio-journey.json), SHA-256 `cc906a9fdc8ec0aaede61f3e506e650be55586fe378f306ab1319bbf9f2e6154`; [handoff](auditsphere-execution-current-slice-archive-2026-11-02-before-portfolio-journey.md), SHA-256 `5ded803df2a1e9b35a493476edbefef40d198ae56fdac12d6aff61a612a5c5d0`.
 
 **Immediate prior bytes preserved:** [status](status-archive-2026-11-02-before-package-review.json), SHA-256 `3d17fe3a8be5aaaec1c30643ce5c4a7bd49a7875107657b0daf3a3a7543d4e7e`; [handoff](auditsphere-execution-current-slice-archive-2026-11-02-before-package-review.md), SHA-256 `3a7673c968877bd068e6e1bb3d16b7d19bbd4f58c76e2687374f150727c0de7e`.
+
+**Immediate prior bytes preserved:** [status](status-archive-2026-11-02-before-ordering-disclosure.json), SHA-256 `e4edcc71becd775ef367c8ac23f8245618cee58787552d900212c1dcd91616a6`; [handoff](auditsphere-execution-current-slice-archive-2026-11-02-before-ordering-disclosure.md), SHA-256 `58fce50476cf8b828b48ab4f7e7d32549ded8ab9c798dfaf4106d500a4431d83`.
+
+**Owner-merge prior handoff preserved:** [handoff](auditsphere-execution-current-slice-archive-2026-11-02-before-ordering-owner-merge.md), SHA-256 `a91195676c50299220c1ac838d13a3823e2914c6078bcb7c212d0be11950eb11`; the immediately prior status archive above is byte-identical to merged HEAD.

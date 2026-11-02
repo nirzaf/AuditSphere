@@ -28,7 +28,13 @@ public sealed class AngularWorkflowOrderingJourneyTests
     using var playwright = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await browser.NewPageAsync(); var errors = new List<string>(); page.PageError += (_, error) => errors.Add(error);
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fapp%2Fwork");
+    async Task OpenTaskActionsAsync(ILocator target) {
+      var details = target.Locator("details.task-more-actions");
+      await Assertions.Expect(details).ToHaveCountAsync(1);
+      if (await details.GetAttributeAsync("open") is null) await details.Locator("summary").ClickAsync();
+    }
     var row = page.Locator("tbody tr").Filter(new() { HasText = secondTitle });
+    await OpenTaskActionsAsync(row);
     await row.GetByRole(AriaRole.Button, new() { Name = "Review task ordering", Exact = true }).ClickAsync();
     var panel = page.GetByRole(AriaRole.Region, new() { Name = "Task ordering", Exact = true });
     var inspectBefore = Environment.GetEnvironmentVariable("AUDITSPHERE_ORDERING_INSPECT_BEFORE") == "true";
@@ -50,6 +56,7 @@ public sealed class AngularWorkflowOrderingJourneyTests
     await Assertions.Expect(row.GetByRole(AriaRole.Button, new() { Name = "Complete task", Exact = true })).ToHaveCountAsync(0);
     await page.UnrouteAsync(routePattern);
     var firstRow = page.Locator("tbody tr").Filter(new() { HasText = firstTitle });
+    await OpenTaskActionsAsync(firstRow);
     await Assertions.Expect(firstRow.GetByRole(AriaRole.Button,
       new() { Name = "Reopen task", Exact = true })).ToHaveCountAsync(0);
     await firstRow.GetByRole(AriaRole.Button, new() { Name = "Review task ordering", Exact = true }).ClickAsync();
@@ -65,6 +72,7 @@ public sealed class AngularWorkflowOrderingJourneyTests
     }
     // Cancelling an operational predecessor preserves its edge and cannot satisfy the dependent task.
     await page.GetByRole(AriaRole.Button, new() { Name = "Close task ordering", Exact = true }).ClickAsync();
+    await OpenTaskActionsAsync(firstRow);
     var cancelButton = firstRow.GetByRole(AriaRole.Button, new() { Name = "Cancel task", Exact = true });
     await cancelButton.ClickAsync();
     var cancellation = page.GetByRole(AriaRole.Region, new() { Name = "Review task cancellation", Exact = true });
@@ -114,7 +122,8 @@ public sealed class AngularWorkflowOrderingJourneyTests
     await Assertions.Expect(cancellationHeading).ToBeFocusedAsync();
     await Assertions.Expect(confirmCancellation).ToHaveCountAsync(0);
     await cancellation.GetByRole(AriaRole.Button, new() { Name = "Check cancellation status", Exact = true }).ClickAsync();
-    await Assertions.Expect(cancellation).ToContainTextAsync("Cancellation observed");
+    await Assertions.Expect(cancellation).ToContainTextAsync("The task revision advanced to 2.");
+    await Assertions.Expect(cancellation).ToContainTextAsync("This observation does not establish the original request outcome.");
     await Assertions.Expect(cancellationHeading).ToBeFocusedAsync();
     await cancellation.GetByRole(AriaRole.Button,
       new() { Name = "Acknowledge cancellation and review activity", Exact = true }).ClickAsync();
@@ -128,6 +137,7 @@ public sealed class AngularWorkflowOrderingJourneyTests
     await page.GetByRole(AriaRole.Button, new() { Name = "Cancelled", Exact = true }).ClickAsync();
     var cancelledRow = page.Locator("tbody tr").Filter(new() { HasText = firstTitle });
     await Assertions.Expect(cancelledRow).ToBeVisibleAsync();
+    await OpenTaskActionsAsync(cancelledRow);
     await Assertions.Expect(cancelledRow.GetByRole(AriaRole.Button, new() { Name = "Cancel task", Exact = true })).ToHaveCountAsync(0);
     await Assertions.Expect(cancelledRow.GetByRole(AriaRole.Button, new() { Name = "Complete task", Exact = true })).ToHaveCountAsync(0);
     await page.UnrouteAsync(cancellationPattern);
@@ -208,6 +218,7 @@ public sealed class AngularWorkflowOrderingJourneyTests
     await workQueueViews.GetByRole(AriaRole.Button, new() { Name = "My tasks", Exact = true }).ClickAsync();
     var reopenedRow = page.Locator("tbody tr").Filter(new() { HasText = firstTitle });
     await Assertions.Expect(reopenedRow).ToBeVisibleAsync();
+    await OpenTaskActionsAsync(reopenedRow);
     var reopenedStatus = reopenedRow.Locator("audit-status .status-chip");
     await Assertions.Expect(reopenedStatus).ToHaveAttributeAsync("data-status", PracticeTimeStates.TaskOpen);
     await Assertions.Expect(reopenedStatus).ToHaveTextAsync("open");

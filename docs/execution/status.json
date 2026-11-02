@@ -20,7 +20,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "84c6d585db2a10807b79d4d3ebef1d59dd62d7a0",
+  "headCommit": "82128c54e4f751be66efe68a017f952dd45997a9",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
   "remoteHeadVerified": false,
   "verifiedCommitWasRemoteHead": true,
@@ -1625,13 +1625,14 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceSha": "84c6d585db2a10807b79d4d3ebef1d59dd62d7a0",
-    "fastRunId": 41400253445,
+    "sourceSha": "82128c54e4f751be66efe68a017f952dd45997a9",
+    "fastRunId": 41414362455,
     "fastStatus": "PASS; all three actual checkouts",
-    "imagesStatus": "NOT_AUTOTRIGGERED_PATH_FILTER",
+    "imagesRunId": 41414362389,
+    "imagesStatus": "PASS; actual checkouts and manifest pins retained",
     "fullStatus": "NOT_DISPATCHED",
-    "localCandidate": "Package-review journey opens the selected identity disclosure before asserting its exact ID; focused test passed.",
-    "evidence": ".local/autonomous/evidence/practice-package-review-20261102/green-db1f8cf8/paired-review.json",
+    "localCandidate": "Task-ordering journey opens row action disclosures and checks non-attribution of uncertain cancellation; focused test passed on predecessor source.",
+    "evidence": ".local/autonomous/evidence/practice-ordering-disclosure-20261102/recovery-b17780eb/paired-review.json",
     "aggregatePass": false
   },
   "uxU03ContextSwitcher": {
