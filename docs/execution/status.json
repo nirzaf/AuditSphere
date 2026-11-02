@@ -20,7 +20,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "0350c46a4a8ecc6d75c71409ccca8f34b3602131",
+  "headCommit": "32009d36c50d93d10ed15cedc7cc18c655148bfc",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
   "remoteHeadVerified": false,
   "verifiedCommitWasRemoteHead": true,
@@ -1625,20 +1625,18 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceSha": "0350c46a4a8ecc6d75c71409ccca8f34b3602131",
+    "sourceSha": "32009d36c50d93d10ed15cedc7cc18c655148bfc",
     "branch": "master",
-    "fastRunId": 41383305677,
-    "fastStatus": "PASS_EXACT_CHECKOUTS",
-    "imagesStatus": "NOT_OBSERVED_FOR_0350",
-    "fullStatus": "NOT_DISPATCHED_FOR_0350",
+    "fastRunId": 41384701039,
+    "fastStatus": "ANGULAR_DOCS_PASS_RELEASE_ACTIVE",
+    "imagesRunId": 41384700946,
+    "imagesStatus": "WORKER_PASS_API_MIGRATIONS_ACTIVE",
+    "fullStatus": "NOT_DISPATCHED",
     "predecessorFullRunId": 41373256282,
-    "predecessorFullStatus": "TERMINAL_FAILURE",
-    "localCandidate": "Client archive response/event/replay timestamp normalized to PostgreSQL microseconds; fixed-clock regression RED 1 then GREEN 1; final candidate CI pending.",
-    "evidence": ".local/autonomous/evidence/practice-archive-timestamp-20261102-7be05120/paired-red-green-review.json",
-    "aggregatePass": false,
-    "fastEvidence": ".local/autonomous/evidence/ci-0350c46a-current-20261102/fast-terminal-proof.json",
-    "predecessorSummary": "Domain 1971/1972; API runner shutdown exit 143; E2E 322 passed, 16 failed then inactivity abort. Causes unconfirmed.",
-    "predecessorEvidence": ".local/autonomous/evidence/ci-465271b-current-20261102/full-465-terminal-review.json"
+    "predecessorFullStatus": "FAILURE",
+    "localCandidate": "GL upload E2E mismatch status selector scoped to its named region. Controlled real-context hold RED 1 / GREEN 1; original workflow assertions preserved.",
+    "evidence": ".local/autonomous/evidence/practice-gl-status-selector-20261102/paired-red-green-review.json",
+    "aggregatePass": false
   },
   "uxU03ContextSwitcher": {
     "status": "PARTIAL",
@@ -1649,5 +1647,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-02T03:43:37Z"
+  "updatedAtUtc": "2026-11-02T03:55:29Z"
 }
