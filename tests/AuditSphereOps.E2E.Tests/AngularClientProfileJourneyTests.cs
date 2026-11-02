@@ -264,8 +264,12 @@ public sealed class AngularClientProfileJourneyTests
         else
           Assert.True(status is >= 200 and < 300, $"The scoped client profile returned HTTP {status}.");
         if (expectedProfileText is null)
+        {
           await Assertions.Expect(page.GetByRole(AriaRole.Heading,
             new() { Name = "Client unavailable", Exact = true })).ToBeVisibleAsync();
+          await Assertions.Expect(page.GetByLabel("Current workspace context")
+            .GetByRole(AriaRole.Status)).ToHaveTextAsync("Current context unavailable");
+        }
         else
           await Assertions.Expect(page.GetByText(expectedProfileText, new() { Exact = false })).ToBeVisibleAsync();
         return await page.Locator("body").InnerTextAsync();
