@@ -20,7 +20,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "3f1a8c757747328a65d1989e80d688fe4c8d6781",
+  "headCommit": "095798eee8616bf36f629173acdf6103dcf2ab69",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
   "remoteHeadVerified": false,
   "verifiedCommitWasRemoteHead": true,
@@ -1625,18 +1625,18 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceSha": "3f1a8c757747328a65d1989e80d688fe4c8d6781",
+    "sourceSha": "095798eee8616bf36f629173acdf6103dcf2ab69",
     "branch": "master",
-    "fastRunId": 41389993483,
+    "fastRunId": 41391610162,
     "fastStatus": "PASS",
     "imagesStatus": "NOT_AUTOTRIGGERED_PATH_FILTER",
     "fullStatus": "NOT_DISPATCHED",
-    "predecessorSourceSha": "32009d36c50d93d10ed15cedc7cc18c655148bfc",
-    "predecessorFastAndImages": "PASS",
+    "predecessorSourceSha": "3f1a8c757747328a65d1989e80d688fe4c8d6781",
+    "predecessorFast": "PASS",
     "predecessorFullRunId": 41373256282,
     "predecessorFullStatus": "FAILURE",
-    "localCandidate": "Client profile denial comparison waits for current context unavailable. Controlled red/green with temporary test-only helper fallback; final original-helper focused case passed.",
-    "evidence": ".local/autonomous/evidence/practice-client-context-20261102/paired-red-green-review.json",
+    "localCandidate": "Workflow evidence recovery E2E reconciled with existing unresolved-panel guard; blocked switch, key, receipt, draft and professional assertions retained.",
+    "evidence": ".local/autonomous/evidence/practice-workflow-evidence-20261102/focused-reconciliation-review.json",
     "aggregatePass": false
   },
   "uxU03ContextSwitcher": {
@@ -1648,5 +1648,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-02T04:56:57Z"
+  "updatedAtUtc": "2026-11-02T05:05:37Z"
 }
