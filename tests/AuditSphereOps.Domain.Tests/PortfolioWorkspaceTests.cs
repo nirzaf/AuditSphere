@@ -489,6 +489,25 @@ public sealed class PortfolioWorkspaceTests(ITestOutputHelper output)
     var resolvedProfileDetail = (await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId)).Value!;
     Assert.DoesNotContain("Ambiguous completion profiles exist for this service; exact profile selection is required.", resolvedProfileDetail.Gates);
 
+    // An unavailable explicit pin must not silently fall back to an accepted profile.
+    engagement.ServiceProfileId = Guid.CreateVersion7().ToString("D");
+    await db.SaveChangesAsync();
+    var unavailablePin = (await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId)).Value!;
+    Assert.Contains("Completion profile is not approved for this service (D03).", unavailablePin.Gates);
+    var unapprovedProfileId = Guid.CreateVersion7();
+    db.AccountingCapabilityProfiles.Add(new AccountingCapabilityProfile
+    {
+      Id = unapprovedProfileId, FirmId = f.FirmId, ClientId = f.ClientId, ServiceRoute = "AccountingOnly",
+      ServiceKind = AccountingCapabilityServiceKinds.ClientBookkeeping, Framework = "IFRS",
+      Status = AccountingWorkflowStates.Draft, CreatedAt = DateTimeOffset.UtcNow
+    });
+    engagement.ServiceProfileId = unapprovedProfileId.ToString("D");
+    await db.SaveChangesAsync();
+    var unapprovedPin = (await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId)).Value!;
+    Assert.Contains("Completion profile is not approved for this service (D03).", unapprovedPin.Gates);
+    engagement.ServiceProfileId = profileId.ToString("D");
+    await db.SaveChangesAsync();
+
     // T07: a Workpaper release cannot satisfy an EntityReporting profile that requires its exact approved package.
     var entityProfile = await db.AccountingCapabilityProfiles.SingleAsync(x => x.Id == profileId);
     entityProfile.ServiceKind = AccountingCapabilityServiceKinds.EntityReporting;

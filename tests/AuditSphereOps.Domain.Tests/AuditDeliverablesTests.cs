@@ -1271,6 +1271,45 @@ public sealed partial class AuditDeliverablesTests
   }
 
   [Fact]
+  public async Task EqrDecisionRejectsChangedFactsAndDoesNotInventLegacyRequestProvenance()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var reviewer = w.A("partner2", "Partner");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var reviewResult = await AuditDeliverableService.GetEqrReviewBasisAsync(db, reviewer, w.EngagementId);
+    Assert.True(reviewResult.Succeeded, reviewResult.Message);
+    var reviewed = reviewResult.Value!;
+    Assert.Equal(0, reviewed.CaseRevision);
+    db.Findings.Add(new Finding { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId,
+      EngagementId = w.EngagementId, ActorId = w.U["senior"].Id, FindingType = "Control deficiency",
+      ImpactDescription = "New evidence after EQR review", CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    var request = new RecordEqrDecisionRequest("IN_PROGRESS", null, false, Guid.NewGuid().ToString("D"),
+      reviewed.CaseRevision, reviewed.FactsDigest, reviewed.ReportDeliverableId, reviewed.ReportSha256);
+    var stale = await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId, request);
+    Assert.Equal(ErrorCodes.GenerationStale, stale.ErrorCode);
+    Assert.False(await db.EqrDecisions.AnyAsync());
+    Assert.False(await db.EqrCases.AnyAsync());
+
+    // A retained pre-contract decision has server-selected evidence, not proof of reviewer-supplied input.
+    var legacyCase = new EqrCase { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId,
+      EngagementId = w.EngagementId, EqrPartnerUserId = reviewer.UserId, Status = "IN_PROGRESS",
+      Revision = 1, CreatedAt = DateTimeOffset.UtcNow };
+    var legacy = new EqrDecision { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId,
+      EngagementId = w.EngagementId, EqrCaseId = legacyCase.Id, Revision = 1, Status = "IN_PROGRESS",
+      DecidedByUserId = reviewer.UserId, DecidedAt = DateTimeOffset.UtcNow,
+      ReviewedFactsDigest = reviewed.FactsDigest, RequestKey = request.RequestKey };
+    db.EqrCases.Add(legacyCase);
+    db.EqrDecisions.Add(legacy);
+    await db.SaveChangesAsync();
+    var replay = await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId, request);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, replay.ErrorCode);
+    Assert.Equal(request.RequestKey, (await db.EqrDecisions.AsNoTracking().SingleAsync()).RequestKey);
+    Assert.Equal(1, await db.EqrDecisions.CountAsync());
+  }
+
+  [Fact]
   public async Task EqrDecisionRequiresExactReviewedBasisAndRecoversOriginalIntent()
   {
     await using var pg = await PgTestSchema.CreateAsync();

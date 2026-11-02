@@ -4,6 +4,10 @@
 
 **Whole assignment:** INCOMPLETE. Preserve the original 48 tasks and independent original, Axelor, practice, Atomic, Claude, role, Technical Stories and UX16 registers.
 
+## Lifecycle residual PR integration
+
+PR 56 adds offboarding actor-epoch fencing and first-transmission rejection recovery, with EQR and profile regression coverage. Its prior head `4c8cb17f` passed fast CI `41319815157`; full release run `41321320377` failed in Domain, API and Playwright and does not establish a full pass. The merge with current master requires its own verification.
+
 ## Current CI and worker preparation
 
 The release E2E job now builds the Worker host alongside the API after locked restore, before its unchanged unfiltered test command; published in `5e3a898b33c5e18e649981da1c13ec8cb30fa33b`. Actual local worker absent/present-output controls, source-bound historical artifact inspection, targeted incremental build, workflow adapter and failure-propagation checks support the change. Historical CI worker stderr was not retained; its exact cause remains unconfirmed. Evidence: `.local/autonomous/evidence/practice-workflow-evidence-20261102/worker-output-probe/workflow-change-review.json`. Exact fast run `41396230897` passed with all three actual 5e3a checkouts; no exact-source image run was triggered by the workflow/docs-only path and no exact-source full run has been dispatched. Predecessor d274 fast CI passed. Earlier 465 full CI failed; causes beyond individually reproduced assertions remain unconfirmed.
