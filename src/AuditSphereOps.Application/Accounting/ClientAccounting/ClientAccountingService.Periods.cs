@@ -201,9 +201,15 @@ public static partial class ClientAccountingService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Unreviewed accounting analysis or journal-risk evidence blocks period close.");
     var periodStart = period.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     var periodEnd = period.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    var hasUnpinnedLegacyPackage = await db.FinancialPackages.AsNoTracking().AnyAsync(x =>
+      x.FirmId == actor.FirmId && x.ClientId == period.ClientId && x.PeriodId == null &&
+      x.PeriodStart == periodStart && x.PeriodEnd == periodEnd, ct);
+    if (hasUnpinnedLegacyPackage)
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "A date-matching financial package has no reporting-period identity; period close is blocked until its association is reviewed.");
     var packageIds = await db.FinancialPackages.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ClientId == period.ClientId &&
-        x.PeriodStart == periodStart && x.PeriodEnd == periodEnd)
+        x.PeriodId == period.Id)
       .Select(x => x.Id).ToListAsync(ct);
     foreach (var packageId in packageIds)
     {

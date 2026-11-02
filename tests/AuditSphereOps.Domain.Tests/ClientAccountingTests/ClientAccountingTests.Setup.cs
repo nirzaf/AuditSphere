@@ -91,7 +91,7 @@ public sealed partial class ClientAccountingTests
   }
 
   private static async Task<Guid> AddPackageAsync(AuditSphereDbContext db, Scope scope, Guid clientId, Guid engagementId, decimal amount,
-    string destination, string? suffix = null, string currency = "QAR")
+    string destination, string? suffix = null, string currency = "QAR", Guid? periodId = null, string? basis = null)
   {
     var now = DateTimeOffset.UtcNow;
     var datasetId = Guid.CreateVersion7();
@@ -103,6 +103,7 @@ public sealed partial class ClientAccountingTests
     db.TrialBalanceDatasets.Add(new TrialBalanceDataset
     {
       Id = datasetId, FirmId = scope.FirmId, ClientId = clientId, EngagementId = engagementId, SourceKind = "Raw",
+      PeriodId = periodId, Basis = basis,
       Revision = 1, LegalEntityKey = clientId.ToString("D"), Currency = currency, RawFileSha256Hex = digest,
       NormalizedDatasetDigest = digest, Sha256Hex = digest, Balanced = true, ValidationStatus = "Accepted",
       ImportState = TrialBalanceImportStates.Sealed, ControlTotal = 0m, ImportedAt = now, ImportedByUserId = scope.Preparer.Id
@@ -127,7 +128,8 @@ public sealed partial class ClientAccountingTests
     db.FinancialPackages.Add(new FinancialPackage
     {
       Id = packageId, FirmId = scope.FirmId, ClientId = clientId, EngagementId = engagementId, AdjustedDatasetId = adjustedId,
-      MappingVersionId = mappingId, AdjustmentPlanId = planId, Framework = "IFRS", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+      MappingVersionId = mappingId, AdjustmentPlanId = planId, PeriodId = periodId, Basis = basis,
+      Framework = "IFRS", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
       TaxonomyVersion = "tax-v1", TemplateVersion = "template-v1", CalculationEngineVersion = "test-engine",
       CalculationHash = digest, Currency = currency, Status = AccountingPackageStates.PackageValidated, CreatedAt = now
     });

@@ -123,6 +123,68 @@ public sealed partial class ClientAccountingTests
       await db.ClientReportingPeriods.Where(x => x.Id == periodId).Select(x => x.Status).SingleAsync());
   }
 
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task PeriodClose_UsesExactPeriodIdentityForSameDatePackages()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var start = new DateOnly(2026, 1, 1);
+    var end = new DateOnly(2026, 12, 31);
+    var periodOne = await ClientAccountingService.CreatePeriodAsync(db, preparer,
+      new ReportingPeriodRequest(scope.ClientA, "FY26-STAT", start, end, "STATUTORY", "QAR"));
+    var periodTwo = await ClientAccountingService.CreatePeriodAsync(db, preparer,
+      new ReportingPeriodRequest(scope.ClientA, "FY26-CASH", start, end, "CASH", "QAR"));
+    Assert.True(periodOne.Succeeded, periodOne.Message);
+    Assert.True(periodTwo.Succeeded, periodTwo.Message);
+    var otherContextPackage = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA,
+      100m, "CASH", "same-date-other-period", periodId: periodTwo.Value, basis: "CASH");
+    await db.SaveChangesAsync();
+
+    var readiness = await PeriodCloseReadinessQuery.GetReadinessAsync(db, reviewer, periodOne.Value);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    Assert.True(readiness.Value!.CanClose, string.Join("; ", readiness.Value.Blockers.Select(x => x.Detail)));
+    Assert.Equal(0, readiness.Value.PackageCount);
+
+    var closed = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodOne.Value,
+      "Only the exact reporting period is evaluated");
+    Assert.True(closed.Succeeded, closed.Message);
+    var other = await db.FinancialPackages.SingleAsync(x => x.Id == otherContextPackage);
+    Assert.Equal(periodTwo.Value, other.PeriodId);
+    Assert.Equal(AccountingPackageStates.PackageValidated, other.Status);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task PeriodClose_BlocksDateMatchingPackagesWithoutPeriodIdentity()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var period = await ClientAccountingService.CreatePeriodAsync(db, preparer,
+      new ReportingPeriodRequest(scope.ClientA, "FY26-STAT", new DateOnly(2026, 1, 1),
+        new DateOnly(2026, 12, 31), "STATUTORY", "QAR"));
+    Assert.True(period.Succeeded, period.Message);
+    var legacyPackage = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA,
+      100m, "CASH", "unbound-period-legacy");
+    await db.SaveChangesAsync();
+
+    var readiness = await PeriodCloseReadinessQuery.GetReadinessAsync(db, reviewer, period.Value);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    Assert.Contains(readiness.Value!.Blockers, x => x.Code == "packages.reporting-period-unpinned");
+    var close = await ClientAccountingService.ClosePeriodAsync(db, reviewer, period.Value,
+      "Unbound legacy package must be resolved");
+    Assert.False(close.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, close.ErrorCode);
+    Assert.Contains("reporting-period identity", close.Message!, StringComparison.OrdinalIgnoreCase);
+    Assert.Null(await db.FinancialPackages.Where(x => x.Id == legacyPackage).Select(x => x.PeriodId).SingleAsync());
+  }
+
   [Theory]
   [InlineData(false)]
   [InlineData(true)]

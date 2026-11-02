@@ -1,8 +1,10 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -514,6 +516,174 @@ public sealed class PortfolioWorkspaceTests(ITestOutputHelper output)
     await db.SaveChangesAsync();
     var wrongReleaseDetail = (await EngagementProgressQuery.GetAsync(db, actor, f.EngagementId)).Value!;
     Assert.Contains("No issued release of the exact approved financial package exists for this period.", wrongReleaseDetail.Gates);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task EntityReportingProgressUsesExactPackageContextAndAuthorizedReadersSeeReadinessOnly()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var users = new Dictionary<string, AppUser>
+    {
+      ["associate"] = PbcSeed.User(f.FirmId, "Staff"),
+      ["senior"] = PbcSeed.User(f.FirmId, "Staff"),
+      ["partner"] = PbcSeed.User(f.FirmId, "Staff")
+    };
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.Users.AddRange(users.Values);
+      await seed.SaveChangesAsync();
+    }
+    var bundleScope = new CompletionBundleScope(f.FirmId, f.ClientId, f.EngagementId, users);
+    var (packageId, _) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, bundleScope);
+    var staff = PbcSeed.Actor(f.Staff, "Staff");
+    var preparer = bundleScope.A("associate", "AccountingPreparer");
+    var partner = bundleScope.A("partner", "Partner");
+    Guid periodId, statutoryProfileId, cashProfileId;
+    var now = DateTimeOffset.UtcNow;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var package = await db.FinancialPackages.SingleAsync(x => x.Id == packageId);
+      periodId = package.PeriodId!.Value;
+      var engagement = await db.Engagements.SingleAsync(x => x.FirmId == f.FirmId && x.Id == f.EngagementId);
+      engagement.ServiceRoute = "AccountingOnly";
+      engagement.PeriodStart = "2026-01-01";
+      engagement.PeriodEnd = "2026-12-31";
+      var period = await db.ClientReportingPeriods.SingleAsync(x => x.Id == periodId);
+      period.Status = AccountingWorkflowStates.Active;
+      period.ClosedByUserId = null;
+      period.ClosedAt = null;
+
+      statutoryProfileId = AddApprovedEntityProfile(db, f, "STATUTORY", package.Framework, package.Currency, now);
+      var cashPeriodId = Guid.CreateVersion7();
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = cashPeriodId, FirmId = f.FirmId, ClientId = f.ClientId, PeriodCode = "BUNDLE-CASH-2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "CASH", Currency = package.Currency, Status = AccountingWorkflowStates.Closed,
+        ClosedByUserId = users["partner"].Id, ClosedAt = now,
+        CreatedByUserId = users["associate"].Id, CreatedAt = now
+      });
+      cashProfileId = AddApprovedEntityProfile(db, f, "CASH", package.Framework, package.Currency, now);
+      db.Engagements.Single(x => x.Id == f.EngagementId).ServiceProfileId = statutoryProfileId.ToString("D");
+
+      var digest = AuditSphereOps.Domain.Shared.Hashing.Sha256Hex("foreign-cash-context-package");
+      var datasetId = Guid.CreateVersion7();
+      var planId = Guid.CreateVersion7();
+      var mappingId = Guid.CreateVersion7();
+      var snapshotId = Guid.CreateVersion7();
+      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+      {
+        Id = datasetId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        PeriodId = cashPeriodId, Basis = "CASH", SourceKind = "Raw", Revision = 1,
+        LegalEntityKey = f.ClientId.ToString("D"), Currency = package.Currency,
+        RawFileSha256Hex = digest, NormalizedDatasetDigest = digest, Sha256Hex = digest,
+        Balanced = true, ValidationStatus = "Accepted", ImportState = TrialBalanceImportStates.Sealed,
+        ImportedAt = now, ImportedByUserId = users["associate"].Id
+      });
+      db.AdjustmentPlans.Add(new AdjustmentPlan
+      {
+        Id = planId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        BaseDatasetId = datasetId, Status = "Finalized", ResultHash = digest,
+        CreatedByUserId = users["associate"].Id, CreatedAt = now
+      });
+      db.MappingVersions.Add(new MappingVersion
+      {
+        Id = mappingId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        DatasetId = datasetId, Version = 1, Generation = 1, TaxonomyVersion = "test-taxonomy-v1",
+        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Status = AccountingPackageStates.MappingApproved,
+        CreatedByUserId = users["associate"].Id, ApprovedByUserId = users["senior"].Id,
+        ApprovedAt = now, CreatedAt = now
+      });
+      db.AdjustedTrialBalanceSnapshots.Add(new AdjustedTrialBalanceSnapshot
+      {
+        Id = snapshotId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        BaseDatasetId = datasetId, AdjustmentPlanId = planId, Currency = package.Currency,
+        ResultHash = digest, CreatedByUserId = users["associate"].Id, CreatedAt = now
+      });
+      db.FinancialPackages.Add(new FinancialPackage
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        AdjustedDatasetId = snapshotId, MappingVersionId = mappingId, AdjustmentPlanId = planId,
+        PeriodId = cashPeriodId, Basis = "CASH", Framework = package.Framework,
+        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", TaxonomyVersion = "test-taxonomy-v1",
+        TemplateVersion = "test-template-v1", CalculationEngineVersion = "test-engine-v1",
+        CalculationHash = digest, Currency = package.Currency, Status = AccountingPackageStates.PackageReviewRequired,
+        CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+
+      var readiness = await PeriodCloseReadinessQuery.GetReadinessAsync(db, preparer, periodId);
+      Assert.True(readiness.Succeeded, readiness.Message);
+      Assert.True(readiness.Value!.CanClose, string.Join("; ", readiness.Value.Blockers.Select(x => x.Code)));
+      Assert.Equal(1, readiness.Value.PackageCount);
+
+      var deniedClose = await ClientAccountingService.ClosePeriodAsync(db, preparer, periodId, "Readiness is not close authority.");
+      Assert.False(deniedClose.Succeeded);
+      Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ScopeDenied, deniedClose.ErrorCode);
+
+      period.Status = AccountingWorkflowStates.Closed;
+      period.ClosedByUserId = users["partner"].Id;
+      period.ClosedAt = now;
+      await db.SaveChangesAsync();
+
+      var exact = await EngagementProgressQuery.GetAsync(db, staff, f.EngagementId);
+      Assert.True(exact.Succeeded, exact.Message);
+      Assert.False(exact.Value!.GateOpen);
+      Assert.Empty(exact.Value.Gates);
+      Assert.DoesNotContain(packageId.ToString("D"), string.Join(" ", exact.Value.Gates));
+
+      var wrongContext = await db.Engagements.SingleAsync(x => x.Id == f.EngagementId);
+      wrongContext.ServiceProfileId = cashProfileId.ToString("D");
+      await db.SaveChangesAsync();
+      var cash = await EngagementProgressQuery.GetAsync(db, staff, f.EngagementId);
+      Assert.True(cash.Succeeded, cash.Message);
+      Assert.True(cash.Value!.GateOpen);
+      Assert.Contains("Every financial package for the period needs current management, accounting, and partner approval.", cash.Value.Gates);
+      Assert.Contains("No issued release of the exact approved financial package exists for this period.", cash.Value.Gates);
+
+      wrongContext.ServiceProfileId = statutoryProfileId.ToString("D");
+      await db.SaveChangesAsync();
+      var unauthorizedReview = await FinancialPackageReviewService.RecordAsync(db, staff,
+        new(packageId, FinancialPackageReviewStages.PartnerApproval, FinancialPackageReviewDecisions.Rejected,
+          FinancialPackageReviewEvidenceModes.SignedIn, "staff-review-attempt", "A progress reader cannot record package approval."));
+      Assert.False(unauthorizedReview.Succeeded);
+      Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ScopeDenied, unauthorizedReview.ErrorCode);
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var detail = await EngagementProgressQuery.GetAsync(verify, staff, f.EngagementId);
+    var client = await EngagementProgressQuery.ForClientAsync(verify, staff, f.ClientId);
+    var portfolio = await PortfolioQuery.ProgressAsync(verify, staff);
+    Assert.True(detail.Succeeded, detail.Message);
+    Assert.True(client.Succeeded, client.Message);
+    Assert.True(portfolio.Succeeded, portfolio.Message);
+    Assert.Equal(detail.Value!.GateOpen, Assert.Single(client.Value!.Items, x => x.EngagementId == f.EngagementId).GateOpen);
+    Assert.Equal(detail.Value.GateOpen, Assert.Single(portfolio.Value!.Items, x => x.EngagementId == f.EngagementId).GateOpen);
+  }
+
+  private static Guid AddApprovedEntityProfile(AuditSphereDbContext db, PbcSeed.Fixture f,
+    string basis, string framework, string currency, DateTimeOffset now)
+  {
+    var id = Guid.CreateVersion7();
+    db.AccountingCapabilityProfiles.Add(new AccountingCapabilityProfile
+    {
+      Id = id, FirmId = f.FirmId, ClientId = f.ClientId, ServiceRoute = "AccountingOnly",
+      ServiceKind = AccountingCapabilityServiceKinds.EntityReporting, Framework = framework,
+      AccountingMethod = basis, ReportingCurrency = currency, Status = AccountingWorkflowStates.Approved,
+      CreatedAt = now
+    });
+    foreach (var stage in new[] { AccountingCapabilityAcceptanceStages.Released, AccountingCapabilityAcceptanceStages.MethodOwnerApproval })
+      db.AccountingCapabilityAcceptances.Add(new AccountingCapabilityAcceptance
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, CapabilityProfileId = id,
+        Stage = stage, Status = AccountingWorkflowStates.Approved,
+        EvidenceReference = "APPROVED-PROFILE-" + basis, DecidedByUserId = f.Admin.Id,
+        DecidedAt = now, CreatedAt = now
+      });
+    return id;
   }
 
   [Theory]

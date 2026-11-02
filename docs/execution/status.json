@@ -20,9 +20,9 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "82128c54e4f751be66efe68a017f952dd45997a9",
+  "headCommit": "26013476c412ae4373460207a5328d1dfb107d4b",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
-  "remoteHeadVerified": false,
+  "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
   "productionEnabled": false,
   "verifiedAt": "2026-10-17T10:13:43Z",
@@ -1113,6 +1113,14 @@
       "evidenceSha256": "2b1171547194d5325a091f6d6b7ff510478833835a9883a90f7c76b4ee77e6bb",
       "candidateCommitSha": "d306f1b066c991cb6d873816b6e303027be563dc",
       "publication": "Local master commit; remote push pending."
+    },
+    "practiceManagementAudit20261102": {
+      "attachmentSha256": "e4f9d65743f402502c172ce6d1d9b6ce6e9974b3af96a92b3fa71db227a49a15",
+      "sourceBaseSha": "26013476c412ae4373460207a5328d1dfb107d4b",
+      "focusedResult": "8 PM pass; compatibility 1/1; finance scope/revocation 4/4.",
+      "scope": "PM-01..06 only; exact-candidate CI, browser and live acceptance open.",
+      "evidence": ".local/autonomous/evidence/practice-management-audit-20261102/final-candidate-focused-review.json",
+      "financeResponseBoundaryEvidence": ".local/autonomous/evidence/practice-management-audit-20261102/finance-scope-compatibility-review.json"
     }
   },
   "externalGates": [
@@ -1625,15 +1633,16 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceSha": "82128c54e4f751be66efe68a017f952dd45997a9",
-    "fastRunId": 41414362455,
-    "fastStatus": "PASS; all three actual checkouts",
-    "imagesRunId": 41414362389,
+    "sourceSha": "26013476c412ae4373460207a5328d1dfb107d4b",
+    "fastRunId": 41423498612,
+    "fastStatus": "PASS",
+    "imagesRunId": 41431816507,
     "imagesStatus": "PASS; actual checkouts and manifest pins retained",
-    "fullStatus": "NOT_DISPATCHED",
-    "localCandidate": "Task-ordering journey opens row action disclosures and checks non-attribution of uncertain cancellation; focused test passed on predecessor source.",
-    "evidence": ".local/autonomous/evidence/practice-ordering-disclosure-20261102/recovery-b17780eb/paired-review.json",
-    "aggregatePass": false
+    "fullStatus": "FAIL; API and E2E on base 260; API cause unknown",
+    "localCandidate": "PM-01..06 candidate on base 260; exact-candidate CI pending.",
+    "evidence": ".local/autonomous/evidence/ci-26013476-current-20261102/full-terminal-review.json",
+    "aggregatePass": false,
+    "fullRunId": 41439903657
   },
   "uxU03ContextSwitcher": {
     "status": "PARTIAL",
@@ -1644,5 +1653,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-02T05:49:59Z"
+  "updatedAtUtc": "2026-11-02T17:45:18Z"
 }

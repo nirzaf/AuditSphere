@@ -207,7 +207,11 @@ public static class EngagementProgressQuery
       join candidate in db.ReleaseCandidates.AsNoTracking()
         on new { release.FirmId, Id = release.ReleaseCandidateId } equals new { candidate.FirmId, candidate.Id }
       where release.FirmId == f && ids.Contains(release.EngagementId)
-      select new { release.EngagementId, release.PackageId, candidate.TargetKind }).ToListAsync(ct);
+      select new
+      {
+        release.EngagementId, release.PackageId, release.PackageRevision,
+        candidate.TargetKind, candidate.TargetId, candidate.TargetRevision
+      }).ToListAsync(ct);
     var released = releases.Select(x => x.EngagementId).Distinct().ToHashSet();
     var nonAuditEngagements = engagements.Where(e => !LifecycleRoutes.Contains(e.ServiceRoute, StringComparer.Ordinal)).ToList();
     var nonAuditIds = nonAuditEngagements.Select(e => e.Id).Distinct().ToArray();
@@ -217,6 +221,7 @@ public static class EngagementProgressQuery
     var nonAuditPeriodEnds = nonAuditEngagements.Select(e => e.PeriodEnd).Distinct().ToArray();
     var nonAuditStartDates = nonAuditPeriodStarts.Select(s => DateOnly.TryParse(s, CultureInfo.InvariantCulture, out var d) ? d : default).Distinct().ToArray();
     var nonAuditEndDates = nonAuditPeriodEnds.Select(s => DateOnly.TryParse(s, CultureInfo.InvariantCulture, out var d) ? d : default).Distinct().ToArray();
+    var accountingDb = db as IClientAccountingDbContext;
     var approvedProfiles = nonAuditEngagements.Count == 0 ? [] : await db.AccountingCapabilityProfiles.AsNoTracking()
       .Where(profile => profile.FirmId == f && profile.ClientId.HasValue &&
         nonAuditClientIds.Contains(profile.ClientId.Value) && nonAuditRoutes.Contains(profile.ServiceRoute) &&
@@ -230,10 +235,18 @@ public static class EngagementProgressQuery
       .Where(p => p.FirmId == f && nonAuditClientIds.Contains(p.ClientId) &&
         nonAuditStartDates.Contains(p.StartDate) && nonAuditEndDates.Contains(p.EndDate))
       .ToListAsync(ct);
-    var packages = nonAuditEngagements.Count == 0 ? [] : await db.FinancialPackages.AsNoTracking()
+    var packageQuery = db.FinancialPackages.AsNoTracking()
       .Where(p => p.FirmId == f && nonAuditIds.Contains(p.EngagementId) &&
-        nonAuditPeriodStarts.Contains(p.PeriodStart) && nonAuditPeriodEnds.Contains(p.PeriodEnd))
-      .ToListAsync(ct);
+        nonAuditPeriodStarts.Contains(p.PeriodStart) && nonAuditPeriodEnds.Contains(p.PeriodEnd));
+    var packages = nonAuditEngagements.Count == 0 ? [] : accountingDb is null
+      ? await packageQuery.Select(p => new { Package = p, BookContextIsValid = !p.BookId.HasValue }).ToListAsync(ct)
+      : await packageQuery.Select(p => new
+      {
+        Package = p,
+        BookContextIsValid = !p.BookId.HasValue || accountingDb.ClientReportingBooks.Any(book =>
+          book.Id == p.BookId.Value && book.FirmId == p.FirmId && book.ClientId == p.ClientId &&
+          book.PeriodId == p.PeriodId && book.Basis == p.Basis && book.Currency == p.Currency)
+      }).ToListAsync(ct);
     var now = DateTimeOffset.UtcNow;
 
     var views = new List<ProgressSnapshot>();
@@ -326,13 +339,28 @@ public static class EngagementProgressQuery
         {
           disclosure = $"Progress reflects the approved {profile.ServiceKind} profile ({profile.Framework}), period close, and released deliverables.";
 
-          DateOnly.TryParse(engagement.PeriodStart, CultureInfo.InvariantCulture, out var pStart);
-          DateOnly.TryParse(engagement.PeriodEnd, CultureInfo.InvariantCulture, out var pEnd);
-          var candidatePeriods = clientPeriods.Where(p => p.ClientId == engagement.PracticeClientId && p.StartDate == pStart && p.EndDate == pEnd).ToList();
+          var entityReporting = profile.ServiceKind == AccountingCapabilityServiceKinds.EntityReporting;
+          var profileContextIsPinned = !entityReporting ||
+            (!string.IsNullOrWhiteSpace(profile.Framework) &&
+             !string.IsNullOrWhiteSpace(profile.AccountingMethod) &&
+             !string.IsNullOrWhiteSpace(profile.ReportingCurrency));
+          if (entityReporting && !profileContextIsPinned)
+            gates.Add("The approved entity-reporting profile does not pin framework, accounting basis, and reporting currency; exact completion context is unavailable.");
+
+          var hasStartDate = DateOnly.TryParse(engagement.PeriodStart, CultureInfo.InvariantCulture, out var pStart);
+          var hasEndDate = DateOnly.TryParse(engagement.PeriodEnd, CultureInfo.InvariantCulture, out var pEnd);
+          if (!hasStartDate || !hasEndDate)
+            gates.Add("The engagement reporting dates are invalid, so an exact reporting context cannot be resolved.");
+
+          var candidatePeriods = hasStartDate && hasEndDate
+            ? clientPeriods.Where(p => p.ClientId == engagement.PracticeClientId && p.StartDate == pStart && p.EndDate == pEnd).ToList()
+            : [];
           if (!string.IsNullOrWhiteSpace(profile.AccountingMethod))
           {
             candidatePeriods = candidatePeriods.Where(p => string.Equals(p.Basis, profile.AccountingMethod, StringComparison.OrdinalIgnoreCase)).ToList();
           }
+          if (entityReporting && !string.IsNullOrWhiteSpace(profile.ReportingCurrency))
+            candidatePeriods = candidatePeriods.Where(p => string.Equals(p.Currency, profile.ReportingCurrency, StringComparison.OrdinalIgnoreCase)).ToList();
 
           if (candidatePeriods.Count > 1)
           {
@@ -342,15 +370,37 @@ public static class EngagementProgressQuery
           if (period is null || period.Status != AccountingWorkflowStates.Closed)
             gates.Add("The reporting period is not closed.");
 
-          var clientPackages = packages.Where(x => x.EngagementId == engagement.Id &&
-            x.PeriodStart == engagement.PeriodStart && x.PeriodEnd == engagement.PeriodEnd).ToList();
-          if (profile.ServiceKind == AccountingCapabilityServiceKinds.EntityReporting && clientPackages.Count == 0)
+          var dateMatchingPackages = packages.Where(x => x.Package.EngagementId == engagement.Id &&
+            x.Package.PeriodStart == engagement.PeriodStart && x.Package.PeriodEnd == engagement.PeriodEnd).ToList();
+          var unpinnedPackages = entityReporting
+            ? dateMatchingPackages.Where(x => !x.Package.PeriodId.HasValue).ToList()
+            : [];
+          if (unpinnedPackages.Count > 0)
+            gates.Add("A date-matching financial package lacks exact reporting-period identity; its association must be reviewed before completion.");
+
+          var clientPackages = entityReporting
+            ? profileContextIsPinned && period is not null
+              ? dateMatchingPackages.Where(x => x.Package.PeriodId == period.Id &&
+                  string.Equals(x.Package.Basis, period.Basis, StringComparison.OrdinalIgnoreCase) &&
+                  string.Equals(x.Package.Framework, profile.Framework, StringComparison.OrdinalIgnoreCase) &&
+                  string.Equals(x.Package.Currency, period.Currency, StringComparison.OrdinalIgnoreCase) &&
+                  string.Equals(x.Package.Currency, profile.ReportingCurrency, StringComparison.OrdinalIgnoreCase) &&
+                  x.BookContextIsValid).ToList()
+              : []
+            : dateMatchingPackages;
+
+          if (entityReporting && clientPackages.Count == 0)
             gates.Add("An approved financial package is required before completion.");
-          else if (db is IClientAccountingDbContext clientDb)
+          else if (entityReporting && accountingDb is null)
+            gates.Add("Financial package approval evidence is unavailable in this reporting context.");
+          else if (clientPackages.Count > 0 && accountingDb is not null)
           {
             foreach (var pkg in clientPackages)
             {
-              var packageReview = await FinancialPackageReviewService.RequireCurrentAsync(clientDb, actor, pkg.Id, requirePartner: true, ct);
+              // BuildAsync is called only for an engagement already authorized by the progress reader.
+              // This projection exposes a generic readiness fact, not package data or review detail.
+              var packageReview = await FinancialPackageReviewService.RequireCurrentEvidenceAsync(
+                accountingDb, pkg.Package, requirePartner: true, ct);
               if (!packageReview.Succeeded)
               {
                 gates.Add("Every financial package for the period needs current management, accounting, and partner approval.");
@@ -359,10 +409,11 @@ public static class EngagementProgressQuery
             }
           }
 
-          var entityReporting = profile.ServiceKind == AccountingCapabilityServiceKinds.EntityReporting;
           var hasExactRelease = releases.Any(r => r.EngagementId == engagement.Id &&
             (entityReporting
-              ? r.TargetKind == ReleaseTargetKinds.FinancialPackage && clientPackages.Any(p => p.Id == r.PackageId)
+              ? r.TargetKind == ReleaseTargetKinds.FinancialPackage &&
+                clientPackages.Any(p => p.Package.Id == r.PackageId && r.TargetId == p.Package.Id &&
+                  r.PackageRevision == p.Package.Revision && r.TargetRevision == p.Package.Revision)
               : r.TargetKind is ReleaseTargetKinds.Workpaper or ReleaseTargetKinds.FinancialPackage));
           if (!hasExactRelease)
             gates.Add(entityReporting

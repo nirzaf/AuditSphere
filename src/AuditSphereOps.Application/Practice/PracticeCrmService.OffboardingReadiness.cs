@@ -69,14 +69,21 @@ public static partial class PracticeCrmService
 
     // The receivables report owns balance arithmetic; closeout composes it inside its locked snapshot.
     var finance = await FinanceSectionAsync(db, actor, clientId, lockedSnapshot, ct);
+    var feeMilestones = await FeeMilestoneSectionAsync(db, actor, clientId, ct);
     var work = await WorkSectionAsync(db, actor, clientId, ct);
     var access = await AccessSectionAsync(db, actor, clientId, ct);
     var retention = await RetentionSectionAsync(db, actor, clientId, ct);
-    var sections = new[] { work, finance, access, retention };
 
     // Revoked authority after the sections were read must not leak their contents.
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, gate, ct)).Succeeded)
       return CommandResult<ClientOffboardingReadiness>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!await CanReadAsync(db, actor, new AuthorizationRequest(actor.FirmId,
+          RequiredRoles: OffboardingFinanceRoles, InternalOnly: true, RequireFirmWide: true), ct))
+      finance = UnavailableFinanceSection("Your access does not include firm finance for this client.");
+    if (!await CanReadAsync(db, actor, new AuthorizationRequest(actor.FirmId, ClientId: clientId,
+          RequiredRoles: OffboardingFinanceRoles, InternalOnly: true), ct))
+      feeMilestones = UnavailableFeeMilestonesSection("Your access does not include fee-agreement finance for this client.");
+    var sections = new[] { work, finance, feeMilestones, access, retention };
 
     var readiness = new ClientOffboardingReadiness(
       clientId, latest?.EventKind == ClientLifecycleEventKinds.Archived,
@@ -84,7 +91,10 @@ public static partial class PracticeCrmService
       Aggregate(sections.Select(s => s.State)), sections,
       [
         "Findings cover only the listed items. NO_FINDINGS is not evidence that offboarding is complete.",
-        "Unallocated cash, unbilled approved time, fee-agreement milestones and Microsoft 365 / SharePoint / Entra access are not assessed here.",
+        "Receipt balances are recorded receipts less allocation history and approved reversals; pending reversals do not reduce applied cash, and currencies remain separate.",
+        "Approved time is assessed only within the supported 366-day and 10,000-entry limits. Standard charge-out values are not recognized WIP, revenue, collectible debt or billing authorization.",
+        "Planned fee milestones are not posted receivables. Milestone observations are separate from invoice ageing and must not be added to its balances.",
+        "Microsoft 365 / SharePoint / Entra access is not assessed here.",
         "This assessment changes nothing; archive remains a separate profile marker."
       ], string.Empty);
     var digestPayload = JsonSerializer.Serialize(new
@@ -122,6 +132,17 @@ public static partial class PracticeCrmService
 
   private static ClientOffboardingSection Section(string key, string title, string? route, params ClientOffboardingItem[] items) =>
     new(key, title, Aggregate(items.Select(i => i.State)), route, items);
+
+  private static ClientOffboardingSection UnavailableFinanceSection(string reason) =>
+    Section("FINANCE", "Money", null,
+      Unavailable("OUTSTANDING_INVOICES", "Posted invoices with an outstanding balance", reason),
+      Unavailable("UNPOSTED_INVOICES", "Invoices not yet posted", reason),
+      Unavailable("UNAPPLIED_RECEIPTS", "Recorded receipts with unapplied value", reason),
+      Unavailable("APPROVED_UNBILLED_TIME", "Approved billable time not yet invoiced", reason));
+
+  private static ClientOffboardingSection UnavailableFeeMilestonesSection(string reason) =>
+    Section("FEE_MILESTONES", "Fee agreement", null,
+      Unavailable("FEE_MILESTONES", "Unresolved fee-agreement milestones", reason));
 
   private static async Task<bool> CanReadAsync(IAuditSphereDbContext db, ActorContext actor, AuthorizationRequest request, CancellationToken ct) =>
     (await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded;
@@ -164,10 +185,14 @@ public static partial class PracticeCrmService
       ? await FirmReceivablesAgingQuery.GetForLockedSnapshotAsync(db, actor, asOf, ct)
       : await FirmReceivablesAgingQuery.GetAsync(db, actor, asOf, ct);
     if (!aging.Succeeded || aging.Value is null)
-      return Section("FINANCE", "Money", null,
-        Unavailable("OUTSTANDING_INVOICES", "Posted invoices with an outstanding balance",
-          aging.ErrorCode == ErrorCodes.ScopeDenied ? reason : "The receivables balance could not be established."),
-        Unavailable("UNPOSTED_INVOICES", "Invoices not yet posted", reason));
+      return aging.ErrorCode == ErrorCodes.ScopeDenied
+        ? UnavailableFinanceSection(reason)
+        : Section("FINANCE", "Money", null,
+          Unavailable("OUTSTANDING_INVOICES", "Posted invoices with an outstanding balance",
+            "The receivables balance could not be established."),
+          Unavailable("UNPOSTED_INVOICES", "Invoices not yet posted", reason),
+          Unavailable("UNAPPLIED_RECEIPTS", "Recorded receipts with unapplied value", reason),
+          Unavailable("APPROVED_UNBILLED_TIME", "Approved billable time not yet invoiced", reason));
 
     var owed = aging.Value.Rows.Where(r => r.ClientId == clientId && r.Outstanding > 0m).ToArray();
     var detail = owed.Length == 0 ? null : string.Join("; ", owed.GroupBy(r => r.Currency).OrderBy(g => g.Key)
@@ -178,9 +203,14 @@ public static partial class PracticeCrmService
       where invoice.FirmId == actor.FirmId && account.PracticeClientId == clientId &&
         OffboardingUnpostedInvoiceStates.Contains(invoice.Status)
       select invoice.Id).CountAsync(ct);
+    var receipts = await UnallocatedReceiptsItemAsync(db, actor, clientId, ct);
+    var approvedTime = await ApprovedUnbilledTimeItemAsync(db, actor, clientId, lockedSnapshot, ct);
+    if (!await CanReadAsync(db, actor, new AuthorizationRequest(actor.FirmId,
+          RequiredRoles: OffboardingFinanceRoles, InternalOnly: true, RequireFirmWide: true), ct))
+      return UnavailableFinanceSection(reason);
     return Section("FINANCE", "Money", "/app/finance/receivables-aging",
       Counted("OUTSTANDING_INVOICES", "Posted invoices with an outstanding balance", owed.Length, detail),
-      Counted("UNPOSTED_INVOICES", "Invoices not yet posted", unposted));
+      Counted("UNPOSTED_INVOICES", "Invoices not yet posted", unposted), receipts, approvedTime);
   }
 
   private static async Task<ClientOffboardingSection> AccessSectionAsync(

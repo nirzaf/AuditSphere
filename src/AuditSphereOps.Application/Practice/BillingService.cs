@@ -488,15 +488,30 @@ public static class BillingService
   public static async Task<decimal> GetNetAppliedToReceiptAsync(
     IAuditSphereDbContext db, Guid firmId, Guid receiptId, CancellationToken ct = default)
   {
-    var applied = await db.ReceiptAllocations.AsNoTracking().Where(x => x.FirmId == firmId && x.ReceiptId == receiptId)
-      .SumAsync(x => (decimal?)x.Amount, ct) ?? 0m;
+    var balances = await GetNetAppliedToReceiptsAsync(db, firmId, [receiptId], ct);
+    return balances.GetValueOrDefault(receiptId);
+  }
+
+  /// <summary>Batch form of the authoritative receipt-allocation calculation for snapshot reports.</summary>
+  internal static async Task<IReadOnlyDictionary<Guid, decimal>> GetNetAppliedToReceiptsAsync(
+    IAuditSphereDbContext db, Guid firmId, IReadOnlyCollection<Guid> receiptIds, CancellationToken ct = default)
+  {
+    var ids = receiptIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+    if (ids.Length == 0) return new Dictionary<Guid, decimal>();
+    var applied = await db.ReceiptAllocations.AsNoTracking().Where(x =>
+        x.FirmId == firmId && ids.Contains(x.ReceiptId))
+      .GroupBy(x => x.ReceiptId).Select(group => new { ReceiptId = group.Key, Amount = group.Sum(x => x.Amount) })
+      .ToDictionaryAsync(x => x.ReceiptId, x => x.Amount, ct);
     var reversed = await (from reversal in db.ReceiptAllocationReversals.AsNoTracking()
       join allocation in db.ReceiptAllocations.AsNoTracking()
         on new { reversal.FirmId, reversal.ReceiptAllocationId } equals new { allocation.FirmId, ReceiptAllocationId = allocation.Id }
-      where reversal.FirmId == firmId && allocation.ReceiptId == receiptId &&
+      where reversal.FirmId == firmId && ids.Contains(allocation.ReceiptId) &&
         reversal.Status == ReceiptAllocationReversalStates.Approved
-      select (decimal?)reversal.Amount).SumAsync(ct) ?? 0m;
-    return MoneyPolicy.Normalize(applied - reversed);
+      group reversal by allocation.ReceiptId into grouped
+      select new { ReceiptId = grouped.Key, Amount = grouped.Sum(x => x.Amount) })
+      .ToDictionaryAsync(x => x.ReceiptId, x => x.Amount, ct);
+    return ids.ToDictionary(id => id, id => MoneyPolicy.Normalize(
+      applied.GetValueOrDefault(id) - reversed.GetValueOrDefault(id)));
   }
 
   /// <summary>Receipt allocations less independently approved reversals; pending requests do not affect invoice balance.</summary>

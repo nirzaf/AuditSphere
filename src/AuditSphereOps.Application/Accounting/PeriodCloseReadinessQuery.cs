@@ -90,15 +90,27 @@ public static class PeriodCloseReadinessQuery
 
     var periodStart = period.StartDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     var periodEnd = period.EndDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var unpinnedLegacyPackageCount = await db.FinancialPackages.AsNoTracking().CountAsync(x =>
+      x.FirmId == actor.FirmId && x.ClientId == period.ClientId && x.PeriodId == null &&
+      x.PeriodStart == periodStart && x.PeriodEnd == periodEnd, ct);
     var packageIds = await db.FinancialPackages.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ClientId == period.ClientId &&
-        x.PeriodStart == periodStart && x.PeriodEnd == periodEnd)
+        x.PeriodId == period.Id)
       .Select(x => x.Id).ToListAsync(ct);
     if (period.Status != AccountingWorkflowStates.Closed)
     {
+      if (unpinnedLegacyPackageCount > 0)
+        blockers.Add(new PeriodCloseBlocker("packages.reporting-period-unpinned",
+          "A date-matching financial package has no reporting-period identity; its association must be reviewed before close."));
       foreach (var packageId in packageIds)
       {
-        var packageReview = await FinancialPackageReviewService.RequireCurrentAsync(db, actor, packageId, requirePartner: true, ct);
+        var package = await db.FinancialPackages.AsNoTracking().SingleAsync(x =>
+          x.Id == packageId && x.FirmId == actor.FirmId && x.ClientId == period.ClientId && x.PeriodId == period.Id, ct);
+        // The period-read authorization above grants a minimal readiness projection to AccountingPreparers.
+        // Evaluate evidence only after that scope check; never turn their lack of review-command authority
+        // into a false claim that the package approvals are missing.
+        var packageReview = await FinancialPackageReviewService.RequireCurrentEvidenceAsync(
+          db, package, requirePartner: true, ct);
         if (!packageReview.Succeeded)
         {
           blockers.Add(new PeriodCloseBlocker("packages.not-current",
@@ -118,6 +130,6 @@ public static class PeriodCloseReadinessQuery
       return CommandResult<PeriodCloseReadinessReport>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<PeriodCloseReadinessReport>.Ok(new PeriodCloseReadinessReport(
       period.Id, period.PeriodCode, period.Status,
-      CanClose: blockers.Count == 0, packageIds.Count, blockers, canDecideClose, canReopen));
+      CanClose: blockers.Count == 0, packageIds.Count + unpinnedLegacyPackageCount, blockers, canDecideClose, canReopen));
   }
 }

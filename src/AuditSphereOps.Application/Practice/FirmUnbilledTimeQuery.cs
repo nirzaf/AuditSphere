@@ -6,6 +6,7 @@ using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace AuditSphereOps.Application.Practice;
 
@@ -77,7 +78,11 @@ public static class FirmUnbilledTimeQuery
     var reportRows = new List<FirmUnbilledTimeRow>();
     List<FirmUnbilledTimeSubtotal> subtotals;
     int totalEntries;
-    await using (var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
+    // Compose inside a caller-owned RepeatableRead snapshot for closeout assessments;
+    // ordinary endpoint reads still own and commit their independent snapshot.
+    await using (var transaction = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct)
+      : null)
     {
       if (request.ClientId is { } clientFilter &&
           !await db.PracticeClients.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.Id == clientFilter, ct))
@@ -253,7 +258,7 @@ public static class FirmUnbilledTimeQuery
 
       totalEntries = reportRows.Count;
       subtotals = BuildSubtotals(reportRows);
-      await transaction.CommitAsync(ct);
+      if (transaction is not null) await transaction.CommitAsync(ct);
     }
 
     auth = await AuthorizeAsync(db, actor, ct);
@@ -270,6 +275,17 @@ public static class FirmUnbilledTimeQuery
       totalEntries.ToString(CultureInfo.InvariantCulture), request.Page, request.PageSize,
       skip + pageRows.Length < totalEntries, pageRows, subtotals, BasisNoticeText);
     return CommandResult<FirmUnbilledTimeReport>.Ok(report);
+  }
+
+  internal static async Task<CommandResult<FirmUnbilledTimeReport>> GetForLockedSnapshotAsync(
+    IAuditSphereDbContext db, ActorContext actor, FirmUnbilledTimeRequest request, CancellationToken ct = default)
+  {
+    var transaction = db.Database.CurrentTransaction;
+    if (transaction is null || transaction.GetDbTransaction().IsolationLevel is not
+        (IsolationLevel.RepeatableRead or IsolationLevel.Serializable))
+      return CommandResult<FirmUnbilledTimeReport>.Fail("wip.snapshot-required",
+        "Approved-time classification requires the offboarding repeatable-read snapshot.");
+    return await GetAsync(db, actor, request, ct);
   }
 
   private static bool IsValid(FirmUnbilledTimeRequest request) => request is not null &&

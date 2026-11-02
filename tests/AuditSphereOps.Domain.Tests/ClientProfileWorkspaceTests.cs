@@ -70,11 +70,14 @@ public sealed class ClientProfileWorkspaceTests
     var partial = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, PbcSeed.Actor(manager, "Manager"), f.ClientId);
     Assert.True(partial.Succeeded, partial.Message);
     Assert.Equal(1, Item(partial.Value!, "OPEN_ENGAGEMENTS").Count);
-    foreach (var key in new[] { "OUTSTANDING_INVOICES", "UNPOSTED_INVOICES", "ACTIVE_GRANTS", "UNVERIFIED_ARCHIVES", "UNRELEASED_LEGAL_HOLDS" })
+    foreach (var key in new[] { "OUTSTANDING_INVOICES", "UNPOSTED_INVOICES", "UNAPPLIED_RECEIPTS",
+        "APPROVED_UNBILLED_TIME", "ACTIVE_GRANTS", "UNVERIFIED_ARCHIVES", "UNRELEASED_LEGAL_HOLDS" })
     {
       Assert.Equal(ClientOffboardingStates.Unknown, Item(partial.Value!, key).State);
       Assert.Null(Item(partial.Value!, key).Count);
     }
+    Assert.Equal(ClientOffboardingStates.Unknown, Item(partial.Value!, "FEE_MILESTONES").State);
+    Assert.Null(Item(partial.Value!, "FEE_MILESTONES").Count);
     Assert.All(partial.Value!.Sections.Where(s => s.State == ClientOffboardingStates.Unknown), s => Assert.Null(s.OwnerRoute));
 
     // Commercial authority alone grants no operational visibility: everything is UNKNOWN, never NO_FINDINGS.
@@ -94,6 +97,402 @@ public sealed class ClientProfileWorkspaceTests
   }
 
   [Fact]
+  public async Task OffboardingReadinessAddsCashTimeAndFeeObservationsWithoutChangingFinancialSources()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var now = DateTimeOffset.UtcNow;
+    var siblingClientId = Guid.NewGuid();
+    db.PracticeClients.Add(new PracticeClient
+      { Id = siblingClientId, FirmId = f.FirmId, LegalName = "Synthetic sibling", CreatedAt = now });
+    var manager = PbcSeed.User(f.FirmId, "Staff");
+    db.Users.Add(manager);
+    db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, manager, "Manager", f.ClientId),
+      PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"));
+    var targetAccount = new BillingAccount
+      { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, Currency = "USD", CreatedAt = now };
+    var siblingAccount = new BillingAccount
+      { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = siblingClientId, Currency = "QAR", CreatedAt = now };
+    db.BillingAccounts.AddRange(targetAccount, siblingAccount);
+
+    var paidInvoice = new Invoice
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = targetAccount.Id,
+      InvoiceNumber = "SYN-OFF-PAID", Currency = "USD", Subtotal = 100.25m, Total = 100.25m,
+      Status = BillingStates.InvoicePosted, PostedAt = now, CreatedAt = now.AddMinutes(-1)
+    };
+    db.Invoices.Add(paidInvoice);
+    var fullReceipt = new Receipt
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = targetAccount.Id,
+      Amount = 100.25m, Currency = "USD", Reference = "SYN-OFF-FULL-PAYMENT",
+      Status = BillingStates.ReceiptRecorded, RecordedByUserId = f.Admin.Id, ReceivedAt = now
+    };
+    var unappliedReceipt = new Receipt
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = targetAccount.Id,
+      Amount = 30m, Currency = "USD", Reference = "SYN-OFF-UNAPPLIED",
+      Status = BillingStates.ReceiptRecorded, RecordedByUserId = f.Admin.Id, ReceivedAt = now.AddSeconds(1)
+    };
+    db.Receipts.AddRange(fullReceipt, unappliedReceipt);
+    db.ReceiptAllocations.Add(new ReceiptAllocation
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ReceiptId = fullReceipt.Id,
+      InvoiceId = paidInvoice.Id, Amount = fullReceipt.Amount, CreatedAt = now
+    });
+
+    var task = new WorkTask
+      { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        Title = "Synthetic approved-time work", CreatedAt = now };
+    db.WorkTasks.Add(task);
+    var rateCard = new RateCardVersion
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, Role = "Staff", Activity = "Offboarding observation",
+      Currency = "USD", RatePerHour = 120m, Status = PracticeTimeStates.RateApproved,
+      CreatedByUserId = f.Admin.Id, ApprovedByUserId = f.Reviewer.Id,
+      ApprovedAt = now, CreatedAt = now
+    };
+    db.RateCardVersions.Add(rateCard);
+    var workDate = DateOnly.FromDateTime(now.UtcDateTime);
+    var unallocatedTime = ApprovedTime(f, task, rateCard, workDate, 0);
+    var reservedTime = ApprovedTime(f, task, rateCard, workDate, 1);
+    var invoicedTime = ApprovedTime(f, task, rateCard, workDate, 2);
+    var predecessor = ApprovedTime(f, task, rateCard, workDate, 3,
+      status: PracticeTimeStates.TimeSuperseded);
+    var correction = ApprovedTime(f, task, rateCard, workDate, 4,
+      revision: 2, supersedesId: predecessor.Id);
+    db.TimeEntries.AddRange(unallocatedTime, reservedTime, invoicedTime, predecessor, correction);
+    AddTimeInvoiceSource(db, f, targetAccount, reservedTime, "SYN-OFF-TIME-DRAFT", BillingStates.InvoiceDraft, now);
+    AddTimeInvoiceSource(db, f, targetAccount, invoicedTime, "SYN-OFF-TIME-POSTED", BillingStates.InvoicePosted, now);
+
+    var plannedFees = AddFeeAgreement(db, f, f.ClientId, f.EngagementId, "SYN-OFF-FEE-PLANNED", 100m, now);
+    var invoicedFees = AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-FEE-INVOICED", 100m, now);
+    var reversedFees = AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-FEE-REVERSED", 100m, now);
+    AddFeeInvoiceSource(db, f, targetAccount, invoicedFees.Advance, "SYN-OFF-FEE-INVOICE", now);
+    var reversedInvoice = AddFeeInvoiceSource(db, f, targetAccount, reversedFees.Advance,
+      "SYN-OFF-FEE-REVERSED-INVOICE", now);
+    var reversedReceipt = new Receipt
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = targetAccount.Id,
+      Amount = 50m, Currency = "USD", Reference = "SYN-OFF-FEE-RECEIPT",
+      Status = BillingStates.ReceiptRecorded, RecordedByUserId = f.Admin.Id, ReceivedAt = now.AddSeconds(2)
+    };
+    db.Receipts.Add(reversedReceipt);
+    var reversedAllocation = new ReceiptAllocation
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ReceiptId = reversedReceipt.Id,
+      InvoiceId = reversedInvoice.Id, Amount = 50m, CreatedAt = now
+    };
+    db.ReceiptAllocations.Add(reversedAllocation);
+    reversedFees.Advance.State = FeeMilestoneStates.Paid;
+    reversedFees.Advance.ReceiptId = reversedReceipt.Id;
+    reversedFees.Advance.PaidAt = now;
+    db.ReceiptAllocationReversals.Add(new ReceiptAllocationReversal
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ReceiptAllocationId = reversedAllocation.Id,
+      Revision = 1, Amount = 10m, Reference = "SYN-OFF-FEE-REVERSAL",
+      Reason = "Synthetic approved correction", Status = ReceiptAllocationReversalStates.Approved,
+      SubmittedByUserId = f.Admin.Id, SubmittedAt = now, ReviewedByUserId = f.Reviewer.Id,
+      ReviewedAt = now.AddSeconds(1), ReviewReason = "Approved synthetic correction"
+    });
+
+    var siblingInvoice = new Invoice
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = siblingAccount.Id,
+      InvoiceNumber = "SYN-OFF-SIBLING", Currency = "QAR", Subtotal = 120m, Total = 120m,
+      Status = BillingStates.InvoicePosted, PostedAt = now, CreatedAt = now
+    };
+    db.Invoices.Add(siblingInvoice);
+    var pendingReceipt = ReceiptFor(f, siblingAccount, "SYN-OFF-PENDING", 50m, now);
+    var approvedReceipt = ReceiptFor(f, siblingAccount, "SYN-OFF-APPROVED", 20m, now.AddSeconds(1));
+    var siblingFullyAllocated = ReceiptFor(f, siblingAccount, "SYN-OFF-SIBLING-FULL", 70m, now.AddSeconds(2));
+    db.Receipts.AddRange(pendingReceipt, approvedReceipt, siblingFullyAllocated);
+    var pendingAllocation = AllocationFor(f, pendingReceipt, siblingInvoice, 20m, now);
+    var approvedAllocation = AllocationFor(f, approvedReceipt, siblingInvoice, 20m, now);
+    var siblingFullAllocation = AllocationFor(f, siblingFullyAllocated, siblingInvoice, 70m, now);
+    db.ReceiptAllocations.AddRange(pendingAllocation, approvedAllocation, siblingFullAllocation);
+    db.ReceiptAllocationReversals.AddRange(
+      new ReceiptAllocationReversal
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ReceiptAllocationId = pendingAllocation.Id,
+        Revision = 1, Amount = 10m, Reference = "SYN-OFF-PENDING-REVERSAL",
+        Reason = "Synthetic pending review", Status = ReceiptAllocationReversalStates.PendingReview,
+        SubmittedByUserId = f.Admin.Id, SubmittedAt = now
+      },
+      new ReceiptAllocationReversal
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ReceiptAllocationId = approvedAllocation.Id,
+        Revision = 1, Amount = 5m, Reference = "SYN-OFF-APPROVED-REVERSAL",
+        Reason = "Synthetic approved correction", Status = ReceiptAllocationReversalStates.Approved,
+        SubmittedByUserId = f.Admin.Id, SubmittedAt = now, ReviewedByUserId = f.Reviewer.Id,
+        ReviewedAt = now.AddSeconds(1), ReviewReason = "Approved synthetic correction"
+      });
+    await db.SaveChangesAsync();
+
+    var sourceCounts = (await db.Invoices.CountAsync(), await db.Receipts.CountAsync(),
+      await db.ReceiptAllocations.CountAsync(), await db.ReceiptAllocationReversals.CountAsync(),
+      await db.TimeEntries.CountAsync(), await db.FeeMilestones.CountAsync(),
+      await db.BillingSourceAllocations.CountAsync());
+    static ClientOffboardingItem Item(ClientOffboardingReadiness readiness, string key) =>
+      readiness.Sections.SelectMany(section => section.Items).Single(item => item.Key == key);
+
+    var admin = PbcSeed.Actor(f.Admin, "Administrator");
+    var result = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, admin, f.ClientId);
+    Assert.True(result.Succeeded, result.Message);
+    var receipts = Item(result.Value!, "UNAPPLIED_RECEIPTS");
+    Assert.Equal(ClientOffboardingStates.ActionRequired, receipts.State);
+    Assert.Equal(2L, receipts.Count);
+    Assert.Equal("USD 2 receipt(s), 40 unapplied", receipts.Detail);
+    var time = Item(result.Value!, "APPROVED_UNBILLED_TIME");
+    Assert.Equal(ClientOffboardingStates.ActionRequired, time.State);
+    Assert.Equal(3L, time.Count);
+    Assert.Contains("UNALLOCATED/FIXED_FEE_REFERENCE 1", time.Detail!);
+    Assert.Contains("RESERVED/FIXED_FEE_REFERENCE 1", time.Detail!);
+    Assert.Contains("REVIEW_REQUIRED/FIXED_FEE_REFERENCE 1", time.Detail!);
+    Assert.Contains("INVOICED 1 (excluded from unbilled handover count)", time.Detail!);
+    var fee = Item(result.Value!, "FEE_MILESTONES");
+    Assert.Equal(ClientOffboardingStates.ActionRequired, fee.State);
+    Assert.Equal(6L, fee.Count);
+    Assert.Contains("PLANNED 4 (200; not posted debt)", fee.Detail!);
+    Assert.Contains("INVOICED 2 (60 owner-calculated outstanding; do not add to invoice ageing)", fee.Detail!);
+    Assert.Equal(FeeMilestoneStates.Paid, await db.FeeMilestones.Where(row => row.Id == reversedFees.Advance.Id)
+      .Select(row => row.State).SingleAsync());
+
+    var restricted = await PracticeCrmService.GetClientOffboardingReadinessAsync(db,
+      PbcSeed.Actor(manager, "Manager"), f.ClientId);
+    Assert.True(restricted.Succeeded, restricted.Message);
+    foreach (var key in new[] { "UNAPPLIED_RECEIPTS", "APPROVED_UNBILLED_TIME", "FEE_MILESTONES" })
+    {
+      var item = Item(restricted.Value!, key);
+      Assert.Equal(ClientOffboardingStates.Unknown, item.State);
+      Assert.Null(item.Count);
+      Assert.Null(restricted.Value!.Sections.Single(section => section.Items.Contains(item)).OwnerRoute);
+      Assert.DoesNotContain("40 unapplied", item.Detail ?? string.Empty);
+    }
+
+    var sibling = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, admin, siblingClientId);
+    Assert.True(sibling.Succeeded, sibling.Message);
+    Assert.Equal("QAR 2 receipt(s), 35 unapplied", Item(sibling.Value!, "UNAPPLIED_RECEIPTS").Detail);
+    Assert.DoesNotContain("QAR", receipts.Detail);
+
+    Assert.Equal(sourceCounts, (await db.Invoices.CountAsync(), await db.Receipts.CountAsync(),
+      await db.ReceiptAllocations.CountAsync(), await db.ReceiptAllocationReversals.CountAsync(),
+      await db.TimeEntries.CountAsync(), await db.FeeMilestones.CountAsync(),
+      await db.BillingSourceAllocations.CountAsync()));
+    Assert.Equal(100.25m, await db.Invoices.Where(invoice => invoice.Id == paidInvoice.Id)
+      .Select(invoice => invoice.Total).SingleAsync());
+    Assert.Equal(FeeMilestoneStates.Paid, await db.FeeMilestones.Where(row => row.Id == reversedFees.Advance.Id)
+      .Select(row => row.State).SingleAsync());
+  }
+
+  [Fact]
+  public async Task OffboardingReadinessAllowsClientScopedFinanceForFeeMilestonesOnly()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var now = DateTimeOffset.UtcNow;
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Admin, "FinanceReviewer", f.ClientId));
+    AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-SCOPED-FEE-READ", 100m, now);
+    await db.SaveChangesAsync();
+
+    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(
+      db, PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
+
+    Assert.True(readiness.Succeeded, readiness.Message);
+    var finance = readiness.Value!.Sections.Single(section => section.Key == "FINANCE");
+    Assert.Equal(ClientOffboardingStates.Unknown, finance.State);
+    Assert.Null(finance.OwnerRoute);
+    Assert.All(finance.Items, item =>
+    {
+      Assert.Equal(ClientOffboardingStates.Unknown, item.State);
+      Assert.Null(item.Count);
+    });
+    var feeSection = readiness.Value.Sections.Single(section => section.Key == "FEE_MILESTONES");
+    var fee = Assert.Single(feeSection.Items);
+    Assert.Equal(ClientOffboardingStates.ActionRequired, fee.State);
+    Assert.Equal(2L, fee.Count);
+    Assert.Equal("/app/finance/fee-agreements", feeSection.OwnerRoute);
+    Assert.Contains("PLANNED 2", fee.Detail!);
+  }
+
+  [Fact]
+  public async Task OffboardingFinanceReadIsUnknownWhenFinanceGrantIsRevokedDuringComposition()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var now = DateTimeOffset.UtcNow;
+    var financeGrant = PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager");
+    var account = new BillingAccount
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId,
+      Currency = "USD", CreatedAt = now
+    };
+    var receipt = new Receipt
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = account.Id,
+      Amount = 123.45m, Currency = "USD", Reference = "SYN-OFF-REVOKED-DURING-READ",
+      Status = BillingStates.ReceiptRecorded, RecordedByUserId = f.Admin.Id, ReceivedAt = now
+    };
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.RoleGrants.Add(financeGrant);
+      seed.BillingAccounts.Add(account);
+      seed.Receipts.Add(receipt);
+      await seed.SaveChangesAsync();
+    }
+
+    var interceptor = new RevokeFinanceBeforeReceiptRead(async () =>
+    {
+      await using var writer = new AuditSphereDbContext(pg.Options);
+      await writer.RoleGrants.Where(grant => grant.Id == financeGrant.Id)
+        .ExecuteUpdateAsync(update => update.SetProperty(grant => grant.RevokedAt, DateTimeOffset.UtcNow));
+    });
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(interceptor).Options;
+    await using var db = new AuditSphereDbContext(options);
+    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(
+      db, PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
+
+    Assert.True(readiness.Succeeded, readiness.Message);
+    Assert.True(interceptor.Fired);
+    var finance = readiness.Value!.Sections.Single(section => section.Key == "FINANCE");
+    foreach (var key in new[] { "OUTSTANDING_INVOICES", "UNPOSTED_INVOICES", "UNAPPLIED_RECEIPTS", "APPROVED_UNBILLED_TIME" })
+    {
+      var item = finance.Items.Single(candidate => candidate.Key == key);
+      Assert.Equal(ClientOffboardingStates.Unknown, item.State);
+      Assert.Null(item.Count);
+      Assert.DoesNotContain("123.45", item.Detail ?? string.Empty);
+    }
+    Assert.Null(finance.OwnerRoute);
+  }
+
+  [Fact]
+  public async Task OffboardingFinanceAndFeeSectionsAreScrubbedWhenGrantIsRevokedAfterComposition()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var now = DateTimeOffset.UtcNow;
+    var financeGrant = PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager");
+    var account = new BillingAccount
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId,
+      Currency = "USD", CreatedAt = now
+    };
+    var receipt = new Receipt
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = account.Id,
+      Amount = 123.45m, Currency = "USD", Reference = "SYN-OFF-LATE-REVOKE",
+      Status = BillingStates.ReceiptRecorded, RecordedByUserId = f.Admin.Id, ReceivedAt = now
+    };
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.RoleGrants.Add(financeGrant);
+      seed.BillingAccounts.Add(account);
+      seed.Receipts.Add(receipt);
+      AddFeeAgreement(seed, f, f.ClientId, null, "SYN-OFF-LATE-REVOKE", 100m, now);
+      await seed.SaveChangesAsync();
+    }
+
+    var interceptor = new RevokeFinanceBeforeArchiveRead(async () =>
+    {
+      await using var writer = new AuditSphereDbContext(pg.Options);
+      await writer.RoleGrants.Where(grant => grant.Id == financeGrant.Id)
+        .ExecuteUpdateAsync(update => update.SetProperty(grant => grant.RevokedAt, DateTimeOffset.UtcNow));
+    });
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(interceptor).Options;
+    await using var db = new AuditSphereDbContext(options);
+    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(
+      db, PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
+
+    Assert.True(readiness.Succeeded, readiness.Message);
+    Assert.True(interceptor.Fired);
+    var finance = readiness.Value!.Sections.Single(section => section.Key == "FINANCE");
+    foreach (var key in new[] { "OUTSTANDING_INVOICES", "UNPOSTED_INVOICES", "UNAPPLIED_RECEIPTS", "APPROVED_UNBILLED_TIME" })
+    {
+      var item = finance.Items.Single(candidate => candidate.Key == key);
+      Assert.Equal(ClientOffboardingStates.Unknown, item.State);
+      Assert.Null(item.Count);
+      Assert.DoesNotContain("123.45", item.Detail ?? string.Empty);
+    }
+    Assert.Null(finance.OwnerRoute);
+    var feeSection = readiness.Value.Sections.Single(section => section.Key == "FEE_MILESTONES");
+    var fee = Assert.Single(feeSection.Items);
+    Assert.Equal(ClientOffboardingStates.Unknown, fee.State);
+    Assert.Null(fee.Count);
+    Assert.Null(feeSection.OwnerRoute);
+    Assert.DoesNotContain("PLANNED", fee.Detail ?? string.Empty);
+  }
+
+  [Fact]
+  public async Task OffboardingReadinessMarksFeeSourceMismatchUnavailableWithoutChangingIt()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var now = DateTimeOffset.UtcNow;
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"));
+    var account = new BillingAccount
+      { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, Currency = "USD", CreatedAt = now };
+    db.BillingAccounts.Add(account);
+    var fees = AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-FEE-MISMATCH", 100m, now);
+    var wrongSourceId = Guid.NewGuid();
+    var invoice = AddFeeInvoiceSource(db, f, account, fees.Advance, "SYN-OFF-FEE-MISMATCH-INVOICE", now,
+      sourceIdOverride: wrongSourceId);
+    await db.SaveChangesAsync();
+    var countsBefore = (await db.Invoices.CountAsync(), await db.InvoiceLines.CountAsync(),
+      await db.BillingSourceAllocations.CountAsync(), await db.FeeMilestones.CountAsync());
+
+    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db,
+      PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    var feeSection = Assert.Single(readiness.Value!.Sections, section => section.Key == "FEE_MILESTONES");
+    var feeItem = Assert.Single(feeSection.Items);
+    Assert.Equal(ClientOffboardingStates.Unknown, feeItem.State);
+    Assert.Null(feeItem.Count);
+    Assert.Contains("reconciliation", feeItem.Detail!, StringComparison.OrdinalIgnoreCase);
+    Assert.Equal(FeeMilestoneStates.Invoiced, await db.FeeMilestones.Where(row => row.Id == fees.Advance.Id)
+      .Select(row => row.State).SingleAsync());
+    Assert.Equal(invoice.Id, await db.FeeMilestones.Where(row => row.Id == fees.Advance.Id)
+      .Select(row => row.InvoiceId).SingleAsync());
+    Assert.Equal(countsBefore, (await db.Invoices.CountAsync(), await db.InvoiceLines.CountAsync(),
+      await db.BillingSourceAllocations.CountAsync(), await db.FeeMilestones.CountAsync()));
+  }
+
+  [Fact]
+  public async Task OffboardingReadinessDoesNotClaimCompleteTimeCoverageBeyond366Days()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var now = DateTimeOffset.UtcNow;
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"));
+    var task = new WorkTask
+      { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        Title = "Synthetic time coverage", CreatedAt = now };
+    var rateCard = new RateCardVersion
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, Role = "Staff", Activity = "Offboarding coverage",
+      Currency = "USD", RatePerHour = 100m, Status = PracticeTimeStates.RateApproved,
+      CreatedByUserId = f.Admin.Id, ApprovedByUserId = f.Reviewer.Id, ApprovedAt = now, CreatedAt = now
+    };
+    db.WorkTasks.Add(task);
+    db.RateCardVersions.Add(rateCard);
+    db.TimeEntries.AddRange(
+      ApprovedTime(f, task, rateCard, new DateOnly(2024, 1, 1), 0),
+      ApprovedTime(f, task, rateCard, new DateOnly(2025, 1, 1), 1));
+    await db.SaveChangesAsync();
+
+    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db,
+      PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    var time = readiness.Value!.Sections.SelectMany(section => section.Items)
+      .Single(item => item.Key == "APPROVED_UNBILLED_TIME");
+    Assert.Equal(ClientOffboardingStates.Unknown, time.State);
+    Assert.Null(time.Count);
+    Assert.Contains("366-day report window", time.Detail);
+  }
+
+  [Fact]
   public async Task OffboardingCloseout_RecordsExactReplayableBlockedReview_WithoutArchivingOrOverstatingUnknowns()
   {
     await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
@@ -106,8 +505,22 @@ public sealed class ClientProfileWorkspaceTests
       PbcSeed.Grant(f.FirmId, f.Admin, "RecordsCustodian"));
     var accountId = Guid.NewGuid();
     db.BillingAccounts.Add(new BillingAccount { Id = accountId, FirmId = f.FirmId, PracticeClientId = f.ClientId, Currency = "USD", CreatedAt = DateTimeOffset.UtcNow });
-    db.Invoices.Add(new Invoice { Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = accountId, InvoiceNumber = "INV-OFF-1", Currency = "USD",
-      Subtotal = 50m, Total = 50m, Status = BillingStates.InvoicePosted, PostedAt = DateTimeOffset.UtcNow.AddDays(-1), CreatedAt = DateTimeOffset.UtcNow.AddDays(-2) });
+    var paidInvoice = new Invoice { Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = accountId, InvoiceNumber = "INV-OFF-1", Currency = "USD",
+      Subtotal = 50m, Total = 50m, Status = BillingStates.InvoicePosted, PostedAt = DateTimeOffset.UtcNow.AddDays(-1), CreatedAt = DateTimeOffset.UtcNow.AddDays(-2) };
+    db.Invoices.Add(paidInvoice);
+    var paymentReceipt = new Receipt
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = accountId, Amount = 50m,
+      Currency = "USD", Reference = "SYN-OFF-CLOSEOUT-PAYMENT", Status = BillingStates.ReceiptRecorded,
+      RecordedByUserId = f.Admin.Id, ReceivedAt = DateTimeOffset.UtcNow
+    };
+    var paymentAllocation = new ReceiptAllocation
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ReceiptId = paymentReceipt.Id,
+      InvoiceId = paidInvoice.Id, Amount = 50m, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.Receipts.Add(paymentReceipt);
+    db.ReceiptAllocations.Add(paymentAllocation);
     db.WorkTasks.Add(new WorkTask { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, Title = "Open fieldwork item", CreatedAt = DateTimeOffset.UtcNow });
     await db.SaveChangesAsync();
 
@@ -195,7 +608,7 @@ public sealed class ClientProfileWorkspaceTests
     var financeReadiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, adminActor, f.ClientId);
     Assert.True(financeReadiness.Succeeded, financeReadiness.Message);
     Assert.Contains(financeReadiness.Value!.Sections, section => section.Key == "FINANCE" &&
-      section.Items.Any(item => item.Key == "OUTSTANDING_INVOICES" && item.Count == 1));
+      section.Items.Any(item => item.Key == "OUTSTANDING_INVOICES" && item.Count == 0));
     var financeRequest = new ClientOffboardingCloseoutRequest(f.ClientId, "Reviewed finance-visible state.", [], 0,
       ExpectedReadinessDigest: financeReadiness.Value.ReadinessDigest, RequestKey: "44444444-4444-4444-8444-444444444444");
     db.Invoices.Add(new Invoice { Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = accountId,
@@ -214,6 +627,32 @@ public sealed class ClientProfileWorkspaceTests
     var financeReplay = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, adminActor, financeRequest);
     Assert.True(financeReplay.Succeeded, financeReplay.Message);
     Assert.Equal(financeRecord.Value.RecordId, financeReplay.Value!.RecordId);
+
+    db.ReceiptAllocationReversals.Add(new ReceiptAllocationReversal
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ReceiptAllocationId = paymentAllocation.Id,
+      Revision = 1, Amount = 10m, Reference = "SYN-OFF-CLOSEOUT-REVERSAL",
+      Reason = "Synthetic approved payment correction", Status = ReceiptAllocationReversalStates.Approved,
+      SubmittedByUserId = f.Admin.Id, SubmittedAt = DateTimeOffset.UtcNow,
+      ReviewedByUserId = f.Reviewer.Id, ReviewedAt = DateTimeOffset.UtcNow,
+      ReviewReason = "Approved synthetic payment correction"
+    });
+    await db.SaveChangesAsync();
+    var oldIntentReplay = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, adminActor, financeRequest);
+    Assert.True(oldIntentReplay.Succeeded, oldIntentReplay.Message);
+    Assert.Equal(financeRecord.Value.RecordId, oldIntentReplay.Value!.RecordId);
+    Assert.Equal(financeRecord.Value.ReadinessDigest, oldIntentReplay.Value.ReadinessDigest);
+    var staleAfterPayment = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, adminActor,
+      financeRequest with { RequestKey = "55555555-5555-4555-8555-555555555555" });
+    Assert.False(staleAfterPayment.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, staleAfterPayment.ErrorCode);
+    var afterPayment = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, adminActor, f.ClientId);
+    Assert.True(afterPayment.Succeeded, afterPayment.Message);
+    Assert.NotEqual(financeRecord.Value.ReadinessDigest, afterPayment.Value!.ReadinessDigest);
+    Assert.Equal("USD 1 receipt(s), 10 unapplied", afterPayment.Value.Sections.SelectMany(section => section.Items)
+      .Single(item => item.Key == "UNAPPLIED_RECEIPTS").Detail);
+    Assert.Equal(1L, afterPayment.Value.Sections.SelectMany(section => section.Items)
+      .Single(item => item.Key == "OUTSTANDING_INVOICES").Count);
 
     await using (var update = new AuditSphereDbContext(pg.Options))
       await Assert.ThrowsAsync<PostgresException>(() => update.Database.ExecuteSqlInterpolatedAsync(
@@ -434,6 +873,155 @@ public sealed class ClientProfileWorkspaceTests
     Assert.Equal(0, (await WorkspaceQuery.ClientAsync(db, actor, f.ClientId)).Value!.Metrics.Engagements);
   }
 
+  private sealed record FeeFixture(EngagementFeeAgreement Agreement, FeeMilestone Advance, FeeMilestone Balance);
+
+  private static FeeFixture AddFeeAgreement(AuditSphereDbContext db, PbcSeed.Fixture fixture,
+    Guid clientId, Guid? engagementId, string suffix, decimal fee, DateTimeOffset now)
+  {
+    var lead = new Lead
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, Name = suffix,
+      Source = "SYNTHETIC_TEST", Status = CrmStates.LeadQualified, CreatedAt = now
+    };
+    var opportunity = new Opportunity
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, LeadId = lead.Id, PracticeClientId = clientId,
+      ServiceRoute = "AccountingOnly", EntityScope = "Synthetic test scope",
+      PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", ExpectedFee = fee,
+      Currency = "USD", Stage = CrmStates.OpportunityProposal, CreatedAt = now
+    };
+    var proposal = new Proposal
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, OpportunityId = opportunity.Id,
+      PracticeClientId = clientId, Status = CrmStates.ProposalDraft, ServiceProfileId = "SYNTHETIC",
+      Scope = "Synthetic fee observation", Exclusions = "None", Deliverables = "Synthetic deliverable",
+      Dependencies = "None", Fee = fee, Currency = "USD", PeriodStart = "2026-01-01",
+      PeriodEnd = "2026-12-31", CreatedAt = now
+    };
+    var quotation = new QuotationVersion
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, ProposalId = proposal.Id, Currency = "USD",
+      BaseAmount = fee, Fee = fee, InputHash = new string('a', 64), Status = QuotationStates.Approved,
+      CreatedByUserId = fixture.Admin.Id, CreatedAt = now, ApprovedAt = now
+    };
+    var agreement = new EngagementFeeAgreement
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, ProposalId = proposal.Id,
+      QuotationVersionId = quotation.Id, PracticeClientId = clientId, EngagementId = engagementId,
+      Currency = "USD", AgreedFee = fee, AdvancePercent = 50m,
+      CreatedByUserId = fixture.Admin.Id, CreatedAt = now
+    };
+    var advance = new FeeMilestone
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, AgreementId = agreement.Id,
+      Kind = FeeMilestoneKinds.Advance, Amount = fee / 2m, State = FeeMilestoneStates.Planned, CreatedAt = now
+    };
+    var balance = new FeeMilestone
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, AgreementId = agreement.Id,
+      Kind = FeeMilestoneKinds.Balance, Amount = fee - advance.Amount,
+      State = FeeMilestoneStates.Planned, CreatedAt = now
+    };
+    db.Leads.Add(lead);
+    db.Opportunities.Add(opportunity);
+    db.Proposals.Add(proposal);
+    db.QuotationVersions.Add(quotation);
+    db.EngagementFeeAgreements.Add(agreement);
+    db.FeeMilestones.AddRange(advance, balance);
+    return new(agreement, advance, balance);
+  }
+
+  private static Invoice AddFeeInvoiceSource(AuditSphereDbContext db, PbcSeed.Fixture fixture,
+    BillingAccount account, FeeMilestone milestone, string invoiceNumber, DateTimeOffset now,
+    Guid? sourceIdOverride = null)
+  {
+    var invoice = new Invoice
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, BillingAccountId = account.Id,
+      InvoiceNumber = invoiceNumber, Currency = account.Currency, Subtotal = milestone.Amount,
+      Total = milestone.Amount, Status = BillingStates.InvoicePosted, PostedAt = now, CreatedAt = now
+    };
+    var line = new InvoiceLine
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, InvoiceId = invoice.Id,
+      Description = "Synthetic fee milestone", Quantity = 1m, UnitPrice = milestone.Amount,
+      LineTotal = milestone.Amount, SourceKind = FeeAgreementService.MilestoneSourceKind,
+      SourceId = sourceIdOverride ?? milestone.Id, SourceRevision = 1
+    };
+    db.Invoices.Add(invoice);
+    db.InvoiceLines.Add(line);
+    db.BillingSourceAllocations.Add(new BillingSourceAllocation
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, InvoiceLineId = line.Id,
+      SourceKind = FeeAgreementService.MilestoneSourceKind, SourceId = milestone.Id,
+      SourceRevision = 1, Quantity = 1m, Amount = milestone.Amount, CreatedAt = now
+    });
+    milestone.InvoiceId = invoice.Id;
+    milestone.State = FeeMilestoneStates.Invoiced;
+    return invoice;
+  }
+
+  private static TimeEntry ApprovedTime(PbcSeed.Fixture fixture, WorkTask task,
+    RateCardVersion rateCard, DateOnly workDate, int index,
+    string status = PracticeTimeStates.TimeApproved, long revision = 1, Guid? supersedesId = null)
+  {
+    var now = DateTimeOffset.UtcNow;
+    return new TimeEntry
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, ClientId = fixture.ClientId,
+      EngagementId = fixture.EngagementId, TaskId = task.Id, UserId = fixture.Staff.Id,
+      WorkDate = workDate, StartMinute = index * 60, DurationMinutes = 60,
+      Role = rateCard.Role, Activity = rateCard.Activity, Phase = BudgetPhases.Unassigned,
+      BillableClassification = PracticeTimeStates.Billable, Narrative = "Synthetic approved time",
+      NarrativeVisibility = PracticeTimeStates.NarrativeInternal, Status = status, Currency = rateCard.Currency,
+      Revision = revision, SupersedesId = supersedesId, RateCardVersionId = rateCard.Id,
+      RatePerHour = rateCard.RatePerHour, SubmittedAt = now, ApprovedByUserId = fixture.Admin.Id,
+      ApprovedAt = now, CreatedAt = now
+    };
+  }
+
+  private static void AddTimeInvoiceSource(AuditSphereDbContext db, PbcSeed.Fixture fixture,
+    BillingAccount account, TimeEntry entry, string invoiceNumber, string status, DateTimeOffset now)
+  {
+    var amount = entry.DurationMinutes * entry.RatePerHour!.Value / 60m;
+    var invoice = new Invoice
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, BillingAccountId = account.Id,
+      InvoiceNumber = invoiceNumber, Currency = account.Currency, Subtotal = amount, Total = amount,
+      Status = status, PostedAt = status == BillingStates.InvoicePosted ? now : null, CreatedAt = now
+    };
+    var line = new InvoiceLine
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, InvoiceId = invoice.Id,
+      Description = "Synthetic approved time", Quantity = entry.DurationMinutes / 60m,
+      UnitPrice = entry.RatePerHour.Value, LineTotal = amount, SourceKind = "TIME",
+      SourceId = entry.Id, SourceRevision = entry.Revision
+    };
+    db.Invoices.Add(invoice);
+    db.InvoiceLines.Add(line);
+    db.BillingSourceAllocations.Add(new BillingSourceAllocation
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, InvoiceLineId = line.Id,
+      SourceKind = "TIME", SourceId = entry.Id, SourceRevision = entry.Revision,
+      Quantity = entry.DurationMinutes / 60m, Amount = amount, CreatedAt = now
+    });
+  }
+
+  private static Receipt ReceiptFor(PbcSeed.Fixture fixture, BillingAccount account,
+    string reference, decimal amount, DateTimeOffset receivedAt) => new()
+  {
+    Id = Guid.NewGuid(), FirmId = fixture.FirmId, BillingAccountId = account.Id,
+    Amount = amount, Currency = account.Currency, Reference = reference,
+    Status = BillingStates.ReceiptRecorded, RecordedByUserId = fixture.Admin.Id, ReceivedAt = receivedAt
+  };
+
+  private static ReceiptAllocation AllocationFor(PbcSeed.Fixture fixture, Receipt receipt,
+    Invoice invoice, decimal amount, DateTimeOffset createdAt) => new()
+  {
+    Id = Guid.NewGuid(), FirmId = fixture.FirmId, ReceiptId = receipt.Id,
+    InvoiceId = invoice.Id, Amount = amount, CreatedAt = createdAt
+  };
+
   private sealed class RevokeDuringContacts(Func<Task> revoke) : DbCommandInterceptor
   {
     public bool Fired { get; private set; }
@@ -442,6 +1030,40 @@ public sealed class ClientProfileWorkspaceTests
     {
       if (!Fired && command.CommandText.Contains("FROM client_contacts", StringComparison.Ordinal))
       { Fired = true; await revoke(); }
+      return result;
+    }
+  }
+
+  private sealed class RevokeFinanceBeforeReceiptRead(Func<Task> revoke) : DbCommandInterceptor
+  {
+    public bool Fired { get; private set; }
+
+    public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+      CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+    {
+      var sql = command.CommandText;
+      if (!Fired && sql.Contains("receipts", StringComparison.OrdinalIgnoreCase) &&
+          sql.Contains("billing_accounts", StringComparison.OrdinalIgnoreCase))
+      {
+        Fired = true;
+        await revoke();
+      }
+      return result;
+    }
+  }
+
+  private sealed class RevokeFinanceBeforeArchiveRead(Func<Task> revoke) : DbCommandInterceptor
+  {
+    public bool Fired { get; private set; }
+
+    public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+      CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+    {
+      if (!Fired && command.CommandText.Contains("archives", StringComparison.OrdinalIgnoreCase))
+      {
+        Fired = true;
+        await revoke();
+      }
       return result;
     }
   }
