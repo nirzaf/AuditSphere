@@ -203,7 +203,9 @@ Every story is sized for one agent session. Before starting, read only the files
 
 ## STE-NXT-011 — Decide whether to add an independent read-only archive copy (SPK-01 option 2)
 
-*Status (2026-10-11): DESIGN DECIDED; IMPLEMENTATION OPEN. Under the owner's delegated project authority, select SPK-01 option 2: a separate read-only SharePoint archive library. The release/archive store remains authoritative. Implement the copy, per-file SHA-256 verification, idempotency, reconciled permission readback and staff-denial evidence. Keep provider protection `BLOCKED_EXTERNAL` until live evidence is observed; site and tenant administrators retain provider authority. See the 2026-10-11 amendment to ADR-0009.*
+*Status (2026-11-03): PARTIAL. The local durable copy protocol, provider adapter, verification plan and status projection are implemented. Live SharePoint copy, exact-site permission/hash readback, staff-denial evidence and provider acceptance remain unverified.*
+
+*Design decision: Under the owner's delegated project authority, use SPK-01 option 2, a separate read-only SharePoint archive library. The release/archive store remains authoritative; see the approved ADR-0009 amendment.*
 
 **Story.** As a compliance administrator, I want the released bundle and its manifest copied to a read-only archive library, with each copied file verified by SHA-256, so that the provider holds a protected copy of the exact issued bytes.
 
@@ -228,6 +230,8 @@ Every story is sized for one agent session. Before starting, read only the files
 ---
 
 ## STE-NXT-012 — Show the local, provider and lifecycle archive states separately
+
+*Status (2026-11-03): PARTIAL. Local and provider state fields, OpenAPI schema, bounded Angular decoder, separate lifecycle/workflow rendering and fail-closed unknown-state tests are present. Current-source full CI and authenticated browser acceptance remain open.*
 
 **Story.** As a Partner or compliance administrator, I want the archive state shown as separate items, so that a local freeze is never presented as provider protection.
 

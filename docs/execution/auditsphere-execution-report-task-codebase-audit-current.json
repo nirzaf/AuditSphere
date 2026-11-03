@@ -7600,6 +7600,29 @@
    "conflicts": [],
    "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
    "observedAtUtc": "2026-10-10T17:51:40Z"
+  },
+  "STE-NXT-011": {
+   "verdict": "PARTIAL",
+   "summary": "The approved local archive-copy protocol, durable client-sites operation, provider adapter, verification plan and secondary-copy status projection are present. No live SharePoint permission/hash readback, staff-denial or provider acceptance is claimed.",
+   "missing": [
+    "Verify the exact authorized SharePoint target, per-file hash readback and effective read-only grants in a real tenant.",
+    "Verify a staff identity cannot read the separate archive library and preserve provider-backed evidence.",
+    "Run current exact-source full verification; candidate fast/image aggregates pass but job checkout and immutable image pins were not retained."
+   ],
+   "conflicts": [],
+   "observedCommit": "d6006472f444dcc0b01fac9cdd87da2fe295744a",
+   "observedAtUtc": "2026-11-03T16:30:10Z"
+  },
+  "STE-NXT-012": {
+   "verdict": "PARTIAL",
+   "summary": "The lifecycle and workflow summaries project local freeze state separately from provider protection; the OpenAPI contract, bounded Angular decoders, separate rendering, warning rule and unknown-state refusal are present. No provider immutability is inferred from local freeze.",
+   "missing": [
+    "Run current exact-source full verification.",
+    "Exercise the authenticated lifecycle and workflow screens in a supported browser and retain observed evidence."
+   ],
+   "conflicts": [],
+   "observedCommit": "d6006472f444dcc0b01fac9cdd87da2fe295744a",
+   "observedAtUtc": "2026-11-03T16:30:10Z"
   }
  },
  "currentDispositionRecordedAtUtc": "2026-10-10T17:51:40Z",

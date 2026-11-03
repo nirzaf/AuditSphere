@@ -21,12 +21,12 @@ The [documentation reconciliation](auditsphere-execution-report-documentation-re
 | Code verdict | Items |
 | --- | ---: |
 | COMPLETE | 4 |
-| PARTIAL | 7 |
+| PARTIAL | 9 |
 | NOT_STARTED | 0 |
 | CONFLICTS_WITH_AGENTS | 0 |
 | OWNER_DECISION | 1 |
 | EXTERNAL_BLOCKED | 3 |
-| NOT_AUDITED | 84 |
+| NOT_AUDITED | 82 |
 | **Total** | **99** |
 
 Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 68 NOT_STARTED of 75 cards. Nothing is COMPLETED from the audit: no item met every completion test in the card.
@@ -120,8 +120,8 @@ Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 68 NOT_STARTED of 75 
 | STE-NXT-008 | STE-NXT | Verify the two unchecked requirement rows | done for the evidence, not for the link | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-NXT-009 | STE-NXT | Decide how end-of-service benefits are recorded | COMPLETED | NOT_AUDITED | — | — | None; completed |
 | STE-NXT-010 | STE-NXT | Decide whether PBT normalization is in scope | COMPLETED | NOT_AUDITED | — | — | None; completed |
-| STE-NXT-011 | STE-NXT | Decide whether to add an independent read-only archive copy (SPK-01 option 2) | DESIGN DECIDED; IMPLEMENTATION OPEN | NOT_AUDITED | — | — | Audit against the codebase before building |
-| STE-NXT-012 | STE-NXT | Show the local, provider and lifecycle archive states separately | — | NOT_AUDITED | — | — | Audit against the codebase before building |
+| STE-NXT-011 | STE-NXT | Decide whether to add an independent read-only archive copy (SPK-01 option 2) | PARTIAL | PARTIAL | — | 3 | Build the open gaps |
+| STE-NXT-012 | STE-NXT | Show the local, provider and lifecycle archive states separately | PARTIAL | PARTIAL | — | 2 | Build the open gaps |
 | STE-NXT-013 | STE-NXT | Make the statement analysis links reach their screens | implemented 2026-10-08 | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-NXT-014 | STE-NXT | Record end-of-service accruals as a provision | code implemented, not locally tested; posting remains blocked | NOT_AUDITED | — | — | Audit against the codebase before building |
 | STE-GAP-001 | STE-GAP | Versioned Service-Specific Engagement Letter Templates | — | PARTIAL | — | 1 | Build the open gaps |
@@ -176,6 +176,17 @@ T002 was COMPLETED on 2026-10-09 under the owner-delegated static-service variat
 - Reconcile confirmations against authoritative client ledger balances and require approved explanations for differences before AGREED.
 - Link exceptions to SAD and ReviewPoints; retain response origin and contact-validation reviewer identity.
 - Persist response-document SHA-256 lineage, expose response aging, and link alternative procedures to the tests performed.
+
+### STE-NXT-011 — Decide whether to add an independent read-only archive copy (SPK-01 option 2) (PARTIAL)
+
+- Verify the exact authorized SharePoint target, per-file hash readback and effective read-only grants in a real tenant.
+- Verify a staff identity cannot read the separate archive library and preserve provider-backed evidence.
+- Run current exact-source full verification; candidate fast/image aggregates pass but job checkout and immutable image pins were not retained.
+
+### STE-NXT-012 — Show the local, provider and lifecycle archive states separately (PARTIAL)
+
+- Run current exact-source full verification.
+- Exercise the authenticated lifecycle and workflow screens in a supported browser and retain observed evidence.
 
 ### STE-GAP-001 — Versioned Service-Specific Engagement Letter Templates (PARTIAL)
 
