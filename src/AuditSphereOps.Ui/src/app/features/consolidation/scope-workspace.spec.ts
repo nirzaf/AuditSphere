@@ -164,12 +164,14 @@ describe('Consolidation Scope Workspace Contracts', () => {
       createdByUserId: actor, requestKey: id3 };
     expect(matchesDeliverableReceipt(result, ref, '')).toBe(true);
     expect(matchesDeliverableReceipt({ ...result, requestKey: id2 }, ref, '')).toBe(false);
+    expect(matchesDeliverableReceipt({ ...result, revision: true }, ref, '')).toBe(false);
     const archive: DeliverableRecovery = { ...ref, action: 'archive', runId: null, deliverableId: id2,
       deliverableHash: hash64, revision: 2, salt: 'a'.repeat(32), inputHash: hash64 };
     const archived = { ...result, status: 'ARCHIVED', revision: 3, archivedByUserId: actor,
       archiveRequestKey: id3, archiveReason: 'Reviewed archive reason' };
     expect(matchesDeliverableReceipt(archived, archive, 'Reviewed archive reason')).toBe(true);
     expect(matchesDeliverableReceipt({ ...archived, archiveRequestKey: id2 }, archive, 'Reviewed archive reason')).toBe(false);
+    expect(matchesDeliverableReceipt({ ...archived, revision: '3' }, archive, 'Reviewed archive reason')).toBe(false);
   });
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let workspaceData: WritableSignal<ReturnType<typeof decodeScopeWorkspace> | null>;

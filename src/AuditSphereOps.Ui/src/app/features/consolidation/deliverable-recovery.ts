@@ -42,12 +42,12 @@ export function matchesDeliverableReceipt(value: unknown, r: DeliverableRecovery
       typeof v['runId'] !== 'string' || !guidPattern.test(v['runId']) ||
       v['runHash'] !== r.runHash || typeof v['deliverableId'] !== 'string' || !guidPattern.test(v['deliverableId']) ||
       typeof v['deliverableSha256'] !== 'string' || !/^[a-f0-9]{64}$/.test(v['deliverableSha256'])) return false;
-  if (r.action === 'build') return same(v['runId'], r.runId) && v['status'] === 'BUILT' && Number(v['revision']) === 1 &&
+  if (r.action === 'build') return same(v['runId'], r.runId) && v['status'] === 'BUILT' && v['revision'] === 1 &&
     same(v['createdByUserId'], r.actorId) && v['requestKey'] === r.requestKey;
   if (!same(v['deliverableId'], r.deliverableId) || v['deliverableSha256'] !== r.deliverableHash) return false;
   return r.action === 'issue'
-    ? v['status'] === 'ISSUED' && Number(v['revision']) === r.revision + 1 && same(v['issuedByUserId'], r.actorId) &&
+    ? v['status'] === 'ISSUED' && v['revision'] === r.revision + 1 && same(v['issuedByUserId'], r.actorId) &&
       v['issueRequestKey'] === r.requestKey && v['authorizedReleaseKey'] === input
-    : v['status'] === 'ARCHIVED' && Number(v['revision']) === r.revision + 1 && same(v['archivedByUserId'], r.actorId) &&
+    : v['status'] === 'ARCHIVED' && v['revision'] === r.revision + 1 && same(v['archivedByUserId'], r.actorId) &&
       v['archiveRequestKey'] === r.requestKey && v['archiveReason'] === input;
 }

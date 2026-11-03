@@ -4,6 +4,8 @@
 
 **Whole assignment:** INCOMPLETE. Preserve the original 48 tasks and independent original, Axelor, practice, Atomic, Claude, role, Technical Stories and UX16 registers.
 
+Lifecycle recovery receipt validation now rejects non-number revision values instead of coercing them; the focused group workspace suite passed 35/35. Exact-source CI and full release verification remain separate.
+
 ## Current source and secondary archive-copy projection
 
 **Observed:** 2026-11-03T16:30:10Z. `master` and `origin/master` are at `d6006472f444dcc0b01fac9cdd87da2fe295744a`; the scoped projection is committed. Exact prior status and handoff bytes are preserved in [the pre-reconcile status archive](status-archive-2026-11-03-before-d600-ci-and-task-reconcile.json) and [handoff archive](auditsphere-execution-current-slice-archive-2026-11-03-before-d600-ci-and-task-reconcile.md). PM-01–06 from the attached practice-management audit are present in the `c9d6bc60ca573ae5d8eb29fcd60d3816e96db5ec` ancestry; that does not establish whole-application acceptance. The attachment is proposal data; Q01–Q07 and external/professional gates remain open.
