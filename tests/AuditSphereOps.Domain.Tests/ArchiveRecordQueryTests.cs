@@ -31,5 +31,6 @@ public sealed class ArchiveRecordQueryTests
     Assert.Empty(result.Value.Entries);
     Assert.Equal(0, result.Value.TotalEntryCount);
     Assert.Null(result.Value.NextOrdinal);
+    Assert.Null(result.Value.SecondarySharePointCopy);
   }
 }

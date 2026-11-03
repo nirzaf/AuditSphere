@@ -110,6 +110,7 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Content-SHA256"] = export.ContentSha256;
       http.Response.Headers["X-AuditSphere-Manifest-SHA256"] = export.ManifestSha256;
       http.Response.Headers["X-AuditSphere-Provider-Protection"] = export.ProviderProtectionState;
+      http.Response.Headers["X-AuditSphere-Secondary-SharePoint-Copy"] = export.SecondarySharePointCopyState;
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(export.Content, "application/json; charset=utf-8", export.FileName,
         enableRangeProcessing: false);

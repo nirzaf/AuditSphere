@@ -1,8 +1,29 @@
 # AuditSphere — current-slice handoff
 
-**Observed:** 2026-11-03T03:29:40Z
+**Observed:** 2026-11-03T15:40:21Z
 
 **Whole assignment:** INCOMPLETE. Preserve the original 48 tasks and independent original, Axelor, practice, Atomic, Claude, role, Technical Stories and UX16 registers.
+
+## Current source and secondary archive-copy projection
+
+**Observed:** 2026-11-03T15:40:21Z. `master` and `origin/master` were at `db243c1e8c04665cdd804b12e937c73cc31692cc`; the projection candidate below is based on that source. PM-01–06 from the attached practice-management audit are already present in the `c9d6bc60ca573ae5d8eb29fcd60d3816e96db5ec` ancestry; that does not establish whole-application acceptance. The attachment is proposal data; Q01–Q07 and external/professional gates remain open.
+
+The STE-NXT-011/012 projection candidate adds a read-only secondary SharePoint-copy observation to archive detail and evidence export. It is separately represented from RecordsAction/Purview state. `OBSERVED` requires the latest exact archive operation, a current reviewed manifest whose persisted entries still match its digest, the matching target revision, persisted file receipts and permission readback. A changed manifest entry fails closed to `BLOCKED_EXTERNAL`. The UI/export identify this as a historical observation; AuditSphere's release/archive store remains authoritative. No provider call, write, permission change or WORM claim is introduced.
+
+**Verification:** the targeted Angular archive-record spec passed 31/31; the Angular production build passed with existing `commercial/settings.scss` and `app.scss` budget warnings; the Application Release build passed with zero warnings/errors. The focused PostgreSQL test was attempted twice; on the latest attempt the application projects compiled, but Roslyn drove system free memory from 62% to 13%. The owned test/compiler processes were stopped before testhost, so zero assertions ran and the result is `BLOCKED_TEST_ENV`, not a test failure or pass. The API Release build was also attempted twice and stopped before a result under compiler memory pressure. The OpenAPI schema was manually synchronized for the optional nullable status projection and passed JSON/reference-shape assertions; the canonical emitter verification remains NOT_RUN because the current API Release build is blocked by host memory pressure. No local application was started, so authenticated browser interaction was NOT_RUN. Documentation health, filename, narrative, UI-inventory and diff checks pass (280 Markdown files, 4,178 relative links, 564 repository paths; 280 filenames; six protected narrative documents).
+
+Exact db243 fast run `41572878485` and image run `41572878518` are terminal aggregate PASS, but predate this projection candidate. The fast Release job checkout was verified; Angular/docs checkout evidence was not retained. The migrations image checkout and pushing digest `sha256:5e0eee5b40d6d12bf66d524a5dc7b8216313327ddfd977d368e16cc5ce4bef0b` were verified; API/worker checkout and pin evidence was not retained and was not re-fetched. A scheduled exact-source full run `41611379406` then ran on `db243` and failed; see the evidence section below. These predecessor fast/image results do not verify this candidate or establish release acceptance.
+
+**Next:** after publication, collect exact-source fast/images evidence once and wait for all those jobs before a successor push. Continue the remaining ready practice work; run one full verification only for the final frozen candidate. No deployment, live acceptance, tenant/provider permission change or professional approval is claimed.
+## Exact db243 scheduled full CI 41611379406
+
+Run `41611379406`, attempt 1 (scheduled), resolved `master` to exact committed SHA `db243c1e8c04665cdd804b12e937c73cc31692cc`. Resolved-source artifact `13218484311` metadata digest is `sha256:3beca2735ee94150c923df4027200e53fd0b6aa2523ae571c05a7e8183bd4bf5`; its extracted `source.json` SHA-256 is `35b64f656ad47f424a48e37f9f085783b21a2fdf5eb1ec937c599079602d7733`. Retained API and E2E job logs independently show that each checked out this exact SHA. Resolve, Angular full specs, build/contracts/docs and Domain jobs passed; API, E2E and aggregate release contract failed.
+
+The API job `125843229669` ran on GitHub Actions runner `1000206792` and ended with exit 143 after logging a runner shutdown signal; runner metadata exposes no shutdown cause. Its retained log SHA-256 is `8d4722eb1604b3cbb9744dc1100df9d694e3ce9bbca1075b1b517534db07d9dc`. There is no API TRX/result artifact. The log also contains DataProtection key-decryption exceptions, followed by passing tests; the available evidence does not link those warnings to the shutdown. API root cause remains unconfirmed.
+
+The E2E job `125843229603` crashed its testhost after the configured 15-minute inactivity watchdog. The retained TRX artifact `13229893568` (`sha256:8d25a8b7fcc436243e30c94a239c743974066c98c231f48c9f4d11e693c17c62`) records 335/335 executed tests passed with zero assertion failures. Its blame sequence file records 335 completed and two incomplete entries: `NativeSuccessorOpeningUsesExactReviewedClosedSourceAndRecoversOriginalUiRequest(withOriginalItem: False)` and `SiblingClientDataNeverChangesWhatAClientScopedUserSees(grantScope: "CLIENT")`. The testhost output explicitly says these active cases may or may not have caused the crash. E2E root cause remains unconfirmed. Logs, TRX and sequence artifacts were downloaded once; hashes, artifact digests and job IDs are preserved in `.local/autonomous/evidence/practice-management-audit-20261102/db243-scheduled-full-41611379406/terminal-review.json`.
+
+A local focused reproduction is `BLOCKED_TEST_ENV`: PostgreSQL tools and a listener on port 5433 are unavailable, and the configured Docker daemon socket is absent. No local assertions ran. The unchanged full cohort was not rerun and no speculative workflow/test changes were made. This scheduled run is bound to committed `db243`; it excludes and does not verify the dirty 18-path secondary-copy projection candidate.
 
 ## Attached practice-management audit PM-01–06
 

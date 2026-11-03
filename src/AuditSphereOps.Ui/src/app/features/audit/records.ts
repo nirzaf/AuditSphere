@@ -5,7 +5,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, timeout } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
-import { arr, bool, dec, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, dec, guid, instant, int, nat, nullable, obj, oneOf, sha256, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { FindingCommandState } from './finding-command-state';
@@ -31,7 +31,10 @@ export const decodeRelease = obj({ id: guid, status: text, targetKind: text, tar
 export const decodeArchive = obj({ id: guid, engagementId: guid, status: text, createdAt: instant, profileId: text, profileVersion: int, manifestVersion: nullable(int),
   manifestStatus: nullable(text), manifestDigest: nullable(text), completenessStatus: nullable(text), completenessException: nullable(text),
   entries: arr(obj({ ordinal: int, entryKind: text, relativeName: text, contentHash: text, byteCount: int }), 100), totalEntryCount: nat, nextOrdinal: nullable(int), activeHoldCount: nat,
-  observedProtection: nullable(text), desiredLabel: nullable(text), observedLabel: nullable(text), actionState: nullable(text), externalReference: nullable(text) });
+  observedProtection: nullable(text), desiredLabel: nullable(text), observedLabel: nullable(text), actionState: nullable(text), externalReference: nullable(text),
+  secondarySharePointCopy: nullable(obj({ state: oneOf('NOT_REQUESTED', 'REQUESTED', 'OBSERVED', 'BLOCKED_EXTERNAL'),
+    operationId: nullable(guid), targetRevision: nullable(int), manifestVersion: nullable(int), manifestSha256: nullable(sha256),
+    latestFileReadBackAt: nullable(instant), permissionReadBackAt: nullable(instant), note: text })) });
 const sum = (rows: { reviewedTestCount: number }[]) => rows.reduce((n, r) => n + r.reviewedTestCount, 0);
 
 @Component({
@@ -302,11 +305,19 @@ export class ReleaseCandidate {
           <dt>Manifest hash</dt><dd><code>{{ a.manifestDigest ?? 'Not built' }}</code></dd><dt>Active holds</dt><dd>{{ a.activeHoldCount }}</dd></dl>
         @if (a.completenessStatus === 'INCOMPLETE') { <p role="alert">Manifest incomplete: {{ a.completenessException }}</p> }
         @if (a.actionState === 'REQUESTED') { <p>Records action requested; this is not evidence of Purview protection.</p> }</section>
+      <section class="panel" aria-labelledby="secondary-copy"><h2 id="secondary-copy">SharePoint secondary access copy</h2>
+        @if (a.secondarySharePointCopy; as copy) {
+          <dl class="facts"><dt>Recorded state</dt><dd>{{ copy.state }}</dd><dt>Operation</dt><dd>{{ copy.operationId ?? '—' }}</dd>
+            <dt>Target revision</dt><dd>{{ copy.targetRevision ?? '—' }}</dd><dt>Manifest</dt><dd>{{ copy.manifestVersion ?? '—' }} · <code>{{ copy.manifestSha256 ?? '—' }}</code></dd>
+            <dt>Latest file readback</dt><dd>{{ copy.latestFileReadBackAt ?? 'Not observed' }}</dd><dt>Permission readback</dt><dd>{{ copy.permissionReadBackAt ?? 'Not observed' }}</dd></dl>
+          <p><small>{{ copy.note }}</small></p>
+        } @else { <p>Secondary-copy evidence is not available to this session role.</p> }
+      </section>
       @if (a.manifestStatus === 'REVIEWED' && a.completenessStatus === 'COMPLETE') {
         <section class="panel" aria-labelledby="archive-export"><h2 id="archive-export">Read-only archive export</h2>
           <p>The export contains the reviewed structured snapshot and full manifest index. External document bytes remain in their source repository and are represented by references and SHA-256 hashes.</p>
           <a mat-stroked-button [href]="'/api/ui/records/archives/' + a.id + '/export'">Download read-only evidence export</a>
-          <p><small>Provider protection remains separate; an export does not claim external immutability.</small></p>
+          <p><small>The export reports Purview protection and the SharePoint secondary access-copy observation as separate evidence. It does not claim external immutability.</small></p>
         </section>
       }
       <section class="panel" aria-labelledby="archive-contents"><h2 id="archive-contents">Archive contents</h2>

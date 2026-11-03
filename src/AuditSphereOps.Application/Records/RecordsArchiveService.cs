@@ -21,7 +21,8 @@ public sealed record ArchiveManifestResult(
   Guid ArchiveId, Guid ManifestId, string Status, string Digest, int EntryCount, string CompletenessStatus);
 
 public sealed record ArchiveEvidenceExport(
-  string FileName, byte[] Content, string ContentSha256, string ManifestSha256, string ProviderProtectionState);
+  string FileName, byte[] Content, string ContentSha256, string ManifestSha256,
+  string ProviderProtectionState, string SecondarySharePointCopyState);
 
 public sealed record RequestRecordsActionRequest(Guid ArchiveId, string? ExternalReference);
 
@@ -260,7 +261,7 @@ public static class RecordsArchiveService
   /// the export never asserts provider-side protection unless the archive reached ARCHIVE_VERIFIED.
   /// </summary>
   public static async Task<CommandResult<ArchiveEvidenceExport>> ExportReviewedArchiveAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid archiveId, CancellationToken ct = default)
+    IRecordsArchiveCopyDbContext db, ActorContext actor, Guid archiveId, CancellationToken ct = default)
   {
     var authorized = await AuthorizeArchiveAsync(db, actor, archiveId, ct);
     if (!authorized.Succeeded)
@@ -323,6 +324,9 @@ public static class RecordsArchiveService
 
     var providerProtectionState = archive.Status == ArchiveStates.ArchiveVerified
       ? "VERIFIED" : "BLOCKED_EXTERNAL";
+    var secondaryCopy = await ArchiveCopyService.ReadLatestStatusAsync(db, actor, archive.Id, ct);
+    if (secondaryCopy is null)
+      return CommandResult<ArchiveEvidenceExport>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var payload = new
     {
       schema = "auditsphere-archive-evidence-export.v1",
@@ -346,6 +350,19 @@ public static class RecordsArchiveService
         externalDocumentBytesIncluded = false,
         externalDocumentBytesNote = "Externally stored document bytes are represented by their source references and SHA-256 hashes in the manifest."
       },
+      secondarySharePointCopy = new
+      {
+        state = secondaryCopy.State,
+        authoritativeStore = "AuditSphere release/archive store",
+        secondaryProvider = "SharePoint read-only access copy",
+        operationId = secondaryCopy.OperationId,
+        targetRevision = secondaryCopy.TargetRevision,
+        manifestVersion = secondaryCopy.ManifestVersion,
+        manifestSha256 = secondaryCopy.ManifestSha256,
+        latestFileReadBackAt = secondaryCopy.LatestFileReadBackAt,
+        permissionReadBackAt = secondaryCopy.PermissionReadBackAt,
+        note = secondaryCopy.Note
+      },
       structuredRecords = records
     };
     var content = JsonSerializer.SerializeToUtf8Bytes(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)
@@ -354,7 +371,7 @@ public static class RecordsArchiveService
     });
     var fileName = $"AuditSphere-Archive-{archive.Id:N}-Manifest-{manifest.Version}.json";
     return CommandResult<ArchiveEvidenceExport>.Ok(new(fileName, content, Hashing.Sha256Hex(content),
-      manifest.ManifestDigest, providerProtectionState));
+      manifest.ManifestDigest, providerProtectionState, secondaryCopy.State));
   }
 
   public static async Task<CommandResult> RequestRecordsActionAsync(

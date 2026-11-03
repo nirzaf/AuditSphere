@@ -9,10 +9,18 @@ import { ArchiveRecord } from './records';
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const hash = 'e'.repeat(64), created = '2026-10-02T18:00:00Z';
 const entry = (ordinal: number) => ({ ordinal, entryKind: 'DOCUMENT', relativeName: `evidence/item-${ordinal}.pdf`, contentHash: hash, byteCount: ordinal });
-const archive = (n = 1) => ({ id: id(n), engagementId: id(20), status: 'SEALED', createdAt: created,
+const copy = (state: 'NOT_REQUESTED' | 'REQUESTED' | 'OBSERVED' | 'BLOCKED_EXTERNAL' = 'NOT_REQUESTED') => ({
+  state, operationId: state === 'NOT_REQUESTED' ? null : id(80), targetRevision: state === 'NOT_REQUESTED' ? null : 2,
+  manifestVersion: 1, manifestSha256: hash, latestFileReadBackAt: state === 'OBSERVED' ? created : null,
+  permissionReadBackAt: state === 'OBSERVED' ? created : null,
+  note: state === 'OBSERVED'
+    ? 'Historical readback only; the AuditSphere release/archive store remains authoritative.'
+    : 'No SharePoint secondary-copy request is recorded. The AuditSphere release/archive store remains authoritative.'
+});
+const archive = (n = 1, secondarySharePointCopy = copy()) => ({ id: id(n), engagementId: id(20), status: 'SEALED', createdAt: created,
   profileId: 'SYNTHETIC-ARCHIVE', profileVersion: 1, manifestVersion: 1, manifestStatus: 'BUILT', manifestDigest: hash, completenessStatus: 'COMPLETE', completenessException: null,
   entries: Array.from({ length: 100 }, (_, i) => entry(i + 1)), totalEntryCount: 205, nextOrdinal: 100,
-  activeHoldCount: 1, observedProtection: null, desiredLabel: 'SYNTHETIC LABEL', observedLabel: null, actionState: 'REQUESTED', externalReference: 'SYNTHETIC REFERENCE' });
+  activeHoldCount: 1, observedProtection: null, desiredLabel: 'SYNTHETIC LABEL', observedLabel: null, actionState: 'REQUESTED', externalReference: 'SYNTHETIC REFERENCE', secondarySharePointCopy });
 const page2 = () => ({ ...archive(), entries: Array.from({ length: 100 }, (_, i) => entry(i + 101)), nextOrdinal: 200 });
 const page3 = () => ({ ...archive(), entries: Array.from({ length: 5 }, (_, i) => entry(i + 201)), nextOrdinal: null });
 
@@ -30,9 +38,18 @@ describe('Archive detail and exact paging safety', () => {
   it('renders creation, exact rows, holds and requested-versus-observed protection honestly', () => {
     const host: HTMLElement = fixture.nativeElement;
     expect(host.textContent).toContain(created); expect(host.textContent).toContain('Records action requested; this is not evidence of Purview protection.');
+    expect(host.textContent).toContain('SharePoint secondary access copy'); expect(host.textContent).toContain('NOT_REQUESTED');
+    expect(host.textContent).toContain('release/archive store remains authoritative');
     expect(host.textContent).toContain('Observed active hold'); expect(host.textContent).toContain('Not observed');
     const cells = host.querySelector('tbody tr')!.querySelectorAll('td');
     expect(Array.from(cells, c => c.textContent?.trim())).toEqual(['1', 'DOCUMENT', 'evidence/item-1.pdf', hash, '1']);
+  });
+  it('renders a separate historical SharePoint observation without implying current protection', async () => {
+    component.refresh(); TestBed.tick(); http.expectOne(url()).flush(archive(1, copy('OBSERVED'))); await fixture.whenStable();
+    const host: HTMLElement = fixture.nativeElement;
+    expect(host.textContent).toContain('OBSERVED'); expect(host.textContent).toContain('Permission readback');
+    expect(host.textContent).toContain('Historical readback only');
+    expect(host.textContent).toContain('Not observed');
   });
   it('preserves loaded entries/cursor after transient failure and retries the same exact GET', async () => {
     const base = component.archive()!; const failed = component.loadMore(base);

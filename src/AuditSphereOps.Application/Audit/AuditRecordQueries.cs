@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Records;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Shared;
@@ -24,7 +25,8 @@ public sealed record ReleaseCandidateView(Guid Id, string Status, string TargetK
 public sealed record ArchiveEntryView(int Ordinal, string EntryKind, string RelativeName, string ContentHash, long ByteCount);
 public sealed record ArchiveRecordView(Guid Id, Guid EngagementId, string Status, DateTimeOffset CreatedAt, string ProfileId, long ProfileVersion, long? ManifestVersion,
   string? ManifestStatus, string? ManifestDigest, string? CompletenessStatus, string? CompletenessException, IReadOnlyList<ArchiveEntryView> Entries, int TotalEntryCount, int? NextOrdinal, int ActiveHoldCount,
-  string? ObservedProtection, string? DesiredLabel, string? ObservedLabel, string? ActionState, string? ExternalReference);
+  string? ObservedProtection, string? DesiredLabel, string? ObservedLabel, string? ActionState, string? ExternalReference,
+  ArchiveCopyStatusProjection? SecondarySharePointCopy = null);
 
 public sealed record WorkpaperSubmissionView(string Revision, DateTimeOffset SubmittedAt, string? Conclusion);
 public sealed record WorkpaperRecordView(Guid Id, Guid EngagementId, string Index, string Title, string Objective, string TemplateVersion, string Procedure,
@@ -162,7 +164,7 @@ public static class AuditRecordQueries
 
   public const int ArchiveEntryPageSize = 100;
 
-  public static async Task<CommandResult<ArchiveRecordView>> ArchiveAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, int? afterOrdinal = null, CancellationToken ct = default)
+  public static async Task<CommandResult<ArchiveRecordView>> ArchiveAsync(IRecordsArchiveCopyDbContext db, ActorContext actor, Guid id, int? afterOrdinal = null, CancellationToken ct = default)
   {
     var a = await db.Archives.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == actor.FirmId, ct);
     if (a is null || !await AuthorizeAsync(db, actor, a.ClientId, a.EngagementId,
@@ -181,8 +183,9 @@ public static class AuditRecordQueries
     var nextOrdinal = hasMore ? entries[^1].Ordinal : (int?)null;
     var action = await db.RecordsActions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == a.Id, ct);
     var holds = await db.LegalHolds.AsNoTracking().CountAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == a.Id && x.State != "RELEASED", ct);
+    var secondaryCopy = await ArchiveCopyService.ReadLatestStatusAsync(db, actor, a.Id, ct);
     return CommandResult<ArchiveRecordView>.Ok(new(a.Id, a.EngagementId, a.Status, a.CreatedAt, a.ProfileId, a.ProfileVersion, manifest?.Version, manifest?.Status, manifest?.ManifestDigest,
       manifest?.CompletenessStatus, manifest?.CompletenessException, entries, totalEntryCount, nextOrdinal, holds, action?.ObservedProtection, action?.DesiredLabel, action?.ObservedLabel, action?.State,
-      action?.ExternalReference));
+      action?.ExternalReference, secondaryCopy));
   }
 }

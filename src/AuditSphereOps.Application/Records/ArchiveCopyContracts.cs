@@ -332,6 +332,17 @@ public sealed record ArchiveCopyEvidenceReadback(
   IReadOnlyList<ArchiveCopyFileReceiptView> FileReceipts,
   IReadOnlyList<ArchiveCopyPermissionObservationView> PermissionObservations);
 
+/// <summary>Read-only current-archive projection; this is a recorded secondary-copy observation, not Purview protection.</summary>
+public sealed record ArchiveCopyStatusProjection(
+  string State,
+  Guid? OperationId,
+  long? TargetRevision,
+  long? ManifestVersion,
+  string? ManifestSha256,
+  DateTimeOffset? LatestFileReadBackAt,
+  DateTimeOffset? PermissionReadBackAt,
+  string Note);
+
 public sealed record ArchiveCopyFileReceiptView(
   Guid ReceiptId, long AttemptToken, string SourceKind, string SourceKeySha256, Guid? SourceId,
   Guid? ManifestEntryId, string SourceVersion, string SourceSha256, long SourceByteCount,

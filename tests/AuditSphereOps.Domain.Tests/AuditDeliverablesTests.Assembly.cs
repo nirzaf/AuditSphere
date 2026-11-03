@@ -797,6 +797,9 @@ public sealed partial class AuditDeliverablesTests
           var queued = await ArchiveCopyService.EnqueueAsync(db, store, partner, new(archiveId, releaseId, target.TargetRevisionId));
           Assert.True(queued.Succeeded, $"{queued.ErrorCode}: {queued.Message}");
           operationId = queued.Value!.OperationId;
+          var secondaryCopy = await ArchiveCopyService.ReadLatestStatusAsync(db, partner, archiveId);
+          Assert.Equal("REQUESTED", secondaryCopy!.State);
+          Assert.Equal(operationId, secondaryCopy.OperationId);
         }
         Assert.True(await dispatcher.ProcessNextAsync());
         Assert.False(await dispatcher.ProcessNextAsync());
@@ -860,6 +863,22 @@ public sealed partial class AuditDeliverablesTests
           Assert.Equal(permission.AuthorizedStaffSha256, permission.ObservedStaffSha256);
           Assert.Equal(ArchiveCopyVerificationOutcomes.Match, permission.ComparisonOutcome);
           Assert.True((await ArchiveCopyService.ReadEvidenceAsync(db, partner, operationId)).Succeeded);
+          var secondaryCopy = await ArchiveCopyService.ReadLatestStatusAsync(db, partner, archiveId);
+          Assert.NotNull(secondaryCopy);
+          Assert.Equal("OBSERVED", secondaryCopy.State);
+          Assert.Equal(target.Revision, secondaryCopy.TargetRevision);
+          Assert.Equal(payload.ManifestVersion, secondaryCopy.ManifestVersion);
+          Assert.Equal(payload.ManifestSha256, secondaryCopy.ManifestSha256);
+          Assert.NotNull(secondaryCopy.LatestFileReadBackAt);
+          Assert.NotNull(secondaryCopy.PermissionReadBackAt);
+
+          var changedManifestEntry = await db.ArchiveManifestEntries
+            .Where(x => x.FirmId == w.FirmId && x.ArchiveManifestId == payload.ManifestId)
+            .OrderBy(x => x.Ordinal).FirstAsync();
+          changedManifestEntry.MetadataJson = "{\"controlledTamper\":true}";
+          await db.SaveChangesAsync();
+          var invalidatedCopy = await ArchiveCopyService.ReadLatestStatusAsync(db, partner, archiveId);
+          Assert.Equal("BLOCKED_EXTERNAL", invalidatedCopy?.State);
         }
         return (w, operationId, archiveId, releaseId, target.TargetRevisionId);
       }

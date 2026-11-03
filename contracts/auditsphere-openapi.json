@@ -102874,6 +102874,72 @@
           }
         }
       },
+      "ArchiveCopyStatusProjection": {
+        "required": [
+          "state",
+          "operationId",
+          "targetRevision",
+          "manifestVersion",
+          "manifestSha256",
+          "latestFileReadBackAt",
+          "permissionReadBackAt",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "targetRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "manifestVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "manifestSha256": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "latestFileReadBackAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "permissionReadBackAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
       "ArchiveCopyTargetRevisionView": {
         "required": [
           "clientId",
@@ -103369,6 +103435,16 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "secondarySharePointCopy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ArchiveCopyStatusProjection"
+              }
             ]
           }
         }

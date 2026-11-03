@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Records;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Accounting;
@@ -118,7 +119,14 @@ public sealed class RecordsArchiveTests
       Assert.Equal(1, exportJson.RootElement.GetProperty("manifest").GetProperty("entryCount").GetInt32());
       Assert.False(exportJson.RootElement.GetProperty("providerProtection")
         .GetProperty("externalDocumentBytesIncluded").GetBoolean());
+      var secondaryCopy = exportJson.RootElement.GetProperty("secondarySharePointCopy");
+      Assert.Equal("NOT_REQUESTED", secondaryCopy.GetProperty("state").GetString());
+      Assert.Equal("AuditSphere release/archive store", secondaryCopy.GetProperty("authoritativeStore").GetString());
+      Assert.Equal("SharePoint read-only access copy", secondaryCopy.GetProperty("secondaryProvider").GetString());
     }
+    var archiveView = await AuditRecordQueries.ArchiveAsync(db, scope.Actor, archiveId);
+    Assert.True(archiveView.Succeeded, archiveView.Message);
+    Assert.Equal("NOT_REQUESTED", archiveView.Value!.SecondarySharePointCopy!.State);
     var unprivilegedId = Guid.NewGuid();
     db.Users.Add(new AppUser
     {
@@ -126,8 +134,17 @@ public sealed class RecordsArchiveTests
       TenantId = "tenant-archive-test", Email = "unprivileged@example.test", DisplayName = "Unprivileged reader",
       UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
     });
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, UserId = unprivilegedId, Role = "Staff",
+      ClientId = scope.ClientId, EngagementId = scope.EngagementId, GrantedAt = DateTimeOffset.UtcNow,
+      GrantedByUserId = scope.Actor.UserId
+    });
     await db.SaveChangesAsync();
     var unprivileged = new ActorContext(unprivilegedId, scope.FirmId, 1, ["Staff"]);
+    var staffArchiveView = await AuditRecordQueries.ArchiveAsync(db, unprivileged, archiveId);
+    Assert.True(staffArchiveView.Succeeded, staffArchiveView.Message);
+    Assert.Null(staffArchiveView.Value!.SecondarySharePointCopy);
     var deniedExport = await RecordsArchiveService.ExportReviewedArchiveAsync(db, unprivileged, archiveId);
     Assert.False(deniedExport.Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, deniedExport.ErrorCode);
@@ -155,6 +172,12 @@ public sealed class RecordsArchiveTests
     var verifiedExport = await RecordsArchiveService.ExportReviewedArchiveAsync(db, scope.Actor, archiveId);
     Assert.True(verifiedExport.Succeeded, verifiedExport.Message);
     Assert.Equal("VERIFIED", verifiedExport.Value!.ProviderProtectionState);
+    Assert.Equal("NOT_REQUESTED", verifiedExport.Value.SecondarySharePointCopyState);
+    using (var verifiedJson = System.Text.Json.JsonDocument.Parse(verifiedExport.Value.Content))
+    {
+      Assert.Equal("VERIFIED", verifiedJson.RootElement.GetProperty("providerProtection").GetProperty("state").GetString());
+      Assert.Equal("NOT_REQUESTED", verifiedJson.RootElement.GetProperty("secondarySharePointCopy").GetProperty("state").GetString());
+    }
 
     Assert.True((await RecordsArchiveService.RequestLegalHoldAsync(db, scope.Actor,
       new RequestLegalHoldRequest(archiveId, "HOLD-001", "Synthetic test hold"))).Succeeded);
