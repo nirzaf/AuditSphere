@@ -174,6 +174,11 @@ public sealed partial class AuditDeliverablesTests
 
   private sealed class FakeArchiveCopyProvider(byte[] snapshotBytes) : IClientSharePointArchiveCopyProvider
   {
+    private static DateTimeOffset SubMicrosecondNow()
+    {
+      var ticks = DateTimeOffset.UtcNow.UtcTicks;
+      return new DateTimeOffset(ticks - ticks % 10 + 7, TimeSpan.Zero);
+    }
     private sealed record StoredFile(byte[] Content, string RelativePath, string ItemId, string VersionId);
     private readonly Dictionary<string, StoredFile> files = new(StringComparer.Ordinal);
     private readonly Dictionary<Guid, int> permissionReadsByTarget = [];
@@ -224,7 +229,7 @@ public sealed partial class AuditDeliverablesTests
       }
       return new(request.Target.TenantId, request.Target.SiteId, request.Target.DriveId,
         request.Target.LibraryRootItemId, stored.RelativePath, stored.ItemId, stored.VersionId,
-        readback, DateTimeOffset.UtcNow);
+        readback, SubMicrosecondNow());
     }
 
     public async Task<ArchiveCopyPermissionReadback> ReadTargetPermissionsAsync(
@@ -237,7 +242,7 @@ public sealed partial class AuditDeliverablesTests
       if (StaffWriteOnFinalRead && readIndex > 0) StaffWriteOnFinalRead = false;
       return new([new("SHAREPOINT_GROUP", request.Target.StaffGroupId, role)], true,
         request.Target.AuthorizedStaffSha256, request.Target.TenantId, request.Target.SiteId,
-        request.Target.DriveId, request.Target.LibraryRootItemId, DateTimeOffset.UtcNow);
+        request.Target.DriveId, request.Target.LibraryRootItemId, SubMicrosecondNow());
     }
   }
 
@@ -862,7 +867,16 @@ public sealed partial class AuditDeliverablesTests
           Assert.Equal(permission.ExpectedPermissionsSha256, permission.ObservedPermissionsSha256);
           Assert.Equal(permission.AuthorizedStaffSha256, permission.ObservedStaffSha256);
           Assert.Equal(ArchiveCopyVerificationOutcomes.Match, permission.ComparisonOutcome);
-          Assert.True((await ArchiveCopyService.ReadEvidenceAsync(db, partner, operationId)).Succeeded);
+          var evidence = await ArchiveCopyService.ReadEvidenceAsync(db, partner, operationId);
+          Assert.True(evidence.Succeeded, evidence.Message);
+          Assert.All(evidence.Value!.Result!.Files, file =>
+          {
+            Assert.Equal(7, file.ReadBackAt.UtcTicks % 10);
+            var persisted = Assert.Single(files, row => row.SourceKeySha256 == file.SourceKeySha256);
+            Assert.Equal(file.ReadBackAt.UtcTicks - 7, persisted.ReadBackAt.UtcTicks);
+          });
+          Assert.Equal(7, evidence.Value.Result.Permissions.ObservedAt.UtcTicks % 10);
+          Assert.Equal(evidence.Value.Result.Permissions.ObservedAt.UtcTicks - 7, permission.ObservedAt.UtcTicks);
           var secondaryCopy = await ArchiveCopyService.ReadLatestStatusAsync(db, partner, archiveId);
           Assert.NotNull(secondaryCopy);
           Assert.Equal("OBSERVED", secondaryCopy.State);

@@ -115,6 +115,10 @@ public static partial class ArchiveCopyService
     new(CopyBlocked, operation.Id, targetRevision, manifest?.Version, manifest?.ManifestDigest,
       null, null, BlockedNote);
 
+  // PostgreSQL timestamps retain microseconds; operation JSON retains .NET ticks.
+  private static bool MatchesStoredTimestamp(DateTimeOffset stored, DateTimeOffset original) =>
+    stored.UtcTicks == original.UtcTicks - original.UtcTicks % 10;
+
   private static async Task<bool> HasExactObservedReadbacksAsync(
     IRecordsArchiveCopyDbContext db, Archive archive, ArchiveManifest manifest,
     ArchiveCopyTargetRevision target, ArchiveCopyOperationResult result, CancellationToken ct)
@@ -190,7 +194,7 @@ public static partial class ArchiveCopyService
           row.HasExactTargetBinding != file.HasExactTargetBinding ||
           !string.Equals(row.ReadBackSha256, file.ReadBackSha256, StringComparison.OrdinalIgnoreCase) ||
           row.ReadBackByteCount != file.ReadBackByteCount || row.VerificationOutcome != file.VerificationOutcome ||
-          row.ReadBackAt != file.ReadBackAt || !string.Equals(row.DestinationTenantId, target.TenantId, StringComparison.OrdinalIgnoreCase) ||
+          !MatchesStoredTimestamp(row.ReadBackAt, file.ReadBackAt) || !string.Equals(row.DestinationTenantId, target.TenantId, StringComparison.OrdinalIgnoreCase) ||
           file.DestinationSiteId != target.SiteId || file.DestinationDriveId != target.DriveId ||
           file.DestinationLibraryRootItemId != target.LibraryRootItemId ||
           !string.Equals(file.DestinationTenantId, target.TenantId, StringComparison.OrdinalIgnoreCase))
@@ -230,6 +234,6 @@ public static partial class ArchiveCopyService
       string.Equals(permission.ObservedTenantId, permissions.ObservedTenantId, StringComparison.OrdinalIgnoreCase) &&
       permission.ObservedSiteId == permissions.ObservedSiteId && permission.ObservedDriveId == permissions.ObservedDriveId &&
       permission.ObservedLibraryRootItemId == permissions.ObservedLibraryRootItemId &&
-      permission.ObservedAt == permissions.ObservedAt;
+      MatchesStoredTimestamp(permission.ObservedAt, permissions.ObservedAt);
   }
 }

@@ -6,6 +6,8 @@
 
 Lifecycle recovery receipt validation rejects non-number revision values instead of coercing them. Group recovery retains the original request after timeout or idempotency-conflict responses and clears it only for typed initial rejections. The focused group workspace suite passed 38/38; exact-source CI and full release verification remain separate.
 
+Archive-copy status now compares persisted timestamps at PostgreSQL microsecond precision without rewriting operation evidence. A precision-boundary probe passed 4/4 and the Application Release build passed; the focused PostgreSQL regression exhausted the isolated test container's memory during migrations before assertions, so its result remains unverified. Exact-source CI remains required.
+
 ## Current source and secondary archive-copy projection
 
 **Observed:** 2026-11-03T16:30:10Z. `master` and `origin/master` are at `d6006472f444dcc0b01fac9cdd87da2fe295744a`; the scoped projection is committed. Exact prior status and handoff bytes are preserved in [the pre-reconcile status archive](status-archive-2026-11-03-before-d600-ci-and-task-reconcile.json) and [handoff archive](auditsphere-execution-current-slice-archive-2026-11-03-before-d600-ci-and-task-reconcile.md). PM-01–06 from the attached practice-management audit are present in the `c9d6bc60ca573ae5d8eb29fcd60d3816e96db5ec` ancestry; that does not establish whole-application acceptance. The attachment is proposal data; Q01–Q07 and external/professional gates remain open.
