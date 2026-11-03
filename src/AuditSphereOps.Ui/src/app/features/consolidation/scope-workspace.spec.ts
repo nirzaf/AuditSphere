@@ -577,6 +577,14 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(url()).toContain('page=2&pageSize=100');
     const decoder = api.resource.mock.calls[1][1] as (value: unknown, path: string) => unknown;
     expect(() => decoder({ page: 1, pageSize: 100, totalCount: 101, items: [] }, 'root')).toThrow();
+    deliverableResource.data.set({ page: 2, pageSize: 100, totalCount: 101, items: [{
+      deliverableId: id3, status: 'ARCHIVED', runHash: hash64, deliverableSha256: hash64,
+      createdAt: '2026-10-01T12:00:00Z', createdByUserId: id1, issuedAt: null, issuedByUserId: null,
+      archivedAt: null, archivedByUserId: null, revision: 3,
+    }] });
+    fixture.detectChanges();
+    expect(page.querySelector(`a[href="${scopeUrl}/deliverables/${id3}/download"]`)).not.toBeNull();
+    expect(page.querySelector(`a[href="${scopeUrl}/deliverables/${id2}/download"]`)).toBeNull();
   });
 
   it('opens external pack history only for the active scope and clears it on a route change', () => {
