@@ -20,7 +20,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "26013476c412ae4373460207a5328d1dfb107d4b",
+  "headCommit": "fb99e886adc556a2a8030ded2e92a079b306374c",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -1118,8 +1118,8 @@
       "attachmentSha256": "e4f9d65743f402502c172ce6d1d9b6ce6e9974b3af96a92b3fa71db227a49a15",
       "sourceBaseSha": "26013476c412ae4373460207a5328d1dfb107d4b",
       "focusedResult": "8 PM pass; compatibility 1/1; finance scope/revocation 4/4.",
-      "scope": "PM-01..06 published c9d6bc60; fast 41494650468 failed Docs Health, images 41494650579 passed; full not run; browser/live acceptance open.",
-      "evidence": ".local/autonomous/evidence/practice-management-audit-20261102/final-candidate-focused-review.json",
+      "scope": "PM-01..06 published c9d6bc60; exact fb99 full CI failed API exit 143 and five E2E cases; four-path repair candidate pending verification/publication.",
+      "evidence": ".local/autonomous/evidence/practice-management-audit-20261102/fb99-exact-ci/terminal-proof.json",
       "financeResponseBoundaryEvidence": ".local/autonomous/evidence/practice-management-audit-20261102/finance-scope-compatibility-review.json"
     }
   },
@@ -1508,7 +1508,7 @@
     "auditCommit": "a6e160c3fdc6b2abed9631340d0f48d7453d700e",
     "auditDate": "2026-10-18",
     "auditEvidence": "docs/execution/auditsphere-execution-report-practice-management-criterion-audit-current.md",
-    "ciObservation": "Current CI is recorded under targetedVerification.angularQuality.task07.ci. Historical observation retained in status-archive-2026-10.json#keys.practiceManagementPreviousCiObservation20261019. No full current-source acceptance.",
+    "ciObservation": "Exact current-source CI is recorded under currentSourceCi; fb99 full run failed the API job (cause unproven) and five E2E cases. No full acceptance.",
     "inspectedCriteriaRanges": [
       "ASPM-CRM-01..05",
       "ASPM-COM-01..06",
@@ -1633,16 +1633,16 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceSha": "26013476c412ae4373460207a5328d1dfb107d4b",
-    "fastRunId": 41423498612,
-    "fastStatus": "PASS",
-    "imagesRunId": 41431816507,
-    "imagesStatus": "PASS; actual checkouts and manifest pins retained",
-    "fullStatus": "FAIL; API and E2E on base 260; API cause unknown",
-    "localCandidate": "PM-01..06 candidate on base 260; exact-candidate CI pending.",
-    "evidence": ".local/autonomous/evidence/ci-26013476-current-20261102/full-terminal-review.json",
+    "sourceSha": "fb99e886adc556a2a8030ded2e92a079b306374c",
+    "fastRunId": 41498698089,
+    "fastStatus": "PASS; 3 actual checkouts",
+    "imagesRunId": 41498938786,
+    "imagesStatus": "PASS; 3 actual checkouts and manifest pins",
+    "fullStatus": "FAIL; API exit 143 (cause unproven), E2E 334/339 with 5 failures",
+    "localCandidate": "Four-path UI/E2E repair pending exact-source verification; Angular production build passed; local .NET E2E blocked before testhost.",
+    "evidence": ".local/autonomous/evidence/practice-management-audit-20261102/fb99-exact-ci/",
     "aggregatePass": false,
-    "fullRunId": 41439903657
+    "fullRunId": 41502904733
   },
   "uxU03ContextSwitcher": {
     "status": "PARTIAL",
@@ -1653,5 +1653,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-02T17:45:18Z"
+  "updatedAtUtc": "2026-11-03T03:31:16Z"
 }

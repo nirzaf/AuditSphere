@@ -390,7 +390,9 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     await page.GetByLabel("Accepted native trial balance source", new() { Exact = false }).SelectOptionAsync(tb.DatasetId.ToString());
     await page.GetByLabel("Successor evidence reference", new() { Exact = true }).FillAsync("Synthetic exact accepted source successor");
     var previewButton = page.GetByRole(AriaRole.Button, new() { Name = "Preview exact successor opening", Exact = true });
+    await Assertions.Expect(previewButton).ToBeEnabledAsync();
     await previewButton.FocusAsync();
+    await Assertions.Expect(previewButton).ToBeFocusedAsync();
     var previewResponse = await PlaywrightResponseCapture.RunAsync(page,
       request => request.Method == "POST" && request.Url.EndsWith("/operational-opening-successors/preview", StringComparison.Ordinal),
       () => page.Keyboard.PressAsync("Enter"));

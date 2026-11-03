@@ -248,6 +248,9 @@ public sealed class AngularPortfolioJourneyTests
       await Assertions.Expect(page.GetByRole(AriaRole.Link, new() { Name = "Open client details", Exact = true })).ToHaveCountAsync(0);
       await engagementLink.ClickAsync();
       await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "FinancialStatementAudit — PORTFOLIO-A Holdings", Exact = true })).ToBeVisibleAsync();
+      var planning = page.GetByRole(AriaRole.Region, new() { Name = "Engagement planning", Exact = true });
+      await Assertions.Expect(planning).ToBeVisibleAsync();
+      await Assertions.Expect(planning.GetByRole(AriaRole.Heading, new() { Name = "Engagement team", Exact = true })).ToBeVisibleAsync();
       await page.Locator("audit-engagement").GetByRole(AriaRole.Link, new() { Name = "Portfolio", Exact = true }).ClickAsync();
       await Assertions.Expect(page.GetByRole(AriaRole.Textbox, new() { Name = "Search client name or ID" })).ToHaveValueAsync("PORTFOLIO-A");
       await Assertions.Expect(page.Locator(".portfolio-clients tr.selected")).ToHaveCountAsync(1);

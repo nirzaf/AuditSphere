@@ -473,7 +473,9 @@ export class AcceptanceChecklist implements NavigationProtected {
       (this.engagementId !== null && (!guid.test(this.engagementId) || this.engagementId === '00000000-0000-0000-0000-000000000000')) ||
       !this.session.current()?.staff
     ) {
-      if (this.session.current()?.staff) this.error.set('Assessment target is invalid. Return to the authorized client or engagement.');
+      this.error.set(this.session.current()?.staff
+        ? 'Assessment target is invalid. Return to the authorized client or engagement.'
+        : 'Acceptance unavailable. Check your client scope or retry.');
       return;
     }
     this.loading.set(true);
