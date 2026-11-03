@@ -226,7 +226,7 @@ public sealed class AngularArchiveCompletenessJourneyTests
       Uri.EscapeDataString($"/app/records/archives/{archiveId:D}"));
     await Assertions.Expect(page.GetByText("Manifest version 1 · 2 manifest entries · 0 active local holds",
       new() { Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByText("Provider protection remains separate; an export does not claim external immutability.",
+    await Assertions.Expect(page.GetByText("The export reports Purview protection and the SharePoint secondary access-copy observation as separate evidence. It does not claim external immutability.",
       new() { Exact = true })).ToBeVisibleAsync();
 
     var exportLink = page.GetByRole(AriaRole.Link,
