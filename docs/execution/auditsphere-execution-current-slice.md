@@ -4,7 +4,7 @@
 
 **Whole assignment:** INCOMPLETE. Preserve the original 48 tasks and independent original, Axelor, practice, Atomic, Claude, role, Technical Stories and UX16 registers.
 
-Lifecycle recovery receipt validation now rejects non-number revision values instead of coercing them; the focused group workspace suite passed 35/35. Exact-source CI and full release verification remain separate.
+Lifecycle recovery receipt validation rejects non-number revision values instead of coercing them. Group recovery retains the original request after timeout or idempotency-conflict responses and clears it only for typed initial rejections. The focused group workspace suite passed 38/38; exact-source CI and full release verification remain separate.
 
 ## Current source and secondary archive-copy projection
 

@@ -539,6 +539,29 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(JSON.parse(sessionStorage.getItem(key)!).requestKey).toBe(id3);
   });
 
+  it.each([{ status: 408, code: 'request.failed' }, { status: 409, code: 'idempotency.conflict' }])(
+    'retains the original build after an unconfirmed $status response', async ({ status, code }) => {
+      const { component } = open(workspacePayload({ latestReport: { scopeVersionId: id1, runId: id3, runHash: hash64,
+        state: 'CURRENT_APPROVED', approvedAt: '2026-10-01T12:00:00Z', lines: [] } }));
+      api.command.mockResolvedValueOnce({ ok: false, unknown: false, code, status, message: 'Unconfirmed' });
+      component.buildDeliverable(component.ws.data()!);
+      await vi.waitFor(() => expect(component.cmd.uncertain()).toBe(true));
+      const originalKey = (api.command.mock.calls[0][1] as Record<string, unknown>)['requestKey'];
+      expect(component.pendingDeliverable()?.requestKey).toBe(originalKey);
+      component.buildDeliverable(component.ws.data()!);
+      expect(api.command).toHaveBeenCalledTimes(1);
+    });
+
+  it('clears a first build reference after a typed stale-generation rejection', async () => {
+    const { component } = open(workspacePayload({ latestReport: { scopeVersionId: id1, runId: id3, runHash: hash64,
+      state: 'CURRENT_APPROVED', approvedAt: '2026-10-01T12:00:00Z', lines: [] } }));
+    api.command.mockResolvedValueOnce({ ok: false, unknown: false, code: 'generation.stale', status: 409, message: 'Stale' });
+    component.buildDeliverable(component.ws.data()!);
+    await vi.waitFor(() => expect(component.cmd.failed()).toBe(true));
+    expect(component.pendingDeliverable()).toBeNull();
+    expect(component.cmd.uncertain()).toBe(false);
+  });
+
   it('uses a new identity for a new build after the original build is recovered', async () => {
     const raw = workspacePayload({ latestReport: { scopeVersionId: id1, runId: id3, runHash: hash64,
       state: 'CURRENT_APPROVED', approvedAt: '2026-10-01T12:00:00Z', lines: [] } });

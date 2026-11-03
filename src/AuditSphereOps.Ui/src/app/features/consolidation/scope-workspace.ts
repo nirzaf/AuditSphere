@@ -390,7 +390,9 @@ export class ConsolidationScopeWorkspace {
       this.deliverableBuildRequestKeys.clear(); this.deliverableIssueRequestKeys.clear(); this.deliverableArchiveRequestKeys.clear();
       this.recoveryInput = ''; this.cmd.failed.set(false); this.cmd.message.set('The original group deliverable action was confirmed.');
       after?.(); this.deliverablePage.reload(); this.ws.reload();
-    } else if (!outcome.ok && !outcome.unknown && !recovering) {
+    } else if (!outcome.ok && !outcome.unknown && !recovering &&
+        (([400, 409].includes(outcome.status) && ['deliverable.invalid', 'csrf.invalid', 'gate.blocked', 'generation.stale', 'mapping.invalid'].includes(outcome.code)) ||
+         (outcome.status === 403 && outcome.code === 'scope.denied'))) {
       try {
         if (sessionStorage.getItem(key) !== JSON.stringify(ref)) throw new Error('Recovery reference changed');
         sessionStorage.removeItem(key); this.pendingDeliverable.set(null);
