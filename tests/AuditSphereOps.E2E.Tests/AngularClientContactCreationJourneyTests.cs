@@ -52,8 +52,36 @@ public sealed class AngularClientContactCreationJourneyTests
       Assert.Equal(28,await db.ClientContacts.CountAsync());Assert.Single(await db.ClientContactCreations.ToListAsync());
       Assert.Single(await db.ClientContacts.Where(c=>c.Primary).ToListAsync());
       await db.RoleGrants.Where(g=>g.UserId==f.Staff.Id&&g.Role=="Manager").ExecuteUpdateAsync(s=>s.SetProperty(g=>g.RevokedAt,DateTimeOffset.UtcNow)); }
-    await page.GetByRole(AriaRole.Button,new(){Name="Refresh contact context",Exact=true}).ClickAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Contact workspace unavailable",Exact=true})).ToBeVisibleAsync();
-    Assert.DoesNotContain("created@example.test",await page.Locator("body").InnerTextAsync());Assert.Empty(errors);
+    var (revokedContextStatus, _) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" &&
+        request.Url.Contains($"/api/ui/clients/{f.ClientId:D}/contact-creation", StringComparison.OrdinalIgnoreCase),
+      async () =>
+      {
+        await page.EvaluateAsync<int>(
+          "clientId => fetch('/api/ui/clients/' + clientId + '/contact-creation').then(response => response.status)",
+          f.ClientId.ToString("D"));
+      });
+    Assert.Equal(403, revokedContextStatus);
+
+    var unavailable = page.GetByRole(AriaRole.Heading,new(){Name="Contact workspace unavailable",Exact=true});
+    var refreshContext = page.GetByRole(AriaRole.Button,new(){Name="Refresh contact context",Exact=true});
+    if (!await unavailable.IsVisibleAsync() && await refreshContext.IsVisibleAsync())
+    {
+      try { await refreshContext.ClickAsync(new() { Timeout = 5000 }); }
+      catch (PlaywrightException)
+      {
+        // Revocation can remove the action during dispatch; the terminal denied state is required below.
+      }
+      catch (TimeoutException)
+      {
+        // A detached action can also be reported as System.TimeoutException; denial is still asserted below.
+      }
+    }
+    await Assertions.Expect(unavailable).ToBeVisibleAsync(new() { Timeout = 15000 });
+    Assert.DoesNotContain("created@example.test",await page.Locator("body").InnerTextAsync());
+    await using(var db=host.CreateDbContext()) {
+      Assert.Equal(28,await db.ClientContacts.CountAsync());Assert.Single(await db.ClientContactCreations.ToListAsync());
+      Assert.Single(await db.ClientContacts.Where(c=>c.Primary).ToListAsync()); }
+    Assert.Empty(errors);
   }
 }

@@ -20,7 +20,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "d6006472f444dcc0b01fac9cdd87da2fe295744a",
+  "headCommit": "10060ef5d5cc3926f11d4c114f1a5d0cc8cbbed1",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -1662,19 +1662,19 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-   "sourceSha": "d6006472f444dcc0b01fac9cdd87da2fe295744a",
-   "fastRunId": 41667417025,
-   "fastStatus": "PASS aggregate; exact job checkout logs were fetched once but not retained; actual checkout UNVERIFIED.",
-   "imagesRunId": 41667417093,
-   "imagesStatus": "PASS aggregate; job checkout logs and image artifact metadata were fetched once but not retained; actual checkout and immutable pins UNVERIFIED.",
-   "fullRunId": null,
-   "fullStatus": "NOT_DISPATCHED; exact-source full run remains open pending final source/documentation freeze.",
-   "localCandidate": "Angular archive-record spec 31/31; Angular production build PASS with existing CSS budget warnings; Application Release build PASS. Focused PostgreSQL tests/API build BLOCKED_TEST_ENV under memory pressure before assertions/result. OpenAPI schema aligned, canonical emitter NOT_RUN. Browser NOT_RUN.",
-   "evidence": ".local/autonomous/evidence/practice-archive-copy-audit-20261103/d600-terminal-gates-416674/terminal-review.json",
-   "aggregatePass": false,
-   "fastAggregatePass": true,
-   "imagesAggregatePass": true,
-   "actualCheckoutAndPins": "UNVERIFIED; no values inferred from run metadata."
+    "sourceSha": "10060ef5d5cc3926f11d4c114f1a5d0cc8cbbed1",
+    "fastRunId": 42090990688,
+    "fastStatus": "PASS aggregate; actual job checkout not independently verified.",
+    "imagesRunId": 42090990689,
+    "imagesStatus": "PASS; all three actual checkouts and pushing-manifest pins match source SHA.",
+    "fullRunId": 42002341722,
+    "fullStatus": "FAIL on this source: API exit 143 cause unproven; E2E 334 passed, 1 failed.",
+    "localCandidate": "Lifecycle-gap T19: three Playwright methods/four cases PASS; test-only diff; candidate exact fast/images/full pending.",
+    "evidence": ".local/autonomous/evidence/lifecycle-gap-t19-20261105/implementation-review.json",
+    "aggregatePass": false,
+    "fastAggregatePass": true,
+    "imagesAggregatePass": true,
+    "actualCheckoutAndPins": "Fast checkout unverified; base image checkouts/pins retained in evidence."
   },
   "uxU03ContextSwitcher": {
     "status": "PARTIAL",
@@ -1685,5 +1685,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-03T16:30:10Z"
+  "updatedAtUtc": "2026-11-05T20:38:59Z"
 }

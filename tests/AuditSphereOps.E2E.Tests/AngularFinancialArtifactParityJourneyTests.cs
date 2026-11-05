@@ -292,22 +292,54 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("window.__clientPackageParityToken"));
     await NavigateSpaAsync(page, path);
     await Assertions.Expect(page.GetByText(hash, new() { Exact = true })).ToBeVisibleAsync();
-    await page.GetByLabel("Evidence reference", new() { Exact = true })
-      .FillAsync("Synthetic post-revocation decision must be refused");
-    await page.GetByLabel("I reviewed this exact package and its SHA-256 identity.", new() { Exact = true }).CheckAsync();
 
-    await using (var db = host.CreateDbContext())
+    var revokedDecisionStatus = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var decisionRoute = $"**/api/ui/portal/accounting/packages/{packageId:D}/decision";
+    await using var decisionContext = await browser.NewContextAsync();
+    var decisionPage = await decisionContext.NewPageAsync();
+    decisionPage.PageError += (_, error) => diagnostics.Add($"decision-page-error: {error}");
+    await decisionPage.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+    await Assertions.Expect(decisionPage.GetByText(hash, new() { Exact = true })).ToBeVisibleAsync();
+    await decisionPage.GetByLabel("Decision", new() { Exact = true })
+      .SelectOptionAsync(FinancialPackageReviewDecisions.ChangesRequired);
+    await decisionPage.GetByLabel("Evidence reference", new() { Exact = true })
+      .FillAsync("Synthetic post-revocation decision must be refused");
+    var reviewedPackage = decisionPage.GetByRole(AriaRole.Checkbox,
+      new() { Name = "I reviewed this exact package and its SHA-256 identity.", Exact = true });
+    await reviewedPackage.UncheckAsync();
+    await reviewedPackage.CheckAsync();
+    Assert.True(await reviewedPackage.IsCheckedAsync());
+    var decisionButton = decisionPage.GetByRole(AriaRole.Button, new() { Name = "Record decision", Exact = true });
+    await Assertions.Expect(decisionButton).ToBeEnabledAsync();
+    await decisionPage.RouteAsync(decisionRoute, async route =>
     {
-      var grant = await db.RoleGrants.SingleAsync(x => x.UserId == client.Id &&
-        x.Role == "ClientUser" && x.RevokedAt == null);
-      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
-        PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
-      Assert.True(revoked.Succeeded, revoked.Message);
-    }
-    await page.GetByRole(AriaRole.Button, new() { Name = "Record decision", Exact = true }).ClickAsync();
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })
+      if (route.Request.Method != "POST")
+      {
+        await route.ContinueAsync();
+        return;
+      }
+
+      // Let the visible action dispatch, revoke its authority before forwarding the request, and
+      // retain the real API denial. This fixes the ordering without weakening the browser action.
+      await using (var db = host.CreateDbContext())
+      {
+        var grant = await db.RoleGrants.SingleAsync(x => x.UserId == client.Id &&
+          x.Role == "ClientUser" && x.RevokedAt == null);
+        var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+          PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
+        Assert.True(revoked.Succeeded, revoked.Message);
+      }
+
+      var response = await route.FetchAsync();
+      await route.FulfillAsync(new() { Response = response });
+      revokedDecisionStatus.TrySetResult(response.Status);
+    });
+    await decisionButton.ClickAsync();
+    Assert.Equal(401, await revokedDecisionStatus.Task.WaitAsync(TimeSpan.FromSeconds(15)));
+    await decisionPage.UnrouteAsync(decisionRoute);
+    await decisionPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })
       .WaitForAsync(new() { Timeout = 15000 });
-    var revokedBody = await page.Locator("body").InnerTextAsync();
+    var revokedBody = await decisionPage.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(hash, revokedBody);
     Assert.DoesNotContain("Statement totals", revokedBody);
     Assert.DoesNotContain("Record management decision", revokedBody);
@@ -635,6 +667,10 @@ public sealed class AngularFinancialArtifactParityJourneyTests
       {
         // Revocation may replace the refresh action while the click is being dispatched.
       }
+      catch (TimeoutException)
+      {
+        // Playwright also reports a detached action as System.TimeoutException; the denied view below is required.
+      }
     }
     await journalUnavailable.WaitForAsync(new() { Timeout = 15000 });
     Assert.DoesNotContain("AJ-SYN", await journalPage.Locator("body").InnerTextAsync());
@@ -657,6 +693,10 @@ public sealed class AngularFinancialArtifactParityJourneyTests
         catch (PlaywrightException)
         {
           // Session revocation may remove the action during dispatch. Denial must still appear below.
+        }
+        catch (TimeoutException)
+        {
+          // A removed action can also time out; the denied view below remains mandatory.
         }
       }
       await unavailable.WaitForAsync(new() { Timeout = 15000 });
