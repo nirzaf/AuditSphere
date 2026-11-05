@@ -18,7 +18,7 @@ const copy = (state: 'NOT_REQUESTED' | 'REQUESTED' | 'OBSERVED' | 'BLOCKED_EXTER
     : 'No SharePoint secondary-copy request is recorded. The AuditSphere release/archive store remains authoritative.'
 });
 const archive = (n = 1, secondarySharePointCopy = copy()) => ({ id: id(n), engagementId: id(20), status: 'SEALED', createdAt: created,
-  profileId: 'SYNTHETIC-ARCHIVE', profileVersion: 1, manifestVersion: 1, manifestStatus: 'BUILT', manifestDigest: hash, completenessStatus: 'COMPLETE', completenessException: null,
+  profileId: 'SYNTHETIC-ARCHIVE', profileVersion: 1, manifestVersion: 1, manifestStatus: 'BUILT', manifestDigest: hash, completenessStatus: 'COMPLETE', completenessException: null, canExport: false,
   entries: Array.from({ length: 100 }, (_, i) => entry(i + 1)), totalEntryCount: 205, nextOrdinal: 100,
   activeHoldCount: 1, observedProtection: null, desiredLabel: 'SYNTHETIC LABEL', observedLabel: null, actionState: 'REQUESTED', externalReference: 'SYNTHETIC REFERENCE', secondarySharePointCopy });
 const page2 = () => ({ ...archive(), entries: Array.from({ length: 100 }, (_, i) => entry(i + 101)), nextOrdinal: 200 });
@@ -40,7 +40,7 @@ describe('Archive detail and exact paging safety', () => {
     expect(host.textContent).toContain(created); expect(host.textContent).toContain('Records action requested; this is not evidence of Purview protection.');
     expect(host.textContent).toContain('SharePoint secondary access copy'); expect(host.textContent).toContain('NOT_REQUESTED');
     expect(host.textContent).toContain('release/archive store remains authoritative');
-    expect(host.textContent).toContain('Observed active hold'); expect(host.textContent).toContain('Not observed');
+    expect(host.textContent).toContain('Unreleased local hold'); expect(host.textContent).toContain('Not observed');
     const cells = host.querySelector('tbody tr')!.querySelectorAll('td');
     expect(Array.from(cells, c => c.textContent?.trim())).toEqual(['1', 'DOCUMENT', 'evidence/item-1.pdf', hash, '1']);
   });

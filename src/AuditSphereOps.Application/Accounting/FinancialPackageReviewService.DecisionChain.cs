@@ -55,12 +55,20 @@ public static partial class FinancialPackageReviewService
   /// still effective. A redundant approval is refused rather than recorded, because recording it would reorder the chain and silently
   /// defeat the later stages' approvals. An approval that a later return at an earlier stage defeated may be recorded again.
   /// </summary>
-  internal static bool IsCurrentDuplicate(IEnumerable<FinancialPackageReviewDecision> chain, string stage, string decision)
+  internal static bool IsCurrentDuplicate(IEnumerable<FinancialPackageReviewDecision> chain, string stage, string decision,
+    Guid? compositionId = null, string? compositionDigest = null)
   {
     var decisions = InRecordedOrder(chain);
     var latestAtStage = decisions.LastOrDefault(x => x.Stage == stage);
     if (latestAtStage is null || latestAtStage.Decision != decision) return false;
-    return decision != FinancialPackageReviewDecisions.Approved || EffectiveApprovals(decisions)[stage]?.Id == latestAtStage.Id;
+    if (decision != FinancialPackageReviewDecisions.Approved) return true;
+    if (EffectiveApprovals(decisions)[stage]?.Id != latestAtStage.Id) return false;
+    // A separately approved presentation/composition is a new decision, not a redundant copy.
+    if (compositionId is { } id &&
+        (latestAtStage.PresentationCompositionId != id ||
+         latestAtStage.CompositionManifestDigest != compositionDigest))
+      return false;
+    return true;
   }
 
   private static string ReviewRequestHash(string stage, string decision, string evidenceMode, string evidenceReference, string comment,

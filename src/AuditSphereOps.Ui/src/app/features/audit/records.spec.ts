@@ -130,6 +130,7 @@ describe('Audit Records Contracts', () => {
       manifestStatus: 'REVIEWED',
       manifestDigest: hash64,
       completenessStatus: 'COMPLETE',
+      canExport: true,
       completenessException: null,
       entries: [
         {

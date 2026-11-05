@@ -267,7 +267,7 @@ public static partial class FinancialPackageReviewService
           : $"A current approved {predecessorStage} decision for this signing candidate is required before {stage}.");
     }
 
-    if (IsCurrentDuplicate(chain, stage, decision))
+    if (IsCurrentDuplicate(chain, stage, decision, composition?.Id, composition?.ManifestDigest))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This package decision already exists for the current package version.");
 
     var review = new FinancialPackageReviewDecision

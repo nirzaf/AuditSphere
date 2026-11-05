@@ -4,6 +4,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Records;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,7 +27,7 @@ public sealed record ArchiveEntryView(int Ordinal, string EntryKind, string Rela
 public sealed record ArchiveRecordView(Guid Id, Guid EngagementId, string Status, DateTimeOffset CreatedAt, string ProfileId, long ProfileVersion, long? ManifestVersion,
   string? ManifestStatus, string? ManifestDigest, string? CompletenessStatus, string? CompletenessException, IReadOnlyList<ArchiveEntryView> Entries, int TotalEntryCount, int? NextOrdinal, int ActiveHoldCount,
   string? ObservedProtection, string? DesiredLabel, string? ObservedLabel, string? ActionState, string? ExternalReference,
-  ArchiveCopyStatusProjection? SecondarySharePointCopy = null);
+  ArchiveCopyStatusProjection? SecondarySharePointCopy = null, bool CanExport = false);
 
 public sealed record WorkpaperSubmissionView(string Revision, DateTimeOffset SubmittedAt, string? Conclusion);
 public sealed record WorkpaperRecordView(Guid Id, Guid EngagementId, string Index, string Title, string Objective, string TemplateVersion, string Procedure,
@@ -184,8 +185,14 @@ public static class AuditRecordQueries
     var action = await db.RecordsActions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == a.Id, ct);
     var holds = await db.LegalHolds.AsNoTracking().CountAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == a.Id && x.State != "RELEASED", ct);
     var secondaryCopy = await ArchiveCopyService.ReadLatestStatusAsync(db, actor, a.Id, ct);
+    var canExport = manifest is { Status: "REVIEWED", CompletenessStatus: "COMPLETE", SupersededByManifestId: null } &&
+      await db.ArchiveStructuredExports.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+        x.ArchiveManifestId == manifest.Id && x.Schema == ArchiveStructuredExportSchemas.EngagementV2, ct) &&
+      (await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, a.ClientId, a.EngagementId,
+          RequiredRoles: ["Administrator", "Partner", "RecordsCustodian"], InternalOnly: true), ct)).Succeeded;
     return CommandResult<ArchiveRecordView>.Ok(new(a.Id, a.EngagementId, a.Status, a.CreatedAt, a.ProfileId, a.ProfileVersion, manifest?.Version, manifest?.Status, manifest?.ManifestDigest,
       manifest?.CompletenessStatus, manifest?.CompletenessException, entries, totalEntryCount, nextOrdinal, holds, action?.ObservedProtection, action?.DesiredLabel, action?.ObservedLabel, action?.State,
-      action?.ExternalReference, secondaryCopy));
+      action?.ExternalReference, secondaryCopy, canExport));
   }
 }

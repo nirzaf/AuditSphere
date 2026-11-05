@@ -460,6 +460,99 @@ public sealed class ClientProfileWorkspaceTests
   }
 
   [Fact]
+  public async Task OffboardingReadinessPreservesASixDecimalOutstandingBalanceInTheDigest()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var now = DateTimeOffset.UtcNow;
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"));
+    var account = new BillingAccount
+      { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, Currency = "USD", CreatedAt = now };
+    var invoice = new Invoice
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = account.Id, InvoiceNumber = "SYN-OFF-SIX-DECIMAL",
+      Currency = "USD", Subtotal = 10m, Total = 10m, Status = BillingStates.InvoicePosted,
+      PostedAt = now, CreatedAt = now
+    };
+    db.BillingAccounts.Add(account);
+    db.Invoices.Add(invoice);
+    db.CreditNotes.Add(new CreditNote
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = account.Id, InvoiceId = invoice.Id,
+      NoteNumber = "SYN-OFF-SIX-DECIMAL-CREDIT", Currency = "USD", Amount = 9.999999m,
+      Reason = "Synthetic exact six-decimal credit", Status = BillingStates.CreditIssued,
+      CreatedByUserId = f.Admin.Id, CreatedAt = now
+    });
+    await db.SaveChangesAsync();
+
+    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db,
+      PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    var outstanding = readiness.Value!.Sections.SelectMany(section => section.Items)
+      .Single(item => item.Key == "OUTSTANDING_INVOICES");
+    Assert.Equal(ClientOffboardingStates.ActionRequired, outstanding.State);
+    Assert.Equal(1L, outstanding.Count);
+    Assert.Equal("USD 0.000001", outstanding.Detail);
+    Assert.Matches("^[0-9a-f]{64}$", readiness.Value.ReadinessDigest);
+  }
+
+  [Fact]
+  public async Task OffboardingReadinessCarriesRetainedAdvanceReconciliationWithoutChangingTheSource()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var now = DateTimeOffset.UtcNow;
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"));
+    var account = new BillingAccount
+      { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, Currency = "USD", CreatedAt = now };
+    db.BillingAccounts.Add(account);
+    var fees = AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-ADVANCE-ORPHAN", 100m, now);
+    var invoice = new Invoice
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = account.Id,
+      InvoiceNumber = "SYN-OFF-ADVANCE-ORPHAN-INVOICE", Currency = "USD",
+      Subtotal = fees.Advance.Amount, Total = fees.Advance.Amount,
+      Status = BillingStates.InvoicePosted, PostedAt = now, CreatedAt = now
+    };
+    var line = new InvoiceLine
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, InvoiceId = invoice.Id, Description = "Retained advance",
+      Quantity = 1m, UnitPrice = fees.Advance.Amount, LineTotal = fees.Advance.Amount,
+      SourceKind = FeeAgreementService.MilestoneSourceKind, SourceId = fees.Advance.Id, SourceRevision = 1
+    };
+    db.Invoices.Add(invoice);
+    db.InvoiceLines.Add(line);
+    db.BillingSourceAllocations.Add(new BillingSourceAllocation
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, InvoiceLineId = line.Id,
+      SourceKind = FeeAgreementService.MilestoneSourceKind, SourceId = fees.Advance.Id,
+      SourceRevision = 1, Quantity = 1m, Amount = fees.Advance.Amount, CreatedAt = now
+    });
+    await db.SaveChangesAsync();
+    var countsBefore = (await db.Invoices.CountAsync(), await db.InvoiceLines.CountAsync(),
+      await db.BillingSourceAllocations.CountAsync(), await db.FeeMilestones.CountAsync());
+
+    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db,
+      PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    var feeSection = Assert.Single(readiness.Value!.Sections, section => section.Key == "FEE_MILESTONES");
+    var reconciliation = Assert.Single(feeSection.Items, item => item.Key == "FEE_RECONCILIATION");
+    Assert.Equal(ClientOffboardingStates.ActionRequired, reconciliation.State);
+    Assert.Equal(1L, reconciliation.Count);
+    Assert.Contains("reconciliation", reconciliation.Detail!, StringComparison.OrdinalIgnoreCase);
+    Assert.Contains(feeSection.Items, item => item.Key == "FEE_MILESTONES" &&
+      item.State == ClientOffboardingStates.ActionRequired);
+    Assert.Null(await db.FeeMilestones.Where(x => x.Id == fees.Advance.Id)
+      .Select(x => x.InvoiceId).SingleAsync());
+    Assert.Equal(FeeMilestoneStates.Planned, await db.FeeMilestones.Where(x => x.Id == fees.Advance.Id)
+      .Select(x => x.State).SingleAsync());
+    Assert.Equal(countsBefore, (await db.Invoices.CountAsync(), await db.InvoiceLines.CountAsync(),
+      await db.BillingSourceAllocations.CountAsync(), await db.FeeMilestones.CountAsync()));
+  }
+
+  [Fact]
   public async Task OffboardingReadinessDoesNotClaimCompleteTimeCoverageBeyond366Days()
   {
     await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);

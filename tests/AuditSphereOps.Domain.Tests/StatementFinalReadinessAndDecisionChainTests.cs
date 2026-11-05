@@ -329,4 +329,24 @@ public sealed class StatementFinalReadinessAndDecisionChainTests
     // A redundant management re-approval while its approval is effective would silently defeat the later stages, so it is a duplicate.
     Assert.True(FinancialPackageReviewService.IsCurrentDuplicate(chain, Management, Approved));
   }
+
+  [Fact]
+  public void IsCurrentDuplicate_TreatsASeparatelyApprovedCompositionAsANewDecision()
+  {
+    var compositionA = Guid.NewGuid();
+    var compositionB = Guid.NewGuid();
+    var decision = new FinancialPackageReviewDecision
+    {
+      Id = Guid.CreateVersion7(), Stage = FinancialPackageReviewStages.ManagementApproval,
+      Decision = FinancialPackageReviewDecisions.Approved, Sequence = 1,
+      PresentationCompositionId = compositionA, CompositionManifestDigest = new string('a', 64)
+    };
+    var chain = new[] { decision };
+    Assert.True(FinancialPackageReviewService.IsCurrentDuplicate(chain,
+      FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewDecisions.Approved,
+      compositionA, new string('a', 64)));
+    Assert.False(FinancialPackageReviewService.IsCurrentDuplicate(chain,
+      FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewDecisions.Approved,
+      compositionB, new string('b', 64)));
+  }
 }

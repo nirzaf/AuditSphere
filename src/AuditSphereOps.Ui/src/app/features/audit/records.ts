@@ -29,7 +29,7 @@ const gate = obj({ state: text, detail: text });
 export const decodeRelease = obj({ id: guid, status: text, targetKind: text, targetRevision: int, revision: int, manifestDigest: text, createdAt: instant,
   checkpoint: gate, attestation: gate, lineage: gate, preflightReady: bool });
 export const decodeArchive = obj({ id: guid, engagementId: guid, status: text, createdAt: instant, profileId: text, profileVersion: int, manifestVersion: nullable(int),
-  manifestStatus: nullable(text), manifestDigest: nullable(text), completenessStatus: nullable(text), completenessException: nullable(text),
+  manifestStatus: nullable(text), manifestDigest: nullable(text), completenessStatus: nullable(text), completenessException: nullable(text), canExport: bool,
   entries: arr(obj({ ordinal: int, entryKind: text, relativeName: text, contentHash: text, byteCount: int }), 100), totalEntryCount: nat, nextOrdinal: nullable(int), activeHoldCount: nat,
   observedProtection: nullable(text), desiredLabel: nullable(text), observedLabel: nullable(text), actionState: nullable(text), externalReference: nullable(text),
   secondarySharePointCopy: nullable(obj({ state: oneOf('NOT_REQUESTED', 'REQUESTED', 'OBSERVED', 'BLOCKED_EXTERNAL'),
@@ -320,7 +320,7 @@ export class ReleaseCandidate {
           <p><small>{{ copy.note }}</small></p>
         } @else { <p>Secondary-copy evidence is not available to this session role.</p> }
       </section>
-      @if (a.manifestStatus === 'REVIEWED' && a.completenessStatus === 'COMPLETE') {
+      @if (a.canExport && a.manifestStatus === 'REVIEWED' && a.completenessStatus === 'COMPLETE') {
         <section class="panel" aria-labelledby="archive-export"><h2 id="archive-export">Read-only archive export</h2>
           <p>The export contains the reviewed structured snapshot and full manifest index. External document bytes remain in their source repository and are represented by references and SHA-256 hashes.</p>
           <a mat-stroked-button [href]="'/api/ui/records/archives/' + a.id + '/export'">Download read-only evidence export</a>
