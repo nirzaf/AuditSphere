@@ -82,7 +82,12 @@ public sealed class ReleaseTests
       Assert.True(repeated.Succeeded);
       Assert.Equal(issued.Value, repeated.Value);
       Assert.Single(await db.Releases.ToListAsync());
-      Assert.Single(await db.DurableOperations.Where(x => x.OperationKind == "ReleaseDelivery.v1").ToListAsync());
+      var deliveryIntent = Assert.Single(await db.DurableOperations
+        .Where(x => x.OperationKind == "ReleaseDelivery.v1").ToListAsync());
+      Assert.Equal(OperationState.PROVIDER_BLOCKED, deliveryIntent.Status);
+      Assert.Equal("general", deliveryIntent.ExecutionGroup);
+      Assert.Equal("release.delivery.awaiting.authorization", deliveryIntent.ErrorCode);
+      Assert.Equal("general", new ReleaseCheckpointHandler(store).Definition.Group);
       db.ChangeTracker.Clear();
       Assert.Equal(ReleaseStates.Issued, (await db.ReleaseCandidates.AsNoTracking().SingleAsync(x => x.Id == candidateId)).Status);
 

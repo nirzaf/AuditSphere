@@ -298,7 +298,7 @@ export class ReleaseCandidate {
     <audit-state [loading]="rec.loading()" [error]="readError()" label="archive" />
     @if (archive(); as a) {
       <p class="actions"><audit-status [value]="a.status" /><a [routerLink]="['/app/engagements', a.engagementId]">Engagement</a></p>
-      <p role="status">Manifest version {{ a.manifestVersion ?? '—' }} · {{ a.totalEntryCount }} manifest entries · {{ a.activeHoldCount }} active local holds</p>
+      <p role="status">Manifest version {{ a.manifestVersion ?? '—' }} · {{ a.totalEntryCount }} manifest entries · {{ a.activeHoldCount }} unreleased local hold{{ a.activeHoldCount === 1 ? '' : 's' }}</p>
       <section class="panel" aria-labelledby="archive-summary"><h2 id="archive-summary">Archive manifest</h2>
         <dl class="facts"><dt>Archive ID</dt><dd><code>{{ a.id }}</code></dd><dt>Scope</dt><dd><code>{{ a.engagementId }}</code></dd><dt>Created</dt><dd>{{ a.createdAt }}</dd>
           <dt>Records profile</dt><dd>{{ a.profileId }} v{{ a.profileVersion }}</dd><dt>Protection</dt><dd>{{ a.observedProtection ?? 'Not observed' }}</dd>
@@ -330,7 +330,7 @@ export class ReleaseCandidate {
       <section class="panel" aria-labelledby="records-evidence"><h2 id="records-evidence">Records evidence</h2>
         <dl class="facts"><dt>Desired label</dt><dd>{{ a.desiredLabel ?? 'Not requested' }}</dd><dt>Observed label</dt><dd>{{ a.observedLabel ?? 'Not observed' }}</dd>
           <dt>Action state</dt><dd>{{ a.actionState ?? 'Not requested' }}</dd><dt>External reference</dt><dd>{{ a.externalReference ?? '—' }}</dd>
-          <dt>Hold evidence</dt><dd>{{ a.activeHoldCount > 0 ? 'Observed active hold' : 'No active local hold' }}</dd></dl>
+          <dt>Hold evidence</dt><dd>{{ a.activeHoldCount > 0 ? 'Unreleased local hold' : 'No unreleased local hold' }}</dd></dl>
         <p><small>A local action or legal hold records the requested/observed evidence only; it does not assert Microsoft Purview behavior without an external observation.</small></p></section>
     }
   `,

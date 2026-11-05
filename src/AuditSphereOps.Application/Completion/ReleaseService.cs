@@ -375,11 +375,12 @@ public static class ReleaseService
 
       PayloadJson = payload, IdempotencyKey = "release:" + releaseKey,
       RequestDigest = Hashing.Sha256Hex(payloadBytes), RequestBytes = payloadBytes,
-      Status = OperationState.PENDING, ExecutionMode = OperationMode.LOCAL,
+      Status = OperationState.PROVIDER_BLOCKED, ExecutionMode = OperationMode.LOCAL,
       AuthorityMode = OperationAuthority.LOCAL_VALIDATION, TargetId = release.Id,
       ExpectedRevision = candidate.TargetRevision, CorrelationId = release.Id,
+      ErrorCode = "release.delivery.awaiting.authorization",
       OriginatorId = actor.UserId, NextAttemptAt = DateTimeOffset.UtcNow,
-      CreatedAt = DateTimeOffset.UtcNow, ExecutionGroup = "release"
+      CreatedAt = DateTimeOffset.UtcNow, ExecutionGroup = "general"
     });
     try
     {

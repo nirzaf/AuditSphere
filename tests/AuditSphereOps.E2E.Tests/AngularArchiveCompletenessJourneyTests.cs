@@ -84,13 +84,13 @@ public sealed class AngularArchiveCompletenessJourneyTests
     var summary = page.Locator("section[aria-labelledby='archive-summary']");
     await Assertions.Expect(summary.Locator("dt").Filter(new() { HasText = "Created" }).Locator("+ dd"))
       .ToContainTextAsync(now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
-    await Assertions.Expect(page.GetByText("Manifest version 1 · 205 manifest entries · 1 active local holds", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText("Manifest version 1 · 205 manifest entries · 1 unreleased local hold", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(summary).ToContainTextAsync("Records action requested; this is not evidence of Purview protection.");
     var evidence = page.Locator("section[aria-labelledby='records-evidence']");
     await Assertions.Expect(evidence).ToContainTextAsync("SYNTH-PAGED-LABEL");
     await Assertions.Expect(evidence).ToContainTextAsync("SYNTH-PAGED-REFERENCE");
     await Assertions.Expect(evidence).ToContainTextAsync("Not observed");
-    await Assertions.Expect(evidence).ToContainTextAsync("Observed active hold");
+    await Assertions.Expect(evidence).ToContainTextAsync("Unreleased local hold");
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, $"/app/records/archives/{archiveId:D}", "archive-detail");
     var rows = page.Locator("[aria-labelledby='archive-contents'] tbody tr");
     await Assertions.Expect(rows).ToHaveCountAsync(100);

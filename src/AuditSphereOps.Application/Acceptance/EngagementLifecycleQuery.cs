@@ -1,4 +1,6 @@
+using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Operations;
@@ -352,11 +354,11 @@ public static class EngagementLifecycleQuery
       var planBlocked = new List<string>();
       var planDetails = new List<EngagementLifecycleBlockerDetail>();
       if (holds.Count > 0) planBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
-      var hasTb = await db.TrialBalanceDatasets.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
-      if (!hasTb)
+      var trialBalance = await AssessTrialBalanceAcceptanceAsync(db, actor, engagement, ct);
+      if (!trialBalance.Accepted)
         AddGuidedBlocker(planBlocked, planDetails, "TRIAL_BALANCE_INTAKE_ACCEPTANCE_REQUIRED",
           "Trial balance intake and acceptance required", "Authorized accounting preparer and reviewer",
-          "Waiting for an authorized user to provide the source and a scoped accounting reviewer to independently accept the exact sealed dataset; this projection imports and accepts nothing.");
+          trialBalance.Reason);
       if (!planApproved && materiality?.State == MaterialityCalculationStates.Stale)
         AddGuidedBlocker(planBlocked, planDetails, "MATERIALITY_STALE_REAPPROVAL_REQUIRED",
           "Materiality is stale: the mapping or trial balance changed. Recalculate and re-approve before planning can advance.",
@@ -492,6 +494,51 @@ public static class EngagementLifecycleQuery
       : CanonicalEngagementStages.DeliverableRelease;
 
   internal static bool PartnerHandoverReady(int completionBlockerCount) => completionBlockerCount == 0;
+
+  private sealed record TrialBalanceAcceptance(bool Accepted, string Reason);
+
+  /// <summary>
+  /// Stage 5 clears only for a current, independently accepted trial balance in one exact period/book/basis/currency context.
+  /// An unresolved or ambiguous context is blocked rather than selecting the first dataset.
+  /// </summary>
+  private static async Task<TrialBalanceAcceptance> AssessTrialBalanceAcceptanceAsync(
+    IAuditSphereDbContext db, ActorContext actor, Engagement engagement, CancellationToken ct)
+  {
+    const string unresolved = "The exact accepted trial-balance context is unresolved; select the period, book and basis explicitly.";
+    var periods = await db.ClientReportingPeriods.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId).ToListAsync(ct);
+    DateOnly.TryParse(engagement.PeriodStart, CultureInfo.InvariantCulture, out var start);
+    DateOnly.TryParse(engagement.PeriodEnd, CultureInfo.InvariantCulture, out var end);
+    var matchingPeriods = periods.Where(x => x.StartDate == start && x.EndDate == end).ToArray();
+    if (matchingPeriods.Length != 1)
+      return new(false, matchingPeriods.Length == 0
+        ? "The reporting period for trial-balance acceptance is not established."
+        : "Multiple reporting periods match this engagement; the exact accepted trial-balance context is ambiguous.");
+    var period = matchingPeriods[0];
+    var datasets = await db.TrialBalanceDatasets.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.ClientId == engagement.PracticeClientId && x.EngagementId == engagement.Id && x.PeriodId == period.Id)
+      .Select(x => new { x.BookId, x.Basis, x.Currency, x.LegalEntityKey }).ToListAsync(ct);
+    var contexts = datasets.Select(x => new { x.BookId, x.Basis, x.Currency, x.LegalEntityKey }).Distinct().ToArray();
+    if (contexts.Length != 1)
+      return new(false, contexts.Length == 0
+        ? "No trial balance is present for the exact reporting period."
+        : "Multiple trial-balance books, bases, currencies or entities exist for this period; the exact accepted context must be selected.");
+    if (db is not IClientAccountingDbContext accounting)
+      return new(false, unresolved);
+    var context = contexts[0];
+    var selected = await AccountingSourceAcceptanceService.GetSelectedTrialBalanceForPeriodAsync(accounting, actor,
+      engagement.PracticeClientId, engagement.Id, period.Id, context.BookId, context.Basis, context.Currency,
+      context.LegalEntityKey, ct);
+    if (!selected.Succeeded)
+      return new(false, selected.ErrorCode == ErrorCodes.ScopeDenied
+        ? "The exact trial balance is unavailable in your current accounting authority."
+        : selected.Message ?? unresolved);
+    if (selected.Value is null)
+      return new(false, "No independently accepted trial balance exists for the exact period and context.");
+    if (!selected.Value.IsCurrent)
+      return new(false, selected.Value.CurrentnessBlocker ?? "The accepted trial balance is no longer current.");
+    return new(true, "The exact sealed trial balance is independently accepted and current.");
+  }
 
   /// <summary>
   /// A manually entered (pre-engine) materiality counts as approved only when its status is Approved and a separate Partner
