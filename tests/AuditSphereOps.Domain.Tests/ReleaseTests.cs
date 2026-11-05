@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Completion;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
@@ -62,19 +63,77 @@ public sealed class ReleaseTests
       Assert.Equal(OperationState.PENDING, checkpointOperation.Status);
       Assert.Equal("general", checkpointOperation.ExecutionGroup);
       Assert.Equal(candidateId, checkpointOperation.TargetId);
+      var repeatedEnqueue = await ReleaseCheckpointService.EnqueueCheckpointAsync(db, fixture.Partner,
+        new RecordReleaseCheckpointRequest(candidateId, 1, " release-001 ", digest, manifestBytes));
+      Assert.True(repeatedEnqueue.Succeeded, repeatedEnqueue.Message);
+      Assert.Equal(enqueued.Value, repeatedEnqueue.Value);
+      var wrongKeyEnqueue = await ReleaseCheckpointService.EnqueueCheckpointAsync(db, fixture.Partner,
+        new RecordReleaseCheckpointRequest(candidateId, 1, "release-002", digest, manifestBytes));
+      Assert.False(wrongKeyEnqueue.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, wrongKeyEnqueue.ErrorCode);
+      Assert.DoesNotContain("release-001", wrongKeyEnqueue.Message, StringComparison.Ordinal);
+      Assert.DoesNotContain("release-002", wrongKeyEnqueue.Message, StringComparison.Ordinal);
+      var checkpointOperations = await db.DurableOperations.AsNoTracking()
+        .Where(x => x.OperationKind == "RecordReleaseCheckpoint.v1" && x.TargetId == candidateId).ToListAsync();
+      Assert.Single(checkpointOperations);
+      Assert.Equal(OperationState.PENDING, checkpointOperations[0].Status);
+      using (var checkpointPayload = System.Text.Json.JsonDocument.Parse(checkpointOperations[0].PayloadJson))
+        Assert.Equal("release-001", checkpointPayload.RootElement.GetProperty("authorizedReleaseKey").GetString());
+
       var cpResult = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, store, fixture.Partner,
         new RecordReleaseCheckpointRequest(candidateId, 1, "release-001", digest, manifestBytes));
       Assert.True(cpResult.Succeeded);
+      var candidateScope = await db.ReleaseCandidates.AsNoTracking().SingleAsync(x => x.Id == candidateId);
+      var checkpointBeforeWorkerRefresh = await db.ReleaseCheckpoints.AsNoTracking()
+        .SingleAsync(x => x.ReleaseCandidateId == candidateId);
+      var wrongKeyWorkerOperation = new DurableOperation
+      {
+        FirmId = fixture.FirmId,
+        ClientId = candidateScope.ClientId,
+        EngagementId = candidateScope.EngagementId,
+        OperationKind = ReleaseCheckpointHandler.Kind,
+        PayloadJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+          candidateId,
+          candidateRevision = 1,
+          manifestDigest = digest,
+          authorizedReleaseKey = "release-002",
+          manifestBytesBase64 = Convert.ToBase64String(manifestBytes)
+        }),
+        TargetId = candidateId,
+        ExpectedRevision = 1
+      };
+      var workerKeyConflict = await Assert.ThrowsAsync<OperationBlockedException>(() =>
+        new ReleaseCheckpointHandler(store).PublishAsync(db, wrongKeyWorkerOperation,
+          new OperationResult("synthetic://checkpoint/wrong-key", digest), CancellationToken.None));
+      Assert.Equal("checkpoint-release-key-conflict", workerKeyConflict.Code);
+      db.ChangeTracker.Clear();
+      var checkpointAfterWorkerRefresh = await db.ReleaseCheckpoints.AsNoTracking()
+        .SingleAsync(x => x.ReleaseCandidateId == candidateId);
+      Assert.Equal(checkpointBeforeWorkerRefresh.StoredReference, checkpointAfterWorkerRefresh.StoredReference);
+      Assert.Equal(checkpointBeforeWorkerRefresh.ReadBackDigest, checkpointAfterWorkerRefresh.ReadBackDigest);
+      Assert.Equal(checkpointBeforeWorkerRefresh.VerifiedAt, checkpointAfterWorkerRefresh.VerifiedAt);
+      Assert.Equal(checkpointBeforeWorkerRefresh.Verifier, checkpointAfterWorkerRefresh.Verifier);
 
       // A different key cannot reuse the K1 checkpoint or refresh it.
       var wrongKeyIssue = await ReleaseService.IssueAsync(db, fixture.Partner,
         new IssueReleaseRequest(candidateId, 1, digest, "release-002"));
       Assert.False(wrongKeyIssue.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, wrongKeyIssue.ErrorCode);
+      Assert.DoesNotContain("release-001", wrongKeyIssue.Message, StringComparison.Ordinal);
+      Assert.DoesNotContain("release-002", wrongKeyIssue.Message, StringComparison.Ordinal);
       var wrongKeyCheckpoint = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, store, fixture.Partner,
         new RecordReleaseCheckpointRequest(candidateId, 1, "release-002", digest, manifestBytes));
       Assert.False(wrongKeyCheckpoint.Succeeded);
       Assert.Equal(ErrorCodes.IdempotencyConflict, wrongKeyCheckpoint.ErrorCode);
+      Assert.DoesNotContain("release-001", wrongKeyCheckpoint.Message, StringComparison.Ordinal);
+      Assert.DoesNotContain("release-002", wrongKeyCheckpoint.Message, StringComparison.Ordinal);
+      var checkpointAfterWrongDirectRetry = await db.ReleaseCheckpoints.AsNoTracking()
+        .SingleAsync(x => x.ReleaseCandidateId == candidateId);
+      Assert.Equal(checkpointBeforeWorkerRefresh.StoredReference, checkpointAfterWrongDirectRetry.StoredReference);
+      Assert.Equal(checkpointBeforeWorkerRefresh.ReadBackDigest, checkpointAfterWrongDirectRetry.ReadBackDigest);
+      Assert.Equal(checkpointBeforeWorkerRefresh.VerifiedAt, checkpointAfterWrongDirectRetry.VerifiedAt);
+      Assert.Equal(checkpointBeforeWorkerRefresh.Verifier, checkpointAfterWrongDirectRetry.Verifier);
       Assert.Empty(await db.Releases.ToListAsync());
       Assert.Equal(ReleaseStates.Ready, (await db.ReleaseCandidates.SingleAsync(x => x.Id == candidateId)).Status);
       Assert.Equal("release-001", (await db.ReleaseCheckpoints.SingleAsync()).AuthorizedReleaseKey);

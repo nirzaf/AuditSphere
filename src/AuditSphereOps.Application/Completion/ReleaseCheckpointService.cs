@@ -53,11 +53,6 @@ public static class ReleaseCheckpointService
 
     var releaseKey = request.AuthorizedReleaseKey.Trim();
     var idempotencyKey = $"checkpoint:{candidate.Id:D}:{candidate.Revision}:{digest}";
-    var existing = await db.DurableOperations.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == actor.FirmId && x.OperationKind == ReleaseCheckpointHandler.Kind &&
-      x.IdempotencyKey == idempotencyKey, ct);
-    if (existing is not null)
-      return CommandResult<Guid>.Ok(existing.Id);
     var payload = JsonSerializer.Serialize(new
     {
       candidateId = candidate.Id,
@@ -67,12 +62,25 @@ public static class ReleaseCheckpointService
       manifestBytesBase64 = Convert.ToBase64String(request.ManifestBytes)
     });
     var bytes = System.Text.Encoding.UTF8.GetBytes(payload);
+    var requestDigest = Hashing.Sha256Hex(bytes);
+    var existing = await db.DurableOperations.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.OperationKind == ReleaseCheckpointHandler.Kind &&
+      x.IdempotencyKey == idempotencyKey, ct);
+    if (existing is not null)
+    {
+      if (existing.TargetId != candidate.Id || existing.ExpectedRevision != candidate.Revision ||
+          !string.Equals(existing.PayloadJson, payload, StringComparison.Ordinal) ||
+          !string.Equals(existing.RequestDigest, requestDigest, StringComparison.Ordinal))
+        return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
+          "A checkpoint operation already exists for a different request; reconcile the retained intent.");
+      return CommandResult<Guid>.Ok(existing.Id);
+    }
     var operation = new DurableOperation
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = candidate.ClientId,
       EngagementId = candidate.EngagementId, OperationKind = ReleaseCheckpointHandler.Kind,
       PayloadJson = payload, IdempotencyKey = idempotencyKey,
-      RequestDigest = Hashing.Sha256Hex(bytes), RequestBytes = bytes,
+      RequestDigest = requestDigest, RequestBytes = bytes,
       Status = OperationState.PENDING, ExecutionMode = OperationMode.LOCAL,
       AuthorityMode = OperationAuthority.LOCAL_VALIDATION, TargetId = candidate.Id,
       ExpectedRevision = candidate.Revision, CorrelationId = candidate.Id,

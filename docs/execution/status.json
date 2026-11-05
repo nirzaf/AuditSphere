@@ -1126,24 +1126,8 @@
       "archivedSnapshot": ".local/autonomous/evidence/lifecycle-gap-t01-t02-20261106/archive/status-before.json#targetedVerification.archiveCopyProjectionD600",
       "result": "HISTORICAL_SNAPSHOT_RETAINED"
     },
-    "lifecycleGapT01T02_20261106": {
-      "attachmentSha256": "1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5",
-      "sourceBase": "7229eb876c7503c5e0e32d2ee0e3a0906eff71b2",
-      "tasks": [
-        "T01",
-        "T02"
-      ],
-      "result": "FOCUSED_VERIFIED_EXACT_SOURCE_CI_PENDING",
-      "summary": "P0 archive egress now fails closed on ambiguous/group-wide content; new engagement snapshots are exact-scope and stable across narrow/firm-wide builders. Existing authorized group workflow and retained history preserved.",
-      "red": "Nested GROUP_DELIVERABLE_V1 accepted by pre-fix guard (1 expected failure).",
-      "green": "7/7 archive/copy/builder/group cases; final fixture pair 2/2; no skips.",
-      "predecessorFast": "42111333590 PASS on 7229eb876c7503c5e0e32d2ee0e3a0906eff71b2 only; not candidate CI.",
-      "candidateCi": "FAST/IMAGES/FULL NOT_DISPATCHED",
-      "browser": "NOT_RUN",
-      "historicalInventory": "NOT_PERFORMED",
-      "releaseAcceptance": "NOT_CLAIMED",
-      "evidence": ".local/autonomous/evidence/lifecycle-gap-t01-t02-20261106/verification.json"
-    }
+    "lifecycleGapT01T02_20261106": {"attachmentSha256":"1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5","sourceBase":"7229eb876c7503c5e0e32d2ee0e3a0906eff71b2","candidate":"b8b0e3b3ee15cde1995f15d9105ebe777327b5f9","tasks":["T01","T02"],"result":"FOCUSED_FAST_IMAGES_PASS_FULL_PENDING","fastRun":42125074877,"fast":"PASS 3/3 exact checkout logs","imagesRun":42125074911,"images":"PASS 3/3 exact checkout logs and manifest pins","full":"NOT_DISPATCHED","browser":"NOT_RUN","inventory":"NOT_PERFORMED","acceptance":"NOT_CLAIMED","evidence":".local/autonomous/evidence/ci-b8b0e3b3-current-20261106/terminal-proof.json"},
+    "lifecycleGapT03_20261106": {"attachmentSha256":"1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5","sourceBase":"b8b0e3b3ee15cde1995f15d9105ebe777327b5f9","task":"T03 release authorization key","result":"FOCUSED_PASS_EXACT_CI_PENDING","domain":"1 passed, 0 failed, 0 skipped","e2e":"1 passed, 0 failed, 0 skipped","fast":"NO_EXACT_SOURCE_RESULT_RECORDED","fast":"NO_EXACT_SOURCE_RESULT_RECORDED","full":"NOT_DISPATCHED","proof":".local/autonomous/evidence/lifecycle-gap-t03-20261106/verification.json"}
   },
   "externalGates": [
     {

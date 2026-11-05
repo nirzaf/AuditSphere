@@ -182,6 +182,8 @@ Critical invariants: mapping allocations are append-only; review decisions are s
 immutable; artifacts are exact-byte sealed; release candidates bind the current reviewed package.
 Equity component transfers are paired, zero-sum package inputs, recorded in `FinancialPackageEquityTransfer`, included in package/presentation hashes and rendered as linked outflow/inflow rows.
 
+Release issuance requires the normalized request key to match the exact candidate checkpoint before the release and delivery intent are written under the existing locks. `ReleaseCheckpointService` returns an existing queued operation only when candidate, revision, normalized payload and request digest match; direct checkpoint reuse and the durable handler reject a different key before refreshing retained readback evidence. Conflict responses do not echo supplied keys.
+
 Cash-flow FX assessment is persisted in `FinancialPackageFxAssessment`, alongside—not inferred from—FX effect rows. `FinancialStatementService.CashFlowSourceReview.cs` binds the assessment, evidence, assessor and exact effects into the independent review digest; `FinancialStatementPresentation.cs` requires that current review before FX completeness passes. The Angular build form leaves assessment unset until evidenced and shows the missing state as a blocker. The migration is `FinancialPackageFxAssessment`.
 
 A signing candidate is created only when every presentation check passes, with note, disclosure and equity

@@ -224,6 +224,8 @@ public sealed class AngularReleaseParityJourneyTests
     var workpaperId = Guid.NewGuid();
     var reviewer = PbcSeed.Actor(f.Reviewer, "Reviewer");
     var partner = PbcSeed.Actor(f.Admin, "Administrator");
+    const string issueKey = "synthetic-angular-release-recovery";
+    const string wrongIssueKey = "synthetic-angular-release-recovery-wrong-key";
     var now = DateTimeOffset.UtcNow;
     Guid candidateId;
 
@@ -249,7 +251,7 @@ public sealed class AngularReleaseParityJourneyTests
 
       var checkpointStore = new LocalAppendOnlyCheckpointStore(Path.Combine(host.RunRoot, "checkpoints"));
       var checkpoint = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, checkpointStore, partner,
-        new RecordReleaseCheckpointRequest(candidateId, 1, "synthetic-angular-release-recovery", digest, artifact));
+        new RecordReleaseCheckpointRequest(candidateId, 1, issueKey, digest, artifact));
       Assert.True(checkpoint.Succeeded, checkpoint.Message);
       db.ProtectionAttestations.Add(new ProtectionAttestation
       {
@@ -263,7 +265,6 @@ public sealed class AngularReleaseParityJourneyTests
       await db.SaveChangesAsync();
     }
 
-    var issueKey = "synthetic-angular-release-recovery-key";
     var origin = host.StaffUrl;
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
@@ -276,29 +277,73 @@ public sealed class AngularReleaseParityJourneyTests
     await Assertions.Expect(page.GetByText("verified — Profile AUDITSPHERE-SYNTHETIC-RECORD", new() { Exact = false }))
       .ToBeVisibleAsync();
     var keyInput = page.GetByLabel("Authorized release key", new() { Exact = true });
-    await keyInput.FillAsync(issueKey);
-    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Issue release", Exact = true }))
-      .ToBeEnabledAsync();
+    var issueButton = page.GetByRole(AriaRole.Button, new() { Name = "Issue release", Exact = true });
     var posts = 0;
+    var responseStatuses = new List<int>();
+    var responseBodies = new List<string>();
     await page.RouteAsync($"**/api/ui/releases/{candidateId:D}/issue", async route =>
     {
       if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
-      Interlocked.Increment(ref posts);
-      await using var accepted = await route.FetchAsync();
-      Assert.Equal(200, accepted.Status);
+      var attempt = Interlocked.Increment(ref posts);
+      await using var response = await route.FetchAsync();
+      responseStatuses.Add(response.Status);
+      responseBodies.Add(await response.TextAsync());
+      if (attempt == 1)
+      {
+        Assert.Equal(400, response.Status);
+        await route.FulfillAsync(new() { Response = response });
+        return;
+      }
+
+      Assert.Equal(200, response.Status);
       await Assertions.Expect(keyInput).ToHaveValueAsync("");
       await route.AbortAsync("failed");
     });
-    await page.GetByRole(AriaRole.Button, new() { Name = "Issue release", Exact = true }).ClickAsync();
+
+    await keyInput.FillAsync(wrongIssueKey);
+    await Assertions.Expect(issueButton).ToBeEnabledAsync();
+    await issueButton.ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToBeVisibleAsync();
+    await Assertions.Expect(keyInput).ToHaveValueAsync("");
+    Assert.Contains("READY", await page.GetByLabel("Release candidate status").InnerTextAsync(),
+      StringComparison.OrdinalIgnoreCase);
+    Assert.DoesNotContain(wrongIssueKey,
+      await page.EvaluateAsync<string>("() => JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)])"),
+      StringComparison.Ordinal);
+
+    await using (var db = host.CreateDbContext())
+    {
+      Assert.Equal(ReleaseStates.Ready,
+        (await db.ReleaseCandidates.AsNoTracking().SingleAsync(x => x.Id == candidateId)).Status);
+      Assert.Empty(await db.Releases.AsNoTracking().Where(x => x.ReleaseCandidateId == candidateId).ToListAsync());
+      Assert.Empty(await db.DurableOperations.AsNoTracking().Where(x =>
+        x.OperationKind == "ReleaseDelivery.v1" && x.TargetId == candidateId).ToListAsync());
+      Assert.Equal(issueKey,
+        (await db.ReleaseCheckpoints.AsNoTracking().SingleAsync(x => x.ReleaseCandidateId == candidateId))
+        .AuthorizedReleaseKey);
+    }
+
+    await keyInput.FillAsync(issueKey);
+    await Assertions.Expect(issueButton).ToBeEnabledAsync();
+    await issueButton.ClickAsync();
 
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Issued", Exact = true }))
       .ToBeVisibleAsync(new() { Timeout = 15000 });
     await Assertions.Expect(page.GetByText("Release confirmed: the current candidate is issued.", new() { Exact = true }))
       .ToBeVisibleAsync();
-    Assert.Equal(1, posts);
+    Assert.Equal(2, posts);
+    Assert.Equal(2, responseStatuses.Count);
+    Assert.InRange(responseStatuses[0], 400, 499);
+    Assert.Equal(200, responseStatuses[1]);
+    foreach (var body in responseBodies)
+    {
+      Assert.DoesNotContain(wrongIssueKey, body, StringComparison.Ordinal);
+      Assert.DoesNotContain(issueKey, body, StringComparison.Ordinal);
+    }
     Assert.Equal(0, await page.GetByLabel("Authorized release key", new() { Exact = true }).CountAsync());
     var browserStorage = await page.EvaluateAsync<string>("() => JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)])");
     Assert.DoesNotContain(issueKey, browserStorage, StringComparison.Ordinal);
+    Assert.DoesNotContain(wrongIssueKey, browserStorage, StringComparison.Ordinal);
     Assert.Empty(pageErrors);
 
     await using (var db = host.CreateDbContext())
