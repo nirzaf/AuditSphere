@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Shared;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Completion;
@@ -16,6 +17,73 @@ public sealed record RecordReleaseCheckpointRequest(
 
 public static class ReleaseCheckpointService
 {
+  /// <summary>Enqueues the exact checkpoint intent for the eligible core worker. The direct writer is retained for
+  /// controlled local verification; this producer is the supported deployment path.</summary>
+  public static async Task<CommandResult<Guid>> EnqueueCheckpointAsync(
+    IAuditSphereDbContext db, ActorContext actor, RecordReleaseCheckpointRequest request,
+    CancellationToken ct = default)
+  {
+    if (request.CandidateId == Guid.Empty || request.ExpectedCandidateRevision < 1 ||
+        string.IsNullOrWhiteSpace(request.AuthorizedReleaseKey) ||
+        string.IsNullOrWhiteSpace(request.ManifestDigest) || request.ManifestDigest.Length != 64 ||
+        request.ManifestBytes is null || request.ManifestBytes.Length == 0)
+      return CommandResult<Guid>.Fail("checkpoint.invalid", "Invalid checkpoint request parameters.");
+    var digest = request.ManifestDigest.ToLowerInvariant();
+    if (!string.Equals(Hashing.Sha256Hex(request.ManifestBytes), digest, StringComparison.Ordinal))
+      return CommandResult<Guid>.Fail(ErrorCodes.ManifestMismatch, "Manifest bytes do not match declared digest.");
+    var candidate = await db.ReleaseCandidates.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.CandidateId && x.FirmId == actor.FirmId, ct);
+    if (candidate is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, candidate.ClientId, candidate.EngagementId,
+        ["Partner", "Administrator"], InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (candidate.Revision != request.ExpectedCandidateRevision)
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The release candidate changed; reload it.");
+    if (candidate.Status != ReleaseStates.Ready)
+      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The candidate is not ready for checkpointing.");
+    if (!string.Equals(candidate.ManifestDigest, digest, StringComparison.OrdinalIgnoreCase))
+      return CommandResult<Guid>.Fail(ErrorCodes.ManifestMismatch, "The release candidate manifest does not match.");
+    if (candidate.TargetKind == ReleaseTargetKinds.FinancialPackage &&
+        (candidate.CompositionId is null || candidate.CompositionManifestDigest is null))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "The candidate lacks an exact statement-composition pin; prepare it again.");
+
+    var releaseKey = request.AuthorizedReleaseKey.Trim();
+    var idempotencyKey = $"checkpoint:{candidate.Id:D}:{candidate.Revision}:{digest}";
+    var existing = await db.DurableOperations.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.OperationKind == ReleaseCheckpointHandler.Kind &&
+      x.IdempotencyKey == idempotencyKey, ct);
+    if (existing is not null)
+      return CommandResult<Guid>.Ok(existing.Id);
+    var payload = JsonSerializer.Serialize(new
+    {
+      candidateId = candidate.Id,
+      candidateRevision = candidate.Revision,
+      manifestDigest = digest,
+      authorizedReleaseKey = releaseKey,
+      manifestBytesBase64 = Convert.ToBase64String(request.ManifestBytes)
+    });
+    var bytes = System.Text.Encoding.UTF8.GetBytes(payload);
+    var operation = new DurableOperation
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = candidate.ClientId,
+      EngagementId = candidate.EngagementId, OperationKind = ReleaseCheckpointHandler.Kind,
+      PayloadJson = payload, IdempotencyKey = idempotencyKey,
+      RequestDigest = Hashing.Sha256Hex(bytes), RequestBytes = bytes,
+      Status = OperationState.PENDING, ExecutionMode = OperationMode.LOCAL,
+      AuthorityMode = OperationAuthority.LOCAL_VALIDATION, TargetId = candidate.Id,
+      ExpectedRevision = candidate.Revision, CorrelationId = candidate.Id,
+      OriginatorId = actor.UserId, NextAttemptAt = DateTimeOffset.UtcNow,
+      ExecutionGroup = "general", CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.DurableOperations.Add(operation);
+    await db.SaveChangesAsync(ct);
+    return CommandResult<Guid>.Ok(operation.Id);
+  }
+
   public static async Task<CommandResult<Guid>> RecordCheckpointDirectAsync(
     IAuditSphereDbContext db,
     IReleaseCheckpointStore store,

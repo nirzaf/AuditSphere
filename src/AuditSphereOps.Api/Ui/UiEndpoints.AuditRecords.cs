@@ -12,6 +12,8 @@ public static partial class UiEndpoints
   public sealed record FindingResponseInput(string ManagementResponse, bool Corrected);
   public sealed record ManagementLetterDesignationInput(bool Designated, string? Recommendation);
   public sealed record IssueInput(long ExpectedRevision, string ManifestDigest, string ReleaseKey);
+  public sealed record ReleaseCheckpointInput(long ExpectedCandidateRevision, string AuthorizedReleaseKey,
+    string ManifestDigest, string ManifestBytesBase64);
   public sealed record ArchiveBuildInput(Guid? CommercialBundleId);
   public sealed record ArchiveReviewInput(Guid ManifestId);
   public sealed record WorkpaperDraftInput(long ExpectedDraftRevision, long BaseWorkpaperRevision, long BaseInputGeneration, long BasePolicyGeneration, Guid SaveId,
@@ -85,6 +87,15 @@ public static partial class UiEndpoints
       ReadAsync(http, (db, actor, ct) => AuditRecordQueries.ReleaseCandidateAsync(db, actor, id, safety, DateTimeOffset.UtcNow, ct)))
       .WithUiResponse<ReleaseCandidateView>();
     // The release key is a one-time authorization input: it is never echoed, logged or stored by the browser.
+    group.MapPost("/releases/{id:guid}/checkpoint", (Guid id, ReleaseCheckpointInput i, HttpContext http) =>
+    {
+      byte[] bytes;
+      try { bytes = Convert.FromBase64String(i.ManifestBytesBase64); }
+      catch (FormatException) { return Task.FromResult<IResult>(Invalid("The checkpoint manifest bytes are not valid base64.")); }
+      return CommandAsync(http, (db, actor, ct) => ReleaseCheckpointService.EnqueueCheckpointAsync(db, actor,
+        new RecordReleaseCheckpointRequest(id, i.ExpectedCandidateRevision, i.AuthorizedReleaseKey,
+          i.ManifestDigest, bytes), ct));
+    }).WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapPost("/releases/{id:guid}/issue", (Guid id, IssueInput i, HttpContext http, ReleaseSafetyOptions safety) =>
       CommandAsync(http, (db, actor, ct) => ReleaseService.IssueAsync(db, actor, new IssueReleaseRequest(id, i.ExpectedRevision, i.ManifestDigest ?? "", i.ReleaseKey ?? ""), safety, ct)))
       .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);

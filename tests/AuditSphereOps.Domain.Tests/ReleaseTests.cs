@@ -53,7 +53,15 @@ public sealed class ReleaseTests
       Assert.Equal(ErrorCodes.ManifestMismatch, wrongManifest.ErrorCode);
       Assert.Empty(await db.Releases.ToListAsync());
 
-      // 3. Record verified external checkpoint
+      // 3. Enqueue the exact checkpoint intent for the core worker, then record the local verification receipt.
+      var enqueued = await ReleaseCheckpointService.EnqueueCheckpointAsync(db, fixture.Partner,
+        new RecordReleaseCheckpointRequest(candidateId, 1, "release-001", digest, manifestBytes));
+      Assert.True(enqueued.Succeeded, enqueued.Message);
+      var checkpointOperation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == enqueued.Value);
+      Assert.Equal("RecordReleaseCheckpoint.v1", checkpointOperation.OperationKind);
+      Assert.Equal(OperationState.PENDING, checkpointOperation.Status);
+      Assert.Equal("general", checkpointOperation.ExecutionGroup);
+      Assert.Equal(candidateId, checkpointOperation.TargetId);
       var cpResult = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, store, fixture.Partner,
         new RecordReleaseCheckpointRequest(candidateId, 1, "release-001", digest, manifestBytes));
       Assert.True(cpResult.Succeeded);
