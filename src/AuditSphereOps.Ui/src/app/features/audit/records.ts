@@ -304,6 +304,13 @@ export class ReleaseCandidate {
           <dt>Records profile</dt><dd>{{ a.profileId }} v{{ a.profileVersion }}</dd><dt>Protection</dt><dd>{{ a.observedProtection ?? 'Not observed' }}</dd>
           <dt>Manifest hash</dt><dd><code>{{ a.manifestDigest ?? 'Not built' }}</code></dd><dt>Active holds</dt><dd>{{ a.activeHoldCount }}</dd></dl>
         @if (a.completenessStatus === 'INCOMPLETE') { <p role="alert">Manifest incomplete: {{ a.completenessException }}</p> }
+        @if (a.manifestVersion === null || a.completenessStatus === 'INCOMPLETE') {
+          <button matButton="filled" type="button" [disabled]="actionBusy()" (click)="buildManifest(a)">{{ actionBusy() ? 'Building…' : 'Build archive manifest' }}</button>
+        }
+        @if (a.status === 'MANIFEST_BUILT' && a.manifestStatus === 'BUILT' && a.completenessStatus === 'COMPLETE') {
+          <button matButton="filled" type="button" [disabled]="actionBusy()" (click)="reviewManifest(a)">{{ actionBusy() ? 'Reviewing…' : 'Review exact manifest' }}</button>
+        }
+        @if (actionError()) { <p role="alert">{{ actionError() }}</p> }
         @if (a.actionState === 'REQUESTED') { <p>Records action requested; this is not evidence of Purview protection.</p> }</section>
       <section class="panel" aria-labelledby="secondary-copy"><h2 id="secondary-copy">SharePoint secondary access copy</h2>
         @if (a.secondarySharePointCopy; as copy) {
@@ -358,6 +365,8 @@ export class ArchiveRecord {
   readonly nextOrdinal = signal<number | null>(null);
   readonly loadingEntries = signal(false);
   readonly entriesError = signal('');
+  readonly actionBusy = signal(false);
+  readonly actionError = signal('');
   private generation = 0;
   private destroyed = false;
 
@@ -379,6 +388,31 @@ export class ArchiveRecord {
     ++this.generation; this.additionalEntries.set([]); this.nextOrdinal.set(null); this.loadingEntries.set(false); this.entriesError.set('');
   }
   refresh(): void { this.invalidate(); this.rec.reload(); }
+  async buildManifest(archive: ReturnType<typeof decodeArchive>): Promise<void> {
+    await this.archiveAction(archive, 'build', { commercialBundleId: null, requestKey: crypto.randomUUID() });
+  }
+  async reviewManifest(archive: ReturnType<typeof decodeArchive>): Promise<void> {
+    await this.archiveAction(archive, 'review', { manifestId: null, requestKey: crypto.randomUUID() });
+  }
+  private async archiveAction(archive: ReturnType<typeof decodeArchive>, action: 'build' | 'review',
+    body: Record<string, unknown>): Promise<void> {
+    if (this.destroyed || this.actionBusy() || this.archive() !== archive) return;
+    const id = this.id(), generation = this.generation;
+    this.actionBusy.set(true); this.actionError.set('');
+    try {
+      await firstValueFrom(this.http.post('/api/ui/records/archives/' + id + '/' + action, body).pipe(timeout(30000)));
+      if (!this.destroyed && generation === this.generation && id === this.id()) this.refresh();
+    } catch (error) {
+      if (!this.destroyed && generation === this.generation && id === this.id()) {
+        if (error instanceof HttpErrorResponse && error.status === 401) void this.session.refresh();
+        this.actionError.set(error instanceof HttpErrorResponse && typeof (error.error as { message?: unknown })?.message === 'string'
+          ? (error.error as { message: string }).message
+          : error instanceof Error ? error.message : 'The archive action could not be completed.');
+      }
+    } finally {
+      if (!this.destroyed && generation === this.generation && id === this.id()) this.actionBusy.set(false);
+    }
+  }
   visibleEntries(archive: ReturnType<typeof decodeArchive>) {
     return this.archive() === archive ? [...archive.entries, ...this.additionalEntries()] : [];
   }

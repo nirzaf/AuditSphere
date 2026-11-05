@@ -18912,6 +18912,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "EngagementId", "Status")
                         .HasDatabaseName("ix_archives_scope_status");
 
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ProfileId", "ProfileVersion")
+                        .IsUnique()
+                        .HasDatabaseName("ux_archives_profile_identity");
+
                     b.ToTable("archives", null, t =>
                         {
                             t.HasCheckConstraint("ck_archive_values", "length(trim(profile_id)) > 0 AND profile_version >= 1 AND status IN ('ISSUED','ASSEMBLY_IN_PROGRESS','MANIFEST_BUILT','ASSEMBLY_REVIEWED','RECORDS_ACTION_REQUESTED','PROTECTION_OBSERVED','ARCHIVE_VERIFIED') AND ((status IN ('PROTECTION_OBSERVED','ARCHIVE_VERIFIED') AND length(trim(observed_protection_state)) > 0 AND observed_protection_at IS NOT NULL) OR status IN ('ISSUED','ASSEMBLY_IN_PROGRESS','MANIFEST_BUILT','ASSEMBLY_REVIEWED','RECORDS_ACTION_REQUESTED'))");
@@ -31584,6 +31588,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("archive_id");
 
+                    b.Property<string>("BuildRequestKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("build_request_key");
+
                     b.Property<DateTimeOffset>("BuiltAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("built_at");
@@ -31591,6 +31600,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ClientId")
                         .HasColumnType("uuid")
                         .HasColumnName("client_id");
+
+                    b.Property<Guid?>("CommercialBundleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("commercial_bundle_id");
 
                     b.Property<string>("CompletenessException")
                         .HasMaxLength(2000)
@@ -31625,6 +31638,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("predecessor_manifest_id");
 
+                    b.Property<string>("ReviewRequestKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("review_request_key");
+
                     b.Property<DateTimeOffset?>("ReviewedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("reviewed_at");
@@ -31658,6 +31676,16 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "PredecessorManifestId");
 
                     b.HasIndex("FirmId", "SupersededByManifestId");
+
+                    b.HasIndex("FirmId", "ArchiveId", "BuildRequestKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_archive_manifest_build_request")
+                        .HasFilter("build_request_key IS NOT NULL");
+
+                    b.HasIndex("FirmId", "ArchiveId", "ReviewRequestKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_archive_manifest_review_request")
+                        .HasFilter("review_request_key IS NOT NULL");
 
                     b.HasIndex("FirmId", "ArchiveId", "Version")
                         .IsUnique()

@@ -4,6 +4,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,9 @@ public sealed record CreateRecordsProfileRequest(
   string LegalHoldBehavior, string AmendmentRoute, string DispositionOwner, string BackupRequirements);
 
 public sealed record RecordsProfileResult(Guid ProfileId, string ProfileCode, long Version, bool Approved);
+
+public sealed record EnsureArchiveRequest(Guid ClientId, Guid EngagementId, string ProfileId, long ProfileVersion);
+public sealed record EnsureArchiveResult(Guid ArchiveId, bool Created);
 
 public sealed record ArchiveManifestResult(
   Guid ArchiveId, Guid ManifestId, string Status, string Digest, int EntryCount, string CompletenessStatus);
@@ -74,9 +78,57 @@ public static class RecordsArchiveService
     return CommandResult<RecordsProfileResult>.Ok(new(profile.Id, profile.ProfileCode, profile.Version, false));
   }
 
+  /// <summary>Creates one archive for an issued engagement and one approved records-profile version.
+  /// Repeated exact calls return the existing archive rather than creating a second assembly.</summary>
+  public static async Task<CommandResult<EnsureArchiveResult>> EnsureArchiveAsync(
+    IAuditSphereDbContext db, ActorContext actor, EnsureArchiveRequest request, CancellationToken ct = default)
+  {
+    if (request.ClientId == Guid.Empty || request.EngagementId == Guid.Empty ||
+        string.IsNullOrWhiteSpace(request.ProfileId) || request.ProfileVersion < 1)
+      return CommandResult<EnsureArchiveResult>.Fail("records-archive.invalid", "Select one client, engagement and approved profile version.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId,
+        RequiredRoles: CustodianRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<EnsureArchiveResult>.Fail(auth.ErrorCode!, auth.Message!);
+    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == request.EngagementId && x.FirmId == actor.FirmId && x.PracticeClientId == request.ClientId, ct);
+    if (engagement is null)
+      return CommandResult<EnsureArchiveResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (engagement.Status is not ("Completed" or "Closed"))
+      return CommandResult<EnsureArchiveResult>.Fail(ErrorCodes.GateBlocked,
+        "The engagement must be issued and completed before an archive can be prepared.");
+    var profile = await db.RecordsProfiles.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ProfileCode == request.ProfileId.Trim() &&
+      x.Version == request.ProfileVersion, ct);
+    if (profile is null || !profile.Approved || profile.ServiceRoute != engagement.ServiceRoute)
+      return CommandResult<EnsureArchiveResult>.Fail(ErrorCodes.GateBlocked,
+        "The selected records profile is not approved for this engagement route.");
+    var existing = await db.Archives.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.EngagementId == request.EngagementId &&
+      x.ProfileId == profile.ProfileCode && x.ProfileVersion == profile.Version, ct);
+    if (existing is not null)
+      return CommandResult<EnsureArchiveResult>.Ok(new(existing.Id, false));
+    var archive = new Archive
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId,
+      EngagementId = request.EngagementId, ProfileId = profile.ProfileCode, ProfileVersion = profile.Version,
+      Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.Archives.Add(archive);
+    await db.SaveChangesAsync(ct);
+    return CommandResult<EnsureArchiveResult>.Ok(new(archive.Id, true));
+  }
+
   public static async Task<CommandResult<ArchiveManifestResult>> BuildManifestAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid archiveId, CancellationToken ct = default)
-    => await BuildManifestCoreAsync(db, actor, archiveId, null, ct);
+    => await BuildManifestCoreAsync(db, actor, archiveId, null, null, ct);
+
+  /// <summary>Exact-request build: the same request identity and bundle return the original manifest receipt.</summary>
+  public static async Task<CommandResult<ArchiveManifestResult>> BuildManifestWithRequestAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid archiveId, Guid? commercialBundleId, string? requestKey,
+    CancellationToken ct = default)
+    => await BuildManifestCoreAsync(db, actor, archiveId, commercialBundleId, requestKey, ct);
 
   /// <summary>
   /// Builds a new manifest with one explicitly selected commercial bundle and its exact persisted
@@ -88,11 +140,12 @@ public static class RecordsArchiveService
   {
     if (commercialBundleId == Guid.Empty)
       return CommandResult<ArchiveManifestResult>.Fail("records-manifest.bundle.invalid", "Select one exact commercial bundle.");
-    return await BuildManifestCoreAsync(db, actor, archiveId, commercialBundleId, ct);
+    return await BuildManifestCoreAsync(db, actor, archiveId, commercialBundleId, null, ct);
   }
 
   private static async Task<CommandResult<ArchiveManifestResult>> BuildManifestCoreAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid archiveId, Guid? commercialBundleId, CancellationToken ct)
+    IAuditSphereDbContext db, ActorContext actor, Guid archiveId, Guid? commercialBundleId, string? requestKey,
+    CancellationToken ct)
   {
     var authorized = await AuthorizeArchiveAsync(db, actor, archiveId, ct);
     if (!authorized.Succeeded)
@@ -112,6 +165,28 @@ public static class RecordsArchiveService
     if (profile is null || !profile.Approved)
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked,
         "An approved records profile version is required.");
+
+    requestKey = string.IsNullOrWhiteSpace(requestKey) ? null : requestKey.Trim();
+    if (requestKey is { Length: > 64 })
+      return CommandResult<ArchiveManifestResult>.Fail("records-manifest.request.invalid", "The build request identity is invalid.");
+    if (requestKey is not null)
+    {
+      var priorRequest = await db.ArchiveManifests.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ArchiveId == archive.Id && x.BuildRequestKey == requestKey, ct);
+      if (priorRequest is not null)
+      {
+        if (priorRequest.CommercialBundleId != commercialBundleId)
+          return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.IdempotencyConflict,
+            "This build request identity is already bound to a different bundle selection.");
+        if (tx is not null) await tx.CommitAsync(ct);
+        var prior = new ArchiveManifestResult(archive.Id, priorRequest.Id, priorRequest.Status,
+          priorRequest.ManifestDigest, priorRequest.EntryCount, priorRequest.CompletenessStatus);
+        return priorRequest.CompletenessStatus == "COMPLETE"
+          ? CommandResult<ArchiveManifestResult>.Ok(prior)
+          : CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked,
+            "The original build request is retained but incomplete; missing references must be resolved.");
+      }
+    }
 
     var snapshots = await db.DocumentSnapshots.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
@@ -198,6 +273,7 @@ public static class RecordsArchiveService
       Status = "BUILT", ManifestDigest = digest, EntryCount = entries.Count,
       CompletenessStatus = complete ? "COMPLETE" : "INCOMPLETE",
       CompletenessException = complete ? null : $"{missingReferences} snapshot reference(s) are missing.",
+      CommercialBundleId = commercialBundleId, BuildRequestKey = requestKey,
       BuiltAt = DateTimeOffset.UtcNow
     };
     db.ArchiveManifests.Add(manifest);
@@ -229,7 +305,7 @@ public static class RecordsArchiveService
 
   public static async Task<CommandResult<ArchiveManifestResult>> ReviewManifestAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid archiveId, Guid? manifestId = null,
-    CancellationToken ct = default)
+    CancellationToken ct = default, string? requestKey = null)
   {
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var authorized = await AuthorizeArchiveAsync(db, actor, archiveId, ct);
@@ -245,6 +321,22 @@ public static class RecordsArchiveService
     var manifest = await query.OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
     if (manifest is null || manifest.CompletenessStatus != "COMPLETE")
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked, "A complete archive manifest is required.");
+    requestKey = string.IsNullOrWhiteSpace(requestKey) ? null : requestKey.Trim();
+    if (requestKey is { Length: > 64 })
+      return CommandResult<ArchiveManifestResult>.Fail("records-manifest.request.invalid", "The review request identity is invalid.");
+    if (requestKey is not null)
+    {
+      var priorRequest = await db.ArchiveManifests.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ArchiveId == archive.Id && x.ReviewRequestKey == requestKey, ct);
+      if (priorRequest is not null)
+      {
+        if (priorRequest.Id != manifest.Id)
+          return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.IdempotencyConflict,
+            "This review request identity is already bound to a different manifest.");
+        return CommandResult<ArchiveManifestResult>.Ok(new ArchiveManifestResult(archive.Id, priorRequest.Id,
+          priorRequest.Status, priorRequest.ManifestDigest, priorRequest.EntryCount, priorRequest.CompletenessStatus));
+      }
+    }
     var result = new ArchiveManifestResult(archive.Id, manifest.Id, "REVIEWED", manifest.ManifestDigest,
       manifest.EntryCount, manifest.CompletenessStatus);
     if (manifest.Status == "REVIEWED" && archive.Status == ArchiveStates.AssemblyReviewed)
@@ -261,6 +353,7 @@ public static class RecordsArchiveService
     manifest.Status = "REVIEWED";
     manifest.ReviewedAt = DateTimeOffset.UtcNow;
     manifest.ReviewedByUserId = actor.UserId;
+    manifest.ReviewRequestKey = requestKey;
     archive.Status = ArchiveStates.AssemblyReviewed;
     await db.SaveChangesAsync(ct);
     if (tx is not null) await tx.CommitAsync(ct);

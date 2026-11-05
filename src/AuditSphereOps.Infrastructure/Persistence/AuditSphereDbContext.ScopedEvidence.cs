@@ -345,6 +345,8 @@ public sealed partial class AuditSphereDbContext
     archive.Property(x => x.ObservedProtectionState).HasMaxLength(100);
     archive.Property(x => x.Status).HasMaxLength(40);
     archive.HasIndex(x => new { x.FirmId, x.EngagementId, x.Status }).HasDatabaseName("ix_archives_scope_status");
+    archive.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ProfileId, x.ProfileVersion })
+      .IsUnique().HasDatabaseName("ux_archives_profile_identity");
     ScopeToEngagement(archive, nameof(Archive.FirmId), nameof(Archive.ClientId), nameof(Archive.EngagementId));
     archive.ToTable("archives", t => t.HasCheckConstraint("ck_archive_values",
       "length(trim(profile_id)) > 0 AND profile_version >= 1 AND status IN ('ISSUED','ASSEMBLY_IN_PROGRESS','MANIFEST_BUILT','ASSEMBLY_REVIEWED','RECORDS_ACTION_REQUESTED','PROTECTION_OBSERVED','ARCHIVE_VERIFIED')" +
@@ -359,8 +361,14 @@ public sealed partial class AuditSphereDbContext
     manifest.Property(x => x.ManifestDigest).HasMaxLength(64);
     manifest.Property(x => x.CompletenessStatus).HasMaxLength(30);
     manifest.Property(x => x.CompletenessException).HasMaxLength(2000);
+    manifest.Property(x => x.BuildRequestKey).HasMaxLength(64);
+    manifest.Property(x => x.ReviewRequestKey).HasMaxLength(64);
     manifest.HasIndex(x => new { x.FirmId, x.ArchiveId, x.Version }).IsUnique()
       .HasDatabaseName("ux_archive_manifest_archive_version");
+    manifest.HasIndex(x => new { x.FirmId, x.ArchiveId, x.BuildRequestKey }).IsUnique()
+      .HasFilter("build_request_key IS NOT NULL").HasDatabaseName("ux_archive_manifest_build_request");
+    manifest.HasIndex(x => new { x.FirmId, x.ArchiveId, x.ReviewRequestKey }).IsUnique()
+      .HasFilter("review_request_key IS NOT NULL").HasDatabaseName("ux_archive_manifest_review_request");
     ScopeToEngagement(manifest, nameof(ArchiveManifest.FirmId), nameof(ArchiveManifest.ClientId), nameof(ArchiveManifest.EngagementId));
     manifest.ToTable("archive_manifests", t =>
     {

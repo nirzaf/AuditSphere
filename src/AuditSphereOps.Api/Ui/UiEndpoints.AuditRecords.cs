@@ -14,8 +14,9 @@ public static partial class UiEndpoints
   public sealed record IssueInput(long ExpectedRevision, string ManifestDigest, string ReleaseKey);
   public sealed record ReleaseCheckpointInput(long ExpectedCandidateRevision, string AuthorizedReleaseKey,
     string ManifestDigest, string ManifestBytesBase64);
-  public sealed record ArchiveBuildInput(Guid? CommercialBundleId);
-  public sealed record ArchiveReviewInput(Guid ManifestId);
+  public sealed record ArchiveCreateInput(Guid ClientId, Guid EngagementId, string ProfileId, long ProfileVersion);
+  public sealed record ArchiveBuildInput(Guid? CommercialBundleId, string? RequestKey);
+  public sealed record ArchiveReviewInput(Guid? ManifestId, string? RequestKey);
   public sealed record WorkpaperDraftInput(long ExpectedDraftRevision, long BaseWorkpaperRevision, long BaseInputGeneration, long BasePolicyGeneration, Guid SaveId,
     string WorkPerformed, string Conclusion);
   public sealed record WorkpaperSubmitInput(long ExpectedRevision, string WorkPerformed, string Conclusion, long ExpectedDraftRevision, Guid DraftSaveId);
@@ -99,19 +100,22 @@ public static partial class UiEndpoints
     group.MapPost("/releases/{id:guid}/issue", (Guid id, IssueInput i, HttpContext http, ReleaseSafetyOptions safety) =>
       CommandAsync(http, (db, actor, ct) => ReleaseService.IssueAsync(db, actor, new IssueReleaseRequest(id, i.ExpectedRevision, i.ManifestDigest ?? "", i.ReleaseKey ?? ""), safety, ct)))
       .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
+    group.MapPost("/records/archives", (ArchiveCreateInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => RecordsArchiveService.EnsureArchiveAsync(db, actor,
+        new EnsureArchiveRequest(i.ClientId, i.EngagementId, i.ProfileId ?? "", i.ProfileVersion), ct)))
+      .WithUiResponse<UiValueResponse<EnsureArchiveResult>>(includeConflict: true);
     group.MapGet("/records/archives/{id:guid}", (Guid id, int? afterOrdinal, HttpContext http) =>
     {
       if (afterOrdinal is < 0) return Task.FromResult<IResult>(Invalid("The archive cursor is invalid."));
       return ReadAsync(http, (db, actor, ct) => AuditRecordQueries.ArchiveAsync(db, actor, id, afterOrdinal, ct));
     }).WithUiResponse<ArchiveRecordView>();
     group.MapPost("/records/archives/{id:guid}/build", (Guid id, ArchiveBuildInput? i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => i?.CommercialBundleId is { } bundleId
-        ? RecordsArchiveService.BuildManifestWithCommercialBundleAsync(db, actor, id, bundleId, ct)
-        : RecordsArchiveService.BuildManifestAsync(db, actor, id, ct)))
+      CommandAsync(http, (db, actor, ct) => RecordsArchiveService.BuildManifestWithRequestAsync(db, actor, id,
+        i?.CommercialBundleId, i?.RequestKey, ct)))
       .WithUiResponse<UiValueResponse<ArchiveManifestResult>>(includeConflict: true);
     group.MapPost("/records/archives/{id:guid}/review", (Guid id, ArchiveReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => RecordsArchiveService.ReviewManifestAsync(db, actor, id,
-        i.ManifestId == Guid.Empty ? null : i.ManifestId, ct)))
+        i.ManifestId is { } manifestId && manifestId != Guid.Empty ? manifestId : null, ct, i.RequestKey)))
       .WithUiResponse<UiValueResponse<ArchiveManifestResult>>(includeConflict: true);
     group.MapGet("/records/archives/{id:guid}/export", async (Guid id, HttpContext http) =>
     {

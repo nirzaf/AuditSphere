@@ -35,6 +35,66 @@ public sealed class RecordsArchiveTests
   }
 
   [Fact]
+  public async Task ArchiveAssembly_CreatesOnce_BuildsAndReviewsTheExactRequest()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      await seed.Engagements.Where(x => x.Id == scope.EngagementId).ExecuteUpdateAsync(update =>
+        update.SetProperty(x => x.ServiceRoute, "STATUTORY_AUDIT"));
+      seed.RecordsProfiles.Add(new RecordsProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ProfileCode = "ASSEMBLY-RECORDS",
+        Version = 1, RecordClass = "Issued audit file", Jurisdiction = "TEST",
+        ServiceRoute = "STATUTORY_AUDIT", RetentionTrigger = "REPORT_DATE", RetentionDurationDays = null,
+        ProtectionMode = "PURVIEW_RECORD", LabelId = "label-assembly", LegalHoldBehavior = "SUSPEND_DISPOSITION",
+        AmendmentRoute = "CONTROLLED_AMENDMENT", DispositionOwner = "Records Custodian",
+        BackupRequirements = "Protected backup", CreatedByUserId = scope.Actor.UserId, Approved = true,
+        ApprovedAt = DateTimeOffset.UtcNow, ApprovedByUserId = scope.Actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+      await seed.Engagements.Where(x => x.Id == scope.EngagementId)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.Status, "Completed"));
+    }
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var first = await RecordsArchiveService.EnsureArchiveAsync(db, scope.Actor,
+      new EnsureArchiveRequest(scope.ClientId, scope.EngagementId, "ASSEMBLY-RECORDS", 1));
+    Assert.True(first.Succeeded, first.Message);
+    Assert.True(first.Value!.Created);
+    var second = await RecordsArchiveService.EnsureArchiveAsync(db, scope.Actor,
+      new EnsureArchiveRequest(scope.ClientId, scope.EngagementId, "ASSEMBLY-RECORDS", 1));
+    Assert.True(second.Succeeded, second.Message);
+    Assert.False(second.Value!.Created);
+    Assert.Equal(first.Value.ArchiveId, second.Value.ArchiveId);
+    Assert.Equal(1, await db.Archives.CountAsync(x => x.Id == first.Value.ArchiveId));
+    db.ChangeTracker.Clear();
+
+    var build = await RecordsArchiveService.BuildManifestWithRequestAsync(db, scope.Actor,
+      first.Value.ArchiveId, null, "build-request-1");
+    Assert.True(build.Succeeded, build.Message);
+    var replay = await RecordsArchiveService.BuildManifestWithRequestAsync(db, scope.Actor,
+      first.Value.ArchiveId, null, "build-request-1");
+    Assert.True(replay.Succeeded, replay.Message);
+    Assert.Equal(build.Value!.ManifestId, replay.Value!.ManifestId);
+    Assert.Equal(1, await db.ArchiveManifests.CountAsync(x => x.ArchiveId == first.Value.ArchiveId));
+    Assert.Equal("build-request-1", await db.ArchiveManifests.Where(x => x.Id == build.Value.ManifestId)
+      .Select(x => x.BuildRequestKey).SingleAsync());
+
+    var reviewed = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, first.Value.ArchiveId,
+      build.Value.ManifestId, requestKey: "review-request-1");
+    Assert.True(reviewed.Succeeded, reviewed.Message);
+    var reviewReplay = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, first.Value.ArchiveId,
+      build.Value.ManifestId, requestKey: "review-request-1");
+    Assert.True(reviewReplay.Succeeded, reviewReplay.Message);
+    Assert.Equal(build.Value.ManifestId, reviewReplay.Value!.ManifestId);
+    Assert.Equal("review-request-1", await db.ArchiveManifests.Where(x => x.Id == build.Value.ManifestId)
+      .Select(x => x.ReviewRequestKey).SingleAsync());
+  }
+
+  [Fact]
   public async Task ArchiveWorkflow_StoresStructuredManifest_AndRequiresObservedProtection()
   {
     await using var pg = await PgTestSchema.CreateAsync();

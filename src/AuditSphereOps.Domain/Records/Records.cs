@@ -71,6 +71,9 @@ public sealed class ArchiveManifest
   public int EntryCount { get; set; }
   public string CompletenessStatus { get; set; } = "COMPLETE";
   public string? CompletenessException { get; set; }
+  public Guid? CommercialBundleId { get; set; }
+  public string? BuildRequestKey { get; set; }
+  public string? ReviewRequestKey { get; set; }
   public DateTimeOffset BuiltAt { get; set; }
   public DateTimeOffset? ReviewedAt { get; set; }
   public Guid? ReviewedByUserId { get; set; }
