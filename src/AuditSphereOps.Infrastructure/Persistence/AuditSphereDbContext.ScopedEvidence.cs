@@ -402,7 +402,7 @@ public sealed partial class AuditSphereDbContext
     ScopeToEngagement(structuredExport, nameof(ArchiveStructuredExport.FirmId),
       nameof(ArchiveStructuredExport.ClientId), nameof(ArchiveStructuredExport.EngagementId));
     structuredExport.ToTable("archive_structured_exports", t => t.HasCheckConstraint("ck_archive_structured_export_values",
-      "version >= 1 AND schema = 'records-export.v1' AND length(trim(payload_json)) > 0" +
+      "version >= 1 AND schema IN ('records-export.v1','records-export.v2') AND length(trim(payload_json)) > 0" +
       " AND content_hash ~ '^[0-9a-f]{64}$' AND byte_count > 0"));
     structuredExport.HasOne<Archive>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ArchiveId })

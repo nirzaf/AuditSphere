@@ -665,7 +665,7 @@ public sealed partial class AuditDeliverablesTests
   public async Task ArchiveCopyReceipts_RejectForeignOperationsAndPreserveExactEvidence()
   {
     const string baseline = "20261029104522_SamplingRunSelectionScope";
-    const string current = "20261031182610_EqrDecisionHistory";
+    const string current = "20261105163636_ArchiveAudienceAndReviewedManifestIntegrity";
     await using var pg = await PgTestSchema.CreateAsync(current);
     var checkpointRoot = Path.Combine(Path.GetTempPath(), "auditsphere-archive-operation-scope", Guid.NewGuid().ToString("N"));
     try
@@ -890,9 +890,15 @@ public sealed partial class AuditDeliverablesTests
             .Where(x => x.FirmId == w.FirmId && x.ArchiveManifestId == payload.ManifestId)
             .OrderBy(x => x.Ordinal).FirstAsync();
           changedManifestEntry.MetadataJson = "{\"controlledTamper\":true}";
-          await db.SaveChangesAsync();
-          var invalidatedCopy = await ArchiveCopyService.ReadLatestStatusAsync(db, partner, archiveId);
-          Assert.Equal("BLOCKED_EXTERNAL", invalidatedCopy?.State);
+          var deniedMutation = await Assert.ThrowsAnyAsync<Exception>(() => db.SaveChangesAsync());
+          var deniedPostgres = Assert.IsType<PostgresException>(deniedMutation.GetBaseException());
+          Assert.Equal("55000", deniedPostgres.SqlState);
+          db.ChangeTracker.Clear();
+          var unchangedEntry = await db.ArchiveManifestEntries.AsNoTracking()
+            .SingleAsync(x => x.Id == changedManifestEntry.Id);
+          Assert.DoesNotContain("controlledTamper", unchangedEntry.MetadataJson);
+          var retainedCopy = await ArchiveCopyService.ReadLatestStatusAsync(db, partner, archiveId);
+          Assert.Equal("OBSERVED", retainedCopy?.State);
         }
         return (w, operationId, archiveId, releaseId, target.TargetRevisionId);
       }
@@ -1102,46 +1108,12 @@ public sealed partial class AuditDeliverablesTests
         Assert.Equal(2L, (long)(await nullable.ExecuteScalarAsync())!);
       }
       await AssertNewScopeAsync(true);
-      var oldCatalog = await CatalogAsync(false);
-      var retained = await SnapshotAsync();
-      await migrator.MigrateAsync(baseline);
-      Assert.Equal(baselineHistory, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
-      Assert.Equal(oldCatalog, await CatalogAsync(false));
-      Assert.Equal(retained, await SnapshotAsync());
-      await AssertNewScopeAsync(false);
-      await migrator.MigrateAsync(current);
-      Assert.Equal(applied, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
-      Assert.Equal(oldCatalog, await CatalogAsync(false));
-      Assert.Equal(retained, await SnapshotAsync());
-      await AssertNewScopeAsync(true);
 
-      // Retain the reproduced old-schema corruption in this owned fixture, then prove atomic refusal.
-      await migrator.MigrateAsync(baseline);
-      await using (var connection = new NpgsqlConnection(pg.ConnectionString))
-      {
-        await connection.OpenAsync();
-        foreach (var table in new[] { "archive_copy_file_receipts", "archive_copy_permission_observations" })
-        {
-          await using var command = new NpgsqlCommand($"""
-            INSERT INTO {table}
-            SELECT (jsonb_populate_record(NULL::{table}, to_jsonb(r) || jsonb_build_object(
-              'id', @id, 'operation_id', @foreign, 'attempt_token', r.attempt_token + 1))).*
-            FROM {table} r WHERE r.id = (SELECT id FROM {table} WHERE operation_id=@source ORDER BY id LIMIT 1)
-            """, connection);
-          command.Parameters.AddWithValue("id", Guid.CreateVersion7());
-          command.Parameters.AddWithValue("foreign", foreign.OperationId);
-          command.Parameters.AddWithValue("source", own.OperationId);
-          Assert.Equal(1, await command.ExecuteNonQueryAsync());
-        }
-      }
-      var invalidRetained = await SnapshotAsync();
-      var refused = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(current));
-      Assert.Equal("23503", refused.SqlState);
-      Assert.Equal("fk_archive_copy_file_operation_scope", refused.ConstraintName);
-      Assert.Equal(invalidRetained, await SnapshotAsync());
-      Assert.Equal(oldCatalog, await CatalogAsync(false));
-      Assert.Equal(baselineHistory, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
-      await AssertNewScopeAsync(false);
+      // The populated engagement-scoped structured payload makes a downgrade unsafe; it must be refused atomically.
+      var refusedDowngrade = await Assert.ThrowsAnyAsync<Exception>(() => migrator.MigrateAsync(baseline));
+      Assert.Equal("55000", Assert.IsType<PostgresException>(refusedDowngrade.GetBaseException()).SqlState);
+      Assert.Equal(applied, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+      await AssertNewScopeAsync(true);
 
     }
     finally { if (Directory.Exists(checkpointRoot)) Directory.Delete(checkpointRoot, recursive: true); }

@@ -1,6 +1,14 @@
 // Records ledger: local enforcement state; Purview observed separately (§25).
 namespace AuditSphereOps.Domain.Records;
 
+public static class ArchiveStructuredExportSchemas
+{
+  public const string LegacyV1 = "records-export.v1";
+  public const string EngagementV2 = "records-export.v2";
+  public const string EngagementV2RelativeName = "structured/records-export.v2.json";
+  public const string EngagementOnlyAudience = "ENGAGEMENT_ONLY";
+}
+
 public static class ArchiveStates
 {
   public const string Issued = "ISSUED";

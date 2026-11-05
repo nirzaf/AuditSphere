@@ -686,17 +686,18 @@ internal static class ArchiveCopySourceGuard
       throw new OperationBlockedException("archive-copy-profile-or-archive-stale");
 
     var exportEntry = entries.Where(x => x.EntryKind == "STRUCTURED_EXPORT" && x.SourceKind == "AuditSphereOps").ToArray();
-    if (exportEntry.Length != 1 || exportEntry[0].SourceId is not null ||
-        exportEntry[0].RelativeName != "structured/records-export.v1.json" ||
-        exportEntry[0].MetadataJson != "{\"schema\":\"records-export.v1\",\"storage\":\"archive_structured_exports\"}")
+    if (exportEntry.Length != 1 || exportEntry[0].SourceId is not null)
       throw new OperationBlockedException("archive-copy-structured-export-entry-invalid");
     var structured = await db.ArchiveStructuredExports.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId &&
-      x.ArchiveId == archive.Id && x.ArchiveManifestId == manifest.Id && x.Schema == "records-export.v1", ct);
+      x.ArchiveId == archive.Id && x.ArchiveManifestId == manifest.Id, ct);
     if (structured is null || structured.ByteCount != Encoding.UTF8.GetByteCount(structured.PayloadJson) ||
         structured.ContentHash != Hashing.Sha256Hex(Encoding.UTF8.GetBytes(structured.PayloadJson)) ||
         exportEntry[0].ContentHash != structured.ContentHash || exportEntry[0].ByteCount != structured.ByteCount)
       throw new OperationBlockedException("archive-copy-structured-export-mismatch");
+    if (!ArchiveStructuredExportGuard.IsEngagementSafe(archive, structured.Schema, exportEntry[0].RelativeName,
+          exportEntry[0].MetadataJson, structured.PayloadJson, out _))
+      throw new OperationBlockedException("archive-copy-structured-export-audience-unproven");
 
     var release = await db.Releases.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == archive.FirmId &&
       x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId && x.Id == payload.ReleaseId, ct);

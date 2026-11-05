@@ -158,7 +158,17 @@ public sealed class AngularArchiveCompletenessJourneyTests
     var now = DateTimeOffset.UtcNow;
     var archiveId = Guid.NewGuid();
     var manifestId = Guid.NewGuid();
-    const string structuredPayload = "{\"schema\":\"records-export.v1\",\"documents\":[]}";
+    var structuredPayload = JsonSerializer.Serialize(new
+    {
+      schema = "records-export.v2",
+      audience = new
+      {
+        scope = "ENGAGEMENT_ONLY", firmId = f.FirmId, clientId = f.ClientId,
+        engagementId = f.EngagementId, groupWideDataIncluded = false
+      },
+      scope = new { firmId = f.FirmId, clientId = f.ClientId, engagementId = f.EngagementId },
+      documents = Array.Empty<object>()
+    });
     var structuredBytes = Encoding.UTF8.GetBytes(structuredPayload);
     var structuredHash = Hashing.Sha256Hex(structuredBytes);
     var entries = new[]
@@ -174,9 +184,9 @@ public sealed class AngularArchiveCompletenessJourneyTests
       {
         Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
         ArchiveManifestId = manifestId, Ordinal = 2, EntryKind = "STRUCTURED_EXPORT", SourceKind = "AuditSphereOps",
-        RelativeName = "structured/records-export.v1.json", ContentHash = structuredHash,
+        RelativeName = "structured/records-export.v2.json", ContentHash = structuredHash,
         ByteCount = structuredBytes.Length, Required = true,
-        MetadataJson = "{\"schema\":\"records-export.v1\",\"storage\":\"archive_structured_exports\"}"
+        MetadataJson = "{\"schema\":\"records-export.v2\",\"storage\":\"archive_structured_exports\",\"audience\":\"ENGAGEMENT_ONLY\"}"
       }
     };
     var manifestEntriesDigest = JsonSerializer.Serialize(entries.Select(x => new
@@ -196,18 +206,22 @@ public sealed class AngularArchiveCompletenessJourneyTests
       db.ArchiveManifests.Add(new ArchiveManifest
       {
         Id = manifestId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-        ArchiveId = archiveId, Version = 1, Status = "REVIEWED", ManifestDigest = manifestDigest,
-        EntryCount = entries.Length, CompletenessStatus = "COMPLETE", BuiltAt = now,
-        ReviewedAt = now, ReviewedByUserId = f.Reviewer.Id
+        ArchiveId = archiveId, Version = 1, Status = "BUILT", ManifestDigest = manifestDigest,
+        EntryCount = entries.Length, CompletenessStatus = "COMPLETE", BuiltAt = now
       });
       db.ArchiveManifestEntries.AddRange(entries);
       db.ArchiveStructuredExports.Add(new ArchiveStructuredExport
       {
         Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-        ArchiveId = archiveId, ArchiveManifestId = manifestId, Version = 1, Schema = "records-export.v1",
+        ArchiveId = archiveId, ArchiveManifestId = manifestId, Version = 1, Schema = "records-export.v2",
         PayloadJson = structuredPayload, ContentHash = structuredHash, ByteCount = structuredBytes.Length,
         CreatedAt = now
       });
+      await db.SaveChangesAsync();
+      var manifest = await db.ArchiveManifests.SingleAsync(x => x.Id == manifestId);
+      manifest.Status = "REVIEWED";
+      manifest.ReviewedAt = now;
+      manifest.ReviewedByUserId = f.Reviewer.Id;
       await db.SaveChangesAsync();
     }
 
@@ -243,7 +257,7 @@ public sealed class AngularArchiveCompletenessJourneyTests
     Assert.Equal(2, root.GetProperty("manifest").GetProperty("entries").GetArrayLength());
     Assert.Equal("BLOCKED_EXTERNAL", root.GetProperty("providerProtection").GetProperty("state").GetString());
     Assert.False(root.GetProperty("providerProtection").GetProperty("externalDocumentBytesIncluded").GetBoolean());
-    Assert.Equal("records-export.v1", root.GetProperty("structuredRecords").GetProperty("schema").GetString());
+    Assert.Equal("records-export.v2", root.GetProperty("structuredRecords").GetProperty("schema").GetString());
     Assert.Empty(errors);
   }
 

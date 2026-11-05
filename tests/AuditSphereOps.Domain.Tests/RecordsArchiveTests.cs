@@ -84,12 +84,19 @@ public sealed class RecordsArchiveTests
     Assert.True(built.Succeeded, built.Message);
     Assert.Equal(ArchiveStates.ManifestBuilt, (await db.Archives.AsNoTracking().SingleAsync(x => x.Id == archiveId)).Status);
     Assert.Equal(1, await db.ArchiveManifestEntries.CountAsync(x => x.ArchiveManifestId == built.Value!.ManifestId));
-    Assert.Contains("records-export.v1", await db.ArchiveManifestEntries
+    Assert.Contains("records-export.v2", await db.ArchiveManifestEntries
       .Where(x => x.ArchiveManifestId == built.Value!.ManifestId && x.EntryKind == "STRUCTURED_EXPORT")
       .Select(x => x.MetadataJson).SingleAsync());
     var structuredExport = await db.ArchiveStructuredExports
       .Where(x => x.ArchiveManifestId == built.Value!.ManifestId).SingleAsync();
-    Assert.Equal("records-export.v1", structuredExport.Schema);
+    Assert.Equal("records-export.v2", structuredExport.Schema);
+    using (var payload = JsonDocument.Parse(structuredExport.PayloadJson))
+    {
+      var audience = payload.RootElement.GetProperty("audience");
+      Assert.Equal("ENGAGEMENT_ONLY", audience.GetProperty("scope").GetString());
+      Assert.Equal(scope.ClientId, audience.GetProperty("clientId").GetGuid());
+      Assert.False(audience.GetProperty("groupWideDataIncluded").GetBoolean());
+    }
     Assert.Contains("\"accounting\"", structuredExport.PayloadJson);
     Assert.Contains("\"reportingPeriods\"", structuredExport.PayloadJson);
     Assert.Contains("\"periodAmendments\"", structuredExport.PayloadJson);
@@ -97,8 +104,10 @@ public sealed class RecordsArchiveTests
     Assert.Contains("\"accountingEvidenceAuditLinks\"", structuredExport.PayloadJson);
     Assert.Contains("\"accountingEvidenceActions\"", structuredExport.PayloadJson);
     Assert.Contains("\"valuationPreparations\"", structuredExport.PayloadJson);
-    Assert.Contains("\"clientGroups\"", structuredExport.PayloadJson);
-    Assert.Contains("\"groupMemberships\"", structuredExport.PayloadJson);
+    Assert.DoesNotContain("\"clientGroups\"", structuredExport.PayloadJson);
+    Assert.DoesNotContain("\"groupMemberships\"", structuredExport.PayloadJson);
+    Assert.DoesNotContain("\"scopeVersions\"", structuredExport.PayloadJson);
+    Assert.DoesNotContain("\"consolidationRuns\"", structuredExport.PayloadJson);
     Assert.Contains("\"activityEvents\"", structuredExport.PayloadJson);
     Assert.Equal(structuredExport.ByteCount, System.Text.Encoding.UTF8.GetByteCount(structuredExport.PayloadJson));
 
@@ -295,6 +304,41 @@ public sealed class RecordsArchiveTests
     Assert.Equal(ErrorCodes.ProtectedState, reviewSuperseded.ErrorCode);
     var retainedDigest = manifest2.ManifestDigest;
     Assert.True((await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId, manifest2.Id)).Succeeded);
+
+    // T17: a reviewed entry set is immutable through ordinary storage paths.
+    var reviewedEntry = await db.ArchiveManifestEntries
+      .Where(x => x.ArchiveManifestId == manifest2.Id).OrderBy(x => x.Ordinal).FirstAsync();
+    reviewedEntry.MetadataJson = "{\"controlledTamper\":true}";
+    var deniedUpdate = await Assert.ThrowsAnyAsync<Exception>(() => db.SaveChangesAsync());
+    Assert.Equal("55000", Assert.IsType<PostgresException>(deniedUpdate.GetBaseException()).SqlState);
+    db.ChangeTracker.Clear();
+
+    await using (var insert = new AuditSphereDbContext(pg.Options))
+    {
+      insert.ArchiveManifestEntries.Add(new ArchiveManifestEntry
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientId,
+        EngagementId = scope.EngagementId, ArchiveManifestId = manifest2.Id, Ordinal = 999,
+        EntryKind = "DOCUMENT", SourceKind = "TEST", RelativeName = "evidence/late-entry.pdf",
+        ContentHash = new string('d', 64), ByteCount = 1, Required = true, MetadataJson = "{}"
+      });
+      var deniedInsert = await Assert.ThrowsAnyAsync<Exception>(() => insert.SaveChangesAsync());
+      Assert.Equal("55000", Assert.IsType<PostgresException>(deniedInsert.GetBaseException()).SqlState);
+    }
+
+    await using (var raw = new AuditSphereDbContext(pg.Options))
+    {
+      var deniedDelete = await Assert.ThrowsAsync<PostgresException>(() => raw.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM archive_manifest_entries WHERE id = {reviewedEntry.Id}"));
+      Assert.Equal("55000", deniedDelete.SqlState);
+      var deniedTruncate = await Assert.ThrowsAsync<PostgresException>(() => raw.Database.ExecuteSqlRawAsync(
+        "TRUNCATE TABLE archive_manifest_entries"));
+      Assert.Equal("55000", deniedTruncate.SqlState);
+      var deniedRegression = await Assert.ThrowsAsync<PostgresException>(() => raw.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE archive_manifests SET status = 'BUILT' WHERE id = {manifest2.Id}"));
+      Assert.Equal("55000", deniedRegression.SqlState);
+    }
+
     var exported = await RecordsArchiveService.ExportReviewedArchiveAsync(db, scope.Actor, archiveId);
     Assert.True(exported.Succeeded, exported.Message);
     var requested = await RecordsArchiveService.RequestRecordsActionAsync(db, scope.Actor,
@@ -525,6 +569,47 @@ public sealed class RecordsArchiveTests
     typeof(ArchiveCopyTargetRevision).GetProperty(nameof(ArchiveCopyTargetRevision.SelectedResourceDraftId))!
       .SetValue(legacyWithPartialProof, Guid.NewGuid());
     Assert.False(legacyWithPartialProof.HasValidDigests());
+  }
+
+  [Fact]
+  public void StructuredArchiveGuard_RejectsLegacyAndGroupWidePayloads()
+  {
+    var archive = new Archive
+    {
+      Id = Guid.CreateVersion7(), FirmId = Guid.CreateVersion7(), ClientId = Guid.CreateVersion7(),
+      EngagementId = Guid.CreateVersion7()
+    };
+    var metadata = JsonSerializer.Serialize(new
+    {
+      schema = "records-export.v2", storage = "archive_structured_exports", audience = "ENGAGEMENT_ONLY"
+    });
+    string Payload(Guid clientId, Guid engagementId, bool groupWide)
+    {
+      var payload = new Dictionary<string, object?>
+      {
+        ["schema"] = "records-export.v2",
+        ["audience"] = new
+        {
+          scope = "ENGAGEMENT_ONLY", firmId = archive.FirmId, clientId, engagementId,
+          groupWideDataIncluded = groupWide
+        },
+        ["scope"] = new { firmId = archive.FirmId, clientId, engagementId }
+      };
+      if (groupWide) payload["groupMemberships"] = new[] { new { clientId = Guid.CreateVersion7() } };
+      return JsonSerializer.Serialize(payload);
+    }
+
+    Assert.True(ArchiveStructuredExportGuard.IsEngagementSafe(archive, "records-export.v2",
+      "structured/records-export.v2.json", metadata, Payload(archive.ClientId, archive.EngagementId, false), out _));
+    Assert.False(ArchiveStructuredExportGuard.IsEngagementSafe(archive, "records-export.v1",
+      "structured/records-export.v1.json",
+      "{\"schema\":\"records-export.v1\",\"storage\":\"archive_structured_exports\"}",
+      "{\"schema\":\"records-export.v1\",\"documents\":[]}", out var legacyFailure));
+    Assert.Contains("audience", legacyFailure, StringComparison.OrdinalIgnoreCase);
+    Assert.False(ArchiveStructuredExportGuard.IsEngagementSafe(archive, "records-export.v2",
+      "structured/records-export.v2.json", metadata, Payload(archive.ClientId, archive.EngagementId, true), out _));
+    Assert.False(ArchiveStructuredExportGuard.IsEngagementSafe(archive, "records-export.v2",
+      "structured/records-export.v2.json", metadata, Payload(Guid.CreateVersion7(), archive.EngagementId, false), out _));
   }
 
   private static ArchiveCopyTargetRevision CreateArchiveCopyTarget(Guid firmId, Guid clientId, Guid clientSiteId)

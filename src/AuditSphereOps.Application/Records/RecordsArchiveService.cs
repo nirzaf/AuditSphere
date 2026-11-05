@@ -145,9 +145,14 @@ public static class RecordsArchiveService
     {
       Id = Guid.CreateVersion7(), FirmId = archive.FirmId, ClientId = archive.ClientId,
       EngagementId = archive.EngagementId, Ordinal = entries.Count + 1, EntryKind = "STRUCTURED_EXPORT",
-      SourceKind = "AuditSphereOps", RelativeName = "structured/records-export.v1.json",
+      SourceKind = "AuditSphereOps", RelativeName = ArchiveStructuredExportSchemas.EngagementV2RelativeName,
       ContentHash = Hashing.Sha256Hex(structuredBytes), ByteCount = structuredBytes.Length, Required = true,
-      MetadataJson = "{\"schema\":\"records-export.v1\",\"storage\":\"archive_structured_exports\"}"
+      MetadataJson = JsonSerializer.Serialize(new
+      {
+        schema = ArchiveStructuredExportSchemas.EngagementV2,
+        storage = "archive_structured_exports",
+        audience = ArchiveStructuredExportSchemas.EngagementOnlyAudience
+      })
     });
 
     if (commercialBundleId is Guid selectedBundleId)
@@ -201,7 +206,7 @@ public static class RecordsArchiveService
     {
       Id = Guid.CreateVersion7(), FirmId = archive.FirmId, ClientId = archive.ClientId,
       EngagementId = archive.EngagementId, ArchiveId = archive.Id, ArchiveManifestId = manifest.Id,
-      Version = manifestVersion, Schema = "records-export.v1", PayloadJson = structured,
+      Version = manifestVersion, Schema = ArchiveStructuredExportSchemas.EngagementV2, PayloadJson = structured,
       ContentHash = Hashing.Sha256Hex(structuredBytes), ByteCount = structuredBytes.Length,
       CreatedAt = DateTimeOffset.UtcNow
     });
@@ -299,9 +304,8 @@ public static class RecordsArchiveService
 
     var structured = await db.ArchiveStructuredExports.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id &&
-        x.ArchiveManifestId == manifest.Id && x.Schema == "records-export.v1", ct);
-    var exportEntry = entries.SingleOrDefault(x => x.EntryKind == "STRUCTURED_EXPORT" &&
-      x.RelativeName == "structured/records-export.v1.json");
+        x.ArchiveManifestId == manifest.Id, ct);
+    var exportEntry = entries.SingleOrDefault(x => x.EntryKind == "STRUCTURED_EXPORT");
     if (structured is null || exportEntry is null || structured.ByteCount != Encoding.UTF8.GetByteCount(structured.PayloadJson) ||
         !string.Equals(Hashing.Sha256Hex(Encoding.UTF8.GetBytes(structured.PayloadJson)), structured.ContentHash,
           StringComparison.OrdinalIgnoreCase) ||
@@ -309,6 +313,10 @@ public static class RecordsArchiveService
         exportEntry.ByteCount != structured.ByteCount)
       return CommandResult<ArchiveEvidenceExport>.Fail(ErrorCodes.GateBlocked,
         "The immutable structured export is missing or does not match its manifest hash.");
+    if (!ArchiveStructuredExportGuard.IsEngagementSafe(archive, structured.Schema, exportEntry.RelativeName,
+          exportEntry.MetadataJson, structured.PayloadJson, out var audienceFailure))
+      return CommandResult<ArchiveEvidenceExport>.Fail(ErrorCodes.ProtectedState,
+        $"{audienceFailure} Withhold export and reconcile the retained payload.");
 
     JsonElement records;
     try
@@ -332,7 +340,7 @@ public static class RecordsArchiveService
       schema = "auditsphere-archive-evidence-export.v1",
       archive = new
       {
-        archive.Id, archive.EngagementId, archive.Status, archive.ProfileId, archive.ProfileVersion,
+        archive.Id, archive.ClientId, archive.EngagementId, archive.Status, archive.ProfileId, archive.ProfileVersion,
         manifestReviewedAt = manifest.ReviewedAt
       },
       manifest = new
@@ -580,7 +588,7 @@ public static class RecordsArchiveService
   private static async Task<string> BuildStructuredExportAsync(
     IAuditSphereDbContext db, Archive archive, CancellationToken ct)
   {
-    var scope = new { archive.FirmId, archive.ClientId, archive.EngagementId };
+    var scope = new { firmId = archive.FirmId, clientId = archive.ClientId, engagementId = archive.EngagementId };
 
     var documentReferences = await db.DocumentReferences.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
@@ -734,68 +742,8 @@ public static class RecordsArchiveService
       .Where(x => packageIds.Contains(x.FinancialPackageId)).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.FinancialPackageId, x.NoteCode, x.FaceDestinationCode, x.Amount, x.Currency, x.EvidenceReference, x.CreatedAt }).ToListAsync(ct);
 
-    var groupMembershipIds = typedAccounting is null ? [] : await typedAccounting.ClientGroupMemberships.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId)
-      .Select(x => x.GroupId).Distinct().ToArrayAsync(ct);
-    var componentGroupIds = typedAccounting is null ? [] : await typedAccounting.ConsolidationComponents.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
-      .Select(x => x.GroupId).Distinct().ToArrayAsync(ct);
-    var groupIds = groupMembershipIds.Concat(componentGroupIds).Distinct().ToArray();
-    var clientGroups = typedAccounting is null ? [] : await typedAccounting.ClientGroups.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && groupIds.Contains(x.Id)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.Code, x.Name, x.Status, x.Revision, x.CreatedByUserId, x.CreatedAt }).ToListAsync(ct);
-    var groupMemberships = typedAccounting is null ? [] : await typedAccounting.ClientGroupMemberships.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && groupIds.Contains(x.GroupId)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.ClientId, x.EffectiveFrom, x.EffectiveTo, x.ControlMethod, x.OwnershipPercent, x.EconomicInterestPercent, x.EvidenceReference, x.Status, x.Revision, x.CreatedByUserId, x.CreatedAt }).ToListAsync(ct);
-    var scopeVersions = typedAccounting is null ? [] : await typedAccounting.ConsolidationScopeVersions.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && groupIds.Contains(x.GroupId)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.GroupRevision, x.PeriodId, x.PriorScopeVersionId, x.OpeningRunHash, x.OpeningTranslationManifestHash, x.OpeningTranslationReserve, x.RecurringEliminationManifest, x.Version, x.ReportingCurrency, x.Method, x.Status, x.OpeningBasis, x.ExchangeRateSetVersionId, x.TranslationPolicyVersionId, x.TranslationRateDate, x.TranslationRateType, x.CreatedByUserId, x.ApprovedByUserId, x.ApprovedAt, x.CreatedAt }).ToListAsync(ct);
-    var scopeIds = scopeVersions.Select(x => x.Id).ToArray();
-    var consolidationComponents = typedAccounting is null ? [] : await typedAccounting.ConsolidationComponents.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ClientId, x.EngagementId, x.PackageId, x.ExternalComponentPackId, x.SourceType, x.PackageHash, x.PeriodBasis, x.TaxonomyVersion, x.MappingVersion, x.Currency, x.OwnershipPercent, x.ControlMethod, x.Status, x.SubmittedByUserId, x.ApprovedByUserId, x.SubmittedAt, x.ApprovedAt }).ToListAsync(ct);
-    var externalComponentPacks = typedAccounting is null ? [] : await typedAccounting.ExternalComponentPacks.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ClientId, x.EngagementId, x.PriorPackId, x.Version, x.PeriodStart, x.PeriodEnd, x.Framework, x.ReportingCurrency, x.PeriodBasis, x.TaxonomyVersion, x.MappingVersion, x.SourceReference, x.RawSourceHash, x.NormalizedSourceDigest, x.PackDigest, x.DeclaredSignedTotal, x.ReconciledSignedTotal, x.ReconciliationStatus, x.ReconciliationReference, x.CompatibilityBridgeStatus, x.CompatibilityBridgeReference, x.CompatibilityBridgeApprovedByUserId, x.CompatibilityBridgeApprovedAt, x.ReturnReason, x.Status, x.SubmittedByUserId, x.ReconciledByUserId, x.ReturnedByUserId, x.ApprovedByUserId, x.SubmittedAt, x.ReconciledAt, x.ReturnedAt, x.ApprovedAt }).ToListAsync(ct);
-    var externalComponentPackIds = externalComponentPacks.Select(x => x.Id).ToArray();
-    var externalComponentPackLines = typedAccounting is null ? [] : await typedAccounting.ExternalComponentPackLines.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && externalComponentPackIds.Contains(x.ExternalComponentPackId)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ExternalComponentPackId, x.TaxonomyCode, x.Amount, x.Currency, x.SourceLineReference }).ToListAsync(ct);
-    var componentIds = consolidationComponents.Select(x => x.Id).ToArray();
-    var ownershipInterests = typedAccounting is null ? [] : await typedAccounting.OwnershipInterestVersions.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && (x.ParentClientId == archive.ClientId || x.ChildClientId == archive.ClientId)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ParentClientId, x.ChildClientId, x.EffectiveFrom, x.EffectiveTo, x.OwnershipPercent, x.EconomicInterestPercent, x.ControlAssessment, x.Method, x.EvidenceReference, x.Status, x.CreatedAt }).ToListAsync(ct);
-    var intercompanyMatches = typedAccounting is null ? [] : await typedAccounting.IntercompanyMatches.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && (x.SellerClientId == archive.ClientId || x.BuyerClientId == archive.ClientId)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.SellerClientId, x.BuyerClientId, x.AccountNature, x.SellerTaxonomyCode, x.BuyerTaxonomyCode, x.PeriodCode, x.Currency, x.TransactionReference, x.SellerAmount, x.BuyerAmount, x.MatchedAmount, x.Difference, x.Status, x.DifferenceReason, x.EvidenceReference, x.CreatedByUserId, x.ReviewedByUserId, x.CreatedAt, x.ReviewedAt }).ToListAsync(ct);
-    var consolidationJournals = typedAccounting is null ? [] : await typedAccounting.ConsolidationJournals.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.JournalNumber, x.JournalType, x.Currency, x.TotalDebits, x.TotalCreditsAbs, x.EvidenceReference, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt }).ToListAsync(ct);
-    var consolidationJournalIds = consolidationJournals.Select(x => x.Id).ToArray();
-    var consolidationJournalLines = typedAccounting is null ? [] : await typedAccounting.ConsolidationJournalLines.AsNoTracking()
-      .Where(x => consolidationJournalIds.Contains(x.ConsolidationJournalId)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ConsolidationJournalId, x.IntercompanyMatchId, x.TaxonomyCode, x.Debit, x.Credit, x.Currency, x.Description, x.CreatedAt }).ToListAsync(ct);
-    var consolidationRuns = typedAccounting is null ? [] : await typedAccounting.ConsolidationRuns.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.EngineVersion, x.InputManifest, x.RunHash, x.ReportingCurrency, x.SignedTotal, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt }).ToListAsync(ct);
-    var consolidationRunIds = consolidationRuns.Select(x => x.Id).ToArray();
-    var consolidationRunLines = typedAccounting is null ? [] : await typedAccounting.ConsolidationRunLines.AsNoTracking()
-      .Where(x => consolidationRunIds.Contains(x.RunId)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.RunId, x.ComponentId, x.SourceLineId, x.IntercompanyMatchId, x.ConsolidationJournalId, x.TaxonomyCode, x.ComponentAmount, x.AlignmentAmount, x.EliminationAmount, x.ConsolidatedAmount, x.Currency, x.CreatedAt }).ToListAsync(ct);
-    var rateSetIds = scopeVersions.Where(x => x.ExchangeRateSetVersionId.HasValue).Select(x => x.ExchangeRateSetVersionId!.Value).Distinct().ToArray();
-    var translationPolicyIds = scopeVersions.Where(x => x.TranslationPolicyVersionId.HasValue).Select(x => x.TranslationPolicyVersionId!.Value).Distinct().ToArray();
-    var exchangeRateSets = typedAccounting is null ? [] : await typedAccounting.ExchangeRateSetVersions.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && rateSetIds.Contains(x.Id)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.Code, x.Source, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt }).ToListAsync(ct);
-    var exchangeRates = typedAccounting is null ? [] : await typedAccounting.ExchangeRates.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && rateSetIds.Contains(x.RateSetVersionId)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.RateSetVersionId, x.FromCurrency, x.ToCurrency, x.RateDate, x.RateType, x.Rate, x.Direction, x.CreatedAt }).ToListAsync(ct);
-    var translationPolicies = typedAccounting is null ? [] : await typedAccounting.TranslationPolicyVersions.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && translationPolicyIds.Contains(x.Id)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.Code, x.FunctionalCurrency, x.PresentationCurrency, x.ClosingRateRule, x.AverageRateRule, x.HistoricalRateRule, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt }).ToListAsync(ct);
-    var translationResults = typedAccounting is null ? [] : await typedAccounting.TranslationResults.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && scopeIds.Contains(x.ScopeVersionId) && componentIds.Contains(x.ComponentId)).OrderBy(x => x.Id)
-      .Select(x => new { x.Id, x.GroupId, x.ScopeVersionId, x.ComponentId, x.RateSetVersionId, x.TranslationPolicyVersionId, x.CalculationVersion, x.SourcePackageHash, x.RateDate, x.RateType, x.AppliedRate, x.FromCurrency, x.ToCurrency, x.TranslatedAmount, x.ForeignExchangeAdjustment, x.RoundingAdjustment, x.TranslationReserve, x.Status, x.CreatedByUserId, x.ApprovedByUserId, x.ApprovedAt, x.CreatedAt }).ToListAsync(ct);
+    // Engagement archives never embed group-wide membership, scopes, journals or runs.
+    // Group output remains available through the separately authorized group workflow.
 
     var materiality = await db.MaterialityAssessments.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
@@ -953,7 +901,15 @@ public static class RecordsArchiveService
 
     var export = new
     {
-      schema = "records-export.v1",
+      schema = ArchiveStructuredExportSchemas.EngagementV2,
+      audience = new
+      {
+        scope = ArchiveStructuredExportSchemas.EngagementOnlyAudience,
+        firmId = archive.FirmId,
+        clientId = archive.ClientId,
+        engagementId = archive.EngagementId,
+        groupWideDataIncluded = false
+      },
       scope,
       documents = new { references = documentReferences, snapshots = documentSnapshots },
       sourceReceipts,
@@ -1011,23 +967,7 @@ public static class RecordsArchiveService
         disclosures,
         equityLines,
         equityTransfers,
-        noteLines,
-        clientGroups,
-        groupMemberships,
-        scopeVersions,
-        consolidationComponents,
-        externalComponentPacks,
-        externalComponentPackLines,
-        ownershipInterests,
-        intercompanyMatches,
-        consolidationJournals,
-        consolidationJournalLines,
-        consolidationRuns,
-        consolidationRunLines,
-        exchangeRateSets,
-        exchangeRates,
-        translationPolicies,
-        translationResults
+        noteLines
       },
       audit = new
       {
