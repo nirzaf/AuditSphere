@@ -76,14 +76,14 @@ public static class PeriodMaintenanceQuery
     var periods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.Status == AccountingWorkflowStates.Closed)
       .OrderByDescending(x => x.EndDate).ToListAsync(ct);
     var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.Status == AccountingPackageStates.PackageValidated)
-      .OrderBy(x => x.CreatedAt).Select(x => new { x.Id, x.Currency, x.CalculationHash, x.PeriodStart, x.PeriodEnd }).ToListAsync(ct);
+      .OrderBy(x => x.CreatedAt).Select(x => new { x.Id, x.PeriodId, x.Currency, x.CalculationHash, x.PeriodStart, x.PeriodEnd }).ToListAsync(ct);
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, ClientId: clientId, RequiredRoles: AccountingRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<IReadOnlyList<MaintenanceClosedPeriod>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     return CommandResult<IReadOnlyList<MaintenanceClosedPeriod>>.Ok(periods.Select(p =>
     {
       var start = p.StartDate.ToString("yyyy-MM-dd"); var end = p.EndDate.ToString("yyyy-MM-dd");
       return new MaintenanceClosedPeriod(p.Id, p.PeriodCode, p.StartDate, p.EndDate, p.Basis, p.Currency, p.Revision,
-        packages.Where(x => x.PeriodStart == start && x.PeriodEnd == end)
+        packages.Where(x => x.PeriodId == p.Id && x.PeriodStart == start && x.PeriodEnd == end)
           .Select(x => new MaintenancePackageOption(x.Id, x.Currency, x.CalculationHash[..Math.Min(12, x.CalculationHash.Length)])).ToList());
     }).ToList());
   }

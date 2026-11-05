@@ -25,7 +25,8 @@ public static class RollforwardSourceQuery
     var start = period.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     var end = period.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId &&
-      x.PeriodStart == start && x.PeriodEnd == end && x.Currency == period.Currency && x.Status == AccountingPackageStates.PackageValidated)
+      x.PeriodId == periodId && x.PeriodStart == start && x.PeriodEnd == end && x.Currency == period.Currency &&
+      x.Status == AccountingPackageStates.PackageValidated)
       .OrderBy(x => x.Id).Take(101).Select(x => new RollforwardPackageItem(x.Id, x.CalculationHash, x.Currency)).ToListAsync(ct);
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
       return CommandResult<RollforwardSources>.Fail(ErrorCodes.ScopeDenied, "Source packages unavailable.");

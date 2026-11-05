@@ -202,6 +202,10 @@ public static class ReleaseService
       x.ReleaseCandidateId == candidate.Id && x.CandidateRevision == candidate.Revision &&
       x.ManifestDigest == request.ManifestDigest, ct);
 
+    if (checkpoint is not null &&
+        !string.Equals(checkpoint.AuthorizedReleaseKey, releaseKey, StringComparison.Ordinal))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "The external release checkpoint is bound to a different authorized release key.");
     if (options.RequireExternalCheckpointBeforeDelivery)
     {
       if (checkpoint is null)

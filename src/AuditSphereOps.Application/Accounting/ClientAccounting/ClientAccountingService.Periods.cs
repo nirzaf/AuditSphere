@@ -99,6 +99,7 @@ public static partial class ClientAccountingService
       var priorStart = prior.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
       var priorEnd = prior.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
       if (sourcePackage is null || sourcePackage.Status != AccountingPackageStates.PackageValidated ||
+          sourcePackage.PeriodId != prior.Id ||
           sourcePackage.PeriodStart != priorStart || sourcePackage.PeriodEnd != priorEnd ||
           !string.Equals(sourcePackage.Currency, currency, StringComparison.Ordinal) ||
           !string.Equals(sourcePackage.CalculationHash, sourceHash, StringComparison.OrdinalIgnoreCase))

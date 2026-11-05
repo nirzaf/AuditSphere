@@ -33,6 +33,16 @@ internal static class OpeningBalanceBridgeCurrentness
       x.FirmId == bridge.FirmId && x.ClientId == bridge.ClientId && x.Id == priorId, ct);
     if (prior is null || prior.Status != AccountingWorkflowStates.Closed)
       return new(prior, false, "The linked prior period must be closed before opening evidence can be reviewed or used for close.");
+    if (bridge.SourcePackageId is { } sourcePackageId)
+    {
+      var sourcePackage = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == sourcePackageId && x.FirmId == bridge.FirmId && x.ClientId == bridge.ClientId, ct);
+      if (sourcePackage is null || sourcePackage.PeriodId != prior.Id ||
+          sourcePackage.Status != AccountingPackageStates.PackageValidated ||
+          !string.Equals(sourcePackage.CalculationHash, bridge.SourceHash, StringComparison.OrdinalIgnoreCase))
+        return new(prior, false,
+          "The opening source package does not belong to the exact closed prior period or no longer matches its reviewed hash.");
+    }
     var hash = EvidenceHash(bridge);
     var review = await db.OpeningBalanceBridgeReviews.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == bridge.FirmId && x.ClientId == bridge.ClientId && x.BridgeId == bridge.Id &&

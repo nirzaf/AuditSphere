@@ -182,21 +182,13 @@ public static partial class PracticeCrmService
     const string reason = "Your access does not include firm finance for this client.";
     var asOf = DateOnly.FromDateTime(DateTime.UtcNow);
     var aging = lockedSnapshot
-      ? await FirmReceivablesAgingQuery.GetForLockedSnapshotAsync(db, actor, asOf, ct)
-      : await FirmReceivablesAgingQuery.GetAsync(db, actor, asOf, ct);
-    if (!aging.Succeeded || aging.Value is null)
-      return aging.ErrorCode == ErrorCodes.ScopeDenied
-        ? UnavailableFinanceSection(reason)
-        : Section("FINANCE", "Money", null,
-          Unavailable("OUTSTANDING_INVOICES", "Posted invoices with an outstanding balance",
-            "The receivables balance could not be established."),
-          Unavailable("UNPOSTED_INVOICES", "Invoices not yet posted", reason),
-          Unavailable("UNAPPLIED_RECEIPTS", "Recorded receipts with unapplied value", reason),
-          Unavailable("APPROVED_UNBILLED_TIME", "Approved billable time not yet invoiced", reason));
+      ? await FirmReceivablesAgingQuery.GetForLockedSnapshotAsync(db, actor, asOf, ct, clientId)
+      : await FirmReceivablesAgingQuery.GetAsync(db, actor, asOf, ct, clientId);
+    if (!aging.Succeeded && aging.ErrorCode == ErrorCodes.ScopeDenied)
+      return UnavailableFinanceSection(reason);
 
-    var owed = aging.Value.Rows.Where(r => r.ClientId == clientId && r.Outstanding > 0m).ToArray();
-    var detail = owed.Length == 0 ? null : string.Join("; ", owed.GroupBy(r => r.Currency).OrderBy(g => g.Key)
-      .Select(g => $"{g.Key} {g.Sum(r => r.Outstanding).ToString("0.00", CultureInfo.InvariantCulture)}"));
+    // Receipt, unposted-invoice and approved-time facts are independently assessable even when
+    // the client-scoped ageing population or one of its source links cannot be established.
     var unposted = await (from invoice in db.Invoices.AsNoTracking()
       join account in db.BillingAccounts.AsNoTracking()
         on new { invoice.FirmId, invoice.BillingAccountId } equals new { account.FirmId, BillingAccountId = account.Id }
@@ -208,11 +200,20 @@ public static partial class PracticeCrmService
     if (!await CanReadAsync(db, actor, new AuthorizationRequest(actor.FirmId,
           RequiredRoles: OffboardingFinanceRoles, InternalOnly: true, RequireFirmWide: true), ct))
       return UnavailableFinanceSection(reason);
+
+    if (!aging.Succeeded || aging.Value is null)
+      return Section("FINANCE", "Money", "/app/finance/receivables-aging",
+        Unavailable("OUTSTANDING_INVOICES", "Posted invoices with an outstanding balance",
+          aging.Message ?? "The client receivables balance could not be established."),
+        Counted("UNPOSTED_INVOICES", "Invoices not yet posted", unposted), receipts, approvedTime);
+
+    var owed = aging.Value.Rows.Where(row => row.ClientId == clientId && row.Outstanding > 0m).ToArray();
+    var detail = owed.Length == 0 ? null : string.Join("; ", owed.GroupBy(row => row.Currency).OrderBy(group => group.Key)
+      .Select(group => $"{group.Key} {group.Sum(row => row.Outstanding).ToString("0.######", CultureInfo.InvariantCulture)}"));
     return Section("FINANCE", "Money", "/app/finance/receivables-aging",
       Counted("OUTSTANDING_INVOICES", "Posted invoices with an outstanding balance", owed.Length, detail),
       Counted("UNPOSTED_INVOICES", "Invoices not yet posted", unposted), receipts, approvedTime);
   }
-
   private static async Task<ClientOffboardingSection> AccessSectionAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct)
   {

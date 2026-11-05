@@ -24,6 +24,10 @@ public static partial class ClientAccountingService
       x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct);
     if (period is null || request.PriorPeriodId != period.PriorPeriodId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The opening bridge periods are outside the declared client period lineage.");
+    var prior = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.PriorPeriodId &&
+      x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct);
+    if (prior is null || prior.Status != AccountingWorkflowStates.Closed)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The opening bridge prior period must be the exact closed period.");
     if (request.PriorClosingAmount != MoneyPolicy.Normalize(request.PriorClosingAmount) ||
         request.CurrentOpeningAmount != MoneyPolicy.Normalize(request.CurrentOpeningAmount))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "Opening bridge amounts exceed accounting precision.");
@@ -31,8 +35,10 @@ public static partial class ClientAccountingService
     {
       var package = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.Id == packageId &&
         x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.Status == AccountingPackageStates.PackageValidated, ct);
-      if (package is null || !string.Equals(package.CalculationHash, sourceHash, StringComparison.OrdinalIgnoreCase))
-        return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The opening bridge source package is outside the client or has a different hash.");
+      if (package is null || package.PeriodId != prior.Id ||
+          !string.Equals(package.CalculationHash, sourceHash, StringComparison.OrdinalIgnoreCase))
+        return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
+          "The opening bridge source package is outside the exact prior period or has a different hash.");
     }
     if (await db.OpeningBalanceBridges.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
         x.CurrentPeriodId == request.CurrentPeriodId, ct))

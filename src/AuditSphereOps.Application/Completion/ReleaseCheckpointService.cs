@@ -54,15 +54,19 @@ public static class ReleaseCheckpointService
     if (candidate.Status != ReleaseStates.Ready)
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The candidate is not ready for issuance.");
 
+    var releaseKey = request.AuthorizedReleaseKey.Trim();
+    var existing = await db.ReleaseCheckpoints.SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ReleaseCandidateId == candidate.Id &&
+      x.CandidateRevision == candidate.Revision && x.ManifestDigest == request.ManifestDigest, ct);
+    if (existing is not null && !string.Equals(existing.AuthorizedReleaseKey, releaseKey, StringComparison.Ordinal))
+      return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
+        "The checkpoint is already bound to a different authorized release key.");
+
     // Write outside application database, re-read and compare
     var receipt = await store.WriteAsync(request.ManifestDigest, request.ManifestBytes, ct);
     var verified = await store.VerifyAsync(receipt.Reference, request.ManifestDigest, ct);
     if (verified is null || !string.Equals(verified.ContentSha256Hex, request.ManifestDigest, StringComparison.OrdinalIgnoreCase))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "External checkpoint verification failed.");
-
-    var existing = await db.ReleaseCheckpoints.SingleOrDefaultAsync(x =>
-      x.FirmId == actor.FirmId && x.ReleaseCandidateId == candidate.Id &&
-      x.CandidateRevision == candidate.Revision && x.ManifestDigest == request.ManifestDigest, ct);
 
     if (existing is not null)
     {
@@ -83,7 +87,7 @@ public static class ReleaseCheckpointService
       EngagementId = candidate.EngagementId,
       ReleaseCandidateId = candidate.Id,
       CandidateRevision = candidate.Revision,
-      AuthorizedReleaseKey = request.AuthorizedReleaseKey.Trim(),
+      AuthorizedReleaseKey = releaseKey,
       ManifestDigest = request.ManifestDigest,
       StoredReference = receipt.Reference,
       ReadBackDigest = verified.ContentSha256Hex,

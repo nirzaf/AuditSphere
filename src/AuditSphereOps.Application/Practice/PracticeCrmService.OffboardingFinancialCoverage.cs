@@ -198,6 +198,8 @@ public static partial class PracticeCrmService
         Counted("FEE_MILESTONES", label, 0));
 
     var observations = new List<(string Currency, string State, decimal Amount)>();
+    var reconciliationRequired = false;
+    string? reconciliationDetail = null;
     foreach (var agreementId in agreements)
     {
       var result = await FeeSettlementWorkspaceQuery.GetAsync(db, actor, agreementId,
@@ -221,10 +223,15 @@ public static partial class PracticeCrmService
             Unavailable("FEE_MILESTONES", label, "Fee milestone amounts could not be reconciled safely."));
         observations.Add((workspace.Currency.ToUpperInvariant(), milestone.State, amount));
       }
+      if (workspace.AdvancePreparation.ReconciliationRequired)
+      {
+        reconciliationRequired = true;
+        reconciliationDetail = workspace.AdvancePreparation.Message;
+      }
     }
 
     var pending = observations.Where(item => item.State is FeeMilestoneStates.Planned or FeeMilestoneStates.Invoiced).ToArray();
-    if (pending.Length == 0)
+    if (pending.Length == 0 && !reconciliationRequired)
       return Section("FEE_MILESTONES", "Fee agreement", "/app/finance/fee-agreements",
         Counted("FEE_MILESTONES", label, 0));
     string detail;
@@ -250,8 +257,15 @@ public static partial class PracticeCrmService
       return Section("FEE_MILESTONES", "Fee agreement", "/app/finance/fee-agreements",
         Unavailable("FEE_MILESTONES", label, "Fee milestone totals exceed the supported monetary range."));
     }
-    return Section("FEE_MILESTONES", "Fee agreement", "/app/finance/fee-agreements",
-      new ClientOffboardingItem("FEE_MILESTONES", label, ClientOffboardingStates.ActionRequired, pending.LongLength, detail));
+    var items = new List<ClientOffboardingItem>();
+    if (pending.Length > 0)
+      items.Add(new ClientOffboardingItem("FEE_MILESTONES", label, ClientOffboardingStates.ActionRequired,
+        pending.LongLength, detail));
+    if (reconciliationRequired)
+      items.Add(new ClientOffboardingItem("FEE_RECONCILIATION",
+        "Advance invoice awaiting milestone reconciliation", ClientOffboardingStates.ActionRequired, 1L,
+        reconciliationDetail));
+    return Section("FEE_MILESTONES", "Fee agreement", "/app/finance/fee-agreements", items.ToArray());
   }
 
   private static bool IsCurrency(string? currency) => currency is { Length: 3 } &&

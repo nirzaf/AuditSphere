@@ -58,6 +58,19 @@ public sealed class ReleaseTests
         new RecordReleaseCheckpointRequest(candidateId, 1, "release-001", digest, manifestBytes));
       Assert.True(cpResult.Succeeded);
 
+      // A different key cannot reuse the K1 checkpoint or refresh it.
+      var wrongKeyIssue = await ReleaseService.IssueAsync(db, fixture.Partner,
+        new IssueReleaseRequest(candidateId, 1, digest, "release-002"));
+      Assert.False(wrongKeyIssue.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, wrongKeyIssue.ErrorCode);
+      var wrongKeyCheckpoint = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, store, fixture.Partner,
+        new RecordReleaseCheckpointRequest(candidateId, 1, "release-002", digest, manifestBytes));
+      Assert.False(wrongKeyCheckpoint.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, wrongKeyCheckpoint.ErrorCode);
+      Assert.Empty(await db.Releases.ToListAsync());
+      Assert.Equal(ReleaseStates.Ready, (await db.ReleaseCandidates.SingleAsync(x => x.Id == candidateId)).Status);
+      Assert.Equal("release-001", (await db.ReleaseCheckpoints.SingleAsync()).AuthorizedReleaseKey);
+
       // 4. Issue release succeeds
       var issued = await ReleaseService.IssueAsync(db, fixture.Partner,
         new IssueReleaseRequest(candidateId, 1, digest, "release-001"));
@@ -70,7 +83,8 @@ public sealed class ReleaseTests
       Assert.Equal(issued.Value, repeated.Value);
       Assert.Single(await db.Releases.ToListAsync());
       Assert.Single(await db.DurableOperations.Where(x => x.OperationKind == "ReleaseDelivery.v1").ToListAsync());
-      Assert.Equal(ReleaseStates.Issued, (await db.ReleaseCandidates.SingleAsync(x => x.Id == candidateId)).Status);
+      db.ChangeTracker.Clear();
+      Assert.Equal(ReleaseStates.Issued, (await db.ReleaseCandidates.AsNoTracking().SingleAsync(x => x.Id == candidateId)).Status);
 
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
         UPDATE releases SET manifest_digest = {new string('c', 64)} WHERE firm_id = {fixture.FirmId} AND id = {issued.Value}

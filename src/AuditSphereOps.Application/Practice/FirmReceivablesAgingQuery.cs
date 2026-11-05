@@ -44,7 +44,8 @@ public static class FirmReceivablesAgingQuery
   private static readonly string[] FinanceRoles = ["FinanceManager", "FinanceReviewer"];
 
   public static async Task<CommandResult<FirmReceivablesAgingReport>> GetAsync(
-    IAuditSphereDbContext db, ActorContext actor, DateOnly asOfDate, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, DateOnly asOfDate, CancellationToken ct = default,
+    Guid? clientId = null)
   {
     if (asOfDate == DateOnly.MaxValue)
       return CommandResult<FirmReceivablesAgingReport>.Fail("finance.as-of-invalid", "Choose a valid report date.");
@@ -55,7 +56,7 @@ public static class FirmReceivablesAgingQuery
       return CommandResult<FirmReceivablesAgingReport>.Fail(ErrorCodes.GateBlocked,
         "Open this report in a separate read context so its source snapshot and current access can be verified.");
     await using var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
-    var result = await GetForLockedSnapshotAsync(db, actor, asOfDate, ct);
+    var result = await GetForLockedSnapshotAsync(db, actor, asOfDate, ct, clientId);
     if (!result.Succeeded) return result;
     await snapshot.CommitAsync(ct);
     auth = await AuthorizeAsync(db, actor, ct);
@@ -64,7 +65,8 @@ public static class FirmReceivablesAgingQuery
 
   // The caller owns the repeatable-read snapshot; closeout holds its firm safety lock through publication.
   internal static async Task<CommandResult<FirmReceivablesAgingReport>> GetForLockedSnapshotAsync(
-    IAuditSphereDbContext db, ActorContext actor, DateOnly asOfDate, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, DateOnly asOfDate, CancellationToken ct = default,
+    Guid? clientId = null)
   {
     if (asOfDate == DateOnly.MaxValue)
       return CommandResult<FirmReceivablesAgingReport>.Fail("finance.as-of-invalid", "Choose a valid report date.");
@@ -80,6 +82,7 @@ public static class FirmReceivablesAgingQuery
       join client in db.PracticeClients.AsNoTracking()
         on new { account.FirmId, account.PracticeClientId } equals new { client.FirmId, PracticeClientId = client.Id }
       where invoice.FirmId == actor.FirmId && invoice.PostedAt != null && invoice.PostedAt < cutoff &&
+        (clientId == null || account.PracticeClientId == clientId) &&
         (invoice.Status == BillingStates.InvoicePosted || invoice.Status == BillingStates.InvoiceSent ||
          (invoice.Status == BillingStates.InvoiceCancelled && invoice.CancelledAt >= cutoff))
       orderby invoice.PostedAt, invoice.Id

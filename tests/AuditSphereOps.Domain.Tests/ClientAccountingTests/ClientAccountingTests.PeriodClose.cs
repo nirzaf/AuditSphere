@@ -24,8 +24,10 @@ public sealed partial class ClientAccountingTests
       periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
         new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR"))).Value;
       Assert.True((await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Issued package")).Succeeded);
-      originalPackageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "original");
-      revisedPackageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 90m, "CASH", "revised");
+      originalPackageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "original",
+        "QAR", periodId);
+      revisedPackageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 90m, "CASH", "revised",
+        "QAR", periodId);
       db.RoleGrants.Add(Grant(scope.FirmId, scope.Preparer, "AccountingReviewer"));
       await db.SaveChangesAsync();
 
@@ -56,6 +58,54 @@ public sealed partial class ClientAccountingTests
     var tampered = "tampered";
     var mutation = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($"UPDATE client_period_restatements SET reason = {tampered} WHERE id = {restatementId}"));
     Assert.Equal("55000", mutation.SqlState);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task Restatement_RejectsMixedPeriodPackageAndOpenPeriodApproval()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var partner = Actor(scope.Partner, "Partner");
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var period1 = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+      new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31),
+        "STATUTORY", "QAR"))).Value;
+    Assert.True((await ClientAccountingService.ClosePeriodAsync(db, reviewer, period1, "Initial close")).Succeeded);
+    var period2 = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+      new ReportingPeriodRequest(scope.ClientA, "2027", new DateOnly(2027, 1, 1), new DateOnly(2027, 12, 31),
+        "STATUTORY", "QAR"))).Value;
+    var original = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "p1-original",
+      "QAR", period1);
+    var revised = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 90m, "CASH", "p1-revised",
+      "QAR", period1);
+    var foreign = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 80m, "CASH", "p2-revised",
+      "QAR", period2);
+    await db.SaveChangesAsync();
+
+    var mixed = await ClientAccountingService.CreatePeriodRestatementAsync(db, preparer,
+      new(scope.ClientA, period1, original, foreign, "IAS 8", "Mixed period", "mixed-evidence",
+        PeriodRestatementChangeTypes.RestatedError, "FY2026"));
+    Assert.False(mixed.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.ReconciliationRejected, mixed.ErrorCode);
+    Assert.Empty(await db.ClientPeriodRestatements.ToListAsync());
+
+    var created = await ClientAccountingService.CreatePeriodRestatementAsync(db, preparer,
+      new(scope.ClientA, period1, original, revised, "IAS 8", "Valid restatement", "valid-evidence",
+        PeriodRestatementChangeTypes.RestatedError, "FY2026"));
+    Assert.True(created.Succeeded, created.Message);
+    db.RoleGrants.Add(ClientPartnerGrant(scope));
+    await db.SaveChangesAsync();
+    var reopen = await ClientAccountingService.ReopenPeriodAsync(db, partner, period1, "Reopen before approval");
+    Assert.True(reopen.Succeeded, reopen.Message);
+    var approval = await ClientAccountingService.ApprovePeriodRestatementAsync(db, reviewer, created.Value);
+    Assert.False(approval.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, approval.ErrorCode);
+    Assert.Equal(AccountingWorkflowStates.Submitted,
+      (await db.ClientPeriodRestatements.AsNoTracking().SingleAsync(x => x.Id == created.Value)).Status);
   }
 
   [Fact]

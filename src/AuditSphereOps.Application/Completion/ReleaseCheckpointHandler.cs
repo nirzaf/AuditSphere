@@ -135,6 +135,9 @@ public sealed class ReleaseCheckpointHandler(
       x.FirmId == op.FirmId && x.ReleaseCandidateId == candidate.Id &&
       x.CandidateRevision == candidate.Revision && x.ManifestDigest == payload.ManifestDigest, ct);
 
+    if (existing is not null &&
+        !string.Equals(existing.AuthorizedReleaseKey, payload.AuthorizedReleaseKey, StringComparison.Ordinal))
+      throw new OperationBlockedException("checkpoint-release-key-conflict");
     if (existing is null)
     {
       var checkpoint = new ReleaseCheckpoint

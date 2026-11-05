@@ -297,7 +297,8 @@ public static class FeeSettlementWorkspaceQuery
       db, actor.FirmId, feeView, automaticDraftingEnabled, ct);
     if (orphanAdvanceInvoice)
       preparation = new(AdvanceInvoicePreparationStates.Blocked,
-        "A retained advance invoice awaits milestone reconciliation; prepare or recover the advance invoice to restore its exact source link. Its existing review and posting state is preserved.");
+        "A retained advance invoice awaits milestone reconciliation; prepare or recover the advance invoice to restore its exact source link. Its existing review and posting state is preserved.",
+        ReconciliationRequired: true);
 
     var authorizationAtReturn = await AuthorizationDecision.AuthorizeAsync(db, actor,
       FinanceRequest(actor.FirmId, agreement.PracticeClientId), ct);

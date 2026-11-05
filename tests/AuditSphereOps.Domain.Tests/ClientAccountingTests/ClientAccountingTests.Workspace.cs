@@ -67,19 +67,25 @@ public sealed partial class ClientAccountingTests
     await using var pg = await PgTestSchema.CreateAsync();
     var scope = await SeedAsync(pg);
     var actor = Actor(scope.Preparer, "AccountingPreparer");
-    Guid periodId, packageId;
+    Guid periodId, packageId, unpinned;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       periodId = (await ClientAccountingService.CreatePeriodAsync(db, actor,
         new(scope.ClientA, "2026", new(2026, 1, 1), new(2026, 12, 31), "STATUTORY", "QAR"))).Value;
       Assert.True((await ClientAccountingService.ClosePeriodAsync(db, Actor(scope.Reviewer, "AccountingReviewer"), periodId, "Synthetic closed fixture")).Succeeded);
-      packageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "eligible");
-      var draftId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "draft");
+      packageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "eligible",
+        "QAR", periodId);
+      var draftId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "draft",
+        "QAR", periodId);
       db.FinancialPackages.Local.Single(x => x.Id == draftId).Status = "REVIEW_REQUIRED";
-      var wrongPeriod = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "other-period");
+      var wrongPeriod = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "other-period",
+        "QAR", periodId);
       db.FinancialPackages.Local.Single(x => x.Id == wrongPeriod).PeriodStart = "2025-01-01";
       db.FinancialPackages.Local.Single(x => x.Id == wrongPeriod).PeriodEnd = "2025-12-31";
-      await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "other-currency", "USD");
+      unpinned = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "unpinned");
+      db.FinancialPackages.Local.Single(x => x.Id == unpinned).PeriodId = null;
+      await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "other-currency", "USD",
+        periodId);
       await AddPackageAsync(db, scope, scope.ClientB, scope.EngagementB, 100m, "CASH", "other-client");
       await db.SaveChangesAsync();
     }
@@ -89,6 +95,13 @@ public sealed partial class ClientAccountingTests
     var source = Assert.Single(sources.Value!.Items);
     Assert.Equal(packageId, source.Id);
     Assert.Equal("QAR", source.Currency);
+    var unpinnedPackage = await verify.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == unpinned);
+    var unpinnedAttempt = await ClientAccountingService.RollForwardPeriodAsync(verify, actor,
+      new(scope.ClientA, periodId, "2028", new(2028, 1, 1), new(2028, 12, 31), "STATUTORY", "QAR",
+        unpinnedPackage.CalculationHash, 100m, 100m, "Unpinned legacy source", unpinned, 2));
+    Assert.False(unpinnedAttempt.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, unpinnedAttempt.ErrorCode);
+    Assert.False(await verify.ClientReportingPeriods.AnyAsync(x => x.PeriodCode == "2028"));
     var changedHash = await ClientAccountingService.RollForwardPeriodAsync(verify, actor,
       new(scope.ClientA, periodId, "2027", new(2027, 1, 1), new(2027, 12, 31), "STATUTORY", "QAR",
         new string('a', 64), 100m, 100m, "Reviewed source", packageId, 2));

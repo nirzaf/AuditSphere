@@ -83,5 +83,5 @@ export function decodeOffboardingReadiness(value: unknown) {
 }
 export type OffboardingReadiness = ReturnType<typeof decodeOffboardingReadiness>;
 export function offboardingStateLabel(state: string): string {
-  return state === 'ACTION_REQUIRED' ? 'Action required' : state === 'UNKNOWN' ? 'Unknown — not visible to you' : 'No findings';
+  return state === 'ACTION_REQUIRED' ? 'Action required' : state === 'UNKNOWN' ? 'Unknown' : 'No findings';
 }

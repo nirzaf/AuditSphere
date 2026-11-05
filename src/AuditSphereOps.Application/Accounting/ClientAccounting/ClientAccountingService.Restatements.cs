@@ -75,6 +75,7 @@ public static partial class ClientAccountingService
     var revised = packages.SingleOrDefault(x => x.Id == request.RevisedPackageId);
     if (original is null || revised is null || original.Status != AccountingPackageStates.PackageValidated ||
         revised.Status != AccountingPackageStates.PackageValidated || original.EngagementId != revised.EngagementId ||
+        original.PeriodId != period.Id || revised.PeriodId != period.Id ||
         original.PeriodStart != periodStart || original.PeriodEnd != periodEnd ||
         revised.PeriodStart != periodStart || revised.PeriodEnd != periodEnd ||
         !string.Equals(original.Currency, period.Currency, StringComparison.Ordinal) ||
@@ -115,10 +116,19 @@ public static partial class ClientAccountingService
     if (restatement.Status != AccountingWorkflowStates.Submitted || restatement.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected,
         "A submitted restatement requires an independent reviewer.");
+    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == restatement.PeriodId && x.FirmId == actor.FirmId && x.ClientId == restatement.ClientId, ct);
+    if (period is null || period.Status != AccountingWorkflowStates.Closed)
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "Restatement approval requires the exact reporting period to remain closed.");
     var packages = await db.FinancialPackages.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.ClientId == restatement.ClientId &&
       (x.Id == restatement.OriginalPackageId || x.Id == restatement.RevisedPackageId)).ToListAsync(ct);
-    if (packages.Count != 2 || packages.Any(x => x.Status != AccountingPackageStates.PackageValidated) ||
+    var periodStart = period.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    var periodEnd = period.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    if (packages.Count != 2 || packages.Any(x => x.Status != AccountingPackageStates.PackageValidated ||
+          x.PeriodId != period.Id || x.PeriodStart != periodStart || x.PeriodEnd != periodEnd ||
+          !string.Equals(x.Currency, period.Currency, StringComparison.Ordinal)) ||
         packages.Single(x => x.Id == restatement.OriginalPackageId).CalculationHash != restatement.OriginalPackageHash ||
         packages.Single(x => x.Id == restatement.RevisedPackageId).CalculationHash != restatement.RevisedPackageHash)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "Restatement package lineage changed; reload the issued evidence.");

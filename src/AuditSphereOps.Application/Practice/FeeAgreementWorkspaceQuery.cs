@@ -30,7 +30,7 @@ public static class AdvanceInvoicePreparationStates
 }
 
 /// <summary>Explicit preparation state shown to Finance. Queued is never reported as drafted, and a draft is never reported as official.</summary>
-public sealed record AdvanceInvoicePreparation(string State, string Message);
+public sealed record AdvanceInvoicePreparation(string State, string Message, bool ReconciliationRequired = false);
 
 public sealed record FeeAgreementWorkspace(Guid ProposalId, Guid? AgreementId, Guid? ClientId, Guid? EngagementId,
   string Fee, string Currency, string AdvancePercent, bool CanCreate, bool CanFinance, bool ReleaseRecorded,
