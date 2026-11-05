@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Documents;
@@ -190,6 +191,7 @@ public sealed partial class AuditDeliverablesTests
     public bool StaffWriteOnFinalRead { get; set; }
     public bool WrongSnapshotVersion { get; set; }
     public int StoredFileCount => files.Count;
+    public int PermissionReadCount => permissionReadsByTarget.Values.Sum();
 
     public async Task<ArchiveCopySnapshotContent> ReadExactSnapshotAsync(
       ArchiveCopySnapshotReadRequest request, CancellationToken ct)
@@ -1215,8 +1217,12 @@ public sealed partial class AuditDeliverablesTests
         await db.SaveChangesAsync();
         var included = await RecordsArchiveService.BuildManifestWithCommercialBundleAsync(db, partner, archiveId, bundleId);
         Assert.True(included.Succeeded, included.Message);
-        Assert.True((await RecordsArchiveService.ReviewManifestAsync(db, partner, archiveId)).Succeeded);
         Assert.Equal(16, included.Value!.EntryCount);
+      }
+      await using (var reviewDb = new AuditSphereDbContext(pg.Options))
+      {
+        var reviewed = await RecordsArchiveService.ReviewManifestAsync(reviewDb, partner, archiveId);
+        Assert.True(reviewed.Succeeded, reviewed.Message);
       }
 
       const string staffGroupId = "42";
@@ -1590,8 +1596,11 @@ public sealed partial class AuditDeliverablesTests
           x => x.EndsWith("_ArchiveCopyClientScopeAndReadback", StringComparison.Ordinal));
         var sharedIndex = Array.FindIndex(migrations,
           x => x.EndsWith("_ArchiveCopySharedSelectedResource", StringComparison.Ordinal));
+        var archiveIntegrityIndex = Array.FindIndex(migrations,
+          x => x.EndsWith("_ArchiveAudienceAndReviewedManifestIntegrity", StringComparison.Ordinal));
         Assert.Equal(sharedArchiveMigrationId, migrations[sharedIndex]);
         Assert.Equal(foundationIndex + 1, sharedIndex);
+        Assert.True(archiveIntegrityIndex > sharedIndex);
         var legacyHashes = await db.ArchiveCopyTargetRevisions.AsNoTracking()
           .Where(x => x.FirmId == w.FirmId && x.ClientId == w.ClientId)
           .Select(x => new { x.Id, x.Revision, x.ConfigurationSha256, x.ExpectedPermissionsSha256 })
@@ -1599,12 +1608,20 @@ public sealed partial class AuditDeliverablesTests
         Assert.NotEmpty(legacyHashes);
 
         var migrator = db.GetService<IMigrator>();
-        await migrator.MigrateAsync(migrations[foundationIndex]);
-        var refusedFoundationDown = await Assert.ThrowsAnyAsync<Exception>(() =>
-          migrator.MigrateAsync(migrations[foundationIndex - 1]));
-        Assert.Equal("55000", Assert.IsType<PostgresException>(refusedFoundationDown.GetBaseException()).SqlState);
-        await migrator.MigrateAsync(migrations[sharedIndex]);
-        await migrator.MigrateAsync();
+        // The retained reviewed archive contains a v2 payload, so the newer archive-integrity
+        // migration must refuse to roll back before any archive-copy migration is removed.
+        var refusedV2Downgrade = await Assert.ThrowsAnyAsync<Exception>(() =>
+          migrator.MigrateAsync(migrations[foundationIndex]));
+        var v2DowngradeFailure = Assert.IsType<PostgresException>(refusedV2Downgrade.GetBaseException());
+        Assert.Equal("55000", v2DowngradeFailure.SqlState);
+        Assert.Contains("v2 payloads remain", v2DowngradeFailure.MessageText, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(migrations[..(archiveIntegrityIndex + 1)],
+          (await db.Database.GetAppliedMigrationsAsync()).ToArray());
+        await using (var restoreDb = new AuditSphereDbContext(pg.Options))
+        {
+          await restoreDb.GetService<IMigrator>().MigrateAsync();
+          Assert.Equal(migrations, (await restoreDb.Database.GetAppliedMigrationsAsync()).ToArray());
+        }
         var restoredLegacyHashes = await db.ArchiveCopyTargetRevisions.AsNoTracking()
           .Where(x => x.FirmId == w.FirmId && x.ClientId == w.ClientId)
           .Select(x => new { x.Id, x.Revision, x.ConfigurationSha256, x.ExpectedPermissionsSha256 })
@@ -1632,11 +1649,7 @@ public sealed partial class AuditDeliverablesTests
           "TRUNCATE archive_copy_permission_observations"
         }) await AssertAppendOnlyAsync(sql);
 
-        var refused = await Assert.ThrowsAnyAsync<Exception>(() =>
-          migrator.MigrateAsync(migrations[foundationIndex - 1]));
-        Assert.Equal("55000", Assert.IsType<PostgresException>(refused.GetBaseException()).SqlState);
-        await migrator.MigrateAsync(migrations[sharedIndex]);
-        await migrator.MigrateAsync();
+        Assert.Equal(migrations, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
       }
 
       ArchiveCopyTargetRevisionView sharedTargetA;
@@ -1765,6 +1778,169 @@ public sealed partial class AuditDeliverablesTests
         Assert.Equal(ArchiveStates.AssemblyReviewed,
           await db.Archives.Where(x => x.Id == archiveId).Select(x => x.Status).SingleAsync());
       }
+
+      // Model a reviewed legacy manifest already waiting in the durable queue. Seed the unsafe
+      // retained bytes as their original BUILT revision; never mutate indexed built/reviewed history.
+      var unsafeArchiveId = Guid.CreateVersion7();
+      var unsafeManifestId = Guid.CreateVersion7();
+      var unsafeExportId = Guid.CreateVersion7();
+      var unsafeEntryId = Guid.CreateVersion7();
+      var siblingClientId = Guid.CreateVersion7();
+      const string unsafeSentinel = "B-only-worker-sentinel";
+      var unsafeNow = DateTimeOffset.UtcNow;
+      var unsafePayloadJson = JsonSerializer.Serialize(new
+      {
+        schema = ArchiveStructuredExportSchemas.EngagementV2,
+        audience = new
+        {
+          scope = ArchiveStructuredExportSchemas.EngagementOnlyAudience,
+          firmId = w.FirmId, clientId = w.ClientId, engagementId = w.EngagementId,
+          groupWideDataIncluded = false
+        },
+        scope = new { firmId = w.FirmId, clientId = w.ClientId, engagementId = w.EngagementId },
+        snapshot = new
+        {
+          nested = new
+          {
+            groupRun = new
+            {
+              formatVersion = "GROUP_DELIVERABLE_V1",
+              firmId = w.FirmId,
+              groupId = Guid.CreateVersion7(),
+              groupRevision = 1L,
+              scopeVersionId = Guid.CreateVersion7(),
+              runId = Guid.CreateVersion7(),
+              runHash = new string('a', 64),
+              inputManifest = JsonSerializer.Serialize(new { clientId = siblingClientId, sentinel = unsafeSentinel }),
+              components = new[] { new { clientId = siblingClientId, sentinel = unsafeSentinel } }
+            }
+          }
+        }
+      });
+      var unsafePayloadBytes = System.Text.Encoding.UTF8.GetBytes(unsafePayloadJson);
+      var unsafePayloadHash = Hashing.Sha256Hex(unsafePayloadBytes);
+      var unsafeMetadataJson = JsonSerializer.Serialize(new
+      {
+        schema = ArchiveStructuredExportSchemas.EngagementV2,
+        storage = "archive_structured_exports",
+        audience = ArchiveStructuredExportSchemas.EngagementOnlyAudience
+      });
+      var unsafeEntry = new ArchiveManifestEntry
+      {
+        Id = unsafeEntryId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+        ArchiveManifestId = unsafeManifestId, Ordinal = 1, EntryKind = "STRUCTURED_EXPORT",
+        SourceKind = "AuditSphereOps", RelativeName = ArchiveStructuredExportSchemas.EngagementV2RelativeName,
+        ContentHash = unsafePayloadHash, ByteCount = unsafePayloadBytes.Length, Required = true,
+        MetadataJson = unsafeMetadataJson
+      };
+      var unsafeManifest = new ArchiveManifest
+      {
+        Id = unsafeManifestId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+        ArchiveId = unsafeArchiveId, Version = 1, Status = "BUILT",
+        ManifestDigest = Hashing.Sha256Hex(JsonSerializer.Serialize(new[] { new
+        {
+          unsafeEntry.Ordinal, unsafeEntry.EntryKind, unsafeEntry.SourceKind, unsafeEntry.SourceId,
+          unsafeEntry.RelativeName, unsafeEntry.ContentHash, unsafeEntry.ByteCount, unsafeEntry.Required,
+          unsafeEntry.MetadataJson
+        } })),
+        EntryCount = 1, CompletenessStatus = "COMPLETE", BuiltAt = unsafeNow
+      };
+      var unsafeProfile = new RecordsProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = w.FirmId, ProfileCode = profile.ProfileCode,
+        Version = profile.Version + 1, RecordClass = profile.RecordClass, Jurisdiction = profile.Jurisdiction,
+        ServiceRoute = profile.ServiceRoute, RetentionTrigger = profile.RetentionTrigger,
+        RetentionDurationDays = profile.RetentionDurationDays, ProtectionMode = profile.ProtectionMode,
+        LabelId = profile.LabelId, LegalHoldBehavior = profile.LegalHoldBehavior,
+        AmendmentRoute = profile.AmendmentRoute, DispositionOwner = profile.DispositionOwner,
+        BackupRequirements = profile.BackupRequirements, CreatedByUserId = partner.UserId,
+        Approved = true, ApprovedByUserId = partner.UserId, ApprovedAt = unsafeNow, CreatedAt = unsafeNow
+      };
+      await using (var seedUnsafe = new AuditSphereDbContext(pg.Options))
+      {
+        seedUnsafe.RecordsProfiles.Add(unsafeProfile);
+        seedUnsafe.Archives.Add(new Archive
+        {
+          Id = unsafeArchiveId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+          ProfileId = unsafeProfile.ProfileCode, ProfileVersion = unsafeProfile.Version,
+          Status = ArchiveStates.ManifestBuilt, CreatedAt = unsafeNow
+        });
+        seedUnsafe.ArchiveManifests.Add(unsafeManifest);
+        seedUnsafe.ArchiveManifestEntries.Add(unsafeEntry);
+        seedUnsafe.ArchiveStructuredExports.Add(new ArchiveStructuredExport
+        {
+          Id = unsafeExportId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+          ArchiveId = unsafeArchiveId, ArchiveManifestId = unsafeManifestId, Version = 1,
+          Schema = ArchiveStructuredExportSchemas.EngagementV2, PayloadJson = unsafePayloadJson,
+          ContentHash = unsafePayloadHash, ByteCount = unsafePayloadBytes.Length, CreatedAt = unsafeNow
+        });
+        await seedUnsafe.SaveChangesAsync();
+        Assert.Contains(unsafeSentinel, unsafePayloadJson, StringComparison.Ordinal);
+      }
+
+      await using (var reviewUnsafe = new AuditSphereDbContext(pg.Options))
+      {
+        var reviewed = await RecordsArchiveService.ReviewManifestAsync(reviewUnsafe, partner,
+          unsafeArchiveId, unsafeManifest.Id);
+        Assert.True(reviewed.Succeeded, reviewed.Message);
+        unsafeManifest = await reviewUnsafe.ArchiveManifests.AsNoTracking().SingleAsync(x => x.Id == unsafeManifest.Id);
+      }
+
+      await using (var guarded = new AuditSphereDbContext(pg.Options))
+      {
+        var export = await RecordsArchiveService.ExportReviewedArchiveAsync(guarded, partner, unsafeArchiveId);
+        Assert.False(export.Succeeded);
+        Assert.Equal(ErrorCodes.ProtectedState, export.ErrorCode);
+        Assert.Null(export.Value);
+        Assert.Contains("Withhold export", export.Message, StringComparison.OrdinalIgnoreCase);
+        var metadata = await AuditRecordQueries.ArchiveAsync(guarded, partner, unsafeArchiveId);
+        Assert.True(metadata.Succeeded, metadata.Message);
+      }
+
+      ArchiveCopyOperationPayload unsafeQueuePayload;
+      await using (var captureDb = new AuditSphereDbContext(pg.Options))
+      {
+        var unsafeArchive = await captureDb.Archives.AsNoTracking().SingleAsync(x => x.Id == unsafeArchiveId);
+        unsafeQueuePayload = await ArchiveCopySourceGuard.CapturePayloadAsync(captureDb, unsafeArchive,
+          releaseId, target1.TargetRevisionId, partner, CancellationToken.None);
+      }
+      var unsafeQueueJson = JsonSerializer.Serialize(unsafeQueuePayload);
+      var unsafeQueueRequest = new OperationRequest(w.FirmId, w.ClientId, w.EngagementId,
+        ArchiveCopyHandler.Kind, unsafeArchiveId, unsafeQueuePayload.ManifestVersion,
+        ArchiveCopyPayloadRules.IdempotencyKey(unsafeQueuePayload), unsafeQueueJson, partner.UserId);
+
+      await using (var apiQueueDb = new AuditSphereDbContext(pg.Options))
+      {
+        var rejected = await ArchiveCopyService.EnqueueAsync(apiQueueDb, operationStore, partner,
+          new(unsafeArchiveId, releaseId, target1.TargetRevisionId));
+        Assert.False(rejected.Succeeded);
+        Assert.Equal("archive-copy-structured-export-audience-unproven", rejected.ErrorCode);
+        Assert.Equal(0, await apiQueueDb.DurableOperations.CountAsync(x => x.TargetId == unsafeArchiveId));
+      }
+
+      Guid alreadyQueuedOperationId;
+      await using (var seedLegacyQueue = new AuditSphereDbContext(pg.Options))
+      {
+        await using var queueTransaction = await seedLegacyQueue.Database.BeginTransactionAsync();
+        var queuedUnsafe = await operationStore.EnqueueAsync(seedLegacyQueue, unsafeQueueRequest, handler,
+          CancellationToken.None);
+        Assert.True(queuedUnsafe.Succeeded, queuedUnsafe.Message);
+        alreadyQueuedOperationId = queuedUnsafe.Value;
+        await queueTransaction.CommitAsync();
+      }
+
+      var providerWritesBeforeUnsafe = provider.IdempotencyKeys.Count;
+      var providerFilesBeforeUnsafe = provider.StoredFileCount;
+      var providerSnapshotReadsBeforeUnsafe = provider.SnapshotVersions.Count;
+      var providerPermissionReadsBeforeUnsafe = provider.PermissionReadCount;
+      Assert.True(await dispatcher.ProcessNextAsync());
+      var blockedUnsafe = await OperationCountsAsync(alreadyQueuedOperationId);
+      Assert.Equal(OperationState.PROVIDER_BLOCKED, blockedUnsafe.Status);
+      Assert.Equal((0, 0), (blockedUnsafe.ReceiptCount, blockedUnsafe.PermissionCount));
+      Assert.Equal(providerWritesBeforeUnsafe, provider.IdempotencyKeys.Count);
+      Assert.Equal(providerFilesBeforeUnsafe, provider.StoredFileCount);
+      Assert.Equal(providerSnapshotReadsBeforeUnsafe, provider.SnapshotVersions.Count);
+      Assert.Equal(providerPermissionReadsBeforeUnsafe, provider.PermissionReadCount);
 
       var targetChangeTarget = await CreateTargetAsync();
       var targetChangeOperation = await EnqueueAsync(targetChangeTarget.TargetRevisionId);

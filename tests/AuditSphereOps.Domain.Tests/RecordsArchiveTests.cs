@@ -4,6 +4,8 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Documents;
+using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
@@ -32,6 +34,125 @@ public sealed class RecordsArchiveTests
     Assert.False(result.Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
     Assert.Empty(await db.RecordsProfiles.ToListAsync());
+  }
+
+  [Fact]
+  public async Task EngagementArchiveBuilder_ExcludesSiblingAndOtherEngagementEvidenceForNarrowAndFirmWideActors()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    var secondEngagementId = Guid.CreateVersion7();
+    var firmActorId = Guid.CreateVersion7();
+    var archiveId = Guid.CreateVersion7();
+    var groupId = Guid.CreateVersion7();
+    const string a1Sentinel = "A1-approved-source-sentinel";
+    const string bSentinel = "B-sibling-source-sentinel";
+    const string a2Sentinel = "A2-other-engagement-source-sentinel";
+    const string groupSentinel = "group-membership-only-sentinel";
+    var now = DateTimeOffset.UtcNow;
+    var firmActor = new ActorContext(firmActorId, scope.FirmId, 1, ["Partner"]);
+
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.Users.Add(new AppUser
+      {
+        Id = firmActorId, FirmId = scope.FirmId, Subject = "archive-firm-" + firmActorId.ToString("N"),
+        TenantId = "tenant-planning", Email = "archive-firm@example.test", DisplayName = "Firm Partner",
+        UserKind = "Staff", SessionEpoch = 1, CreatedAt = now
+      });
+      seed.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, UserId = firmActorId,
+        Role = "Partner", GrantedAt = now, GrantedByUserId = scope.Actor.UserId
+      });
+      seed.Engagements.Add(new Engagement
+      {
+        Id = secondEngagementId, FirmId = scope.FirmId, PracticeClientId = scope.ClientId,
+        CreatedAt = now, ProfessionalWorkBlocked = false
+      });
+      seed.RecordsProfiles.Add(new RecordsProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ProfileCode = "ENGAGEMENT-AUDIENCE-TEST",
+        Version = 1, RecordClass = "Synthetic engagement archive", Jurisdiction = "TEST",
+        ServiceRoute = "STATUTORY_AUDIT", RetentionTrigger = "REPORT_DATE", ProtectionMode = "LOCAL_ONLY",
+        LabelId = "test-only", LegalHoldBehavior = "SUSPEND_DISPOSITION", AmendmentRoute = "CONTROLLED_AMENDMENT",
+        DispositionOwner = "Records Custodian", BackupRequirements = "Synthetic fixture",
+        CreatedByUserId = scope.Actor.UserId, Approved = true, ApprovedByUserId = scope.Actor.UserId,
+        ApprovedAt = now, CreatedAt = now
+      });
+      seed.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+        EngagementId = scope.EngagementId, ProfileId = "ENGAGEMENT-AUDIENCE-TEST", ProfileVersion = 1,
+        Status = ArchiveStates.Issued, CreatedAt = now
+      });
+      seed.ClientGroups.Add(new ClientGroup
+      {
+        Id = groupId, FirmId = scope.FirmId, Code = "AUDIENCE-TEST-GROUP",
+        Name = "Synthetic archive audience group", CreatedByUserId = scope.Actor.UserId, CreatedAt = now
+      });
+      seed.ClientGroupMemberships.AddRange(
+        new ClientGroupMembership
+        {
+          Id = Guid.CreateVersion7(), FirmId = scope.FirmId, GroupId = groupId, ClientId = scope.ClientId,
+          EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow), ControlMethod = "CONTROLLED",
+          OwnershipPercent = 100, EconomicInterestPercent = 100, EvidenceReference = "A1-group-reference",
+          Status = AccountingWorkflowStates.Approved, CreatedByUserId = scope.Actor.UserId, CreatedAt = now
+        },
+        new ClientGroupMembership
+        {
+          Id = Guid.CreateVersion7(), FirmId = scope.FirmId, GroupId = groupId, ClientId = fixture.Other.ClientId,
+          EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow), ControlMethod = "CONTROLLED",
+          OwnershipPercent = 100, EconomicInterestPercent = 100, EvidenceReference = groupSentinel,
+          Status = AccountingWorkflowStates.Approved, CreatedByUserId = scope.Actor.UserId, CreatedAt = now
+        });
+      seed.SourceReceipts.AddRange(
+        new SourceReceipt
+        {
+          Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientId,
+          EngagementId = scope.EngagementId, SourceType = "PBC_UPLOAD", ReceiptToken = "a1-source",
+          Sha256Digest = Hashing.Sha256Hex(a1Sentinel), ByteCount = 1, OriginalFileName = a1Sentinel,
+          AcquiredAt = now, AcquiredByUserId = scope.Actor.UserId
+        },
+        new SourceReceipt
+        {
+          Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = fixture.Other.ClientId,
+          EngagementId = fixture.Other.EngagementId, SourceType = "PBC_UPLOAD", ReceiptToken = "b-source",
+          Sha256Digest = Hashing.Sha256Hex(bSentinel), ByteCount = 1, OriginalFileName = bSentinel,
+          AcquiredAt = now, AcquiredByUserId = scope.Actor.UserId
+        },
+        new SourceReceipt
+        {
+          Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientId,
+          EngagementId = secondEngagementId, SourceType = "PBC_UPLOAD", ReceiptToken = "a2-source",
+          Sha256Digest = Hashing.Sha256Hex(a2Sentinel), ByteCount = 1, OriginalFileName = a2Sentinel,
+          AcquiredAt = now, AcquiredByUserId = scope.Actor.UserId
+        });
+      await seed.SaveChangesAsync();
+    }
+
+    async Task<string> BuildPayloadAsync(ActorContext actor)
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var built = await RecordsArchiveService.BuildManifestAsync(db, actor, archiveId);
+      Assert.True(built.Succeeded, built.Message);
+      return await db.ArchiveStructuredExports.AsNoTracking()
+        .Where(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientId &&
+          x.EngagementId == scope.EngagementId && x.ArchiveId == archiveId &&
+          x.ArchiveManifestId == built.Value!.ManifestId)
+        .Select(x => x.PayloadJson).SingleAsync();
+    }
+
+    var narrowPayload = await BuildPayloadAsync(scope.Actor);
+    var firmWidePayload = await BuildPayloadAsync(firmActor);
+    Assert.Equal(narrowPayload, firmWidePayload);
+    foreach (var sentinel in new[] { bSentinel, a2Sentinel, groupSentinel })
+      Assert.DoesNotContain(sentinel, narrowPayload, StringComparison.Ordinal);
+    Assert.Contains(a1Sentinel, narrowPayload, StringComparison.Ordinal);
+    using var payload = JsonDocument.Parse(narrowPayload);
+    Assert.Equal(1, payload.RootElement.GetProperty("sourceReceipts").GetArrayLength());
+    Assert.Equal(scope.EngagementId, payload.RootElement.GetProperty("scope").GetProperty("engagementId").GetGuid());
   }
 
   [Fact]
@@ -179,6 +300,10 @@ public sealed class RecordsArchiveTests
     Assert.True(localExport.Succeeded, localExport.Message);
     Assert.Equal("BLOCKED_EXTERNAL", localExport.Value!.ProviderProtectionState);
     Assert.Equal(Hashing.Sha256Hex(localExport.Value.Content), localExport.Value.ContentSha256);
+    var repeatedLocalExport = await RecordsArchiveService.ExportReviewedArchiveAsync(db, scope.Actor, archiveId);
+    Assert.True(repeatedLocalExport.Succeeded, repeatedLocalExport.Message);
+    Assert.Equal(localExport.Value.ContentSha256, repeatedLocalExport.Value!.ContentSha256);
+    Assert.Equal(localExport.Value.Content, repeatedLocalExport.Value.Content);
     using (var exportJson = System.Text.Json.JsonDocument.Parse(localExport.Value.Content))
     {
       Assert.Equal("auditsphere-archive-evidence-export.v1",
@@ -242,6 +367,10 @@ public sealed class RecordsArchiveTests
     Assert.True(verifiedExport.Succeeded, verifiedExport.Message);
     Assert.Equal("VERIFIED", verifiedExport.Value!.ProviderProtectionState);
     Assert.Equal("NOT_REQUESTED", verifiedExport.Value.SecondarySharePointCopyState);
+    var unchangedStructuredExport = await db.ArchiveStructuredExports.AsNoTracking()
+      .SingleAsync(x => x.ArchiveId == archiveId && x.ArchiveManifestId == structuredExport.ArchiveManifestId);
+    Assert.Equal(structuredExport.ContentHash, unchangedStructuredExport.ContentHash);
+    Assert.Equal(structuredExport.PayloadJson, unchangedStructuredExport.PayloadJson);
     using (var verifiedJson = System.Text.Json.JsonDocument.Parse(verifiedExport.Value.Content))
     {
       Assert.Equal("VERIFIED", verifiedJson.RootElement.GetProperty("providerProtection").GetProperty("state").GetString());
@@ -255,6 +384,193 @@ public sealed class RecordsArchiveTests
     var hold = await db.LegalHolds.SingleAsync(x => x.ArchiveId == archiveId);
     Assert.Equal("OBSERVED", hold.State);
     Assert.NotNull(hold.ObservedAt);
+
+    await using var revokedDb = new AuditSphereDbContext(pg.Options);
+    var revokedGrants = await revokedDb.RoleGrants.Where(x => x.FirmId == scope.FirmId &&
+      x.UserId == scope.Actor.UserId && x.RevokedAt == null).ExecuteUpdateAsync(update =>
+      update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+    Assert.True(revokedGrants > 0);
+    var revokedExport = await RecordsArchiveService.ExportReviewedArchiveAsync(revokedDb, scope.Actor, archiveId);
+    Assert.False(revokedExport.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, revokedExport.ErrorCode);
+  }
+
+  [Fact]
+  public async Task ArchiveExport_RejectsAmbiguousStructuredEntriesAndKeepsMetadataReadable()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    var archiveId = Guid.CreateVersion7();
+
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.RecordsProfiles.Add(new RecordsProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ProfileCode = "AMBIGUOUS-ARCHIVE-TEST",
+        Version = 1, RecordClass = "Synthetic archive", Jurisdiction = "TEST",
+        ServiceRoute = "STATUTORY_AUDIT", RetentionTrigger = "REPORT_DATE", ProtectionMode = "LOCAL_ONLY",
+        LabelId = "test-only", LegalHoldBehavior = "SUSPEND_DISPOSITION", AmendmentRoute = "CONTROLLED_AMENDMENT",
+        DispositionOwner = "Records Custodian", BackupRequirements = "Synthetic fixture",
+        CreatedByUserId = scope.Actor.UserId, Approved = true, ApprovedAt = DateTimeOffset.UtcNow,
+        ApprovedByUserId = scope.Actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      });
+      seed.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+        EngagementId = scope.EngagementId, ProfileId = "AMBIGUOUS-ARCHIVE-TEST", ProfileVersion = 1,
+        Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+    }
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var built = await RecordsArchiveService.BuildManifestAsync(db, scope.Actor, archiveId);
+    Assert.True(built.Succeeded, built.Message);
+    var manifest = await db.ArchiveManifests.SingleAsync(x => x.Id == built.Value!.ManifestId);
+    var original = await db.ArchiveManifestEntries.SingleAsync(x =>
+      x.ArchiveManifestId == manifest.Id && x.EntryKind == "STRUCTURED_EXPORT");
+    var duplicate = new ArchiveManifestEntry
+    {
+      Id = Guid.CreateVersion7(), FirmId = original.FirmId, ClientId = original.ClientId,
+      EngagementId = original.EngagementId, ArchiveManifestId = original.ArchiveManifestId,
+      Ordinal = original.Ordinal + 1, EntryKind = original.EntryKind, SourceKind = original.SourceKind,
+      SourceId = original.SourceId, RelativeName = original.RelativeName, ContentHash = original.ContentHash,
+      ByteCount = original.ByteCount, Required = original.Required, MetadataJson = original.MetadataJson
+    };
+    var digestInput = new[] { original, duplicate }.OrderBy(x => x.Ordinal).Select(x => new
+    {
+      x.Ordinal, x.EntryKind, x.SourceKind, x.SourceId, x.RelativeName, x.ContentHash,
+      x.ByteCount, x.Required, x.MetadataJson
+    });
+    manifest.EntryCount = 2;
+    manifest.ManifestDigest = Hashing.Sha256Hex(JsonSerializer.Serialize(digestInput));
+    db.ArchiveManifestEntries.Add(duplicate);
+    await db.SaveChangesAsync();
+
+    var reviewed = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId, manifest.Id);
+    Assert.True(reviewed.Succeeded, reviewed.Message);
+    var export = await RecordsArchiveService.ExportReviewedArchiveAsync(db, scope.Actor, archiveId);
+    Assert.False(export.Succeeded);
+    Assert.Equal(ErrorCodes.ProtectedState, export.ErrorCode);
+    Assert.Contains("reconcile", export.Message, StringComparison.OrdinalIgnoreCase);
+
+    var metadata = await AuditRecordQueries.ArchiveAsync(db, scope.Actor, archiveId);
+    Assert.True(metadata.Succeeded, metadata.Message);
+    Assert.Equal(archiveId, metadata.Value!.Id);
+  }
+
+  [Fact]
+  public async Task ArchiveExport_WithholdsNestedSiblingSentinelForScopedCustodianAndPreservesMetadata()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    var siblingClientId = fixture.Other.ClientId;
+    var archiveId = Guid.CreateVersion7();
+    var manifestId = Guid.CreateVersion7();
+    var exportEntryId = Guid.CreateVersion7();
+    var exportId = Guid.CreateVersion7();
+    const string sentinel = "B-only-consolidation-sentinel";
+    var now = DateTimeOffset.UtcNow;
+    var metadataJson = JsonSerializer.Serialize(new
+    {
+      schema = ArchiveStructuredExportSchemas.EngagementV2,
+      storage = "archive_structured_exports",
+      audience = ArchiveStructuredExportSchemas.EngagementOnlyAudience
+    });
+    var payloadJson = JsonSerializer.Serialize(new
+    {
+      schema = ArchiveStructuredExportSchemas.EngagementV2,
+      audience = new
+      {
+        scope = ArchiveStructuredExportSchemas.EngagementOnlyAudience,
+        firmId = scope.FirmId, clientId = scope.ClientId, engagementId = scope.EngagementId,
+        groupWideDataIncluded = false
+      },
+      scope = new { firmId = scope.FirmId, clientId = scope.ClientId, engagementId = scope.EngagementId },
+      snapshot = new
+      {
+        nested = new
+        {
+          groupMemberships = new[] { new { clientId = siblingClientId, sentinel } }
+        }
+      }
+    });
+    var payloadBytes = System.Text.Encoding.UTF8.GetBytes(payloadJson);
+    var payloadHash = Hashing.Sha256Hex(payloadBytes);
+    var exportEntry = new ArchiveManifestEntry
+    {
+      Id = exportEntryId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+      EngagementId = scope.EngagementId, ArchiveManifestId = manifestId, Ordinal = 1,
+      EntryKind = "STRUCTURED_EXPORT", SourceKind = "AuditSphereOps", RelativeName = ArchiveStructuredExportSchemas.EngagementV2RelativeName,
+      ContentHash = payloadHash, ByteCount = payloadBytes.Length, Required = true, MetadataJson = metadataJson
+    };
+    var manifestDigest = Hashing.Sha256Hex(JsonSerializer.Serialize(new[] { new
+    {
+      exportEntry.Ordinal, exportEntry.EntryKind, exportEntry.SourceKind, exportEntry.SourceId,
+      exportEntry.RelativeName, exportEntry.ContentHash, exportEntry.ByteCount, exportEntry.Required,
+      exportEntry.MetadataJson
+    } }));
+
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Empty(await seed.RoleGrants.Where(x => x.FirmId == scope.FirmId &&
+        x.UserId == scope.Actor.UserId && x.ClientId == siblingClientId && x.RevokedAt == null).ToListAsync());
+      seed.RecordsProfiles.Add(new RecordsProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ProfileCode = "SIBLING-SENTINEL-ARCHIVE-TEST",
+        Version = 1, RecordClass = "Synthetic archive", Jurisdiction = "TEST",
+        ServiceRoute = "STATUTORY_AUDIT", RetentionTrigger = "REPORT_DATE", ProtectionMode = "LOCAL_ONLY",
+        LabelId = "test-only", LegalHoldBehavior = "SUSPEND_DISPOSITION", AmendmentRoute = "CONTROLLED_AMENDMENT",
+        DispositionOwner = "Records Custodian", BackupRequirements = "Synthetic fixture",
+        CreatedByUserId = scope.Actor.UserId, Approved = true, ApprovedAt = DateTimeOffset.UtcNow,
+        ApprovedByUserId = scope.Actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      });
+      seed.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+        EngagementId = scope.EngagementId, ProfileId = "SIBLING-SENTINEL-ARCHIVE-TEST", ProfileVersion = 1,
+        Status = ArchiveStates.ManifestBuilt, CreatedAt = now
+      });
+      seed.ArchiveManifests.Add(new ArchiveManifest
+      {
+        Id = manifestId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+        EngagementId = scope.EngagementId, ArchiveId = archiveId, Version = 1,
+        Status = "BUILT", ManifestDigest = manifestDigest, EntryCount = 1,
+        CompletenessStatus = "COMPLETE", BuiltAt = now
+      });
+      seed.ArchiveManifestEntries.Add(exportEntry);
+      seed.ArchiveStructuredExports.Add(new ArchiveStructuredExport
+      {
+        Id = exportId, FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
+        ArchiveId = archiveId, ArchiveManifestId = manifestId, Version = 1,
+        Schema = ArchiveStructuredExportSchemas.EngagementV2, PayloadJson = payloadJson,
+        ContentHash = payloadHash, ByteCount = payloadBytes.Length, CreatedAt = now
+      });
+      await seed.SaveChangesAsync();
+    }
+
+    await using (var reviewDb = new AuditSphereDbContext(pg.Options))
+    {
+      var reviewed = await RecordsArchiveService.ReviewManifestAsync(reviewDb, scope.Actor, archiveId, manifestId);
+      Assert.True(reviewed.Succeeded, reviewed.Message);
+    }
+
+    await using var exportDb = new AuditSphereDbContext(pg.Options);
+    var withheld = await RecordsArchiveService.ExportReviewedArchiveAsync(exportDb, scope.Actor, archiveId);
+    Assert.False(withheld.Succeeded);
+    Assert.Equal(ErrorCodes.ProtectedState, withheld.ErrorCode);
+    Assert.Null(withheld.Value);
+    Assert.Contains("Withhold export", withheld.Message, StringComparison.OrdinalIgnoreCase);
+
+    var metadata = await AuditRecordQueries.ArchiveAsync(exportDb, scope.Actor, archiveId);
+    Assert.True(metadata.Succeeded, metadata.Message);
+    Assert.Equal(archiveId, metadata.Value!.Id);
+    var retained = await exportDb.ArchiveStructuredExports.AsNoTracking()
+      .SingleAsync(x => x.ArchiveId == archiveId && x.ArchiveManifestId == manifestId);
+    Assert.Contains(sentinel, retained.PayloadJson, StringComparison.Ordinal);
+    Assert.Equal(Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(retained.PayloadJson)), retained.ContentHash);
   }
 
   [Fact]
@@ -643,7 +959,8 @@ public sealed class RecordsArchiveTests
     {
       schema = "records-export.v2", storage = "archive_structured_exports", audience = "ENGAGEMENT_ONLY"
     });
-    string Payload(Guid clientId, Guid engagementId, bool groupWide)
+    string Payload(Guid clientId, Guid engagementId, bool groupWide, bool siblingSentinel = false,
+      bool embeddedGroupRun = false, bool embeddedRunManifest = false)
     {
       var payload = new Dictionary<string, object?>
       {
@@ -655,7 +972,29 @@ public sealed class RecordsArchiveTests
         },
         ["scope"] = new { firmId = archive.FirmId, clientId, engagementId }
       };
-      if (groupWide) payload["groupMemberships"] = new[] { new { clientId = Guid.CreateVersion7() } };
+      var nested = new Dictionary<string, object?>();
+      if (siblingSentinel)
+        nested["groupMemberships"] = new[] { new { clientId = Guid.CreateVersion7(), sentinel = "B-only" } };
+      if (embeddedGroupRun)
+        nested["groupRun"] = new
+        {
+          formatVersion = "GROUP_DELIVERABLE_V1",
+          firmId = archive.FirmId,
+          groupId = Guid.CreateVersion7(),
+          groupRevision = 4L,
+          scopeVersionId = Guid.CreateVersion7(),
+          runId = Guid.CreateVersion7(),
+          runHash = new string('a', 64),
+          inputManifest = JsonSerializer.Serialize(new { clientId = Guid.CreateVersion7(), sentinel = "B-only-run-input" }),
+          components = new[] { new { clientId = Guid.CreateVersion7(), sentinel = "B-only-group-component" } }
+        };
+      if (embeddedRunManifest)
+        nested["archiveCompatibility"] = new
+        {
+          inputManifest = JsonSerializer.Serialize(new { clientId = Guid.CreateVersion7(), sentinel = "B-only-run-input" })
+        };
+      if (nested.Count > 0)
+        payload["snapshot"] = new { nested };
       return JsonSerializer.Serialize(payload);
     }
 
@@ -669,7 +1008,17 @@ public sealed class RecordsArchiveTests
     Assert.False(ArchiveStructuredExportGuard.IsEngagementSafe(archive, "records-export.v2",
       "structured/records-export.v2.json", metadata, Payload(archive.ClientId, archive.EngagementId, true), out _));
     Assert.False(ArchiveStructuredExportGuard.IsEngagementSafe(archive, "records-export.v2",
+      "structured/records-export.v2.json", metadata, Payload(archive.ClientId, archive.EngagementId, false, siblingSentinel: true), out _));
+    Assert.False(ArchiveStructuredExportGuard.IsEngagementSafe(archive, "records-export.v2",
       "structured/records-export.v2.json", metadata, Payload(Guid.CreateVersion7(), archive.EngagementId, false), out _));
+    Assert.False(ArchiveStructuredExportGuard.IsEngagementSafe(archive, "records-export.v2",
+      "structured/records-export.v2.json", metadata, Payload(archive.ClientId, Guid.CreateVersion7(), false), out _));
+    Assert.False(ArchiveStructuredExportGuard.IsEngagementSafe(archive, "records-export.v2",
+      "structured/records-export.v2.json", metadata,
+      Payload(archive.ClientId, archive.EngagementId, false, embeddedGroupRun: true), out _));
+    Assert.False(ArchiveStructuredExportGuard.IsEngagementSafe(archive, "records-export.v2",
+      "structured/records-export.v2.json", metadata,
+      Payload(archive.ClientId, archive.EngagementId, false, embeddedRunManifest: true), out _));
   }
 
   private static ArchiveCopyTargetRevision CreateArchiveCopyTarget(Guid firmId, Guid clientId, Guid clientSiteId)

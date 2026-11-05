@@ -16,7 +16,8 @@ public static class ArchiveStructuredExportGuard
     "externalComponentPacks", "externalComponentPackLines", "ownershipInterests",
     "intercompanyMatches", "consolidationJournals", "consolidationJournalLines",
     "consolidationRuns", "consolidationRunLines", "translationResults",
-    "consolidationReport", "consolidationReports"
+    "consolidationReport", "consolidationReports", "groupId", "groupRevision",
+    "scopeVersionId", "runId", "runHash", "inputManifest", "inputManifestDigest"
   };
 
   public static bool IsEngagementSafe(Archive archive, string? schema, string? relativeName,
@@ -103,7 +104,11 @@ public static class ArchiveStructuredExportGuard
       case JsonValueKind.Object:
         foreach (var property in element.EnumerateObject())
         {
-          if (GroupWideProperties.Contains(property.Name) || ContainsGroupWideProperty(property.Value))
+          if (GroupWideProperties.Contains(property.Name) ||
+              (property.Name.Equals("formatVersion", StringComparison.OrdinalIgnoreCase) &&
+               property.Value.ValueKind == JsonValueKind.String &&
+               string.Equals(property.Value.GetString(), "GROUP_DELIVERABLE_V1", StringComparison.Ordinal)) ||
+              ContainsGroupWideProperty(property.Value))
             return true;
         }
         return false;

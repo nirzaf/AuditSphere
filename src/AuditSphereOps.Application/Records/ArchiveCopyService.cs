@@ -688,10 +688,14 @@ internal static class ArchiveCopySourceGuard
     var exportEntry = entries.Where(x => x.EntryKind == "STRUCTURED_EXPORT" && x.SourceKind == "AuditSphereOps").ToArray();
     if (exportEntry.Length != 1 || exportEntry[0].SourceId is not null)
       throw new OperationBlockedException("archive-copy-structured-export-entry-invalid");
-    var structured = await db.ArchiveStructuredExports.AsNoTracking().SingleOrDefaultAsync(x =>
+    var structuredExports = await db.ArchiveStructuredExports.AsNoTracking().Where(x =>
       x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId &&
-      x.ArchiveId == archive.Id && x.ArchiveManifestId == manifest.Id, ct);
-    if (structured is null || structured.ByteCount != Encoding.UTF8.GetByteCount(structured.PayloadJson) ||
+      x.ArchiveId == archive.Id && x.ArchiveManifestId == manifest.Id)
+      .OrderBy(x => x.Id).Take(2).ToListAsync(ct);
+    if (structuredExports.Count != 1)
+      throw new OperationBlockedException("archive-copy-structured-export-ambiguous");
+    var structured = structuredExports[0];
+    if (structured.ByteCount != Encoding.UTF8.GetByteCount(structured.PayloadJson) ||
         structured.ContentHash != Hashing.Sha256Hex(Encoding.UTF8.GetBytes(structured.PayloadJson)) ||
         exportEntry[0].ContentHash != structured.ContentHash || exportEntry[0].ByteCount != structured.ByteCount)
       throw new OperationBlockedException("archive-copy-structured-export-mismatch");

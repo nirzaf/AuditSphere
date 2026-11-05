@@ -1123,34 +1123,27 @@
     "financeResponseBoundaryEvidence": ".local/autonomous/evidence/practice-management-audit-20261102/finance-scope-compatibility-review.json"
    },
    "archiveCopyProjectionD600": {
-    "sourceCommit": "d6006472f444dcc0b01fac9cdd87da2fe295744a",
-    "attachmentSha256": "e4f9d65743f402502c172ce6d1d9b6ce6e9974b3af96a92b3fa71db227a49a15",
-    "result": "PARTIAL_VERIFICATION",
-    "fast": {
-     "runId": 41667417025,
-     "aggregate": "PASS",
-     "actualCheckout": "UNVERIFIED; one-time job-log response not retained"
+      "archivedSnapshot": ".local/autonomous/evidence/lifecycle-gap-t01-t02-20261106/archive/status-before.json#targetedVerification.archiveCopyProjectionD600",
+      "result": "HISTORICAL_SNAPSHOT_RETAINED"
     },
-    "images": {
-     "runId": 41667417093,
-     "aggregate": "PASS",
-     "actualCheckoutsAndPins": "UNVERIFIED; one-time job-log/artifact-metadata response not retained"
-    },
-    "full": {
-     "status": "NOT_DISPATCHED"
-    },
-    "focused": {
-     "angular": "31/31 PASS; production build PASS with existing CSS budget warnings",
-     "applicationReleaseBuild": "PASS",
-     "postgresDomain": "BLOCKED_TEST_ENV before testhost; zero assertions",
-     "apiReleaseBuild": "BLOCKED_TEST_ENV before result",
-     "openApi": "Schema/reference assertions PASS; canonical emitter NOT_RUN",
-     "browser": "NOT_RUN"
-    },
-    "releaseAcceptance": "NOT_CLAIMED",
-    "evidence": ".local/autonomous/evidence/practice-archive-copy-audit-20261103/d600-terminal-gates-416674/terminal-review.json",
-    "docs": "PASS 282 Markdown/4198 links/564 paths; 282 filenames; narrative/taskboard/UI/diff PASS; status/handoff bytes 102088/23101."
-   }
+    "lifecycleGapT01T02_20261106": {
+      "attachmentSha256": "1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5",
+      "sourceBase": "7229eb876c7503c5e0e32d2ee0e3a0906eff71b2",
+      "tasks": [
+        "T01",
+        "T02"
+      ],
+      "result": "FOCUSED_VERIFIED_EXACT_SOURCE_CI_PENDING",
+      "summary": "P0 archive egress now fails closed on ambiguous/group-wide content; new engagement snapshots are exact-scope and stable across narrow/firm-wide builders. Existing authorized group workflow and retained history preserved.",
+      "red": "Nested GROUP_DELIVERABLE_V1 accepted by pre-fix guard (1 expected failure).",
+      "green": "7/7 archive/copy/builder/group cases; final fixture pair 2/2; no skips.",
+      "predecessorFast": "42111333590 PASS on 7229eb876c7503c5e0e32d2ee0e3a0906eff71b2 only; not candidate CI.",
+      "candidateCi": "FAST/IMAGES/FULL NOT_DISPATCHED",
+      "browser": "NOT_RUN",
+      "historicalInventory": "NOT_PERFORMED",
+      "releaseAcceptance": "NOT_CLAIMED",
+      "evidence": ".local/autonomous/evidence/lifecycle-gap-t01-t02-20261106/verification.json"
+    }
   },
   "externalGates": [
     {

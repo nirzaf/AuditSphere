@@ -374,7 +374,8 @@ public static class RecordsArchiveService
 
     var archive = authorized.Value!;
     var manifest = await db.ArchiveManifests.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id)
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == archive.ClientId &&
+        x.EngagementId == archive.EngagementId && x.ArchiveId == archive.Id)
       .OrderByDescending(x => x.Version).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
     if (manifest is null || manifest.Status != "REVIEWED" || manifest.CompletenessStatus != "COMPLETE" ||
         manifest.SupersededByManifestId is not null)
@@ -382,7 +383,8 @@ public static class RecordsArchiveService
         "A complete, current, reviewed archive manifest is required for export.");
 
     var entries = await db.ArchiveManifestEntries.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.ArchiveManifestId == manifest.Id)
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == archive.ClientId &&
+        x.EngagementId == archive.EngagementId && x.ArchiveManifestId == manifest.Id)
       .OrderBy(x => x.Ordinal)
       .Select(x => new
       {
@@ -402,11 +404,24 @@ public static class RecordsArchiveService
       return CommandResult<ArchiveEvidenceExport>.Fail(ErrorCodes.GateBlocked,
         "The reviewed manifest digest does not match its persisted entries.");
 
-    var structured = await db.ArchiveStructuredExports.AsNoTracking()
-      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id &&
-        x.ArchiveManifestId == manifest.Id, ct);
-    var exportEntry = entries.SingleOrDefault(x => x.EntryKind == "STRUCTURED_EXPORT");
-    if (structured is null || exportEntry is null || structured.ByteCount != Encoding.UTF8.GetByteCount(structured.PayloadJson) ||
+    var structuredExports = await db.ArchiveStructuredExports.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == archive.ClientId &&
+        x.EngagementId == archive.EngagementId && x.ArchiveId == archive.Id &&
+        x.ArchiveManifestId == manifest.Id)
+      .OrderBy(x => x.Id).Take(2).ToListAsync(ct);
+    if (structuredExports.Count != 1)
+      return CommandResult<ArchiveEvidenceExport>.Fail(ErrorCodes.ProtectedState,
+        "The reviewed manifest does not have exactly one structured export row. Withhold export and reconcile the retained manifest.");
+    var structured = structuredExports[0];
+    var exportEntries = entries.Where(x => x.EntryKind == "STRUCTURED_EXPORT").Take(2).ToArray();
+    if (exportEntries.Length != 1)
+      return CommandResult<ArchiveEvidenceExport>.Fail(ErrorCodes.ProtectedState,
+        "The reviewed manifest does not contain exactly one structured export. Withhold export and reconcile the retained manifest.");
+    var exportEntry = exportEntries[0];
+    if (!string.Equals(exportEntry.SourceKind, "AuditSphereOps", StringComparison.Ordinal) || exportEntry.SourceId is not null)
+      return CommandResult<ArchiveEvidenceExport>.Fail(ErrorCodes.ProtectedState,
+        "The reviewed structured export provenance is ambiguous. Withhold export and reconcile the retained manifest.");
+    if (structured.ByteCount != Encoding.UTF8.GetByteCount(structured.PayloadJson) ||
         !string.Equals(Hashing.Sha256Hex(Encoding.UTF8.GetBytes(structured.PayloadJson)), structured.ContentHash,
           StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(exportEntry.ContentHash, structured.ContentHash, StringComparison.OrdinalIgnoreCase) ||
