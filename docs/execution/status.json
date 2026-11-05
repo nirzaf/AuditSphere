@@ -20,7 +20,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "10060ef5d5cc3926f11d4c114f1a5d0cc8cbbed1",
+  "headCommit": "5b095f1ccd62155dd00117748e4359de1843d745",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -1662,19 +1662,19 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceSha": "10060ef5d5cc3926f11d4c114f1a5d0cc8cbbed1",
-    "fastRunId": 42090990688,
-    "fastStatus": "PASS aggregate; actual job checkout not independently verified.",
-    "imagesRunId": 42090990689,
-    "imagesStatus": "PASS; all three actual checkouts and pushing-manifest pins match source SHA.",
-    "fullRunId": 42002341722,
-    "fullStatus": "FAIL on this source: API exit 143 cause unproven; E2E 334 passed, 1 failed.",
-    "localCandidate": "Lifecycle-gap T19: three Playwright methods/four cases PASS; test-only diff; candidate exact fast/images/full pending.",
+    "sourceSha": "5b095f1ccd62155dd00117748e4359de1843d745",
+    "fastRunId": 42106509294,
+    "fastStatus": "FAIL aggregate: Angular (2002 tests/196 files) and Release pass on exact 5b checkout; Docs failed on ignored .local links, corrected locally.",
+    "imagesRunId": null,
+    "imagesStatus": "NOT_TRIGGERED by test/docs paths; exact-candidate image gate pending.",
+    "fullRunId": null,
+    "fullStatus": "NOT_DISPATCHED on candidate; historical 42002341722 resolved to bf06 (334/335, T19 timeout; API 143 cause unproven); no exact 10060 run.",
+    "localCandidate": "T19 focused E2E 4/4 PASS; docs link fix passes locally; exact CI repair pending.",
     "evidence": ".local/autonomous/evidence/lifecycle-gap-t19-20261105/implementation-review.json",
     "aggregatePass": false,
-    "fastAggregatePass": true,
-    "imagesAggregatePass": true,
-    "actualCheckoutAndPins": "Fast checkout unverified; base image checkouts/pins retained in evidence."
+    "fastAggregatePass": false,
+    "imagesAggregatePass": false,
+    "actualCheckoutAndPins": "Angular, Docs and Release job logs prove exact checkout 5b; candidate images/full pending."
   },
   "uxU03ContextSwitcher": {
     "status": "PARTIAL",
@@ -1685,5 +1685,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-05T20:38:59Z"
+  "updatedAtUtc": "2026-11-05T21:11:45Z"
 }
