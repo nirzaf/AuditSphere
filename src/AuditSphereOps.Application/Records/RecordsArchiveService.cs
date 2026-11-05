@@ -231,14 +231,13 @@ public static class RecordsArchiveService
     IAuditSphereDbContext db, ActorContext actor, Guid archiveId, Guid? manifestId = null,
     CancellationToken ct = default)
   {
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var authorized = await AuthorizeArchiveAsync(db, actor, archiveId, ct);
     if (!authorized.Succeeded)
       return CommandResult<ArchiveManifestResult>.Fail(authorized.ErrorCode!, authorized.Message!);
-    var archive = authorized.Value!;
-    if (archive.Status != ArchiveStates.ManifestBuilt)
-      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ProtectedState,
-        "Only a complete built manifest can be reviewed.");
-
+    var archive = await db.Archives.FromSqlInterpolated($"""
+      SELECT * FROM archives WHERE firm_id = {actor.FirmId} AND id = {archiveId} FOR UPDATE
+      """).SingleAsync(ct);
     var query = db.ArchiveManifests
       .Where(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id);
     if (manifestId.HasValue)
@@ -246,18 +245,26 @@ public static class RecordsArchiveService
     var manifest = await query.OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
     if (manifest is null || manifest.CompletenessStatus != "COMPLETE")
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked, "A complete archive manifest is required.");
-    if (manifest.SupersededByManifestId is not null)
+    var result = new ArchiveManifestResult(archive.Id, manifest.Id, "REVIEWED", manifest.ManifestDigest,
+      manifest.EntryCount, manifest.CompletenessStatus);
+    if (manifest.Status == "REVIEWED" && archive.Status == ArchiveStates.AssemblyReviewed)
+      return CommandResult<ArchiveManifestResult>.Ok(result);
+    if (archive.Status != ArchiveStates.ManifestBuilt)
+      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ProtectedState,
+        "Only a complete built manifest can be reviewed.");
+    if (manifest.SupersededByManifestId is not null ||
+        await db.ArchiveManifests.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+          x.ArchiveId == archive.Id && x.Version > manifest.Version, ct))
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ProtectedState,
         "This manifest has been superseded by a newer version and cannot be reviewed.");
 
     manifest.Status = "REVIEWED";
     manifest.ReviewedAt = DateTimeOffset.UtcNow;
     manifest.ReviewedByUserId = actor.UserId;
-    await db.Archives.Where(x => x.Id == archive.Id && x.FirmId == archive.FirmId)
-      .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, ArchiveStates.AssemblyReviewed), ct);
+    archive.Status = ArchiveStates.AssemblyReviewed;
     await db.SaveChangesAsync(ct);
-    return CommandResult<ArchiveManifestResult>.Ok(new(
-      archive.Id, manifest.Id, manifest.Status, manifest.ManifestDigest, manifest.EntryCount, manifest.CompletenessStatus));
+    if (tx is not null) await tx.CommitAsync(ct);
+    return CommandResult<ArchiveManifestResult>.Ok(result);
   }
 
   /// <summary>

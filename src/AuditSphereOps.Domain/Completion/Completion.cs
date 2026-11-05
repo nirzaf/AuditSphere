@@ -26,6 +26,9 @@ public sealed class ReleaseCandidate
   public long InputGeneration { get; set; } = 1;
   public long PolicyGeneration { get; set; } = 1;
   public Guid ApprovalId { get; set; }
+  public Guid? PresentationRevisionId { get; set; }
+  public Guid? CompositionId { get; set; }
+  public string? CompositionManifestDigest { get; set; }
   public string ManifestDigest { get; set; } = string.Empty;
   public string Status { get; set; } = ReleaseStates.Ready;
   public DateTimeOffset CreatedAt { get; set; }

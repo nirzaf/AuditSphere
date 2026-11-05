@@ -18,12 +18,15 @@ public sealed partial class AuditSphereDbContext
       .HasName("AK_release_candidates_firm_id_id");
     candidate.Property(x => x.TargetKind).HasMaxLength(50);
     candidate.Property(x => x.ManifestDigest).HasMaxLength(64);
+    candidate.Property(x => x.CompositionManifestDigest).HasMaxLength(64);
     candidate.Property(x => x.Status).HasMaxLength(16);
     candidate.HasIndex(x => new
       { x.FirmId, x.TargetKind, x.TargetId, x.TargetRevision, x.ManifestDigest })
       .IsUnique().HasDatabaseName("ux_release_candidate_identity");
     candidate.ToTable("release_candidates", t => t.HasCheckConstraint("ck_release_candidate_values",
-      "target_kind IN ('WORKPAPER','FINANCIAL_PACKAGE') AND revision >= 1 AND target_revision >= 1 AND input_generation >= 1 AND policy_generation >= 1 AND manifest_digest ~ '^[0-9a-f]{64}$' AND status IN ('READY','ISSUED')"));
+      "target_kind IN ('WORKPAPER','FINANCIAL_PACKAGE') AND revision >= 1 AND target_revision >= 1 AND input_generation >= 1 AND policy_generation >= 1 AND manifest_digest ~ '^[0-9a-f]{64}$' AND status IN ('READY','ISSUED')" +
+      " AND ((composition_id IS NULL AND presentation_revision_id IS NULL AND composition_manifest_digest IS NULL)" +
+      "   OR (composition_id IS NOT NULL AND presentation_revision_id IS NOT NULL AND composition_manifest_digest ~ '^[0-9a-f]{64}$'))"));
     candidate.HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id })

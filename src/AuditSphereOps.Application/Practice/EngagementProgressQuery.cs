@@ -210,6 +210,7 @@ public static class EngagementProgressQuery
       select new
       {
         release.EngagementId, release.PackageId, release.PackageRevision,
+        release.PinnedCompositionId, release.PinnedCompositionManifestDigest,
         candidate.TargetKind, candidate.TargetId, candidate.TargetRevision
       }).ToListAsync(ct);
     var released = releases.Select(x => x.EngagementId).Distinct().ToHashSet();
@@ -409,12 +410,28 @@ public static class EngagementProgressQuery
             }
           }
 
-          var hasExactRelease = releases.Any(r => r.EngagementId == engagement.Id &&
-            (entityReporting
-              ? r.TargetKind == ReleaseTargetKinds.FinancialPackage &&
-                clientPackages.Any(p => p.Package.Id == r.PackageId && r.TargetId == p.Package.Id &&
-                  r.PackageRevision == p.Package.Revision && r.TargetRevision == p.Package.Revision)
-              : r.TargetKind is ReleaseTargetKinds.Workpaper or ReleaseTargetKinds.FinancialPackage));
+          var hasExactRelease = false;
+          if (entityReporting && db is IClientAccountingDbContext compositionDb)
+          {
+            foreach (var package in clientPackages.Select(x => x.Package))
+            {
+              var composition = await FinancialPackageReviewService.ResolveCompositionAsync(compositionDb, package, ct);
+              if (!composition.Succeeded) continue;
+              if (releases.Any(r => r.EngagementId == engagement.Id &&
+                    r.TargetKind == ReleaseTargetKinds.FinancialPackage && r.PackageId == package.Id &&
+                    r.PinnedCompositionId == composition.Value.CompositionId &&
+                    r.PinnedCompositionManifestDigest == composition.Value.ManifestDigest))
+              {
+                hasExactRelease = true;
+                break;
+              }
+            }
+          }
+          else
+          {
+            hasExactRelease = releases.Any(r => r.EngagementId == engagement.Id &&
+              r.TargetKind is ReleaseTargetKinds.Workpaper or ReleaseTargetKinds.FinancialPackage);
+          }
           if (!hasExactRelease)
             gates.Add(entityReporting
               ? "No issued release of the exact approved financial package exists for this period."

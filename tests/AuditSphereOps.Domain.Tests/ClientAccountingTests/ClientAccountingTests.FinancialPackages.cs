@@ -257,8 +257,10 @@ public sealed partial class ClientAccountingTests
     finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
   }
 
+
+
   private static async Task<FinancialStatementComposition> SelectReviewedCompositionAsync(
-    AuditSphereDbContext db, StatementCandidatePromotionTests.Seeded source)
+    AuditSphereDbContext db, StatementCandidatePromotionTests.Seeded source, string suffix = "")
   {
     var preparer = Actor(source.Preparer, "AccountingPreparer");
     var reviewer = Actor(source.Reviewer, "AccountingReviewer");
@@ -285,7 +287,7 @@ public sealed partial class ClientAccountingTests
     {
       var decision = await FinancialPackageReviewService.RecordAsync(db, actor,
         new(source.PackageId, stage, FinancialPackageReviewDecisions.Approved, mode,
-          "composition-review-" + stage, "Reviewed exact test composition.", candidate.Value.RevisionId, null,
+          "composition-review-" + stage + suffix, "Reviewed exact test composition.", candidate.Value.RevisionId, null,
           selected.Value!.Id, selected.Value.ManifestDigest));
       Assert.True(decision.Succeeded, decision.Message);
     }

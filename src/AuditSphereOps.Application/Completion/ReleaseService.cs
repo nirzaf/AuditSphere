@@ -97,6 +97,8 @@ public static class ReleaseService
     if (applicability is null || applicability.Status != ApprovalStates.Current)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The approval is not currently applicable.");
 
+    Guid? compositionId = null, presentationRevisionId = null;
+    string? compositionDigest = null;
     if (current.Kind == ReleaseTargetKinds.FinancialPackage)
     {
       if (db is not IClientAccountingDbContext accountingDb)
@@ -105,6 +107,17 @@ public static class ReleaseService
         accountingDb, actor, current.Id, requirePartner: true, ct);
       if (!packageReview.Succeeded)
         return CommandResult<Guid>.Fail(packageReview.ErrorCode!, packageReview.Message!);
+      var package = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == current.Id && x.FirmId == actor.FirmId && x.ClientId == current.ClientId &&
+        x.EngagementId == current.EngagementId, ct);
+      if (package is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The financial package is unavailable.");
+      var composition = await FinancialPackageReviewService.ResolveCompositionAsync(accountingDb, package, ct);
+      if (!composition.Succeeded)
+        return CommandResult<Guid>.Fail(composition.ErrorCode!, composition.Message!);
+      presentationRevisionId = composition.Value.PresentationId;
+      compositionId = composition.Value.CompositionId;
+      compositionDigest = composition.Value.ManifestDigest;
     }
 
     var existing = await db.ReleaseCandidates.AsNoTracking().SingleOrDefaultAsync(x =>
@@ -113,6 +126,9 @@ public static class ReleaseService
     var targetGeneration = current.Kind == ReleaseTargetKinds.FinancialPackage ? current.Generation : client.InputGeneration;
     if (existing is not null)
     {
+      if (existing.CompositionId != compositionId)
+        return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
+          "The approved statement composition changed after this candidate was prepared; prepare an amended package or candidate for the current composition.");
       return existing.ApprovalId == approval.Id && existing.ClientId == current.ClientId &&
              existing.EngagementId == current.EngagementId && existing.InputGeneration == targetGeneration &&
              existing.PolicyGeneration == firm.PolicyGeneration
@@ -126,7 +142,8 @@ public static class ReleaseService
       EngagementId = current.EngagementId, TargetKind = current.Kind, TargetId = current.Id, TargetRevision = current.Revision,
       InputGeneration = targetGeneration, PolicyGeneration = firm.PolicyGeneration,
       ApprovalId = approval.Id, ManifestDigest = request.ManifestDigest,
-      CreatedAt = DateTimeOffset.UtcNow
+      PresentationRevisionId = presentationRevisionId, CompositionId = compositionId,
+      CompositionManifestDigest = compositionDigest, CreatedAt = DateTimeOffset.UtcNow
     };
     db.ReleaseCandidates.Add(candidate);
     try
@@ -194,6 +211,28 @@ public static class ReleaseService
       return CommandResult<Guid>.Fail(ErrorCodes.ManifestMismatch, "The release manifest does not match the candidate.");
     if (candidate.Status != ReleaseStates.Ready)
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The candidate is not ready for issuance.");
+    if (candidate.TargetKind == ReleaseTargetKinds.FinancialPackage)
+    {
+      if (candidate.PresentationRevisionId is null || candidate.CompositionId is null ||
+          string.IsNullOrWhiteSpace(candidate.CompositionManifestDigest))
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "The candidate predates exact statement-composition pinning; prepare a composition-bound candidate.");
+      if (db is not IClientAccountingDbContext accountingDb)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client accounting review persistence is unavailable.");
+      var package = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == candidate.TargetId && x.FirmId == actor.FirmId && x.ClientId == candidate.ClientId &&
+        x.EngagementId == candidate.EngagementId, ct);
+      if (package is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The financial package is unavailable.");
+      var effectiveComposition = await FinancialPackageReviewService.ResolveCompositionAsync(accountingDb, package, ct);
+      if (!effectiveComposition.Succeeded)
+        return CommandResult<Guid>.Fail(effectiveComposition.ErrorCode!, effectiveComposition.Message!);
+      if (effectiveComposition.Value.PresentationId != candidate.PresentationRevisionId ||
+          effectiveComposition.Value.CompositionId != candidate.CompositionId ||
+          effectiveComposition.Value.ManifestDigest != candidate.CompositionManifestDigest)
+        return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
+          "A different statement composition is now effective. The candidate must be reviewed again for the current composition.");
+    }
     if (firm.OperatingMode != "LOCAL_ONLY")
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Release is blocked while the firm is in recovery quarantine.");
 

@@ -633,6 +633,58 @@ public static partial class FinancialPackageReviewService
     return CommandResult.Ok();
   }
 
+  /// <summary>Returns the exact presentation/composition identity currently approved by all three stages.
+  /// Callers must have run <see cref="RequireCurrentEvidenceAsync"/> or <see cref="RequireCurrentAsync"/> first.</summary>
+  internal static async Task<CommandResult<(Guid PresentationId, Guid CompositionId, string ManifestDigest)>>
+    ResolveCompositionAsync(IClientAccountingDbContext db, FinancialPackage package, CancellationToken ct = default)
+  {
+    var reviews = await db.FinancialPackageReviewDecisions.AsNoTracking()
+      .Where(x => x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+        x.FinancialPackageId == package.Id)
+      .ToListAsync(ct);
+    Guid? presentationId = null;
+    Guid? compositionId = null;
+    string? digest = null;
+    IReadOnlyDictionary<string, FinancialPackageReviewDecision?>? effective = null;
+    foreach (var stage in new[]
+             {
+               FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewStages.AccountingReview,
+               FinancialPackageReviewStages.PartnerApproval
+             })
+    {
+      var current = InRecordedOrder(reviews.Where(x => x.Stage == stage)).LastOrDefault();
+      if (current is null || current.Decision != FinancialPackageReviewDecisions.Approved ||
+          current.PackageHash != package.CalculationHash || current.PackageRevision != package.Revision ||
+          current.PackageGeneration != package.Generation ||
+          current.PresentationRevisionId is null || current.PresentationCompositionId is null ||
+          string.IsNullOrWhiteSpace(current.CompositionManifestDigest))
+        return CommandResult<(Guid, Guid, string)>.Fail(ErrorCodes.GateBlocked,
+          "The current three-stage approval is not bound to one exact statement composition.");
+      if (effective is null)
+      {
+        presentationId = current.PresentationRevisionId;
+        compositionId = current.PresentationCompositionId;
+        digest = current.CompositionManifestDigest;
+        effective = EffectiveApprovals(reviews.Where(x => x.PackageHash == package.CalculationHash &&
+          x.PackageRevision == package.Revision && x.PackageGeneration == package.Generation &&
+          x.PresentationRevisionId == presentationId && x.PresentationCompositionId == compositionId &&
+          x.CompositionManifestDigest == digest));
+      }
+      else if (current.PresentationRevisionId != presentationId ||
+               current.PresentationCompositionId != compositionId ||
+               current.CompositionManifestDigest != digest)
+        return CommandResult<(Guid, Guid, string)>.Fail(ErrorCodes.GateBlocked,
+          "The management, accounting and Partner decisions approve different compositions.");
+      if (effective[stage]?.Id != current.Id)
+        return CommandResult<(Guid, Guid, string)>.Fail(ErrorCodes.GateBlocked,
+          "A later stage decision superseded the current effective three-stage chain.");
+    }
+    return presentationId is { } p && compositionId is { } c && digest is { Length: > 0 }
+      ? CommandResult<(Guid, Guid, string)>.Ok((p, c, digest))
+      : CommandResult<(Guid, Guid, string)>.Fail(ErrorCodes.GateBlocked,
+        "The current three-stage approval is not bound to one exact statement composition.");
+  }
+
   internal static async Task<bool> CompositionArtifactsAreIntactAsync(
     IClientAccountingDbContext db, FinancialPackage package, FinancialStatementPresentationRevision candidate,
     FinancialStatementComposition composition, CancellationToken ct)

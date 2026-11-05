@@ -12,6 +12,8 @@ public static partial class UiEndpoints
   public sealed record FindingResponseInput(string ManagementResponse, bool Corrected);
   public sealed record ManagementLetterDesignationInput(bool Designated, string? Recommendation);
   public sealed record IssueInput(long ExpectedRevision, string ManifestDigest, string ReleaseKey);
+  public sealed record ArchiveBuildInput(Guid? CommercialBundleId);
+  public sealed record ArchiveReviewInput(Guid ManifestId);
   public sealed record WorkpaperDraftInput(long ExpectedDraftRevision, long BaseWorkpaperRevision, long BaseInputGeneration, long BasePolicyGeneration, Guid SaveId,
     string WorkPerformed, string Conclusion);
   public sealed record WorkpaperSubmitInput(long ExpectedRevision, string WorkPerformed, string Conclusion, long ExpectedDraftRevision, Guid DraftSaveId);
@@ -91,6 +93,15 @@ public static partial class UiEndpoints
       if (afterOrdinal is < 0) return Task.FromResult<IResult>(Invalid("The archive cursor is invalid."));
       return ReadAsync(http, (db, actor, ct) => AuditRecordQueries.ArchiveAsync(db, actor, id, afterOrdinal, ct));
     }).WithUiResponse<ArchiveRecordView>();
+    group.MapPost("/records/archives/{id:guid}/build", (Guid id, ArchiveBuildInput? i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => i?.CommercialBundleId is { } bundleId
+        ? RecordsArchiveService.BuildManifestWithCommercialBundleAsync(db, actor, id, bundleId, ct)
+        : RecordsArchiveService.BuildManifestAsync(db, actor, id, ct)))
+      .WithUiResponse<UiValueResponse<ArchiveManifestResult>>(includeConflict: true);
+    group.MapPost("/records/archives/{id:guid}/review", (Guid id, ArchiveReviewInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => RecordsArchiveService.ReviewManifestAsync(db, actor, id,
+        i.ManifestId == Guid.Empty ? null : i.ManifestId, ct)))
+      .WithUiResponse<UiValueResponse<ArchiveManifestResult>>(includeConflict: true);
     group.MapGet("/records/archives/{id:guid}/export", async (Guid id, HttpContext http) =>
     {
       var resolver = http.RequestServices.GetRequiredService<TrustedActorResolver>();
