@@ -20,7 +20,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "7ea9ed58db82558d200f6f611fd8c3e6eab03424",
+  "headCommit": "df0000c2b3ffe1a70792a7ea2e7f626e669cac1e",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -1549,7 +1549,7 @@
    "specification": "AUDITSPHERE-PRACTICE-MANAGEMENT-AUDIT.md (external proposal attachment)",
    "specificationSha256": "e4f9d65743f402502c172ce6d1d9b6ce6e9974b3af96a92b3fa71db227a49a15",
    "sourceBase": "d6006472f444dcc0b01fac9cdd87da2fe295744a",
-   "tracker": "T14 published; fixture repair at 7ea9; fast PASS, images/full pending; T12/T13 gated.",
+   "tracker": "T17 full 422797 failed; T12/T13 remain gated pending peer reconciliation.",
    "inventoryStatus": "AUDITED_WITH_OPEN_ACCEPTANCE",
    "criterionCount": 35,
    "criterionAudit": "Separate prior audit: 87 repository criteria; this attachment: 35 criteria; whole acceptance PARTIAL.",
@@ -1558,7 +1558,7 @@
    "auditCommit": "a6e160c3fdc6b2abed9631340d0f48d7453d700e",
    "auditDate": "2026-10-18",
    "auditEvidence": "docs/execution/auditsphere-execution-report-practice-management-criterion-audit-current.md",
-   "ciObservation": "7ea9 fast 42256097155 PASS; all 3 exact checkouts; images/full pending.",
+   "ciObservation": "df fast/images PASS; full 422797 failed; T12/T13 gated.",
    "inspectedCriteriaRanges": [
     "ASPM-CRM-01..05",
     "ASPM-COM-01..06",
@@ -1683,13 +1683,14 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi":   {
-    "sourceSha": "7ea9ed58db82558d200f6f611fd8c3e6eab03424",
-    "fastRun": 42256097155,
-    "fast": "PASS; all three job logs show exact 7ea9ed58 checkout.",
-    "imagesRun": null,
-    "images": "NOT_DISPATCHED",
-    "candidate": "Fixture repair published; full T17 gate remains open and T12/T13 gated.",
-    "proof": ".local/autonomous/evidence/ci-7ea9ed58-current-20261106/fast-terminal-42256097155/",
+    "sourceSha": "df0000c2b3ffe1a70792a7ea2e7f626e669cac1e",
+    "fastRun": 42275852273,
+    "fast": "PASS; all 3 exact checkouts.",
+    "imagesRun": 42275852256,
+    "images": "PASS; all 3 exact checkouts and pins.",
+    "fullRun": 42279767136,
+    "full": "FAIL; Domain 1994/2002, E2E 329/10+abort, API 180m.",
+    "proof": ".local/autonomous/evidence/ci-df0000c2-current-20261106/full-42279767136/terminal-reconciliation-20261106T230445Z.json",
     "aggregatePass": false
   },
   "uxU03ContextSwitcher": {
@@ -1701,5 +1702,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-06T18:58:17Z"
+  "updatedAtUtc": "2026-11-06T23:51:53Z"
 }

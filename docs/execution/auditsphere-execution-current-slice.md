@@ -1,14 +1,14 @@
 # AuditSphere — current-slice handoff
 
-**Observed:** 2026-11-06T18:58:17Z
+**Observed:** 2026-11-06T23:51:53Z
 
 **Whole assignment:** INCOMPLETE. Preserve the original 48 tasks and independent original, Axelor, practice, Atomic, Claude, role, Technical Stories and UX16 registers.
 
-**Source baseline at this observation:** local `master` and fetched `origin/master` matched `7ea9ed58db82558d200f6f611fd8c3e6eab03424`. Exact fast run `42256097155` passed Angular (2,004 tests across 196 files), Docs and Release; all three job logs independently show the exact checkout. Images and full verification have not run for this SHA. The preceding full run on `927faef5` failed; T12/T13 remain gated on a coherent candidate passing the complete T17 release gate. The main checkout retains 24 modified paths (20 protected peer paths and four owned files); do not overwrite peer edits. The isolated PostgreSQL 18.6 test container was removed after the focused T02 pass.
+**Source baseline at this observation:** local `master` and fetched `origin/master` match `df0000c2b3ffe1a70792a7ea2e7f626e669cac1e`. Fast run `42275852273` and images run `42275852256` passed all three jobs; checkout logs and image pins match this SHA. Full run `42279767136` resolved to `df0000c2` and failed: Domain 1,994/2,002 (8 failures); E2E 329 passed and 10 failed before inactivity abort during sibling-client isolation (total unknown); API was cancelled at the 180-minute limit, with checkout unverified after one unavailable log fetch. Resolve, Angular (2,002 specs/196 files) and build/contracts passed. Full evidence: `.local/autonomous/evidence/ci-df0000c2-current-20261106/full-42279767136/terminal-reconciliation-20261106T230445Z.json`. Focused shared-tree reruns passed 8 Domain, 10 E2E and one finding-recovery case; T02 period/book audience passed 1/1 on disposable PostgreSQL 18.6. Focused evidence: `.local/autonomous/evidence/lifecycle-gap-reconciliation-20261107/focused-reconciliation-20261106T233640Z.json`. These checks do not override full failure. Preserve all 20 peer paths; T12/T13 await ownership-cleared candidate and exact T17 full PASS.
 
-Lifecycle recovery receipt validation rejects non-number revision values instead of coercing them. Group recovery retains the original request after timeout or idempotency-conflict responses and clears it only for typed initial rejections. The focused group workspace suite passed 38/38; exact-source CI and full release verification remain separate.
+Group recovery retains the original tab-bound intent after ambiguous outcomes; the prior 38/38 focused Angular result remains historical.
 
-Archive-copy status now compares persisted timestamps at PostgreSQL microsecond precision without rewriting operation evidence. A precision-boundary probe passed 4/4 and the Application Release build passed; the focused PostgreSQL regression exhausted the isolated test container's memory during migrations before assertions, so its result remains unverified. Exact-source CI remains required.
+T11 archive-copy time precision is closed; it uses persisted microsecond timestamps without rewriting retained operation evidence.
 
 ## Historical source and secondary archive-copy projection (2026-11-03)
 
