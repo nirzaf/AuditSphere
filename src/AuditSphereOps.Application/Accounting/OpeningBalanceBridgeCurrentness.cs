@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Accounting;
 
 internal sealed record OpeningBridgeCurrentness(ClientReportingPeriod? Prior, bool Current, string? Blocker,
-  OpeningBalanceBridgeReview? Review = null);
+  OpeningBalanceBridgeReview? Review = null, bool SourcePackageMatchesPrior = true);
 
 internal static class OpeningBalanceBridgeCurrentness
 {
@@ -38,10 +38,14 @@ internal static class OpeningBalanceBridgeCurrentness
       var sourcePackage = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
         x.Id == sourcePackageId && x.FirmId == bridge.FirmId && x.ClientId == bridge.ClientId, ct);
       if (sourcePackage is null || sourcePackage.PeriodId != prior.Id ||
+          sourcePackage.PeriodStart != prior.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ||
+          sourcePackage.PeriodEnd != prior.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ||
+          !string.Equals(sourcePackage.Currency, prior.Currency, StringComparison.Ordinal) ||
           sourcePackage.Status != AccountingPackageStates.PackageValidated ||
           !string.Equals(sourcePackage.CalculationHash, bridge.SourceHash, StringComparison.OrdinalIgnoreCase))
         return new(prior, false,
-          "The opening source package does not belong to the exact closed prior period or no longer matches its reviewed hash.");
+          "The opening source package does not belong to the exact closed prior period or no longer matches its reviewed hash.",
+          SourcePackageMatchesPrior: false);
     }
     var hash = EvidenceHash(bridge);
     var review = await db.OpeningBalanceBridgeReviews.AsNoTracking().SingleOrDefaultAsync(x =>

@@ -73,7 +73,9 @@ public static partial class ClientAccountingService
       if (p is null) return Fail(ErrorCodes.ScopeDenied, "Access denied.");
       var start = p.StartDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
       var end = p.EndDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-      var packageIds = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.PeriodStart == start && x.PeriodEnd == end).Select(x => x.Id).ToListAsync(ct);
+      var packageIds = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId &&
+        x.PeriodId == p.Id && x.PeriodStart == start && x.PeriodEnd == end && x.Currency == p.Currency &&
+        x.Status == AccountingPackageStates.PackageValidated).Select(x => x.Id).ToListAsync(ct);
       if (r.Restatement is { } create) packageIds.AddRange([create.OriginalPackageId, create.RevisedPackageId]);
       if (restatement is not null) packageIds.AddRange([restatement.OriginalPackageId, restatement.RevisedPackageId]);
       if (r.RollForward?.SourcePackageId is { } source) packageIds.Add(source);

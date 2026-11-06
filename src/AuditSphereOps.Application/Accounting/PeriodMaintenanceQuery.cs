@@ -83,7 +83,7 @@ public static class PeriodMaintenanceQuery
     {
       var start = p.StartDate.ToString("yyyy-MM-dd"); var end = p.EndDate.ToString("yyyy-MM-dd");
       return new MaintenanceClosedPeriod(p.Id, p.PeriodCode, p.StartDate, p.EndDate, p.Basis, p.Currency, p.Revision,
-        packages.Where(x => x.PeriodId == p.Id && x.PeriodStart == start && x.PeriodEnd == end)
+        packages.Where(x => x.PeriodId == p.Id && x.PeriodStart == start && x.PeriodEnd == end && x.Currency == p.Currency)
           .Select(x => new MaintenancePackageOption(x.Id, x.Currency, x.CalculationHash[..Math.Min(12, x.CalculationHash.Length)])).ToList());
     }).ToList());
   }

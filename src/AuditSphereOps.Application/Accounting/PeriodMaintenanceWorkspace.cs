@@ -94,11 +94,12 @@ public static class PeriodMaintenanceWorkspace
     var start = period.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     var end = period.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == a.FirmId && x.ClientId == clientId &&
-      ((x.PeriodId == period.Id && x.PeriodStart == start && x.PeriodEnd == end) ||
+      ((x.PeriodId == period.Id && x.PeriodStart == start && x.PeriodEnd == end && x.Currency == period.Currency &&
+        x.Status == AccountingPackageStates.PackageValidated) ||
        (restatement != null && (x.Id == restatement.OriginalPackageId || x.Id == restatement.RevisedPackageId))))
       .OrderBy(x => x.Id).Select(x => new { x.Id, x.EngagementId, x.PeriodId, x.PeriodStart, x.PeriodEnd, x.Currency, x.Status, x.CalculationHash }).ToListAsync(ct);
     var blockers = new List<string>();
-    if (action != PeriodMaintenanceActions.ApproveRestatement && period.Status != AccountingWorkflowStates.Closed) blockers.Add("A closed reporting period is required.");
+    if (period.Status != AccountingWorkflowStates.Closed) blockers.Add("A closed reporting period is required.");
     if (restatement is not null)
     {
       if (restatement.Status != AccountingWorkflowStates.Submitted) blockers.Add("Only a submitted restatement can be approved.");
@@ -106,10 +107,13 @@ public static class PeriodMaintenanceWorkspace
       var original = packages.SingleOrDefault(x => x.Id == restatement.OriginalPackageId);
       var revised = packages.SingleOrDefault(x => x.Id == restatement.RevisedPackageId);
       if (original?.Status != AccountingPackageStates.PackageValidated || revised?.Status != AccountingPackageStates.PackageValidated ||
+        original?.EngagementId != restatement.EngagementId || revised?.EngagementId != restatement.EngagementId ||
         original?.PeriodId != period.Id || revised?.PeriodId != period.Id ||
+        original?.Currency != period.Currency || revised?.Currency != period.Currency ||
         original?.PeriodStart != start || original?.PeriodEnd != end ||
         revised?.PeriodStart != start || revised?.PeriodEnd != end ||
-        original?.CalculationHash != restatement.OriginalPackageHash || revised?.CalculationHash != restatement.RevisedPackageHash)
+        original?.CalculationHash != restatement.OriginalPackageHash || revised?.CalculationHash != restatement.RevisedPackageHash ||
+        original?.CalculationHash == revised?.CalculationHash)
         blockers.Add("Restatement package lineage changed.");
     }
     var approvalDetail = restatement is null ? null : new PeriodMaintenanceApprovalDetail(restatement.Id, clientId,
@@ -139,7 +143,8 @@ public static class PeriodMaintenanceWorkspace
       if (f.ExpectedPriorRevision != prior.Revision || f.StartDate <= prior.EndDate || f.Currency != prior.Currency) blockers.Add("The next period must follow the reviewed prior revision and use its currency.");
       if (await db.ClientReportingPeriods.AnyAsync(x => x.FirmId == a.FirmId && x.ClientId == clientId && x.PeriodCode == f.PeriodCode && x.Basis == f.Basis, ct)) blockers.Add("The reporting period already exists.");
       if (f.SourcePackageId is { } id && !await db.FinancialPackages.AnyAsync(x => x.FirmId == a.FirmId && x.ClientId == clientId && x.Id == id &&
-        x.Status == AccountingPackageStates.PackageValidated && x.CalculationHash == f.SourceHash && x.Currency == f.Currency &&
+        x.Status == AccountingPackageStates.PackageValidated && x.PeriodId == prior.Id &&
+        x.CalculationHash == f.SourceHash && x.Currency == f.Currency &&
         x.PeriodStart == prior.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) && x.PeriodEnd == prior.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), ct)) blockers.Add("The source package does not match the closed period and hash.");
     }
     if (r.Restatement is { } s)

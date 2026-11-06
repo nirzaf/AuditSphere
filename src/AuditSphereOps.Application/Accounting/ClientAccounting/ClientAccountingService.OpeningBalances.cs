@@ -1,3 +1,4 @@
+using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Accounting;
@@ -36,6 +37,9 @@ public static partial class ClientAccountingService
       var package = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.Id == packageId &&
         x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.Status == AccountingPackageStates.PackageValidated, ct);
       if (package is null || package.PeriodId != prior.Id ||
+          package.PeriodStart != prior.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ||
+          package.PeriodEnd != prior.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ||
+          !string.Equals(package.Currency, prior.Currency, StringComparison.Ordinal) ||
           !string.Equals(package.CalculationHash, sourceHash, StringComparison.OrdinalIgnoreCase))
         return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
           "The opening bridge source package is outside the exact prior period or has a different hash.");
@@ -90,6 +94,8 @@ public static partial class ClientAccountingService
     if (!IsSha256(bridge.SourceHash) || string.IsNullOrWhiteSpace(bridge.EvidenceReference) || bridge.CreatedAt == default)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The opening bridge source evidence is stale.");
     var state = await OpeningBalanceBridgeCurrentness.GetAsync(db, bridge, ct);
+    if (!state.SourcePackageMatchesPrior)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, state.Blocker!);
     var revalidation = bridge.Status == AccountingWorkflowStates.Approved;
     if (revalidation && state.Current)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "The opening bridge is already current for this prior close.");

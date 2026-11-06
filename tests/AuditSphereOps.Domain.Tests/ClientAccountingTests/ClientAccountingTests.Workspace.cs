@@ -67,14 +67,18 @@ public sealed partial class ClientAccountingTests
     await using var pg = await PgTestSchema.CreateAsync();
     var scope = await SeedAsync(pg);
     var actor = Actor(scope.Preparer, "AccountingPreparer");
-    Guid periodId, packageId, unpinned;
+    Guid periodId, packageId, unpinned, otherPeriodPackageId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       periodId = (await ClientAccountingService.CreatePeriodAsync(db, actor,
         new(scope.ClientA, "2026", new(2026, 1, 1), new(2026, 12, 31), "STATUTORY", "QAR"))).Value;
       Assert.True((await ClientAccountingService.ClosePeriodAsync(db, Actor(scope.Reviewer, "AccountingReviewer"), periodId, "Synthetic closed fixture")).Succeeded);
+      var otherPeriodId = (await ClientAccountingService.CreatePeriodAsync(db, actor,
+        new(scope.ClientA, "2026-CASH", new(2026, 1, 1), new(2026, 12, 31), "CASH", "QAR"))).Value;
       packageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "eligible",
         "QAR", periodId);
+      otherPeriodPackageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "same-date-other-period",
+        "QAR", otherPeriodId, "CASH");
       var draftId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "draft",
         "QAR", periodId);
       db.FinancialPackages.Local.Single(x => x.Id == draftId).Status = "REVIEW_REQUIRED";
@@ -95,6 +99,25 @@ public sealed partial class ClientAccountingTests
     var source = Assert.Single(sources.Value!.Items);
     Assert.Equal(packageId, source.Id);
     Assert.Equal("QAR", source.Currency);
+    var otherPeriodPackage = await verify.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == otherPeriodPackageId);
+    var state = await PeriodMaintenanceWorkspace.StateAsync(verify, actor, scope.ClientA,
+      PeriodMaintenanceActions.RollForward, periodId);
+    Assert.True(state.Succeeded, state.Message);
+    var crossPeriodInput = new PeriodMaintenanceRequest(Guid.NewGuid(), state.Value!.ReviewBasis,
+      PeriodMaintenanceActions.RollForward,
+      new RollForwardPeriodRequest(scope.ClientA, periodId, "2028-CROSS", new(2028, 1, 1), new(2028, 12, 31),
+        "STATUTORY", "QAR", otherPeriodPackage.CalculationHash, 100m, 100m, "Cross-period source", otherPeriodPackageId,
+        ExpectedPriorRevision: 2));
+    var crossPeriodPreview = await PeriodMaintenanceWorkspace.PreviewAsync(verify, actor, scope.ClientA, crossPeriodInput);
+    Assert.True(crossPeriodPreview.Succeeded, crossPeriodPreview.Message);
+    Assert.False(crossPeriodPreview.Value!.State.CanProceed);
+    Assert.Contains(crossPeriodPreview.Value.State.Blockers, x => x.Contains("source package", StringComparison.OrdinalIgnoreCase));
+    var crossPeriodPublish = await PeriodMaintenanceWorkspace.ExecuteAsync(verify, actor, scope.ClientA,
+      crossPeriodInput with { Reviewed = true, ExpectedRequestHash = crossPeriodPreview.Value.RequestHash });
+    Assert.Equal(ErrorCodes.GateBlocked, crossPeriodPublish.ErrorCode);
+    Assert.False(await verify.ClientReportingPeriods.AnyAsync(x => x.PeriodCode == "2028-CROSS"));
+    Assert.False(await verify.OpeningBalanceBridges.AnyAsync(x => x.SourcePackageId == otherPeriodPackageId));
+    Assert.Equal(0, await verify.PeriodMaintenanceReceipts.CountAsync());
     var unpinnedPackage = await verify.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == unpinned);
     var unpinnedAttempt = await ClientAccountingService.RollForwardPeriodAsync(verify, actor,
       new(scope.ClientA, periodId, "2028", new(2028, 1, 1), new(2028, 12, 31), "STATUTORY", "QAR",

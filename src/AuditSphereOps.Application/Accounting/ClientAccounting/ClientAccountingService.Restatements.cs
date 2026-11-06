@@ -127,8 +127,11 @@ public static partial class ClientAccountingService
     var periodStart = period.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     var periodEnd = period.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     if (packages.Count != 2 || packages.Any(x => x.Status != AccountingPackageStates.PackageValidated ||
+          x.EngagementId != restatement.EngagementId ||
           x.PeriodId != period.Id || x.PeriodStart != periodStart || x.PeriodEnd != periodEnd ||
           !string.Equals(x.Currency, period.Currency, StringComparison.Ordinal)) ||
+        packages.Select(x => x.EngagementId).Distinct().Count() != 1 ||
+        packages.Select(x => x.CalculationHash).Distinct(StringComparer.Ordinal).Count() != 2 ||
         packages.Single(x => x.Id == restatement.OriginalPackageId).CalculationHash != restatement.OriginalPackageHash ||
         packages.Single(x => x.Id == restatement.RevisedPackageId).CalculationHash != restatement.RevisedPackageHash)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "Restatement package lineage changed; reload the issued evidence.");

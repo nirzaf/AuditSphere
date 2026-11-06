@@ -101,6 +101,16 @@ public sealed partial class ClientAccountingTests
     await db.SaveChangesAsync();
     var reopen = await ClientAccountingService.ReopenPeriodAsync(db, partner, period1, "Reopen before approval");
     Assert.True(reopen.Succeeded, reopen.Message);
+    var approvalState = await PeriodMaintenanceWorkspace.StateAsync(db, reviewer, scope.ClientA,
+      PeriodMaintenanceActions.ApproveRestatement, restatementId: created.Value);
+    Assert.True(approvalState.Succeeded, approvalState.Message);
+    var approvalRequest = new PeriodMaintenanceRequest(Guid.NewGuid(), approvalState.Value!.ReviewBasis,
+      PeriodMaintenanceActions.ApproveRestatement, RestatementId: created.Value);
+    var approvalPreview = await PeriodMaintenanceWorkspace.PreviewAsync(db, reviewer, scope.ClientA, approvalRequest);
+    Assert.True(approvalPreview.Succeeded, approvalPreview.Message);
+    Assert.False(approvalPreview.Value!.State.CanProceed);
+    Assert.Contains(approvalPreview.Value.State.Blockers,
+      x => x.Contains("closed reporting period", StringComparison.OrdinalIgnoreCase));
     var approval = await ClientAccountingService.ApprovePeriodRestatementAsync(db, reviewer, created.Value);
     Assert.False(approval.Succeeded);
     Assert.Equal(ErrorCodes.GateBlocked, approval.ErrorCode);
@@ -205,6 +215,94 @@ public sealed partial class ClientAccountingTests
     var other = await db.FinancialPackages.SingleAsync(x => x.Id == otherContextPackage);
     Assert.Equal(periodTwo.Value, other.PeriodId);
     Assert.Equal(AccountingPackageStates.PackageValidated, other.Status);
+    var exactPackage = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA,
+      100m, "CASH", "same-period-exact-currency", "QAR", periodOne.Value, "STATUTORY");
+    await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA,
+      100m, "CASH", "same-period-wrong-currency", "USD", periodOne.Value, "STATUTORY");
+    await db.SaveChangesAsync();
+    var maintenance = await PeriodMaintenanceQuery.ClosedPeriodsAsync(db, reviewer, scope.ClientA);
+    Assert.True(maintenance.Succeeded, maintenance.Message);
+    var selectedPeriod = Assert.Single(maintenance.Value!, x => x.Id == periodOne.Value);
+    Assert.Equal(exactPackage, Assert.Single(selectedPeriod.Packages).Id);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task OpeningBridgeSourceRequiresExactPriorPackageContextAndLegacyCurrentnessChecksIt()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var priorId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+      new ReportingPeriodRequest(scope.ClientA, "FY25", new(2025, 1, 1), new(2025, 12, 31), "STATUTORY", "QAR"))).Value;
+    Assert.True((await ClientAccountingService.ClosePeriodAsync(db, reviewer, priorId, "Synthetic prior close")).Succeeded);
+    var currentId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+      new ReportingPeriodRequest(scope.ClientA, "FY26", new(2026, 1, 1), new(2026, 12, 31), "STATUTORY", "QAR", priorId))).Value;
+    var revalidationCurrentId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+      new ReportingPeriodRequest(scope.ClientA, "FY27", new(2027, 1, 1), new(2027, 12, 31), "STATUTORY", "QAR", priorId))).Value;
+    var wrongDatesId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA,
+      100m, "CASH", "prior-package-wrong-dates", "QAR", priorId, "STATUTORY");
+    var wrongCurrencyId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA,
+      100m, "CASH", "prior-package-wrong-currency", "USD", priorId, "STATUTORY");
+    var wrongCurrencyPackage = db.FinancialPackages.Local.Single(x => x.Id == wrongCurrencyId);
+    wrongCurrencyPackage.PeriodStart = "2025-01-01";
+    wrongCurrencyPackage.PeriodEnd = "2025-12-31";
+    await db.SaveChangesAsync();
+    var wrongDatesPackage = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == wrongDatesId);
+    var wrongCurrencySource = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == wrongCurrencyId);
+
+    var wrongDatesBridge = await ClientAccountingService.CreateOpeningBalanceBridgeAsync(db, preparer,
+      new(scope.ClientA, currentId, priorId, wrongDatesId, wrongDatesPackage.CalculationHash, 100m, 100m, "Synthetic wrong-date source"));
+    Assert.Equal(ErrorCodes.GenerationStale, wrongDatesBridge.ErrorCode);
+    var wrongCurrencyBridge = await ClientAccountingService.CreateOpeningBalanceBridgeAsync(db, preparer,
+      new(scope.ClientA, currentId, priorId, wrongCurrencyId, wrongCurrencySource.CalculationHash, 100m, 100m, "Synthetic wrong-currency source"));
+    Assert.Equal(ErrorCodes.GenerationStale, wrongCurrencyBridge.ErrorCode);
+    Assert.Empty(await db.OpeningBalanceBridges.ToListAsync());
+
+    var initialApprovalId = Guid.CreateVersion7();
+    var revalidationId = Guid.CreateVersion7();
+    db.OpeningBalanceBridges.AddRange(new OpeningBalanceBridge
+    {
+      Id = initialApprovalId, FirmId = scope.FirmId, ClientId = scope.ClientA, CurrentPeriodId = currentId,
+      PriorPeriodId = priorId, SourcePackageId = wrongDatesId, SourceHash = wrongDatesPackage.CalculationHash,
+      PriorClosingAmount = 100m, CurrentOpeningAmount = 100m, Residual = 0m,
+      Status = "RECONCILED", EvidenceReference = "Synthetic unreviewed wrong-period source",
+      CreatedAt = DateTimeOffset.UtcNow
+    }, new OpeningBalanceBridge
+    {
+      Id = revalidationId, FirmId = scope.FirmId, ClientId = scope.ClientA, CurrentPeriodId = revalidationCurrentId,
+      PriorPeriodId = priorId, SourcePackageId = wrongDatesId, SourceHash = wrongDatesPackage.CalculationHash,
+      PriorClosingAmount = 100m, CurrentOpeningAmount = 100m, Residual = 0m,
+      Status = AccountingWorkflowStates.Approved, EvidenceReference = "Synthetic retained legacy source",
+      ApprovedByUserId = scope.Reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
+    var invalidInitialApproval = await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(db, reviewer,
+      initialApprovalId, expectedClientId: scope.ClientA, expectedSourceHash: wrongDatesPackage.CalculationHash,
+      expectedPriorRevision: 2, reviewReason: "Attempt to review mismatched source");
+    Assert.Equal(ErrorCodes.GenerationStale, invalidInitialApproval.ErrorCode);
+    Assert.Equal("RECONCILED", await db.OpeningBalanceBridges.AsNoTracking().Where(x => x.Id == initialApprovalId)
+      .Select(x => x.Status).SingleAsync());
+    Assert.Empty(await db.OpeningBalanceBridgeReviews.Where(x => x.BridgeId == initialApprovalId).ToListAsync());
+
+    var invalidRevalidation = await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(db, reviewer,
+      revalidationId, expectedClientId: scope.ClientA, expectedSourceHash: wrongDatesPackage.CalculationHash,
+      expectedPriorRevision: 2, reviewReason: "Attempt to revalidate mismatched source");
+    Assert.Equal(ErrorCodes.GenerationStale, invalidRevalidation.ErrorCode);
+    Assert.Empty(await db.OpeningBalanceBridgeReviews.Where(x => x.BridgeId == revalidationId).ToListAsync());
+
+    var readiness = await PeriodCloseReadinessQuery.GetReadinessAsync(db, reviewer, currentId);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    Assert.Contains(readiness.Value!.Blockers, x => x.Code == "opening-bridge.not-current");
+    var revalidationReadiness = await PeriodCloseReadinessQuery.GetReadinessAsync(db, reviewer, revalidationCurrentId);
+    Assert.True(revalidationReadiness.Succeeded, revalidationReadiness.Message);
+    Assert.Contains(revalidationReadiness.Value!.Blockers, x => x.Code == "opening-bridge.prior-close-changed");
+    var workspace = await AccountingWorkspaceQuery.GetAsync(db, reviewer, scope.ClientA);
+    Assert.True(workspace.Succeeded, workspace.Message);
+    Assert.False(Assert.Single(workspace.Value!.OpeningBridges, x => x.Id == revalidationId).Current);
   }
 
   [Fact]

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Completion;
@@ -216,7 +217,14 @@ public static class CompletionBundleFixture
   {
     var sourceLayout = await db.StatementLayoutVersions.AsNoTracking()
       .SingleAsync(x => x.Id == sourceLayoutId && x.FirmId == preparer.FirmId && x.ClientId == clientId);
-    var lines = await StatementLayoutService.LoadLinesAsync(db, preparer.FirmId, sourceLayoutId, CancellationToken.None);
+    var sourceLines = await StatementLayoutService.GetLayoutLinesAsync(db, preparer, sourceLayoutId, CancellationToken.None);
+    Assert.True(sourceLines.Succeeded, sourceLines.Message);
+    static IReadOnlyList<string>? DeserializeLineCodes(string? json) => string.IsNullOrWhiteSpace(json)
+      ? null : JsonSerializer.Deserialize<List<string>>(json);
+    var lines = sourceLines.Value!.Select(x => new StatementLineDefinition(
+      x.LineCode, x.Label, x.LineKind, x.Section, x.LineOrder, x.DisplaySign, x.TaxonomyNodeCode,
+      DeserializeLineCodes(x.ChildLineCodesJson), DeserializeLineCodes(x.ReferencedLineCodesJson),
+      DeserializeLineCodes(x.OperationsJson), x.ZeroDenominatorYieldsZero, x.DenominatorLineCode, x.IsSubtotal)).ToList();
     var cashIndex = lines.FindIndex(x => x.LineCode == "CASH");
     var equipmentIndex = lines.FindIndex(x => x.LineCode == "PPE");
     Assert.True(cashIndex >= 0 && equipmentIndex >= 0,

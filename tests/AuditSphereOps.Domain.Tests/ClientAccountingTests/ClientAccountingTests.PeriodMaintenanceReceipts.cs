@@ -38,6 +38,53 @@ public sealed partial class ClientAccountingTests
   }
 
   [Fact, Trait("Profile", "Database")]
+  public async Task Maintenance_LocksOnlyExactPeriodPackagesAfterReview()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var priorId = await ClosedMaintenancePeriodAsync(pg, scope);
+    Guid foreignPeriodId, exactPackageId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      foreignPeriodId = (await ClientAccountingService.CreatePeriodAsync(setup, preparer,
+        new(scope.ClientA, "2026-CASH", new(2026, 1, 1), new(2026, 12, 31), "CASH", "QAR"))).Value;
+      exactPackageId = await AddPackageAsync(setup, scope, scope.ClientA, scope.EngagementA,
+        100m, "CASH", "locked-exact-source", "QAR", priorId, "STATUTORY");
+      await setup.SaveChangesAsync();
+    }
+
+    await using var publisher = new AuditSphereDbContext(pg.Options);
+    var package = await publisher.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == exactPackageId);
+    var reviewed = await ReviewedMaintenanceAsync(publisher, preparer, scope.ClientA, PeriodMaintenanceActions.RollForward,
+      new(scope.ClientA, priorId, "2027", new(2027, 1, 1), new(2027, 12, 31), "STATUTORY", "QAR",
+        package.CalculationHash, 100m, 100m, "Synthetic reviewed opening", exactPackageId, ExpectedPriorRevision: 2));
+
+    Guid foreignPackageId;
+    await using (var otherPeriodWriter = new AuditSphereDbContext(pg.Options))
+    {
+      foreignPackageId = await AddPackageAsync(otherPeriodWriter, scope, scope.ClientA, scope.EngagementA,
+        100m, "CASH", "late-same-date-other-period", "QAR", foreignPeriodId, "CASH");
+      await otherPeriodWriter.SaveChangesAsync();
+    }
+
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
+    await blocker.FinancialPackages.FromSqlInterpolated(
+      $"SELECT * FROM financial_packages WHERE firm_id={scope.FirmId} AND client_id={scope.ClientA} AND id={foreignPackageId} FOR UPDATE")
+      .AsNoTracking().SingleAsync();
+    await publisher.Database.OpenConnectionAsync();
+    await publisher.Database.ExecuteSqlRawAsync("SET lock_timeout = '500ms'");
+
+    var result = await PeriodMaintenanceWorkspace.ExecuteAsync(publisher, preparer, scope.ClientA, reviewed);
+    Assert.True(result.Succeeded, result.Message);
+    Assert.Equal(priorId, await publisher.ClientReportingPeriods.Where(x => x.Id == result.Value!.Result.PeriodId)
+      .Select(x => x.PriorPeriodId).SingleAsync());
+    await publisher.Database.ExecuteSqlRawAsync("RESET lock_timeout");
+    await blockerTransaction.RollbackAsync();
+  }
+
+  [Fact, Trait("Profile", "Database")]
   public async Task Maintenance_PublicationAllowsConcurrentActorForeignKeyChecks()
   {
     await using var pg = await PgTestSchema.CreateAsync();

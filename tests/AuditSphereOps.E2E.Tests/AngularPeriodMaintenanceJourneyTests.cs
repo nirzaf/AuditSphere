@@ -31,6 +31,7 @@ public sealed class AngularPeriodMaintenanceJourneyTests
     var nextEnd = validatedPackage ? "2027-12-31" : "2026-12-31";
     var sourceHash = Hashing.Sha256Hex("rollforward-source");
     var packageSeed = validatedPackage ? await FinancialPackageFixture.CreatePackageAsync(host) : null;
+    Guid? foreignPackageId = null;
     Guid priorPeriodId;
     await using (var db = host.CreateDbContext())
     {
@@ -43,6 +44,27 @@ public sealed class AngularPeriodMaintenanceJourneyTests
         sourceHash = sourcePackage.CalculationHash;
         await db.ClientReportingPeriods.Where(x => x.Id == priorPeriodId)
           .ExecuteUpdateAsync(x => x.SetProperty(p => p.Status, AccountingWorkflowStates.Closed));
+        if (!dropResponse)
+        {
+          var foreignPeriodId = Guid.CreateVersion7();
+          foreignPackageId = Guid.CreateVersion7();
+          db.ClientReportingPeriods.Add(new ClientReportingPeriod
+          {
+            Id = foreignPeriodId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+            PeriodCode = "FY2026-FOREIGN", StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+            Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Closed, Revision = 2,
+            CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+          });
+          var foreignPackage = new FinancialPackage();
+          db.Entry(foreignPackage).CurrentValues.SetValues(sourcePackage);
+          foreignPackage.Id = foreignPackageId.Value;
+          foreignPackage.PeriodId = foreignPeriodId;
+          foreignPackage.TemplateVersion = "e2e-foreign-period-v1";
+          foreignPackage.CalculationHash = Hashing.Sha256Hex("rollforward-foreign-period-package");
+          foreignPackage.CreatedAt = DateTimeOffset.UtcNow;
+          db.FinancialPackages.Add(foreignPackage);
+          await db.SaveChangesAsync();
+        }
       }
       else db.ClientReportingPeriods.Add(new ClientReportingPeriod
       {
@@ -84,12 +106,18 @@ public sealed class AngularPeriodMaintenanceJourneyTests
     await page.Locator("select[name='client']").SelectOptionAsync(host.Fixture.ClientId.ToString("D"));
     var priorPicker = page.Locator("select[name='prior']");
     await Assertions.Expect(priorPicker).ToContainTextAsync(priorCode);
-    await Assertions.Expect(page.GetByRole(AriaRole.Status)).ToContainTextAsync("1 closed periods for client");
+    await Assertions.Expect(page.GetByRole(AriaRole.Status)).ToContainTextAsync(
+      foreignPackageId is null ? "1 closed periods for client" : "2 closed periods for client");
+    await priorPicker.SelectOptionAsync(priorPeriodId.ToString("D"));
+    await Assertions.Expect(priorPicker).ToHaveValueAsync(priorPeriodId.ToString("D"));
     await Assertions.Expect(page.GetByLabel("New period code", new() { Exact = true })).ToHaveValueAsync(nextCode);
     await Assertions.Expect(page.GetByLabel("Start date", new() { Exact = true })).ToHaveValueAsync(nextStart);
     await Assertions.Expect(page.GetByLabel("End date", new() { Exact = true })).ToHaveValueAsync(nextEnd);
     if (packageSeed is not null)
     {
+      if (foreignPackageId is { } foreignId)
+        await Assertions.Expect(page.Locator($"select[name='package'] option[value='{foreignId:D}']"))
+          .ToHaveCountAsync(0);
       await page.Locator("select[name='package']").SelectOptionAsync(packageSeed.PackageId.ToString("D"));
       await Assertions.Expect(page.Locator("select[name='package']")).ToHaveValueAsync(packageSeed.PackageId.ToString("D"));
     }
