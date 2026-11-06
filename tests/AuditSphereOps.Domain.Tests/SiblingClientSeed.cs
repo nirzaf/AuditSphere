@@ -111,7 +111,8 @@ internal static class SiblingClientSeed
       db.FinancialPackages.Add(new FinancialPackage
       {
         Id = packageId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId, AdjustedDatasetId = adjustedId,
-        MappingVersionId = mappingId, AdjustmentPlanId = planId, Framework = "IFRS", PeriodStart = "2026-01-01",
+        MappingVersionId = mappingId, AdjustmentPlanId = planId, PeriodId = periodId, Basis = "STATUTORY",
+        Framework = "IFRS", PeriodStart = "2026-01-01",
         PeriodEnd = "2026-12-31", TaxonomyVersion = "tax-v1", TemplateVersion = "template-v1",
         CalculationEngineVersion = "test-engine", CalculationHash = digest, Currency = "QAR",
         Status = AccountingPackageStates.PackageValidated, CreatedAt = now
@@ -119,7 +120,8 @@ internal static class SiblingClientSeed
       db.FinancialPackages.Add(new FinancialPackage
       {
         Id = revisedPackageId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId, AdjustedDatasetId = adjustedId,
-        MappingVersionId = mappingId, AdjustmentPlanId = planId, Framework = "IFRS", PeriodStart = "2026-01-01",
+        MappingVersionId = mappingId, AdjustmentPlanId = planId, PeriodId = periodId, Basis = "STATUTORY",
+        Framework = "IFRS", PeriodStart = "2026-01-01",
         PeriodEnd = "2026-12-31", TaxonomyVersion = "tax-v1", TemplateVersion = "template-v2",
         CalculationEngineVersion = "test-engine", CalculationHash = revisedDigest, Currency = "QAR",
         Status = AccountingPackageStates.PackageValidated, CreatedAt = now
