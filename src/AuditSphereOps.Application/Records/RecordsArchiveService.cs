@@ -799,20 +799,60 @@ public static class RecordsArchiveService
     var clientProfiles = typedAccounting is null ? [] : await typedAccounting.ClientAccountingProfiles.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.ClientId, x.Jurisdiction, x.FunctionalCurrency, x.FiscalYearStartMonth, x.FiscalYearStartDay, x.SourceSystem, x.SourceSystemIdentifier, x.Status, x.Revision, x.CreatedAt }).ToListAsync(ct);
+    // These client-level rows have no engagement key; include only identities referenced by this engagement's evidence.
     var reportingPeriods = typedAccounting is null ? [] : await typedAccounting.ClientReportingPeriods.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId).OrderBy(x => x.Id)
+      .Where(period => period.FirmId == archive.FirmId && period.ClientId == archive.ClientId &&
+        (typedAccounting.TrialBalanceDatasets.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.PeriodId == period.Id) ||
+         typedAccounting.TrialBalanceImportBatches.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.PeriodId == period.Id) ||
+         db.FinancialPackages.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.PeriodId == period.Id) ||
+         typedAccounting.SourceImportBatches.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.PeriodId == period.Id) ||
+         typedAccounting.ClientPeriodRestatements.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.PeriodId == period.Id) ||
+         typedAccounting.AccountingReconciliations.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.PeriodId == period.Id) ||
+         typedAccounting.SpecialistAccountingSchedules.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.PeriodId == period.Id) ||
+         typedAccounting.AnalyticalReviews.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && (x.PeriodId == period.Id || x.ComparisonPeriodId == period.Id)) ||
+         typedAccounting.AdjustmentJournals.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.PeriodId == period.Id))).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.PeriodCode, x.StartDate, x.EndDate, x.Basis, x.Currency, x.Status, x.PriorPeriodId, x.Revision, x.ClosedAt, x.CloseReason, x.CreatedAt }).ToListAsync(ct);
+    var reportingPeriodIds = reportingPeriods.Select(x => x.Id).ToArray();
     var periodAmendments = typedAccounting is null ? [] : await typedAccounting.ClientPeriodAmendments.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId).OrderBy(x => x.Id)
+      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && reportingPeriodIds.Contains(x.PeriodId)).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.PeriodId, x.PreviousRevision, x.AmendmentRevision, x.Reason, x.CreatedByUserId, x.CreatedAt }).ToListAsync(ct);
     var reportingBooks = typedAccounting is null ? [] : await typedAccounting.ClientReportingBooks.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId).OrderBy(x => x.Id)
+      .Where(book => book.FirmId == archive.FirmId && book.ClientId == archive.ClientId &&
+        reportingPeriodIds.Contains(book.PeriodId) &&
+        (typedAccounting.TrialBalanceDatasets.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.BookId == book.Id && x.PeriodId == book.PeriodId) ||
+         typedAccounting.TrialBalanceImportBatches.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.BookId == book.Id && x.PeriodId == book.PeriodId) ||
+         db.FinancialPackages.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.BookId == book.Id && x.PeriodId == book.PeriodId) ||
+         typedAccounting.SourceImportBatches.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.BookId == book.Id && x.PeriodId == book.PeriodId) ||
+         typedAccounting.AccountingReconciliations.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.BookId == book.Id && x.PeriodId == book.PeriodId) ||
+         typedAccounting.AdjustmentJournals.Any(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId &&
+            x.EngagementId == archive.EngagementId && x.BookId == book.Id && x.PeriodId == book.PeriodId))).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.PeriodId, x.Code, x.Basis, x.InclusionRule, x.Currency, x.Status, x.Revision, x.CreatedAt }).ToListAsync(ct);
+    // An opening bridge is not engagement-bound itself; require its exact package/prior-period pair and scoped current period.
     var openingBalanceBridges = typedAccounting is null ? [] : await typedAccounting.OpeningBalanceBridges.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId).OrderBy(x => x.Id)
+      .Where(bridge => bridge.FirmId == archive.FirmId && bridge.ClientId == archive.ClientId &&
+        bridge.SourcePackageId.HasValue && packageIds.Contains(bridge.SourcePackageId.Value) &&
+        bridge.PriorPeriodId.HasValue && reportingPeriodIds.Contains(bridge.CurrentPeriodId) &&
+        db.FinancialPackages.Any(package => package.FirmId == archive.FirmId && package.ClientId == archive.ClientId &&
+          package.EngagementId == archive.EngagementId && package.Id == bridge.SourcePackageId.Value &&
+          package.PeriodId.HasValue && package.PeriodId == bridge.PriorPeriodId)).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.CurrentPeriodId, x.PriorPeriodId, x.SourcePackageId, x.SourceHash, x.PriorClosingAmount, x.CurrentOpeningAmount, x.Residual, x.Status, x.EvidenceReference, x.ApprovedByUserId, x.ApprovedAt, x.CreatedAt }).ToListAsync(ct);
+    var openingBalanceBridgeIds = openingBalanceBridges.Select(x => x.Id).ToArray();
     var openingBalanceBridgeReviews = typedAccounting is null ? [] : await typedAccounting.OpeningBalanceBridgeReviews.AsNoTracking()
-      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId).OrderBy(x => x.Id)
+      .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && openingBalanceBridgeIds.Contains(x.BridgeId)).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.BridgeId, x.PriorPeriodId, x.PriorPeriodRevision, x.EvidenceHash, x.Reason, x.ReviewerId, x.CreatedAt }).ToListAsync(ct);
     var periodRestatements = typedAccounting is null ? [] : await typedAccounting.ClientPeriodRestatements.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId).OrderBy(x => x.Id)

@@ -20,7 +20,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "ac146c7f62d9cf9ba64f7bc88294d066a52724b7",
+  "headCommit": "7ea9ed58db82558d200f6f611fd8c3e6eab03424",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": true,
@@ -1143,7 +1143,8 @@
     "browser": "NOT_RUN",
     "inventory": "NOT_PERFORMED",
     "acceptance": "NOT_CLAIMED",
-    "evidence": ".local/autonomous/evidence/ci-b8b0e3b3-current-20261106/terminal-proof.json"
+    "evidence": ".local/autonomous/evidence/ci-b8b0e3b3-current-20261106/terminal-proof.json",
+    "t02PeriodAudienceFollowup": ".local/autonomous/evidence/lifecycle-gap-t02-period-audience-20261106/focused-test-pass-20261106.json; build PASS; PostgreSQL 18.6 test 1/1 PASS; exact CI NOT_RUN."
    },
    "lifecycleGapT03T04T07_20261106": {
     "attachmentSha256": "1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5",
@@ -1548,7 +1549,7 @@
    "specification": "AUDITSPHERE-PRACTICE-MANAGEMENT-AUDIT.md (external proposal attachment)",
    "specificationSha256": "e4f9d65743f402502c172ce6d1d9b6ce6e9974b3af96a92b3fa71db227a49a15",
    "sourceBase": "d6006472f444dcc0b01fac9cdd87da2fe295744a",
-   "tracker": "T05/T06, T08–T10, T14–T17 and T21/T22 have focused checks; T21/T22 candidate CI and acceptance remain open. T14 exact-context ambiguity regression: 1/1 passed; exact-candidate CI pending.",
+   "tracker": "T14 published; fixture repair at 7ea9; fast PASS, images/full pending; T12/T13 gated.",
    "inventoryStatus": "AUDITED_WITH_OPEN_ACCEPTANCE",
    "criterionCount": 35,
    "criterionAudit": "Separate prior audit: 87 repository criteria; this attachment: 35 criteria; whole acceptance PARTIAL.",
@@ -1557,7 +1558,7 @@
    "auditCommit": "a6e160c3fdc6b2abed9631340d0f48d7453d700e",
    "auditDate": "2026-10-18",
    "auditEvidence": "docs/execution/auditsphere-execution-report-practice-management-criterion-audit-current.md",
-   "ciObservation": "42192567559/8d8: D1990/1998; API143; E2E328/336,8 fail; 15m abort; D repair9/9; candidate CI pending.",
+   "ciObservation": "7ea9 fast 42256097155 PASS; all 3 exact checkouts; images/full pending.",
    "inspectedCriteriaRanges": [
     "ASPM-CRM-01..05",
     "ASPM-COM-01..06",
@@ -1682,13 +1683,13 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi":   {
-    "sourceSha": "8d8d12a9f24086a368725b16664a5418ddddd551",
-    "fastRun": 42186434749,
-    "fast": "PASS; 3 exact checkouts.",
-    "imagesRun": 42186434856,
-    "images": "PASS; 3 exact checkouts and pins.",
-    "candidate": "T14 focused 2/2; T17 Domain repair 9/9. Base 8d8 full runs 421925/421942 failed. Dirty ac146 candidate exact CI pending.",
-    "proof": ".local/autonomous/evidence/ci-8d8d12a9-current-20261106/",
+    "sourceSha": "7ea9ed58db82558d200f6f611fd8c3e6eab03424",
+    "fastRun": 42256097155,
+    "fast": "PASS; all three job logs show exact 7ea9ed58 checkout.",
+    "imagesRun": null,
+    "images": "NOT_DISPATCHED",
+    "candidate": "Fixture repair published; full T17 gate remains open and T12/T13 gated.",
+    "proof": ".local/autonomous/evidence/ci-7ea9ed58-current-20261106/fast-terminal-42256097155/",
     "aggregatePass": false
   },
   "uxU03ContextSwitcher": {
@@ -1700,5 +1701,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-06T12:36:12Z"
+  "updatedAtUtc": "2026-11-06T18:58:17Z"
 }
