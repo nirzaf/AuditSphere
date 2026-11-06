@@ -118127,7 +118127,8 @@
           "releaseCheckpointId",
           "releaseManifestDigest",
           "releaseMatchesCandidate",
-          "issueState"
+          "issueState",
+          "deliveryDisposition"
         ],
         "type": "object",
         "properties": {
@@ -118218,6 +118219,9 @@
             "type": "boolean"
           },
           "issueState": {
+            "type": "string"
+          },
+          "deliveryDisposition": {
             "type": "string"
           }
         }

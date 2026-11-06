@@ -13,13 +13,17 @@ public sealed class ReleaseSafetyOptions
   public bool RequireExternalCheckpointBeforeDelivery { get; set; } = true;
 
   public void Validate(
-    bool externalEffectsEnabled,
     bool allowSimulationAdapters,
     string environmentName,
     bool liveAuditRelease = false)
   {
-    if (liveAuditRelease && !externalEffectsEnabled)
-      throw new InvalidOperationException("LiveAuditRelease requires ExternalEffects:Enabled=true.");
+    // A release checkpoint writes only to the explicitly configured local append-only store.
+    // It is not permission to compose mail, M365 or another provider in the API host.
+    if (liveAuditRelease && environmentName is not ("Acceptance" or "Production"))
+      throw new InvalidOperationException("LiveAuditRelease requires an isolated Acceptance or approved Production host.");
+
+    if (liveAuditRelease && allowSimulationAdapters)
+      throw new InvalidOperationException("Live audit release cannot use simulation adapters.");
 
     if (environmentName == "Production" && allowSimulationAdapters)
       throw new InvalidOperationException("Simulation adapters are forbidden in production.");

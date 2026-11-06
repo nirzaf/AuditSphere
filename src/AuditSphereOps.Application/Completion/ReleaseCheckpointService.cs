@@ -17,10 +17,11 @@ public sealed record RecordReleaseCheckpointRequest(
 
 public static class ReleaseCheckpointService
 {
-  /// <summary>Enqueues the exact checkpoint intent for the eligible core worker. The direct writer is retained for
+  /// <summary>Enqueues the exact checkpoint intent for the isolated release-checkpoint worker. The direct writer is retained for
   /// controlled local verification; this producer is the supported deployment path.</summary>
   public static async Task<CommandResult<Guid>> EnqueueCheckpointAsync(
     IAuditSphereDbContext db, ActorContext actor, RecordReleaseCheckpointRequest request,
+    ReleaseCheckpointRuntimeOptions runtime, IOperationStore operationStore, ReleaseCheckpointHandler handler,
     CancellationToken ct = default)
   {
     if (request.CandidateId == Guid.Empty || request.ExpectedCandidateRevision < 1 ||
@@ -40,6 +41,9 @@ public static class ReleaseCheckpointService
         ["Partner", "Administrator"], InternalOnly: true, RequireProfessionalWork: true), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (!runtime.Enabled)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "Release checkpoint execution is not enabled for this environment.");
     if (candidate.Revision != request.ExpectedCandidateRevision)
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The release candidate changed; reload it.");
     if (candidate.Status != ReleaseStates.Ready)
@@ -61,35 +65,21 @@ public static class ReleaseCheckpointService
       authorizedReleaseKey = releaseKey,
       manifestBytesBase64 = Convert.ToBase64String(request.ManifestBytes)
     });
-    var bytes = System.Text.Encoding.UTF8.GetBytes(payload);
-    var requestDigest = Hashing.Sha256Hex(bytes);
-    var existing = await db.DurableOperations.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == actor.FirmId && x.OperationKind == ReleaseCheckpointHandler.Kind &&
-      x.IdempotencyKey == idempotencyKey, ct);
-    if (existing is not null)
+    try
     {
-      if (existing.TargetId != candidate.Id || existing.ExpectedRevision != candidate.Revision ||
-          !string.Equals(existing.PayloadJson, payload, StringComparison.Ordinal) ||
-          !string.Equals(existing.RequestDigest, requestDigest, StringComparison.Ordinal))
-        return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
-          "A checkpoint operation already exists for a different request; reconcile the retained intent.");
-      return CommandResult<Guid>.Ok(existing.Id);
+      await using var tx = await db.Database.BeginTransactionAsync(ct);
+      var enqueued = await operationStore.EnqueueAsync(db, new OperationRequest(
+        actor.FirmId, candidate.ClientId, candidate.EngagementId, ReleaseCheckpointHandler.Kind,
+        candidate.Id, candidate.Revision, idempotencyKey, payload, actor.UserId), handler, ct);
+      if (!enqueued.Succeeded)
+        return CommandResult<Guid>.Fail(enqueued.ErrorCode!, enqueued.Message!);
+      await tx.CommitAsync(ct);
+      return enqueued;
     }
-    var operation = new DurableOperation
+    catch (OperationBlockedException)
     {
-      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = candidate.ClientId,
-      EngagementId = candidate.EngagementId, OperationKind = ReleaseCheckpointHandler.Kind,
-      PayloadJson = payload, IdempotencyKey = idempotencyKey,
-      RequestDigest = requestDigest, RequestBytes = bytes,
-      Status = OperationState.PENDING, ExecutionMode = OperationMode.LOCAL,
-      AuthorityMode = OperationAuthority.LOCAL_VALIDATION, TargetId = candidate.Id,
-      ExpectedRevision = candidate.Revision, CorrelationId = candidate.Id,
-      OriginatorId = actor.UserId, NextAttemptAt = DateTimeOffset.UtcNow,
-      ExecutionGroup = "general", CreatedAt = DateTimeOffset.UtcNow
-    };
-    db.DurableOperations.Add(operation);
-    await db.SaveChangesAsync(ct);
-    return CommandResult<Guid>.Ok(operation.Id);
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The checkpoint operation request was refused.");
+    }
   }
 
   public static async Task<CommandResult<Guid>> RecordCheckpointDirectAsync(

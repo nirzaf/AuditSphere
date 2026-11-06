@@ -4,6 +4,25 @@ using AuditSphereOps.Domain.Shared;
 
 namespace AuditSphereOps.Application.Completion;
 
+/// <summary>Shared API/worker activation and storage binding for the release-checkpoint capability.</summary>
+public sealed record ReleaseCheckpointRuntimeOptions(bool Enabled, string RootDirectory)
+{
+  public static ReleaseCheckpointRuntimeOptions Resolve(string? configuredRoot, string environmentName, bool enabled)
+  {
+    var explicitlyConfigured = !string.IsNullOrWhiteSpace(configuredRoot);
+    var root = explicitlyConfigured ? configuredRoot! : LocalAppendOnlyCheckpointStore.DefaultRootDirectory;
+    if (enabled)
+    {
+      if (environmentName is not ("Acceptance" or "Production"))
+        throw new InvalidOperationException("Live audit release requires an isolated Acceptance or approved Production host.");
+      if (!explicitlyConfigured || !Path.IsPathFullyQualified(root))
+        throw new InvalidOperationException("Live audit release requires an explicitly configured absolute Storage:ReleaseCheckpointRoot shared by API and worker.");
+    }
+
+    return new(enabled, Path.GetFullPath(root));
+  }
+}
+
 /// <summary>
 /// Local, append-only, content-addressed release checkpoint store outside the webroot (§24.4, §25.7).
 /// Writes release evidence to disk, re-reads and compares to verify integrity.

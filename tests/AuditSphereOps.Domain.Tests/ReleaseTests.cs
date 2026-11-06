@@ -23,7 +23,12 @@ public sealed class ReleaseTests
     var manifestBytes = System.Text.Encoding.UTF8.GetBytes("release-test-manifest-payload-a");
     var digest = Hashing.Sha256Hex(manifestBytes);
     var checkpointDir = Path.Combine(Path.GetTempPath(), "AuditSphereOps-Tests", Guid.NewGuid().ToString("N"));
-    var store = new LocalAppendOnlyCheckpointStore(checkpointDir);
+    var runtime = ReleaseCheckpointRuntimeOptions.Resolve(checkpointDir, "Acceptance", enabled: true);
+    var store = new LocalAppendOnlyCheckpointStore(runtime.RootDirectory);
+    var failAfterCheckpointWrite = new LoseFirstCheckpointReadBackStore(store);
+    var operationStore = new PostgresOperationStore(
+      new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options)));
+    var handler = new ReleaseCheckpointHandler(failAfterCheckpointWrite);
     Guid candidateId;
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -54,21 +59,33 @@ public sealed class ReleaseTests
       Assert.Equal(ErrorCodes.ManifestMismatch, wrongManifest.ErrorCode);
       Assert.Empty(await db.Releases.ToListAsync());
 
-      // 3. Enqueue the exact checkpoint intent for the core worker, then record the local verification receipt.
+      // The supported API path remains off unless its isolated checkpoint store is explicitly configured.
+      var disabledRuntime = ReleaseCheckpointRuntimeOptions.Resolve(null, "Development", enabled: false);
+      var disabled = await ReleaseCheckpointService.EnqueueCheckpointAsync(db, fixture.Partner,
+        new RecordReleaseCheckpointRequest(candidateId, 1, "release-001", digest, manifestBytes), disabledRuntime,
+        operationStore, handler);
+      Assert.False(disabled.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, disabled.ErrorCode);
+      Assert.Empty(await db.DurableOperations.Where(x => x.OperationKind == ReleaseCheckpointHandler.Kind).ToListAsync());
+
+      // 4. Enqueue the exact checkpoint intent for the isolated live worker group.
       var enqueued = await ReleaseCheckpointService.EnqueueCheckpointAsync(db, fixture.Partner,
-        new RecordReleaseCheckpointRequest(candidateId, 1, "release-001", digest, manifestBytes));
+        new RecordReleaseCheckpointRequest(candidateId, 1, "release-001", digest, manifestBytes), runtime,
+        operationStore, handler);
       Assert.True(enqueued.Succeeded, enqueued.Message);
       var checkpointOperation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == enqueued.Value);
       Assert.Equal("RecordReleaseCheckpoint.v1", checkpointOperation.OperationKind);
       Assert.Equal(OperationState.PENDING, checkpointOperation.Status);
-      Assert.Equal("general", checkpointOperation.ExecutionGroup);
+      Assert.Equal(ReleaseCheckpointHandler.WorkerGroup, checkpointOperation.ExecutionGroup);
       Assert.Equal(candidateId, checkpointOperation.TargetId);
       var repeatedEnqueue = await ReleaseCheckpointService.EnqueueCheckpointAsync(db, fixture.Partner,
-        new RecordReleaseCheckpointRequest(candidateId, 1, " release-001 ", digest, manifestBytes));
+        new RecordReleaseCheckpointRequest(candidateId, 1, " release-001 ", digest, manifestBytes), runtime,
+        operationStore, handler);
       Assert.True(repeatedEnqueue.Succeeded, repeatedEnqueue.Message);
       Assert.Equal(enqueued.Value, repeatedEnqueue.Value);
       var wrongKeyEnqueue = await ReleaseCheckpointService.EnqueueCheckpointAsync(db, fixture.Partner,
-        new RecordReleaseCheckpointRequest(candidateId, 1, "release-002", digest, manifestBytes));
+        new RecordReleaseCheckpointRequest(candidateId, 1, "release-002", digest, manifestBytes), runtime,
+        operationStore, handler);
       Assert.False(wrongKeyEnqueue.Succeeded);
       Assert.Equal(ErrorCodes.IdempotencyConflict, wrongKeyEnqueue.ErrorCode);
       Assert.DoesNotContain("release-001", wrongKeyEnqueue.Message, StringComparison.Ordinal);
@@ -80,12 +97,39 @@ public sealed class ReleaseTests
       using (var checkpointPayload = System.Text.Json.JsonDocument.Parse(checkpointOperations[0].PayloadJson))
         Assert.Equal("release-001", checkpointPayload.RootElement.GetProperty("authorizedReleaseKey").GetString());
 
-      var cpResult = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, store, fixture.Partner,
-        new RecordReleaseCheckpointRequest(candidateId, 1, "release-001", digest, manifestBytes));
-      Assert.True(cpResult.Succeeded);
       var candidateScope = await db.ReleaseCandidates.AsNoTracking().SingleAsync(x => x.Id == candidateId);
+      var wrongGroupOptions = new WorkerOptions(fixture.FirmId, "Acceptance", ExternalEffectsEnabled: true, Group: "general");
+      var wrongGroupDefinition = new OperationDefinition(ReleaseCheckpointHandler.Kind, OperationMode.LIVE,
+        OperationAuthority.LIVE_PROVIDER, SchemaVersion: 1, Group: "general");
+      var wrongGroupClaim = await operationStore.ClaimAsync(wrongGroupOptions, [wrongGroupDefinition],
+        "release-checkpoint-wrong-group-test", reconciliation: false, CancellationToken.None);
+      Assert.Null(wrongGroupClaim);
+
+      var workerOptions = new WorkerOptions(fixture.FirmId, "Acceptance", ExternalEffectsEnabled: true,
+        Group: ReleaseCheckpointHandler.WorkerGroup);
+      var dispatcher = new OperationDispatcher(operationStore, new DurableOperationRegistry([handler], workerOptions), workerOptions);
+      Assert.True(await dispatcher.ProcessNextAsync());
+      db.ChangeTracker.Clear();
+      var uncertainOperation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == enqueued.Value);
+      Assert.Equal(OperationState.RESULT_UNCERTAIN, uncertainOperation.Status);
+      Assert.Equal(OperationMode.LIVE, uncertainOperation.ExecutionMode);
+      Assert.Equal(OperationAuthority.LIVE_PROVIDER, uncertainOperation.AuthorityMode);
+      Assert.Equal(ReleaseCheckpointHandler.WorkerGroup, uncertainOperation.ExecutionGroup);
+      Assert.Equal(digest, (await store.ProbeAsync(digest))?.ContentSha256Hex);
+
+      // The store write succeeded but its first acknowledgement was lost; reconciliation probes the same content identity.
+      await Task.Delay(TimeSpan.FromSeconds(5.2)); // Respect the dispatcher's fail-closed uncertainty backoff.
+      Assert.True(await dispatcher.ProcessNextAsync());
+      db.ChangeTracker.Clear();
+      var reconciledOperation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == enqueued.Value);
+      Assert.Equal(OperationState.COMPLETED, reconciledOperation.Status);
+      Assert.Equal(uncertainOperation.Id, reconciledOperation.Id);
       var checkpointBeforeWorkerRefresh = await db.ReleaseCheckpoints.AsNoTracking()
         .SingleAsync(x => x.ReleaseCandidateId == candidateId);
+      Assert.Equal(digest, (await store.VerifyAsync(checkpointBeforeWorkerRefresh.StoredReference, digest))?.ContentSha256Hex);
+      Assert.Equal(checkpointBeforeWorkerRefresh.Id, (await db.ReleaseCheckpoints.AsNoTracking()
+        .SingleAsync(x => x.ReleaseCandidateId == candidateId)).Id);
+
       var wrongKeyWorkerOperation = new DurableOperation
       {
         FirmId = fixture.FirmId,
@@ -104,7 +148,7 @@ public sealed class ReleaseTests
         ExpectedRevision = 1
       };
       var workerKeyConflict = await Assert.ThrowsAsync<OperationBlockedException>(() =>
-        new ReleaseCheckpointHandler(store).PublishAsync(db, wrongKeyWorkerOperation,
+        handler.PublishAsync(db, wrongKeyWorkerOperation,
           new OperationResult("synthetic://checkpoint/wrong-key", digest), CancellationToken.None));
       Assert.Equal("checkpoint-release-key-conflict", workerKeyConflict.Code);
       db.ChangeTracker.Clear();
@@ -154,7 +198,7 @@ public sealed class ReleaseTests
       Assert.Equal(OperationState.PROVIDER_BLOCKED, deliveryIntent.Status);
       Assert.Equal("general", deliveryIntent.ExecutionGroup);
       Assert.Equal("release.delivery.awaiting.authorization", deliveryIntent.ErrorCode);
-      Assert.Equal("general", new ReleaseCheckpointHandler(store).Definition.Group);
+      Assert.Equal(ReleaseCheckpointHandler.WorkerGroup, handler.Definition.Group);
       db.ChangeTracker.Clear();
       Assert.Equal(ReleaseStates.Issued, (await db.ReleaseCandidates.AsNoTracking().SingleAsync(x => x.Id == candidateId)).Status);
 
@@ -165,6 +209,28 @@ public sealed class ReleaseTests
         DELETE FROM releases WHERE firm_id = {fixture.FirmId} AND id = {issued.Value}
         """));
     }
+  }
+
+  private sealed class LoseFirstCheckpointReadBackStore(IReleaseCheckpointStore inner) : IReleaseCheckpointStore
+  {
+    private int failNextVerify = 1;
+
+    public Task<CheckpointReceipt> WriteAsync(string manifestDigest, byte[] manifestBytes,
+      CancellationToken ct = default) => inner.WriteAsync(manifestDigest, manifestBytes, ct);
+
+    public Task<CheckpointReceipt?> VerifyAsync(string reference, string expectedDigest,
+      CancellationToken ct = default)
+    {
+      if (Interlocked.Exchange(ref failNextVerify, 0) == 1)
+        throw new IOException("Synthetic acknowledgement loss after checkpoint write.");
+      return inner.VerifyAsync(reference, expectedDigest, ct);
+    }
+
+    public Task<CheckpointReceipt?> ProbeAsync(string manifestDigest, CancellationToken ct = default) =>
+      inner.ProbeAsync(manifestDigest, ct);
+
+    public Task<CheckpointContent?> ReadVerifiedAsync(string reference, string expectedDigest,
+      CancellationToken ct = default) => inner.ReadVerifiedAsync(reference, expectedDigest, ct);
   }
 
   [Fact]

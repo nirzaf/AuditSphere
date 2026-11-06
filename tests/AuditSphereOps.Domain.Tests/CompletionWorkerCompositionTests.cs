@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Domain.Completion;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -73,5 +74,62 @@ public sealed class CompletionWorkerCompositionTests
     Assert.True(WorkerCapabilityProfile.Evaluate("Acceptance", "client-sites", false, false, None).ClientSitesWorker);
     Assert.False(WorkerCapabilityProfile.Evaluate("Acceptance", "mail", false, false, None).Approved);
     Assert.True(WorkerCapabilityProfile.Evaluate("Acceptance", "records", false, false, None).SafeCore);
+  }
+
+  [Fact]
+  public void ReleaseCheckpointWorker_IsDefaultOffAndRequiresAnIsolatedLiveComposition()
+  {
+    var disabled = WorkerCapabilityProfile.Evaluate("Acceptance", ReleaseCheckpointHandler.WorkerGroup,
+      externalEffects: true, allowSimulationAdapters: false, None);
+    Assert.False(disabled.Approved);
+    Assert.Contains("live-audit-release-feature-disabled", disabled.Blockers);
+
+    var acceptance = WorkerCapabilityProfile.Evaluate("Acceptance", ReleaseCheckpointHandler.WorkerGroup,
+      externalEffects: true, allowSimulationAdapters: false, None, liveAuditReleaseEnabled: true);
+    Assert.True(acceptance.Approved);
+    Assert.True(acceptance.LiveReleaseCheckpoint);
+    Assert.True(acceptance.ExternalEffectsComposed);
+    new WorkerOptions(Guid.NewGuid(), "Acceptance", ExternalEffectsEnabled: true,
+      Group: ReleaseCheckpointHandler.WorkerGroup).Validate([ReleaseCheckpointHandler.Descriptor]);
+
+    var productionWithoutApproval = WorkerCapabilityProfile.Evaluate("Production", ReleaseCheckpointHandler.WorkerGroup,
+      externalEffects: true, allowSimulationAdapters: false, None, liveAuditReleaseEnabled: true);
+    Assert.False(productionWithoutApproval.Approved);
+    Assert.Contains($"production-live-group-not-approved:{ReleaseCheckpointHandler.WorkerGroup}", productionWithoutApproval.Blockers);
+
+    var production = WorkerCapabilityProfile.Evaluate("Production", ReleaseCheckpointHandler.WorkerGroup,
+      externalEffects: true, allowSimulationAdapters: false,
+      new HashSet<string> { ReleaseCheckpointHandler.WorkerGroup }, liveAuditReleaseEnabled: true);
+    Assert.True(production.Approved);
+    Assert.True(production.LiveReleaseCheckpoint);
+
+    var simulated = WorkerCapabilityProfile.Evaluate("Acceptance", ReleaseCheckpointHandler.WorkerGroup,
+      externalEffects: true, allowSimulationAdapters: true, None, liveAuditReleaseEnabled: true);
+    Assert.Contains("simulation-adapters-forbidden-for-live-release", simulated.Blockers);
+    Assert.False(WorkerCapabilityProfile.Evaluate("Acceptance", ReleaseCheckpointHandler.WorkerGroup,
+      externalEffects: false, allowSimulationAdapters: false, None, liveAuditReleaseEnabled: true).Approved);
+    Assert.False(WorkerCapabilityProfile.Evaluate("Development", ReleaseCheckpointHandler.WorkerGroup,
+      externalEffects: true, allowSimulationAdapters: false, None, liveAuditReleaseEnabled: true).Approved);
+  }
+
+  [Fact]
+  public void ReleaseCheckpointRuntime_RequiresAnExplicitAbsoluteSharedRootWhenEnabled()
+  {
+    var disabled = ReleaseCheckpointRuntimeOptions.Resolve(null, "Development", enabled: false);
+    Assert.False(disabled.Enabled);
+    Assert.True(Path.IsPathFullyQualified(disabled.RootDirectory));
+    Assert.Throws<InvalidOperationException>(() => ReleaseCheckpointRuntimeOptions.Resolve(null, "Acceptance", enabled: true));
+    Assert.Throws<InvalidOperationException>(() => ReleaseCheckpointRuntimeOptions.Resolve("relative/checkpoints", "Acceptance", enabled: true));
+    Assert.Throws<InvalidOperationException>(() => ReleaseCheckpointRuntimeOptions.Resolve("/srv/auditsphere/checkpoints", "Development", enabled: true));
+
+    var api = ReleaseCheckpointRuntimeOptions.Resolve("/srv/auditsphere/checkpoints", "Acceptance", enabled: true);
+    var worker = ReleaseCheckpointRuntimeOptions.Resolve("/srv/auditsphere/checkpoints", "Acceptance", enabled: true);
+    Assert.True(api.Enabled);
+    Assert.Equal(api.RootDirectory, worker.RootDirectory);
+
+    var safety = new ReleaseSafetyOptions();
+    safety.Validate(allowSimulationAdapters: false, environmentName: "Acceptance", liveAuditRelease: true);
+    Assert.Throws<InvalidOperationException>(() => safety.Validate(false, "Development", liveAuditRelease: true));
+    Assert.Throws<InvalidOperationException>(() => safety.Validate(true, "Acceptance", liveAuditRelease: true));
   }
 }

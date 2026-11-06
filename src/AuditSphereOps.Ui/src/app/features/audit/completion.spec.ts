@@ -63,6 +63,7 @@ const validPayload = {
         releaseManifestDigest: hash64,
         releaseMatchesCandidate: true,
         issueState: 'ISSUED',
+        deliveryDisposition: 'AWAITING_AUTHORIZATION_OR_CONFIGURATION',
       },
       canPrepareRelease: true,
       confirmations: [
@@ -194,6 +195,7 @@ describe('Audit Completion Contracts', () => {
     expect(decoded.opinion?.opinionType).toBe('UNMODIFIED');
     expect(decoded.freeze?.state).toBe('FROZEN');
     expect(decoded.release?.issueState).toBe('ISSUED');
+    expect(decoded.release?.deliveryDisposition).toBe('AWAITING_AUTHORIZATION_OR_CONFIGURATION');
     expect(decoded.release?.checkpointReadBackMatchesManifest).toBe(true);
     expect(decoded.clearance).toEqual({ id: id3, summaryReviewMemorandumId: id1, partnerUserId: id2, clearedAt: '2026-10-02T12:00:00Z' });
     expect(decoded.opinion?.partnerClearanceId).toBe(id3);
@@ -253,6 +255,25 @@ describe('Early compliance lock panel (STE 4.4.3)', () => {
     expect((f.nativeElement as HTMLElement).textContent).toContain('No EQR case is assigned. Applicability is not established here');
     expect((f.nativeElement as HTMLElement).querySelector('audit-eqr-decision')).toBeNull();
     http.expectNone(`/api/ui/engagements/${id1}/completion/eqr-review-basis`);
+  });
+
+  it('states that an issued release is awaiting an authorized delivery method and has no recipient receipt', () => {
+    const http = setup();
+    const f = load(http, validPayload);
+    const host = f.nativeElement as HTMLElement;
+    const delivery = host.querySelector('[data-release-delivery-disposition]');
+    expect(delivery?.getAttribute('role')).toBe('status');
+    expect(delivery?.textContent).toContain('Release is issued; delivery is awaiting authorization or configuration.');
+    expect(delivery?.textContent).toContain('No provider delivery or recipient receipt is recorded.');
+  });
+
+  it('alerts when the persisted delivery outcome cannot be bound to the issued release', () => {
+    const http = setup();
+    const f = load(http, { ...validPayload, release: { ...validPayload.release, deliveryDisposition: 'OUTCOME_UNCONFIRMED' } });
+    const delivery = (f.nativeElement as HTMLElement).querySelector('[data-release-delivery-disposition]');
+    expect(delivery?.getAttribute('role')).toBe('alert');
+    expect(delivery?.textContent).toContain('Delivery outcome is unconfirmed.');
+    expect(delivery?.textContent).toContain('Do not treat a delivery intent as provider delivery or recipient receipt.');
   });
 
   it('renders a retained but non-current EQR concurrence as pending and loads only its existing basis', async () => {

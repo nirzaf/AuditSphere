@@ -358,6 +358,7 @@ public sealed partial class AuditDeliverablesTests
     Assert.True(release.CheckpointMatchesCandidate);
     Assert.True(release.CheckpointReadBackMatchesManifest);
     Assert.True(release.ReleaseMatchesCandidate);
+    Assert.Equal("AWAITING_AUTHORIZATION_OR_CONFIGURATION", release.DeliveryDisposition);
     Assert.Equal(storedRelease.ReleasedAt, release.ReleasedAt);
 
     Assert.True(workspace.Value.PackageEvidence!.Current, workspace.Value.PackageEvidence.Message);
@@ -386,6 +387,13 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(releaseId, stale.Value.Release!.ReleaseId);
     Assert.Equal(release.ReleaseManifestDigest, stale.Value.Release.ReleaseManifestDigest);
     Assert.Equal("ISSUED", stale.Value.Release.IssueState);
+
+    await db.DurableOperations.Where(x => x.FirmId == w.FirmId && x.OperationKind == "ReleaseDelivery.v1" &&
+        x.CorrelationId == releaseId)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.ErrorCode, "legacy-delivery-disposition"));
+    var unconfirmed = await EngagementCompletionWorkspaceQuery.GetAsync(db, partner, w.EngagementId, DateTimeOffset.UtcNow);
+    Assert.True(unconfirmed.Succeeded, unconfirmed.Message);
+    Assert.Equal("OUTCOME_UNCONFIRMED", unconfirmed.Value!.Release!.DeliveryDisposition);
   }
 
   [Fact]

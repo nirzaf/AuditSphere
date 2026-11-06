@@ -140,17 +140,18 @@ public static partial class ApiHost
     builder.Services.AddSingleton(new PbcLocalCopyCleanupOptions(
       builder.Configuration.GetValue("Storage:PbcLocalCopyCleanup:Enabled", false), pbcStagingRoot));
 
-    var checkpointRoot = builder.Configuration["Storage:ReleaseCheckpointRoot"]
-      ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "release-checkpoints");
-    builder.Services.AddSingleton<IReleaseCheckpointStore>(new LocalAppendOnlyCheckpointStore(checkpointRoot));
+    var liveAuditRelease = builder.Configuration.GetValue<bool>("FeatureActivation:LiveAuditRelease");
+    var checkpointRuntime = ReleaseCheckpointRuntimeOptions.Resolve(
+      builder.Configuration["Storage:ReleaseCheckpointRoot"], builder.Environment.EnvironmentName, liveAuditRelease);
+    builder.Services.AddSingleton(checkpointRuntime);
+    builder.Services.AddSingleton<IReleaseCheckpointStore>(new LocalAppendOnlyCheckpointStore(checkpointRuntime.RootDirectory));
     builder.Services.AddSingleton<ReleaseCheckpointHandler>();
 
     var releaseSafety = builder.Configuration.GetSection(ReleaseSafetyOptions.SectionName).Get<ReleaseSafetyOptions>() ?? new();
     releaseSafety.Validate(
-      externalEffectsEnabled,
       builder.Configuration.GetValue<bool>("Application:AllowSimulationAdapters"),
       builder.Environment.EnvironmentName,
-      builder.Configuration.GetValue<bool>("FeatureActivation:LiveAuditRelease"));
+      liveAuditRelease);
     builder.Services.AddSingleton(releaseSafety);
 
   }

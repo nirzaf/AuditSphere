@@ -26,7 +26,8 @@ export const decodeCompletion = obj({ engagementId: guid,
     manifestDigest: text, candidateCreatedAt: instant, checkpointId: nullable(guid), checkpointState: oneOf('ABSENT', 'VERIFIED', 'PENDING', 'MISMATCHED', 'EXPIRED'),
     checkpointVerifiedAt: nullable(instant), checkpointMatchesCandidate: bool, checkpointReadBackMatchesManifest: bool, releaseId: nullable(guid),
     releasedAt: nullable(instant), releaseCheckpointId: nullable(guid), releaseManifestDigest: nullable(text), releaseMatchesCandidate: bool,
-    issueState: oneOf('NOT_ISSUED', 'ISSUED', 'RECONCILIATION_REQUIRED') })), canPrepareRelease: bool,
+    issueState: oneOf('NOT_ISSUED', 'ISSUED', 'RECONCILIATION_REQUIRED'),
+    deliveryDisposition: oneOf('NOT_APPLICABLE', 'AWAITING_AUTHORIZATION_OR_CONFIGURATION', 'OUTCOME_UNCONFIRMED') })), canPrepareRelease: bool,
   confirmations: arr(obj({ caseId: guid, type: text, respondent: text, bookedAmount: dec, currency: text, status: text, monitoring: text,
     daysSinceDispatch: nullable(int), critical: bool, criticalityRationale: nullable(text) }), 2000),
   deliverables: arr(deliverable, 500), clearance: nullable(obj({ id: guid, summaryReviewMemorandumId: guid, partnerUserId: guid, clearedAt: instant })),
@@ -94,11 +95,18 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
             <dt>External checkpoint</dt><dd><audit-status [value]="r.checkpointState" /> {{ r.checkpointId ?? 'No checkpoint recorded' }}@if (r.checkpointVerifiedAt) { · checked {{ r.checkpointVerifiedAt.slice(0, 16).replace('T', ' ') }} UTC }</dd>
             <dt>Checkpoint bound to candidate</dt><dd>{{ r.checkpointMatchesCandidate ? 'Yes' : 'No' }} · read-back matches manifest: {{ r.checkpointReadBackMatchesManifest ? 'Yes' : 'No' }}</dd>
             <dt>Release issue</dt><dd><audit-status [value]="r.issueState" />@if (r.releaseId) { {{ r.releaseId }} · {{ r.releasedAt?.slice(0, 16)?.replace('T', ' ') }} UTC }</dd>
+            <dt>Delivery disposition</dt><dd><audit-status [value]="r.deliveryDisposition" /></dd>
             @if (r.releaseManifestDigest) { <dt>Issued manifest SHA-256</dt><dd><code>{{ r.releaseManifestDigest }}</code></dd> }
             @if (r.releaseCheckpointId) { <dt>Issued checkpoint identity</dt><dd>{{ r.releaseCheckpointId }}</dd> }
           </dl>
           @if (r.issueState === 'NOT_ISSUED') { <p role="status">A candidate and checkpoint do not by themselves mean the package was released. This engagement has no persisted release record for the candidate.</p> }
           @if (r.issueState === 'RECONCILIATION_REQUIRED') { <p role="alert">The candidate, checkpoint, and persisted release facts do not agree. Review the exact candidate before taking a release action.</p> }
+          @if (r.deliveryDisposition === 'AWAITING_AUTHORIZATION_OR_CONFIGURATION') {
+            <p role="status" data-release-delivery-disposition>Release is issued; delivery is awaiting authorization or configuration. No provider delivery or recipient receipt is recorded.</p>
+          }
+          @if (r.deliveryDisposition === 'OUTCOME_UNCONFIRMED') {
+            <p role="alert" data-release-delivery-disposition>Delivery outcome is unconfirmed. Do not treat a delivery intent as provider delivery or recipient receipt.</p>
+          }
         } @else {
           <p>No release candidate is recorded for this engagement.</p>
         }

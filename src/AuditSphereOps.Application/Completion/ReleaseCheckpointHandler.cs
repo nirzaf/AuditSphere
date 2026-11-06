@@ -23,9 +23,11 @@ public sealed class ReleaseCheckpointHandler(
 {
 
   public const string Kind = "RecordReleaseCheckpoint.v1";
+  public const string WorkerGroup = "release-checkpoint";
+  public static OperationDefinition Descriptor { get; } =
+    new(Kind, OperationMode.LIVE, OperationAuthority.LIVE_PROVIDER, SchemaVersion: 1, Group: WorkerGroup);
 
-  public OperationDefinition Definition { get; } =
-    new(Kind, OperationMode.LOCAL, OperationAuthority.LOCAL_VALIDATION, SchemaVersion: 1, Group: "general");
+  public OperationDefinition Definition => Descriptor;
 
   public string NormalizePayload(OperationRequest request)
   {

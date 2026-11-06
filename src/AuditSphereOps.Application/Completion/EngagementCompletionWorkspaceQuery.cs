@@ -1,4 +1,6 @@
 using System.Data;
+using System.Text;
+using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
@@ -33,7 +35,7 @@ public sealed record CompletionAmendment(Guid Id, string Reason, DateTimeOffset?
 public sealed record CompletionRelease(Guid CandidateId, string CandidateStatus, string TargetKind, long TargetRevision, long CandidateRevision,
   string ManifestDigest, DateTimeOffset CandidateCreatedAt, Guid? CheckpointId, string CheckpointState, DateTimeOffset? CheckpointVerifiedAt,
   bool CheckpointMatchesCandidate, bool CheckpointReadBackMatchesManifest, Guid? ReleaseId, DateTimeOffset? ReleasedAt,
-  Guid? ReleaseCheckpointId, string? ReleaseManifestDigest, bool ReleaseMatchesCandidate, string IssueState);
+  Guid? ReleaseCheckpointId, string? ReleaseManifestDigest, bool ReleaseMatchesCandidate, string IssueState, string DeliveryDisposition);
 public sealed record CompletionFreeze(string State, DateTimeOffset ReportSignedAt, DateTimeOffset DueAt, string ExternalReadOnly, int DaysRemaining,
   IReadOnlyList<CompletionAmendment> Amendments, DateTimeOffset? FrozenAt = null);
 public sealed record CompletionWorkprogramApproval(bool HasApproval, bool IsCurrent, DateTimeOffset? ApprovedAt, bool CanApprove);
@@ -229,10 +231,74 @@ public static class EngagementCompletionWorkspaceQuery
       release.CheckpointId == checkpoint?.Id && readBackMatches;
     var issueState = releaseMatches ? "ISSUED"
       : release is null && candidate.Status != AuditSphereOps.Domain.Completion.ReleaseStates.Issued ? "NOT_ISSUED" : "RECONCILIATION_REQUIRED";
+    var deliveryDisposition = release is null && candidate.Status != AuditSphereOps.Domain.Completion.ReleaseStates.Issued
+      ? "NOT_APPLICABLE"
+      : release is not null && releaseMatches &&
+        await HasAwaitingDeliveryIntentAsync(db, release, ct)
+          ? "AWAITING_AUTHORIZATION_OR_CONFIGURATION"
+          : "OUTCOME_UNCONFIRMED";
 
     return new(candidate.Id, candidate.Status, candidate.TargetKind, candidate.TargetRevision, candidate.Revision, candidate.ManifestDigest,
       candidate.CreatedAt, checkpoint?.Id, checkpoint?.VerifiedStatus ?? "ABSENT", checkpoint?.VerifiedAt, checkpointMatchesCandidate,
-      readBackMatches, release?.Id, release?.ReleasedAt, release?.CheckpointId, release?.ManifestDigest, releaseMatches, issueState);
+      readBackMatches, release?.Id, release?.ReleasedAt, release?.CheckpointId, release?.ManifestDigest, releaseMatches, issueState,
+      deliveryDisposition);
+  }
+
+  private static async Task<bool> HasAwaitingDeliveryIntentAsync(
+    IAuditSphereDbContext db, AuditSphereOps.Domain.Completion.Release release, CancellationToken ct)
+  {
+    // Search both references so a row with a damaged target or correlation cannot be hidden as absent.
+    // Ambiguous, legacy, runnable, or differently scoped records stay explicitly unconfirmed.
+    var operations = await db.DurableOperations.AsNoTracking().Where(x => x.FirmId == release.FirmId &&
+        x.OperationKind == "ReleaseDelivery.v1" && (x.TargetId == release.Id || x.CorrelationId == release.Id))
+      .Take(2).ToListAsync(ct);
+    if (operations.Count != 1) return false;
+    var operation = operations[0];
+    if (operation.ClientId != release.ClientId || operation.EngagementId != release.EngagementId ||
+        operation.TargetId != release.Id || operation.CorrelationId != release.Id ||
+        operation.ExpectedRevision != release.PackageRevision || operation.OriginatorId != release.ReleasedByUserId ||
+        operation.IdempotencyKey != "release:" + release.AuthorizedReleaseKey ||
+        operation.Status != OperationState.PROVIDER_BLOCKED || operation.ExecutionMode != OperationMode.LOCAL ||
+        operation.AuthorityMode != OperationAuthority.LOCAL_VALIDATION || operation.ExecutionGroup != "general" ||
+        operation.ErrorCode != "release.delivery.awaiting.authorization" || operation.IsReconciliation ||
+        operation.ResultIdentity is not null || operation.ResultDigest is not null || operation.RequestBytes.Length == 0)
+      return false;
+
+    var payloadBytes = Encoding.UTF8.GetBytes(operation.PayloadJson);
+    if (!payloadBytes.AsSpan().SequenceEqual(operation.RequestBytes) ||
+        !string.Equals(Hashing.Sha256Hex(operation.RequestBytes), operation.RequestDigest, StringComparison.Ordinal))
+      return false;
+
+    try
+    {
+      using var payload = JsonDocument.Parse(operation.PayloadJson);
+      var root = payload.RootElement;
+      return root.ValueKind == JsonValueKind.Object &&
+        GuidProperty(root, "releaseId") == release.Id &&
+        GuidProperty(root, "candidateId") == release.ReleaseCandidateId &&
+        StringProperty(root, "manifestDigest") == release.ManifestDigest &&
+        Int64Property(root, "packageRevision") == release.PackageRevision &&
+        NullableGuidProperty(root, "compositionId") == release.PinnedCompositionId &&
+        NullableStringProperty(root, "compositionManifestDigest") == release.PinnedCompositionManifestDigest;
+    }
+    catch (JsonException)
+    {
+      return false;
+    }
+
+    static Guid GuidProperty(JsonElement root, string name) =>
+      root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && value.TryGetGuid(out var result)
+        ? result : Guid.Empty;
+    static Guid? NullableGuidProperty(JsonElement root, string name) =>
+      root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && value.TryGetGuid(out var result)
+        ? result : value.ValueKind == JsonValueKind.Null ? null : Guid.Empty;
+    static long Int64Property(JsonElement root, string name) =>
+      root.TryGetProperty(name, out var value) && value.TryGetInt64(out var result) ? result : long.MinValue;
+    static string? StringProperty(JsonElement root, string name) =>
+      root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+    static string? NullableStringProperty(JsonElement root, string name) =>
+      root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() :
+        value.ValueKind == JsonValueKind.Null ? null : "!invalid!";
   }
 
   /// <summary>

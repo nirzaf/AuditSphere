@@ -49,11 +49,15 @@ builder.Services.AddOpenTelemetry()
   });
 var group = builder.Configuration["Worker:Group"] ?? "general";
 var externalEffects = builder.Configuration.GetValue<bool>("ExternalEffects:Enabled");
+var liveAuditRelease = builder.Configuration.GetValue<bool>("FeatureActivation:LiveAuditRelease");
+var checkpointRuntime = ReleaseCheckpointRuntimeOptions.Resolve(
+  builder.Configuration["Storage:ReleaseCheckpointRoot"], builder.Environment.EnvironmentName, liveAuditRelease);
 var approvedLiveGroups = (builder.Configuration["Worker:ApprovedLiveGroups"] ?? string.Empty)
   .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal);
 var composition = WorkerCapabilityProfile.Evaluate(builder.Environment.EnvironmentName, group, externalEffects,
-  builder.Configuration.GetValue<bool>("AllowSimulationAdapters"), approvedLiveGroups);
+  builder.Configuration.GetValue<bool>("AllowSimulationAdapters"), approvedLiveGroups, liveAuditRelease);
 var liveMail = composition.LiveMail;
+var liveReleaseCheckpoint = composition.LiveReleaseCheckpoint;
 var pbcReminders = new PbcReminderOptions(
   builder.Configuration.GetValue<bool>("PbcReminders:Enabled"),
   builder.Configuration.GetValue("PbcReminders:DaysBeforeDue", 3),
@@ -97,20 +101,16 @@ var workerOptions = new WorkerOptions(firmId, builder.Environment.EnvironmentNam
   builder.Configuration.GetValue<bool>("AllowSimulationAdapters"),
   externalEffects, group,
   DeploymentEpoch: deploymentEpoch);
-if (externalEffects && !liveMail && !livePbc && !clientSitesWorker)
-  throw new InvalidOperationException("External effects require an isolated mail, pbc or enabled client-sites worker.");
+if (externalEffects && !liveMail && !livePbc && !clientSitesWorker && !liveReleaseCheckpoint)
+  throw new InvalidOperationException("External effects require an isolated approved worker group.");
 
 var releaseSafety = builder.Configuration.GetSection(ReleaseSafetyOptions.SectionName).Get<ReleaseSafetyOptions>() ?? new();
-releaseSafety.Validate(
-  builder.Configuration.GetValue<bool>("ExternalEffects:Enabled"),
-  builder.Configuration.GetValue<bool>("AllowSimulationAdapters"),
-  builder.Environment.EnvironmentName,
-  builder.Configuration.GetValue<bool>("FeatureActivation:LiveAuditRelease"));
+releaseSafety.Validate(builder.Configuration.GetValue<bool>("AllowSimulationAdapters"),
+  builder.Environment.EnvironmentName, liveAuditRelease);
 builder.Services.AddSingleton(releaseSafety);
 
-var checkpointRoot = builder.Configuration["Storage:ReleaseCheckpointRoot"]
-  ?? Path.Combine(Path.GetTempPath(), "AuditSphereOps", "release-checkpoints");
-builder.Services.AddSingleton<IReleaseCheckpointStore>(new LocalAppendOnlyCheckpointStore(checkpointRoot));
+builder.Services.AddSingleton(checkpointRuntime);
+builder.Services.AddSingleton<IReleaseCheckpointStore>(new LocalAppendOnlyCheckpointStore(checkpointRuntime.RootDirectory));
 builder.Services.AddSingleton<ReleaseCheckpointHandler>();
 
 builder.Services.AddSingleton(workerOptions);
@@ -315,6 +315,11 @@ else if (clientSitesWorker)
     builder.Services.AddHostedService<ClientSiteWorkerHeartbeatService>();
   }
 }
+else if (liveReleaseCheckpoint)
+{
+  // The dedicated release group composes only the checkpoint handler; it has no provider
+  // credentials, discovery job, mail path, or general-workflow handlers.
+}
 else
 {
   builder.Services.AddSingleton<TrialBalanceValidationHandler>();
@@ -369,19 +374,21 @@ if (simulationAllowed)
     workerOptions));
 }
 
-if (!liveMail && !livePbc && !liveClientSites && !clientSitesWorker)
+if (!liveMail && !livePbc && !liveClientSites && !clientSitesWorker && !liveReleaseCheckpoint)
   builder.Services.AddSingleton<IPendingOperationDiscovery>(sp =>
     sp.GetRequiredService<TrialBalanceDiscovery>());
 builder.Services.AddSingleton(sp => new DurableOperationRegistry(
-  ResolveHandlers(sp, simulationAllowed, liveMail, livePbc, liveClientSites, clientSitesWorker), workerOptions));
+  ResolveHandlers(sp, simulationAllowed, liveMail, livePbc, liveClientSites, clientSitesWorker, liveReleaseCheckpoint), workerOptions));
 builder.Services.AddSingleton<OperationDispatcher>();
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();
 host.Run();
 
-static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationAllowed, bool liveMail, bool livePbc, bool liveClientSites, bool clientSitesWorker)
+static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationAllowed, bool liveMail, bool livePbc,
+  bool liveClientSites, bool clientSitesWorker, bool liveReleaseCheckpoint)
 {
+  if (liveReleaseCheckpoint) return [sp.GetRequiredService<ReleaseCheckpointHandler>()];
   if (clientSitesWorker) return liveClientSites
     ? [sp.GetRequiredService<ClientSharePointSiteHandler>(), sp.GetRequiredService<ArchiveCopyHandler>()]
     : [];
@@ -392,13 +399,12 @@ static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationA
   var completeness = sp.GetRequiredService<GeneralLedgerCompletenessHandler>();
   var packageBuild = sp.GetRequiredService<FinancialPackageBuildHandler>();
   var packageRender = sp.GetRequiredService<FinancialPackageRenderHandler>();
-  var checkpoint = sp.GetRequiredService<ReleaseCheckpointHandler>();
   var freeze = sp.GetRequiredService<AuditSphereOps.Application.Records.FileFreezeHandler>();
   var fees = sp.GetRequiredService<AutomaticFeeInvoiceHandler>();
   var reminders = sp.GetRequiredService<WorkflowReminderTaskHandler>();
   return simulationAllowed
-    ? [validation, completeness, packageBuild, packageRender, checkpoint, freeze, fees, reminders, sp.GetRequiredService<PbcDocumentTransferHandler>()]
-    : [validation, completeness, packageBuild, packageRender, checkpoint, freeze, fees, reminders];
+    ? [validation, completeness, packageBuild, packageRender, freeze, fees, reminders, sp.GetRequiredService<PbcDocumentTransferHandler>()]
+    : [validation, completeness, packageBuild, packageRender, freeze, fees, reminders];
 }
 
 static MailAuthorizationRuntimeOptions ReadMailAuthorizationRuntimeOptions(IConfiguration configuration, Guid firmId,

@@ -213,20 +213,20 @@ public sealed class ReleaseEvidenceTests
   {
     var options = new ReleaseSafetyOptions();
 
-    // LiveAuditRelease=true without ExternalEffects:Enabled=true -> refuses startup
+    // The dedicated live checkpoint feature remains unavailable outside Acceptance/Production.
     var ex1 = Assert.Throws<InvalidOperationException>(() =>
-      options.Validate(externalEffectsEnabled: false, allowSimulationAdapters: true,
+      options.Validate(allowSimulationAdapters: false,
         environmentName: "Development", liveAuditRelease: true));
-    Assert.Contains("LiveAuditRelease requires ExternalEffects:Enabled=true", ex1.Message);
+    Assert.Contains("LiveAuditRelease requires an isolated Acceptance or approved Production host", ex1.Message);
 
     // Production environment with simulation adapters -> refuses startup
     var ex2 = Assert.Throws<InvalidOperationException>(() =>
-      options.Validate(externalEffectsEnabled: false, allowSimulationAdapters: true,
+      options.Validate(allowSimulationAdapters: true,
         environmentName: "Production", liveAuditRelease: false));
     Assert.Contains("Simulation adapters are forbidden in production", ex2.Message);
 
     // Valid Development configuration
-    options.Validate(externalEffectsEnabled: false, allowSimulationAdapters: true,
+    options.Validate(allowSimulationAdapters: true,
       environmentName: "Development", liveAuditRelease: false);
   }
 
