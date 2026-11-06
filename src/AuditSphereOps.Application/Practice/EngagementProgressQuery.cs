@@ -418,7 +418,9 @@ public static class EngagementProgressQuery
               var composition = await FinancialPackageReviewService.ResolveCompositionAsync(compositionDb, package, ct);
               if (!composition.Succeeded) continue;
               if (releases.Any(r => r.EngagementId == engagement.Id &&
-                    r.TargetKind == ReleaseTargetKinds.FinancialPackage && r.PackageId == package.Id &&
+                    r.TargetKind == ReleaseTargetKinds.FinancialPackage &&
+                    r.PackageId == package.Id && r.PackageRevision == package.Revision &&
+                    r.TargetId == package.Id && r.TargetRevision == package.Revision &&
                     r.PinnedCompositionId == composition.Value.CompositionId &&
                     r.PinnedCompositionManifestDigest == composition.Value.ManifestDigest))
               {

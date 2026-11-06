@@ -229,6 +229,10 @@ public sealed partial class ClientAccountingTests
       new CreateReleaseCandidateRequest(approval.Value, ReleaseTargetKinds.FinancialPackage,
         source.PackageId, package.Revision, generation, policy, manifest));
     Assert.True(candidate.Succeeded, candidate.Message);
+    var candidateBinding = await db.ReleaseCandidates.AsNoTracking().SingleAsync(x => x.Id == candidate.Value);
+    Assert.Equal(composition.PresentationRevisionId, candidateBinding.PresentationRevisionId);
+    Assert.Equal(composition.Id, candidateBinding.CompositionId);
+    Assert.Equal(composition.ManifestDigest, candidateBinding.CompositionManifestDigest);
     var missingCheckpoint = await ReleaseService.IssueAsync(db, partner,
       new IssueReleaseRequest(candidate.Value, 1, manifest, "financial-package-release-001"));
     Assert.False(missingCheckpoint.Succeeded);
@@ -240,19 +244,193 @@ public sealed partial class ClientAccountingTests
         new LocalAppendOnlyCheckpointStore(root), partner,
         new RecordReleaseCheckpointRequest(candidate.Value, 1, "financial-package-release-001", manifest, manifestBytes));
       Assert.True(checkpoint.Succeeded, checkpoint.Message);
-      await db.ClientSafetyStates.Where(x => x.FirmId == source.FirmId && x.Id == source.ClientId)
-        .ExecuteUpdateAsync(update => update.SetProperty(x => x.InputGeneration, x => x.InputGeneration + 1));
-      var issued = await ReleaseService.IssueAsync(db, partner,
+
+      // Candidate A and its checkpoint remain tied to the composition that was approved at preparation.
+      // A later approved composition B must not let A issue or be replayed as if it were prepared for B.
+      var alternateLayoutId = await CompletionBundleFixture.CreateAlternateStatementLayoutAsync(db,
+        Actor(source.Preparer, "AccountingPreparer"), Actor(source.Reviewer, "AccountingReviewer"),
+        source.ClientId, source.LayoutId);
+      var replacementComposition = await SelectReviewedCompositionAsync(db, source, "-replacement", alternateLayoutId);
+      Assert.NotEqual(composition.Id, replacementComposition.Id);
+      Assert.NotEqual(composition.ManifestDigest, replacementComposition.ManifestDigest);
+
+      var staleIssue = await ReleaseService.IssueAsync(db, partner,
         new IssueReleaseRequest(candidate.Value, 1, manifest, "financial-package-release-001"));
-      Assert.True(issued.Succeeded, issued.Message);
-      var pinned = await db.Releases.AsNoTracking().SingleAsync(x => x.Id == issued.Value);
+      Assert.False(staleIssue.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleIssue.ErrorCode);
+      Assert.Equal(ReleaseStates.Ready,
+        await db.ReleaseCandidates.AsNoTracking().Where(x => x.Id == candidate.Value).Select(x => x.Status).SingleAsync());
+      Assert.Empty(await db.Releases.AsNoTracking().Where(x => x.ReleaseCandidateId == candidate.Value).ToListAsync());
+      Assert.Empty(await db.DurableOperations.AsNoTracking().Where(x => x.OperationKind == "ReleaseDelivery.v1").ToListAsync());
+      var retainedCheckpointA = await db.ReleaseCheckpoints.AsNoTracking()
+        .SingleAsync(x => x.ReleaseCandidateId == candidate.Value);
+      Assert.Equal("financial-package-release-001", retainedCheckpointA.AuthorizedReleaseKey);
+      Assert.Equal(manifest, retainedCheckpointA.ReadBackDigest);
+
+      var stalePreparation = await ReleaseService.CreateCandidateAsync(db, partner,
+        new CreateReleaseCandidateRequest(approval.Value, ReleaseTargetKinds.FinancialPackage,
+          source.PackageId, package.Revision, generation, policy, manifest));
+      Assert.False(stalePreparation.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, stalePreparation.ErrorCode);
+
+      var manifestBytesB = System.Text.Encoding.UTF8.GetBytes("financial-package-release-manifest-B");
+      var manifestB = Hashing.Sha256Hex(manifestBytesB);
+      var approvalB = await ApprovalService.CreateAsync(db, partner,
+        new CreateApprovalRequest(ReleaseTargetKinds.FinancialPackage, source.PackageId, package.Revision,
+          generation, policy, manifestB));
+      Assert.True(approvalB.Succeeded, approvalB.Message);
+      var candidateB = await ReleaseService.CreateCandidateAsync(db, partner,
+        new CreateReleaseCandidateRequest(approvalB.Value, ReleaseTargetKinds.FinancialPackage,
+          source.PackageId, package.Revision, generation, policy, manifestB));
+      Assert.True(candidateB.Succeeded, candidateB.Message);
+      var candidateBindingB = await db.ReleaseCandidates.AsNoTracking().SingleAsync(x => x.Id == candidateB.Value);
+      Assert.Equal(replacementComposition.PresentationRevisionId, candidateBindingB.PresentationRevisionId);
+      Assert.Equal(replacementComposition.Id, candidateBindingB.CompositionId);
+      Assert.Equal(replacementComposition.ManifestDigest, candidateBindingB.CompositionManifestDigest);
+      var checkpointB = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db,
+        new LocalAppendOnlyCheckpointStore(root), partner,
+        new RecordReleaseCheckpointRequest(candidateB.Value, 1, "financial-package-release-002", manifestB, manifestBytesB));
+      Assert.True(checkpointB.Succeeded, checkpointB.Message);
+      var issuedB = await ReleaseService.IssueAsync(db, partner,
+        new IssueReleaseRequest(candidateB.Value, 1, manifestB, "financial-package-release-002"));
+      Assert.True(issuedB.Succeeded, issuedB.Message);
+
+      var pinned = await db.Releases.AsNoTracking().SingleAsync(x => x.Id == issuedB.Value);
       Assert.Equal(source.PackageId, pinned.PackageId);
-      Assert.Equal(composition.Id, pinned.PinnedCompositionId);
-      Assert.Equal(composition.ManifestDigest, pinned.PinnedCompositionManifestDigest);
-      Assert.Equal(composition.PdfArtifactId, pinned.PinnedArtifactId);
-      Assert.Equal(composition.PdfSha256Hex, pinned.PinnedArtifactSha256Hex);
+      Assert.Equal(replacementComposition.Id, pinned.PinnedCompositionId);
+      Assert.Equal(replacementComposition.ManifestDigest, pinned.PinnedCompositionManifestDigest);
+      Assert.Equal(replacementComposition.PdfArtifactId, pinned.PinnedArtifactId);
+      Assert.Equal(replacementComposition.PdfSha256Hex, pinned.PinnedArtifactSha256Hex);
+      Assert.Equal(ReleaseStates.Ready,
+        await db.ReleaseCandidates.AsNoTracking().Where(x => x.Id == candidate.Value).Select(x => x.Status).SingleAsync());
       Assert.Equal(ReleaseStates.Issued,
-        await db.ReleaseCandidates.Where(x => x.Id == candidate.Value).Select(x => x.Status).SingleAsync());
+        await db.ReleaseCandidates.Where(x => x.Id == candidateB.Value).Select(x => x.Status).SingleAsync());
+      Assert.Single(await db.Releases.AsNoTracking().ToListAsync());
+      Assert.Single(await db.DurableOperations.AsNoTracking().Where(x => x.OperationKind == "ReleaseDelivery.v1").ToListAsync());
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+  }
+
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task FinancialPackageRelease_ConcurrentPartnerReviewAndIssueNeverMixCompositions()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var source = await StatementCandidatePromotionTests.SeedPresentableAsync(pg);
+    var partner = Actor(source.Partner, "Partner");
+    FinancialStatementComposition compositionA;
+    await using (var compositionDb = new AuditSphereDbContext(pg.Options))
+      compositionA = await SelectReviewedCompositionAsync(compositionDb, source, "-concurrent-A");
+    var manifestBytesA = System.Text.Encoding.UTF8.GetBytes("financial-package-concurrent-release-A");
+    var manifestA = Hashing.Sha256Hex(manifestBytesA);
+    var root = Path.Combine(Path.GetTempPath(), "AuditSphereOps-Tests", Guid.NewGuid().ToString("N"));
+    try
+    {
+      Guid candidateA;
+      FinancialStatementComposition compositionB;
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var package = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == source.PackageId);
+        var generation = await db.ClientSafetyStates.AsNoTracking()
+          .Where(x => x.FirmId == source.FirmId && x.Id == source.ClientId)
+          .Select(x => x.InputGeneration).SingleAsync();
+        var policy = await db.FirmSafetyStates.AsNoTracking()
+          .Where(x => x.Id == source.FirmId).Select(x => x.PolicyGeneration).SingleAsync();
+        var approvalA = await ApprovalService.CreateAsync(db, partner,
+          new CreateApprovalRequest(ReleaseTargetKinds.FinancialPackage, source.PackageId, package.Revision,
+            generation, policy, manifestA));
+        Assert.True(approvalA.Succeeded, approvalA.Message);
+        var preparedA = await ReleaseService.CreateCandidateAsync(db, partner,
+          new CreateReleaseCandidateRequest(approvalA.Value, ReleaseTargetKinds.FinancialPackage,
+            source.PackageId, package.Revision, generation, policy, manifestA));
+        Assert.True(preparedA.Succeeded, preparedA.Message);
+        candidateA = preparedA.Value;
+        var checkpointA = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db,
+          new LocalAppendOnlyCheckpointStore(root), partner,
+          new RecordReleaseCheckpointRequest(candidateA, 1, "financial-package-concurrent-A", manifestA, manifestBytesA));
+        Assert.True(checkpointA.Succeeded, checkpointA.Message);
+
+        var alternateLayoutId = await CompletionBundleFixture.CreateAlternateStatementLayoutAsync(db,
+          Actor(source.Preparer, "AccountingPreparer"), Actor(source.Reviewer, "AccountingReviewer"),
+          source.ClientId, source.LayoutId);
+        var preparedB = await PrepareCompositionCandidateAsync(db, source, alternateLayoutId);
+        compositionB = preparedB.Composition;
+        Assert.NotEqual(compositionA.Id, compositionB.Id);
+        Assert.NotEqual(compositionA.ManifestDigest, compositionB.ManifestDigest);
+        foreach (var (actor, stage, mode) in new[]
+        {
+          (Actor(source.Preparer, "AccountingPreparer"), FinancialPackageReviewStages.ManagementApproval,
+            FinancialPackageReviewEvidenceModes.Offline),
+          (Actor(source.Reviewer, "AccountingReviewer"), FinancialPackageReviewStages.AccountingReview,
+            FinancialPackageReviewEvidenceModes.SignedIn)
+        })
+        {
+          var decision = await FinancialPackageReviewService.RecordAsync(db, actor,
+            new(source.PackageId, stage, FinancialPackageReviewDecisions.Approved, mode,
+              "financial-package-concurrent-" + stage, "Reviewed the exact concurrent test composition.",
+              preparedB.PresentationRevisionId, null, preparedB.Composition.Id, preparedB.Composition.ManifestDigest));
+          Assert.True(decision.Succeeded, decision.Message);
+        }
+      }
+
+      var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+      async Task<CommandResult<Guid>> IssueAAsync()
+      {
+        await using var issueDb = new AuditSphereDbContext(pg.Options);
+        await start.Task;
+        return await ReleaseService.IssueAsync(issueDb, partner,
+          new IssueReleaseRequest(candidateA, 1, manifestA, "financial-package-concurrent-A"));
+      }
+      async Task<CommandResult<Guid>> ApprovePartnerBAsync()
+      {
+        await using var reviewDb = new AuditSphereDbContext(pg.Options);
+        await start.Task;
+        return await FinancialPackageReviewService.RecordAsync(reviewDb, partner,
+          new(source.PackageId, FinancialPackageReviewStages.PartnerApproval,
+            FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
+            "financial-package-concurrent-partner-B", "Approved the exact concurrent test composition.",
+            compositionB.PresentationRevisionId, null, compositionB.Id, compositionB.ManifestDigest));
+      }
+
+      var issueTask = IssueAAsync();
+      var reviewTask = ApprovePartnerBAsync();
+      start.SetResult();
+      await Task.WhenAll(issueTask, reviewTask);
+      var issue = await issueTask;
+      var partnerReview = await reviewTask;
+      Assert.True(partnerReview.Succeeded, partnerReview.Message);
+
+      await using var verify = new AuditSphereDbContext(pg.Options);
+      var releases = await verify.Releases.AsNoTracking().ToListAsync();
+      var deliveryIntents = await verify.DurableOperations.AsNoTracking()
+        .Where(x => x.OperationKind == "ReleaseDelivery.v1").ToListAsync();
+      if (issue.Succeeded)
+      {
+        var releaseA = Assert.Single(releases);
+        Assert.Equal(candidateA, releaseA.ReleaseCandidateId);
+        Assert.Equal(compositionA.Id, releaseA.PinnedCompositionId);
+        Assert.Equal(compositionA.ManifestDigest, releaseA.PinnedCompositionManifestDigest);
+        Assert.Equal(ReleaseStates.Issued,
+          await verify.ReleaseCandidates.Where(x => x.Id == candidateA).Select(x => x.Status).SingleAsync());
+        Assert.Single(deliveryIntents);
+      }
+      else
+      {
+        Assert.True(issue.ErrorCode is ErrorCodes.GenerationStale or ErrorCodes.GateBlocked,
+          $"Concurrent issue returned unexpected {issue.ErrorCode}: {issue.Message}");
+        Assert.Empty(releases);
+        Assert.Empty(deliveryIntents);
+        Assert.Equal(ReleaseStates.Ready,
+          await verify.ReleaseCandidates.Where(x => x.Id == candidateA).Select(x => x.Status).SingleAsync());
+      }
+
+      Assert.DoesNotContain(releases,
+        x => x.PinnedCompositionId == compositionB.Id && x.PinnedCompositionManifestDigest == compositionB.ManifestDigest);
+      var retainedPartnerDecision = await verify.FinancialPackageReviewDecisions.AsNoTracking()
+        .SingleAsync(x => x.Id == partnerReview.Value);
+      Assert.Equal(compositionB.Id, retainedPartnerDecision.PresentationCompositionId);
+      Assert.Equal(compositionB.ManifestDigest, retainedPartnerDecision.CompositionManifestDigest);
     }
     finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
   }
@@ -260,12 +438,37 @@ public sealed partial class ClientAccountingTests
 
 
   private static async Task<FinancialStatementComposition> SelectReviewedCompositionAsync(
-    AuditSphereDbContext db, StatementCandidatePromotionTests.Seeded source, string suffix = "")
+    AuditSphereDbContext db, StatementCandidatePromotionTests.Seeded source, string suffix = "",
+    Guid? layoutVersionId = null)
   {
+    var prepared = await PrepareCompositionCandidateAsync(db, source, layoutVersionId);
     var preparer = Actor(source.Preparer, "AccountingPreparer");
     var reviewer = Actor(source.Reviewer, "AccountingReviewer");
     var partner = Actor(source.Partner, "Partner");
-    var pin = await FinancialStatementService.PinPresentationAsync(db, preparer, source.PackageId, source.LayoutId);
+    foreach (var (actor, stage, mode) in new[]
+    {
+      (preparer, FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewEvidenceModes.Offline),
+      (reviewer, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewEvidenceModes.SignedIn),
+      (partner, FinancialPackageReviewStages.PartnerApproval, FinancialPackageReviewEvidenceModes.SignedIn)
+    })
+    {
+      var decision = await FinancialPackageReviewService.RecordAsync(db, actor,
+        new(source.PackageId, stage, FinancialPackageReviewDecisions.Approved, mode,
+          "composition-review-" + stage + suffix, "Reviewed exact test composition.", prepared.PresentationRevisionId, null,
+          prepared.Composition.Id, prepared.Composition.ManifestDigest));
+      Assert.True(decision.Succeeded, decision.Message);
+    }
+    return prepared.Composition;
+  }
+
+  private static async Task<(Guid PresentationRevisionId, FinancialStatementComposition Composition)>
+    PrepareCompositionCandidateAsync(AuditSphereDbContext db, StatementCandidatePromotionTests.Seeded source,
+      Guid? layoutVersionId = null)
+  {
+    var preparer = Actor(source.Preparer, "AccountingPreparer");
+    var reviewer = Actor(source.Reviewer, "AccountingReviewer");
+    var pin = await FinancialStatementService.PinPresentationAsync(db, preparer, source.PackageId,
+      layoutVersionId ?? source.LayoutId);
     Assert.True(pin.Succeeded, pin.Message);
     var rendered = await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, reviewer,
       pin.Value!.RevisionId, FinancialStatementPresentationRenderer.PdfFormat);
@@ -278,20 +481,7 @@ public sealed partial class ClientAccountingTests
     var selected = await FinancialStatementService.SelectCompositionAsync(db, preparer,
       source.PackageId, candidate.Value!.RevisionId);
     Assert.True(selected.Succeeded, selected.Message);
-    foreach (var (actor, stage, mode) in new[]
-    {
-      (preparer, FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewEvidenceModes.Offline),
-      (reviewer, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewEvidenceModes.SignedIn),
-      (partner, FinancialPackageReviewStages.PartnerApproval, FinancialPackageReviewEvidenceModes.SignedIn)
-    })
-    {
-      var decision = await FinancialPackageReviewService.RecordAsync(db, actor,
-        new(source.PackageId, stage, FinancialPackageReviewDecisions.Approved, mode,
-          "composition-review-" + stage + suffix, "Reviewed exact test composition.", candidate.Value.RevisionId, null,
-          selected.Value!.Id, selected.Value.ManifestDigest));
-      Assert.True(decision.Succeeded, decision.Message);
-    }
-    return selected.Value!;
+    return (candidate.Value.RevisionId, selected.Value!);
   }
 
   [Fact]

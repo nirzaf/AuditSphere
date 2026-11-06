@@ -1127,7 +1127,7 @@
       "result": "HISTORICAL_SNAPSHOT_RETAINED"
     },
     "lifecycleGapT01T02_20261106": {"attachmentSha256":"1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5","sourceBase":"7229eb876c7503c5e0e32d2ee0e3a0906eff71b2","candidate":"b8b0e3b3ee15cde1995f15d9105ebe777327b5f9","tasks":["T01","T02"],"result":"FOCUSED_FAST_IMAGES_PASS_FULL_PENDING","fastRun":42125074877,"fast":"PASS 3/3 exact checkout logs","imagesRun":42125074911,"images":"PASS 3/3 exact checkout logs and manifest pins","full":"NOT_DISPATCHED","browser":"NOT_RUN","inventory":"NOT_PERFORMED","acceptance":"NOT_CLAIMED","evidence":".local/autonomous/evidence/ci-b8b0e3b3-current-20261106/terminal-proof.json"},
-    "lifecycleGapT03_20261106": {"attachmentSha256":"1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5","sourceBase":"b8b0e3b3ee15cde1995f15d9105ebe777327b5f9","task":"T03 release authorization key","result":"FOCUSED_PASS_EXACT_CI_PENDING","domain":"1 passed, 0 failed, 0 skipped","e2e":"1 passed, 0 failed, 0 skipped","fast":"NO_EXACT_SOURCE_RESULT_RECORDED","fast":"NO_EXACT_SOURCE_RESULT_RECORDED","full":"NOT_DISPATCHED","proof":".local/autonomous/evidence/lifecycle-gap-t03-20261106/verification.json"}
+    "lifecycleGapT03T04T07_20261106": {"attachmentSha256":"1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5","sourceBase":"7331432733fbfcea3d062036cb72539233386ba2","tasks":"T03/T04/T07","result":"BASE_FAST_IMAGES_PASS; FOCUSED_PASS","baseFastImages":"T03 only: 42130440465/42130440454","focused":"T03 Domain/E2E 1/1; T04/T07 Domain 3/3","candidateFastImages":"NOT_RUN","full":"NOT_DISPATCHED","browser":"NOT_RUN","acceptance":"NOT_CLAIMED","proof":".local/autonomous/evidence/lifecycle-gap-t04-t07-20261106/verification.json"}
   },
   "externalGates": [
     {
@@ -1662,5 +1662,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-05T21:11:45Z"
+  "updatedAtUtc": "2026-11-06T00:28:22.266797Z"
 }

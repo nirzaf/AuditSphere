@@ -210,6 +210,36 @@ public static class CompletionBundleFixture
     }
   }
 
+  internal static async Task<Guid> CreateAlternateStatementLayoutAsync(
+    AuditSphereDbContext db, ActorContext preparer, ActorContext reviewer,
+    Guid clientId, Guid sourceLayoutId)
+  {
+    var sourceLayout = await db.StatementLayoutVersions.AsNoTracking()
+      .SingleAsync(x => x.Id == sourceLayoutId && x.FirmId == preparer.FirmId && x.ClientId == clientId);
+    var lines = await StatementLayoutService.LoadLinesAsync(db, preparer.FirmId, sourceLayoutId, CancellationToken.None);
+    var cashIndex = lines.FindIndex(x => x.LineCode == "CASH");
+    var equipmentIndex = lines.FindIndex(x => x.LineCode == "PPE");
+    Assert.True(cashIndex >= 0 && equipmentIndex >= 0,
+      "The alternate composition fixture requires the existing cash and equipment lines.");
+    var cashOrder = lines[cashIndex].Order;
+    var equipmentOrder = lines[equipmentIndex].Order;
+    lines[cashIndex] = lines[cashIndex] with { Order = equipmentOrder };
+    lines[equipmentIndex] = lines[equipmentIndex] with { Order = cashOrder };
+
+    var saved = await StatementLayoutService.SaveLayoutDraftAsync(db, preparer,
+      new StatementLayoutDraftRequest(clientId, sourceLayout.FrameworkPolicy,
+        sourceLayout.Name + " alternate", lines, sourceLayoutId));
+    Assert.True(saved.Succeeded, saved.Message);
+    Assert.NotEqual(sourceLayout.LayoutHash, saved.Value!.LayoutHash);
+    var validation = await StatementLayoutService.ValidateLayoutAsync(db, preparer, saved.Value.LayoutVersionId);
+    Assert.True(validation.Succeeded && validation.Value!.IsValid,
+      string.Join("; ", validation.Value?.Errors.Select(x => x.Code + " " + x.Message) ?? []));
+    var published = await StatementLayoutService.PublishLayoutAsync(db, reviewer, saved.Value.LayoutVersionId,
+      "Published the distinct composition B test layout.");
+    Assert.True(published.Succeeded, published.Message);
+    return saved.Value.LayoutVersionId;
+  }
+
   public static async Task SeedPostedFeeAsync(DbContextOptions<AuditSphereDbContext> options, CompletionBundleScope w, bool automateBalance = false)
   {
     var now = DateTimeOffset.UtcNow;

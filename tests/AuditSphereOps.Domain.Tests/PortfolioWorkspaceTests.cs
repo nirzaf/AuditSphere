@@ -1,5 +1,7 @@
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
@@ -536,7 +538,7 @@ public sealed class PortfolioWorkspaceTests(ITestOutputHelper output)
       await seed.SaveChangesAsync();
     }
     var bundleScope = new CompletionBundleScope(f.FirmId, f.ClientId, f.EngagementId, users);
-    var (packageId, _) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, bundleScope);
+    var (packageId, releaseId) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, bundleScope);
     var staff = PbcSeed.Actor(f.Staff, "Staff");
     var preparer = bundleScope.A("associate", "AccountingPreparer");
     var partner = bundleScope.A("partner", "Partner");
@@ -660,8 +662,150 @@ public sealed class PortfolioWorkspaceTests(ITestOutputHelper output)
     Assert.True(detail.Succeeded, detail.Message);
     Assert.True(client.Succeeded, client.Message);
     Assert.True(portfolio.Succeeded, portfolio.Message);
-    Assert.Equal(detail.Value!.GateOpen, Assert.Single(client.Value!.Items, x => x.EngagementId == f.EngagementId).GateOpen);
-    Assert.Equal(detail.Value.GateOpen, Assert.Single(portfolio.Value!.Items, x => x.EngagementId == f.EngagementId).GateOpen);
+    var exactClientItem = Assert.Single(client.Value!.Items, x => x.EngagementId == f.EngagementId);
+    var exactPortfolioItem = Assert.Single(portfolio.Value!.Items, x => x.EngagementId == f.EngagementId);
+    Assert.False(detail.Value!.GateOpen);
+    Assert.False(exactClientItem.GateOpen);
+    Assert.False(exactPortfolioItem.GateOpen);
+
+    // A retained release only satisfies EntityReporting when both its package and joined candidate
+    // still name the exact current package revision and target. These mutations simulate stale
+    // retained linkage; they do not alter the append-only Release evidence itself.
+    var pins = await verify.Releases.AsNoTracking().Where(x => x.Id == releaseId)
+      .Select(x => new { x.ReleaseCandidateId, x.PinnedCompositionId, x.PinnedCompositionManifestDigest }).SingleAsync();
+    Assert.NotNull(pins.PinnedCompositionId);
+    var packageRevision = await verify.FinancialPackages.AsNoTracking()
+      .Where(x => x.Id == packageId).Select(x => x.Revision).SingleAsync();
+    const string missingExactRelease = "No issued release of the exact approved financial package exists for this period.";
+
+    async Task AssertStaleLinkKeepsAllProgressSurfacesOpen(
+      Guid? currentCompositionId = null, string? currentCompositionDigest = null)
+    {
+      var staleDetail = await EngagementProgressQuery.GetAsync(verify, staff, f.EngagementId);
+      var staleClient = await EngagementProgressQuery.ForClientAsync(verify, staff, f.ClientId);
+      var stalePortfolio = await PortfolioQuery.ProgressAsync(verify, staff);
+      Assert.True(staleDetail.Succeeded, staleDetail.Message);
+      Assert.True(staleClient.Succeeded, staleClient.Message);
+      Assert.True(stalePortfolio.Succeeded, stalePortfolio.Message);
+      var clientItem = Assert.Single(staleClient.Value!.Items, x => x.EngagementId == f.EngagementId);
+      var portfolioItem = Assert.Single(stalePortfolio.Value!.Items, x => x.EngagementId == f.EngagementId);
+      Assert.All(new[] { staleDetail.Value!.GateOpen, clientItem.GateOpen, portfolioItem.GateOpen },
+        gateOpen => Assert.True(gateOpen));
+      Assert.Contains(missingExactRelease, staleDetail.Value.Gates);
+      Assert.Contains(missingExactRelease, clientItem.Gates);
+      Assert.Contains(missingExactRelease, portfolioItem.Gates);
+      var projected = string.Join(" ", staleDetail.Value.Gates.Concat(clientItem.Gates).Concat(portfolioItem.Gates));
+      Assert.DoesNotContain(packageId.ToString("D"), projected);
+      Assert.DoesNotContain(pins.PinnedCompositionId!.Value.ToString("D"), projected);
+      Assert.DoesNotContain(pins.PinnedCompositionManifestDigest!, projected);
+      if (currentCompositionId is { } compositionId)
+        Assert.DoesNotContain(compositionId.ToString("D"), projected);
+      if (currentCompositionDigest is not null)
+        Assert.DoesNotContain(currentCompositionDigest, projected);
+    }
+
+    async Task AssertExactReleaseKeepsAllProgressSurfacesClosed()
+    {
+      var exactDetail = await EngagementProgressQuery.GetAsync(verify, staff, f.EngagementId);
+      var exactClient = await EngagementProgressQuery.ForClientAsync(verify, staff, f.ClientId);
+      var exactPortfolio = await PortfolioQuery.ProgressAsync(verify, staff);
+      Assert.True(exactDetail.Succeeded, exactDetail.Message);
+      Assert.True(exactClient.Succeeded, exactClient.Message);
+      Assert.True(exactPortfolio.Succeeded, exactPortfolio.Message);
+      Assert.False(exactDetail.Value!.GateOpen);
+      Assert.False(Assert.Single(exactClient.Value!.Items, x => x.EngagementId == f.EngagementId).GateOpen);
+      Assert.False(Assert.Single(exactPortfolio.Value!.Items, x => x.EngagementId == f.EngagementId).GateOpen);
+      Assert.DoesNotContain(missingExactRelease, exactDetail.Value.Gates);
+    }
+
+    var foreignTargetId = Guid.CreateVersion7();
+    Assert.Equal(1, await verify.ReleaseCandidates.Where(x => x.Id == pins.ReleaseCandidateId)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.TargetId, foreignTargetId)));
+    await AssertStaleLinkKeepsAllProgressSurfacesOpen();
+
+    Assert.Equal(1, await verify.ReleaseCandidates.Where(x => x.Id == pins.ReleaseCandidateId)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.TargetId, packageId)
+        .SetProperty(x => x.TargetRevision, packageRevision + 1)));
+    await AssertStaleLinkKeepsAllProgressSurfacesOpen();
+
+    Assert.Equal(1, await verify.ReleaseCandidates.Where(x => x.Id == pins.ReleaseCandidateId)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.TargetRevision, packageRevision)));
+    await AssertExactReleaseKeepsAllProgressSurfacesClosed();
+
+    var issuedCandidate = await verify.ReleaseCandidates.AsNoTracking()
+      .SingleAsync(x => x.Id == pins.ReleaseCandidateId);
+    var sourceLayoutId = await verify.FinancialStatementPresentationRevisions.AsNoTracking()
+      .Where(x => x.Id == issuedCandidate.PresentationRevisionId)
+      .Select(x => x.LayoutVersionId).SingleAsync();
+    var alternateLayoutId = await CompletionBundleFixture.CreateAlternateStatementLayoutAsync(verify,
+      preparer, bundleScope.A("senior", "AccountingReviewer"), f.ClientId, sourceLayoutId);
+    var presentationB = await FinancialStatementService.PinPresentationAsync(verify, preparer, packageId, alternateLayoutId);
+    Assert.True(presentationB.Succeeded, presentationB.Message);
+    Assert.True((await FinancialStatementService.RenderPinnedPresentationArtifactAsync(verify,
+      bundleScope.A("senior", "AccountingReviewer"), presentationB.Value!.RevisionId,
+      FinancialStatementPresentationRenderer.PdfFormat)).Succeeded);
+    Assert.True((await StatementContentReviewCall.RecordAsync(verify, bundleScope.A("senior", "AccountingReviewer"),
+      packageId, presentationB.Value.RevisionId)).Succeeded);
+    var presentationCandidateB = await FinancialStatementService.PromotePresentationToCandidateAsync(verify,
+      bundleScope.A("senior", "AccountingReviewer"), packageId, presentationB.Value.RevisionId);
+    Assert.True(presentationCandidateB.Succeeded, presentationCandidateB.Message);
+    var compositionB = await FinancialStatementService.SelectCompositionAsync(verify, preparer,
+      packageId, presentationCandidateB.Value!.RevisionId);
+    Assert.True(compositionB.Succeeded, compositionB.Message);
+    Assert.NotEqual(pins.PinnedCompositionId, compositionB.Value!.Id);
+    Assert.NotEqual(pins.PinnedCompositionManifestDigest, compositionB.Value.ManifestDigest);
+    foreach (var (actor, stage, mode) in new[]
+    {
+      (preparer, FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewEvidenceModes.Offline),
+      (bundleScope.A("senior", "AccountingReviewer"), FinancialPackageReviewStages.AccountingReview,
+        FinancialPackageReviewEvidenceModes.SignedIn),
+      (partner, FinancialPackageReviewStages.PartnerApproval, FinancialPackageReviewEvidenceModes.SignedIn)
+    })
+    {
+      var decision = await FinancialPackageReviewService.RecordAsync(verify, actor,
+        new(packageId, stage, FinancialPackageReviewDecisions.Approved, mode,
+          "progress-composition-B-" + stage, "Reviewed the exact current composition B.",
+          presentationCandidateB.Value.RevisionId, null, compositionB.Value.Id, compositionB.Value.ManifestDigest));
+      Assert.True(decision.Succeeded, decision.Message);
+    }
+    await AssertStaleLinkKeepsAllProgressSurfacesOpen(compositionB.Value.Id, compositionB.Value.ManifestDigest);
+
+    var packageForReleaseB = await verify.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == packageId);
+    var policyGeneration = await verify.FirmSafetyStates.AsNoTracking()
+      .Where(x => x.Id == f.FirmId).Select(x => x.PolicyGeneration).SingleAsync();
+    var releaseManifestB = System.Text.Encoding.UTF8.GetBytes("exact current statement composition B release");
+    var releaseDigestB = AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(releaseManifestB);
+    var approvalB = await ApprovalService.CreateAsync(verify, partner,
+      new(ReleaseTargetKinds.FinancialPackage, packageId, packageForReleaseB.Revision,
+        packageForReleaseB.Generation, policyGeneration, releaseDigestB));
+    Assert.True(approvalB.Succeeded, approvalB.Message);
+    var releaseCandidateB = await ReleaseService.CreateCandidateAsync(verify, partner,
+      new(approvalB.Value, ReleaseTargetKinds.FinancialPackage, packageId, packageForReleaseB.Revision,
+        packageForReleaseB.Generation, policyGeneration, releaseDigestB));
+    Assert.True(releaseCandidateB.Succeeded, releaseCandidateB.Message);
+    var checkpointRoot = Path.Combine(Path.GetTempPath(), "AuditSphereOps-Tests", Guid.NewGuid().ToString("N"));
+    try
+    {
+      var checkpointB = await ReleaseCheckpointService.RecordCheckpointDirectAsync(verify,
+        new LocalAppendOnlyCheckpointStore(checkpointRoot), partner,
+        new(releaseCandidateB.Value, 1, "progress-composition-B-release", releaseDigestB, releaseManifestB));
+      Assert.True(checkpointB.Succeeded, checkpointB.Message);
+      var issuedB = await ReleaseService.IssueAsync(verify, partner,
+        new(releaseCandidateB.Value, 1, releaseDigestB, "progress-composition-B-release"));
+      Assert.True(issuedB.Succeeded, issuedB.Message);
+      var releaseB = await verify.Releases.AsNoTracking().SingleAsync(x => x.Id == issuedB.Value);
+      Assert.Equal(compositionB.Value.Id, releaseB.PinnedCompositionId);
+      Assert.Equal(compositionB.Value.ManifestDigest, releaseB.PinnedCompositionManifestDigest);
+      var retainedReleaseA = await verify.Releases.AsNoTracking().SingleAsync(x => x.Id == releaseId);
+      Assert.Equal(packageId, retainedReleaseA.PackageId);
+      Assert.Equal(pins.PinnedCompositionId, retainedReleaseA.PinnedCompositionId);
+      Assert.Equal(pins.PinnedCompositionManifestDigest, retainedReleaseA.PinnedCompositionManifestDigest);
+      await AssertExactReleaseKeepsAllProgressSurfacesClosed();
+    }
+    finally
+    {
+      if (Directory.Exists(checkpointRoot)) Directory.Delete(checkpointRoot, recursive: true);
+    }
   }
 
   private static Guid AddApprovedEntityProfile(AuditSphereDbContext db, PbcSeed.Fixture f,
