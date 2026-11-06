@@ -325,7 +325,16 @@ public static class EngagementLifecycleQuery
       ? materiality.State == MaterialityCalculationStates.Approved
       : await IndependentlyApprovedLegacyMaterialityAsync(db, actor.FirmId, engagementId, ct));
 
-    if (planApproved && procedures.Count > 0)
+    // An approval and an existing dataset are not a substitute for the accounting owner's
+    // acceptance of the exact source. Keep the stage-5 evidence check in front of the
+    // fieldwork shortcut so a pending, rejected, ambiguous or stale source cannot advance it.
+    var activation = await db.EngagementActivations.AsNoTracking()
+      .FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
+    var trialBalance = activation is null
+      ? null
+      : await AssessTrialBalanceAcceptanceAsync(db, actor, engagement, ct);
+
+    if (planApproved && procedures.Count > 0 && (activation is null || trialBalance!.Accepted))
     {
       var fwBlocked = new List<string>();
       if (holds.Count > 0) fwBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
@@ -348,17 +357,15 @@ public static class EngagementLifecycleQuery
     }
 
     // 5. Portal Active & Planning
-    var activation = await db.EngagementActivations.AsNoTracking().FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
     if (activation is not null)
     {
       var planBlocked = new List<string>();
       var planDetails = new List<EngagementLifecycleBlockerDetail>();
       if (holds.Count > 0) planBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
-      var trialBalance = await AssessTrialBalanceAcceptanceAsync(db, actor, engagement, ct);
-      if (!trialBalance.Accepted)
+      if (trialBalance is not { Accepted: true })
         AddGuidedBlocker(planBlocked, planDetails, "TRIAL_BALANCE_INTAKE_ACCEPTANCE_REQUIRED",
           "Trial balance intake and acceptance required", "Authorized accounting preparer and reviewer",
-          trialBalance.Reason);
+          trialBalance?.Reason ?? "The exact accepted trial-balance context is unresolved.");
       if (!planApproved && materiality?.State == MaterialityCalculationStates.Stale)
         AddGuidedBlocker(planBlocked, planDetails, "MATERIALITY_STALE_REAPPROVAL_REQUIRED",
           "Materiality is stale: the mapping or trial balance changed. Recalculate and re-approve before planning can advance.",

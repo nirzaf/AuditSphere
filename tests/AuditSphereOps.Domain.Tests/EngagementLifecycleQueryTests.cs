@@ -1,4 +1,5 @@
 using System.Text;
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Security;
@@ -520,12 +521,18 @@ public sealed class EngagementLifecycleQueryTests
     var scopedStaff = PbcSeed.User(seed.FirmId, "Staff");
     var mixedStaff = PbcSeed.User(seed.FirmId, "Staff");
     var now = DateTimeOffset.UtcNow;
+    var reportingPeriodId = Guid.NewGuid();
+    var reportingBookId = Guid.NewGuid();
+    var otherPeriodId = Guid.NewGuid();
+    var otherBookId = Guid.NewGuid();
 
     Guid engagementId;
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"));
+      db.RoleGrants.AddRange(
+        PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"),
+        PbcSeed.Grant(seed.FirmId, seed.Admin, "AccountingReviewer"));
 
       var engagement = new Engagement
       {
@@ -541,6 +548,33 @@ public sealed class EngagementLifecycleQueryTests
         CreatedAt = now
       };
       db.Engagements.Add(engagement);
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Staff, "AccountingPreparer", seed.ClientId, engagement.Id));
+      db.ClientReportingPeriods.AddRange(
+        new ClientReportingPeriod
+        {
+          Id = reportingPeriodId, FirmId = seed.FirmId, ClientId = seed.ClientId, PeriodCode = "FY2026",
+          StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "STATUTORY",
+          Currency = "QAR", Status = AccountingWorkflowStates.Active, CreatedByUserId = seed.Admin.Id, CreatedAt = now
+        },
+        new ClientReportingPeriod
+        {
+          Id = otherPeriodId, FirmId = seed.FirmId, ClientId = seed.ClientId, PeriodCode = "FY2025",
+          StartDate = new DateOnly(2025, 1, 1), EndDate = new DateOnly(2025, 12, 31), Basis = "STATUTORY",
+          Currency = "QAR", Status = AccountingWorkflowStates.Active, CreatedByUserId = seed.Admin.Id, CreatedAt = now
+        });
+      db.ClientReportingBooks.AddRange(
+        new ClientReportingBook
+        {
+          Id = reportingBookId, FirmId = seed.FirmId, ClientId = seed.ClientId, PeriodId = reportingPeriodId,
+          Code = "STATUTORY", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES", Currency = "QAR",
+          Status = AccountingWorkflowStates.Active, CreatedByUserId = seed.Admin.Id, CreatedAt = now
+        },
+        new ClientReportingBook
+        {
+          Id = otherBookId, FirmId = seed.FirmId, ClientId = seed.ClientId, PeriodId = otherPeriodId,
+          Code = "STATUTORY", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES", Currency = "QAR",
+          Status = AccountingWorkflowStates.Active, CreatedByUserId = seed.Admin.Id, CreatedAt = now
+        });
       db.Users.AddRange(scopedStaff, mixedStaff);
       db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, scopedStaff, "Staff", seed.ClientId, engagement.Id));
       db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, mixedStaff, "Staff"));
@@ -732,13 +766,88 @@ public sealed class EngagementLifecycleQueryTests
       AssertGuidedBlocker(report.Value.Summary, "Materiality calculation and formal Partner planning approval required",
         "MATERIALITY_CALCULATION_PARTNER_APPROVAL_REQUIRED", "Authorized planning role and Partner");
 
-      // 5. Add TB & approve materiality & unblock professional work -> FieldworkExecution
-      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+      // Other-period evidence and a current-period import are not independent acceptance decisions.
+      var otherPeriodDatasetId = Guid.NewGuid();
+      var pendingDatasetId = Guid.NewGuid();
+      db.TrialBalanceDatasets.AddRange(
+        new TrialBalanceDataset
+        {
+          Id = otherPeriodDatasetId, FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
+          PeriodId = otherPeriodId, BookId = otherBookId, Basis = "STATUTORY", SourceKind = "Raw", Revision = 1,
+          LegalEntityKey = "PBC TEST CLIENT", Currency = "QAR", ImportedByUserId = seed.Staff.Id, ImportedAt = now
+        },
+        new TrialBalanceDataset
+        {
+          Id = pendingDatasetId, FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
+          PeriodId = reportingPeriodId, BookId = reportingBookId, Basis = "STATUTORY", SourceKind = "Raw", Revision = 1,
+          LegalEntityKey = "PBC TEST CLIENT", Currency = "QAR", ImportedByUserId = seed.Staff.Id, ImportedAt = now
+        });
+      await db.SaveChangesAsync();
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(CanonicalEngagementStages.PortalActivePlanning, report.Value!.Summary.CanonicalStage);
+      Assert.Contains("Trial balance intake and acceptance required", report.Value.Summary.BlockedReasons);
+
+      // A second book in the same period is not a reason to pick either source implicitly.
+      var ambiguousDataset = new TrialBalanceDataset
       {
-        Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId,
-        EngagementId = engagementId, SourceKind = "Raw", Revision = 1,
-        LegalEntityKey = "PBC TEST CLIENT", Currency = "QAR"
-      });
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
+        PeriodId = reportingPeriodId, BookId = otherBookId, Basis = "STATUTORY", SourceKind = "Raw", Revision = 1,
+        LegalEntityKey = "PBC TEST CLIENT", Currency = "QAR", ImportedByUserId = seed.Staff.Id, ImportedAt = now
+      };
+      db.TrialBalanceDatasets.Add(ambiguousDataset);
+      await db.SaveChangesAsync();
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.Equal(CanonicalEngagementStages.PortalActivePlanning, report.Value!.Summary.CanonicalStage);
+      var ambiguousBlocker = Assert.Single(report.Value.Summary.BlockerDetails!, detail =>
+        detail.Code == "TRIAL_BALANCE_INTAKE_ACCEPTANCE_REQUIRED");
+      Assert.Contains("Multiple trial-balance books, bases, currencies or entities exist for this period; the exact accepted context must be selected.",
+        ambiguousBlocker.Guidance);
+      db.TrialBalanceDatasets.Remove(ambiguousDataset);
+      await db.SaveChangesAsync();
+
+      var pendingAcceptance = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(db,
+        PbcSeed.Actor(seed.Admin, "AccountingReviewer"), new AcceptSourceRevisionRequest(seed.ClientId, engagementId,
+          AccountingSourceKinds.TrialBalance, pendingDatasetId, null, "lifecycle-t14-pending"));
+      Assert.False(pendingAcceptance.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, pendingAcceptance.ErrorCode);
+
+      // A valid, sealed dataset remains pending until the separate accounting reviewer records acceptance.
+      engagement.ProfessionalWorkBlocked = false;
+      var acceptedDatasetId = Guid.NewGuid();
+      var sourceHash = Hashing.Sha256Hex("lifecycle-t14-accepted-source");
+      var acceptedDataset = new TrialBalanceDataset
+      {
+        Id = acceptedDatasetId, FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
+        PeriodId = reportingPeriodId, BookId = reportingBookId, Basis = "STATUTORY", SourceKind = "Raw", Revision = 1,
+        LegalEntityKey = "PBC TEST CLIENT", Currency = "QAR", RawFileSha256Hex = sourceHash,
+        NormalizedDatasetDigest = sourceHash, Sha256Hex = sourceHash, Balanced = true,
+        ValidationStatus = "Pending", ImportState = TrialBalanceImportStates.Loading,
+        ImportedByUserId = seed.Staff.Id, ImportedAt = now
+      };
+      db.TrialBalanceDatasets.Add(acceptedDataset);
+      db.TrialBalanceRows.AddRange(
+        new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = acceptedDatasetId, AccountCode = "1000", AccountName = "Cash", Amount = 100m, Currency = "QAR", Entity = "TEST" },
+        new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = acceptedDatasetId, AccountCode = "4000", AccountName = "Revenue", Amount = -100m, Currency = "QAR", Entity = "TEST" });
+      await db.SaveChangesAsync();
+      acceptedDataset.ImportState = TrialBalanceImportStates.Sealed;
+      acceptedDataset.ValidationStatus = "Accepted";
+      await db.SaveChangesAsync();
+
+      var acceptedSource = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(db,
+        PbcSeed.Actor(seed.Admin, "AccountingReviewer"), new AcceptSourceRevisionRequest(seed.ClientId, engagementId,
+          AccountingSourceKinds.TrialBalance, acceptedDatasetId, null, "lifecycle-t14-independent-acceptance"));
+      Assert.True(acceptedSource.Succeeded, acceptedSource.Message);
+      var acceptedInputGeneration = await db.ClientSafetyStates.AsNoTracking()
+        .Where(x => x.FirmId == seed.FirmId && x.Id == seed.ClientId)
+        .Select(x => x.InputGeneration).SingleAsync();
+      report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
+      Assert.True(report.Succeeded, report.Message);
+      Assert.Equal(CanonicalEngagementStages.PortalActivePlanning, report.Value!.Summary.CanonicalStage);
+      Assert.DoesNotContain("Trial balance intake and acceptance required", report.Value.Summary.BlockedReasons);
+      AssertGuidedBlocker(report.Value.Summary, "Materiality calculation and formal Partner planning approval required",
+        "MATERIALITY_CALCULATION_PARTNER_APPROVAL_REQUIRED", "Authorized planning role and Partner");
+
+      // 5. Approve materiality and retain the distinct Partner decision before FieldworkExecution.
       // A status flag alone does not approve planning (STE-GAP-008 B): the legacy assessment needs a separate Partner's recorded approval.
       var independentPartner = PbcSeed.User(seed.FirmId, "Staff");
       db.Users.Add(independentPartner);
@@ -785,7 +894,7 @@ public sealed class EngagementLifecycleQueryTests
       var applicabilityProposal = new AuditProcedureApplicabilityDecision
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
-        AuditProcedureId = approvedNotApplicable.Id, Revision = 1, DefinitionRevision = 0, InputGeneration = 1,
+        AuditProcedureId = approvedNotApplicable.Id, Revision = 1, DefinitionRevision = 0, InputGeneration = acceptedInputGeneration,
         Action = AuditApplicabilityActions.ProposeNotApplicable, Rationale = "Outside this engagement's approved scope.",
         CommandId = Guid.NewGuid(), RequestDigest = new string('a', 64), ActorUserId = seed.Staff.Id,
         ActorEpoch = seed.Staff.SessionEpoch, OccurredAt = now
@@ -802,7 +911,7 @@ public sealed class EngagementLifecycleQueryTests
       var applicabilityApproval = new AuditProcedureApplicabilityDecision
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
-        AuditProcedureId = approvedNotApplicable.Id, Revision = 2, DefinitionRevision = 0, InputGeneration = 1,
+        AuditProcedureId = approvedNotApplicable.Id, Revision = 2, DefinitionRevision = 0, InputGeneration = acceptedInputGeneration,
         Action = AuditApplicabilityActions.ApproveNotApplicable, ProposalDecisionId = applicabilityProposal.Id,
         PreviousDecisionId = applicabilityProposal.Id, CommandId = Guid.NewGuid(), RequestDigest = new string('b', 64),
         ActorUserId = seed.Admin.Id, ActorEpoch = seed.Admin.SessionEpoch, OccurredAt = now.AddSeconds(1)
@@ -827,7 +936,7 @@ public sealed class EngagementLifecycleQueryTests
       db.AuditProcedureResults.Add(new AuditProcedureResult
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
-        AuditProcedureId = proc.Id, Revision = 1, InputGeneration = 1, WorkPerformed = "Synthetic procedure work submitted.",
+        AuditProcedureId = proc.Id, Revision = 1, InputGeneration = acceptedInputGeneration, WorkPerformed = "Synthetic procedure work submitted.",
         StructuredResultJson = "{}", EvidenceReferencesJson = "[]", Conclusion = "Awaiting manager review.",
         Status = AuditProcedureResultStatuses.Submitted, PreparedByUserId = seed.Admin.Id, SubmittedAt = now
       });
@@ -845,7 +954,7 @@ public sealed class EngagementLifecycleQueryTests
       var returned = new AuditProcedureResult
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
-        AuditProcedureId = proc.Id, Revision = 2, InputGeneration = 1, WorkPerformed = "Synthetic rework required.",
+        AuditProcedureId = proc.Id, Revision = 2, InputGeneration = acceptedInputGeneration, WorkPerformed = "Synthetic rework required.",
         StructuredResultJson = "{}", EvidenceReferencesJson = "[]", Conclusion = "Revise the evidence linkage.",
         Status = AuditProcedureResultStatuses.ChangesRequired, PreparedByUserId = seed.Admin.Id, SubmittedAt = now.AddSeconds(1)
       };
@@ -870,7 +979,7 @@ public sealed class EngagementLifecycleQueryTests
       var resubmitted = new AuditProcedureResult
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
-        AuditProcedureId = proc.Id, Revision = 3, InputGeneration = 1, WorkPerformed = "Synthetic corrected procedure work submitted.",
+        AuditProcedureId = proc.Id, Revision = 3, InputGeneration = acceptedInputGeneration, WorkPerformed = "Synthetic corrected procedure work submitted.",
         StructuredResultJson = "{}", EvidenceReferencesJson = "[]", Conclusion = "Resubmitted for review.",
         Status = AuditProcedureResultStatuses.Submitted, PreparedByUserId = seed.Staff.Id, SubmittedAt = now.AddSeconds(3)
       };
@@ -1090,6 +1199,69 @@ public sealed class EngagementLifecycleQueryTests
       var denied = await EngagementLifecycleQuery.GetAsync(db, unauthorized, engagementId);
       Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
     }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task ApprovedMaterialityAndProcedureDoNotBypassMissingAcceptedTrialBalance()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var now = DateTimeOffset.UtcNow;
+    var decisionId = Guid.NewGuid();
+    var assessmentId = Guid.NewGuid();
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var engagement = await db.Engagements.SingleAsync(x => x.FirmId == seed.FirmId && x.Id == seed.EngagementId);
+    engagement.Status = "Active";
+    engagement.ProfessionalWorkBlocked = false;
+    db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"));
+    db.AcceptanceDecisions.Add(new AcceptanceDecision
+    {
+      Id = decisionId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId, ServiceRoute = "Audit",
+      Decision = "Accepted", DecidedByUserId = seed.Admin.Id, DecidedAt = now, Path = "NEW_CLIENT", Generation = 1,
+      Rationale = "Synthetic accepted engagement decision", EvaluationTemplateVersion = "V2",
+      EvaluationSnapshotDigest = new string('a', 64)
+    });
+    await db.SaveChangesAsync();
+    db.EngagementActivations.Add(new EngagementActivation
+    {
+      Id = Guid.NewGuid(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId, EngagementId = seed.EngagementId,
+      AcceptanceDecisionId = decisionId, ClientGeneration = 1, AcceptancePath = "NEW_CLIENT",
+      ActivatedByUserId = seed.Admin.Id, ActivatedAt = now
+    });
+    db.MaterialityAssessments.Add(new MaterialityAssessment
+    {
+      Id = assessmentId, FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = seed.EngagementId,
+      Status = MaterialityStatuses.Approved, BenchmarkSource = "TrialBalance", BenchmarkVersion = "1.0",
+      Rationale = "Approved synthetic planning basis", BenchmarkAmount = 1000000m, RateApplied = 0.01m,
+      OverallMateriality = 10000m, PerformanceMateriality = 7500m, ClearlyTrivialThreshold = 500m,
+      ActorId = seed.Staff.Id, CreatedAt = now
+    });
+    db.MaterialityApprovals.Add(new MaterialityApproval
+    {
+      Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = seed.EngagementId,
+      MaterialityAssessmentId = assessmentId, ApprovedByUserId = seed.Admin.Id, ApprovedAt = now.AddSeconds(1)
+    });
+    db.AuditProcedures.Add(new AuditProcedure
+    {
+      Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = seed.EngagementId,
+      Title = "Synthetic planned procedure", Status = AuditProcedureStatuses.Planned,
+      ApplicabilityStatus = AuditApplicabilityStatuses.Applicable, CurrentResultRevision = 0, CreatedAt = now
+    });
+    await db.SaveChangesAsync();
+
+    var report = await EngagementLifecycleQuery.GetAsync(db, PbcSeed.Actor(seed.Admin, "Partner"), seed.EngagementId);
+    Assert.True(report.Succeeded, report.Message);
+    Assert.Equal(CanonicalEngagementStages.PortalActivePlanning, report.Value!.Summary.CanonicalStage);
+    Assert.Contains("Trial balance intake and acceptance required", report.Value.Summary.BlockedReasons);
+    Assert.NotNull(report.Value.Summary.BlockerDetails);
+    var blocker = Assert.Single(report.Value.Summary.BlockerDetails!, detail =>
+      detail.Code == "TRIAL_BALANCE_INTAKE_ACCEPTANCE_REQUIRED");
+    Assert.Equal("Trial balance intake and acceptance required", blocker.Cause);
+    Assert.Equal("Authorized accounting preparer and reviewer", blocker.ResponsibleRole);
+    Assert.False(string.IsNullOrWhiteSpace(blocker.Guidance));
+    Assert.DoesNotContain("Materiality calculation and formal Partner planning approval required", report.Value.Summary.BlockedReasons);
   }
 
   /// <summary>
