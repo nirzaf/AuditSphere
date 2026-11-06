@@ -82,9 +82,15 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("""
+                LOCK TABLE archives IN ACCESS EXCLUSIVE MODE;
+                LOCK TABLE archive_manifest_entries IN ACCESS EXCLUSIVE MODE;
+                LOCK TABLE archive_manifests IN ACCESS EXCLUSIVE MODE;
                 LOCK TABLE archive_structured_exports IN ACCESS EXCLUSIVE MODE;
                 DO $$
                 BEGIN
+                  IF EXISTS (SELECT 1 FROM archive_manifests) THEN
+                    RAISE EXCEPTION 'Cannot remove archive-manifest integrity guards while retained manifests exist.' USING ERRCODE = '55000';
+                  END IF;
                   IF EXISTS (SELECT 1 FROM archive_structured_exports WHERE schema = 'records-export.v2') THEN
                     RAISE EXCEPTION 'Cannot remove engagement-scoped archive schemas while v2 payloads remain.' USING ERRCODE = '55000';
                   END IF;

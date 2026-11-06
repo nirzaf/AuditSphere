@@ -11,6 +11,8 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 using System.Text.Json;
 
@@ -458,6 +460,42 @@ public sealed class RecordsArchiveTests
     var metadata = await AuditRecordQueries.ArchiveAsync(db, scope.Actor, archiveId);
     Assert.True(metadata.Succeeded, metadata.Message);
     Assert.Equal(archiveId, metadata.Value!.Id);
+
+    // Model a pre-existing corrupt row in this disposable test database so the export's
+    // independent digest check is exercised even though normal DML is blocked by the trigger.
+    const string tamperedMetadata = "{\"controlledTamper\":true}";
+    await using (var corruption = new AuditSphereDbContext(pg.Options))
+    await using (var transaction = await corruption.Database.BeginTransactionAsync())
+    {
+      await corruption.Database.ExecuteSqlRawAsync(
+        "ALTER TABLE archive_manifest_entries DISABLE TRIGGER trg_archive_manifest_entry_mutation");
+      try
+      {
+        var changed = await corruption.Database.ExecuteSqlInterpolatedAsync($"""
+          UPDATE archive_manifest_entries SET metadata_json = {tamperedMetadata}
+          WHERE firm_id = {scope.FirmId} AND id = {duplicate.Id}
+          """);
+        Assert.Equal(1, changed);
+      }
+      finally
+      {
+        await corruption.Database.ExecuteSqlRawAsync(
+          "ALTER TABLE archive_manifest_entries ENABLE TRIGGER trg_archive_manifest_entry_mutation");
+      }
+      await transaction.CommitAsync();
+    }
+
+    await using (var corruptExportDb = new AuditSphereDbContext(pg.Options))
+    {
+      var corruptExport = await RecordsArchiveService.ExportReviewedArchiveAsync(corruptExportDb, scope.Actor, archiveId);
+      Assert.False(corruptExport.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, corruptExport.ErrorCode);
+      Assert.Contains("manifest digest does not match", corruptExport.Message, StringComparison.OrdinalIgnoreCase);
+      Assert.Equal(tamperedMetadata, await corruptExportDb.ArchiveManifestEntries.AsNoTracking()
+        .Where(x => x.Id == duplicate.Id).Select(x => x.MetadataJson).SingleAsync());
+      Assert.Equal(manifest.ManifestDigest, await corruptExportDb.ArchiveManifests.AsNoTracking()
+        .Where(x => x.Id == manifest.Id).Select(x => x.ManifestDigest).SingleAsync());
+    }
   }
 
   [Fact]
@@ -622,7 +660,7 @@ public sealed class RecordsArchiveTests
   }
 
   [Fact]
-  public async Task ReArchive_ProducesSeparateVersionWithPredecessorLink()
+  public async Task ReArchive_ProducesSeparateVersionWithPredecessorLinkAndDowngradeRefusesRetainedManifests()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
@@ -731,6 +769,142 @@ public sealed class RecordsArchiveTests
     Assert.Equal(retainedDigest, (await db.ArchiveManifests.AsNoTracking().SingleAsync(x => x.Id == manifest2.Id)).ManifestDigest);
     Assert.Equal(2, await db.ArchiveManifests.CountAsync(x => x.ArchiveId == archiveId));
     Assert.Equal(manifest1.Id, (await db.ArchiveManifests.AsNoTracking().SingleAsync(x => x.Id == manifest2.Id)).PredecessorManifestId);
+
+    // Isolate the manifest guard from the separate v2-payload downgrade guard, then
+    // verify a populated database refuses to roll the integrity migration back.
+    await db.Database.ExecuteSqlInterpolatedAsync($"""
+      UPDATE archive_structured_exports SET schema = 'records-export.v1'
+      WHERE firm_id = {scope.FirmId} AND archive_id = {archiveId}
+        AND archive_manifest_id = {manifest2.Id}
+      """);
+
+    await using var migrationDb = new AuditSphereDbContext(pg.Options);
+    var migrator = migrationDb.GetService<IMigrator>();
+    var migrations = migrationDb.Database.GetMigrations().ToArray();
+    const string integrityMigration = "20261105163636_ArchiveAudienceAndReviewedManifestIntegrity";
+    var integrityIndex = Array.IndexOf(migrations, integrityMigration);
+    Assert.True(integrityIndex > 0, $"Migration {integrityMigration} must be present after its baseline.");
+    var refusedDowngrade = await Assert.ThrowsAnyAsync<Exception>(
+      () => migrator.MigrateAsync(migrations[integrityIndex - 1]));
+    var downgradeRefusal = Assert.IsType<PostgresException>(refusedDowngrade.GetBaseException());
+    Assert.Equal("55000", downgradeRefusal.SqlState);
+    Assert.Contains("retained manifests exist", downgradeRefusal.Message, StringComparison.OrdinalIgnoreCase);
+
+    await using (var guardCheck = new AuditSphereDbContext(pg.Options))
+    {
+      const string attemptedTamper = "{\"controlledTamper\":true}";
+      var refusedMutation = await Assert.ThrowsAsync<PostgresException>(() =>
+        guardCheck.Database.ExecuteSqlInterpolatedAsync($"""
+          UPDATE archive_manifest_entries SET metadata_json = {attemptedTamper}
+          WHERE firm_id = {scope.FirmId} AND archive_manifest_id = {manifest2.Id}
+          """));
+      Assert.Equal("55000", refusedMutation.SqlState);
+    }
+
+    await migrator.MigrateAsync();
+    Assert.Equal(migrations, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+    await migrationDb.Database.ExecuteSqlInterpolatedAsync($"""
+      UPDATE archive_structured_exports SET schema = 'records-export.v2'
+      WHERE firm_id = {scope.FirmId} AND archive_id = {archiveId}
+        AND archive_manifest_id = {manifest2.Id}
+      """);
+  }
+
+  [Fact]
+  public async Task ReviewManifest_RejectsEntryInsertedWhileReviewWaitsForManifestLock()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    var archiveId = Guid.CreateVersion7();
+
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.RecordsProfiles.Add(new RecordsProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ProfileCode = "AUDIT-RECORDS",
+        Version = 1, RecordClass = "Issued audit file", Jurisdiction = "TEST",
+        ServiceRoute = "STATUTORY_AUDIT", RetentionTrigger = "REPORT_DATE",
+        RetentionDurationDays = null, ProtectionMode = "PURVIEW_RECORD",
+        LabelId = "label-test-audit-record", LegalHoldBehavior = "SUSPEND_DISPOSITION",
+        AmendmentRoute = "CONTROLLED_AMENDMENT", DispositionOwner = "Records Custodian",
+        BackupRequirements = "Protected checkpoint", CreatedByUserId = scope.Actor.UserId,
+        Approved = true, ApprovedAt = DateTimeOffset.UtcNow, ApprovedByUserId = scope.Actor.UserId,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      seed.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+        EngagementId = scope.EngagementId, ProfileId = "AUDIT-RECORDS", ProfileVersion = 1,
+        Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+    }
+
+    ArchiveManifestResult built;
+    await using (var builder = new AuditSphereDbContext(pg.Options))
+    {
+      var result = await RecordsArchiveService.BuildManifestAsync(builder, scope.Actor, archiveId);
+      Assert.True(result.Succeeded, result.Message);
+      built = result.Value!;
+    }
+
+    await using var writer = new AuditSphereDbContext(pg.Options);
+    await using var writerTransaction = await writer.Database.BeginTransactionAsync();
+    writer.ArchiveManifestEntries.Add(new ArchiveManifestEntry
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientId,
+      EngagementId = scope.EngagementId, ArchiveManifestId = built.ManifestId,
+      Ordinal = built.EntryCount + 1, EntryKind = "DOCUMENT", SourceKind = "TEST",
+      RelativeName = "evidence/late-entry.pdf", ContentHash = new string('d', 64),
+      ByteCount = 1, Required = true, MetadataJson = "{}"
+    });
+    await writer.SaveChangesAsync();
+
+    await using var reviewer = new AuditSphereDbContext(pg.Options);
+    await reviewer.Database.OpenConnectionAsync();
+    var reviewerConnection = (NpgsqlConnection)reviewer.Database.GetDbConnection();
+    await using var pidCommand = reviewerConnection.CreateCommand();
+    pidCommand.CommandText = "SELECT pg_backend_pid()";
+    var reviewerPid = Convert.ToInt32(await pidCommand.ExecuteScalarAsync());
+
+    var reviewTask = RecordsArchiveService.ReviewManifestAsync(reviewer, scope.Actor, archiveId, built.ManifestId);
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await observer.Database.OpenConnectionAsync();
+    var observerConnection = (NpgsqlConnection)observer.Database.GetDbConnection();
+    await using var waitCommand = observerConnection.CreateCommand();
+    waitCommand.CommandText = "SELECT wait_event_type FROM pg_stat_activity WHERE pid = @pid";
+    waitCommand.Parameters.AddWithValue("pid", reviewerPid);
+
+    string? waitEvent = null;
+    var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+    try
+    {
+      do
+      {
+        waitEvent = await waitCommand.ExecuteScalarAsync() as string;
+        if (waitEvent == "Lock") break;
+        await Task.Delay(TimeSpan.FromMilliseconds(20));
+      } while (DateTimeOffset.UtcNow < deadline);
+    }
+    finally
+    {
+      await writerTransaction.CommitAsync();
+    }
+
+    var review = await reviewTask.WaitAsync(TimeSpan.FromSeconds(10));
+    Assert.Equal("Lock", waitEvent);
+    Assert.False(review.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, review.ErrorCode);
+
+    await using var verification = new AuditSphereDbContext(pg.Options);
+    var retained = await verification.ArchiveManifests.AsNoTracking().SingleAsync(x => x.Id == built.ManifestId);
+    Assert.Equal("BUILT", retained.Status);
+    Assert.Equal(built.Digest, retained.ManifestDigest);
+    Assert.Equal(built.EntryCount, retained.EntryCount);
+    Assert.Equal(built.EntryCount + 1, await verification.ArchiveManifestEntries.CountAsync(x => x.ArchiveManifestId == built.ManifestId));
+    Assert.Equal(ArchiveStates.ManifestBuilt,
+      await verification.Archives.AsNoTracking().Where(x => x.Id == archiveId).Select(x => x.Status).SingleAsync());
   }
 
   [Fact]

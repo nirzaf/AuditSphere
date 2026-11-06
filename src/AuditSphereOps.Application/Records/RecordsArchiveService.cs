@@ -260,11 +260,7 @@ public static class RecordsArchiveService
 
     var missingReferences = snapshots.Count(x => !references.Contains(x.DocumentReferenceId));
     var complete = missingReferences == 0;
-    var entryDigest = JsonSerializer.Serialize(entries.Select(x => new
-    {
-      x.Ordinal, x.EntryKind, x.SourceKind, x.SourceId, x.RelativeName, x.ContentHash, x.ByteCount, x.Required, x.MetadataJson
-    }));
-    var digest = Hashing.Sha256Hex(entryDigest);
+    var digest = ComputeManifestDigest(entries);
     var manifest = new ArchiveManifest
     {
       Id = Guid.CreateVersion7(), FirmId = archive.FirmId, ClientId = archive.ClientId,
@@ -303,6 +299,12 @@ public static class RecordsArchiveService
         "The archive manifest was stored but is incomplete; missing references must be resolved.");
   }
 
+  private static string ComputeManifestDigest(IEnumerable<ArchiveManifestEntry> entries) =>
+    Hashing.Sha256Hex(JsonSerializer.Serialize(entries.OrderBy(x => x.Ordinal).Select(x => new
+    {
+      x.Ordinal, x.EntryKind, x.SourceKind, x.SourceId, x.RelativeName, x.ContentHash, x.ByteCount, x.Required, x.MetadataJson
+    })));
+
   public static async Task<CommandResult<ArchiveManifestResult>> ReviewManifestAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid archiveId, Guid? manifestId = null,
     CancellationToken ct = default, string? requestKey = null)
@@ -314,13 +316,31 @@ public static class RecordsArchiveService
     var archive = await db.Archives.FromSqlInterpolated($"""
       SELECT * FROM archives WHERE firm_id = {actor.FirmId} AND id = {archiveId} FOR UPDATE
       """).SingleAsync(ct);
-    var query = db.ArchiveManifests
-      .Where(x => x.FirmId == actor.FirmId && x.ArchiveId == archive.Id);
-    if (manifestId.HasValue)
-      query = query.Where(x => x.Id == manifestId.Value);
-    var manifest = await query.OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+    var manifestQuery = manifestId is { } selectedManifestId
+      ? db.ArchiveManifests.FromSqlInterpolated($"""
+          SELECT * FROM archive_manifests
+          WHERE firm_id = {actor.FirmId} AND archive_id = {archive.Id} AND id = {selectedManifestId}
+          FOR UPDATE
+          """)
+      : db.ArchiveManifests.FromSqlInterpolated($"""
+          SELECT * FROM archive_manifests
+          WHERE firm_id = {actor.FirmId} AND archive_id = {archive.Id}
+          ORDER BY version DESC
+          LIMIT 1
+          FOR UPDATE
+          """);
+    var manifest = await manifestQuery.SingleOrDefaultAsync(ct);
     if (manifest is null || manifest.CompletenessStatus != "COMPLETE")
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked, "A complete archive manifest is required.");
+
+    var manifestEntries = await db.ArchiveManifestEntries.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ArchiveManifestId == manifest.Id)
+      .OrderBy(x => x.Ordinal).ToListAsync(ct);
+    if (manifestEntries.Count != manifest.EntryCount ||
+        !string.Equals(ComputeManifestDigest(manifestEntries), manifest.ManifestDigest, StringComparison.Ordinal))
+      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked,
+        "The archive manifest entries do not match their retained digest.");
+
     requestKey = string.IsNullOrWhiteSpace(requestKey) ? null : requestKey.Trim();
     if (requestKey is { Length: > 64 })
       return CommandResult<ArchiveManifestResult>.Fail("records-manifest.request.invalid", "The review request identity is invalid.");
