@@ -20,9 +20,9 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "5b095f1ccd62155dd00117748e4359de1843d745",
+  "headCommit": "70db599cc772669be5631116e1a21aa3514b0e2b",
   "verifiedCommit": "13821bc6fdf37e07c42955cfd081ad0e21eeb164",
-  "remoteHeadVerified": true,
+  "remoteHeadVerified": false,
   "verifiedCommitWasRemoteHead": true,
   "productionEnabled": false,
   "verifiedAt": "2026-10-17T10:13:43Z",
@@ -1123,11 +1123,54 @@
     "financeResponseBoundaryEvidence": ".local/autonomous/evidence/practice-management-audit-20261102/finance-scope-compatibility-review.json"
    },
    "archiveCopyProjectionD600": {
-      "archivedSnapshot": ".local/autonomous/evidence/lifecycle-gap-t01-t02-20261106/archive/status-before.json#targetedVerification.archiveCopyProjectionD600",
-      "result": "HISTORICAL_SNAPSHOT_RETAINED"
-    },
-    "lifecycleGapT01T02_20261106": {"attachmentSha256":"1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5","sourceBase":"7229eb876c7503c5e0e32d2ee0e3a0906eff71b2","candidate":"b8b0e3b3ee15cde1995f15d9105ebe777327b5f9","tasks":["T01","T02"],"result":"FOCUSED_FAST_IMAGES_PASS_FULL_PENDING","fastRun":42125074877,"fast":"PASS 3/3 exact checkout logs","imagesRun":42125074911,"images":"PASS 3/3 exact checkout logs and manifest pins","full":"NOT_DISPATCHED","browser":"NOT_RUN","inventory":"NOT_PERFORMED","acceptance":"NOT_CLAIMED","evidence":".local/autonomous/evidence/ci-b8b0e3b3-current-20261106/terminal-proof.json"},
-    "lifecycleGapT03T04T07_20261106": {"attachmentSha256":"1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5","sourceBase":"7331432733fbfcea3d062036cb72539233386ba2","tasks":"T03/T04/T07","result":"BASE_FAST_IMAGES_PASS; FOCUSED_PASS","baseFastImages":"T03 only: 42130440465/42130440454","focused":"T03 Domain/E2E 1/1; T04/T07 Domain 3/3","candidateFastImages":"NOT_RUN","full":"NOT_DISPATCHED","browser":"NOT_RUN","acceptance":"NOT_CLAIMED","proof":".local/autonomous/evidence/lifecycle-gap-t04-t07-20261106/verification.json"}
+    "archivedSnapshot": ".local/autonomous/evidence/lifecycle-gap-t01-t02-20261106/archive/status-before.json#targetedVerification.archiveCopyProjectionD600",
+    "result": "HISTORICAL_SNAPSHOT_RETAINED"
+   },
+   "lifecycleGapT01T02_20261106": {
+    "attachmentSha256": "1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5",
+    "sourceBase": "7229eb876c7503c5e0e32d2ee0e3a0906eff71b2",
+    "candidate": "b8b0e3b3ee15cde1995f15d9105ebe777327b5f9",
+    "tasks": [
+     "T01",
+     "T02"
+    ],
+    "result": "FOCUSED_FAST_IMAGES_PASS_FULL_PENDING",
+    "fastRun": 42125074877,
+    "fast": "PASS 3/3 exact checkout logs",
+    "imagesRun": 42125074911,
+    "images": "PASS 3/3 exact checkout logs and manifest pins",
+    "full": "NOT_DISPATCHED",
+    "browser": "NOT_RUN",
+    "inventory": "NOT_PERFORMED",
+    "acceptance": "NOT_CLAIMED",
+    "evidence": ".local/autonomous/evidence/ci-b8b0e3b3-current-20261106/terminal-proof.json"
+   },
+   "lifecycleGapT03T04T07_20261106": {
+    "attachmentSha256": "1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5",
+    "publishedSha": "478dda44fcb470d9af21d767101c08ffc643d2f1",
+    "tasks": "T03/T04/T07",
+    "focused": "T03 Domain/E2E 1/1; T04/T07 3/3",
+    "fastRun": 42138076212,
+    "fast": "Release FAIL on 478; fixture repair included in candidate.",
+    "imagesRun": 42138076201,
+    "images": "PASS 3/3 checkouts/pins",
+    "full": "NOT_DISPATCHED",
+    "proof": ".local/autonomous/evidence/lifecycle-gap-t04-t07-20261106/verification.json"
+   },
+   "lifecycleGapT05T06_20261106": {
+    "attachmentSha256": "1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5",
+    "base": "478dda44fcb470d9af21d767101c08ffc643d2f1",
+    "tasks": "T05/T06",
+    "result": "FOCUSED_PASS_CI_PENDING",
+    "domain": "4+1 rerun PASS",
+    "playwrightE2e": "3/3 PASS",
+    "fast": "NOT_RUN",
+    "images": "NOT_RUN",
+    "full": "NOT_DISPATCHED",
+    "proof": ".local/autonomous/evidence/lifecycle-gap-t05-t06-20261106/verification.json",
+    "bridgeApproval": "Mismatched source blocks approval/revalidation.",
+    "candidate": "70db599cc772669be5631116e1a21aa3514b0e2b"
+   }
   },
   "externalGates": [
     {
@@ -1639,20 +1682,15 @@
     "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   },
   "currentSourceCi": {
-    "sourceSha": "5b095f1ccd62155dd00117748e4359de1843d745",
-    "fastRunId": 42106509294,
-    "fastStatus": "FAIL aggregate: Angular (2002 tests/196 files) and Release pass on exact 5b checkout; Docs failed on ignored .local links, corrected locally.",
-    "imagesRunId": null,
-    "imagesStatus": "NOT_TRIGGERED by test/docs paths; exact-candidate image gate pending.",
-    "fullRunId": null,
-    "fullStatus": "NOT_DISPATCHED on candidate; historical 42002341722 resolved to bf06 (334/335, T19 timeout; API 143 cause unproven); no exact 10060 run.",
-    "localCandidate": "T19 focused E2E 4/4 PASS; docs link fix passes locally; exact CI repair pending.",
-    "evidence": ".local/autonomous/evidence/lifecycle-gap-t19-20261105/implementation-review.json",
-    "aggregatePass": false,
-    "fastAggregatePass": false,
-    "imagesAggregatePass": false,
-    "actualCheckoutAndPins": "Angular, Docs and Release job logs prove exact checkout 5b; candidate images/full pending."
-  },
+  "sourceSha": "70db599cc772669be5631116e1a21aa3514b0e2b",
+  "fastRun": 42138076212,
+  "fast": "478 Release failed on shared fixture; public-helper repair committed locally.",
+  "imagesRun": 42138076201,
+  "images": "478 images PASS 3/3 pins.",
+  "candidate": "70db local; Domain 4+rerun1, Playwright E2E 3/3; candidate gates not run.",
+  "proof": ".local/autonomous/evidence/lifecycle-gap-t05-t06-20261106/verification.json",
+  "aggregatePass": false
+},
   "uxU03ContextSwitcher": {
     "status": "PARTIAL",
     "baseSha": "32d95ed07e8aca5d20bada061ec3676ddb9d64f6",
@@ -1662,5 +1700,5 @@
     "exactCi": "Current c9 fast 41308762139 and images 41308762133: Docs, Angular, Release, and worker/migrations/API images all PASS.",
     "evidence": ".local/autonomous/evidence/ux-u03-context-switcher-20261101/verification.json"
   },
-  "updatedAtUtc": "2026-11-06T00:28:22.266797Z"
+  "updatedAtUtc": "2026-11-06T02:00:18Z"
 }
