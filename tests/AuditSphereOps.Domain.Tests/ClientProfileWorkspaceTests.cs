@@ -1,4 +1,6 @@
 using System.Data.Common;
+using System.Globalization;
+using System.Text.Json;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
@@ -293,7 +295,14 @@ public sealed class ClientProfileWorkspaceTests
     var now = DateTimeOffset.UtcNow;
     await using var db = new AuditSphereDbContext(pg.Options);
     db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Admin, "FinanceReviewer", f.ClientId));
-    AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-SCOPED-FEE-READ", 100m, now);
+    var account = new BillingAccount
+      { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, Currency = "USD", CreatedAt = now };
+    db.BillingAccounts.Add(account);
+    var fees = AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-SCOPED-FEE-READ", 100m, now);
+    var retainedInvoice = AddFeeInvoiceSource(db, f, account, fees.Advance,
+      "SYN-OFF-SCOPED-RETAINED-ADVANCE", now);
+    fees.Advance.InvoiceId = null;
+    fees.Advance.State = FeeMilestoneStates.Planned;
     await db.SaveChangesAsync();
 
     var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(
@@ -307,13 +316,118 @@ public sealed class ClientProfileWorkspaceTests
     {
       Assert.Equal(ClientOffboardingStates.Unknown, item.State);
       Assert.Null(item.Count);
+      Assert.DoesNotContain("USD", item.Detail ?? string.Empty, StringComparison.Ordinal);
     });
     var feeSection = readiness.Value.Sections.Single(section => section.Key == "FEE_MILESTONES");
-    var fee = Assert.Single(feeSection.Items);
+    var fee = Assert.Single(feeSection.Items, item => item.Key == "FEE_MILESTONES");
     Assert.Equal(ClientOffboardingStates.ActionRequired, fee.State);
     Assert.Equal(2L, fee.Count);
     Assert.Equal("/app/finance/fee-agreements", feeSection.OwnerRoute);
     Assert.Contains("PLANNED 2", fee.Detail!);
+    var reconciliation = Assert.Single(feeSection.Items, item => item.Key == "FEE_RECONCILIATION");
+    Assert.Contains(retainedInvoice.InvoiceNumber, reconciliation.Detail!, StringComparison.Ordinal);
+    Assert.Contains(BillingStates.InvoicePosted, reconciliation.Detail!, StringComparison.Ordinal);
+  }
+
+  [Fact]
+  public async Task OffboardingReadinessScopesAgeingBeforeLimitAndRetainsReceiptAndTimeInBlockedReview()
+  {
+    const int invoiceLimit = 10_000;
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var now = DateTimeOffset.UtcNow;
+    var siblingClientId = Guid.NewGuid();
+    db.PracticeClients.Add(new PracticeClient
+      { Id = siblingClientId, FirmId = f.FirmId, LegalName = "Synthetic sibling", CreatedAt = now });
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"));
+    var targetAccount = new BillingAccount
+      { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, Currency = "USD", CreatedAt = now };
+    var siblingAccount = new BillingAccount
+      { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = siblingClientId, Currency = "QAR", CreatedAt = now };
+    db.BillingAccounts.AddRange(targetAccount, siblingAccount);
+    db.Invoices.AddRange(Enumerable.Range(0, invoiceLimit + 1).Select(index => new Invoice
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = siblingAccount.Id,
+      InvoiceNumber = $"SYN-OFF-B-{index:D5}", Currency = "QAR", Subtotal = 1m, Total = 1m,
+      Status = BillingStates.InvoicePosted, PostedAt = now, CreatedAt = now
+    }));
+    var targetReceipt = ReceiptFor(f, targetAccount, "SYN-OFF-SCOPED-LIMIT-RECEIPT", 30m, now);
+    db.Receipts.Add(targetReceipt);
+    var task = new WorkTask
+      { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        Title = "Synthetic scoped-limit time", CreatedAt = now };
+    db.WorkTasks.Add(task);
+    var rateCard = new RateCardVersion
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, Role = "Staff", Activity = "Offboarding limit observation",
+      Currency = "USD", RatePerHour = 120m, Status = PracticeTimeStates.RateApproved,
+      CreatedByUserId = f.Admin.Id, ApprovedByUserId = f.Reviewer.Id, ApprovedAt = now, CreatedAt = now
+    };
+    db.RateCardVersions.Add(rateCard);
+    var approvedTime = ApprovedTime(f, task, rateCard, DateOnly.FromDateTime(now.UtcDateTime), 0);
+    db.TimeEntries.Add(approvedTime);
+    await db.SaveChangesAsync();
+
+    var actor = PbcSeed.Actor(f.Admin, "Administrator");
+    var firmWideAging = await FirmReceivablesAgingQuery.GetAsync(db, actor,
+      DateOnly.FromDateTime(now.UtcDateTime), CancellationToken.None);
+    Assert.False(firmWideAging.Succeeded);
+    Assert.Equal("finance.report-limit", firmWideAging.ErrorCode);
+
+    static ClientOffboardingItem Item(ClientOffboardingReadiness readiness, string key) =>
+      readiness.Sections.SelectMany(section => section.Items).Single(item => item.Key == key);
+
+    var siblingLoadReadiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, actor, f.ClientId);
+    Assert.True(siblingLoadReadiness.Succeeded, siblingLoadReadiness.Message);
+    Assert.Equal(ClientOffboardingStates.NoFindings, Item(siblingLoadReadiness.Value!, "OUTSTANDING_INVOICES").State);
+    Assert.Equal(0L, Item(siblingLoadReadiness.Value!, "OUTSTANDING_INVOICES").Count);
+    Assert.Equal(1L, Item(siblingLoadReadiness.Value!, "UNAPPLIED_RECEIPTS").Count);
+    Assert.Equal(1L, Item(siblingLoadReadiness.Value!, "APPROVED_UNBILLED_TIME").Count);
+
+    db.Invoices.AddRange(Enumerable.Range(0, invoiceLimit + 1).Select(index => new Invoice
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = targetAccount.Id,
+      InvoiceNumber = $"SYN-OFF-A-{index:D5}", Currency = "USD", Subtotal = 1m, Total = 1m,
+      Status = BillingStates.InvoicePosted, PostedAt = now, CreatedAt = now
+    }));
+    await db.SaveChangesAsync();
+
+    var ownLimitReadiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, actor, f.ClientId);
+    Assert.True(ownLimitReadiness.Succeeded, ownLimitReadiness.Message);
+    var ageing = Item(ownLimitReadiness.Value!, "OUTSTANDING_INVOICES");
+    Assert.Equal(ClientOffboardingStates.Unknown, ageing.State);
+    Assert.Null(ageing.Count);
+    Assert.Contains("10,000-invoice interactive limit", ageing.Detail!, StringComparison.Ordinal);
+    Assert.Equal(0L, Item(ownLimitReadiness.Value!, "UNPOSTED_INVOICES").Count);
+    Assert.Equal(1L, Item(ownLimitReadiness.Value!, "UNAPPLIED_RECEIPTS").Count);
+    Assert.Equal(1L, Item(ownLimitReadiness.Value!, "APPROVED_UNBILLED_TIME").Count);
+
+    var request = new ClientOffboardingCloseoutRequest(f.ClientId,
+      "Reviewed limited ageing coverage with the independent receipt and time facts.", [], 0,
+      ExpectedReadinessDigest: ownLimitReadiness.Value!.ReadinessDigest,
+      RequestKey: "88888888-8888-4888-8888-888888888888");
+    var recorded = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, actor, request);
+    Assert.True(recorded.Succeeded, recorded.Message);
+    Assert.Equal(ClientOffboardingRecordStates.BlockedDecision, recorded.Value!.Status);
+    Assert.False(recorded.Value!.IsArchived);
+    Assert.Equal(ownLimitReadiness.Value!.ReadinessDigest, recorded.Value!.ReadinessDigest);
+
+    var retained = await db.ClientOffboardingRecords.AsNoTracking()
+      .SingleAsync(row => row.Id == recorded.Value!.RecordId);
+    var snapshot = JsonSerializer.Deserialize<ClientOffboardingReadiness>(retained.ReadinessSnapshotJson,
+      new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    Assert.NotNull(snapshot);
+    Assert.Equal(ClientOffboardingStates.Unknown, Item(snapshot!, "OUTSTANDING_INVOICES").State);
+    Assert.Equal(1L, Item(snapshot!, "UNAPPLIED_RECEIPTS").Count);
+    Assert.Equal(1L, Item(snapshot!, "APPROVED_UNBILLED_TIME").Count);
+
+    db.Receipts.Add(ReceiptFor(f, targetAccount, "SYN-OFF-SCOPED-LIMIT-LATER-RECEIPT", 1m, now.AddSeconds(1)));
+    await db.SaveChangesAsync();
+    var replay = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, actor, request);
+    Assert.True(replay.Succeeded, replay.Message);
+    Assert.Equal(recorded.Value!.RecordId, replay.Value!.RecordId);
+    Assert.Equal(recorded.Value!.ReadinessDigest, replay.Value!.ReadinessDigest);
   }
 
   [Fact]
@@ -469,32 +583,96 @@ public sealed class ClientProfileWorkspaceTests
     db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"));
     var account = new BillingAccount
       { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, Currency = "USD", CreatedAt = now };
-    var invoice = new Invoice
+    var usdInvoice = new Invoice
     {
       Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = account.Id, InvoiceNumber = "SYN-OFF-SIX-DECIMAL",
       Currency = "USD", Subtotal = 10m, Total = 10m, Status = BillingStates.InvoicePosted,
       PostedAt = now, CreatedAt = now
     };
-    db.BillingAccounts.Add(account);
-    db.Invoices.Add(invoice);
-    db.CreditNotes.Add(new CreditNote
+    var qarInvoice = new Invoice
     {
-      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = account.Id, InvoiceId = invoice.Id,
-      NoteNumber = "SYN-OFF-SIX-DECIMAL-CREDIT", Currency = "USD", Amount = 9.999999m,
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = account.Id, InvoiceNumber = "SYN-OFF-MILLI-QAR",
+      Currency = "QAR", Subtotal = 0.001m, Total = 0.001m, Status = BillingStates.InvoicePosted,
+      PostedAt = now, CreatedAt = now
+    };
+    var credit = new CreditNote
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = account.Id, InvoiceId = usdInvoice.Id,
+      NoteNumber = "SYN-OFF-SIX-DECIMAL-CREDIT", Currency = "USD", Amount = 0.000001m,
       Reason = "Synthetic exact six-decimal credit", Status = BillingStates.CreditIssued,
       CreatedByUserId = f.Admin.Id, CreatedAt = now
-    });
+    };
+    db.BillingAccounts.Add(account);
+    db.Invoices.AddRange(usdInvoice, qarInvoice);
     await db.SaveChangesAsync();
 
-    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db,
-      PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
-    Assert.True(readiness.Succeeded, readiness.Message);
-    var outstanding = readiness.Value!.Sections.SelectMany(section => section.Items)
+    var actor = PbcSeed.Actor(f.Admin, "Administrator");
+    var beforeCredit = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, actor, f.ClientId);
+    Assert.True(beforeCredit.Succeeded, beforeCredit.Message);
+    Assert.Equal("QAR 0.001; USD 10", beforeCredit.Value!.Sections.SelectMany(section => section.Items)
+      .Single(item => item.Key == "OUTSTANDING_INVOICES").Detail);
+
+    db.CreditNotes.Add(credit);
+    await db.SaveChangesAsync();
+    var priorCulture = CultureInfo.CurrentCulture;
+    var priorUiCulture = CultureInfo.CurrentUICulture;
+    ClientOffboardingReadiness french;
+    ClientOffboardingReadiness english;
+    try
+    {
+      CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+      CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
+      var frenchResult = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, actor, f.ClientId);
+      Assert.True(frenchResult.Succeeded, frenchResult.Message);
+      french = frenchResult.Value!;
+
+      CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+      CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en-US");
+      var englishResult = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, actor, f.ClientId);
+      Assert.True(englishResult.Succeeded, englishResult.Message);
+      english = englishResult.Value!;
+    }
+    finally
+    {
+      CultureInfo.CurrentCulture = priorCulture;
+      CultureInfo.CurrentUICulture = priorUiCulture;
+    }
+
+    var outstanding = english.Sections.SelectMany(section => section.Items)
       .Single(item => item.Key == "OUTSTANDING_INVOICES");
     Assert.Equal(ClientOffboardingStates.ActionRequired, outstanding.State);
-    Assert.Equal(1L, outstanding.Count);
-    Assert.Equal("USD 0.000001", outstanding.Detail);
-    Assert.Matches("^[0-9a-f]{64}$", readiness.Value.ReadinessDigest);
+    Assert.Equal(2L, outstanding.Count);
+    Assert.Equal("QAR 0.001; USD 9.999999", outstanding.Detail);
+    Assert.Equal(outstanding.Detail, french.Sections.SelectMany(section => section.Items)
+      .Single(item => item.Key == "OUTSTANDING_INVOICES").Detail);
+    Assert.Equal(english.ReadinessDigest, french.ReadinessDigest);
+    Assert.NotEqual(beforeCredit.Value.ReadinessDigest, english.ReadinessDigest);
+    Assert.Matches("^[0-9a-f]{64}$", english.ReadinessDigest);
+
+    var request = new ClientOffboardingCloseoutRequest(f.ClientId,
+      "Reviewed exact per-currency balances.", [], 0,
+      ExpectedReadinessDigest: english.ReadinessDigest,
+      RequestKey: "99999999-9999-4999-8999-999999999999");
+    var stale = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, actor,
+      request with { ExpectedReadinessDigest = beforeCredit.Value.ReadinessDigest });
+    Assert.False(stale.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, stale.ErrorCode);
+
+    var recorded = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, actor, request);
+    Assert.True(recorded.Succeeded, recorded.Message);
+    Assert.Equal(english.ReadinessDigest, recorded.Value!.ReadinessDigest);
+
+    db.Invoices.Add(new Invoice
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = account.Id,
+      InvoiceNumber = "SYN-OFF-MILLI-QAR-AFTER-REVIEW", Currency = "QAR", Subtotal = 0.002m, Total = 0.002m,
+      Status = BillingStates.InvoicePosted, PostedAt = now.AddSeconds(1), CreatedAt = now.AddSeconds(1)
+    });
+    await db.SaveChangesAsync();
+    var replay = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, actor, request);
+    Assert.True(replay.Succeeded, replay.Message);
+    Assert.Equal(recorded.Value!.RecordId, replay.Value!.RecordId);
+    Assert.Equal(recorded.Value.ReadinessDigest, replay.Value.ReadinessDigest);
   }
 
   [Fact]
@@ -508,28 +686,19 @@ public sealed class ClientProfileWorkspaceTests
     var account = new BillingAccount
       { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, Currency = "USD", CreatedAt = now };
     db.BillingAccounts.Add(account);
-    var fees = AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-ADVANCE-ORPHAN", 100m, now);
-    var invoice = new Invoice
-    {
-      Id = Guid.NewGuid(), FirmId = f.FirmId, BillingAccountId = account.Id,
-      InvoiceNumber = "SYN-OFF-ADVANCE-ORPHAN-INVOICE", Currency = "USD",
-      Subtotal = fees.Advance.Amount, Total = fees.Advance.Amount,
-      Status = BillingStates.InvoicePosted, PostedAt = now, CreatedAt = now
-    };
-    var line = new InvoiceLine
-    {
-      Id = Guid.NewGuid(), FirmId = f.FirmId, InvoiceId = invoice.Id, Description = "Retained advance",
-      Quantity = 1m, UnitPrice = fees.Advance.Amount, LineTotal = fees.Advance.Amount,
-      SourceKind = FeeAgreementService.MilestoneSourceKind, SourceId = fees.Advance.Id, SourceRevision = 1
-    };
-    db.Invoices.Add(invoice);
-    db.InvoiceLines.Add(line);
-    db.BillingSourceAllocations.Add(new BillingSourceAllocation
-    {
-      Id = Guid.NewGuid(), FirmId = f.FirmId, InvoiceLineId = line.Id,
-      SourceKind = FeeAgreementService.MilestoneSourceKind, SourceId = fees.Advance.Id,
-      SourceRevision = 1, Quantity = 1m, Amount = fees.Advance.Amount, CreatedAt = now
-    });
+    var postedFees = AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-ADVANCE-POSTED-ORPHAN", 100m, now);
+    var postedInvoice = AddFeeInvoiceSource(db, f, account, postedFees.Advance,
+      "SYN-OFF-ADVANCE-POSTED-INVOICE", now);
+    postedFees.Advance.InvoiceId = null;
+    postedFees.Advance.State = FeeMilestoneStates.Planned;
+    var draftFees = AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-ADVANCE-DRAFT-ORPHAN", 120m, now);
+    var draftInvoice = AddFeeInvoiceSource(db, f, account, draftFees.Advance,
+      "SYN-OFF-ADVANCE-DRAFT-INVOICE", now);
+    draftInvoice.Status = BillingStates.InvoiceDraft;
+    draftInvoice.PostedAt = null;
+    draftFees.Advance.InvoiceId = null;
+    draftFees.Advance.State = FeeMilestoneStates.Planned;
+    var ordinaryPlan = AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-ADVANCE-ORDINARY-PLAN", 80m, now);
     await db.SaveChangesAsync();
     var countsBefore = (await db.Invoices.CountAsync(), await db.InvoiceLines.CountAsync(),
       await db.BillingSourceAllocations.CountAsync(), await db.FeeMilestones.CountAsync());
@@ -540,16 +709,58 @@ public sealed class ClientProfileWorkspaceTests
     var feeSection = Assert.Single(readiness.Value!.Sections, section => section.Key == "FEE_MILESTONES");
     var reconciliation = Assert.Single(feeSection.Items, item => item.Key == "FEE_RECONCILIATION");
     Assert.Equal(ClientOffboardingStates.ActionRequired, reconciliation.State);
-    Assert.Equal(1L, reconciliation.Count);
-    Assert.Contains("reconciliation", reconciliation.Detail!, StringComparison.OrdinalIgnoreCase);
+    Assert.Equal(2L, reconciliation.Count);
+    Assert.Contains(postedInvoice.InvoiceNumber, reconciliation.Detail!, StringComparison.Ordinal);
+    Assert.Contains(BillingStates.InvoicePosted, reconciliation.Detail!, StringComparison.Ordinal);
+    Assert.Contains(draftInvoice.InvoiceNumber, reconciliation.Detail!, StringComparison.Ordinal);
+    Assert.Contains(BillingStates.InvoiceDraft, reconciliation.Detail!, StringComparison.Ordinal);
+    Assert.DoesNotContain(ordinaryPlan.Advance.Id.ToString("D"), reconciliation.Detail!, StringComparison.Ordinal);
+    var milestones = Assert.Single(feeSection.Items, item => item.Key == "FEE_MILESTONES");
+    Assert.Equal(6L, milestones.Count);
+    Assert.Contains("PLANNED 6", milestones.Detail!, StringComparison.Ordinal);
     Assert.Contains(feeSection.Items, item => item.Key == "FEE_MILESTONES" &&
       item.State == ClientOffboardingStates.ActionRequired);
-    Assert.Null(await db.FeeMilestones.Where(x => x.Id == fees.Advance.Id)
+    Assert.Null(await db.FeeMilestones.Where(x => x.Id == postedFees.Advance.Id)
       .Select(x => x.InvoiceId).SingleAsync());
-    Assert.Equal(FeeMilestoneStates.Planned, await db.FeeMilestones.Where(x => x.Id == fees.Advance.Id)
+    Assert.Equal(FeeMilestoneStates.Planned, await db.FeeMilestones.Where(x => x.Id == postedFees.Advance.Id)
+      .Select(x => x.State).SingleAsync());
+    Assert.Null(await db.FeeMilestones.Where(x => x.Id == draftFees.Advance.Id)
+      .Select(x => x.InvoiceId).SingleAsync());
+    Assert.Equal(FeeMilestoneStates.Planned, await db.FeeMilestones.Where(x => x.Id == draftFees.Advance.Id)
       .Select(x => x.State).SingleAsync());
     Assert.Equal(countsBefore, (await db.Invoices.CountAsync(), await db.InvoiceLines.CountAsync(),
       await db.BillingSourceAllocations.CountAsync(), await db.FeeMilestones.CountAsync()));
+
+    // Simulate an explicit owner reconciliation. A new intent with the prior digest is stale;
+    // the subsequent exact retry continues to return the original retained review receipt.
+    postedFees.Advance.InvoiceId = postedInvoice.Id;
+    postedFees.Advance.State = FeeMilestoneStates.Invoiced;
+    await db.SaveChangesAsync();
+    var reconciledReadiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db,
+      PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
+    Assert.True(reconciledReadiness.Succeeded, reconciledReadiness.Message);
+    Assert.NotEqual(readiness.Value!.ReadinessDigest, reconciledReadiness.Value!.ReadinessDigest);
+    var request = new ClientOffboardingCloseoutRequest(f.ClientId,
+      "Reviewed retained advance reconciliation.", [], 0,
+      ExpectedReadinessDigest: readiness.Value.ReadinessDigest,
+      RequestKey: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    var stale = await PracticeCrmService.RecordOffboardingCloseoutAsync(db,
+      PbcSeed.Actor(f.Admin, "Administrator"), request);
+    Assert.False(stale.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, stale.ErrorCode);
+
+    var currentRequest = request with { ExpectedReadinessDigest = reconciledReadiness.Value.ReadinessDigest };
+    var recorded = await PracticeCrmService.RecordOffboardingCloseoutAsync(db,
+      PbcSeed.Actor(f.Admin, "Administrator"), currentRequest);
+    Assert.True(recorded.Succeeded, recorded.Message);
+    db.WorkTasks.Add(new WorkTask { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId,
+      EngagementId = f.EngagementId, Title = "Changed after retained advance review", CreatedAt = now });
+    await db.SaveChangesAsync();
+    var replay = await PracticeCrmService.RecordOffboardingCloseoutAsync(db,
+      PbcSeed.Actor(f.Admin, "Administrator"), currentRequest);
+    Assert.True(replay.Succeeded, replay.Message);
+    Assert.Equal(recorded.Value!.RecordId, replay.Value!.RecordId);
+    Assert.Equal(recorded.Value!.ReadinessDigest, replay.Value!.ReadinessDigest);
   }
 
   [Fact]

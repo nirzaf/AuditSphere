@@ -208,7 +208,8 @@ public static partial class PracticeCrmService
         Counted("UNPOSTED_INVOICES", "Invoices not yet posted", unposted), receipts, approvedTime);
 
     var owed = aging.Value.Rows.Where(row => row.ClientId == clientId && row.Outstanding > 0m).ToArray();
-    var detail = owed.Length == 0 ? null : string.Join("; ", owed.GroupBy(row => row.Currency).OrderBy(group => group.Key)
+    var detail = owed.Length == 0 ? null : string.Join("; ", owed.GroupBy(row => row.Currency)
+      .OrderBy(group => group.Key, StringComparer.Ordinal)
       .Select(group => $"{group.Key} {group.Sum(row => row.Outstanding).ToString("0.######", CultureInfo.InvariantCulture)}"));
     return Section("FINANCE", "Money", "/app/finance/receivables-aging",
       Counted("OUTSTANDING_INVOICES", "Posted invoices with an outstanding balance", owed.Length, detail),

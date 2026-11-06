@@ -198,8 +198,7 @@ public static partial class PracticeCrmService
         Counted("FEE_MILESTONES", label, 0));
 
     var observations = new List<(string Currency, string State, decimal Amount)>();
-    var reconciliationRequired = false;
-    string? reconciliationDetail = null;
+    var reconciliationFindings = new List<string>();
     foreach (var agreementId in agreements)
     {
       var result = await FeeSettlementWorkspaceQuery.GetAsync(db, actor, agreementId,
@@ -225,13 +224,20 @@ public static partial class PracticeCrmService
       }
       if (workspace.AdvancePreparation.ReconciliationRequired)
       {
-        reconciliationRequired = true;
-        reconciliationDetail = workspace.AdvancePreparation.Message;
+        var advance = workspace.Milestones.SingleOrDefault(item => item.Kind == FeeMilestoneKinds.Advance);
+        if (advance is null || string.IsNullOrWhiteSpace(advance.InvoiceNumber) ||
+            string.IsNullOrWhiteSpace(advance.InvoiceStatus))
+          return Section("FEE_MILESTONES", "Fee agreement", "/app/finance/fee-agreements",
+            Unavailable("FEE_MILESTONES", label,
+              "A retained advance invoice has incomplete source identity for reconciliation."));
+
+        reconciliationFindings.Add(
+          $"Agreement {agreementId:D}, advance milestone {advance.Id:D}, retained invoice {advance.InvoiceNumber} ({advance.InvoiceStatus}): milestone linkage requires reconciliation.");
       }
     }
 
     var pending = observations.Where(item => item.State is FeeMilestoneStates.Planned or FeeMilestoneStates.Invoiced).ToArray();
-    if (pending.Length == 0 && !reconciliationRequired)
+    if (pending.Length == 0 && reconciliationFindings.Count == 0)
       return Section("FEE_MILESTONES", "Fee agreement", "/app/finance/fee-agreements",
         Counted("FEE_MILESTONES", label, 0));
     string detail;
@@ -261,10 +267,10 @@ public static partial class PracticeCrmService
     if (pending.Length > 0)
       items.Add(new ClientOffboardingItem("FEE_MILESTONES", label, ClientOffboardingStates.ActionRequired,
         pending.LongLength, detail));
-    if (reconciliationRequired)
+    if (reconciliationFindings.Count > 0)
       items.Add(new ClientOffboardingItem("FEE_RECONCILIATION",
-        "Advance invoice awaiting milestone reconciliation", ClientOffboardingStates.ActionRequired, 1L,
-        reconciliationDetail));
+        "Advance invoice awaiting milestone reconciliation", ClientOffboardingStates.ActionRequired,
+        reconciliationFindings.Count, string.Join("; ", reconciliationFindings)));
     return Section("FEE_MILESTONES", "Fee agreement", "/app/finance/fee-agreements", items.ToArray());
   }
 
