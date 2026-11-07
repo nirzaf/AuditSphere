@@ -248,7 +248,7 @@ class OperationalEvidenceTests(unittest.TestCase):
             "findings": [],
         }
 
-    def test_current_record_is_incomplete_and_local_restore_stays_local(self) -> None:
+    def test_current_record_is_incomplete_and_missing_local_restore_stays_unknown(self) -> None:
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             exit_code = verify.main([str(CONTRACT)])
@@ -259,7 +259,8 @@ class OperationalEvidenceTests(unittest.TestCase):
         self.assertEqual("DECLARED_UNVERIFIED", result["sourceIdentity"])
         self.assertIn(result["sourceObservation"]["workingTree"], {"CLEAN", "DIRTY", "UNKNOWN"})
         self.assertEqual("UNKNOWN", result["securityScans"]["nuget"])
-        self.assertEqual("LOCAL_ONLY", result["recovery"]["localRestore"])
+        self.assertEqual("UNKNOWN", result["recovery"]["localRestore"])
+        self.assertIn("LOCAL_RESTORE_EVIDENCE_UNKNOWN", result["blockerCodes"])
         self.assertEqual("INCOMPLETE", result["recovery"]["production"])
         self.assertEqual("HASHED_REFERENCE_ONLY_NOT_AUTHENTICATED", result["approvalReferences"])
         self.assertEqual("NOT_ASSESSED", result["operationalAcceptance"])

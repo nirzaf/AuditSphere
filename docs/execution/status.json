@@ -1,24 +1,25 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-07T15:25:07Z",
+  "observedAtUtc": "2026-11-07T16:11:55Z",
   "source": {
     "branch": "master",
-    "baseSha": "42acad66c31a4bad8bb47a19436475030ef4bb86",
-    "originMasterSha": "42acad66c31a4bad8bb47a19436475030ef4bb86",
-    "workingTree": "Local eight-path documentation, task-board-generator, capability-catalog and generated OpenAPI follow-up is not yet committed. It restores the runner capability catalog removed in historical commit da898328, updates category/task-library indexes and the current execution handoff/status, adds the generated detail.maxLength field found by exact-source CI, and regenerates the task board from available task-card sources. The base fast run failed Docs on the missing catalog and Release on OpenAPI drift; the base image run passed. This candidate has not run in CI.",
-    "wholeAssignment": "INCOMPLETE"
+    "baseSha": "7784ea8f415b85f47552971aff89d852c81b6c8a",
+    "originMasterSha": "7784ea8f415b85f47552971aff89d852c81b6c8a",
+    "workingTree": "HEAD and origin/master are 7784ea8f415b85f47552971aff89d852c81b6c8a. An uncommitted four-path CI follow-up updates the restore-drill runbook and its focused regression expectation, plus this status and current-slice handoff. It does not restore historical recovery evidence or claim production recovery.",
+    "wholeAssignment": "INCOMPLETE",
+    "currentCandidateSha": "7784ea8f415b85f47552971aff89d852c81b6c8a"
   },
   "activeWork": {
     "practiceManagement": "T09 bounded fee-reconciliation readiness committed as 0375b67e; local Angular and Application Release checks passed; exact-source CI pending; focused Domain tests remain BLOCKED_TEST_ENV on approved port 5433.",
-    "documentation": "Category entry points are maintained in the root documentation index; unique approved requirements, ADRs, proposals, historical task sources, operator procedures and machine-consumed files remain separate. The human task-library index clarifies that T010’s Blazor title is historical under ADR-0002. Pinned task-card/source files remain unchanged. This local follow-up restores docs/testing/agent-check-capabilities.json from 4862237b, refreshes category and execution indexes, updates the current handoff/status, syncs generated OpenAPI detail.maxLength=2000, and repairs scripts/docs/build-task-board.py. The generated board now has 75 available R2R/AUD rows and reports PARTIAL_SOURCE; the missing per-item audit JSON and two STE v2.1 story sources are disclosed, every code verdict remains NOT_AUDITED, and no gaps or missing story rows are inferred.",
+    "documentation": "Category entry points and PARTIAL_SOURCE task-board reconciliation are pushed at 7784ea8f. Exact fast run 42386372096 is terminal FAILURE: Angular PASS, Release PASS (exact checkout 7784, build 0 warnings/errors, Domain 16/16, API 12/12 and OpenAPI current), Docs FAILURE from the stale local-restore expectation. The local runbook/test correction makes missing current evidence remain UNKNOWN; focused 14-test regression and final docs gates pass. Fetch/review incoming paths and publish the scoped correction, then verify its exact successor CI.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Fetch and review incoming paths, stage and publish the scoped docs/catalog/generator/OpenAPI correction, then verify exact successor fast and image runs. No full application acceptance claim.",
+      "nextAction": "Fetch origin/master and review incoming paths, publish the scoped four-path local restore expectation/runbook/status/handoff correction, then monitor exact successor fast and any triggered image runs. No full or release-acceptance claim.",
       "note": "The 48-row ledger validates. The generated task board is current for available sources (PARTIAL_SOURCE), with no invented audit verdicts or missing STE rows.",
-      "currentSourceSha": "42acad66c31a4bad8bb47a19436475030ef4bb86"
+      "currentSourceSha": "7784ea8f415b85f47552971aff89d852c81b6c8a"
     }
   },
   "localVerification": {
@@ -31,19 +32,19 @@
       "deletedPathReferences": 0,
       "approvedRecordsAndTaskProvenance": "PASS",
       "command": "python3 scripts/docs/validate-markdown-documentation.py",
-      "observedAtUtc": "2026-11-07T15:24:58Z"
+      "observedAtUtc": "2026-11-07T16:11:55Z"
     },
     "filenameValidation": {
       "result": "PASS",
       "markdownFiles": 180,
       "command": "python3 scripts/docs/validate-markdown-filenames.py",
-      "observedAtUtc": "2026-11-07T15:24:58Z"
+      "observedAtUtc": "2026-11-07T16:11:55Z"
     },
     "narrativeMetricsValidation": {
       "result": "PASS",
       "protectedDocuments": 6,
       "command": "python3 scripts/docs/validate-narrative-metrics.py",
-      "observedAtUtc": "2026-11-07T15:24:58Z"
+      "observedAtUtc": "2026-11-07T16:11:55Z"
     },
     "auditProgramSource": {
       "result": "PASS",
@@ -51,7 +52,7 @@
       "sections": 20,
       "procedureParagraphs": 165,
       "command": "python3 scripts/docs/verify-audit-program-source.py",
-      "observedAtUtc": "2026-11-07T15:24:58Z"
+      "observedAtUtc": "2026-11-07T16:11:55Z"
     },
     "taskStatusUtilityTests": {
       "result": "PASS",
@@ -71,8 +72,8 @@
     "diffCheck": {
       "result": "PASS",
       "command": "git diff --check and git diff --cached --check",
-      "note": "Checked docs, generator, generated board and OpenAPI contract changes; pinned task-card source bytes remain unchanged.",
-      "observedAtUtc": "2026-11-07T15:25:07Z"
+      "note": "git diff --check passed for the final four-path docs/runbook/regression/status/handoff follow-up.",
+      "observedAtUtc": "2026-11-07T16:11:55Z"
     },
     "taskBoardGenerator": {
       "result": "PASS_WITH_SOURCE_LIMITATIONS",
@@ -86,7 +87,7 @@
         "docs/execution/auditsphere-execution-user-stories-ste-v21-gap-closure-current.md"
       ],
       "note": "Generated from available R2R/AUD task cards only; no code gaps or missing STE stories are inferred. T010 archived Blazor title is labeled historical under ADR-0002.",
-      "observedAtUtc": "2026-11-07T15:24:58Z"
+      "observedAtUtc": "2026-11-07T16:11:55Z"
     },
     "angularOffboardingReadinessSpec": {
       "result": "PASS",
@@ -118,7 +119,7 @@
       "packets": 3,
       "sourceSha256": "2931b367103966b6b656d36eb3e1def8fbee70161fc7977d1319b133a7bf7b8d",
       "command": "python3 scripts/agent/agent-check.py --validate-catalog",
-      "observedAtUtc": "2026-11-07T15:24:58Z"
+      "observedAtUtc": "2026-11-07T16:11:55Z"
     },
     "imageBuildMemoryGuard": {
       "result": "PASS_ON_STANDALONE_RERUN",
@@ -143,6 +144,30 @@
       "command": "bash scripts/contracts/verify-openapi.sh",
       "note": "Run after rebuilding the emitter; generated contract matches after adding detail.maxLength=2000.",
       "observedAtUtc": "2026-11-07T15:24:58Z"
+    },
+    "operationalEvidenceFocusedRegression": {
+      "result": "PASS",
+      "testsPassed": 14,
+      "testsFailed": 0,
+      "command": "python3 -m unittest discover -s scripts/verification/tests -p 'test_operational_evidence.py'",
+      "observedAtUtc": "2026-11-07T15:48:10Z",
+      "note": "The current record remains INCOMPLETE; localRestore is UNKNOWN and LOCAL_RESTORE_EVIDENCE_UNKNOWN is present because current evidence is absent. Historical blob equality does not establish a current drill."
+    },
+    "operationalEvidenceCurrentRecord": {
+      "result": "INCOMPLETE_AS_DECLARED",
+      "localRestore": "UNKNOWN",
+      "blocker": "LOCAL_RESTORE_EVIDENCE_UNKNOWN",
+      "historicalBlobSha256MatchesDeclaredReference": true,
+      "historicalBlobCommit": "c19f4cb73412",
+      "currentEvidenceFilePresent": false,
+      "productionRecovery": "INCOMPLETE",
+      "command": "python3 scripts/verification/verify-operational-evidence.py docs/spec/completion-operational-evidence.json"
+    },
+    "uiSourceInventory": {
+      "result": "PASS",
+      "command": "python3 scripts/ui/inventory.py --check",
+      "observedAtUtc": "2026-11-07T16:11:55Z",
+      "note": "Current Angular source discovery is valid; legacy Blazor discovery inventory remains explicitly historical."
     }
   },
   "observedCi": {
@@ -267,6 +292,58 @@
       },
       "fullReleaseRun": "NOT_DISPATCHED_FOR_THIS_DOCS_AND_CONTRACT_SLICE",
       "nextAction": "The terminal 42acad image run is preserved. Finalize local docs and contract verification, fetch/review incoming paths, publish one scoped candidate, then monitor only the exact successor fast/image runs."
+    },
+    "docsConsolidationCandidate7784": {
+      "runId": 42386372096,
+      "attempt": 1,
+      "event": "push",
+      "metadataHeadSha": "7784ea8f415b85f47552971aff89d852c81b6c8a",
+      "aggregateStatus": "FAILURE",
+      "jobs": {
+        "angular": {
+          "id": 128444524291,
+          "status": "SUCCESS",
+          "actualCheckoutSha": "UNVERIFIED; complete Angular log was not retained"
+        },
+        "docsHealth": {
+          "id": 128444524439,
+          "status": "FAILURE",
+          "failedStep": "Validate capability packets and runner safety guards",
+          "actualCheckoutSha": "7784ea8f415b85f47552971aff89d852c81b6c8a",
+          "log": ".local/autonomous/evidence/docs-consolidation-20261107/ci-7784ea8f-fast/job-128444524439-docs.log",
+          "logSha256": "a0268510ea6ab9dba35f9d63a6a76a0aa2d1ff5d112243a32d6b9b9d25bb3c99",
+          "checkoutEvidence": "retained Docs log fetched exact ref and prints the same SHA"
+        },
+        "dotnetRelease": {
+          "id": 128444946820,
+          "status": "SUCCESS",
+          "currentStep": "Restore and build Release",
+          "actualCheckoutSha": "7784ea8f415b85f47552971aff89d852c81b6c8a",
+          "checkoutEvidence": "terminal Release log fetched exact ref and prints the same SHA",
+          "build": "PASS; 0 warnings; 0 errors",
+          "domainGuards": "PASS 16/16",
+          "apiGuards": "PASS 12/12",
+          "openApi": "PASS; contract current",
+          "log": ".local/autonomous/evidence/docs-consolidation-20261107/ci-7784ea8f-fast/job-128444946820-release.log",
+          "logSha256": "76b4f481e35685f7121e2219234d5bec8265e828622d45f03856d91beb9df40a"
+        }
+      },
+      "failure": "The test expected LOCAL_ONLY while the operational evidence verifier returned UNKNOWN because docs/evidence/restore-drill-latest.json is absent. The declared historical JSON blob at c19f4cb73412 has the exact recorded SHA-256, but the current restore runbook states that it is historical only.",
+      "localCorrection": "The regression now expects UNKNOWN and LOCAL_RESTORE_EVIDENCE_UNKNOWN; the runbook states LOCAL_ONLY requires present, hash-valid evidence passing reconciliation. No historical evidence was restored.",
+      "fullReleaseVerification": "NOT_DISPATCHED_FOR_THIS_DOCUMENTATION_FOLLOWUP",
+      "imageRun": "No image run observed for the docs-only predecessor path; inspect any workflow triggered by the follow-up push.",
+      "terminalAtUtc": "2026-11-07T16:06:31Z",
+      "artifactMetadata": {
+        "path": ".local/autonomous/evidence/docs-consolidation-20261107/ci-7784ea8f-fast/artifact-metadata.json",
+        "sha256": "95ee0a5007f46164c2d965a0fdafceda0afb44ca0501d057fb5a69952a6a1850",
+        "retrieval": "METADATA_ONLY_DOWNLOADED_ONCE",
+        "artifactIds": [
+          13580932747,
+          13579039256
+        ]
+      },
+      "nonBlockingAnnotation": "GitHub warns Node 20 action runtime is deprecated; actions were forced onto Node 24. Not the Docs failure.",
+      "nextAction": "The predecessor fast run is terminal. Fetch origin/master, inspect incoming paths, then publish the scoped four-path correction; monitor exact successor fast and any image workflow."
     }
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."
