@@ -195,6 +195,7 @@ public sealed class ReleaseTests
       Assert.Single(await db.Releases.ToListAsync());
       var deliveryIntent = Assert.Single(await db.DurableOperations
         .Where(x => x.OperationKind == "ReleaseDelivery.v1").ToListAsync());
+      Assert.Equal("release:release-001", deliveryIntent.IdempotencyKey);
       Assert.Equal(OperationState.PROVIDER_BLOCKED, deliveryIntent.Status);
       Assert.Equal("general", deliveryIntent.ExecutionGroup);
       Assert.Equal("release.delivery.awaiting.authorization", deliveryIntent.ErrorCode);
@@ -208,6 +209,179 @@ public sealed class ReleaseTests
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
         DELETE FROM releases WHERE firm_id = {fixture.FirmId} AND id = {issued.Value}
         """));
+    }
+  }
+
+  [Fact]
+  public async Task ReleaseCheckpointKey_RejectsInvalidKeysBeforeQueueStoreOrIssueEffects()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var manifestBytes = System.Text.Encoding.UTF8.GetBytes("release-checkpoint-key-validation");
+    var digest = Hashing.Sha256Hex(manifestBytes);
+    var candidateId = await CreateCandidateForCheckpointKeyAsync(pg, fixture, digest);
+    var candidate = await LoadCandidateAsync(pg, candidateId);
+    var checkpointDir = Path.Combine(Path.GetTempPath(), "AuditSphereOps-Tests", Guid.NewGuid().ToString("N"));
+    var checkpointStore = new CountingCheckpointStore(new LocalAppendOnlyCheckpointStore(checkpointDir));
+    var handler = new ReleaseCheckpointHandler(checkpointStore);
+    var innerOperationStore = new PostgresOperationStore(
+      new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options)));
+    var operationStore = new CountingOperationStore(innerOperationStore);
+    var runtime = ReleaseCheckpointRuntimeOptions.Resolve(checkpointDir, "Acceptance", enabled: true);
+    var invalidKeys = new string?[] { " \t\r\n ", "release\nkey", new string('k', 201), null };
+
+    OperationRequest HandlerRequest(string? key) => new(
+      fixture.FirmId, candidate.ClientId, candidate.EngagementId, ReleaseCheckpointHandler.Kind,
+      candidateId, 1, $"checkpoint:{candidateId:D}:1:{digest}",
+      System.Text.Json.JsonSerializer.Serialize(new
+      {
+        candidateId,
+        candidateRevision = 1,
+        manifestDigest = digest,
+        authorizedReleaseKey = key,
+        manifestBytesBase64 = Convert.ToBase64String(manifestBytes)
+      }), fixture.Partner.UserId);
+
+    try
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      foreach (var key in invalidKeys)
+      {
+        var issue = await ReleaseService.IssueAsync(db, fixture.Partner,
+          new IssueReleaseRequest(candidateId, 1, digest, key!));
+        Assert.False(issue.Succeeded);
+        Assert.Equal("release.invalid", issue.ErrorCode);
+        if (!string.IsNullOrEmpty(key))
+          Assert.DoesNotContain(key, issue.Message, StringComparison.Ordinal);
+
+        var direct = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, checkpointStore, fixture.Partner,
+          new RecordReleaseCheckpointRequest(candidateId, 1, key!, digest, manifestBytes));
+        Assert.False(direct.Succeeded);
+        Assert.Equal("checkpoint.invalid", direct.ErrorCode);
+        if (!string.IsNullOrEmpty(key))
+          Assert.DoesNotContain(key, direct.Message, StringComparison.Ordinal);
+
+        var queued = await ReleaseCheckpointService.EnqueueCheckpointAsync(db, fixture.Partner,
+          new RecordReleaseCheckpointRequest(candidateId, 1, key!, digest, manifestBytes), runtime,
+          operationStore, handler);
+        Assert.False(queued.Succeeded);
+        Assert.Equal("checkpoint.invalid", queued.ErrorCode);
+        if (!string.IsNullOrEmpty(key))
+          Assert.DoesNotContain(key, queued.Message, StringComparison.Ordinal);
+
+        var blocked = Assert.Throws<OperationBlockedException>(() => handler.NormalizePayload(HandlerRequest(key)));
+        Assert.Equal("invalid-checkpoint-request", blocked.Code);
+
+        Assert.Equal(0, operationStore.EnqueueCalls);
+        Assert.Equal(0, checkpointStore.TotalCalls);
+        Assert.Empty(await db.DurableOperations.AsNoTracking()
+          .Where(x => x.OperationKind == ReleaseCheckpointHandler.Kind && x.TargetId == candidateId).ToListAsync());
+        Assert.Empty(await db.ReleaseCheckpoints.AsNoTracking().Where(x => x.ReleaseCandidateId == candidateId).ToListAsync());
+        Assert.Empty(await db.Releases.AsNoTracking().Where(x => x.ReleaseCandidateId == candidateId).ToListAsync());
+      }
+    }
+    finally
+    {
+      if (Directory.Exists(checkpointDir))
+        Directory.Delete(checkpointDir, recursive: true);
+    }
+  }
+
+  [Fact]
+  public async Task ReleaseCheckpointKey_Normalizes200CharactersAcrossEnqueueDirectAndIssueReplay()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var manifestBytes = System.Text.Encoding.UTF8.GetBytes("release-checkpoint-key-boundary");
+    var digest = Hashing.Sha256Hex(manifestBytes);
+    var candidateId = await CreateCandidateForCheckpointKeyAsync(pg, fixture, digest);
+    var candidate = await LoadCandidateAsync(pg, candidateId);
+    var key = new string('k', 200);
+    var paddedKey = $" \t{key}\r\n";
+    var otherValidKey = new string('x', 200);
+    var checkpointDir = Path.Combine(Path.GetTempPath(), "AuditSphereOps-Tests", Guid.NewGuid().ToString("N"));
+    var checkpointStore = new CountingCheckpointStore(new LocalAppendOnlyCheckpointStore(checkpointDir));
+    var handler = new ReleaseCheckpointHandler(checkpointStore);
+    var innerOperationStore = new PostgresOperationStore(
+      new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options)));
+    var operationStore = new CountingOperationStore(innerOperationStore);
+    var runtime = ReleaseCheckpointRuntimeOptions.Resolve(checkpointDir, "Acceptance", enabled: true);
+    var idempotencyKey = $"checkpoint:{candidateId:D}:1:{digest}";
+    var rawPayload = System.Text.Json.JsonSerializer.Serialize(new
+    {
+      candidateId,
+      candidateRevision = 1,
+      manifestDigest = digest,
+      authorizedReleaseKey = paddedKey,
+      manifestBytesBase64 = Convert.ToBase64String(manifestBytes)
+    });
+    var rawOperation = new OperationRequest(fixture.FirmId, candidate.ClientId, candidate.EngagementId,
+      ReleaseCheckpointHandler.Kind, candidateId, 1, idempotencyKey, rawPayload, fixture.Partner.UserId);
+    var normalizedPayload = handler.NormalizePayload(rawOperation);
+    using (var normalizedDocument = System.Text.Json.JsonDocument.Parse(normalizedPayload))
+      Assert.Equal(key, normalizedDocument.RootElement.GetProperty("authorizedReleaseKey").GetString());
+
+    try
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var enqueued = await ReleaseCheckpointService.EnqueueCheckpointAsync(db, fixture.Partner,
+        new RecordReleaseCheckpointRequest(candidateId, 1, paddedKey, digest, manifestBytes), runtime,
+        operationStore, handler);
+      Assert.True(enqueued.Succeeded, enqueued.Message);
+      Assert.Equal(1, operationStore.EnqueueCalls);
+      var operation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == enqueued.Value);
+      using (var operationPayload = System.Text.Json.JsonDocument.Parse(operation.PayloadJson))
+        Assert.Equal(key, operationPayload.RootElement.GetProperty("authorizedReleaseKey").GetString());
+
+      var differentKey = await ReleaseCheckpointService.EnqueueCheckpointAsync(db, fixture.Partner,
+        new RecordReleaseCheckpointRequest(candidateId, 1, otherValidKey, digest, manifestBytes), runtime,
+        operationStore, handler);
+      Assert.False(differentKey.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, differentKey.ErrorCode);
+      Assert.DoesNotContain(key, differentKey.Message, StringComparison.Ordinal);
+      Assert.DoesNotContain(otherValidKey, differentKey.Message, StringComparison.Ordinal);
+      Assert.Equal(2, operationStore.EnqueueCalls);
+      Assert.Single(await db.DurableOperations.AsNoTracking()
+        .Where(x => x.OperationKind == ReleaseCheckpointHandler.Kind && x.TargetId == candidateId).ToListAsync());
+
+      var recorded = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, checkpointStore, fixture.Partner,
+        new RecordReleaseCheckpointRequest(candidateId, 1, paddedKey, digest, manifestBytes));
+      Assert.True(recorded.Succeeded, recorded.Message);
+      Assert.Equal(1, checkpointStore.WriteCalls);
+      Assert.Equal(1, checkpointStore.VerifyCalls);
+      Assert.Equal(0, checkpointStore.ProbeCalls + checkpointStore.ReadCalls);
+      Assert.Equal(key, (await db.ReleaseCheckpoints.AsNoTracking()
+        .SingleAsync(x => x.ReleaseCandidateId == candidateId)).AuthorizedReleaseKey);
+
+      var directDifferentKey = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, checkpointStore,
+        fixture.Partner, new RecordReleaseCheckpointRequest(candidateId, 1, otherValidKey, digest, manifestBytes));
+      Assert.False(directDifferentKey.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, directDifferentKey.ErrorCode);
+      Assert.Equal(1, checkpointStore.WriteCalls);
+      Assert.Equal(1, checkpointStore.VerifyCalls);
+
+      var issued = await ReleaseService.IssueAsync(db, fixture.Partner,
+        new IssueReleaseRequest(candidateId, 1, digest, paddedKey));
+      Assert.True(issued.Succeeded, issued.Message);
+      var deliveryIntent = await db.DurableOperations.AsNoTracking()
+        .SingleAsync(x => x.OperationKind == "ReleaseDelivery.v1" && x.TargetId == issued.Value);
+      Assert.Equal($"release:{issued.Value:D}", deliveryIntent.IdempotencyKey);
+      var workspace = await EngagementCompletionWorkspaceQuery.GetAsync(db, fixture.Partner,
+        candidate.EngagementId, DateTimeOffset.UtcNow);
+      Assert.True(workspace.Succeeded, workspace.Message);
+      Assert.Equal("AWAITING_AUTHORIZATION_OR_CONFIGURATION", workspace.Value!.Release!.DeliveryDisposition);
+      var replayed = await ReleaseService.IssueAsync(db, fixture.Partner,
+        new IssueReleaseRequest(candidateId, 1, digest, key));
+      Assert.True(replayed.Succeeded, replayed.Message);
+      Assert.Equal(issued.Value, replayed.Value);
+      Assert.Single(await db.Releases.AsNoTracking().Where(x => x.ReleaseCandidateId == candidateId).ToListAsync());
+      Assert.Equal(1, checkpointStore.WriteCalls);
+      Assert.Equal(1, checkpointStore.VerifyCalls);
+    }
+    finally
+    {
+      if (Directory.Exists(checkpointDir))
+        Directory.Delete(checkpointDir, recursive: true);
     }
   }
 
@@ -231,6 +405,93 @@ public sealed class ReleaseTests
 
     public Task<CheckpointContent?> ReadVerifiedAsync(string reference, string expectedDigest,
       CancellationToken ct = default) => inner.ReadVerifiedAsync(reference, expectedDigest, ct);
+  }
+
+  private sealed class CountingCheckpointStore(IReleaseCheckpointStore inner) : IReleaseCheckpointStore
+  {
+    public int WriteCalls { get; private set; }
+    public int VerifyCalls { get; private set; }
+    public int ProbeCalls { get; private set; }
+    public int ReadCalls { get; private set; }
+    public int TotalCalls => WriteCalls + VerifyCalls + ProbeCalls + ReadCalls;
+
+    public async Task<CheckpointReceipt> WriteAsync(string manifestDigest, byte[] manifestBytes,
+      CancellationToken ct = default)
+    {
+      WriteCalls++;
+      return await inner.WriteAsync(manifestDigest, manifestBytes, ct);
+    }
+
+    public async Task<CheckpointReceipt?> VerifyAsync(string reference, string expectedDigest,
+      CancellationToken ct = default)
+    {
+      VerifyCalls++;
+      return await inner.VerifyAsync(reference, expectedDigest, ct);
+    }
+
+    public async Task<CheckpointReceipt?> ProbeAsync(string manifestDigest, CancellationToken ct = default)
+    {
+      ProbeCalls++;
+      return await inner.ProbeAsync(manifestDigest, ct);
+    }
+
+    public async Task<CheckpointContent?> ReadVerifiedAsync(string reference, string expectedDigest,
+      CancellationToken ct = default)
+    {
+      ReadCalls++;
+      return await inner.ReadVerifiedAsync(reference, expectedDigest, ct);
+    }
+  }
+
+  private sealed class CountingOperationStore(IOperationStore inner) : IOperationStore
+  {
+    public int EnqueueCalls { get; private set; }
+
+    public Task<CommandResult<Guid>> EnqueueAsync(IAuditSphereDbContext db, OperationRequest request,
+      IOperationHandler handler, CancellationToken ct)
+    {
+      EnqueueCalls++;
+      return inner.EnqueueAsync(db, request, handler, ct);
+    }
+
+    public Task<DurableOperation?> ClaimAsync(WorkerOptions options, IReadOnlyList<OperationDefinition> definitions,
+      string owner, bool reconciliation, CancellationToken ct) =>
+      inner.ClaimAsync(options, definitions, owner, reconciliation, ct);
+
+    public Task<bool> ValidateAsync(DurableOperation operation, WorkerOptions options,
+      IOperationHandler handler, CancellationToken ct) => inner.ValidateAsync(operation, options, handler, ct);
+
+    public Task<bool> RenewAsync(DurableOperation operation, WorkerOptions options, CancellationToken ct) =>
+      inner.RenewAsync(operation, options, ct);
+
+    public Task<bool> TransitionAsync(DurableOperation operation, WorkerOptions options, OperationState next,
+      string? error, TimeSpan? delay, CancellationToken ct) =>
+      inner.TransitionAsync(operation, options, next, error, delay, ct);
+
+    public Task<bool> CompleteAsync(DurableOperation operation, WorkerOptions options,
+      IOperationHandler handler, OperationResult? remote, CancellationToken ct) =>
+      inner.CompleteAsync(operation, options, handler, remote, ct);
+
+    public Task<int> ReapAsync(WorkerOptions options, CancellationToken ct) => inner.ReapAsync(options, ct);
+  }
+
+  private static async Task<Guid> CreateCandidateForCheckpointKeyAsync(
+    PgTestSchema pg, Fixture fixture, string manifestDigest)
+  {
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var approval = await ApprovalService.CreateAsync(db, fixture.Reviewer,
+      new CreateApprovalRequest("WORKPAPER", fixture.WorkpaperId, 1, 1, 1, manifestDigest));
+    Assert.True(approval.Succeeded, approval.Message);
+    var candidate = await ReleaseService.CreateCandidateAsync(db, fixture.Partner,
+      new CreateReleaseCandidateRequest(approval.Value, "WORKPAPER", fixture.WorkpaperId, 1, 1, 1, manifestDigest));
+    Assert.True(candidate.Succeeded, candidate.Message);
+    return candidate.Value;
+  }
+
+  private static async Task<ReleaseCandidate> LoadCandidateAsync(PgTestSchema pg, Guid candidateId)
+  {
+    await using var db = new AuditSphereDbContext(pg.Options);
+    return await db.ReleaseCandidates.AsNoTracking().SingleAsync(x => x.Id == candidateId);
   }
 
   [Fact]

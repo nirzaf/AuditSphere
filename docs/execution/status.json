@@ -1565,7 +1565,7 @@
     "ASPM-NFR-01..12",
     "ASPM-UAT-01..15"
    ],
-    "lastTechnicalSlice": "T25 from e01 base: structured-export guard, PostgreSQL 2/2 and EF no-drift. Pre-T25 T17 full 42351115249 failed API/E2E; causes unproven.",
+    "lastTechnicalSlice": "T23 base 1069: shared key validation + long-key issue fix; PostgreSQL 3/3. T25 fast 42363971454/images 42363971359 pass with checkouts/pins; T23 CI pending.",
    "advanceCashGate": {
     "codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
     "result": "FOCUSED_INCREMENTAL_PASS",
@@ -1655,7 +1655,7 @@
     },
     "releaseAcceptance": "NOT_VERIFIED"
    },
-    "nextTechnicalSlice": "T23 checkpoint-key validation next (T03 depends on T23); T12/T13 await exact T17 full PASS.",
+    "nextTechnicalSlice": "T03 checkpoint replay next. T12/T13 await exact T17 full PASS; e01 API exit143, E2E active.",
    "clientProgressTracker": {
     "result": "FOCUSED_PASS_BROWSER_PASS_FAST_CI_PASS",
     "archivedEvidence": "status-archive-2026-10.json#keys.completePracticeManagement.clientProgressTracker20261026"

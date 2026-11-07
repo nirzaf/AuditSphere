@@ -167,7 +167,7 @@ public static class ReleaseService
   {
     options ??= new ReleaseSafetyOptions();
 
-    var invalid = ValidateIssueRequest(request);
+    var invalid = ValidateIssueRequest(request, out var releaseKey);
     if (invalid is not null)
       return CommandResult<Guid>.Fail("release.invalid", invalid);
 
@@ -188,7 +188,6 @@ public static class ReleaseService
     if (firm is null || client is null || candidate is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Release scope is unavailable.");
 
-    var releaseKey = request.AuthorizedReleaseKey.Trim();
     var existing = await db.Releases.FromSqlInterpolated(
       $"SELECT * FROM releases WHERE firm_id = {actor.FirmId} AND authorized_release_key = {releaseKey} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
@@ -412,7 +411,7 @@ public static class ReleaseService
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = candidate.ClientId,
       EngagementId = candidate.EngagementId, OperationKind = "ReleaseDelivery.v1",
 
-      PayloadJson = payload, IdempotencyKey = "release:" + releaseKey,
+      PayloadJson = payload, IdempotencyKey = ReleaseDeliveryIdentity.ForRelease(release.Id, releaseKey),
       RequestDigest = Hashing.Sha256Hex(payloadBytes), RequestBytes = payloadBytes,
       Status = OperationState.PROVIDER_BLOCKED, ExecutionMode = OperationMode.LOCAL,
       AuthorityMode = OperationAuthority.LOCAL_VALIDATION, TargetId = release.Id,
@@ -522,14 +521,14 @@ public static class ReleaseService
     return IsDigest(request.ManifestDigest) ? null : "The release manifest digest must be lowercase SHA-256 hex.";
   }
 
-  private static string? ValidateIssueRequest(IssueReleaseRequest request)
+  private static string? ValidateIssueRequest(IssueReleaseRequest request, out string releaseKey)
   {
+    releaseKey = string.Empty;
     if (request.CandidateId == Guid.Empty || request.ExpectedCandidateRevision < 1)
       return "A release candidate and positive candidate revision are required.";
     if (!IsDigest(request.ManifestDigest))
       return "The release manifest digest must be lowercase SHA-256 hex.";
-    var key = request.AuthorizedReleaseKey.Trim();
-    return key.Length is 0 or > 200 || key.Any(char.IsControl)
+    return !ReleaseCheckpointKey.TryNormalize(request.AuthorizedReleaseKey, out releaseKey)
       ? "The authorized release key is invalid."
       : null;
   }

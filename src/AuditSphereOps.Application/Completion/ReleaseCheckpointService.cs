@@ -24,8 +24,9 @@ public static class ReleaseCheckpointService
     ReleaseCheckpointRuntimeOptions runtime, IOperationStore operationStore, ReleaseCheckpointHandler handler,
     CancellationToken ct = default)
   {
+    if (!ReleaseCheckpointKey.TryNormalize(request.AuthorizedReleaseKey, out var releaseKey))
+      return CommandResult<Guid>.Fail("checkpoint.invalid", "Invalid checkpoint request parameters.");
     if (request.CandidateId == Guid.Empty || request.ExpectedCandidateRevision < 1 ||
-        string.IsNullOrWhiteSpace(request.AuthorizedReleaseKey) ||
         string.IsNullOrWhiteSpace(request.ManifestDigest) || request.ManifestDigest.Length != 64 ||
         request.ManifestBytes is null || request.ManifestBytes.Length == 0)
       return CommandResult<Guid>.Fail("checkpoint.invalid", "Invalid checkpoint request parameters.");
@@ -55,7 +56,6 @@ public static class ReleaseCheckpointService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         "The candidate lacks an exact statement-composition pin; prepare it again.");
 
-    var releaseKey = request.AuthorizedReleaseKey.Trim();
     var idempotencyKey = $"checkpoint:{candidate.Id:D}:{candidate.Revision}:{digest}";
     var payload = JsonSerializer.Serialize(new
     {
@@ -89,8 +89,9 @@ public static class ReleaseCheckpointService
     RecordReleaseCheckpointRequest request,
     CancellationToken ct = default)
   {
+    if (!ReleaseCheckpointKey.TryNormalize(request.AuthorizedReleaseKey, out var releaseKey))
+      return CommandResult<Guid>.Fail("checkpoint.invalid", "Invalid checkpoint request parameters.");
     if (request.CandidateId == Guid.Empty || request.ExpectedCandidateRevision < 1 ||
-        string.IsNullOrWhiteSpace(request.AuthorizedReleaseKey) ||
         string.IsNullOrWhiteSpace(request.ManifestDigest) || request.ManifestDigest.Length != 64 ||
         request.ManifestBytes is null || request.ManifestBytes.Length == 0)
     {
@@ -120,7 +121,6 @@ public static class ReleaseCheckpointService
     if (candidate.Status != ReleaseStates.Ready)
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The candidate is not ready for issuance.");
 
-    var releaseKey = request.AuthorizedReleaseKey.Trim();
     var existing = await db.ReleaseCheckpoints.SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.ReleaseCandidateId == candidate.Id &&
       x.CandidateRevision == candidate.Revision && x.ManifestDigest == request.ManifestDigest, ct);

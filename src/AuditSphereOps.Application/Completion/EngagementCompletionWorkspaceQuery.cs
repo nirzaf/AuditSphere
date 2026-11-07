@@ -257,7 +257,7 @@ public static class EngagementCompletionWorkspaceQuery
     if (operation.ClientId != release.ClientId || operation.EngagementId != release.EngagementId ||
         operation.TargetId != release.Id || operation.CorrelationId != release.Id ||
         operation.ExpectedRevision != release.PackageRevision || operation.OriginatorId != release.ReleasedByUserId ||
-        operation.IdempotencyKey != "release:" + release.AuthorizedReleaseKey ||
+        !ReleaseDeliveryIdentity.Matches(operation.IdempotencyKey, release.Id, release.AuthorizedReleaseKey) ||
         operation.Status != OperationState.PROVIDER_BLOCKED || operation.ExecutionMode != OperationMode.LOCAL ||
         operation.AuthorityMode != OperationAuthority.LOCAL_VALIDATION || operation.ExecutionGroup != "general" ||
         operation.ErrorCode != "release.delivery.awaiting.authorization" || operation.IsReconciliation ||

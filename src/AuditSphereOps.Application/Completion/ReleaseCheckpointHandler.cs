@@ -38,12 +38,13 @@ public sealed class ReleaseCheckpointHandler(
       var candidateId = root.GetProperty("candidateId").GetGuid();
       var candidateRevision = root.GetProperty("candidateRevision").GetInt64();
       var manifestDigest = root.GetProperty("manifestDigest").GetString() ?? string.Empty;
-      var releaseKey = root.GetProperty("authorizedReleaseKey").GetString() ?? string.Empty;
+      var rawReleaseKey = root.GetProperty("authorizedReleaseKey").GetString();
       var bytesBase64 = root.GetProperty("manifestBytesBase64").GetString() ?? string.Empty;
 
       if (candidateId != request.TargetId || candidateRevision != request.ExpectedRevision ||
           string.IsNullOrWhiteSpace(manifestDigest) || manifestDigest.Length != 64 ||
-          string.IsNullOrWhiteSpace(releaseKey) || string.IsNullOrWhiteSpace(bytesBase64))
+          !ReleaseCheckpointKey.TryNormalize(rawReleaseKey, out var releaseKey) ||
+          string.IsNullOrWhiteSpace(bytesBase64))
       {
         throw new OperationBlockedException("invalid-checkpoint-request");
       }
@@ -58,7 +59,7 @@ public sealed class ReleaseCheckpointHandler(
         candidateId = candidateId.ToString("D"),
         candidateRevision,
         manifestDigest = manifestDigest.ToLowerInvariant(),
-        authorizedReleaseKey = releaseKey.Trim(),
+        authorizedReleaseKey = releaseKey,
         manifestBytesBase64 = bytesBase64
       });
     }
