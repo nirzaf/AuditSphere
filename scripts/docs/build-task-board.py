@@ -73,6 +73,8 @@ def load_cards():
 
 
 def load_stories(path, pattern):
+    if not path.is_file():
+        return {}
     lines = path.read_text(encoding='utf-8').split('\n')
     stories = {}
     for index, line in enumerate(lines):
@@ -90,14 +92,12 @@ def load_stories(path, pattern):
 
 
 def main():
-    if not AUDIT.is_file():
-        missing = AUDIT.relative_to(ROOT).as_posix()
-        print(f'BLOCKED_SOURCE: cannot generate per-item audit verdicts; required audit record is absent: {missing}')
-        return 2
-    record = json.loads(AUDIT.read_text(encoding='utf-8'))
-    audited = {item['id']: item for item in record['items']}
+    audit_available = AUDIT.is_file()
+    record = json.loads(AUDIT.read_text(encoding='utf-8')) if audit_available else {}
+    audited = {item['id']: item for item in record.get('items', [])}
     dispositions = record.get('currentDispositions', {})
     cards = load_cards()
+    missing_story_sources = [p for p in (STE_NXT, STE_GAP) if not p.is_file()]
     nxt = load_stories(STE_NXT, r'^## (STE-NXT-\d{3}) — (.+)$')
     gap = load_stories(STE_GAP, r'^# (STE-GAP-\d{3}) — (.+)$')
 
@@ -137,37 +137,65 @@ def main():
             row['verdict'] = 'NOT_AUDITED'
             row['missing'] = []
             row['conflicts'] = []
-            row['summary'] = 'Completed in the card front matter before this audit; not re-audited.'
+            row['summary'] = ('Completed in the card front matter before this audit; not re-audited.'
+                              if audit_available else
+                              'The task card records COMPLETED, but no current code audit is available to re-audit it.')
             row['refutation'] = ''
         else:
             row['verdict'] = 'NOT_AUDITED'
             row['missing'] = []
             row['conflicts'] = []
-            row['summary'] = 'Added after the audit ran; not audited.'
+            row['summary'] = ('Added after the audit ran; not audited.'
+                              if audit_available else
+                              'No current code-audit record is available; no verdict or gaps are inferred.')
             row['refutation'] = ''
 
     verdict_counts = {}
     for row in rows:
         verdict_counts[row['verdict']] = verdict_counts.get(row['verdict'], 0) + 1
 
+    audit_heading = (
+        f'**Audit record:** [codebase audit of commit `{record["commit"]}`](auditsphere-execution-report-task-codebase-audit-current.json) ({record["audited"]}). Verdicts are static reading of the code; tests were not executed in that pass. Where listed, dated current dispositions supersede only the named audit decision findings; they do not complete the underlying task.'
+        if audit_available else
+        '**Audit record:** `BLOCKED_SOURCE` — the per-item code-audit JSON is absent. Every Code verdict below is `NOT_AUDITED`; no findings or gaps are inferred.'
+    )
+    board_status = 'CURRENT' if audit_available and not missing_story_sources else 'PARTIAL_SOURCE'
+    card_status_summary = (
+        f'Card status in the front matter: {sum(1 for c in cards.values() if c["status"] == "COMPLETED")} COMPLETED, '
+        f'{sum(1 for c in cards.values() if c["status"] == "IN_REVIEW")} IN_REVIEW, '
+        f'{sum(1 for c in cards.values() if c["status"] == "NOT_STARTED")} NOT_STARTED of {len(cards)} cards. '
+        'Nothing is COMPLETED from the audit: no item met every completion test in the card.'
+        if audit_available else
+        f'Card status in the front matter: {sum(1 for c in cards.values() if c["status"] == "COMPLETED")} COMPLETED, '
+        f'{sum(1 for c in cards.values() if c["status"] == "IN_REVIEW")} IN_REVIEW, '
+        f'{sum(1 for c in cards.values() if c["status"] == "NOT_STARTED")} NOT_STARTED of {len(cards)} cards. '
+        'These are source-card statuses only; no code-audit completion is claimed.'
+    )
+    decision_context = (
+        'T002 was COMPLETED on 2026-10-09 under the owner-delegated static-service variation (MediatR and bUnit declined). The helper now lets T003 start; the audit verdicts on T002 and on the cards that were rewritten are superseded by that decision and are shown as such in section 2.'
+        if audit_available else
+        'No current per-item code-audit decision list is available. Consult the applicable ADR register and current approved requirements; do not infer owner decisions from task-card status.'
+    )
+    supplemental_note = (
+        'No current STE v2.1 story source is present, so no STE story rows are included. The available rows come only from the R2R and AUD task cards; other workstreams retain their own identifiers and state. Story and approval status must come from current source files when restored; do not infer them from historical snapshots. T010’s archived card title mentions Blazor; Angular is canonical under ADR-0002.'
+        if missing_story_sources else
+        'The STE story rows below come from the current story-source files and retain their source status. T010’s archived card title mentions Blazor; Angular is canonical under ADR-0002. The available board rows come from R2R and AUD cards; other workstreams retain their own identifiers and state.'
+    )
     lines = [
         '# AuditSphereOps — Agent task board',
         '',
-        '**Status:** CURRENT. Generated by `scripts/docs/build-task-board.py`; do not edit by hand.',
+        f'**Status:** {board_status}. Generated by `scripts/docs/build-task-board.py`; do not edit by hand.',
         '',
-        f'**Audit record:** [codebase audit of commit `{record["commit"]}`](auditsphere-execution-report-task-codebase-audit-current.json) ({record["audited"]}). Verdicts are static reading of the code; tests were not executed in that pass. Where listed, dated current dispositions supersede only the named audit decision findings; they do not complete the underlying task.',
+        audit_heading,
         '',
-        '**How an agent uses this board:** find the ID in section 2, read its card (R2R and AUD in `docs/task_breakdown/tasks/`) or its story (STE in `docs/execution/`), take its open gaps from section 4, and respect its blockers. Do not mark a status from this board; record status only through the rules below.',
+        '**How an agent uses this board:** find the ID in section 2 and read its source card or story. Section 4 lists code-audit gaps only when a current audit record exists; missing inputs are not replaced with inferred findings. Respect blockers and record status only through the rules below.',
         '',
         '**Completion rules (R2R and AUD cards):** `docs/task_breakdown/tools/task_status.py` validates and records status. A card becomes COMPLETED only with an independent APPROVED review, the full reviewed commit SHA, an evidence file, all six completion checklist items verified, and every dependency already COMPLETED. The helper refuses any other transition.',
         '',
-        '## Supplemental STE v2.2 implementation backlog',
+        '## Additional story sources',
         '',
-        'The [supplied implementation backlog](auditsphere-execution-user-stories-ste-v22-implementation-backlog-proposed.md) adds local story/decision IDs and an acceptance matrix. Read its integration notes and existing ADRs before selecting a card. `TASK-01` dependency amendments have focused evidence in [status.json](status.json); the broader card remains partial. Template/plan regression evidence also proves that completed operational tasks do not satisfy professional or lifecycle gates. `REL-01` has focused signature-policy replay and retained Web journey evidence; correspondence lineage/bounds checks also passed. Comment bounds, injected races and the canonical Angular journey also passed. Exact ZIP contents and corruption-read denials are covered; release-identity adverse cases and full acceptance remain open. Baseline claims are not current completion evidence.',
+        supplemental_note,
         '',
-        'The API/Angular bidirectional parity backlog uses a separate [implementation tracker](auditsphere-execution-tracker-api-angular-parity-current.md). Its `T` identifiers do not replace the R2R identifiers below; code presence and functional acceptance are recorded separately.',
-        '',
-        'The [documentation reconciliation](auditsphere-execution-report-documentation-reconciliation-current.md) applies approved ADRs and delegated engineering defaults without duplicate approvals. Remaining OWNER_DECISION entries retain qualified professional policy; code/evidence and external gates remain separate. AS-AWP-EXEC Task 10 remains BLOCKED_DECISION; D1-DRAFT-01 is PROPOSED, NOT APPROVED and does not waive terminal procedures. No card status or independent review is changed by that report.',
         '',
         '## 1. Summary',
         '',
@@ -179,10 +207,7 @@ def main():
     lines.append(f'| **Total** | **{len(rows)}** |')
     lines += [
         '',
-        f'Card status in the front matter: {sum(1 for c in cards.values() if c["status"] == "COMPLETED")} COMPLETED, '
-        f'{sum(1 for c in cards.values() if c["status"] == "IN_REVIEW")} IN_REVIEW, '
-        f'{sum(1 for c in cards.values() if c["status"] == "NOT_STARTED")} NOT_STARTED of {len(cards)} cards. '
-        'Nothing is COMPLETED from the audit: no item met every completion test in the card.',
+        card_status_summary,
         '',
         '## 2. Board',
         '',
@@ -212,7 +237,7 @@ def main():
         '',
         '## 3. Decisions for the owner',
         '',
-        'T002 was COMPLETED on 2026-10-09 under the owner-delegated static-service variation (MediatR and bUnit declined). The helper now lets T003 start; the audit verdicts on T002 and on the cards that were rewritten are superseded by that decision and are shown as such in section 2.',
+        decision_context,
         '',
     ]
     for row in decisions:
@@ -220,6 +245,8 @@ def main():
         lines.append(f'- **{row["id"]}** ({row["verdict"]}): {clip(basis, 260)}')
 
     lines += ['', '## 4. Open gaps by item', '']
+    if not audit_available:
+        lines += ['The current per-item audit source is absent. Code gaps are not listed until that source is restored or a new audit is completed.', '']
     for row in rows:
         if not row['missing'] or row['state'] == 'COMPLETED':
             continue
@@ -240,10 +267,10 @@ def main():
         if current != generated:
             print('Task board is stale: run python3 scripts/docs/build-task-board.py')
             return 1
-        print('Task board is current.')
+        print(f'Task board matches available sources ({board_status}).')
         return 0
     BOARD.write_text(generated, encoding='utf-8')
-    print(f'Wrote {BOARD.relative_to(ROOT)} with {len(rows)} items.')
+    print(f'Wrote {BOARD.relative_to(ROOT)} with {len(rows)} items ({board_status}).')
     return 0
 
 

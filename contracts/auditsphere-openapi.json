@@ -111199,6 +111199,7 @@
             "format": "int64"
           },
           "detail": {
+            "maxLength": 2000,
             "type": [
               "null",
               "string"

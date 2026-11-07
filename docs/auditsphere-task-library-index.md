@@ -4,6 +4,8 @@
 
 This is the single human navigation page for R2R tasks T001–T054 and audit tasks T055–T075. It consolidates task titles and pins source references to commit `574ed0c9b04882088aac8cf1e5030b2afbde6467`. Individual task cards and source ledgers remain in their expected paths because the progress API, task-status helper, and board generator consume them. The manifest publication time is `2026-09-28T19:26:35Z`; the API marks that snapshot stale after 30 days. Do not infer current task status from this archive. Use the current execution task board and live autonomous checkpoint for current work. The original task pack index remains byte-for-byte unchanged because the status helper verifies its source hash.
 
+**Supersession note:** T010's archived title refers to shared Blazor UI. The Blazor host was retired by the owner; Angular is the canonical UI under [ADR-0002](architecture/adr/auditsphere-architecture-adr-0002-angular-canonical-ui-blazor-rollback-approved.md). The original title and task card remain only as historical provenance, not as a current implementation target.
+
 ## Task cards T001–T075
 
 | ID | Archived task title | Exact source |
