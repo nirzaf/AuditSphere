@@ -20,7 +20,7 @@ When documents differ, use this order:
 
 | Category | Consolidated entry point | Detailed sources retained where they carry distinct authority or procedures |
 |---|---|---|
-| Architecture and decisions | [Architecture guide](architecture/auditsphere-architecture-index-agent-context-current.md) · [ADR register](architecture/adr/auditsphere-architecture-index-adr-register-current.md) | [Current architecture](architecture/auditsphere-architecture-current-architecture.md), [code map](architecture/auditsphere-architecture-code-map.md), data model, HTTP/OpenAPI, permissions, and individual ADRs |
+| Architecture and decisions | [Architecture guide](architecture/auditsphere-architecture-index-agent-context-current.md) · [ADR register](architecture/adr/auditsphere-architecture-index-adr-register-current.md) | [Current architecture](architecture/auditsphere-architecture-current-architecture.md), [code map](architecture/auditsphere-architecture-code-map.md), [document naming policy](architecture/auditsphere-architecture-document-naming-policy.md), data model, HTTP/OpenAPI, permissions, and individual ADRs |
 | Requirements | [Requirements index](requirements/auditsphere-requirements-index-current.md) | The index classifies approved sources separately from the proposed revision 2.3 package and preserved v2.2 source. |
 | Design | [Design index](design/auditsphere-design-index-current.md) | Current visual foundation and progress tracker; proposed UX work remains proposed |
 | Operations | [Operations index](operations/auditsphere-operations-index-current.md) | Restore, M365, telemetry, reminders, evidence, and capacity procedures |
@@ -42,3 +42,5 @@ When documents differ, use this order:
 ## Consolidation policy
 
 Category entry points are the maintained summaries. Keep a separate detailed file when it is an approved decision, a normative requirement, a proposed source, or an operator procedure with its own scope. Do not copy volatile test counts, run IDs, or changing task status into these summaries; record those in `docs/execution/status.json`. Historical material is referenced at its source commit so consolidation does not rewrite or silently discard its provenance.
+
+One-off review reports and superseded audit findings are not kept at the repository root. Their recoverable copies remain in Git history and the removal is recorded in the [current-slice handoff](execution/auditsphere-execution-current-slice.md); current observations belong in `docs/execution/status.json`.

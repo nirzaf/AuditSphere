@@ -179,8 +179,9 @@ flowchart TB
   is not proof of send or delivery.
 - **Worker composition is a pure, fail-closed decision** (`WorkerCapabilityProfile`, WU-007).
   Development and Test compose freely with simulation. Acceptance and Production compose the core
-  `general`/`processing`/`records` groups without external effects; the live `mail`, `pbc` and
-  `client-sites` groups each run in their own process. In Production a live group starts only
+  `general`/`processing`/`records` groups without external effects; the live `mail`, `pbc`,
+  `client-sites` and `release-checkpoint` groups each run in their own process, and
+  `release-checkpoint` additionally requires `FeatureActivation:LiveAuditRelease`. In Production a live group starts only
   when it is listed in `Worker:ApprovedLiveGroups` and simulation adapters are off. Provider
   credential and resource checks stay with each provider; composition is not live acceptance.
 - **Commands and queries are static capability services** returning `CommandResult` /

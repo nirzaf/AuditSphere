@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-07T16:38:45Z",
+  "observedAtUtc": "2026-11-07T17:26:00Z",
   "source": {
     "branch": "master",
     "baseSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2",
     "originMasterSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2",
-    "workingTree": "At the recorded observation, master HEAD and origin/master were a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2, clean, and the exact-source fast CI run 42390283923 had passed all three jobs. This status/handoff evidence refresh is a documentation-only follow-up; it does not claim a full release run or external acceptance.",
+    "workingTree": "The last exact-source fast CI run, 42390283923, passed Docs, Angular and .NET Release with every job log confirming checkout a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2. The documentation staleness sweep recorded below is committed on top of that SHA and advances master HEAD; it has no CI run yet. It does not claim a full release run or external acceptance.",
     "wholeAssignment": "INCOMPLETE",
     "currentCandidateSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2"
   },
   "activeWork": {
     "practiceManagement": "The broader practice-management assignment remains open and is tracked in the ignored autonomous checkpoint. The last recorded T09 evidence is a bounded readiness build at 0375b67e and a Domain-test attempt blocked by the unavailable approved port-5433 database; later practice work and exact-source gates must be read from current-work.json. This documentation fast-CI pass does not establish T09 or whole-product acceptance.",
-    "documentation": "Per-category navigation is consolidated through docs/auditsphere-docs-index.md and the maintained Architecture/ADR, Requirements, Design, Operations, Testing, Execution, Task Library and Evidence entry points. Distinct approved requirements, ADRs, proposals, historical task sources, operator procedures and machine-consumed task inputs remain separate to preserve authority and provenance. The current category/restore-evidence correction is published at a21737ff. Exact fast run 42390283923 passed Docs, Angular and .NET Release with each job log confirming checkout a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2. The task board remains PARTIAL_SOURCE because the per-item audit JSON and two STE v2.1 source files are absent; no gaps or missing-story findings are inferred.",
+    "documentation": "Per-category navigation is consolidated through docs/auditsphere-docs-index.md and the maintained Architecture/ADR, Requirements, Design, Operations, Testing, Execution, Task Library and Evidence entry points. Distinct approved requirements, ADRs, proposals, historical task sources, operator procedures and machine-consumed task inputs remain separate to preserve authority and provenance. The current category/restore-evidence correction is published at a21737ff. Exact fast run 42390283923 passed Docs, Angular and .NET Release with each job log confirming checkout a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2. The task board remains PARTIAL_SOURCE because the per-item audit JSON and two STE v2.1 source files are absent; no gaps or missing-story findings are inferred. A repository-wide staleness sweep after that run removed the stale root review report, linked the document naming policy and corrected the live worker-group wording; its cross-checks and results are recorded under localVerification.documentationReconciliation.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
@@ -25,26 +25,37 @@
   "localVerification": {
     "documentationHealth": {
       "result": "PASS",
-      "markdownFiles": 180,
+      "markdownFiles": 179,
       "canonicalDocuments": 22,
-      "relativeLinksChecked": 2889,
-      "backtickedRepositoryPathsChecked": 251,
+      "relativeLinksChecked": 2896,
+      "backtickedRepositoryPathsChecked": 252,
       "deletedPathReferences": 0,
       "approvedRecordsAndTaskProvenance": "PASS",
       "command": "python3 scripts/docs/validate-markdown-documentation.py",
-      "observedAtUtc": "2026-11-07T16:11:55Z"
+      "observedAtUtc": "2026-11-07T17:23:40Z"
     },
     "filenameValidation": {
       "result": "PASS",
-      "markdownFiles": 180,
+      "markdownFiles": 179,
       "command": "python3 scripts/docs/validate-markdown-filenames.py",
-      "observedAtUtc": "2026-11-07T16:11:55Z"
+      "observedAtUtc": "2026-11-07T17:23:40Z"
     },
     "narrativeMetricsValidation": {
       "result": "PASS",
       "protectedDocuments": 6,
       "command": "python3 scripts/docs/validate-narrative-metrics.py",
-      "observedAtUtc": "2026-11-07T16:11:55Z"
+      "observedAtUtc": "2026-11-07T17:23:40Z"
+    },
+    "documentationReconciliation": {
+      "result": "PASS",
+      "removedStaleDocument": "auditsphere-lifecycle-audit.md",
+      "removedDocumentReason": "Unreferenced root review report pinned to cfbc85392be03252ba38b953d1b548ae87501809 and self-declared as delivered outside the repository; its inspected findings no longer describe current source.",
+      "recoverableAt": "1fdbf314 (file) and 119fb2bf (original name)",
+      "navigationCorrection": "docs/auditsphere-docs-index.md now links the enforced document naming policy and states that one-off review reports are not retained at the repository root.",
+      "contentCorrection": "README.md and docs/architecture/auditsphere-architecture-current-architecture.md now describe the four live worker groups including release-checkpoint and its FeatureActivation:LiveAuditRelease requirement.",
+      "crossChecks": "Layer-relative source paths, test-class and migration names, npm and repository scripts, Angular feature files, heading anchors, configuration keys and documented /api/ui routes resolve in source or the checked-in OpenAPI contract; the only unresolved items are forward-looking plan text and proposed routes in the autonomous completion specification.",
+      "notRun": "No .NET, Angular, browser or CI execution for this documentation-only slice.",
+      "observedAtUtc": "2026-11-07T17:23:40Z"
     },
     "auditProgramSource": {
       "result": "PASS",
