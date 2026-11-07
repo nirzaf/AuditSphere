@@ -127,8 +127,8 @@ public sealed class ReleaseTests
       var checkpointBeforeWorkerRefresh = await db.ReleaseCheckpoints.AsNoTracking()
         .SingleAsync(x => x.ReleaseCandidateId == candidateId);
       Assert.Equal(digest, (await store.VerifyAsync(checkpointBeforeWorkerRefresh.StoredReference, digest))?.ContentSha256Hex);
-      Assert.Equal(checkpointBeforeWorkerRefresh.Id, (await db.ReleaseCheckpoints.AsNoTracking()
-        .SingleAsync(x => x.ReleaseCandidateId == candidateId)).Id);
+      Assert.Single(await db.ReleaseCheckpoints.AsNoTracking()
+        .Where(x => x.ReleaseCandidateId == candidateId).ToListAsync());
 
       var wrongKeyWorkerOperation = new DurableOperation
       {
@@ -151,6 +151,28 @@ public sealed class ReleaseTests
         handler.PublishAsync(db, wrongKeyWorkerOperation,
           new OperationResult("synthetic://checkpoint/wrong-key", digest), CancellationToken.None));
       Assert.Equal("checkpoint-release-key-conflict", workerKeyConflict.Code);
+
+      var wrongScopeWorkerOperation = new DurableOperation
+      {
+        FirmId = fixture.FirmId,
+        ClientId = Guid.CreateVersion7(),
+        EngagementId = candidateScope.EngagementId,
+        OperationKind = ReleaseCheckpointHandler.Kind,
+        PayloadJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+          candidateId,
+          candidateRevision = 1,
+          manifestDigest = digest,
+          authorizedReleaseKey = "release-001",
+          manifestBytesBase64 = Convert.ToBase64String(manifestBytes)
+        }),
+        TargetId = candidateId,
+        ExpectedRevision = 1
+      };
+      var workerScopeConflict = await Assert.ThrowsAsync<OperationBlockedException>(() =>
+        handler.PublishAsync(db, wrongScopeWorkerOperation,
+          new OperationResult("synthetic://checkpoint/wrong-scope", digest), CancellationToken.None));
+      Assert.Equal("candidate-scope-or-revision-conflict", workerScopeConflict.Code);
       db.ChangeTracker.Clear();
       var checkpointAfterWorkerRefresh = await db.ReleaseCheckpoints.AsNoTracking()
         .SingleAsync(x => x.ReleaseCandidateId == candidateId);
@@ -209,6 +231,92 @@ public sealed class ReleaseTests
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
         DELETE FROM releases WHERE firm_id = {fixture.FirmId} AND id = {issued.Value}
         """));
+    }
+  }
+
+  [Fact]
+  public async Task ReleaseCheckpoint_RetriesReuseMatchingEvidenceWithoutMutationAcrossDirectAndWorkerPaths()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var manifestBytes = System.Text.Encoding.UTF8.GetBytes("release-checkpoint-immutable-retry");
+    var digest = Hashing.Sha256Hex(manifestBytes);
+    var candidateId = await CreateCandidateForCheckpointKeyAsync(pg, fixture, digest);
+    var checkpointDir = Path.Combine(Path.GetTempPath(), "AuditSphereOps-Tests", Guid.NewGuid().ToString("N"));
+    var checkpointStore = new CountingCheckpointStore(new LocalAppendOnlyCheckpointStore(checkpointDir));
+    var handler = new ReleaseCheckpointHandler(checkpointStore);
+    var operationStore = new PostgresOperationStore(
+      new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options)));
+    var runtime = ReleaseCheckpointRuntimeOptions.Resolve(checkpointDir, "Acceptance", enabled: true);
+
+    try
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var request = new RecordReleaseCheckpointRequest(candidateId, 1, "release-retry", digest, manifestBytes);
+      var created = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, checkpointStore, fixture.Partner, request);
+      Assert.True(created.Succeeded, created.Message);
+      var beforeRetry = SnapshotCheckpoint(await db.ReleaseCheckpoints.AsNoTracking()
+        .SingleAsync(x => x.ReleaseCandidateId == candidateId));
+
+      var repeated = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db, checkpointStore, fixture.Partner, request);
+      Assert.True(repeated.Succeeded, repeated.Message);
+      Assert.Equal(created.Value, repeated.Value);
+      Assert.Equal(1, checkpointStore.WriteCalls);
+      Assert.Equal(2, checkpointStore.VerifyCalls);
+      Assert.Equal(beforeRetry, SnapshotCheckpoint(await db.ReleaseCheckpoints.AsNoTracking()
+        .SingleAsync(x => x.ReleaseCandidateId == candidateId)));
+
+      // Unavailable store evidence fails closed and never attempts a replacement write.
+      var unavailableEvidenceStore = new CountingCheckpointStore(checkpointStore) { ReturnMissingFromVerify = true };
+      var unavailableReuse = await ReleaseCheckpointService.RecordCheckpointDirectAsync(
+        db, unavailableEvidenceStore, fixture.Partner, request);
+      Assert.False(unavailableReuse.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, unavailableReuse.ErrorCode);
+      Assert.Equal(0, unavailableEvidenceStore.WriteCalls);
+      Assert.Equal(1, unavailableEvidenceStore.VerifyCalls);
+      Assert.Equal(beforeRetry, SnapshotCheckpoint(await db.ReleaseCheckpoints.AsNoTracking()
+        .SingleAsync(x => x.ReleaseCandidateId == candidateId)));
+
+      var checkpointMutation = await Assert.ThrowsAsync<PostgresException>(() =>
+        db.Database.ExecuteSqlInterpolatedAsync($"""
+          UPDATE release_checkpoints SET verifier = 'tampered'
+          WHERE firm_id = {fixture.FirmId} AND id = {created.Value}
+          """));
+      Assert.Equal("55000", checkpointMutation.SqlState);
+      var checkpointDelete = await Assert.ThrowsAsync<PostgresException>(() =>
+        db.Database.ExecuteSqlInterpolatedAsync($"""
+          DELETE FROM release_checkpoints WHERE firm_id = {fixture.FirmId} AND id = {created.Value}
+          """));
+      Assert.Equal("55000", checkpointDelete.SqlState);
+
+      var enqueued = await ReleaseCheckpointService.EnqueueCheckpointAsync(db, fixture.Partner, request, runtime,
+        operationStore, handler);
+      Assert.True(enqueued.Succeeded, enqueued.Message);
+      var candidate = await db.ReleaseCandidates.AsNoTracking().SingleAsync(x => x.Id == candidateId);
+      var workerOptions = new WorkerOptions(fixture.FirmId, "Acceptance", ExternalEffectsEnabled: true,
+        Group: ReleaseCheckpointHandler.WorkerGroup);
+      var dispatcher = new OperationDispatcher(operationStore,
+        new DurableOperationRegistry([handler], workerOptions), workerOptions);
+      Assert.True(await dispatcher.ProcessNextAsync());
+
+      db.ChangeTracker.Clear();
+      var operation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == enqueued.Value);
+      Assert.Equal(OperationState.COMPLETED, operation.Status);
+      Assert.Equal(candidate.ClientId, operation.ClientId);
+      Assert.Equal(candidate.EngagementId, operation.EngagementId);
+      var afterWorkerPublication = await db.ReleaseCheckpoints.AsNoTracking()
+        .SingleAsync(x => x.ReleaseCandidateId == candidateId);
+      Assert.Equal(created.Value, afterWorkerPublication.Id);
+      Assert.Equal(beforeRetry, SnapshotCheckpoint(afterWorkerPublication));
+      Assert.Single(await db.ReleaseCheckpoints.AsNoTracking()
+        .Where(x => x.ReleaseCandidateId == candidateId).ToListAsync());
+      Assert.Equal(2, checkpointStore.WriteCalls);
+      Assert.Equal(4, checkpointStore.VerifyCalls);
+    }
+    finally
+    {
+      if (Directory.Exists(checkpointDir))
+        Directory.Delete(checkpointDir, recursive: true);
     }
   }
 
@@ -385,6 +493,38 @@ public sealed class ReleaseTests
     }
   }
 
+  private sealed record ReleaseCheckpointSnapshot(
+    Guid Id,
+    Guid FirmId,
+    Guid ClientId,
+    Guid EngagementId,
+    Guid ReleaseCandidateId,
+    long CandidateRevision,
+    string AuthorizedReleaseKey,
+    string ManifestDigest,
+    string StoredReference,
+    string ReadBackDigest,
+    string VerifiedStatus,
+    DateTimeOffset? VerifiedAt,
+    string Verifier,
+    DateTimeOffset CreatedAt);
+
+  private static ReleaseCheckpointSnapshot SnapshotCheckpoint(ReleaseCheckpoint checkpoint) => new(
+    checkpoint.Id,
+    checkpoint.FirmId,
+    checkpoint.ClientId,
+    checkpoint.EngagementId,
+    checkpoint.ReleaseCandidateId,
+    checkpoint.CandidateRevision,
+    checkpoint.AuthorizedReleaseKey,
+    checkpoint.ManifestDigest,
+    checkpoint.StoredReference,
+    checkpoint.ReadBackDigest,
+    checkpoint.VerifiedStatus,
+    checkpoint.VerifiedAt,
+    checkpoint.Verifier,
+    checkpoint.CreatedAt);
+
   private sealed class LoseFirstCheckpointReadBackStore(IReleaseCheckpointStore inner) : IReleaseCheckpointStore
   {
     private int failNextVerify = 1;
@@ -409,6 +549,7 @@ public sealed class ReleaseTests
 
   private sealed class CountingCheckpointStore(IReleaseCheckpointStore inner) : IReleaseCheckpointStore
   {
+    public bool ReturnMissingFromVerify { get; init; }
     public int WriteCalls { get; private set; }
     public int VerifyCalls { get; private set; }
     public int ProbeCalls { get; private set; }
@@ -426,6 +567,8 @@ public sealed class ReleaseTests
       CancellationToken ct = default)
     {
       VerifyCalls++;
+      if (ReturnMissingFromVerify)
+        return null;
       return await inner.VerifyAsync(reference, expectedDigest, ct);
     }
 

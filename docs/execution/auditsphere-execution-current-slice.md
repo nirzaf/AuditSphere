@@ -1,10 +1,10 @@
 # AuditSphere — current-slice handoff
 
-**Observed:** 2026-11-07T05:30:32Z
+**Observed:** 2026-11-07T11:48:15Z
 
 **Whole assignment:** INCOMPLETE; automation ACTIVE. Preserve all independent task and UX registers.
 
-**Source:** Observed local/origin `master` at `83c1fa7a295ca2c97f0408335bf1a6dc7bf2c5ce`; fetch found no changes. Only this handoff/status update is tracked.
+**Source:** Local/origin `master` at `ed064ebabb62ddf400b392730303b0f29e4373d4`. T03 implementation is currently uncommitted in the two checkpoint services and `ReleaseTests.cs`; no other source edits are present.
 
 ## Current lifecycle-gap and practice-progress reconciliation
 
@@ -220,4 +220,12 @@ No T25 exact full run has passed. The scheduled T17 run `42356737962` is bound t
 
 The attached gap spec (SHA-256 `5d8c84aed73c75fcd88a690868f974be985f8241e1884539718146a4aefddf2c`) is proposal input. The shared validator trims, then requires a nonempty key of at most 200 characters with no remaining control characters at issuance, canonical enqueue, direct checkpoint writes, and handler normalization. Invalid requests fail generically before operation retention or checkpoint-store calls. Different-key retries remain conflicts. A 200-character key also exposed that the legacy `release:` delivery idempotency prefix exceeded the operation store's 200-character bound; short-key identity stays unchanged, while longer keys use the generated immutable release ID, which the completion reader verifies alongside legacy identities.
 
-Three focused PostgreSQL Domain tests passed (3/3): invalid-input no-effect behavior, padded 200-character normalization across entry points and issue replay, and the existing release/checkpoint conflict and replay journey. The first isolated attempt reproduced the idempotency-length edge; after the correction, the same three-method cohort passed. Exact command and file hashes are in `.local/autonomous/evidence/practice-gap-t23-20261107-5d8c84ae/t23-focused-verification.json`. No model or migration changed; no full local suite or browser run was needed. Exact T23 fast/image/full CI is not yet run.
+Three focused PostgreSQL Domain tests passed (3/3): invalid-input no-effect behavior, padded 200-character normalization across entry points and issue replay, and the existing release/checkpoint conflict and replay journey. The first isolated attempt reproduced the idempotency-length edge; after the correction, the same three-method cohort passed. Exact command and file hashes are in `.local/autonomous/evidence/practice-gap-t23-20261107-5d8c84ae/t23-focused-verification.json`. No model or migration changed; no full local suite or browser run was needed. T23 fast run `42367322758` passed all three jobs with actual checkouts of `ed064eb`; the image run `42367322760` has aggregate success, but its one-time log/metadata capture was lost, so actual image checkout and pins are unverified. No exact-source full run was dispatched.
+
+## Lifecycle-gap T03 — immutable matching checkpoint reuse (2026-11-07)
+
+The uncommitted candidate on `ed064eb` changes direct and worker retries to validate complete firm/client/engagement/candidate/revision/key/digest identity and verified retained-store evidence. A matching retry returns the original checkpoint ID/reference without changing its row; mismatches or unverifiable evidence fail closed. The existing PostgreSQL UPDATE/DELETE trigger remains unchanged. The canonical dispatcher, wrong-key refusal and lost-store-ack recovery paths remain covered.
+
+Focused PostgreSQL Release tests passed 5/5, including direct same-key reuse with all 14 persisted fields unchanged, canonical dispatcher publication against an existing checkpoint with one retained row, unavailable-store refusal without replacement write, the database mutation guard, and existing wrong-key/lost-ack cases. Command and source hashes: `.local/autonomous/evidence/practice-gap-t03-20261107-5d8c84ae/t03-focused-verification.json`. No migration/model change, browser run or full local suite.
+
+Exact base fast CI `42367322758` passed with all three job logs proving checkout of `ed064eb`; retained logs and digests are in `ci-t23-fast-terminal-proof.json`. Base image run `42367322760` is aggregate-success, but actual checkout/pins are unavailable after a one-time capture-wrapper failure; no redownload was attempted. T03 is not yet committed and has no exact-candidate CI. The older full run `42356737962` resolves to predecessor `e01d8251` and is not T03 evidence. No release or whole-practice acceptance is claimed.

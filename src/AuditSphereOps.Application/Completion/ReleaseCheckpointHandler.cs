@@ -90,15 +90,17 @@ public sealed class ReleaseCheckpointHandler(
     var receipt = await store.WriteAsync(payload.ManifestDigest, bytes, ct);
     var verified = await store.VerifyAsync(receipt.Reference, payload.ManifestDigest, ct);
 
-    if (verified is null || !string.Equals(verified.ContentSha256Hex, payload.ManifestDigest, StringComparison.OrdinalIgnoreCase))
+    if (!ReleaseCheckpointReuse.IsVerifiedReceipt(receipt, receipt.Reference, payload.ManifestDigest, bytes.LongLength) ||
+        !ReleaseCheckpointReuse.IsVerifiedReceipt(verified, receipt.Reference, payload.ManifestDigest, bytes.LongLength))
       throw new OperationBlockedException("checkpoint-write-unverifiable");
 
-    return new OperationResult(receipt.Reference, receipt.ContentSha256Hex);
+    return new OperationResult(verified!.Reference, verified.ContentSha256Hex);
   }
 
   public async Task<OperationResult> ReconcileAsync(DurableOperation op, CancellationToken ct)
   {
     var payload = ReadPayload(op.PayloadJson);
+    var bytes = Convert.FromBase64String(payload.ManifestBytesBase64);
     var receipt = string.IsNullOrWhiteSpace(op.ResultIdentity)
       ? await store.ProbeAsync(payload.ManifestDigest, ct)
       : await store.VerifyAsync(op.ResultIdentity, payload.ManifestDigest, ct);
@@ -106,7 +108,8 @@ public sealed class ReleaseCheckpointHandler(
     if (receipt is null)
       throw new SafeRetryException(TimeSpan.FromSeconds(5));
 
-    if (!string.Equals(receipt.ContentSha256Hex, payload.ManifestDigest, StringComparison.OrdinalIgnoreCase))
+    var expectedReference = string.IsNullOrWhiteSpace(op.ResultIdentity) ? receipt.Reference : op.ResultIdentity;
+    if (!ReleaseCheckpointReuse.IsVerifiedReceipt(receipt, expectedReference, payload.ManifestDigest, bytes.LongLength))
       throw new OperationBlockedException("checkpoint-receipt-conflict");
 
     return new OperationResult(receipt.Reference, receipt.ContentSha256Hex);
@@ -131,45 +134,63 @@ public sealed class ReleaseCheckpointHandler(
     var candidate = await db.ReleaseCandidates.SingleOrDefaultAsync(x =>
       x.FirmId == op.FirmId && x.Id == op.TargetId, ct);
 
-    if (candidate is null || candidate.Revision != op.ExpectedRevision)
+    if (candidate is null || payload.CandidateId != op.TargetId ||
+        payload.CandidateRevision != op.ExpectedRevision || candidate.Revision != op.ExpectedRevision ||
+        candidate.ClientId != op.ClientId || candidate.EngagementId != op.EngagementId ||
+        candidate.Status != ReleaseStates.Ready ||
+        !string.Equals(candidate.ManifestDigest, payload.ManifestDigest, StringComparison.Ordinal))
       throw new OperationBlockedException("candidate-scope-or-revision-conflict", authorization: true);
 
-    var existing = await db.ReleaseCheckpoints.SingleOrDefaultAsync(x =>
+    var matchingRevisionRows = await db.ReleaseCheckpoints.AsNoTracking().Where(x =>
       x.FirmId == op.FirmId && x.ReleaseCandidateId == candidate.Id &&
-      x.CandidateRevision == candidate.Revision && x.ManifestDigest == payload.ManifestDigest, ct);
+      x.CandidateRevision == candidate.Revision).ToListAsync(ct);
+    if (matchingRevisionRows.Count > 1)
+      throw new OperationBlockedException("checkpoint-evidence-conflict");
+
+    var existing = matchingRevisionRows.SingleOrDefault();
 
     if (existing is not null &&
         !string.Equals(existing.AuthorizedReleaseKey, payload.AuthorizedReleaseKey, StringComparison.Ordinal))
       throw new OperationBlockedException("checkpoint-release-key-conflict");
-    if (existing is null)
+
+    if (existing is not null)
     {
-      var checkpoint = new ReleaseCheckpoint
+      if (!ReleaseCheckpointReuse.HasMatchingIdentity(existing, op.FirmId, candidate.ClientId,
+            candidate.EngagementId, candidate.Id, candidate.Revision,
+            payload.AuthorizedReleaseKey, payload.ManifestDigest) ||
+          !ReleaseCheckpointReuse.HasVerifiedMetadata(existing, payload.ManifestDigest))
       {
-        Id = Guid.CreateVersion7(),
-        FirmId = op.FirmId,
-        ClientId = candidate.ClientId,
-        EngagementId = candidate.EngagementId,
-        ReleaseCandidateId = candidate.Id,
-        CandidateRevision = candidate.Revision,
-        AuthorizedReleaseKey = payload.AuthorizedReleaseKey,
-        ManifestDigest = payload.ManifestDigest,
-        StoredReference = verifiedRemoteResult.Identity,
-        ReadBackDigest = verifiedRemoteResult.Digest,
-        VerifiedStatus = "VERIFIED",
-        VerifiedAt = DateTimeOffset.UtcNow,
-        Verifier = "RecordReleaseCheckpoint.v1",
-        CreatedAt = DateTimeOffset.UtcNow
-      };
-      db.ReleaseCheckpoints.Add(checkpoint);
+        throw new OperationBlockedException("checkpoint-evidence-conflict");
+      }
+
+      var manifestBytes = Convert.FromBase64String(payload.ManifestBytesBase64);
+      if (!await ReleaseCheckpointReuse.VerifyStoredEvidenceAsync(store, existing, payload.ManifestDigest,
+            manifestBytes.LongLength, ct))
+      {
+        throw new OperationBlockedException("checkpoint-existing-evidence-unverifiable");
+      }
+
+      return new OperationResult(existing.StoredReference, existing.ReadBackDigest);
     }
-    else
+
+    var checkpoint = new ReleaseCheckpoint
     {
-      existing.StoredReference = verifiedRemoteResult.Identity;
-      existing.ReadBackDigest = verifiedRemoteResult.Digest;
-      existing.VerifiedStatus = "VERIFIED";
-      existing.VerifiedAt = DateTimeOffset.UtcNow;
-      existing.Verifier = "RecordReleaseCheckpoint.v1";
-    }
+      Id = Guid.CreateVersion7(),
+      FirmId = op.FirmId,
+      ClientId = candidate.ClientId,
+      EngagementId = candidate.EngagementId,
+      ReleaseCandidateId = candidate.Id,
+      CandidateRevision = candidate.Revision,
+      AuthorizedReleaseKey = payload.AuthorizedReleaseKey,
+      ManifestDigest = payload.ManifestDigest,
+      StoredReference = verifiedRemoteResult.Identity,
+      ReadBackDigest = payload.ManifestDigest,
+      VerifiedStatus = "VERIFIED",
+      VerifiedAt = DateTimeOffset.UtcNow,
+      Verifier = "RecordReleaseCheckpoint.v1",
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.ReleaseCheckpoints.Add(checkpoint);
 
     await db.SaveChangesAsync(ct);
     return verifiedRemoteResult;

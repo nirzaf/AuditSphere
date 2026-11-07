@@ -116,33 +116,49 @@ public static class ReleaseCheckpointService
 
     if (candidate.Revision != request.ExpectedCandidateRevision)
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The release candidate changed; reload it.");
-    if (!string.Equals(candidate.ManifestDigest, request.ManifestDigest, StringComparison.OrdinalIgnoreCase))
+    var manifestDigest = request.ManifestDigest.ToLowerInvariant();
+    if (!string.Equals(candidate.ManifestDigest, manifestDigest, StringComparison.OrdinalIgnoreCase))
       return CommandResult<Guid>.Fail(ErrorCodes.ManifestMismatch, "The release candidate manifest does not match.");
     if (candidate.Status != ReleaseStates.Ready)
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The candidate is not ready for issuance.");
 
-    var existing = await db.ReleaseCheckpoints.SingleOrDefaultAsync(x =>
+    var matchingRevisionRows = await db.ReleaseCheckpoints.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.ReleaseCandidateId == candidate.Id &&
-      x.CandidateRevision == candidate.Revision && x.ManifestDigest == request.ManifestDigest, ct);
-    if (existing is not null && !string.Equals(existing.AuthorizedReleaseKey, releaseKey, StringComparison.Ordinal))
+      x.CandidateRevision == candidate.Revision).ToListAsync(ct);
+    if (matchingRevisionRows.Count > 1)
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
-        "The checkpoint is already bound to a different authorized release key.");
+        "The checkpoint evidence for this candidate revision is inconsistent.");
 
-    // Write outside application database, re-read and compare
-    var receipt = await store.WriteAsync(request.ManifestDigest, request.ManifestBytes, ct);
-    var verified = await store.VerifyAsync(receipt.Reference, request.ManifestDigest, ct);
-    if (verified is null || !string.Equals(verified.ContentSha256Hex, request.ManifestDigest, StringComparison.OrdinalIgnoreCase))
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "External checkpoint verification failed.");
-
+    var existing = matchingRevisionRows.SingleOrDefault();
     if (existing is not null)
     {
-      existing.StoredReference = receipt.Reference;
-      existing.ReadBackDigest = verified.ContentSha256Hex;
-      existing.VerifiedStatus = "VERIFIED";
-      existing.VerifiedAt = DateTimeOffset.UtcNow;
-      existing.Verifier = actor.UserId.ToString("D");
-      await db.SaveChangesAsync(ct);
+      if (!ReleaseCheckpointReuse.HasMatchingIdentity(existing, actor.FirmId, candidate.ClientId,
+            candidate.EngagementId, candidate.Id, candidate.Revision, releaseKey, manifestDigest) ||
+          !ReleaseCheckpointReuse.HasVerifiedMetadata(existing, manifestDigest))
+      {
+        return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
+          "The checkpoint evidence conflicts with this candidate revision.");
+      }
+
+      if (!await ReleaseCheckpointReuse.VerifyStoredEvidenceAsync(store, existing, manifestDigest,
+            request.ManifestBytes.LongLength, ct))
+      {
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "Existing checkpoint evidence could not be verified.");
+      }
+
       return CommandResult<Guid>.Ok(existing.Id);
+    }
+
+    // Write outside application database, re-read and compare
+    var receipt = await store.WriteAsync(manifestDigest, request.ManifestBytes, ct);
+    var verified = await store.VerifyAsync(receipt.Reference, manifestDigest, ct);
+    if (!ReleaseCheckpointReuse.IsVerifiedReceipt(receipt, receipt.Reference, manifestDigest,
+          request.ManifestBytes.LongLength) ||
+        !ReleaseCheckpointReuse.IsVerifiedReceipt(verified, receipt.Reference, manifestDigest,
+          request.ManifestBytes.LongLength))
+    {
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "External checkpoint verification failed.");
     }
 
     var checkpoint = new ReleaseCheckpoint
@@ -154,9 +170,9 @@ public static class ReleaseCheckpointService
       ReleaseCandidateId = candidate.Id,
       CandidateRevision = candidate.Revision,
       AuthorizedReleaseKey = releaseKey,
-      ManifestDigest = request.ManifestDigest,
-      StoredReference = receipt.Reference,
-      ReadBackDigest = verified.ContentSha256Hex,
+      ManifestDigest = manifestDigest,
+      StoredReference = verified!.Reference,
+      ReadBackDigest = manifestDigest,
       VerifiedStatus = "VERIFIED",
       VerifiedAt = DateTimeOffset.UtcNow,
       Verifier = actor.UserId.ToString("D"),
@@ -166,5 +182,58 @@ public static class ReleaseCheckpointService
     db.ReleaseCheckpoints.Add(checkpoint);
     await db.SaveChangesAsync(ct);
     return CommandResult<Guid>.Ok(checkpoint.Id);
+  }
+}
+
+internal static class ReleaseCheckpointReuse
+{
+  public static bool HasMatchingIdentity(
+    ReleaseCheckpoint checkpoint,
+    Guid firmId,
+    Guid clientId,
+    Guid engagementId,
+    Guid candidateId,
+    long candidateRevision,
+    string authorizedReleaseKey,
+    string manifestDigest) =>
+    checkpoint.FirmId == firmId &&
+    checkpoint.ClientId == clientId &&
+    checkpoint.EngagementId == engagementId &&
+    checkpoint.ReleaseCandidateId == candidateId &&
+    checkpoint.CandidateRevision == candidateRevision &&
+    string.Equals(checkpoint.AuthorizedReleaseKey, authorizedReleaseKey, StringComparison.Ordinal) &&
+    string.Equals(checkpoint.ManifestDigest, manifestDigest, StringComparison.Ordinal);
+
+  public static bool HasVerifiedMetadata(ReleaseCheckpoint checkpoint, string manifestDigest) =>
+    string.Equals(checkpoint.VerifiedStatus, "VERIFIED", StringComparison.Ordinal) &&
+    !string.IsNullOrWhiteSpace(checkpoint.StoredReference) &&
+    string.Equals(checkpoint.ReadBackDigest, manifestDigest, StringComparison.Ordinal) &&
+    checkpoint.VerifiedAt is { } verifiedAt && verifiedAt != default &&
+    !string.IsNullOrWhiteSpace(checkpoint.Verifier) &&
+    checkpoint.CreatedAt != default;
+
+  public static bool IsVerifiedReceipt(
+    CheckpointReceipt? receipt,
+    string expectedReference,
+    string expectedDigest,
+    long expectedByteCount) =>
+    receipt is not null &&
+    !string.IsNullOrWhiteSpace(receipt.Reference) &&
+    string.Equals(receipt.Reference, expectedReference, StringComparison.Ordinal) &&
+    string.Equals(receipt.ContentSha256Hex, expectedDigest, StringComparison.OrdinalIgnoreCase) &&
+    receipt.ByteCount == expectedByteCount;
+
+  public static async Task<bool> VerifyStoredEvidenceAsync(
+    IReleaseCheckpointStore store,
+    ReleaseCheckpoint checkpoint,
+    string manifestDigest,
+    long expectedByteCount,
+    CancellationToken ct)
+  {
+    if (!HasVerifiedMetadata(checkpoint, manifestDigest))
+      return false;
+
+    var verified = await store.VerifyAsync(checkpoint.StoredReference, manifestDigest, ct);
+    return IsVerifiedReceipt(verified, checkpoint.StoredReference, manifestDigest, expectedByteCount);
   }
 }
