@@ -21,7 +21,7 @@ When documents differ, use this order:
 | Category | Consolidated entry point | Detailed sources retained where they carry distinct authority or procedures |
 |---|---|---|
 | Architecture and decisions | [Architecture guide](architecture/auditsphere-architecture-index-agent-context-current.md) · [ADR register](architecture/adr/auditsphere-architecture-index-adr-register-current.md) | [Current architecture](architecture/auditsphere-architecture-current-architecture.md), [code map](architecture/auditsphere-architecture-code-map.md), data model, HTTP/OpenAPI, permissions, and individual ADRs |
-| Requirements | [Requirements index](requirements/auditsphere-requirements-index-current.md) | Current requirements, proposed practice-management specification, and preserved v2.2 source |
+| Requirements | [Requirements index](requirements/auditsphere-requirements-index-current.md) | The index classifies approved sources separately from the proposed revision 2.3 package and preserved v2.2 source. |
 | Design | [Design index](design/auditsphere-design-index-current.md) | Current visual foundation and progress tracker; proposed UX work remains proposed |
 | Operations | [Operations index](operations/auditsphere-operations-index-current.md) | Restore, M365, telemetry, reminders, evidence, and capacity procedures |
 | Testing | [Testing strategy and Definition of Done](testing/auditsphere-testing-strategy-definition-of-done-current.md) | The [capability packet catalog](testing/agent-check-capabilities.json) is machine input for `scripts/agent/agent-check.py`; `AGENTS.md` controls local versus CI test scope. |
@@ -31,9 +31,9 @@ When documents differ, use this order:
 
 ## Stable technical references
 
-- [Product brief](requirements/auditsphere-requirements-specification-product-brief-current.md)
-- [Current accounting requirements copy](requirements/auditsphere-accounting-module-requirements-current.md)
-- [Domain glossary](requirements/auditsphere-requirements-catalog-domain-glossary-current.md)
+- [Proposed product brief, revision 2.3](requirements/auditsphere-requirements-specification-product-brief-current.md)
+- [Proposed accounting-module requirements, revision 2.3](requirements/auditsphere-accounting-module-requirements-current.md)
+- [Proposed domain glossary, revision 2.3](requirements/auditsphere-requirements-catalog-domain-glossary-current.md)
 - [HTTP and OpenAPI boundary](architecture/auditsphere-architecture-http-boundary-and-contract-current.md) · [`contracts/auditsphere-openapi.json`](../contracts/auditsphere-openapi.json)
 - [Angular development guide](../src/AuditSphereOps.Ui/auditsphere-angular-development.md)
 - [Restore drill](operations/auditsphere-operations-runbook-restore-drill.md)
