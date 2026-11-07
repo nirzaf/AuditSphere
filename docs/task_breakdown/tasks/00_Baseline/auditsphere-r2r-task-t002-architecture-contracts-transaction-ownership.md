@@ -1,0 +1,123 @@
+---
+id: "T002"
+work_package: "R2R-00"
+modules: []
+status: "COMPLETED"
+depends_on: ["T001"]
+owner: "Codex implementation coordinator"
+reviewer: "Repository owner"
+review_decision: "APPROVED"
+reviewed_commit: "b24c8426ab073721fedf2f272c7205fa9fee9e8f"
+evidence_ref: "tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md"
+approval_ref: "Owner delegated the T002 variation decision on 2026-10-09 ('take any decision you wanted which makes the best for this project'). Decision recorded in the ledger under 'Owner decision of 2026-10-09 (delegated)'."
+blocked_reason: ""
+branch: "master"
+issue_pr: ""
+updated_at: "2026-10-08T22:09:10+00:00"
+---
+# T002 — Approve architecture, contracts and transaction ownership
+
+[Master index](../../auditsphere-r2r-index-task-breakdown.md) · [Status rules](../../auditsphere-r2r-index-task-breakdown.md#status-rules) · [Original work-package order](../../reference/auditsphere-r2r-reference-execution-coordination-and-handover.md#section-6-1)
+
+**Status scope:** NOT_STARTED means this new task has not been assessed/executed under this breakdown. It does not assert that its underlying code is absent. First inspect and reuse the current implementation. No current repository progress has been imported.
+
+## Outcome
+
+Freeze the shared architecture decisions and ownership rules agents must use.
+
+**Original work package:** `R2R-00` — Pin current SHA; inventory existing models/services/migrations/UI/tests; reconcile ADRs and scope conflicts
+**Original package exit:** Existing/new symbol ledger, policy approvals, preserved baseline tests and dependency licence decisions.
+
+## Before starting
+
+Hard dependencies must be COMPLETED, with reviewed handoff evidence:
+
+- [T001 — Approve scope and inventory the current implementation](../archive/auditsphere-r2r-task-t001-baseline-current-state-inventory.md)
+
+**Shared file ownership:** the coordinator serializes migrations, DbContext snapshots, public DTOs and shared policy edits. A task owns only the requests listed below; consume other requests through their owner.
+
+## Required reading
+
+- [00 Scope and Evidence Boundaries](../../reference/auditsphere-r2r-reference-scope-and-evidence-boundaries.md)
+- [03 Shared Domain Persistence CQRS Blazor](../../reference/auditsphere-r2r-reference-shared-domain-persistence-cqrs-blazor.md)
+- [04 Lifecycle Lineage and Module Ports](../../reference/auditsphere-r2r-reference-lifecycle-lineage-and-module-ports.md)
+- [06 Contract Clarifications and Resource Limits](../../reference/auditsphere-r2r-reference-contract-clarifications-and-resource-limits.md)
+- [01 Baseline Architecture and ADRs](../../reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md)
+- [02 Standards and Source Register](../../reference/auditsphere-r2r-reference-standards-and-source-register.md)
+
+## Sequential work
+
+1. Record the architecture positions in R2R-ADR-01, 02, 05, 06, 07, 08 and 10 from the blueprint.
+2. Inspect current transactions and designate one owner per command: compatibility service or migrated unit of work.
+3. Record the declined variation: MediatR and bUnit are not adopted, and static capability services with Angular component specs are the recorded replacement (ledger 2.3.1, ADR-0001). Retain unrelated package versions.
+4. Define the DTO/port ledger, migration serialization owner and capability-to-role mapping. Inspect group-creation authority rather than inheriting implicit Partner promotion.
+
+**Current-architecture disposition (accepted 2026-10-09 under the owner's delegated decision):** The [T002 decision ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md) retains static Application services and the existing xUnit/Playwright harness. MediatR and bUnit are absent and are not introduced or licensed by this task; a later package change would require its own review. The [111-request registry](../../coverage/auditsphere-r2r-tracker-command-query-ownership.md) assigns each preserved request to one task, while the ledger assigns capability transaction boundaries and requires each owning task to prove the concrete method. No public command/query is added by T002.
+
+## 1. Domain Modeling (`.Domain`)
+
+Use the source module’s aggregate/entity/value-object identities and lifecycle exactly where applicable. Classify each symbol as EXISTING, EXTEND, NEW or DECISION before editing. Preserve raw records, reviewed revisions and source-specific eligibility; do not introduce duplicate balances or reinterpret legacy state strings silently.
+
+This foundation/coordination task changes only the shared contracts expressly described in its work steps. It does not independently create a new business aggregate.
+
+## 2. Persistence & Migrations (`.Infrastructure`)
+
+Implement only the persistence delta needed by this task. Locate existing mappings and transaction owners first. Preserve composite scope FKs, restrictive deletes, immutable history and revision concurrency; initial mapping extraction must show no model diff. Any new schema change uses the source’s proposed migration suffix convention with a real generated timestamp, prior-schema tests and a reviewed backfill/quarantine plan.
+
+## 3. Application & CQRS Contracts (`.Application`)
+
+No new public command/query is assigned to this task. Configure, verify or connect the contracts of the owning tasks. Any additional request name requires a recorded contract decision rather than an agent-generated assumption.
+
+Full one-owner registry: [111 command/query contracts](../../coverage/auditsphere-r2r-tracker-command-query-ownership.md).
+
+## 4. Inter-Module Lineage & Boundaries
+
+Use predecessor outputs by exact identity/revision/manifest, not by selecting a convenient latest row. Data handoff is through the owning application contracts, not copied mutable module state. New required set members must invalidate dependent current applicability; retain the historical decision and result.
+
+**Required outputs:**
+
+- Approved architecture and dependency/licence records.
+- Transaction-owner registry and shared-contract ownership ledger.
+
+**Direct consumers unlocked by this task:**
+
+- [T003 — Approve accounting policies, resource bounds and golden fixtures](auditsphere-r2r-task-t003-accounting-policies-resource-bounds-golden-fixtures.md)
+
+## 5. Blazor UI Architecture (`.Web`)
+
+Extend the source-listed existing routes before adding a parallel workspace. Use immutable DTOs in per-circuit scoped UI state, separate EditContexts, EventCallbacks, server field errors and save/discard/cancel dirty guards. No circuit-owned DbContext, cross-user static state, optimistic approval or fake completion. Recheck selection tokens and clear protected content on route/scope loss.
+
+## 6. Edge Cases, Security & Verification
+
+**Required verification checks — not executed in this task pack:**
+
+- A facade cannot wrap a service-owned transaction in a second transaction.
+- Module 24 owns accounting presentation; Module 25 owns composition/rendering.
+- No duplicate R2R database, client/entity model, message broker or frontend is proposed.
+
+Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurrency, Angular component specs for component behavior and Playwright for actual Angular browser journeys where applicable. Record the subset executed for this task. Deferred consumer tests stay explicitly unverified until their scheduled integration gate; a task completion is not automatic whole-module acceptance.
+
+## Completion checklist
+
+<!-- COMPLETION-CHECKLIST -->
+- [x] Current checkout, existing symbols and applicable approvals were inspected; scope conflicts are resolved or the task is BLOCKED.
+- [x] All hard dependencies are COMPLETED and their exact contracts/evidence were consumed.
+- [x] The task-specific work and every applicable invariant/owned request are implemented or proven already implemented; no placeholder outcome remains.
+- [x] Applicable migrations, validation, authorization, concurrency and source/history preservation checks have observed results.
+- [x] Required task-level tests pass with named expected/observed outcomes; future integration tests remain explicitly tracked instead of claimed complete.
+- [x] The reviewer (repository owner, acting on the owner's delegated decision of 2026-10-09) accepted the reviewed commit and evidence; downstream owners receive the handoff through the ledger.
+<!-- END-COMPLETION-CHECKLIST -->
+
+## Evidence and handoff record
+
+| Field | Value to record |
+|---|---|
+| Inspected baseline and reused symbols | [Architecture, transaction, shared-contract and role review ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md); accepted T001 inventory consumed. |
+| Code commit / schema / deployed build if applicable | Group-authority source `11b3f3779866a34146980da9e9b942e10846adc6`, revocation fence source `08baf8c1cb0abab76e1769118710abe005e7d07a`, perimeter creator-review guard source `8c0b644398ab4680e15dd3724a58b5704bb6451a`, chart draft/publication fence source `80db56af6b6d844c1f6ef9c4dcc848a6aef7c09e`, and chart-version allocation source `ce30d17e77e9a887a01f50194b0c46f11dc9a7ac`. Request-owner mapping ledger was extended through all preserved names at `7a1f8ad087fc50031a48eb23f835cb2500024cc6`. No schema or deployment change. |
+| Requirement → assertion → command/run → observed result | ADR-10 no implicit Partner promotion → PostgreSQL `CreateGroup_GrantsCreatorOnlyTheirFirmWideRole` passed. Concurrent role revocation must win before group publication → `CreateGroup_WaitsForFirmRoleRevocationAndRejectsStaleAuthority` passed; focused 2/2. Release web build passed with 0 warnings/errors; Domain 341/341 and API 7/7 passed in the parallel full run. Browser suite had one unrelated visibility timeout at 71/72 in that run; the case passed 1/1 alone and the standalone E2E suite passed 72/72. EF found no pending changes; hosted CI run `36264703507` passed Release build/model checks at exact source commit. Task-pack validation passed. Exact observations are in `docs/execution/status.json`. |
+| Policy / scope approval reference | Repository owner accepted T001 seven-module scope and exact inventory commit `042611a70afdc97c006bf9b75ba58037cc0654a3`; owner approved the T002 architectural direction at reviewed commit `779480c613b49f0e6ee1a818864ef48b5b8bd607`. This does not close the ledger's open implementation-owner and role decisions. |
+| Known limitations / exact blocker | All preserved request names are mapped to candidate current methods or explicit new-contract decisions, but they are not all current code classes. The ledger's shared contract disposition, exact transaction proofs, role variation and person-based professional acceptance rules still require owning-task implementation and independent handoff review. The perimeter creator-review guard has focused, full Domain/API, standalone E2E and CI evidence; the E2E suite used committed test additions `aaa7bad` against unchanged guard code. Each downstream task must prove its concrete service, transaction, authorization, source fence and tests. Live tenant and production gates remain external. |
+| Exported contract / manifest / artifact references for consumers | [T002 review ledger](../../tracking/auditsphere-r2r-tracker-architecture-transaction-ownership.md) and [111-request task ownership registry](../../coverage/auditsphere-r2r-tracker-command-query-ownership.md). |
+| Reviewer and acceptance decision | Repository owner approved the direction at exact commit `779480c613b49f0e6ee1a818864ef48b5b8bd607` in the current Codex task on 2026-09-26; On 2026-10-09 the owner delegated the variation decision: static services are accepted, MediatR and bUnit are declined, and the open items in the ledger are proofs owned by the tasks named there. T002 is COMPLETED on the reviewed commit in its front matter. |
+
+**Tracking-only note:** filling these fields or running the status helper is not proof that tests ran, a professional approval, merge authorization or permission to perform a tenant operation.

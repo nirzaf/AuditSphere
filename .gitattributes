@@ -20,3 +20,6 @@
 *.woff2 binary
 *.snk binary
 *.pfx binary
+# This recovered task pack is an immutable source snapshot. Its trailing
+# spaces encode Markdown hard breaks and are covered by its source hashes.
+docs/task_breakdown/** whitespace=-blank-at-eol

@@ -1,48 +1,40 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-07T13:40:18Z",
+  "observedAtUtc": "2026-11-07T14:24:01Z",
   "source": {
     "branch": "master",
-    "baseSha": "da898328e7a23e199ea1b484758a8a87fcd9fe36",
-    "originMasterSha": "da898328e7a23e199ea1b484758a8a87fcd9fe36",
-    "workingTree": "IN_PROGRESS: documentation changes staged; T09 code changes unstaged",
+    "baseSha": "0375b67e00a15cf50dfe10cbbac526128738bd90",
+    "originMasterSha": "8722800c9d54d040fb6670ce9f54060eebc0d30f",
+    "workingTree": "IN_PROGRESS: T09 committed as 0375b67e; documentation consolidation/source recovery staged; no successor CI yet",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
-    "practiceManagement": "T09 bounded fee-reconciliation contract; implementation and regression edits remain uncommitted",
-    "documentation": "Category entry points, stale-link repair, exact-source provenance, and current-status reconciliation staged; no documentation commit yet",
+    "practiceManagement": "T09 bounded fee-reconciliation readiness committed as 0375b67e; local Angular and Application Release checks passed; exact-source CI pending; focused Domain tests remain BLOCKED_TEST_ENV on approved port 5433.",
+    "documentation": "Category navigation and human task catalog are consolidated; machine task inputs and hash-pinned historical sources restored; exact-source failures on predecessor 872 are recorded and missing inputs corrected in staged tree.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Review and publish the documentation-only staged slice, then observe CI for its exact resulting SHA.",
-      "note": "The validated ledger has 48 rows and active task RUN-003, but its source and CI pointers are stale relative to this checkout; do not treat its old run IDs as current evidence."
+      "nextAction": "Recheck origin and incoming paths; publish the staged documentation/source recovery atop T09 0375b67e; then bind and monitor exact-source fast/image CI.",
+      "note": "The 48-row ledger remains valid but its source/CI pointers are stale. The documentation generator cannot recreate per-item audit verdicts while its audit JSON source is absent; do not synthesize verdicts."
     }
   },
   "localVerification": {
     "documentationHealth": {
       "result": "PASS",
-      "markdownFiles": 73,
+      "markdownFiles": 180,
       "canonicalDocuments": 22,
-      "relativeLinksChecked": 688,
-      "backtickedRepositoryPathsChecked": 191,
+      "relativeLinksChecked": 2889,
+      "backtickedRepositoryPathsChecked": 249,
       "deletedPathReferences": 0,
       "approvedRecordsAndTaskProvenance": "PASS",
       "command": "python3 scripts/docs/validate-markdown-documentation.py",
-      "evidence": ".local/autonomous/evidence/docs-consolidation-20261107/reconciliation-review.json"
-    },
-    "restoredArchitectureAndEvidenceSources": {
-      "result": "PASS",
-      "sourceArtifacts": 22,
-      "byteIdenticalFiles": 14,
-      "referenceOnlyUpdates": 7,
-      "currentArchitectureFactClarifications": 1,
-      "evidence": ".local/autonomous/evidence/docs-consolidation-20261107/reconciliation-review.json"
+      "evidence": ".local/autonomous/evidence/docs-consolidation-20261107/reconciliation-review.json and current workspace run"
     },
     "filenameValidation": {
       "result": "PASS",
-      "markdownFiles": 73,
+      "markdownFiles": 180,
       "command": "python3 scripts/docs/validate-markdown-filenames.py"
     },
     "narrativeMetricsValidation": {
@@ -50,19 +42,38 @@
       "protectedDocuments": 6,
       "command": "python3 scripts/docs/validate-narrative-metrics.py"
     },
-    "uiInventory": {
+    "auditProgramSource": {
       "result": "PASS",
-      "command": "python3 scripts/ui/inventory.py --check"
+      "wordSourceSha256": "034d3b5023f5b498f0953ef6fea2af8439d72cc107075bd3336e53405091d987",
+      "sections": 20,
+      "procedureParagraphs": 165,
+      "command": "python3 scripts/docs/verify-audit-program-source.py"
     },
-    "restoreDrillShellSyntax": {
+    "taskStatusUtilityTests": {
       "result": "PASS",
-      "command": "bash -n scripts/db/restore-drill.sh"
+      "testsPassed": 21,
+      "testsFailed": 0,
+      "command": "python3 -m unittest discover -s docs/task_breakdown/tools -p 'test_*.py'"
+    },
+    "hashPinnedTaskSources": {
+      "result": "PASS",
+      "r2rSourceSha256": "3847e73e50cb6c9971281e8d1b8660ced437c00fbac377b2c5c6f7053a0bb2ed",
+      "auditSourceSha256": "c05b20c9dd90c1c90360bda463e2a95000ba26d07f6d07d41247e02af0273895",
+      "note": "Exact source bytes restored from pinned source commit; Markdown hard-break whitespace is exempted narrowly in .gitattributes.",
+      "taskPackSourceCommit": "574ed0c9b04882088aac8cf1e5030b2afbde6467",
+      "taskPackFilesRestoredExact": 111,
+      "evidence": ".local/autonomous/evidence/docs-consolidation-20261107/exact-task-pack-restore.json"
     },
     "diffCheck": {
-      "result": "PASS_SCOPED",
-      "unfilteredStagedResult": "FLAGS_ONLY_PRESERVED_APPROVED_MARKDOWN_HARD_BREAKS",
-      "scopedCheck": "git diff --check --cached excluding the two byte-preserved approved methodology records; git diff --check for unstaged changes",
-      "exception": "The two approved methodology records retain source-verbatim trailing spaces on Markdown hard-break lines 3-5. The unfiltered staged diff check reports those intentional spaces; their bytes are preserved and their source hashes are verified."
+      "result": "PASS",
+      "command": "git diff --cached --check",
+      "note": "Path-scoped .gitattributes exception covers only docs/task_breakdown/**; the 111-file historical task pack was restored byte-for-byte and its source hashes remain verified."
+    },
+    "taskBoardGenerator": {
+      "result": "BLOCKED_SOURCE",
+      "command": "python3 scripts/docs/build-task-board.py --check",
+      "reason": "The current per-item code-audit JSON input is absent. Generator now reports this explicitly and does not invent audit verdicts.",
+      "expectedMissingSource": "docs/execution/auditsphere-execution-report-task-codebase-audit-current.json"
     },
     "angularOffboardingReadinessSpec": {
       "result": "PASS",
@@ -73,17 +84,17 @@
     "domainOffboardingReadinessTests": {
       "result": "BLOCKED_TEST_ENV",
       "testsExecuted": 0,
-      "reason": "The approved loopback auditsphere_tests database was unavailable on port 5433. An unrelated T25-labelled isolated cluster on port 55432 was not reused."
+      "reason": "The approved loopback auditsphere_tests database on port 5433 was unavailable; unrelated T25 cluster on port 55432 was not reused."
     },
     "applicationReleaseBuild": {
       "result": "PASS",
-      "command": "dotnet build src/AuditSphereOps.Application/AuditSphereOps.Application.csproj --no-restore -c Release --maxcpucount:1",
       "warnings": 0,
-      "errors": 0
+      "errors": 0,
+      "command": "dotnet build src/AuditSphereOps.Application/AuditSphereOps.Application.csproj --no-restore -c Release --maxcpucount:1",
+      "scope": "T09 commit 0375b67e; exact-source CI for that commit is pending."
     },
     "angularProductionBuild": {
       "result": "PASS_WITH_EXISTING_CSS_BUDGET_WARNINGS",
-      "command": "npm --prefix src/AuditSphereOps.Ui run build",
       "warnings": [
         "commercial/settings.scss exceeds its configured style budget by 3.53 KB",
         "app.scss exceeds its configured style budget by 110 bytes"
@@ -92,30 +103,50 @@
   },
   "observedCi": {
     "fastRun": {
-      "runId": 42372619805,
-      "metadataHeadSha": "da898328e7a23e199ea1b484758a8a87fcd9fe36",
+      "runId": 42378137685,
+      "attempt": 1,
+      "metadataHeadSha": "8722800c9d54d040fb6670ce9f54060eebc0d30f",
       "status": "FAILURE",
+      "actualCheckoutSha": "8722800c9d54d040fb6670ce9f54060eebc0d30f",
       "jobs": {
-        "docsHealth": "FAILURE at Validate Markdown documentation health",
-        "angular": "PASS",
-        "dotnetRelease": "FAILURE at Restore and build Release"
+        "angular": "PASS; actual checkout confirmed; 1,998 passed across 196 files",
+        "docsHealth": "FAILURE at audit-program source manifest because the Word source was absent from this exact commit; the byte-identical Word source is restored in the working tree",
+        "dotnetRelease": "FAILURE at Release compilation because T09 offboarding edits were not in this commit; exact compiler diagnostics are retained in the terminal job log"
       },
-      "actualCheckoutSha": "UNVERIFIED",
-      "logEvidence": "Job metadata confirms terminal steps; the one-time log capture is placeholder text, so no checkout SHA or root cause is claimed."
+      "logEvidence": ".local/autonomous/evidence/docs-consolidation-20261107/ci-fast-angular-128419887978-terminal.log and ci-fast-docs-128419888124-terminal.log and ci-fast-release-128420522828-terminal.log; all identify actual checkout 8722800c",
+      "logSha256": {
+        "fastAngular": "28719ff23daca84ad01294e02f0e8758e083426a39eb32b9dc4a58a8a6b541df",
+        "fastDocs": "0b2b44fb7a1892ed16d4a6980945e7c43fe0803cc9fc048c8c220e238de9da2d",
+        "fastRelease": "a73d221c8a0b9d7050387d0faf8de2cfc55a9224964e5b904fb9b59f6cdfe431",
+        "imagesApi": "b3321b9f28c86180c839447816a0fc5abbdac6fb014c2e024424e122b49d9cc8",
+        "imagesMigrations": "fbe82411ce4c9d6a75f39a95ab398a233d3c605a2f3983e02954c1d981ca0111",
+        "imagesWorker": "d44bbc26095cf828169b5612e1e207e707946fc8afd6745f54c79a89cbda119b"
+      },
+      "t09CompilerDiagnostics": [
+        "OffboardingFinancialCoverage.cs: string cannot convert to decimal",
+        "OffboardingReadiness.cs: missing feeReadinessFacts argument",
+        "OffboardingReadiness.cs: inferred array type incompatible with IReadOnlyList<ClientOffboardingSection>"
+      ]
     },
     "imageRun": {
-      "runId": 42372619823,
-      "metadataHeadSha": "da898328e7a23e199ea1b484758a8a87fcd9fe36",
+      "runId": 42378137701,
+      "attempt": 1,
+      "metadataHeadSha": "8722800c9d54d040fb6670ce9f54060eebc0d30f",
       "status": "FAILURE",
+      "actualCheckoutSha": "8722800c9d54d040fb6670ce9f54060eebc0d30f",
       "jobs": {
-        "api": "FAILURE at Build and push image",
-        "worker": "FAILURE at Build and push image",
-        "migrations": "FAILURE at Build and push image"
+        "api": "FAILURE because task pack manifest/source paths required by the Docker build were absent from this exact commit; restored in working tree",
+        "migrations": "FAILURE because task pack source paths required by the Docker build were absent from this exact commit; restored in working tree",
+        "worker": "FAILURE at Release compilation because T09 offboarding edits were not in this commit"
       },
-      "actualCheckoutSha": "UNVERIFIED",
-      "cause": "UNCONFIRMED; each image build-and-push step failed in job metadata."
+      "logEvidence": ".local/autonomous/evidence/docs-consolidation-20261107/ci-images-api-128419888406.log, ci-images-migrations-128419888457.log, ci-images-worker-128419888323.log; all identify actual checkout 8722800c",
+      "logSha256": {
+        "imagesApi": "b3321b9f28c86180c839447816a0fc5abbdac6fb014c2e024424e122b49d9cc8",
+        "imagesMigrations": "fbe82411ce4c9d6a75f39a95ab398a233d3c605a2f3983e02954c1d981ca0111",
+        "imagesWorker": "d44bbc26095cf828169b5612e1e207e707946fc8afd6745f54c79a89cbda119b"
+      }
     },
-    "fullReleaseVerification": "NOT_DISPATCHED for this source; other full-run evidence belongs to predecessor SHAs."
+    "fullReleaseVerification": "NOT_DISPATCHED for this source; no full-release or release-acceptance claim"
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."
 }

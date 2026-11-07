@@ -173,7 +173,10 @@ def validate_all():
         matches = list(adr_dir.glob(f"auditsphere-architecture-adr-{number:04d}-*.md"))
         if len(matches) != 1:
             errors.append(f"Expected exactly one preserved ADR-{number:04d} record; found {len(matches)}")
-    task_library = root / "docs/task_breakdown/auditsphere-r2r-index-task-breakdown.md"
+    # The pack-root index is immutable machine input for task_status.py. Validate
+    # the consolidated human catalog separately so navigation edits cannot break
+    # the source checksum or pack-local link boundary.
+    task_library = root / "docs/auditsphere-task-library-index.md"
     if task_library.is_file():
         content = task_library.read_text(encoding="utf-8")
         missing_ids = [f"T{number:03d}" for number in range(1, 76) if f"T{number:03d}" not in content]

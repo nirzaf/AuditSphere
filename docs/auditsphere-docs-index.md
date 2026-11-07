@@ -26,7 +26,7 @@ When documents differ, use this order:
 | Operations | [Operations index](operations/auditsphere-operations-index-current.md) | Restore, M365, telemetry, reminders, evidence, and capacity procedures |
 | Testing | [Testing strategy and Definition of Done](testing/auditsphere-testing-strategy-definition-of-done-current.md) | `AGENTS.md` controls local versus CI test scope; this file consolidates the test and E2E guidance |
 | Execution | [Task board](execution/auditsphere-execution-index-task-board-current.md) · [current-slice handoff](execution/auditsphere-execution-current-slice.md) · [machine-readable status](execution/status.json) | The ignored `.local/autonomous/` continuation ledger remains the active detailed task state |
-| Task breakdown and source provenance | [Consolidated task library](task_breakdown/auditsphere-r2r-index-task-breakdown.md) | Historical task cards and source specifications are linked to their exact Git revision; they are not duplicated as current guidance |
+| Task breakdown and source provenance | [Consolidated task library](auditsphere-task-library-index.md) | One human entry point; immutable task-card and Word-source snapshots remain only because the progress API and source-manifest check consume them. The September snapshot is stale and is not current completion evidence. |
 | Evidence | [Evidence index](evidence/auditsphere-evidence-index-current.md) | Approved evidence-methodology records remain separate, unchanged approval artifacts |
 
 ## Stable technical references

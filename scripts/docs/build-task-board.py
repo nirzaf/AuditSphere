@@ -90,6 +90,10 @@ def load_stories(path, pattern):
 
 
 def main():
+    if not AUDIT.is_file():
+        missing = AUDIT.relative_to(ROOT).as_posix()
+        print(f'BLOCKED_SOURCE: cannot generate per-item audit verdicts; required audit record is absent: {missing}')
+        return 2
     record = json.loads(AUDIT.read_text(encoding='utf-8'))
     audited = {item['id']: item for item in record['items']}
     dispositions = record.get('currentDispositions', {})
