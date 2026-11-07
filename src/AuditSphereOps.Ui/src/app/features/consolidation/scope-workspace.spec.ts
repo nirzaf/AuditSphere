@@ -640,6 +640,146 @@ describe('Consolidation Scope Workspace Contracts', () => {
     await vi.waitFor(() => expect(recovery.cmd.uncertain()).toBe(false));
   });
 
+  it('clears a terminally superseded issue and requires fresh current assent before another issue', async () => {
+    const raw = workspacePayload({ canIssueDeliverable: true, latestReport: {
+      scopeVersionId: id1, runId: id3, runHash: hash64, state: 'CURRENT_APPROVED',
+      approvedAt: '2026-10-01T12:00:00Z', lines: [] } });
+    const { fixture, component } = open(raw);
+    const decoder = api.resource.mock.calls[0][1] as (value: unknown, path: string) => ScopeWorkspace;
+    workspaceData.set(decoder(raw, 'root')); fixture.detectChanges();
+    const built: ReturnType<typeof decodeGroupDeliverablePage>['items'][number] = {
+      deliverableId: id2, status: 'BUILT', runHash: hash64, deliverableSha256: hash64,
+      createdAt: '2026-10-01T12:00:00Z', createdByUserId: id1, issuedAt: null, issuedByUserId: null,
+      archivedAt: null, archivedByUserId: null, revision: 1,
+    };
+    deliverableResource.data.set({ items: [built], page: 1, pageSize: 100, totalCount: 1 });
+    component.deliverableReleaseKey = 'REL-T18-ORIGINAL';
+    component.setDeliverableReviewed(component.ws.data()!, built, 'issue', true);
+    api.command.mockResolvedValueOnce({ ok: false, unknown: true, code: 'outcome.unknown', status: 0, message: UNKNOWN_OUTCOME });
+    component.issueDeliverable(component.ws.data()!, built);
+    await vi.waitFor(() => expect(component.cmd.uncertain()).toBe(true));
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
+    const originalBody = api.command.mock.calls[0][1] as Record<string, unknown>;
+    const key = 'auditsphere-group-pending-v1:' + id2 + ':' + actor + ':' + id1;
+    expect(JSON.parse(sessionStorage.getItem(key)!).requestKey).toBe(originalBody['requestKey']);
+
+    component.recoveryInput = 'REL-T18-ORIGINAL';
+    api.command.mockResolvedValueOnce({ ok: false, unknown: false, code: 'group.perimeter.stale', status: 409,
+      message: 'The group perimeter changed.' });
+    await component.retryDeliverableRecovery();
+    expect(api.command.mock.calls[1][1]).toEqual(originalBody);
+    expect(sessionStorage.getItem(key)).toBeNull();
+    expect(component.pendingDeliverable()).toBeNull();
+    expect(component.cmd.uncertain()).toBe(false);
+    expect(component.deliverableReleaseKey).toBe('');
+    expect(component.isDeliverableReviewed(component.ws.data()!, built, 'issue')).toBe(false);
+    expect(component.cmd.message()).toContain('review the current deliverable');
+
+    component.issueDeliverable(component.ws.data()!, built);
+    expect(api.command).toHaveBeenCalledTimes(2);
+
+    // Simulate the subsequent authorized read on a new scope after its group basis is current.
+    params.next(convertToParamMap({ id: id3 })); fixture.detectChanges();
+    const freshRaw = workspacePayload({ canIssueDeliverable: true, latestReport: {
+      scopeVersionId: id3, runId: id1, runHash: hash64, state: 'CURRENT_APPROVED',
+      approvedAt: '2026-10-02T12:00:00Z', lines: [] } });
+    freshRaw.scope.id = id3;
+    freshRaw.scope.groupRevision = 2;
+    workspaceData.set(decoder(freshRaw, 'root')); fixture.detectChanges();
+    const freshWorkspace = component.ws.data()!;
+    const freshBuilt = { ...built };
+    deliverableResource.data.set({ items: [freshBuilt], page: 1, pageSize: 100, totalCount: 1 });
+    component.deliverableReleaseKey = 'REL-T18-FRESH';
+    component.issueDeliverable(freshWorkspace, freshBuilt);
+    expect(api.command).toHaveBeenCalledTimes(2);
+    component.setDeliverableReviewed(freshWorkspace, freshBuilt, 'issue', true);
+    api.command.mockImplementationOnce(async (_url: string, body: Record<string, unknown>) => ({ ok: true, value: {
+      deliverableId: id2, groupId: id2, scopeVersionId: id3, runId: id1, runHash: hash64,
+      deliverableSha256: hash64, status: 'ISSUED', revision: 2, issuedByUserId: actor,
+      issueRequestKey: body['requestKey'], authorizedReleaseKey: 'REL-T18-FRESH' } }));
+    component.issueDeliverable(freshWorkspace, freshBuilt);
+    await vi.waitFor(() => expect(api.command).toHaveBeenCalledTimes(3));
+    expect(api.command.mock.calls[2][0]).toBe(`/api/ui/consolidation/scopes/${id3}/deliverables/${id2}/issue`);
+    expect(api.command.mock.calls[2][1]).toEqual(expect.objectContaining({ expectedGroupRevision: 2 }));
+    expect((api.command.mock.calls[2][1] as Record<string, unknown>)['requestKey']).not.toBe(originalBody['requestKey']);
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
+  });
+
+  it('retains an issue fence on generic staleness and when its stored reference is replaced', async () => {
+    const raw = workspacePayload({ canIssueDeliverable: true, latestReport: {
+      scopeVersionId: id1, runId: id3, runHash: hash64, state: 'CURRENT_APPROVED',
+      approvedAt: '2026-10-01T12:00:00Z', lines: [] } });
+    const { fixture, component } = open(raw);
+    const decoder = api.resource.mock.calls[0][1] as (value: unknown, path: string) => ScopeWorkspace;
+    workspaceData.set(decoder(raw, 'root')); fixture.detectChanges();
+    const built: ReturnType<typeof decodeGroupDeliverablePage>['items'][number] = {
+      deliverableId: id2, status: 'BUILT', runHash: hash64, deliverableSha256: hash64,
+      createdAt: '2026-10-01T12:00:00Z', createdByUserId: id1, issuedAt: null, issuedByUserId: null,
+      archivedAt: null, archivedByUserId: null, revision: 1,
+    };
+    deliverableResource.data.set({ items: [built], page: 1, pageSize: 100, totalCount: 1 });
+    component.deliverableReleaseKey = 'REL-T18-ORIGINAL';
+    component.setDeliverableReviewed(component.ws.data()!, built, 'issue', true);
+    api.command.mockResolvedValueOnce({ ok: false, unknown: true, code: 'outcome.unknown', status: 0, message: UNKNOWN_OUTCOME });
+    component.issueDeliverable(component.ws.data()!, built);
+    await vi.waitFor(() => expect(component.cmd.uncertain()).toBe(true));
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
+    const original = api.command.mock.calls[0][1] as Record<string, unknown>;
+    const key = 'auditsphere-group-pending-v1:' + id2 + ':' + actor + ':' + id1;
+    component.recoveryInput = 'REL-T18-ORIGINAL';
+
+    api.command.mockResolvedValueOnce({ ok: false, unknown: false, code: 'generation.stale', status: 409, message: 'Stale' });
+    await component.retryDeliverableRecovery();
+    expect(api.command.mock.calls[1][1]).toEqual(original);
+    expect(JSON.parse(sessionStorage.getItem(key)!).requestKey).toBe(original['requestKey']);
+    expect(component.cmd.uncertain()).toBe(true);
+
+    let finish!: (result: unknown) => void;
+    api.command.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const retry = component.retryDeliverableRecovery();
+    await vi.waitFor(() => expect(api.command).toHaveBeenCalledTimes(3));
+    const replacement = { ...JSON.parse(sessionStorage.getItem(key)!), requestKey: id3 };
+    sessionStorage.setItem(key, JSON.stringify(replacement));
+    finish({ ok: false, unknown: false, code: 'group.perimeter.stale', status: 409, message: 'Stale' });
+    await retry;
+    expect(sessionStorage.getItem(key)).toBe(JSON.stringify(replacement));
+    expect(component.cmd.uncertain()).toBe(true);
+  });
+
+  it('does not clear an issue reference after the signed-in actor changes during recovery', async () => {
+    const raw = workspacePayload({ canIssueDeliverable: true, latestReport: {
+      scopeVersionId: id1, runId: id3, runHash: hash64, state: 'CURRENT_APPROVED',
+      approvedAt: '2026-10-01T12:00:00Z', lines: [] } });
+    const { fixture, component } = open(raw);
+    const decoder = api.resource.mock.calls[0][1] as (value: unknown, path: string) => ScopeWorkspace;
+    workspaceData.set(decoder(raw, 'root')); fixture.detectChanges();
+    const built: ReturnType<typeof decodeGroupDeliverablePage>['items'][number] = {
+      deliverableId: id2, status: 'BUILT', runHash: hash64, deliverableSha256: hash64,
+      createdAt: '2026-10-01T12:00:00Z', createdByUserId: id1, issuedAt: null, issuedByUserId: null,
+      archivedAt: null, archivedByUserId: null, revision: 1,
+    };
+    deliverableResource.data.set({ items: [built], page: 1, pageSize: 100, totalCount: 1 });
+    component.deliverableReleaseKey = 'REL-T18-ORIGINAL';
+    component.setDeliverableReviewed(component.ws.data()!, built, 'issue', true);
+    api.command.mockResolvedValueOnce({ ok: false, unknown: true, code: 'outcome.unknown', status: 0, message: UNKNOWN_OUTCOME });
+    component.issueDeliverable(component.ws.data()!, built);
+    await vi.waitFor(() => expect(component.cmd.uncertain()).toBe(true));
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
+    const key = 'auditsphere-group-pending-v1:' + id2 + ':' + actor + ':' + id1;
+    const originalRef = sessionStorage.getItem(key)!;
+    component.recoveryInput = 'REL-T18-ORIGINAL';
+    let finish!: (result: unknown) => void;
+    api.command.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const retry = component.retryDeliverableRecovery();
+    await vi.waitFor(() => expect(api.command).toHaveBeenCalledTimes(2));
+    sessionCurrent.set({ userId: id3, firmId: id2, generation: '2', staff: true });
+    fixture.detectChanges();
+    finish({ ok: false, unknown: false, code: 'group.perimeter.stale', status: 409, message: 'Stale' });
+    await retry;
+    expect(sessionStorage.getItem(key)).toBe(originalRef);
+    expect(component.cmd.uncertain()).toBe(true);
+  });
+
   it('keeps the recovery fence when a build is denied after authority revocation', async () => {
     const { component } = open(workspacePayload({ latestReport: { scopeVersionId: id1, runId: id3, runHash: hash64,
       state: 'CURRENT_APPROVED', approvedAt: '2026-10-01T12:00:00Z', lines: [] } }));

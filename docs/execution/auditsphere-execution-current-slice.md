@@ -1,6 +1,6 @@
 # Current-slice handoff
 
-**Observed:** 2026-11-07T17:47:35Z · branch `master` · tested HEAD/origin `51c5e2393a44711f0cdc5254ad8b76e56cc65dd5` · exact fast CI run `42396114501` passed Docs, Angular and .NET Release · the status/handoff record commit after it is documentation-only
+**Observed:** 2026-11-07T19:43:49Z · branch `master` · base HEAD/origin `3bb2d04dd5001ac18467d65c5e86f00ba73bcb19` · local T18 terminal issue-recovery candidate is uncommitted; focused Angular, PostgreSQL Domain and API checks pass · exact-candidate CI not yet run
 
 ## Goal and scope
 
@@ -54,6 +54,13 @@ Evidence logs and the parsed checkout/pin proof are under .local/autonomous/evid
 - Local verification: Markdown health, filename validation, narrative validation and the generated task board check passed after the edit (see [status](status.json)); `git diff --check` was clean. No .NET, Angular or browser suite was run locally for this documentation-only slice.
 - Exact fast CI run `42396114501` attempt 1 completed `SUCCESS` for `51c5e2393a44711f0cdc5254ad8b76e56cc65dd5`. Docs job `128473800007`, Angular job `128473800219` and .NET Release job `128474234973` each identify that checkout in their once-retained logs under `.local/autonomous/evidence/docs-staleness-20261107/ci-51c5e239-fast/`. Docs healthy for 179 files / 2,896 relative links / 252 repository paths, audit source manifest, capability guards, filenames and narrative validation; Angular lint, build and 2,014 tests across 196 files passed; Release compiled with 0 warnings/0 errors with Domain guards 16/16, API OpenAPI-semantics guards 12/12 and a current contract. No image workflow or full release-verification run was dispatched for this docs slice, so `FAST_CI_PASS` is the only CI claim; the follow-up commit that records this result is documentation-only.
 
+## T18 terminal recovery for an uncommitted group issue
+
+- The current proposal input is `AUDITSPHERE-PRACTICE-MANAGEMENT-GAP-SPEC.md` (SHA-256 `5d8c84aed73c75fcd88a690868f974be985f8241e1884539718146a4aefddf2c`); it does not replace repository authority or professional approval. T18 covers an issue request that never committed before the group perimeter permanently advanced.
+- `IssueGroupDeliverableAsync` still returns a matching committed issue receipt before considering perimeter drift. If no receipt exists and the locked group revision supersedes the scope, it now returns the existing typed `group.perimeter.stale` result. The Angular recovery path clears only the identical stored request under the matching current owner, actor and scope, resets the old release input/assent, and reloads the workspace and deliverable for fresh review.
+- A deterministic PostgreSQL test holds the membership revision transaction while the issue waits on the group lock, then verifies terminal non-commit, retry and delayed-arrival fencing, unchanged built artifact state and unchanged component books. Its first run exposed a test-harness lifetime mistake: the waiting issue context was disposed before the `finally` block released the membership lock. Keeping that context alive through release and result capture fixed the harness; the focused Domain test then passed.
+- Focused checks on this uncommitted candidate: Angular scope-workspace spec **46 passed**; the PostgreSQL-backed Domain consolidation test **1 passed**; API `GroupPerimeterStaleUsesConflictStatusForUiCommands` **1 passed**. The Domain test used a temporary loopback-only PostgreSQL 18.6 container, which was stopped after verifying no test sessions remained. Evidence is recorded at `.local/autonomous/evidence/practice-gap-t18-20261107/issue-recovery-verification.json`. These are local focused checks only; exact-source CI, interactive browser acceptance and full release acceptance remain open.
+
 ## Consolidation outcome and remaining boundaries
 
 The stale current category navigation, execution handoff/status, task-board source labeling, generated OpenAPI detail and restore-evidence expectation have been corrected in the published docs slice. Each docs category has one maintained entry point in the root index. Detailed ADRs, approved requirements, proposals, historical source records, operator procedures and machine-consumed task cards remain separate where combining them would blur authority, provenance or inputs.
@@ -62,4 +69,4 @@ The generated task board remains `PARTIAL_SOURCE`, not a complete code audit: it
 
 ## Remaining boundaries
 
-The last recorded practice-management T09 Domain-test attempt was `BLOCKED_TEST_ENV` because the approved `auditsphere_tests` database on port 5433 was unavailable; the unrelated port 55432 cluster was not reused. Consult the current autonomous checkpoint for later practice work. Browser acceptance, professional/external decisions and release acceptance remain separate. This docs slice does not claim full application verification, deployment, tenant permission changes, provider acceptance or professional approval.
+The T09 `BLOCKED_TEST_ENV` record is historical. T18 now has the focused results above, but remains an uncommitted candidate pending exact-source CI. The broader practice-management backlog and its professional/external acceptance leaves remain open in the autonomous checkpoint. Browser acceptance and release acceptance are separate; no deployment, tenant permission change, provider acceptance or professional approval is claimed.

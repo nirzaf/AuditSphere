@@ -6,6 +6,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
@@ -892,9 +893,15 @@ public sealed partial class ClientAccountingTests
       Assert.DoesNotContain(typeof(GroupDeliverableSummary).GetProperties(),
         property => property.Name == nameof(GroupDeliverableResult.DeliverableJson));
 
-      // T18: an uncommitted build may have lost its response before any row was written.
-      // After the reviewed group perimeter advances, reconciliation and a late arrival of
-      // that same original request must both remain stale and must not publish a deliverable.
+      // Prepare a second, unissued artifact while the reviewed perimeter is still current.
+      // Its first issue request will wait behind the membership revision transaction.
+      var issueRecoveryBuild = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer,
+        new BuildGroupDeliverableRequest(consolidationScopeId, runId, runHash,
+          Guid.NewGuid().ToString("D"), groupRevision));
+      Assert.True(issueRecoveryBuild.Succeeded, issueRecoveryBuild.Message);
+      var uncommittedIssueDeliverableId = issueRecoveryBuild.Value!.DeliverableId;
+      var uncommittedIssueDeliverableSha = issueRecoveryBuild.Value.DeliverableSha256;
+
       var lateClient = new PracticeClient
       {
         Id = Guid.CreateVersion7(), FirmId = scope.FirmId,
@@ -902,10 +909,62 @@ public sealed partial class ClientAccountingTests
       };
       db.PracticeClients.Add(lateClient);
       await db.SaveChangesAsync();
-      var perimeterChange = await ConsolidationService.AddMembershipAsync(db, reviewer,
-        new GroupMembershipRequest(groupId, lateClient.Id, new DateOnly(2027, 1, 1), null,
-          "CONTROLLED", 100m, 100m, "T18 permanent perimeter revision"));
+
+      var membershipPause = new PauseGroupMembershipSave();
+      var membershipOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+        .AddInterceptors(membershipPause).Options;
+      await using var membershipDb = new AuditSphereDbContext(membershipOptions);
+      Task<CommandResult>? membershipTask = null;
+      Task<CommandResult<GroupDeliverableResult>>? racingIssueTask = null;
+      CommandResult? perimeterChange = null;
+      CommandResult<GroupDeliverableResult>? racingIssue = null;
+      var originalIssueRequest = new IssueGroupDeliverableRequest(consolidationScopeId,
+        uncommittedIssueDeliverableId, 1, groupRevision, uncommittedIssueDeliverableSha,
+        "REL-T18-UNCOMMITTED", Guid.NewGuid().ToString("D"));
+      await using var issueDb = new AuditSphereDbContext(pg.Options);
+      try
+      {
+        membershipTask = ConsolidationService.AddMembershipAsync(membershipDb, reviewer,
+          new GroupMembershipRequest(groupId, lateClient.Id, new DateOnly(2027, 1, 1), null,
+            "CONTROLLED", 100m, 100m, "T18 permanent perimeter revision"));
+        await membershipPause.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
+
+        await issueDb.Database.OpenConnectionAsync();
+        var issuePid = ((NpgsqlConnection)issueDb.Database.GetDbConnection()).ProcessID;
+        racingIssueTask = ConsolidationService.IssueGroupDeliverableAsync(issueDb, reviewer, originalIssueRequest);
+        await using var observer = new AuditSphereDbContext(pg.Options);
+        await WaitForClientGroupLockBlockingPidAsync(observer, issuePid);
+        Assert.False(racingIssueTask.IsCompleted);
+      }
+      finally
+      {
+        membershipPause.Release.TrySetResult(true);
+        if (membershipTask is not null)
+          perimeterChange = await membershipTask.WaitAsync(TimeSpan.FromSeconds(30));
+        if (racingIssueTask is not null)
+          racingIssue = await racingIssueTask.WaitAsync(TimeSpan.FromSeconds(30));
+      }
+      Assert.NotNull(perimeterChange);
       Assert.True(perimeterChange.Succeeded, perimeterChange.Message);
+      Assert.Equal(groupRevision + 1, await db.ClientGroups.AsNoTracking()
+        .Where(x => x.FirmId == scope.FirmId && x.Id == groupId).Select(x => x.Revision).SingleAsync());
+      Assert.NotNull(racingIssue);
+      Assert.False(racingIssue.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.GroupPerimeterStale, racingIssue.ErrorCode);
+
+      // A retry resolves the absent original under the same lock; a late duplicate remains fenced.
+      var originalIssueRecovery = await ConsolidationService.IssueGroupDeliverableAsync(db, reviewer, originalIssueRequest);
+      Assert.False(originalIssueRecovery.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.GroupPerimeterStale, originalIssueRecovery.ErrorCode);
+      var lateIssueArrival = await ConsolidationService.IssueGroupDeliverableAsync(db, reviewer, originalIssueRequest);
+      Assert.False(lateIssueArrival.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.GroupPerimeterStale, lateIssueArrival.ErrorCode);
+      var unissuedDeliverableAfterRace = await db.GroupDeliverables.AsNoTracking().SingleAsync(x =>
+        x.FirmId == scope.FirmId && x.ScopeVersionId == consolidationScopeId && x.Id == uncommittedIssueDeliverableId);
+      Assert.Equal(GroupDeliverableStates.Built, unissuedDeliverableAfterRace.Status);
+      Assert.Equal(1, unissuedDeliverableAfterRace.Revision);
+      Assert.Null(unissuedDeliverableAfterRace.IssueRequestKey);
+      Assert.Null(unissuedDeliverableAfterRace.IssuedAt);
 
       var committedReplayAfterPerimeterChange = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer,
         new BuildGroupDeliverableRequest(consolidationScopeId, runId, runHash, buildRequestKey, groupRevision));
@@ -972,6 +1031,53 @@ public sealed partial class ClientAccountingTests
       var retained = await migrationDb.GroupDeliverables.SingleAsync(x => x.FirmId == scope.FirmId && x.Id == deliverableId);
       Assert.Equal(deliverableSha256, retained.DeliverableSha256);
       Assert.Equal(GroupDeliverableStates.Archived, retained.Status);
+    }
+  }
+
+  private static async Task WaitForClientGroupLockBlockingPidAsync(AuditSphereDbContext observer, int waitingPid)
+  {
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+    try
+    {
+      while (true)
+      {
+        await observer.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot()", timeout.Token);
+        var blocked = await observer.Database.SqlQuery<bool>($"""
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity AS waiting
+            WHERE waiting.datname = current_database()
+              AND waiting.pid = {waitingPid}
+              AND waiting.wait_event_type = 'Lock'
+              AND waiting.query ILIKE '%client_groups%'
+              AND cardinality(pg_blocking_pids(waiting.pid)) > 0
+          ) AS "Value"
+          """).SingleAsync(timeout.Token);
+        if (blocked) return;
+        await Task.Delay(TimeSpan.FromMilliseconds(25), timeout.Token);
+      }
+    }
+    catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+    {
+      Assert.Fail($"Issue session {waitingPid} did not wait behind the held client-group perimeter lock.");
+    }
+  }
+
+  private sealed class PauseGroupMembershipSave : SaveChangesInterceptor
+  {
+    public TaskCompletionSource<bool> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
+      InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+      var context = eventData.Context!;
+      if (context.ChangeTracker.Entries<ClientGroup>().Any(x => x.State == EntityState.Modified) &&
+          context.ChangeTracker.Entries<ClientGroupMembership>().Any(x => x.State == EntityState.Added))
+      {
+        Reached.TrySetResult(true);
+        await Release.Task.WaitAsync(cancellationToken);
+      }
+      return result;
     }
   }
 }

@@ -197,8 +197,8 @@ public static partial class ConsolidationService
     }
 
     if (locked.Group.Revision != scope.GroupRevision || request.ExpectedGroupRevision != locked.Group.Revision)
-      return CommandResult<GroupDeliverableResult>.Fail(ErrorCodes.GenerationStale,
-        "The group perimeter changed after this scope was prepared. Review the current group basis before issuing.");
+      return CommandResult<GroupDeliverableResult>.Fail(ErrorCodes.Accounting.GroupPerimeterStale,
+        "The group perimeter changed after this scope was prepared. This issue was not committed; refresh and review the current group before issuing again.");
 
     var deliverable = await LockGroupDeliverableAsync(db, actor.FirmId, scope, request.DeliverableId, ct);
     if (deliverable is null)

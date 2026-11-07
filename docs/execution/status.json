@@ -1,16 +1,15 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-07T17:47:35Z",
+  "observedAtUtc": "2026-11-07T19:43:49Z",
   "source": {
     "branch": "master",
-    "baseSha": "51c5e2393a44711f0cdc5254ad8b76e56cc65dd5",
-    "originMasterSha": "51c5e2393a44711f0cdc5254ad8b76e56cc65dd5",
-    "workingTree": "Exact fast CI run 42396114501 passed all three jobs for 51c5e2393a44711f0cdc5254ad8b76e56cc65dd5, and each job log identifies that checkout. The commit that records this result is a documentation-only follow-up; it does not claim a full release run or external acceptance.",
-    "wholeAssignment": "INCOMPLETE",
-    "currentCandidateSha": "51c5e2393a44711f0cdc5254ad8b76e56cc65dd5"
+    "baseSha": "3bb2d04dd5001ac18467d65c5e86f00ba73bcb19",
+    "originMasterSha": "3bb2d04dd5001ac18467d65c5e86f00ba73bcb19",
+    "workingTree": "An uncommitted T18 group-issue terminal-recovery candidate is based on this master/origin SHA. Focused Angular (46/46), PostgreSQL Domain (1/1) and API status-mapping (1/1) checks pass; exact-candidate CI and browser acceptance have not run.",
+    "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
-    "practiceManagement": "The broader practice-management assignment remains open and is tracked in the ignored autonomous checkpoint. The last recorded T09 evidence is a bounded readiness build at 0375b67e and a Domain-test attempt blocked by the unavailable approved port-5433 database; later practice work and exact-source gates must be read from current-work.json. This documentation fast-CI pass does not establish T09 or whole-product acceptance.",
+    "practiceManagement": "Practice-management remains INCOMPLETE. The T18 residual from the attached proposal (SHA-256 5d8c84aed73c75fcd88a690868f974be985f8241e1884539718146a4aefddf2c) now has an uncommitted terminal-recovery candidate: committed issue receipts replay first; an absent issue whose group perimeter advanced returns the existing typed group.perimeter.stale proof; Angular clears only the exact matching reference and requires fresh scope read/assent. Focused results: Angular 46/46, PostgreSQL Domain 1/1, API mapping 1/1. Evidence: .local/autonomous/evidence/practice-gap-t18-20261107/issue-recovery-verification.json. Candidate is based on 3bb2d04dd5001ac18467d65c5e86f00ba73bcb19 and is not yet committed, pushed or covered by exact-source CI. Other practice tasks and browser/professional/external acceptance remain open; no release or deployment is claimed.",
     "documentation": "Per-category navigation is consolidated through docs/auditsphere-docs-index.md and the maintained Architecture/ADR, Requirements, Design, Operations, Testing, Execution, Task Library and Evidence entry points. Distinct approved requirements, ADRs, proposals, historical task sources, operator procedures and machine-consumed task inputs remain separate to preserve authority and provenance. The current category/restore-evidence correction is published at a21737ff. Exact fast run 42390283923 passed Docs, Angular and .NET Release with each job log confirming checkout a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2. The task board remains PARTIAL_SOURCE because the per-item audit JSON and two STE v2.1 source files are absent; no gaps or missing-story findings are inferred. A repository-wide staleness sweep after that run removed the stale root review report, linked the document naming policy and corrected the live worker-group wording; its cross-checks are recorded under localVerification.documentationReconciliation, and its exact fast CI run 42396114501 passed Docs, Angular and .NET Release for 51c5e239 with every job log identifying that checkout.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
@@ -32,19 +31,19 @@
       "deletedPathReferences": 0,
       "approvedRecordsAndTaskProvenance": "PASS",
       "command": "python3 scripts/docs/validate-markdown-documentation.py",
-      "observedAtUtc": "2026-11-07T17:23:40Z"
+      "observedAtUtc": "2026-11-07T19:43:49Z"
     },
     "filenameValidation": {
       "result": "PASS",
       "markdownFiles": 179,
       "command": "python3 scripts/docs/validate-markdown-filenames.py",
-      "observedAtUtc": "2026-11-07T17:23:40Z"
+      "observedAtUtc": "2026-11-07T19:43:49Z"
     },
     "narrativeMetricsValidation": {
       "result": "PASS",
       "protectedDocuments": 6,
       "command": "python3 scripts/docs/validate-narrative-metrics.py",
-      "observedAtUtc": "2026-11-07T17:23:40Z"
+      "observedAtUtc": "2026-11-07T19:43:49Z"
     },
     "documentationReconciliation": {
       "result": "PASS",
@@ -82,9 +81,9 @@
     },
     "diffCheck": {
       "result": "PASS",
-      "command": "git diff --check and git diff --cached --check",
-      "note": "git diff --check passed for the final four-path docs/runbook/regression/status/handoff follow-up.",
-      "observedAtUtc": "2026-11-07T16:11:55Z"
+      "command": "git diff --check",
+      "note": "Passed for the current seven-path T18 issue-recovery candidate after code-map, status and handoff updates.",
+      "observedAtUtc": "2026-11-07T19:43:49Z"
     },
     "taskBoardGenerator": {
       "result": "PASS_WITH_SOURCE_LIMITATIONS",
@@ -98,7 +97,7 @@
         "docs/execution/auditsphere-execution-user-stories-ste-v21-gap-closure-current.md"
       ],
       "note": "Generated from available R2R/AUD task cards only; no code gaps or missing STE stories are inferred. T010 archived Blazor title is labeled historical under ADR-0002.",
-      "observedAtUtc": "2026-11-07T16:11:55Z"
+      "observedAtUtc": "2026-11-07T19:43:49Z"
     },
     "angularOffboardingReadinessSpec": {
       "result": "PASS",
@@ -179,6 +178,47 @@
       "command": "python3 scripts/ui/inventory.py --check",
       "observedAtUtc": "2026-11-07T16:11:55Z",
       "note": "Current Angular source discovery is valid; legacy Blazor discovery inventory remains explicitly historical."
+    },
+    "t18GroupIssueTerminalRecovery": {
+      "result": "PASS_FOCUSED_UNCOMMITTED",
+      "sourceBaseSha": "3bb2d04dd5001ac18467d65c5e86f00ba73bcb19",
+      "codeDiffSha256": "eb16f119ce3c7fab82677c61b9847d194deb00ac27522aa60b5408c67c2aecc5",
+      "evidence": ".local/autonomous/evidence/practice-gap-t18-20261107/issue-recovery-verification.json",
+      "angularScopeWorkspace": {
+        "result": "PASS",
+        "testsPassed": 46,
+        "testsFailed": 0,
+        "testsSkipped": 0,
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/consolidation/scope-workspace.spec.ts'"
+      },
+      "domainConcurrency": {
+        "result": "PASS",
+        "testsPassed": 1,
+        "testsFailed": 0,
+        "testsSkipped": 0,
+        "database": "Isolated loopback PostgreSQL 18.6 container, stopped after verification.",
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~GroupDeliverable_BuildsImmutableDeliverable_EnforcesIndependentIssuance_RetainsGroupScope_AndPreservesComponentBooks'"
+      },
+      "apiConflictMapping": {
+        "result": "PASS",
+        "testsPassed": 1,
+        "testsFailed": 0,
+        "testsSkipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~GroupPerimeterStaleUsesConflictStatusForUiCommands'"
+      },
+      "observedAtUtc": "2026-11-07T19:43:49Z",
+      "exactSourceCi": "NOT_RUN_UNCOMMITTED",
+      "interactiveBrowserAcceptance": "NOT_RUN",
+      "releaseOrDeployment": "NOT_CLAIMED",
+      "documentationValidation": {
+        "result": "PASS",
+        "markdownFiles": 179,
+        "relativeLinksChecked": 2896,
+        "filenames": "179 passed",
+        "narrativeProtectedDocuments": 6,
+        "taskBoard": "PARTIAL_SOURCE; check passed"
+      },
+      "testHarnessFinding": "The first run canceled the blocked issue command because the test disposed the issue DbContext before releasing the held membership lock. The test now keeps that context alive until release and result capture; the focused PostgreSQL test passes."
     }
   },
   "observedCi": {

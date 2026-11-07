@@ -391,7 +391,18 @@ export class ConsolidationScopeWorkspace {
       this.recoveryInput = ''; this.cmd.failed.set(false); this.cmd.message.set('The original group deliverable action was confirmed.');
       after?.(); this.deliverablePage.reload(); this.ws.reload();
     } else if (!outcome.ok && !outcome.unknown && outcome.status === 409 &&
-        outcome.code === 'group.perimeter.stale' && ref.action === 'build') {
+        outcome.code === 'group.perimeter.stale' && (ref.action === 'build' || ref.action === 'issue')) {
+      if (ref.action === 'issue') {
+        const current = this.currentWorkspace();
+        if (!current || this.workspaceReadOwner !== owner ||
+            current.scope.id.toLowerCase() !== ref.scopeId.toLowerCase() ||
+            current.scope.groupId.toLowerCase() !== ref.groupId.toLowerCase() ||
+            this.session.current()?.userId.toLowerCase() !== ref.actorId.toLowerCase()) {
+          this.cmd.failed.set(true); this.cmd.uncertain.set(true); this.uncertainScopeId.set(ref.scopeId.toLowerCase());
+          this.cmd.message.set('The original issue outcome remains unconfirmed. Return to the matching authorized group scope to resolve it.');
+          return;
+        }
+      }
       try {
         if (sessionStorage.getItem(key) !== JSON.stringify(ref) ||
             JSON.stringify(this.pendingDeliverable()) !== JSON.stringify(ref))
@@ -403,9 +414,19 @@ export class ConsolidationScopeWorkspace {
         return;
       }
       this.pendingDeliverable.set(null); this.cmd.uncertain.set(false); this.uncertainScopeId.set(null);
-      this.recoveryInput = ''; this.cmd.failed.set(true); this.cmd.code.set(outcome.code); this.cmd.message.set(outcome.message);
-      if (ref.runId) this.deliverableBuildRequestKeys.delete(
+      this.recoveryInput = ''; this.cmd.failed.set(true); this.cmd.code.set(outcome.code);
+      this.cmd.message.set(ref.action === 'issue'
+        ? 'The original issue did not commit because the group perimeter changed. Refresh the current group basis and review the current deliverable before issuing again.'
+        : outcome.message);
+      if (ref.action === 'build' && ref.runId) this.deliverableBuildRequestKeys.delete(
         [owner, ref.scopeId.toLowerCase(), ref.groupRevision, ref.runId.toLowerCase(), ref.runHash].join(':'));
+      if (ref.action === 'issue') {
+        if (ref.deliverableId && ref.deliverableHash)
+          this.deliverableIssueRequestKeys.delete([owner, ref.scopeId.toLowerCase(), ref.deliverableId.toLowerCase(),
+            ref.revision, ref.deliverableHash, input.trim()].join(':'));
+        this.deliverableReleaseKey = '';
+        this.deliverableReview = null;
+      }
       after?.(); this.deliverablePage.reload(); this.ws.reload();
     } else if (!outcome.ok && !outcome.unknown && !recovering &&
         ([400, 409].includes(outcome.status) && ['deliverable.invalid', 'csrf.invalid', 'gate.blocked', 'mapping.invalid'].includes(outcome.code))) {
