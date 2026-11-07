@@ -59,6 +59,7 @@ const workspace = {
   advancePreparation: {
     state: 'PENDING_AUTOMATION_DISABLED',
     message: messages['PENDING_AUTOMATION_DISABLED'],
+    reconciliationRequired: false,
   },
 };
 const financeWorkspace = (overrides: Record<string, unknown> = {}) => ({
@@ -106,7 +107,7 @@ describe('Fee agreement contract', () => {
         ...workspace,
         agreementId: null,
         milestones: [],
-        advancePreparation: { state: 'NOT_APPLICABLE', message: messages['NOT_APPLICABLE'] },
+        advancePreparation: { state: 'NOT_APPLICABLE', message: messages['NOT_APPLICABLE'], reconciliationRequired: false },
         creationBlockers: ['Client acceptance required.'],
       }).creationBlockers,
     ).toHaveLength(1);
@@ -116,20 +117,20 @@ describe('Fee agreement contract', () => {
     for (const state of Object.keys(messages)) {
       const w = decodeFeeAgreement({
         ...workspace,
-        advancePreparation: { state, message: messages[state] },
+        advancePreparation: { state, message: messages[state], reconciliationRequired: false },
       });
       expect(w.advancePreparation.message).toBe(messages[state]);
     }
     expect(() =>
-      decodeFeeAgreement({ ...workspace, advancePreparation: { state: 'PAID', message: 'x' } }),
+      decodeFeeAgreement({ ...workspace, advancePreparation: { state: 'PAID', message: 'x', reconciliationRequired: false } }),
     ).toThrow();
     expect(() =>
-      decodeFeeAgreement({ ...workspace, advancePreparation: { state: 'QUEUED', message: '' } }),
+      decodeFeeAgreement({ ...workspace, advancePreparation: { state: 'QUEUED', message: '', reconciliationRequired: false } }),
     ).toThrow();
     expect(() =>
       decodeFeeAgreement({
         ...workspace,
-        advancePreparation: { state: 'QUEUED', message: 'x'.repeat(501) },
+        advancePreparation: { state: 'QUEUED', message: 'x'.repeat(501), reconciliationRequired: false },
       }),
     ).toThrow();
   });
@@ -158,7 +159,7 @@ describe('Advance invoice preparation display', () => {
       f.detectChanges();
       http
         .expectOne('/api/ui/proposals/' + id + '/fee-agreement')
-        .flush({ ...workspace, advancePreparation: { state, message: messages[state] } });
+        .flush({ ...workspace, advancePreparation: { state, message: messages[state], reconciliationRequired: false } });
       f.detectChanges();
       const host = f.nativeElement as HTMLElement;
       const advanceRow = [...host.querySelectorAll('tbody tr')].find((row) =>
@@ -177,7 +178,7 @@ describe('Advance invoice preparation display', () => {
     f.detectChanges();
     http
       .expectOne('/api/ui/proposals/' + id + '/fee-agreement')
-      .flush({ ...workspace, advancePreparation: { state: 'PAID', message: 'Unexpected.' } });
+      .flush({ ...workspace, advancePreparation: { state: 'PAID', message: 'Unexpected.', reconciliationRequired: false } });
     f.detectChanges();
     expect(f.nativeElement.querySelector('[role="alert"]')?.textContent).toContain(
       'Unsupported fee agreement response',
@@ -195,7 +196,7 @@ describe('Advance invoice preparation display', () => {
       agreementId: null,
       engagementId: null,
       milestones: [],
-      advancePreparation: { state: 'NOT_APPLICABLE', message: messages['NOT_APPLICABLE'] },
+      advancePreparation: { state: 'NOT_APPLICABLE', message: messages['NOT_APPLICABLE'], reconciliationRequired: false },
     });
     f.detectChanges();
     expect(f.nativeElement.querySelector('[data-testid="advance-preparation"]')?.textContent).toContain(
@@ -230,6 +231,23 @@ describe('Advance invoice preparation display', () => {
       http.expectOne('/api/ui/finance/fee-agreements/' + financeAgreementId).flush(financeWorkspace());
       await f.whenStable();
     }
+    f.destroy();
+  });
+
+  it('accepts and retains the finance reconciliation flag from the server contract', async () => {
+    const http = setup();
+    const f = TestBed.createComponent(FeeAgreement);
+    f.componentRef.setInput('agreementId', financeAgreementId);
+    f.detectChanges();
+    http.expectOne('/api/ui/finance/fee-agreements/' + financeAgreementId).flush(financeWorkspace({
+      advancePreparation: { ...workspace.advancePreparation, reconciliationRequired: true },
+    }));
+    await f.whenStable();
+    f.detectChanges();
+
+    expect(f.componentInstance.data()?.advancePreparation.reconciliationRequired).toBe(true);
+    expect(f.nativeElement.querySelector('[role="alert"]')).toBeNull();
+    expect(f.nativeElement.querySelector('h2')?.textContent).toContain('Fee settlement');
     f.destroy();
   });
 

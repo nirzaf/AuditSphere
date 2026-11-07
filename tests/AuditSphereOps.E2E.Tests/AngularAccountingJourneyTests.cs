@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Domain.Shared;
 using System.Text.Json;
@@ -17,6 +19,7 @@ public sealed class AngularAccountingJourneyTests
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin,
       new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     string clientName;
+    var rollForwardPeriodId = Guid.NewGuid();
     await using (var db = host.CreateDbContext())
     {
       clientName = (await db.PracticeClients.SingleAsync(x => x.Id == host.Fixture.ClientId)).LegalName;
@@ -25,6 +28,7 @@ public sealed class AngularAccountingJourneyTests
       Assert.True(chart.Succeeded, chart.Message);
       Assert.True((await ClientAccountingService.AddAccountsAsync(db, actor, chart.Value,
         [new("cash", "1000", "Synthetic chart cash", "ASSET", "DEBIT", true)])).Succeeded);
+      await db.SaveChangesAsync();
     }
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
@@ -131,15 +135,34 @@ public sealed class AngularAccountingJourneyTests
       Assert.Equal(currency, retained.FunctionalCurrency);
       Assert.Equal(host.Fixture.Admin.Id, retained.CreatedByUserId);
     }
+    // Add the active source period only after profile setup/revisions; an existing period correctly freezes those setup choices.
+    await using (var db = host.CreateDbContext())
+    {
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = rollForwardPeriodId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        PeriodCode = "FY2026-ROLL", StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active, Revision = 1,
+        CreatedByUserId = host.Fixture.Admin.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientReportingBooks.Add(new ClientReportingBook
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        PeriodId = rollForwardPeriodId, Code = "STATUTORY", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES",
+        Currency = "QAR", Status = AccountingWorkflowStates.Active, CreatedByUserId = host.Fixture.Admin.Id,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
     var periods = accounting.Locator("form").Filter(new() { Has = page.GetByRole(AriaRole.Heading, new() { Name = "Create reporting period", Exact = true }) });
-    await periods.GetByLabel("Period code", new() { Exact = true }).FillAsync("2026");
-    await periods.GetByLabel("Start date", new() { Exact = true }).FillAsync("2026-01-01");
-    await periods.GetByLabel("End date", new() { Exact = true }).FillAsync("2026-12-31");
+    await periods.GetByLabel("Period code", new() { Exact = true }).FillAsync("2025");
+    await periods.GetByLabel("Start date", new() { Exact = true }).FillAsync("2025-01-01");
+    await periods.GetByLabel("End date", new() { Exact = true }).FillAsync("2025-12-31");
     await periods.GetByLabel("Reporting basis", new() { Exact = true }).FillAsync("STATUTORY");
     await periods.GetByLabel("Reporting currency", new() { Exact = true }).FillAsync("QAR");
     await periods.GetByRole(AriaRole.Checkbox).CheckAsync();
     await periods.GetByRole(AriaRole.Button, new() { Name = "Create period", Exact = true }).ClickAsync();
-    await Assertions.Expect(accounting.GetByRole(AriaRole.Cell, new() { Name = "2026", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(accounting.GetByRole(AriaRole.Cell, new() { Name = "2025", Exact = true })).ToBeVisibleAsync();
     await revisionForm.GetByLabel("Functional currency", new() { Exact = true }).FillAsync("USD");
     await revisionForm.GetByLabel("Reason for accounting basis change", new() { Exact = true }).FillAsync("Synthetic reason cannot authorize a post-period cutover");
     await revisionForm.GetByRole(AriaRole.Checkbox).CheckAsync();
@@ -161,7 +184,7 @@ public sealed class AngularAccountingJourneyTests
     await revisionForm.GetByLabel("Reason for accounting basis change", new() { Exact = true }).FillAsync("");
     Guid periodId;
     await using (var db = host.CreateDbContext())
-      periodId = (await db.ClientReportingPeriods.SingleAsync(x => x.ClientId == host.Fixture.ClientId)).Id;
+      periodId = (await db.ClientReportingPeriods.SingleAsync(x => x.ClientId == host.Fixture.ClientId && x.PeriodCode == "2025")).Id;
     var books = accounting.Locator("form").Filter(new() { Has = page.GetByRole(AriaRole.Heading, new() { Name = "Create reporting book", Exact = true }) });
     await books.GetByLabel("Period", new() { Exact = true }).SelectOptionAsync(periodId.ToString());
     await books.GetByLabel("Book code", new() { Exact = true }).FillAsync("STAT");
@@ -177,19 +200,51 @@ public sealed class AngularAccountingJourneyTests
     await using (var db = host.CreateDbContext())
     {
       Assert.Equal("ANGULAR-SOURCE", (await db.ClientAccountingProfiles.SingleAsync(x => x.ClientId == host.Fixture.ClientId)).SourceSystem);
-      Assert.Equal(periodId, (await db.ClientReportingBooks.SingleAsync(x => x.ClientId == host.Fixture.ClientId)).PeriodId);
+      Assert.Equal(periodId, (await db.ClientReportingBooks.SingleAsync(x => x.ClientId == host.Fixture.ClientId && x.PeriodId == periodId)).PeriodId);
     }
-    await accounting.GetByRole(AriaRole.Button, new() { Name = "2026 · close/reopen", Exact = true }).ClickAsync();
+    // The UI-created setup period remains a draft. Use a separately approved active source period for the close and exact-context roll-forward journey.
+    var sourcePackage = await FinancialPackageFixture.CreatePackageAsync(host, completeForReview: true,
+      existingPeriodId: rollForwardPeriodId);
+    var composition = await FinancialPackageFixture.SelectReviewedCompositionAsync(host, sourcePackage.PackageId);
+    await using (var db = host.CreateDbContext())
+    {
+      var partnerGrant = PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Admin, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId);
+      db.RoleGrants.Add(partnerGrant);
+      db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+      {
+        Id = Guid.CreateVersion7(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, UserId = host.Fixture.Admin.Id,
+        StaffingLevel = StaffingLevels.EngagementPartner, RoleGrantId = partnerGrant.Id,
+        AssignedByUserId = host.Fixture.Admin.Id, AssignedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      foreach (var (actor, stage, evidenceMode) in new[]
+      {
+        (PbcSeed.Actor(host.Fixture.Staff, "AccountingPreparer"), FinancialPackageReviewStages.ManagementApproval,
+          FinancialPackageReviewEvidenceModes.Offline),
+        (PbcSeed.Actor(host.Fixture.Reviewer, "AccountingReviewer"), FinancialPackageReviewStages.AccountingReview,
+          FinancialPackageReviewEvidenceModes.SignedIn),
+        (PbcSeed.Actor(host.Fixture.Admin, "Partner"), FinancialPackageReviewStages.PartnerApproval,
+          FinancialPackageReviewEvidenceModes.SignedIn)
+      })
+      {
+        var decision = await FinancialPackageReviewService.RecordAsync(db, actor,
+          new FinancialPackageReviewRequest(sourcePackage.PackageId, stage, FinancialPackageReviewDecisions.Approved,
+            evidenceMode, "synthetic-period-close-review", "Synthetic period-close fixture approval.",
+            composition.PresentationRevisionId, null, composition.Id, composition.ManifestDigest));
+        Assert.True(decision.Succeeded, decision.Message);
+      }
+    }
+    await accounting.GetByRole(AriaRole.Button, new() { Name = "FY2026-ROLL · close/reopen", Exact = true }).ClickAsync();
     var lifecycle = page.Locator("audit-period-lifecycle");
     await Assertions.Expect(lifecycle.GetByText("Current close checks have no blockers.", new() { Exact = false })).ToBeVisibleAsync();
     await lifecycle.GetByLabel("Decision reason", new() { Exact = true }).FillAsync("Synthetic reviewed close");
     await lifecycle.GetByRole(AriaRole.Checkbox).CheckAsync();
     await lifecycle.GetByRole(AriaRole.Button, new() { Name = "Close period", Exact = true }).ClickAsync();
     await Assertions.Expect(accounting.GetByRole(AriaRole.Cell, new() { Name = "CLOSED / 2", Exact = true })).ToBeVisibleAsync();
-    // Use the existing package builder fixture; package generation and artifacts remain real local Application work.
-    var sourcePackage = await FinancialPackageFixture.CreatePackageAsync(host);
     var roll = accounting.Locator("form").Filter(new() { Has = page.GetByRole(AriaRole.Heading, new() { Name = "Roll forward closed period", Exact = true }) });
-    await roll.GetByLabel("Closed prior period", new() { Exact = true }).SelectOptionAsync(periodId.ToString());
+    await roll.GetByLabel("Closed prior period", new() { Exact = true }).SelectOptionAsync(rollForwardPeriodId.ToString());
     await roll.GetByRole(AriaRole.Button, new() { Name = "Load validated source packages", Exact = true }).ClickAsync();
     await roll.GetByLabel("Validated source package", new() { Exact = true }).SelectOptionAsync(sourcePackage.PackageId.ToString());
     string sourceHash;
@@ -214,7 +269,7 @@ public sealed class AngularAccountingJourneyTests
     await using (var db = host.CreateDbContext())
     {
       var next = await db.ClientReportingPeriods.SingleAsync(x => x.ClientId == host.Fixture.ClientId && x.PeriodCode == "2027");
-      Assert.Equal(periodId, next.PriorPeriodId);
+      Assert.Equal(rollForwardPeriodId, next.PriorPeriodId);
       var bridge = await db.OpeningBalanceBridges.SingleAsync(x => x.CurrentPeriodId == next.Id);
       Assert.Equal("APPROVED", bridge.Status);
       Assert.Equal(100.25m, bridge.CurrentOpeningAmount);
@@ -223,7 +278,7 @@ public sealed class AngularAccountingJourneyTests
       Assert.Equal(sourceHash, bridge.SourceHash);
       Assert.Equal("DRAFT", (await db.ClientReportingBooks.SingleAsync(x => x.PeriodId == next.Id)).Status);
     }
-    await accounting.GetByRole(AriaRole.Button, new() { Name = "2026 · close/reopen", Exact = true }).ClickAsync();
+    await accounting.GetByRole(AriaRole.Button, new() { Name = "FY2026-ROLL · close/reopen", Exact = true }).ClickAsync();
     await lifecycle.GetByLabel("Decision reason", new() { Exact = true }).FillAsync("Synthetic correction");
     await lifecycle.GetByRole(AriaRole.Checkbox).CheckAsync();
     await lifecycle.GetByRole(AriaRole.Button, new() { Name = "Reopen period", Exact = true }).ClickAsync();
@@ -231,7 +286,7 @@ public sealed class AngularAccountingJourneyTests
     await Assertions.Expect(accounting.GetByRole(AriaRole.Cell, new() { Name = "2 → 3", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(accounting.GetByRole(AriaRole.Cell, new() { Name = "Synthetic correction", Exact = true })).ToBeVisibleAsync();
     await using (var db = host.CreateDbContext())
-      Assert.Equal("Synthetic correction", Assert.Single(await db.ClientPeriodAmendments.Where(x => x.PeriodId == periodId).ToListAsync()).Reason);
+      Assert.Equal("Synthetic correction", Assert.Single(await db.ClientPeriodAmendments.Where(x => x.PeriodId == rollForwardPeriodId).ToListAsync()).Reason);
     await using (var db = host.CreateDbContext())
     {
       db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "AccountingReviewer"));

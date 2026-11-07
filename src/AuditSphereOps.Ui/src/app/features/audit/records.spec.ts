@@ -1,11 +1,18 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { signal } from '@angular/core';
+import { provideHttpClient } from '@angular/common/http';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
+import { Api } from '../../core/api';
+import { SessionService } from '../../core/session';
 import {
   decodePopulation,
   decodeFinding,
   decodeReviewPoint,
   decodeRelease,
   decodeArchive,
+  ArchiveRecord,
 } from './records';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
@@ -159,4 +166,49 @@ describe('Audit Records Contracts', () => {
   });
 
 
+});
+
+describe('Archive export visibility', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it.each([
+    { canExport: false, label: 'metadata-only reader', linkVisible: false },
+    { canExport: true, label: 'authorized custodian', linkVisible: true },
+  ])('shows export only for the server-authorized $label', async ({ canExport, linkVisible }) => {
+    const archiveData = signal<ReturnType<typeof decodeArchive> | null>(null);
+    const resource = { data: archiveData, loading: signal(false), error: signal(''), reload: vi.fn() };
+    let decode!: (raw: unknown, path: string) => ReturnType<typeof decodeArchive>;
+    const api = { resource: vi.fn((_url: unknown, decoder: typeof decode) => { decode = decoder; return resource; }) };
+    const session = {
+      current: signal({ userId: id1, firmId: id3, generation: '1', staff: true }),
+      invalidation: signal(0), refresh: vi.fn(),
+    };
+    const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    TestBed.configureTestingModule({
+      imports: [ArchiveRecord],
+      providers: [provideRouter([]), provideHttpClient(),
+        { provide: ActivatedRoute, useValue: { paramMap: params } },
+        { provide: Api, useValue: api },
+        { provide: SessionService, useValue: session }],
+    });
+
+    const fixture = TestBed.createComponent(ArchiveRecord);
+    archiveData.set(decode({
+      id: id1, engagementId: id2, status: 'SEALED', createdAt: '2026-11-01T10:00:00Z',
+      profileId: 'ISQM1-PROFILE', profileVersion: 1, manifestVersion: 1, manifestStatus: 'REVIEWED',
+      manifestDigest: hash64, completenessStatus: 'COMPLETE', completenessException: null, canExport,
+      entries: [{ ordinal: 1, entryKind: 'SIGNED_REPORT', relativeName: 'Report.pdf', contentHash: hash64, byteCount: 42 }],
+      totalEntryCount: 1, nextOrdinal: null, activeHoldCount: 0, observedProtection: 'PROTECTED',
+      desiredLabel: 'CONFIDENTIAL', observedLabel: 'CONFIDENTIAL', actionState: 'OBSERVED',
+      externalReference: null, secondarySharePointCopy: null,
+    }, 'archive'));
+    await fixture.whenStable();
+
+    const page = fixture.nativeElement as HTMLElement;
+    const exportLink = page.querySelector<HTMLAnchorElement>(`a[href="/api/ui/records/archives/${id1}/export"]`);
+    expect(exportLink !== null).toBe(linkVisible);
+    expect(page.textContent).toContain('Manifest version 1');
+    expect(page.textContent).toContain('Manifest hash');
+    if (linkVisible) expect(exportLink?.textContent).toContain('Download read-only evidence export');
+  });
 });

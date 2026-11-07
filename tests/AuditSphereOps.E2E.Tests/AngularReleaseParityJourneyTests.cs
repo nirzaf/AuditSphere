@@ -78,7 +78,7 @@ public sealed class AngularReleaseParityJourneyTests
     await using (var db = host.CreateDbContext())
     {
       var blocked = await ReleaseService.IssueAsync(db, partner,
-        new IssueReleaseRequest(candidateId, 1, digest, "synthetic-angular-expired-release"),
+        new IssueReleaseRequest(candidateId, 1, digest, "synthetic-angular-release-checkpoint"),
         new ReleaseSafetyOptions { RequireExternalCheckpointBeforeDelivery = true, RequireProtectionAttestation = true });
       Assert.False(blocked.Succeeded);
       Assert.Contains("Protection attestation has expired", blocked.Message, StringComparison.Ordinal);

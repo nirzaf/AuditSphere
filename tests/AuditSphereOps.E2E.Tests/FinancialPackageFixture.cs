@@ -15,15 +15,15 @@ internal static class FinancialPackageFixture
   }
 
   internal static async Task<PackageSeed> CreatePackageAsync(
-    OwnedHost host, bool completeForReview = false)
+    OwnedHost host, bool completeForReview = false, Guid? existingPeriodId = null)
   {
     var firmId = host.Fixture.FirmId;
     var clientId = host.Fixture.ClientId;
     var engagementId = host.Fixture.EngagementId;
     var preparer = PbcSeed.Actor(host.Fixture.Staff, "AccountingPreparer");
     var reviewer = PbcSeed.Actor(host.Fixture.Reviewer, "AccountingReviewer");
-    var periodId = Guid.NewGuid();
-    var bookId = Guid.NewGuid();
+    var periodId = existingPeriodId ?? Guid.NewGuid();
+    Guid bookId;
     var datasetId = Guid.NewGuid();
     var taxonomyId = Guid.NewGuid();
     var sourceBatchId = Guid.NewGuid();
@@ -37,19 +37,32 @@ internal static class FinancialPackageFixture
       db.RoleGrants.AddRange(
         PbcSeed.Grant(firmId, host.Fixture.Staff, "AccountingPreparer", clientId, engagementId),
         PbcSeed.Grant(firmId, host.Fixture.Reviewer, "AccountingReviewer", clientId, engagementId));
-      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      if (existingPeriodId is { } selectedPeriodId)
       {
-        Id = periodId, FirmId = firmId, ClientId = clientId, PeriodCode = "FY2026-E2E",
-        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
-        Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active,
-        CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
-      });
-      db.ClientReportingBooks.Add(new ClientReportingBook
+        var period = await db.ClientReportingPeriods.SingleAsync(x => x.Id == selectedPeriodId &&
+          x.FirmId == firmId && x.ClientId == clientId && x.StartDate == new DateOnly(2026, 1, 1) &&
+          x.EndDate == new DateOnly(2026, 12, 31) && x.Basis == "STATUTORY" && x.Currency == "QAR");
+        bookId = await db.ClientReportingBooks.Where(x => x.FirmId == firmId && x.ClientId == clientId &&
+            x.PeriodId == period.Id && x.Basis == period.Basis && x.Currency == period.Currency)
+          .Select(x => x.Id).SingleAsync();
+      }
+      else
       {
-        Id = bookId, FirmId = firmId, ClientId = clientId, PeriodId = periodId,
-        Code = "STATUTORY", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES", Currency = "QAR",
-        Status = AccountingWorkflowStates.Active, CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
-      });
+        bookId = Guid.NewGuid();
+        db.ClientReportingPeriods.Add(new ClientReportingPeriod
+        {
+          Id = periodId, FirmId = firmId, ClientId = clientId, PeriodCode = "FY2026-E2E",
+          StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+          Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+          CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+        });
+        db.ClientReportingBooks.Add(new ClientReportingBook
+        {
+          Id = bookId, FirmId = firmId, ClientId = clientId, PeriodId = periodId,
+          Code = "STATUTORY", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES", Currency = "QAR",
+          Status = AccountingWorkflowStates.Active, CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+        });
+      }
       db.ReportingTaxonomyVersions.Add(new ReportingTaxonomyVersion
       {
         Id = taxonomyId, FirmId = firmId, Code = "tax-e2e-v1", Framework = "IFRS", Name = "Synthetic E2E taxonomy",

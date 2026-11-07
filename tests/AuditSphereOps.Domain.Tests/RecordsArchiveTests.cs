@@ -341,9 +341,36 @@ public sealed class RecordsArchiveTests
     var staffArchiveView = await AuditRecordQueries.ArchiveAsync(db, unprivileged, archiveId);
     Assert.True(staffArchiveView.Succeeded, staffArchiveView.Message);
     Assert.Null(staffArchiveView.Value!.SecondarySharePointCopy);
+    Assert.False(staffArchiveView.Value.CanExport);
     var deniedExport = await RecordsArchiveService.ExportReviewedArchiveAsync(db, unprivileged, archiveId);
     Assert.False(deniedExport.Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, deniedExport.ErrorCode);
+
+    var custodianGrant = new RoleGrant
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, UserId = unprivilegedId, Role = "RecordsCustodian",
+      ClientId = scope.ClientId, EngagementId = scope.EngagementId, GrantedAt = DateTimeOffset.UtcNow,
+      GrantedByUserId = scope.Actor.UserId
+    };
+    db.RoleGrants.Add(custodianGrant);
+    await db.SaveChangesAsync();
+    var custodian = new ActorContext(unprivilegedId, scope.FirmId, 1, ["Staff", "RecordsCustodian"]);
+    var custodianArchiveView = await AuditRecordQueries.ArchiveAsync(db, custodian, archiveId);
+    Assert.True(custodianArchiveView.Succeeded, custodianArchiveView.Message);
+    Assert.True(custodianArchiveView.Value!.CanExport);
+    var custodianExport = await RecordsArchiveService.ExportReviewedArchiveAsync(db, custodian, archiveId);
+    Assert.True(custodianExport.Succeeded, custodianExport.Message);
+    Assert.Equal(Hashing.Sha256Hex(custodianExport.Value!.Content), custodianExport.Value.ContentSha256);
+
+    await db.RoleGrants.Where(x => x.Id == custodianGrant.Id).ExecuteUpdateAsync(update =>
+      update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+    var readerAfterCustodyRevocation = new ActorContext(unprivilegedId, scope.FirmId, 1, ["Staff"]);
+    var afterRevocationView = await AuditRecordQueries.ArchiveAsync(db, readerAfterCustodyRevocation, archiveId);
+    Assert.True(afterRevocationView.Succeeded, afterRevocationView.Message);
+    Assert.False(afterRevocationView.Value!.CanExport);
+    var afterRevocationExport = await RecordsArchiveService.ExportReviewedArchiveAsync(db, readerAfterCustodyRevocation, archiveId);
+    Assert.False(afterRevocationExport.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, afterRevocationExport.ErrorCode);
 
     Assert.True((await RecordsArchiveService.RequestRecordsActionAsync(db, scope.Actor,
       new RequestRecordsActionRequest(archiveId, "purview-request-test-1"))).Succeeded);

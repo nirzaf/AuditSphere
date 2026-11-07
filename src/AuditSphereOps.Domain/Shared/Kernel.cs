@@ -37,6 +37,7 @@ public static class ErrorCodes
   // the owning catalog instead of parsing or inventing message text.
   public static class Accounting
   {
+    public const string GroupPerimeterStale = "group.perimeter.stale";
     public const string ImportRejected = "import.rejected";
     public const string ImportDuplicate = "import.duplicate";
     public const string MappingInvalid = "mapping.invalid";

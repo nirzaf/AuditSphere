@@ -215,7 +215,8 @@ public sealed class AccountingRecordsApprovalTests
       Assert.True(closed.Succeeded, closed.Message);
 
       // A correction is prepared after the original reporting period was independently closed.
-      revisedPackageId = AddValidatedPackage(db, fixture, 90m, "CASH", "restatement-revised");
+      revisedPackageId = AddValidatedPackage(db, fixture, 90m, "CASH", "restatement-revised",
+        periodId: periodId, basis: "STATUTORY");
       await db.SaveChangesAsync();
     }
 
@@ -441,7 +442,8 @@ public sealed class AccountingRecordsApprovalTests
   }
 
   private static Guid AddValidatedPackage(
-    AuditSphereDbContext db, Fixture fixture, decimal amount, string destination, string suffix)
+    AuditSphereDbContext db, Fixture fixture, decimal amount, string destination, string suffix,
+    Guid? periodId = null, string? basis = null)
   {
     var now = DateTimeOffset.UtcNow;
     var datasetId = Guid.CreateVersion7();
@@ -453,7 +455,8 @@ public sealed class AccountingRecordsApprovalTests
     db.TrialBalanceDatasets.Add(new TrialBalanceDataset
     {
       Id = datasetId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
-      SourceKind = "Raw", Revision = 1, LegalEntityKey = suffix.ToUpperInvariant(), Currency = "QAR",
+      PeriodId = periodId, Basis = basis, SourceKind = "Raw", Revision = 1,
+      LegalEntityKey = suffix.ToUpperInvariant(), Currency = "QAR",
       RawFileSha256Hex = digest, NormalizedDatasetDigest = digest, Sha256Hex = digest, Balanced = true,
       ValidationStatus = "Accepted", ImportState = TrialBalanceImportStates.Sealed, ControlTotal = 0m,
       ImportedAt = now, ImportedByUserId = fixture.Preparer.Id
@@ -481,7 +484,8 @@ public sealed class AccountingRecordsApprovalTests
     {
       Id = packageId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
       AdjustedDatasetId = adjustedId, MappingVersionId = mappingId, AdjustmentPlanId = planId,
-      Framework = "IFRS", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", TaxonomyVersion = "tax-v1",
+      PeriodId = periodId, Basis = basis, Framework = "IFRS", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+      TaxonomyVersion = "tax-v1",
       TemplateVersion = $"p2-{suffix}", CalculationEngineVersion = "test-engine", CalculationHash = digest,
       Currency = "QAR", Status = AccountingPackageStates.PackageValidated, CreatedAt = now
     });

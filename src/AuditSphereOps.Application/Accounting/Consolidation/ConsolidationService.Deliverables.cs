@@ -56,8 +56,8 @@ public static partial class ConsolidationService
     }
 
     if (locked.Group.Revision != scope.GroupRevision)
-      return CommandResult<GroupDeliverableResult>.Fail(ErrorCodes.GenerationStale,
-        "The group perimeter changed after this scope was prepared. Review the current group basis before building.");
+      return CommandResult<GroupDeliverableResult>.Fail(ErrorCodes.Accounting.GroupPerimeterStale,
+        "The group perimeter changed after this scope was prepared. This build cannot be applied to the older perimeter; review the current group basis.");
 
     var reportResult = await ReadLatestReportAsync(db, actor, scope.Id, ct);
     if (!reportResult.Succeeded)

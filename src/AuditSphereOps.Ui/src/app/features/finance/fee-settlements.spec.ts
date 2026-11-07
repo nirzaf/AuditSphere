@@ -104,7 +104,7 @@ describe('Finance fee settlements', () => {
         { id: '77777777-7777-4777-8777-777777777777', kind: 'BALANCE', amount: '5000.00', state: 'PENDING', invoiceId: null, invoiceNumber: null, invoiceStatus: null, allocated: '0', outstanding: '5000.00', paidAt: null },
       ],
       engagements: [],
-      advancePreparation: { state: 'PENDING_AUTOMATION_DISABLED', message: 'Finance prepares the draft manually.' },
+      advancePreparation: { state: 'PENDING_AUTOMATION_DISABLED', message: 'Finance prepares the draft manually.', reconciliationRequired: false },
     });
     await harness.fixture.whenStable();
     expect(harness.routeNativeElement?.querySelector('h1')?.textContent).toContain('Client fee settlement');

@@ -112,8 +112,8 @@ public sealed partial class ClientAccountingTests
     var preparer = Actor(scope.Preparer, "AccountingPreparer"); var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
     var period = await ClosedMaintenancePeriodAsync(pg, scope);
     await using var db = new AuditSphereDbContext(pg.Options);
-    var original = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "receipt-original");
-    var revised = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 90m, "CASH", "receipt-revised");
+    var original = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "receipt-original", "QAR", period, "STATUTORY");
+    var revised = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 90m, "CASH", "receipt-revised", "QAR", period, "STATUTORY");
     await db.SaveChangesAsync();
     var forward = await ReviewedMaintenanceAsync(db, preparer, scope.ClientA, PeriodMaintenanceActions.RollForward,
       new(scope.ClientA, period, "2027", new(2027, 1, 1), new(2027, 12, 31), "STATUTORY", "QAR", new('a', 64), 100m, 100m, "SYNTHETIC opening", ExpectedPriorRevision: 2));
@@ -185,8 +185,8 @@ public sealed partial class ClientAccountingTests
           new(scope.ClientA, period, "2027", new(2027, 1, 1), new(2027, 12, 31), "STATUTORY", "QAR", new('a', 64), 1m, 1m, "SYNTHETIC opening", ExpectedPriorRevision: 2));
       else
       {
-        var original = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "concurrent-original");
-        var revised = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 90m, "CASH", "concurrent-revised"); await db.SaveChangesAsync();
+        var original = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "concurrent-original", "QAR", period, "STATUTORY");
+        var revised = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 90m, "CASH", "concurrent-revised", "QAR", period, "STATUTORY"); await db.SaveChangesAsync();
         var fields = new CreatePeriodRestatementRequest(scope.ClientA, period, original, revised, "IAS 8", "SYNTHETIC correction", "SYNTHETIC evidence", PeriodRestatementChangeTypes.RestatedError, "FY2026");
         if (action == PeriodMaintenanceActions.CreateRestatement) request = await ReviewedMaintenanceAsync(db, actor, scope.ClientA, action, restatement: fields);
         else
@@ -341,8 +341,8 @@ public sealed partial class ClientAccountingTests
     PeriodMaintenanceRequest first, second; Guid id;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var original = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "approve-original");
-      var revised = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 90m, "CASH", "approve-revised");
+      var original = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "approve-original", "QAR", period, "STATUTORY");
+      var revised = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 90m, "CASH", "approve-revised", "QAR", period, "STATUTORY");
       await db.SaveChangesAsync();
       var create = await ReviewedMaintenanceAsync(db, preparer, scope.ClientA, PeriodMaintenanceActions.CreateRestatement, restatement:
         new(scope.ClientA, period, original, revised, "IAS 8", "SYNTHETIC correction", "SYNTHETIC evidence", PeriodRestatementChangeTypes.RestatedError, "FY2026"));
@@ -475,8 +475,8 @@ public sealed partial class ClientAccountingTests
     var period = await ClosedMaintenancePeriodAsync(pg, scope); Guid original, revised;
     await using (var setup = new AuditSphereDbContext(pg.Options))
     {
-      original = await AddPackageAsync(setup, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "ambient-original");
-      revised = await AddPackageAsync(setup, scope, scope.ClientA, scope.EngagementA, 90m, "CASH", "ambient-revised"); await setup.SaveChangesAsync();
+      original = await AddPackageAsync(setup, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "ambient-original", "QAR", period, "STATUTORY");
+      revised = await AddPackageAsync(setup, scope, scope.ClientA, scope.EngagementA, 90m, "CASH", "ambient-revised", "QAR", period, "STATUTORY"); await setup.SaveChangesAsync();
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
     {

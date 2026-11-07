@@ -146,7 +146,7 @@ public static partial class UiEndpoints
   {
     ErrorCodes.ScopeDenied => 403,
     "engagement.period-overlap" or "scope.changed" => 409,
-    ErrorCodes.GenerationStale or ErrorCodes.StaleRevision or ErrorCodes.IdempotencyConflict or ErrorCodes.TechnicalLibrary.DuplicateCode => 409,
+    ErrorCodes.GenerationStale or ErrorCodes.Accounting.GroupPerimeterStale or ErrorCodes.StaleRevision or ErrorCodes.IdempotencyConflict or ErrorCodes.TechnicalLibrary.DuplicateCode => 409,
     "session.unavailable" => 401,
     _ => 400
   };

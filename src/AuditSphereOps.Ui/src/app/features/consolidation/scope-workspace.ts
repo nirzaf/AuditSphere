@@ -390,9 +390,25 @@ export class ConsolidationScopeWorkspace {
       this.deliverableBuildRequestKeys.clear(); this.deliverableIssueRequestKeys.clear(); this.deliverableArchiveRequestKeys.clear();
       this.recoveryInput = ''; this.cmd.failed.set(false); this.cmd.message.set('The original group deliverable action was confirmed.');
       after?.(); this.deliverablePage.reload(); this.ws.reload();
+    } else if (!outcome.ok && !outcome.unknown && outcome.status === 409 &&
+        outcome.code === 'group.perimeter.stale' && ref.action === 'build') {
+      try {
+        if (sessionStorage.getItem(key) !== JSON.stringify(ref) ||
+            JSON.stringify(this.pendingDeliverable()) !== JSON.stringify(ref))
+          throw new Error('Recovery reference changed');
+        sessionStorage.removeItem(key);
+      } catch {
+        this.cmd.failed.set(true); this.cmd.uncertain.set(true); this.uncertainScopeId.set(ref.scopeId.toLowerCase());
+        this.cmd.message.set('The original deliverable outcome remains unconfirmed. Retry the same request before another action.');
+        return;
+      }
+      this.pendingDeliverable.set(null); this.cmd.uncertain.set(false); this.uncertainScopeId.set(null);
+      this.recoveryInput = ''; this.cmd.failed.set(true); this.cmd.code.set(outcome.code); this.cmd.message.set(outcome.message);
+      if (ref.runId) this.deliverableBuildRequestKeys.delete(
+        [owner, ref.scopeId.toLowerCase(), ref.groupRevision, ref.runId.toLowerCase(), ref.runHash].join(':'));
+      after?.(); this.deliverablePage.reload(); this.ws.reload();
     } else if (!outcome.ok && !outcome.unknown && !recovering &&
-        (([400, 409].includes(outcome.status) && ['deliverable.invalid', 'csrf.invalid', 'gate.blocked', 'generation.stale', 'mapping.invalid'].includes(outcome.code)) ||
-         (outcome.status === 403 && outcome.code === 'scope.denied'))) {
+        ([400, 409].includes(outcome.status) && ['deliverable.invalid', 'csrf.invalid', 'gate.blocked', 'mapping.invalid'].includes(outcome.code))) {
       try {
         if (sessionStorage.getItem(key) !== JSON.stringify(ref)) throw new Error('Recovery reference changed');
         sessionStorage.removeItem(key); this.pendingDeliverable.set(null);

@@ -701,6 +701,23 @@ public sealed partial class ClientAccountingTests
       Assert.True(buildReplay.Succeeded);
       Assert.Equal(deliverableId, buildReplay.Value!.DeliverableId);
 
+      // The same request identity never discloses another actor's build receipt.
+      var wrongActorBuildReplay = await ConsolidationService.BuildGroupDeliverableAsync(db, reviewer,
+        new BuildGroupDeliverableRequest(consolidationScopeId, runId, runHash, buildRequestKey, groupRevision));
+      Assert.False(wrongActorBuildReplay.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, wrongActorBuildReplay.ErrorCode);
+
+      var wrongScopeBuildReplay = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer,
+        new BuildGroupDeliverableRequest(Guid.NewGuid(), runId, runHash, buildRequestKey, groupRevision));
+      Assert.False(wrongScopeBuildReplay.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, wrongScopeBuildReplay.ErrorCode);
+
+      var changedBuildIntent = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer,
+        new BuildGroupDeliverableRequest(consolidationScopeId, runId,
+          runHash == new string('0', 64) ? new string('f', 64) : new string('0', 64), buildRequestKey, groupRevision));
+      Assert.False(changedBuildIntent.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, changedBuildIntent.ErrorCode);
+
       // Build with mismatching ExpectedRunHash fails with GenerationStale
       var badHashBuild = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer,
         new BuildGroupDeliverableRequest(consolidationScopeId, runId,
@@ -874,6 +891,42 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(25, list.Value.PageSize);
       Assert.DoesNotContain(typeof(GroupDeliverableSummary).GetProperties(),
         property => property.Name == nameof(GroupDeliverableResult.DeliverableJson));
+
+      // T18: an uncommitted build may have lost its response before any row was written.
+      // After the reviewed group perimeter advances, reconciliation and a late arrival of
+      // that same original request must both remain stale and must not publish a deliverable.
+      var lateClient = new PracticeClient
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId,
+        LegalName = "Late perimeter member", CreatedAt = DateTimeOffset.UtcNow
+      };
+      db.PracticeClients.Add(lateClient);
+      await db.SaveChangesAsync();
+      var perimeterChange = await ConsolidationService.AddMembershipAsync(db, reviewer,
+        new GroupMembershipRequest(groupId, lateClient.Id, new DateOnly(2027, 1, 1), null,
+          "CONTROLLED", 100m, 100m, "T18 permanent perimeter revision"));
+      Assert.True(perimeterChange.Succeeded, perimeterChange.Message);
+
+      var committedReplayAfterPerimeterChange = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer,
+        new BuildGroupDeliverableRequest(consolidationScopeId, runId, runHash, buildRequestKey, groupRevision));
+      Assert.True(committedReplayAfterPerimeterChange.Succeeded, committedReplayAfterPerimeterChange.Message);
+      Assert.Equal(deliverableId, committedReplayAfterPerimeterChange.Value!.DeliverableId);
+
+      var uncommittedRequestKey = Guid.NewGuid().ToString("D");
+      var originalRequest = new BuildGroupDeliverableRequest(
+        consolidationScopeId, runId, runHash, uncommittedRequestKey, groupRevision);
+      var recoveryAfterPerimeterChange = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer, originalRequest);
+      Assert.False(recoveryAfterPerimeterChange.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.GroupPerimeterStale, recoveryAfterPerimeterChange.ErrorCode);
+      Assert.False(await db.GroupDeliverables.AsNoTracking().AnyAsync(x =>
+        x.FirmId == scope.FirmId && x.ScopeVersionId == consolidationScopeId && x.RequestKey == uncommittedRequestKey));
+
+      // Simulate the delayed original arrival after the client has reconciled the stale request.
+      var lateOriginalArrival = await ConsolidationService.BuildGroupDeliverableAsync(db, preparer, originalRequest);
+      Assert.False(lateOriginalArrival.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.GroupPerimeterStale, lateOriginalArrival.ErrorCode);
+      Assert.False(await db.GroupDeliverables.AsNoTracking().AnyAsync(x =>
+        x.FirmId == scope.FirmId && x.ScopeVersionId == consolidationScopeId && x.RequestKey == uncommittedRequestKey));
 
       // Component books are completely unchanged
       var packagesAfter = await db.FinancialPackages.Where(x => x.ClientId == scope.ClientA || x.ClientId == scope.ClientB).Select(x => x.Id).ToArrayAsync();

@@ -56,13 +56,15 @@ export type AdvancePreparationState = (typeof advancePreparationStates)[number];
 export interface AdvancePreparation {
   state: AdvancePreparationState;
   message: string;
+  reconciliationRequired: boolean;
 }
 const guid = (v: unknown): v is string => typeof v === 'string' && guidPattern.test(v);
 const advancePreparationValid = (value: unknown): boolean => {
   if (!value || typeof value !== 'object') return false;
   const p = value as Record<string, unknown>;
   return (advancePreparationStates as readonly unknown[]).includes(p['state']) &&
-    typeof p['message'] === 'string' && p['message'].length > 0 && p['message'].length <= 500;
+    typeof p['message'] === 'string' && p['message'].length > 0 && p['message'].length <= 500 &&
+    typeof p['reconciliationRequired'] === 'boolean';
 };
 export function decodeFeeAgreement(value: unknown): Workspace {
   if (!value || typeof value !== 'object') throw new Error('Invalid fee agreement');
@@ -128,7 +130,7 @@ function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string):
     'outstanding', 'paidAt',
   ])) || !Array.isArray(creationBlockers) || creationBlockers.length !== 0 ||
       !Array.isArray(engagements) || engagements.length !== 0 ||
-      !exactKeys(raw['advancePreparation'], ['state', 'message']))
+      !exactKeys(raw['advancePreparation'], ['state', 'message', 'reconciliationRequired']))
     throw new Error('Invalid sanitized finance fee agreement');
   const workspace = decodeFeeAgreement(value);
   if (workspace.agreementId !== expectedAgreementId || workspace.canCreate || !workspace.canFinance ||

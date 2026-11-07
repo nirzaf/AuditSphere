@@ -667,7 +667,7 @@ public sealed partial class AuditDeliverablesTests
   public async Task ArchiveCopyReceipts_RejectForeignOperationsAndPreserveExactEvidence()
   {
     const string baseline = "20261029104522_SamplingRunSelectionScope";
-    const string current = "20261105163636_ArchiveAudienceAndReviewedManifestIntegrity";
+    const string current = "20261105173658_ArchiveProfileIdentity";
     await using var pg = await PgTestSchema.CreateAsync(current);
     var checkpointRoot = Path.Combine(Path.GetTempPath(), "auditsphere-archive-operation-scope", Guid.NewGuid().ToString("N"));
     try
@@ -740,8 +740,10 @@ public sealed partial class AuditDeliverablesTests
           });
           await db.SaveChangesAsync();
           var included = await RecordsArchiveService.BuildManifestWithCommercialBundleAsync(db, partner, archiveId, bundleId);
-          Assert.True(included.Succeeded, included.Message);
-          Assert.True((await RecordsArchiveService.ReviewManifestAsync(db, partner, archiveId)).Succeeded);
+          Assert.True(included.Succeeded, $"{included.ErrorCode}: {included.Message ?? "No failure message was returned."}");
+          await using var reviewDb = new AuditSphereDbContext(pg.Options);
+          var review = await RecordsArchiveService.ReviewManifestAsync(reviewDb, partner, archiveId);
+          Assert.True(review.Succeeded, $"{review.ErrorCode}: {review.Message ?? "No failure message was returned."}");
           Assert.Equal(16, included.Value!.EntryCount);
         }
 
@@ -1111,10 +1113,14 @@ public sealed partial class AuditDeliverablesTests
       }
       await AssertNewScopeAsync(true);
 
-      // The populated engagement-scoped structured payload makes a downgrade unsafe; it must be refused atomically.
+      // Later additive migrations can be reverted, but the retained payload prevents removing its guard migration.
+      const string retainedPayloadGuard = "20261105163636_ArchiveAudienceAndReviewedManifestIntegrity";
+      var guardIndex = Array.IndexOf(applied, retainedPayloadGuard);
+      Assert.InRange(guardIndex, baselineIndex + 1, applied.Length - 1);
+      var expectedAppliedAfterRefusal = applied[..(guardIndex + 1)];
       var refusedDowngrade = await Assert.ThrowsAnyAsync<Exception>(() => migrator.MigrateAsync(baseline));
       Assert.Equal("55000", Assert.IsType<PostgresException>(refusedDowngrade.GetBaseException()).SqlState);
-      Assert.Equal(applied, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
+      Assert.Equal(expectedAppliedAfterRefusal, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
       await AssertNewScopeAsync(true);
 
     }
@@ -1608,13 +1614,13 @@ public sealed partial class AuditDeliverablesTests
         Assert.NotEmpty(legacyHashes);
 
         var migrator = db.GetService<IMigrator>();
-        // The retained reviewed archive contains a v2 payload, so the newer archive-integrity
-        // migration must refuse to roll back before any archive-copy migration is removed.
+        // The retained reviewed manifest is protected by the newer T17 integrity migration,
+        // which refuses to roll back before any archive-copy migration is removed.
         var refusedV2Downgrade = await Assert.ThrowsAnyAsync<Exception>(() =>
           migrator.MigrateAsync(migrations[foundationIndex]));
         var v2DowngradeFailure = Assert.IsType<PostgresException>(refusedV2Downgrade.GetBaseException());
         Assert.Equal("55000", v2DowngradeFailure.SqlState);
-        Assert.Contains("v2 payloads remain", v2DowngradeFailure.MessageText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("retained manifests exist", v2DowngradeFailure.MessageText, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(migrations[..(archiveIntegrityIndex + 1)],
           (await db.Database.GetAppliedMigrationsAsync()).ToArray());
         await using (var restoreDb = new AuditSphereDbContext(pg.Options))

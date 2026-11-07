@@ -239,7 +239,7 @@ public sealed class AngularArchiveCompletenessJourneyTests
     page.PageError += (_, error) => errors.Add(error);
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" +
       Uri.EscapeDataString($"/app/records/archives/{archiveId:D}"));
-    await Assertions.Expect(page.GetByText("Manifest version 1 · 2 manifest entries · 0 active local holds",
+    await Assertions.Expect(page.GetByText("Manifest version 1 · 2 manifest entries · 0 unreleased local holds",
       new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByText("The export reports Purview protection and the SharePoint secondary access-copy observation as separate evidence. It does not claim external immutability.",
       new() { Exact = true })).ToBeVisibleAsync();
@@ -289,6 +289,12 @@ public sealed class AngularArchiveCompletenessJourneyTests
         Status = "BUILT", ManifestDigest = digest, EntryCount = 0,
         CompletenessStatus = "INCOMPLETE", CompletenessException = reason, BuiltAt = now
       });
+      db.LegalHolds.Add(new LegalHold
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ArchiveId = archiveId, HoldReference = "SYNTHETIC-RELEASED-ONLY", State = "RELEASED",
+        RequestedByUserId = f.Staff.Id, RequestedAt = now, ReleasedAt = now
+      });
       await db.SaveChangesAsync();
     }
 
@@ -312,7 +318,7 @@ public sealed class AngularArchiveCompletenessJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Records archive", Exact = true }))
       .ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync($"Manifest incomplete: {reason}");
-    await Assertions.Expect(page.GetByText("Manifest version 1 · 0 manifest entries · 0 active local holds", new() { Exact = true }))
+    await Assertions.Expect(page.GetByText("Manifest version 1 · 0 manifest entries · 0 unreleased local holds", new() { Exact = true }))
       .ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Cell, new() { Name = "No persisted manifest entries.", Exact = true }))
       .ToBeVisibleAsync();
@@ -322,6 +328,7 @@ public sealed class AngularArchiveCompletenessJourneyTests
       .GetByText("Not observed", new() { Exact = true })).ToBeVisibleAsync();
     var evidence = page.GetByRole(AriaRole.Region, new() { Name = "Records evidence", Exact = true });
     await Assertions.Expect(evidence.GetByText("Not observed", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(evidence.GetByText("No unreleased local hold", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(evidence.GetByText("Not requested", new() { Exact = true })).ToHaveCountAsync(2);
     var text = await page.Locator("main").InnerTextAsync();
     Assert.DoesNotContain("Archive complete", text, StringComparison.OrdinalIgnoreCase);
