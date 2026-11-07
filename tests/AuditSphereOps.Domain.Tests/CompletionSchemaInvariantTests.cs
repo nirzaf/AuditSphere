@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Security.Cryptography;
 using Npgsql;
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Completion;
@@ -1562,6 +1563,174 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     }
     await transaction.RollbackAsync();
     Assert.Equal(before, JsonSerializer.Serialize(await db.StaffingChanges.AsNoTracking().OrderBy(x => x.Id).ToListAsync()));
+  }
+
+  [Fact]
+  public async Task RiskBandAssessments_RejectSameFirmSiblingEngagementRiskReferences()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var siblingEngagementId = Guid.NewGuid();
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.Engagements.Add(new Engagement
+    {
+      Id = siblingEngagementId, FirmId = fixture.FirmId, PracticeClientId = fixture.ClientId,
+      Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
+    var administrator = PbcSeed.Actor(fixture.Admin, "Administrator");
+    async Task<Guid> CreateRiskAsync(Guid engagementId, string area)
+    {
+      var created = await AuditPlanningService.CreateAuditRiskAsync(db, administrator,
+        new(engagementId, area, "Existence", "Synthetic scope probe", "Synthetic scope driver",
+          "NORMAL", null, "Synthetic scope response"));
+      Assert.True(created.Succeeded, created.Message);
+      return created.Value!.RiskId;
+    }
+
+    var ownRiskId = await CreateRiskAsync(fixture.EngagementId, "CASH");
+    var siblingRiskId = await CreateRiskAsync(siblingEngagementId, "RECEIVABLES");
+    var assessment = await RiskBandService.AssessAsync(db, administrator,
+      new(ownRiskId, 1, 1, false, "Synthetic scope control"));
+    Assert.True(assessment.Succeeded, assessment.Message);
+
+    var before = JsonSerializer.Serialize(await db.RiskBandAssessments.AsNoTracking()
+      .OrderBy(x => x.Id).ToListAsync());
+    await using var connection = new NpgsqlConnection(pg.ConnectionString);
+    await connection.OpenAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+    await new NpgsqlCommand("SET CONSTRAINTS ALL IMMEDIATE", connection, transaction).ExecuteNonQueryAsync();
+
+    async Task<int> InsertCloneAsync(Guid riskId)
+    {
+      await using var command = new NpgsqlCommand("""
+        INSERT INTO risk_band_assessments
+        SELECT (jsonb_populate_record(NULL::risk_band_assessments, to_jsonb(a) || jsonb_build_object(
+          'id', @id, 'risk_id', @risk_id))).*
+        FROM risk_band_assessments a WHERE a.id = @source_id
+        """, connection, transaction);
+      command.Parameters.AddWithValue("id", Guid.NewGuid());
+      command.Parameters.AddWithValue("risk_id", riskId);
+      command.Parameters.AddWithValue("source_id", assessment.Value!);
+      return await command.ExecuteNonQueryAsync();
+    }
+
+    await new NpgsqlCommand("SAVEPOINT risk_band_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    Assert.Equal(1, await InsertCloneAsync(ownRiskId));
+    output.WriteLine("SAME_ENGAGEMENT_RISK: ACCEPTED rows=1");
+    await new NpgsqlCommand("ROLLBACK TO SAVEPOINT risk_band_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+
+    await new NpgsqlCommand("SAVEPOINT risk_band_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    try
+    {
+      var rows = await InsertCloneAsync(siblingRiskId);
+      output.WriteLine($"SAME_FIRM_SIBLING_ENGAGEMENT_RISK: ACCEPTED rows={rows}");
+      Assert.Fail("A risk-band assessment accepted a risk from a sibling engagement in the same client.");
+    }
+    catch (PostgresException exception)
+    {
+      Assert.Equal("23503", exception.SqlState);
+      Assert.Equal("fk_risk_band_assessment_risk_scope", exception.ConstraintName);
+      output.WriteLine($"SAME_FIRM_SIBLING_ENGAGEMENT_RISK: REFUSED SqlState={exception.SqlState} constraint={exception.ConstraintName}");
+    }
+    await new NpgsqlCommand("ROLLBACK TO SAVEPOINT risk_band_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    await transaction.RollbackAsync();
+
+    var originalRiskForeignKeyCount = await db.Database.SqlQueryRaw<int>("""
+      SELECT count(*)::int AS "Value"
+      FROM pg_constraint
+      WHERE conrelid = 'risk_band_assessments'::regclass
+        AND conname = 'FK_risk_band_assessments_audit_risks_risk_id'
+      """).SingleAsync();
+    Assert.Equal(1, originalRiskForeignKeyCount);
+    Assert.Equal(before, JsonSerializer.Serialize(await db.RiskBandAssessments.AsNoTracking()
+      .OrderBy(x => x.Id).ToListAsync()));
+  }
+
+  [Fact]
+  public async Task RiskBandAssessmentScopeMigration_RefusesLegacySiblingReferencesAtomically()
+  {
+    const string previousMigration = "20261105173658_ArchiveProfileIdentity";
+    const string scopeMigration = "20261107062516_RiskBandAssessmentScope";
+    await using var pg = await PgTestSchema.CreateAsync(previousMigration);
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var siblingEngagementId = Guid.NewGuid();
+    Guid ownRiskId;
+    Guid siblingRiskId;
+    Guid assessmentId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Engagements.Add(new Engagement
+      {
+        Id = siblingEngagementId, FirmId = fixture.FirmId, PracticeClientId = fixture.ClientId,
+        Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      var administrator = PbcSeed.Actor(fixture.Admin, "Administrator");
+
+      async Task<Guid> CreateRiskAsync(Guid engagementId, string area)
+      {
+        var created = await AuditPlanningService.CreateAuditRiskAsync(db, administrator,
+          new(engagementId, area, "Existence", "Synthetic migration probe", "Synthetic migration driver",
+            "NORMAL", null, "Synthetic migration response"));
+        Assert.True(created.Succeeded, created.Message);
+        return created.Value!.RiskId;
+      }
+
+      ownRiskId = await CreateRiskAsync(fixture.EngagementId, "CASH");
+      siblingRiskId = await CreateRiskAsync(siblingEngagementId, "RECEIVABLES");
+      var assessment = await RiskBandService.AssessAsync(db, administrator,
+        new(ownRiskId, 1, 1, false, "Synthetic legacy migration control"));
+      Assert.True(assessment.Succeeded, assessment.Message);
+      assessmentId = assessment.Value!;
+    }
+
+    await using (var connection = new NpgsqlConnection(pg.ConnectionString))
+    {
+      await connection.OpenAsync();
+      await using var transaction = await connection.BeginTransactionAsync();
+      await using var insert = new NpgsqlCommand("""
+        INSERT INTO risk_band_assessments
+        SELECT (jsonb_populate_record(NULL::risk_band_assessments, to_jsonb(a) || jsonb_build_object(
+          'id', @id, 'risk_id', @risk_id))).*
+        FROM risk_band_assessments a WHERE a.id = @source_id
+        """, connection, transaction);
+      insert.Parameters.AddWithValue("id", Guid.NewGuid());
+      insert.Parameters.AddWithValue("risk_id", siblingRiskId);
+      insert.Parameters.AddWithValue("source_id", assessmentId);
+      Assert.Equal(1, await insert.ExecuteNonQueryAsync());
+      await transaction.CommitAsync();
+    }
+
+    var before = await ReadRiskBandAssessmentsAsync(pg);
+    await using (var migrationDb = new AuditSphereDbContext(pg.Options))
+    {
+      var exception = await Assert.ThrowsAsync<PostgresException>(
+        () => migrationDb.GetService<IMigrator>().MigrateAsync(scopeMigration));
+      Assert.Equal("23503", exception.SqlState);
+      Assert.Equal("fk_risk_band_assessment_risk_scope", exception.ConstraintName);
+      output.WriteLine($"LEGACY_SIBLING_ENGAGEMENT_REFERENCE: UPGRADE_REFUSED SqlState={exception.SqlState} constraint={exception.ConstraintName}");
+    }
+
+    await using (var verification = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(previousMigration, (await verification.Database.GetAppliedMigrationsAsync()).Last());
+      var constraintCount = await verification.Database.SqlQueryRaw<int>("""
+        SELECT count(*)::int AS "Value"
+        FROM pg_constraint
+        WHERE conrelid = 'risk_band_assessments'::regclass
+          AND conname = 'fk_risk_band_assessment_risk_scope'
+        """).SingleAsync();
+      Assert.Equal(0, constraintCount);
+    }
+    Assert.Equal(before, await ReadRiskBandAssessmentsAsync(pg));
+  }
+
+  private static async Task<string> ReadRiskBandAssessmentsAsync(PgTestSchema pg)
+  {
+    await using var db = new AuditSphereDbContext(pg.Options);
+    return JsonSerializer.Serialize(await db.RiskBandAssessments.AsNoTracking().OrderBy(x => x.Id).ToListAsync());
   }
 
   private static async Task AssertBudgetReceiptCrossFirmReferenceRefusedAsync(

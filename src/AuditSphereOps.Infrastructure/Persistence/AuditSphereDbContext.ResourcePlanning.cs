@@ -140,6 +140,10 @@ public sealed partial class AuditSphereDbContext
     {
       e.HasIndex(x => new { x.FirmId, x.RiskId, x.AssessedAt });
       e.HasOne<AuditRisk>().WithMany().HasForeignKey(x => x.RiskId).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AuditRisk>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.RiskId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+        .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_risk_band_assessment_risk_scope");
       // The colour cannot be edited independently of its recorded inputs.
       e.ToTable("risk_band_assessments", t => t.HasCheckConstraint("ck_risk_band_assessment_rule",
         "likelihood_score BETWEEN 1 AND 3 AND magnitude_score BETWEEN 1 AND 3 AND length(rationale) > 0 AND band = CASE WHEN significant OR fraud_risk OR critical_estimate THEN 'RED' WHEN likelihood_score * magnitude_score >= 6 THEN 'RED' WHEN likelihood_score * magnitude_score >= 3 THEN 'AMBER' ELSE 'GREEN' END"));

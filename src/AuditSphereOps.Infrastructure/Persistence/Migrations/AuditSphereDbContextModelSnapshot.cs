@@ -18210,6 +18210,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "RiskId", "AssessedAt");
 
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "RiskId");
+
                     b.ToTable("risk_band_assessments", null, t =>
                         {
                             t.HasCheckConstraint("ck_risk_band_assessment_rule", "likelihood_score BETWEEN 1 AND 3 AND magnitude_score BETWEEN 1 AND 3 AND length(rationale) > 0 AND band = CASE WHEN significant OR fraud_risk OR critical_estimate THEN 'RED' WHEN likelihood_score * magnitude_score >= 6 THEN 'RED' WHEN likelihood_score * magnitude_score >= 3 THEN 'AMBER' ELSE 'GREEN' END");
@@ -37539,6 +37541,14 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("RiskId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditRisk", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "RiskId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_risk_band_assessment_risk_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.RiskOwnerAssignment", b =>
