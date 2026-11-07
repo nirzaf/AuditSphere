@@ -233,19 +233,21 @@ public static partial class PracticeCrmService
       if (workspace.AdvancePreparation.ReconciliationRequired)
       {
         var advance = workspace.Milestones.SingleOrDefault(item => item.Kind == FeeMilestoneKinds.Advance);
-        if (advance is null || string.IsNullOrWhiteSpace(advance.InvoiceNumber) ||
-            advance.InvoiceNumber.Length > OffboardingFeeInvoiceNumberLimit ||
+        var invoiceNumber = advance?.InvoiceNumber;
+        if (advance is null || string.IsNullOrWhiteSpace(invoiceNumber) ||
+            invoiceNumber.Length > OffboardingFeeInvoiceNumberLimit ||
             string.IsNullOrWhiteSpace(advance.InvoiceStatus))
           return Section("FEE_MILESTONES", "Fee agreement", "/app/finance/fee-agreements",
-            Unavailable("FEE_MILESTONES", label, advance?.InvoiceNumber?.Length > OffboardingFeeInvoiceNumberLimit
+            Unavailable("FEE_MILESTONES", label,
+              invoiceNumber?.Length > OffboardingFeeInvoiceNumberLimit
               ? $"A retained invoice number exceeds the supported {OffboardingFeeInvoiceNumberLimit}-character limit."
               : "A retained advance invoice has incomplete source identity for reconciliation."));
 
         reconciliationFindings.Add(
-          $"Agreement {agreementId:D}, advance milestone {advance.Id:D}, retained invoice {advance.InvoiceNumber} ({advance.InvoiceStatus}): milestone linkage requires reconciliation.");
+          $"Agreement {agreementId:D}, advance milestone {advance.Id:D}, retained invoice {invoiceNumber} ({advance.InvoiceStatus}): milestone linkage requires reconciliation.");
         reconciliationFacts.Add(new("RECONCILIATION", agreementId, advance.Id,
           workspace.Currency.ToUpperInvariant(), advance.State,
-          ExactMoney(advance.Amount), advance.InvoiceNumber, advance.InvoiceStatus));
+          advance.Amount, invoiceNumber, advance.InvoiceStatus));
       }
     }
 

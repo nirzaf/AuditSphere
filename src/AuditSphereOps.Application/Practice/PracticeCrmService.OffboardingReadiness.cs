@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -22,7 +23,8 @@ public static class ClientOffboardingStates
 }
 
 /// <summary>One assessed obligation. <see cref="Count"/> is null whenever <see cref="State"/> is UNKNOWN.</summary>
-public sealed record ClientOffboardingItem(string Key, string Label, string State, long? Count, string? Detail);
+public sealed record ClientOffboardingItem(
+  string Key, string Label, string State, long? Count, [property: MaxLength(2_000)] string? Detail);
 
 /// <summary>A section is read from its owning module under that module's own read authority; <see cref="OwnerRoute"/> is set only when the viewer holds it.</summary>
 public sealed record ClientOffboardingSection(
@@ -69,7 +71,8 @@ public static partial class PracticeCrmService
 
     // The receivables report owns balance arithmetic; closeout composes it inside its locked snapshot.
     var finance = await FinanceSectionAsync(db, actor, clientId, lockedSnapshot, ct);
-    var feeMilestones = await FeeMilestoneSectionAsync(db, actor, clientId, ct);
+    var feeReadinessFacts = new List<OffboardingFeeReadinessFact>();
+    var feeMilestones = await FeeMilestoneSectionAsync(db, actor, clientId, feeReadinessFacts, ct);
     var work = await WorkSectionAsync(db, actor, clientId, ct);
     var access = await AccessSectionAsync(db, actor, clientId, ct);
     var retention = await RetentionSectionAsync(db, actor, clientId, ct);
@@ -82,7 +85,10 @@ public static partial class PracticeCrmService
       finance = UnavailableFinanceSection("Your access does not include firm finance for this client.");
     if (!await CanReadAsync(db, actor, new AuthorizationRequest(actor.FirmId, ClientId: clientId,
           RequiredRoles: OffboardingFinanceRoles, InternalOnly: true), ct))
+    {
       feeMilestones = UnavailableFeeMilestonesSection("Your access does not include fee-agreement finance for this client.");
+      feeReadinessFacts.Clear();
+    }
     var sections = new[] { work, finance, feeMilestones, access, retention };
 
     var readiness = new ClientOffboardingReadiness(
@@ -104,7 +110,8 @@ public static partial class PracticeCrmService
       readiness.ArchiveRevision,
       readiness.OverallState,
       readiness.Sections,
-      readiness.CoverageNotes
+      readiness.CoverageNotes,
+      feeReadinessFacts
     }, OffboardingReadinessDigestJsonOptions);
     var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(digestPayload))).ToLowerInvariant();
     return CommandResult<ClientOffboardingReadiness>.Ok(readiness with { ReadinessDigest = digest });

@@ -10,7 +10,23 @@ import { decodeOffboardingReadiness } from './client-contracts';
 const clientId = '11111111-1111-4111-8111-111111111111';
 const otherId = '22222222-2222-4222-8222-222222222222';
 const readinessDigest = 'a'.repeat(64);
-const body = (id = clientId) => ({
+type OffboardingBody = {
+  clientId: string;
+  isArchived: boolean;
+  archiveRevision: string;
+  assessedAt: string;
+  overallState: string;
+  readinessDigest: string;
+  sections: Array<{
+    key: string;
+    title: string;
+    state: string;
+    ownerRoute: string | null;
+    items: Array<{ key: string; label: string; state: string; count: number | null; detail: string | null }>;
+  }>;
+  coverageNotes: string[];
+};
+const body = (id = clientId): OffboardingBody => ({
   clientId: id, isArchived: false, archiveRevision: '0', assessedAt: '2026-10-31T10:00:00Z', overallState: 'ACTION_REQUIRED',
   readinessDigest,
   sections: [
@@ -34,6 +50,15 @@ const fullyAssessedBody = (id = clientId) => ({
   coverageNotes: ['NO_FINDINGS is not evidence that offboarding is complete.'],
 });
 
+const withFeeReconciliation = (count: number, detail: string) => {
+  const value = body();
+  value.sections.push({ key: 'FEE_MILESTONES', title: 'Fee agreement', state: 'ACTION_REQUIRED',
+    ownerRoute: '/app/finance/fee-agreements',
+    items: [{ key: 'FEE_RECONCILIATION', label: 'Advance invoice awaiting milestone reconciliation',
+      state: 'ACTION_REQUIRED', count, detail }] });
+  return value;
+};
+
 describe('client offboarding readiness', () => {
   it('rejects an UNKNOWN item that carries a count, and a count that contradicts its state', () => {
     const unknownWithCount = body(); unknownWithCount.sections[1].items[0].count = 0 as never;
@@ -43,6 +68,17 @@ describe('client offboarding readiness', () => {
     const hiddenAsClear = body(); hiddenAsClear.overallState = 'NO_FINDINGS';
     expect(() => decodeOffboardingReadiness(hiddenAsClear)).toThrow();
     expect(decodeOffboardingReadiness(body()).sections).toHaveLength(2);
+  });
+
+  it('accepts fee detail through 2,000 characters and reconciliation counts through 100 only', () => {
+    for (const length of [1_999, 2_000]) {
+      const decoded = decodeOffboardingReadiness(withFeeReconciliation(100, 'x'.repeat(length)));
+      const item = decoded.sections.find(section => section.key === 'FEE_MILESTONES')!.items[0];
+      expect(item.detail).toHaveLength(length);
+      expect(item.count).toBe(100);
+    }
+    expect(() => decodeOffboardingReadiness(withFeeReconciliation(100, 'x'.repeat(2_001)))).toThrow();
+    expect(() => decodeOffboardingReadiness(withFeeReconciliation(101, 'x'))).toThrow();
   });
 
   describe('component', () => {
@@ -69,6 +105,38 @@ describe('client offboarding readiness', () => {
       fixture.componentRef.setInput('clientId', otherId);
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).not.toContain('Open or in-progress tasks');
+    });
+
+    it('shows the bounded reconciliation preview and submits its reviewed digest', async () => {
+      const feeBody = withFeeReconciliation(20,
+        'Finding 1; Finding 2; Preview limited to 2,000 characters: showing 2 of 20 reconciliation findings. Open the fee-agreement workspace for full source evidence.');
+      feeBody.readinessDigest = 'b'.repeat(64);
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId);
+      fixture.detectChanges();
+      (fixture.nativeElement.querySelector('[data-offboarding-check]') as HTMLButtonElement).click();
+      http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(feeBody);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Advance invoice awaiting milestone reconciliation: 20');
+      expect(fixture.nativeElement.textContent).toContain('Preview limited to 2,000 characters');
+      const evidenceLink = fixture.nativeElement.querySelector('a[href="/app/finance/fee-agreements"]') as HTMLAnchorElement;
+      expect(evidenceLink.textContent).toContain('Open fee-agreement workspace for full source evidence');
+
+      const textarea = fixture.nativeElement.querySelector('#offboarding-disposition-notes') as HTMLTextAreaElement;
+      textarea.value = 'Reviewed the bounded fee reconciliation preview and owner evidence.';
+      textarea.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      (fixture.nativeElement.querySelector('[data-offboarding-closeout]') as HTMLButtonElement).click();
+      await vi.waitFor(() => expect(fixture.componentInstance.pending()).not.toBeNull());
+      const request = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      expect(request.request.body.expectedReadinessDigest).toBe(feeBody.readinessDigest);
+      request.flush({
+        recordId: otherId, clientId, status: 'BLOCKED_DECISION', readinessOverallState: 'ACTION_REQUIRED',
+        readinessDigest: feeBody.readinessDigest, dispositionNotes: 'Reviewed the bounded fee reconciliation preview and owner evidence.',
+        acknowledgedActionItems: [], decidedByUserId: clientId, isArchived: false, archiveRevision: '0',
+        requestKey: request.request.body.requestKey,
+      });
+      fixture.detectChanges();
     });
 
     it('discards a response for a client that is no longer shown', () => {

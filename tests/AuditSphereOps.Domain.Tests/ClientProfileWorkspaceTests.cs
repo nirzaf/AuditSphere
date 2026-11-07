@@ -686,18 +686,20 @@ public sealed class ClientProfileWorkspaceTests
     var account = new BillingAccount
       { Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, Currency = "USD", CreatedAt = now };
     db.BillingAccounts.Add(account);
-    var postedFees = AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-ADVANCE-POSTED-ORPHAN", 100m, now);
-    var postedInvoice = AddFeeInvoiceSource(db, f, account, postedFees.Advance,
-      "SYN-OFF-ADVANCE-POSTED-INVOICE", now);
-    postedFees.Advance.InvoiceId = null;
-    postedFees.Advance.State = FeeMilestoneStates.Planned;
-    var draftFees = AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-ADVANCE-DRAFT-ORPHAN", 120m, now);
-    var draftInvoice = AddFeeInvoiceSource(db, f, account, draftFees.Advance,
-      "SYN-OFF-ADVANCE-DRAFT-INVOICE", now);
-    draftInvoice.Status = BillingStates.InvoiceDraft;
-    draftInvoice.PostedAt = null;
-    draftFees.Advance.InvoiceId = null;
-    draftFees.Advance.State = FeeMilestoneStates.Planned;
+    var orphanInvoices = new List<(FeeFixture Fees, Invoice Invoice)>();
+    for (var index = 0; index < 20; index++)
+    {
+      var fees = AddFeeAgreement(db, f, f.ClientId, null,
+        $"SYN-OFF-ADVANCE-ORPHAN-{index:D2}", 100m + index, now);
+      var invoice = AddFeeInvoiceSource(db, f, account, fees.Advance,
+        $"SYN-OFF-ADVANCE-INVOICE-{index:D2}", now);
+      fees.Advance.InvoiceId = null;
+      fees.Advance.State = FeeMilestoneStates.Planned;
+      orphanInvoices.Add((fees, invoice));
+    }
+    var orderedOrphans = orphanInvoices.OrderBy(item => item.Fees.Agreement.Id).ToArray();
+    orderedOrphans[1].Invoice.Status = BillingStates.InvoiceDraft;
+    orderedOrphans[1].Invoice.PostedAt = null;
     var ordinaryPlan = AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-ADVANCE-ORDINARY-PLAN", 80m, now);
     await db.SaveChangesAsync();
     var countsBefore = (await db.Invoices.CountAsync(), await db.InvoiceLines.CountAsync(),
@@ -709,58 +711,120 @@ public sealed class ClientProfileWorkspaceTests
     var feeSection = Assert.Single(readiness.Value!.Sections, section => section.Key == "FEE_MILESTONES");
     var reconciliation = Assert.Single(feeSection.Items, item => item.Key == "FEE_RECONCILIATION");
     Assert.Equal(ClientOffboardingStates.ActionRequired, reconciliation.State);
-    Assert.Equal(2L, reconciliation.Count);
-    Assert.Contains(postedInvoice.InvoiceNumber, reconciliation.Detail!, StringComparison.Ordinal);
-    Assert.Contains(BillingStates.InvoicePosted, reconciliation.Detail!, StringComparison.Ordinal);
-    Assert.Contains(draftInvoice.InvoiceNumber, reconciliation.Detail!, StringComparison.Ordinal);
-    Assert.Contains(BillingStates.InvoiceDraft, reconciliation.Detail!, StringComparison.Ordinal);
+    Assert.Equal(20L, reconciliation.Count);
+    Assert.True(reconciliation.Detail!.Length <= 2_000);
+    Assert.Contains("Preview limited to 2,000 characters", reconciliation.Detail, StringComparison.Ordinal);
+    Assert.Contains("showing ", reconciliation.Detail, StringComparison.Ordinal);
+    Assert.Contains("of 20 reconciliation findings", reconciliation.Detail, StringComparison.Ordinal);
+    Assert.Contains(orderedOrphans[0].Invoice.InvoiceNumber, reconciliation.Detail, StringComparison.Ordinal);
+    Assert.Contains(BillingStates.InvoicePosted, reconciliation.Detail, StringComparison.Ordinal);
+    Assert.Contains(orderedOrphans[1].Invoice.InvoiceNumber, reconciliation.Detail, StringComparison.Ordinal);
+    Assert.Contains(BillingStates.InvoiceDraft, reconciliation.Detail, StringComparison.Ordinal);
+    Assert.DoesNotContain(orderedOrphans[^1].Invoice.InvoiceNumber, reconciliation.Detail, StringComparison.Ordinal);
     Assert.DoesNotContain(ordinaryPlan.Advance.Id.ToString("D"), reconciliation.Detail!, StringComparison.Ordinal);
     var milestones = Assert.Single(feeSection.Items, item => item.Key == "FEE_MILESTONES");
-    Assert.Equal(6L, milestones.Count);
-    Assert.Contains("PLANNED 6", milestones.Detail!, StringComparison.Ordinal);
+    Assert.Equal(42L, milestones.Count);
+    Assert.Contains("PLANNED 42", milestones.Detail!, StringComparison.Ordinal);
+    Assert.Equal("/app/finance/fee-agreements", feeSection.OwnerRoute);
     Assert.Contains(feeSection.Items, item => item.Key == "FEE_MILESTONES" &&
       item.State == ClientOffboardingStates.ActionRequired);
-    Assert.Null(await db.FeeMilestones.Where(x => x.Id == postedFees.Advance.Id)
-      .Select(x => x.InvoiceId).SingleAsync());
-    Assert.Equal(FeeMilestoneStates.Planned, await db.FeeMilestones.Where(x => x.Id == postedFees.Advance.Id)
-      .Select(x => x.State).SingleAsync());
-    Assert.Null(await db.FeeMilestones.Where(x => x.Id == draftFees.Advance.Id)
-      .Select(x => x.InvoiceId).SingleAsync());
-    Assert.Equal(FeeMilestoneStates.Planned, await db.FeeMilestones.Where(x => x.Id == draftFees.Advance.Id)
-      .Select(x => x.State).SingleAsync());
+    Assert.All(orderedOrphans, item =>
+    {
+      Assert.Null(item.Fees.Advance.InvoiceId);
+      Assert.Equal(FeeMilestoneStates.Planned, item.Fees.Advance.State);
+    });
     Assert.Equal(countsBefore, (await db.Invoices.CountAsync(), await db.InvoiceLines.CountAsync(),
       await db.BillingSourceAllocations.CountAsync(), await db.FeeMilestones.CountAsync()));
 
-    // Simulate an explicit owner reconciliation. A new intent with the prior digest is stale;
-    // the subsequent exact retry continues to return the original retained review receipt.
-    postedFees.Advance.InvoiceId = postedInvoice.Id;
-    postedFees.Advance.State = FeeMilestoneStates.Invoiced;
-    await db.SaveChangesAsync();
-    var reconciledReadiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db,
-      PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
-    Assert.True(reconciledReadiness.Succeeded, reconciledReadiness.Message);
-    Assert.NotEqual(readiness.Value!.ReadinessDigest, reconciledReadiness.Value!.ReadinessDigest);
     var request = new ClientOffboardingCloseoutRequest(f.ClientId,
       "Reviewed retained advance reconciliation.", [], 0,
       ExpectedReadinessDigest: readiness.Value.ReadinessDigest,
       RequestKey: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
-    var stale = await PracticeCrmService.RecordOffboardingCloseoutAsync(db,
+    var recorded = await PracticeCrmService.RecordOffboardingCloseoutAsync(db,
       PbcSeed.Actor(f.Admin, "Administrator"), request);
+    Assert.True(recorded.Succeeded, recorded.Message);
+
+    // Change a source fact whose invoice identity was omitted from the bounded preview.
+    // The private canonical facts must invalidate a new review without changing the old receipt.
+    orderedOrphans[^1].Invoice.Status = BillingStates.InvoiceSent;
+    await db.SaveChangesAsync();
+    var changedReadiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db,
+      PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
+    Assert.True(changedReadiness.Succeeded, changedReadiness.Message);
+    Assert.NotEqual(readiness.Value.ReadinessDigest, changedReadiness.Value!.ReadinessDigest);
+    var changedReconciliation = Assert.Single(Assert.Single(changedReadiness.Value.Sections,
+      section => section.Key == "FEE_MILESTONES").Items, item => item.Key == "FEE_RECONCILIATION");
+    Assert.Equal(reconciliation.Detail, changedReconciliation.Detail);
+
+    var staleRequest = request with
+    {
+      DispositionNotes = "Fresh review using the prior bounded preview.",
+      RequestKey = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    };
+    var stale = await PracticeCrmService.RecordOffboardingCloseoutAsync(db,
+      PbcSeed.Actor(f.Admin, "Administrator"), staleRequest);
     Assert.False(stale.Succeeded);
     Assert.Equal(ErrorCodes.GenerationStale, stale.ErrorCode);
 
-    var currentRequest = request with { ExpectedReadinessDigest = reconciledReadiness.Value.ReadinessDigest };
-    var recorded = await PracticeCrmService.RecordOffboardingCloseoutAsync(db,
-      PbcSeed.Actor(f.Admin, "Administrator"), currentRequest);
-    Assert.True(recorded.Succeeded, recorded.Message);
+    var replayAfterChange = await PracticeCrmService.RecordOffboardingCloseoutAsync(db,
+      PbcSeed.Actor(f.Admin, "Administrator"), request);
+    Assert.True(replayAfterChange.Succeeded, replayAfterChange.Message);
+    Assert.Equal(recorded.Value!.RecordId, replayAfterChange.Value!.RecordId);
+    Assert.Equal(recorded.Value.ReadinessDigest, replayAfterChange.Value.ReadinessDigest);
+
     db.WorkTasks.Add(new WorkTask { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId,
       EngagementId = f.EngagementId, Title = "Changed after retained advance review", CreatedAt = now });
     await db.SaveChangesAsync();
     var replay = await PracticeCrmService.RecordOffboardingCloseoutAsync(db,
-      PbcSeed.Actor(f.Admin, "Administrator"), currentRequest);
+      PbcSeed.Actor(f.Admin, "Administrator"), request);
     Assert.True(replay.Succeeded, replay.Message);
-    Assert.Equal(recorded.Value!.RecordId, replay.Value!.RecordId);
-    Assert.Equal(recorded.Value!.ReadinessDigest, replay.Value!.ReadinessDigest);
+    Assert.Equal(recorded.Value.RecordId, replay.Value!.RecordId);
+    Assert.Equal(recorded.Value.ReadinessDigest, replay.Value.ReadinessDigest);
+
+    orderedOrphans[^1].Invoice.InvoiceNumber = new string('L', 257);
+    await db.SaveChangesAsync();
+    var unsupportedIdentity = await PracticeCrmService.GetClientOffboardingReadinessAsync(db,
+      PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
+    Assert.True(unsupportedIdentity.Succeeded, unsupportedIdentity.Message);
+    var unavailable = Assert.Single(Assert.Single(unsupportedIdentity.Value!.Sections,
+      section => section.Key == "FEE_MILESTONES").Items, item => item.Key == "FEE_MILESTONES");
+    Assert.Equal(ClientOffboardingStates.Unknown, unavailable.State);
+    Assert.Null(unavailable.Count);
+    Assert.Contains("256-character limit", unavailable.Detail!, StringComparison.Ordinal);
+  }
+
+  [Fact]
+  public async Task OffboardingFeeReadinessSupportsExactlyOneHundredAgreements()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var now = DateTimeOffset.UtcNow;
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Admin, "FinanceManager"));
+    for (var index = 0; index < 100; index++)
+      AddFeeAgreement(db, f, f.ClientId, null, $"SYN-OFF-LIMIT-{index:D3}", 100m, now);
+    await db.SaveChangesAsync();
+
+    var actor = PbcSeed.Actor(f.Admin, "Administrator");
+    var supported = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, actor, f.ClientId);
+    Assert.True(supported.Succeeded, supported.Message);
+    var supportedSection = Assert.Single(supported.Value!.Sections, section => section.Key == "FEE_MILESTONES");
+    Assert.Equal("/app/finance/fee-agreements", supportedSection.OwnerRoute);
+    var supportedItem = Assert.Single(supportedSection.Items, item => item.Key == "FEE_MILESTONES");
+    Assert.Equal(ClientOffboardingStates.ActionRequired, supportedItem.State);
+    Assert.Equal(200L, supportedItem.Count);
+    Assert.True(supportedItem.Detail!.Length <= 2_000);
+
+    AddFeeAgreement(db, f, f.ClientId, null, "SYN-OFF-LIMIT-101", 100m, now);
+    await db.SaveChangesAsync();
+    var overLimit = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, actor, f.ClientId);
+    Assert.True(overLimit.Succeeded, overLimit.Message);
+    var overLimitSection = Assert.Single(overLimit.Value!.Sections, section => section.Key == "FEE_MILESTONES");
+    Assert.Equal("/app/finance/fee-agreements", overLimitSection.OwnerRoute);
+    var unavailable = Assert.Single(overLimitSection.Items, item => item.Key == "FEE_MILESTONES");
+    Assert.Equal(ClientOffboardingStates.Unknown, unavailable.State);
+    Assert.Null(unavailable.Count);
+    Assert.Contains("exceeds the supported assessment limit", unavailable.Detail!, StringComparison.Ordinal);
   }
 
   [Fact]

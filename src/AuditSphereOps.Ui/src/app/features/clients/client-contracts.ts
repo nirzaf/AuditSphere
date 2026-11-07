@@ -73,10 +73,12 @@ export function decodeOffboardingReadiness(value: unknown) {
     sections: arr(offboardingSection, 10), coverageNotes: arr(str(1000), 10),
   }), value);
   const rank = (states: readonly string[]) => states.includes('ACTION_REQUIRED') ? 'ACTION_REQUIRED' : states.includes('UNKNOWN') ? 'UNKNOWN' : 'NO_FINDINGS';
+  const feeReconciliationsSupported = v.sections.filter(s => s.key === 'FEE_MILESTONES').flatMap(s =>
+    s.items.filter(i => i.key === 'FEE_RECONCILIATION')).every(i => i.state === 'UNKNOWN' || (i.count !== null && i.count <= 100));
   const consistent = v.sections.every(s => s.items.length > 0 && s.state === rank(s.items.map(i => i.state)) &&
     (s.ownerRoute === null || /^\/app\/[a-z0-9/-]*$/.test(s.ownerRoute)) &&
     s.items.every(i => i.state === 'UNKNOWN' ? i.count === null : i.count !== null && (i.state === 'ACTION_REQUIRED') === (i.count > 0)));
-  if (!consistent || v.sections.length === 0 || v.overallState !== rank(v.sections.map(s => s.state)) ||
+  if (!consistent || !feeReconciliationsSupported || v.sections.length === 0 || v.overallState !== rank(v.sections.map(s => s.state)) ||
       !/^[0-9a-f]{64}$/.test(v.readinessDigest))
     throw new Error('Invalid offboarding readiness projection');
   return v;

@@ -31,7 +31,7 @@ const activeOffboardingRequests = new Set<string>();
                 <li>{{ i.label }}: <strong>{{ i.count === null ? 'Unknown' : i.count }}</strong> ({{ label(i.state) }})@if (i.detail) { — {{ i.detail }} }</li>
               }
             </ul>
-            @if (s.ownerRoute) { <a [routerLink]="s.ownerRoute">Open the owning workspace</a> }
+            @if (s.ownerRoute) { <a [routerLink]="s.ownerRoute">{{ s.key === 'FEE_MILESTONES' ? 'Open fee-agreement workspace for full source evidence' : 'Open the owning workspace' }}</a> }
           </section>
         }
         <ul>@for (n of r.coverageNotes; track n) { <li class="muted">{{ n }}</li> }</ul>
