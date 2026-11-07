@@ -780,6 +780,66 @@ public sealed class RecordsArchiveTests
       Assert.Equal("55000", deniedRegression.SqlState);
     }
 
+    var structuredExportId = await db.ArchiveStructuredExports.AsNoTracking()
+      .Where(x => x.FirmId == scope.FirmId && x.ArchiveId == archiveId && x.ArchiveManifestId == manifest2.Id)
+      .Select(x => x.Id).SingleAsync();
+    var retainedStructuredExport = await db.ArchiveStructuredExports.AsNoTracking()
+      .Where(x => x.Id == structuredExportId)
+      .Select(x => new
+      {
+        x.Id, x.FirmId, x.ClientId, x.EngagementId, x.ArchiveId, x.ArchiveManifestId,
+        x.Version, x.Schema, x.PayloadJson, x.ContentHash, x.ByteCount, x.CreatedAt
+      }).SingleAsync();
+    await using (var structuredRaw = new AuditSphereDbContext(pg.Options))
+    {
+      var otherId = Guid.CreateVersion7();
+      var tamperedPayload = "{\"controlledTamper\":true}";
+      var refusedStructuredMutations = new Func<Task>[]
+      {
+        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET payload_json = {tamperedPayload} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET schema = 'records-export.v1' WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET content_hash = repeat('a', 64) WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET byte_count = byte_count + 1 WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET firm_id = {otherId} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET client_id = {otherId} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET engagement_id = {otherId} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET archive_id = {otherId} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET archive_manifest_id = {otherId} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET id = {otherId} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET version = version + 1 WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET created_at = created_at + interval '1 minute' WHERE id = {structuredExportId}")
+      };
+
+      foreach (var mutation in refusedStructuredMutations)
+      {
+        var refused = await Assert.ThrowsAsync<PostgresException>(mutation);
+        Assert.Equal("55000", refused.SqlState);
+        var afterRefusal = await structuredRaw.ArchiveStructuredExports.AsNoTracking()
+          .Where(x => x.Id == structuredExportId)
+          .Select(x => new
+          {
+            x.Id, x.FirmId, x.ClientId, x.EngagementId, x.ArchiveId, x.ArchiveManifestId,
+            x.Version, x.Schema, x.PayloadJson, x.ContentHash, x.ByteCount, x.CreatedAt
+          }).SingleAsync();
+        Assert.Equal(retainedStructuredExport, afterRefusal);
+      }
+
+      var refusedStructuredDelete = await Assert.ThrowsAsync<PostgresException>(() =>
+        structuredRaw.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM archive_structured_exports WHERE id = {structuredExportId}"));
+      Assert.Equal("55000", refusedStructuredDelete.SqlState);
+      var refusedStructuredTruncate = await Assert.ThrowsAsync<PostgresException>(() =>
+        structuredRaw.Database.ExecuteSqlRawAsync("TRUNCATE TABLE archive_structured_exports"));
+      Assert.Equal("55000", refusedStructuredTruncate.SqlState);
+      var afterDeleteAndTruncate = await structuredRaw.ArchiveStructuredExports.AsNoTracking()
+        .Where(x => x.Id == structuredExportId)
+        .Select(x => new
+        {
+          x.Id, x.FirmId, x.ClientId, x.EngagementId, x.ArchiveId, x.ArchiveManifestId,
+          x.Version, x.Schema, x.PayloadJson, x.ContentHash, x.ByteCount, x.CreatedAt
+        }).SingleAsync();
+      Assert.Equal(retainedStructuredExport, afterDeleteAndTruncate);
+    }
+
     var exported = await RecordsArchiveService.ExportReviewedArchiveAsync(db, scope.Actor, archiveId);
     Assert.True(exported.Succeeded, exported.Message);
     var requested = await RecordsArchiveService.RequestRecordsActionAsync(db, scope.Actor,
@@ -797,17 +857,58 @@ public sealed class RecordsArchiveTests
     Assert.Equal(2, await db.ArchiveManifests.CountAsync(x => x.ArchiveId == archiveId));
     Assert.Equal(manifest1.Id, (await db.ArchiveManifests.AsNoTracking().SingleAsync(x => x.Id == manifest2.Id)).PredecessorManifestId);
 
-    // Isolate the manifest guard from the separate v2-payload downgrade guard, then
-    // verify a populated database refuses to roll the integrity migration back.
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
-      UPDATE archive_structured_exports SET schema = 'records-export.v1'
-      WHERE firm_id = {scope.FirmId} AND archive_id = {archiveId}
-        AND archive_manifest_id = {manifest2.Id}
-      """);
-
     await using var migrationDb = new AuditSphereDbContext(pg.Options);
     var migrator = migrationDb.GetService<IMigrator>();
     var migrations = migrationDb.Database.GetMigrations().ToArray();
+    const string structuredExportGuardMigration = "20261107095608_ArchiveStructuredExportAppendOnly";
+    var structuredExportBeforeUpgrade = await migrationDb.ArchiveStructuredExports.AsNoTracking()
+      .Where(x => x.Id == structuredExportId)
+      .Select(x => new
+      {
+        x.Id, x.FirmId, x.ClientId, x.EngagementId, x.ArchiveId, x.ArchiveManifestId,
+        x.Version, x.Schema, x.PayloadJson, x.ContentHash, x.ByteCount, x.CreatedAt
+      }).SingleAsync();
+    await migrationDb.Database.ExecuteSqlRawAsync("""
+      DROP TRIGGER IF EXISTS trg_archive_structured_export_truncate ON archive_structured_exports;
+      DROP TRIGGER IF EXISTS trg_archive_structured_export_mutation ON archive_structured_exports;
+      DROP TRIGGER IF EXISTS trg_archive_structured_export_insert ON archive_structured_exports;
+      DROP FUNCTION IF EXISTS reject_archive_structured_export_truncate();
+      DROP FUNCTION IF EXISTS guard_archive_structured_export_mutation();
+      DROP FUNCTION IF EXISTS guard_archive_structured_export_insert();
+      """);
+    await migrationDb.Database.ExecuteSqlInterpolatedAsync($"""
+      DELETE FROM "__EFMigrationsHistory" WHERE "MigrationId" = {structuredExportGuardMigration}
+      """);
+    await migrator.MigrateAsync();
+    var structuredExportAfterUpgrade = await migrationDb.ArchiveStructuredExports.AsNoTracking()
+      .Where(x => x.Id == structuredExportId)
+      .Select(x => new
+      {
+        x.Id, x.FirmId, x.ClientId, x.EngagementId, x.ArchiveId, x.ArchiveManifestId,
+        x.Version, x.Schema, x.PayloadJson, x.ContentHash, x.ByteCount, x.CreatedAt
+      }).SingleAsync();
+    Assert.Equal(structuredExportBeforeUpgrade, structuredExportAfterUpgrade);
+
+    var structuredExportGuardIndex = Array.IndexOf(migrations, structuredExportGuardMigration);
+    Assert.True(structuredExportGuardIndex > 0, $"Migration {structuredExportGuardMigration} must be present after its baseline.");
+    var refusedStructuredExportDowngrade = await Assert.ThrowsAnyAsync<Exception>(
+      () => migrator.MigrateAsync(migrations[structuredExportGuardIndex - 1]));
+    var structuredExportDowngradeRefusal = Assert.IsType<PostgresException>(refusedStructuredExportDowngrade.GetBaseException());
+    Assert.Equal("55000", structuredExportDowngradeRefusal.SqlState);
+    Assert.Contains("retained structured exports exist", structuredExportDowngradeRefusal.Message, StringComparison.OrdinalIgnoreCase);
+
+    // This disposable downgrade fixture deliberately removes its protected rows only
+    // after proving ordinary DML and populated rollback are refused. It isolates the
+    // older manifest-migration rollback refusal without rewriting retained history.
+    await migrationDb.Database.ExecuteSqlRawAsync("""
+      DROP TRIGGER IF EXISTS trg_archive_structured_export_truncate ON archive_structured_exports;
+      DROP TRIGGER IF EXISTS trg_archive_structured_export_mutation ON archive_structured_exports;
+      DROP TRIGGER IF EXISTS trg_archive_structured_export_insert ON archive_structured_exports;
+      """);
+    await migrationDb.Database.ExecuteSqlInterpolatedAsync($"""
+      DELETE FROM archive_structured_exports WHERE firm_id = {scope.FirmId} AND archive_id = {archiveId}
+      """);
+
     const string integrityMigration = "20261105163636_ArchiveAudienceAndReviewedManifestIntegrity";
     var integrityIndex = Array.IndexOf(migrations, integrityMigration);
     Assert.True(integrityIndex > 0, $"Migration {integrityMigration} must be present after its baseline.");
@@ -830,11 +931,106 @@ public sealed class RecordsArchiveTests
 
     await migrator.MigrateAsync();
     Assert.Equal(migrations, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
-    await migrationDb.Database.ExecuteSqlInterpolatedAsync($"""
-      UPDATE archive_structured_exports SET schema = 'records-export.v2'
-      WHERE firm_id = {scope.FirmId} AND archive_id = {archiveId}
-        AND archive_manifest_id = {manifest2.Id}
+  }
+
+  [Fact]
+  public async Task ReviewManifest_RejectsStructuredExportInsertWaitingOnReviewLock()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    var archiveId = Guid.CreateVersion7();
+
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.RecordsProfiles.Add(new RecordsProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ProfileCode = "AUDIT-RECORDS",
+        Version = 1, RecordClass = "Issued audit file", Jurisdiction = "TEST",
+        ServiceRoute = "STATUTORY_AUDIT", RetentionTrigger = "REPORT_DATE",
+        RetentionDurationDays = null, ProtectionMode = "PURVIEW_RECORD",
+        LabelId = "label-test-audit-record", LegalHoldBehavior = "SUSPEND_DISPOSITION",
+        AmendmentRoute = "CONTROLLED_AMENDMENT", DispositionOwner = "Records Custodian",
+        BackupRequirements = "Protected checkpoint", CreatedByUserId = scope.Actor.UserId,
+        Approved = true, ApprovedAt = DateTimeOffset.UtcNow, ApprovedByUserId = scope.Actor.UserId,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      seed.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+        EngagementId = scope.EngagementId, ProfileId = "AUDIT-RECORDS", ProfileVersion = 1,
+        Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+    }
+
+    ArchiveManifestResult built;
+    await using (var builder = new AuditSphereDbContext(pg.Options))
+    {
+      var result = await RecordsArchiveService.BuildManifestAsync(builder, scope.Actor, archiveId);
+      Assert.True(result.Succeeded, result.Message);
+      built = result.Value!;
+    }
+
+    await using var reviewer = new AuditSphereDbContext(pg.Options);
+    await using var reviewTransaction = await reviewer.Database.BeginTransactionAsync();
+    var reviewed = await RecordsArchiveService.ReviewManifestAsync(reviewer, scope.Actor, archiveId, built.ManifestId);
+    Assert.True(reviewed.Succeeded, reviewed.Message);
+    var original = await reviewer.ArchiveStructuredExports.AsNoTracking()
+      .SingleAsync(x => x.FirmId == scope.FirmId && x.ArchiveId == archiveId && x.ArchiveManifestId == built.ManifestId);
+
+    await using var insert = new AuditSphereDbContext(pg.Options);
+    await insert.Database.OpenConnectionAsync();
+    var insertConnection = (NpgsqlConnection)insert.Database.GetDbConnection();
+    await using var pidCommand = insertConnection.CreateCommand();
+    pidCommand.CommandText = "SELECT pg_backend_pid()";
+    var insertPid = Convert.ToInt32(await pidCommand.ExecuteScalarAsync());
+    var lateId = Guid.CreateVersion7();
+    var insertTask = insert.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO archive_structured_exports
+        (id, firm_id, client_id, engagement_id, archive_id, archive_manifest_id, version,
+         schema, payload_json, content_hash, byte_count, created_at)
+      VALUES
+        ({lateId}, {original.FirmId}, {original.ClientId}, {original.EngagementId}, {original.ArchiveId},
+         {original.ArchiveManifestId}, {original.Version}, {original.Schema}, {original.PayloadJson},
+         {original.ContentHash}, {original.ByteCount}, {original.CreatedAt})
       """);
+
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await observer.Database.OpenConnectionAsync();
+    var observerConnection = (NpgsqlConnection)observer.Database.GetDbConnection();
+    await using var waitCommand = observerConnection.CreateCommand();
+    waitCommand.CommandText = "SELECT wait_event_type FROM pg_stat_activity WHERE pid = @pid";
+    waitCommand.Parameters.AddWithValue("pid", insertPid);
+
+    string? waitEvent = null;
+    var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+    try
+    {
+      do
+      {
+        waitEvent = await waitCommand.ExecuteScalarAsync() as string;
+        if (waitEvent == "Lock") break;
+        await Task.Delay(TimeSpan.FromMilliseconds(20));
+      } while (DateTimeOffset.UtcNow < deadline);
+    }
+    finally
+    {
+      await reviewTransaction.CommitAsync();
+    }
+
+    Assert.Equal("Lock", waitEvent);
+    var refusedLateInsert = await Assert.ThrowsAsync<PostgresException>(() => insertTask);
+    Assert.Equal("55000", refusedLateInsert.SqlState);
+
+    await using var verification = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(1, await verification.ArchiveStructuredExports.CountAsync(x =>
+      x.FirmId == scope.FirmId && x.ArchiveId == archiveId && x.ArchiveManifestId == built.ManifestId));
+    var retained = await verification.ArchiveStructuredExports.AsNoTracking().SingleAsync(x => x.Id == original.Id);
+    Assert.Equal(original.PayloadJson, retained.PayloadJson);
+    Assert.Equal(original.Schema, retained.Schema);
+    Assert.Equal(original.ContentHash, retained.ContentHash);
+    Assert.Equal(original.ByteCount, retained.ByteCount);
   }
 
   [Fact]

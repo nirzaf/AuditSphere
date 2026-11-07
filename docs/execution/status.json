@@ -1565,7 +1565,7 @@
     "ASPM-NFR-01..12",
     "ASPM-UAT-01..15"
    ],
-   "lastTechnicalSlice": "Progress currentness, independent N/A and scope-first paging reconciled; exact 83c1 Domain 1,974/1,974 and both progress E2E variants passed.",
+    "lastTechnicalSlice": "T25 from e01 base: structured-export guard, PostgreSQL 2/2 and EF no-drift. Pre-T25 T17 full 42351115249 failed API/E2E; causes unproven.",
    "advanceCashGate": {
     "codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
     "result": "FOCUSED_INCREMENTAL_PASS",
@@ -1655,7 +1655,7 @@
     },
     "releaseAcceptance": "NOT_VERIFIED"
    },
-   "nextTechnicalSlice": "Continue independent RUN/WU backlog; lifecycle T12/T13 wait for successful exact T17 full CI.",
+    "nextTechnicalSlice": "T23 checkpoint-key validation next (T03 depends on T23); T12/T13 await exact T17 full PASS.",
    "clientProgressTracker": {
     "result": "FOCUSED_PASS_BROWSER_PASS_FAST_CI_PASS",
     "archivedEvidence": "status-archive-2026-10.json#keys.completePracticeManagement.clientProgressTracker20261026"
