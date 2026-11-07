@@ -1,14 +1,18 @@
 # AuditSphere — current-slice handoff
 
-**Observed:** 2026-11-07T00:31:29Z
+**Observed:** 2026-11-07T05:30:32Z
 
-**Whole assignment:** INCOMPLETE. Preserve the original 48 tasks and independent original, Axelor, practice, Atomic, Claude, role, Technical Stories and UX16 registers.
+**Whole assignment:** INCOMPLETE; automation ACTIVE. Preserve all independent task and UX registers.
 
-**Observed 2026-11-07T00:31:29Z:** local and origin `master` match `5e2f867a30dcf3d25697c8bad4d20a4a30fa6ead` (docs-only over code base `df0000c2`). Parent now owns the 20-path candidate (diff SHA-256 `df9f0732ddae3f3c9778651ee710778f6ada4bcf969ba7d94a1dc58a2007b87f`), unchanged and matching its preservation manifest after prior agents closed. Recorded focused PostgreSQL 18.6 cohorts on that diff passed Domain 8, E2E 10 plus finding recovery 1, and T02 1. This turn: Angular 74 and API status 8 passed; the targeted GroupDeliverable Domain test was `BLOCKED_TEST_ENV` before assertions because `127.0.0.1:5433` refused connection. Docs run `42315328377` has all 3 jobs successful, but checkout logs were not retained. Full run `42279767136` on `df` predates the candidate and failed (Domain 8; E2E 10 then abort; API cancelled). No full run verifies this candidate. T12/T13 await exact T17 full PASS; professional/live acceptance remains separate. Evidence: `.local/autonomous/evidence/lifecycle-gap-reconciliation-20261107/focused-reconciliation-20261106T233640Z.json`.
+**Source:** Observed local/origin `master` at `83c1fa7a295ca2c97f0408335bf1a6dc7bf2c5ce`; fetch found no changes. Only this handoff/status update is tracked.
 
-Group recovery retains the original tab-bound intent after ambiguous outcomes; the prior 38/38 focused Angular result remains historical.
+## Current lifecycle-gap and practice-progress reconciliation
 
-T11 archive-copy time precision is closed; it uses persisted microsecond timestamps without rewriting retained operation evidence.
+The attached lifecycle-gap spec is proposal input (SHA-256 `1c0e872949a5e98158bd49d2b0f9363447078b3be96e137e0415ef92e71a4ba5`). PM-PROGRESS-002/003 need no duplicate code: current evidence/dependency status, independent conditional N/A and scope-before-page behavior are present. Evidence and current file hashes: `.local/autonomous/evidence/practice-management-progress-reconciliation-20261107.json`.
+
+Exact full run `42322223054` resolves to `83c1fa7a295ca2c97f0408335bf1a6dc7bf2c5ce`: Resolve, Angular (1,998/196 files), build/contracts and Domain (1,974/1,974) passed. API hit its 180-minute cap; terminal log unavailable. E2E aborted after 339 passes/zero assertion failures at 15-minute inactivity. Causes are unproven. Focused sibling isolation passed 2/2 locally. Progress variants, archive-custodian download and group-deliverable recovery are passed in the exact-source sequence before abort; this is not `FULL_CI_PASS`. Details: `.local/autonomous/evidence/ci-83c1fa7a-current-20261107/full-terminal-and-focused-review-20261107T050351Z.json`.
+
+T12/T13 remain gated on a successful exact T17 full run. The CRM-to-archive route mismatch is confirmed; do not edit that dependency or repeat unchanged `83c1`. Continue independent RUN/WU work. T11 timestamp precision remains published. No release, deployment, provider/professional approval or whole-app acceptance is claimed.
 
 ## Historical source and secondary archive-copy projection (2026-11-03)
 
