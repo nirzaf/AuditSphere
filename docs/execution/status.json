@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-07T17:26:00Z",
+  "observedAtUtc": "2026-11-07T17:47:35Z",
   "source": {
     "branch": "master",
-    "baseSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2",
-    "originMasterSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2",
-    "workingTree": "The last exact-source fast CI run, 42390283923, passed Docs, Angular and .NET Release with every job log confirming checkout a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2. The documentation staleness sweep recorded below is committed on top of that SHA and advances master HEAD; it has no CI run yet. It does not claim a full release run or external acceptance.",
+    "baseSha": "51c5e2393a44711f0cdc5254ad8b76e56cc65dd5",
+    "originMasterSha": "51c5e2393a44711f0cdc5254ad8b76e56cc65dd5",
+    "workingTree": "Exact fast CI run 42396114501 passed all three jobs for 51c5e2393a44711f0cdc5254ad8b76e56cc65dd5, and each job log identifies that checkout. The commit that records this result is a documentation-only follow-up; it does not claim a full release run or external acceptance.",
     "wholeAssignment": "INCOMPLETE",
-    "currentCandidateSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2"
+    "currentCandidateSha": "51c5e2393a44711f0cdc5254ad8b76e56cc65dd5"
   },
   "activeWork": {
     "practiceManagement": "The broader practice-management assignment remains open and is tracked in the ignored autonomous checkpoint. The last recorded T09 evidence is a bounded readiness build at 0375b67e and a Domain-test attempt blocked by the unavailable approved port-5433 database; later practice work and exact-source gates must be read from current-work.json. This documentation fast-CI pass does not establish T09 or whole-product acceptance.",
-    "documentation": "Per-category navigation is consolidated through docs/auditsphere-docs-index.md and the maintained Architecture/ADR, Requirements, Design, Operations, Testing, Execution, Task Library and Evidence entry points. Distinct approved requirements, ADRs, proposals, historical task sources, operator procedures and machine-consumed task inputs remain separate to preserve authority and provenance. The current category/restore-evidence correction is published at a21737ff. Exact fast run 42390283923 passed Docs, Angular and .NET Release with each job log confirming checkout a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2. The task board remains PARTIAL_SOURCE because the per-item audit JSON and two STE v2.1 source files are absent; no gaps or missing-story findings are inferred. A repository-wide staleness sweep after that run removed the stale root review report, linked the document naming policy and corrected the live worker-group wording; its cross-checks and results are recorded under localVerification.documentationReconciliation.",
+    "documentation": "Per-category navigation is consolidated through docs/auditsphere-docs-index.md and the maintained Architecture/ADR, Requirements, Design, Operations, Testing, Execution, Task Library and Evidence entry points. Distinct approved requirements, ADRs, proposals, historical task sources, operator procedures and machine-consumed task inputs remain separate to preserve authority and provenance. The current category/restore-evidence correction is published at a21737ff. Exact fast run 42390283923 passed Docs, Angular and .NET Release with each job log confirming checkout a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2. The task board remains PARTIAL_SOURCE because the per-item audit JSON and two STE v2.1 source files are absent; no gaps or missing-story findings are inferred. A repository-wide staleness sweep after that run removed the stale root review report, linked the document naming policy and corrected the live worker-group wording; its cross-checks are recorded under localVerification.documentationReconciliation, and its exact fast CI run 42396114501 passed Docs, Angular and .NET Release for 51c5e239 with every job log identifying that checkout.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
@@ -54,7 +54,7 @@
       "navigationCorrection": "docs/auditsphere-docs-index.md now links the enforced document naming policy and states that one-off review reports are not retained at the repository root.",
       "contentCorrection": "README.md and docs/architecture/auditsphere-architecture-current-architecture.md now describe the four live worker groups including release-checkpoint and its FeatureActivation:LiveAuditRelease requirement.",
       "crossChecks": "Layer-relative source paths, test-class and migration names, npm and repository scripts, Angular feature files, heading anchors, configuration keys and documented /api/ui routes resolve in source or the checked-in OpenAPI contract; the only unresolved items are forward-looking plan text and proposed routes in the autonomous completion specification.",
-      "notRun": "No .NET, Angular, browser or CI execution for this documentation-only slice.",
+      "notRun": "No .NET, Angular or browser suite was run locally for this documentation-only slice; the exact-source fast workflow (Docs, Angular, .NET Release compilation and guards) ran in CI instead.",
       "observedAtUtc": "2026-11-07T17:23:40Z"
     },
     "auditProgramSource": {
@@ -182,6 +182,51 @@
     }
   },
   "observedCi": {
+    "docsStalenessSweep51c5e239": {
+      "runId": 42396114501,
+      "attempt": 1,
+      "event": "push",
+      "headSha": "51c5e2393a44711f0cdc5254ad8b76e56cc65dd5",
+      "aggregateStatus": "SUCCESS",
+      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/42396114501",
+      "jobs": {
+        "docsHealth": {
+          "id": 128473800007,
+          "status": "SUCCESS",
+          "actualCheckoutSha": "51c5e2393a44711f0cdc5254ad8b76e56cc65dd5",
+          "log": ".local/autonomous/evidence/docs-staleness-20261107/ci-51c5e239-fast/job-128473800007-docs.log",
+          "logSha256": "12989ed288858859c682562c52a5b6dd9efabe17ed9fe8b7e573e7e0f5b163c7",
+          "checks": "Markdown health (179 files, 2,896 relative links, 252 repository paths), audit source manifest, capability and runner guards, UI inventory, filenames and narrative validators passed."
+        },
+        "angular": {
+          "id": 128473800219,
+          "status": "SUCCESS",
+          "actualCheckoutSha": "51c5e2393a44711f0cdc5254ad8b76e56cc65dd5",
+          "log": ".local/autonomous/evidence/docs-staleness-20261107/ci-51c5e239-fast/job-128473800219-angular.log",
+          "logSha256": "52961531d73b2866669f3720a1ee884e25211630c0457c2eeeec9d2103d6e5f4",
+          "checks": "Angular lint, production build and 2,014 tests across 196 files passed."
+        },
+        "dotnetRelease": {
+          "id": 128474234973,
+          "status": "SUCCESS",
+          "actualCheckoutSha": "51c5e2393a44711f0cdc5254ad8b76e56cc65dd5",
+          "log": ".local/autonomous/evidence/docs-staleness-20261107/ci-51c5e239-fast/job-128474234973-release.log",
+          "logSha256": "5b076d5be7bbccf0821a41b6d7152fe980d126532cc2570471f31391b630c94f",
+          "checks": "Release build succeeded with 0 warnings and 0 errors; Domain guards 16/16; API OpenAPI-semantics guards 12/12; OpenAPI contract current."
+        }
+      },
+      "artifactMetadata": {
+        "path": ".local/autonomous/evidence/docs-staleness-20261107/ci-51c5e239-fast/artifact-metadata.json",
+        "sha256": "f3156b86897bb6f1fed4387c078e5d5b0fe63ee2f1d33f84299cd83637807fdf",
+        "retrieval": "METADATA_ONLY_NOT_DOWNLOADED",
+        "artifacts": [
+          "angular-ui-browser",
+          "fast-ci-guards"
+        ]
+      },
+      "images": "NO_IMAGE_WORKFLOW_OBSERVED_FOR_THIS_DOCS_SLICE",
+      "fullReleaseVerification": "NOT_DISPATCHED_FOR_DOCS_SLICE"
+    },
     "fastRun": {
       "runId": 42378137685,
       "attempt": 1,

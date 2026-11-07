@@ -1,10 +1,10 @@
 # Current-slice handoff
 
-**Observed:** 2026-11-07T16:38:45Z · branch `master` · tested HEAD/origin `a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2` · exact fast CI run `42390283923` passed; status/handoff evidence refresh is documentation-only
+**Observed:** 2026-11-07T17:47:35Z · branch `master` · tested HEAD/origin `51c5e2393a44711f0cdc5254ad8b76e56cc65dd5` · exact fast CI run `42396114501` passed Docs, Angular and .NET Release · the status/handoff record commit after it is documentation-only
 
 ## Goal and scope
 
-Refresh stale current Markdown and provide one maintained human entry point for each documentation category. Keep approved requirements, decisions, proposals, historical source, task inputs and execution evidence distinguishable. Do not infer task verdicts or professional decisions from old status or green focused checks.
+Refresh stale current Markdown, remove superseded review material and provide one maintained human entry point for each documentation category. Keep approved requirements, decisions, proposals, historical source, task inputs and execution evidence distinguishable. Do not infer task verdicts or professional decisions from old status or green focused checks.
 
 ## Category entry points and preserved sources
 
@@ -51,7 +51,8 @@ Evidence logs and the parsed checkout/pin proof are under .local/autonomous/evid
 - Corrected the worker-composition description in [README](../../README.md) and the [current architecture](../architecture/auditsphere-architecture-current-architecture.md): `WorkerCapabilityProfile` composes four live groups (`mail`, `pbc`, `client-sites`, `release-checkpoint`), not three, and `release-checkpoint` also requires `FeatureActivation:LiveAuditRelease`.
 - Re-checked the remaining tracked Markdown against the current tree and found no other stale references: layer-relative `Application/`/`Domain/`/`Infrastructure/`/`Api/`/`Ui/` source paths, test-class and migration names, npm and repository script commands, Angular feature files, heading/anchor targets, configuration keys (`HttpBoundary:RateLimit`, `HttpBoundary:BodyLimits`, `Telemetry:Otlp`, worker groups) and every `/api/ui/*` route claimed by a current document resolve in source or the checked-in OpenAPI contract.
 - Deliberate non-findings, left as written: the autonomous completion specification names a future synthetic-workspace PowerShell starter and a future completion-release verifier (neither exists yet) and a proposed `GET /api/ui/portfolio/engagements` route; the pinned task cards keep their source-era Blazor wording as provenance under ADR-0002, and the September task pack remains a machine-consumed source snapshot rather than current completion evidence.
-- Local verification: Markdown health, filename validation, narrative validation and the generated task board check passed after the edit (see [status](status.json)); `git diff --check` was clean. No .NET, Angular or browser suite was run for this documentation-only slice, and no CI run exists for it yet.
+- Local verification: Markdown health, filename validation, narrative validation and the generated task board check passed after the edit (see [status](status.json)); `git diff --check` was clean. No .NET, Angular or browser suite was run locally for this documentation-only slice.
+- Exact fast CI run `42396114501` attempt 1 completed `SUCCESS` for `51c5e2393a44711f0cdc5254ad8b76e56cc65dd5`. Docs job `128473800007`, Angular job `128473800219` and .NET Release job `128474234973` each identify that checkout in their once-retained logs under `.local/autonomous/evidence/docs-staleness-20261107/ci-51c5e239-fast/`. Docs healthy for 179 files / 2,896 relative links / 252 repository paths, audit source manifest, capability guards, filenames and narrative validation; Angular lint, build and 2,014 tests across 196 files passed; Release compiled with 0 warnings/0 errors with Domain guards 16/16, API OpenAPI-semantics guards 12/12 and a current contract. No image workflow or full release-verification run was dispatched for this docs slice, so `FAST_CI_PASS` is the only CI claim; the follow-up commit that records this result is documentation-only.
 
 ## Consolidation outcome and remaining boundaries
 
