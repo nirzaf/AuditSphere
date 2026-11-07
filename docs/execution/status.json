@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-07T19:43:49Z",
+  "observedAtUtc": "2026-11-07T23:20:24Z",
   "source": {
     "branch": "master",
-    "baseSha": "3bb2d04dd5001ac18467d65c5e86f00ba73bcb19",
-    "originMasterSha": "3bb2d04dd5001ac18467d65c5e86f00ba73bcb19",
-    "workingTree": "An uncommitted T18 group-issue terminal-recovery candidate is based on this master/origin SHA. Focused Angular (46/46), PostgreSQL Domain (1/1) and API status-mapping (1/1) checks pass; exact-candidate CI and browser acceptance have not run.",
+    "baseSha": "77985dee8644f422d227c9ec694eac5ff3c8cddf",
+    "originMasterSha": "77985dee8644f422d227c9ec694eac5ff3c8cddf",
+    "workingTree": "Published source is 77985dee8644f422d227c9ec694eac5ff3c8cddf; the four-path Domain remediation candidate and this handoff/status refresh are uncommitted. Exact full run 42411559445 is terminal FAILURE: Domain 3/2009 failed; API runner communication failure (checkout unconfirmed); E2E aborted after 15-minute inactivity with 335 completed passes and no assertion failures. API/E2E root causes remain unproven; no release acceptance is claimed.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
-    "practiceManagement": "Practice-management remains INCOMPLETE. The T18 residual from the attached proposal (SHA-256 5d8c84aed73c75fcd88a690868f974be985f8241e1884539718146a4aefddf2c) now has an uncommitted terminal-recovery candidate: committed issue receipts replay first; an absent issue whose group perimeter advanced returns the existing typed group.perimeter.stale proof; Angular clears only the exact matching reference and requires fresh scope read/assent. Focused results: Angular 46/46, PostgreSQL Domain 1/1, API mapping 1/1. Evidence: .local/autonomous/evidence/practice-gap-t18-20261107/issue-recovery-verification.json. Candidate is based on 3bb2d04dd5001ac18467d65c5e86f00ba73bcb19 and is not yet committed, pushed or covered by exact-source CI. Other practice tasks and browser/professional/external acceptance remain open; no release or deployment is claimed.",
+    "practiceManagement": "Practice-management remains INCOMPLETE. T18 group issue recovery is published at 77985dee8644f422d227c9ec694eac5ff3c8cddf. Exact full run 42411559445 is terminal FAILURE: Domain 2006/2009 passed with 3 diagnosed failures; API failed with a hosted-runner communication annotation and no retained terminal log content; Playwright/E2E aborted after 15 minutes without output, with 335 completed tests passed and 0 assertion failures. API/E2E root causes remain unproven. The separate four-path Domain candidate is focused-pass but uncommitted and was not covered by that run. Browser, professional/external acceptance and release gates remain open; no release or deployment is claimed.",
     "documentation": "Per-category navigation is consolidated through docs/auditsphere-docs-index.md and the maintained Architecture/ADR, Requirements, Design, Operations, Testing, Execution, Task Library and Evidence entry points. Distinct approved requirements, ADRs, proposals, historical task sources, operator procedures and machine-consumed task inputs remain separate to preserve authority and provenance. The current category/restore-evidence correction is published at a21737ff. Exact fast run 42390283923 passed Docs, Angular and .NET Release with each job log confirming checkout a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2. The task board remains PARTIAL_SOURCE because the per-item audit JSON and two STE v2.1 source files are absent; no gaps or missing-story findings are inferred. A repository-wide staleness sweep after that run removed the stale root review report, linked the document naming policy and corrected the live worker-group wording; its cross-checks are recorded under localVerification.documentationReconciliation, and its exact fast CI run 42396114501 passed Docs, Angular and .NET Release for 51c5e239 with every job log identifying that checkout.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
@@ -31,19 +31,19 @@
       "deletedPathReferences": 0,
       "approvedRecordsAndTaskProvenance": "PASS",
       "command": "python3 scripts/docs/validate-markdown-documentation.py",
-      "observedAtUtc": "2026-11-07T19:43:49Z"
+      "observedAtUtc": "2026-11-07T23:20:24Z"
     },
     "filenameValidation": {
       "result": "PASS",
       "markdownFiles": 179,
       "command": "python3 scripts/docs/validate-markdown-filenames.py",
-      "observedAtUtc": "2026-11-07T19:43:49Z"
+      "observedAtUtc": "2026-11-07T23:20:24Z"
     },
     "narrativeMetricsValidation": {
       "result": "PASS",
       "protectedDocuments": 6,
       "command": "python3 scripts/docs/validate-narrative-metrics.py",
-      "observedAtUtc": "2026-11-07T19:43:49Z"
+      "observedAtUtc": "2026-11-07T23:20:24Z"
     },
     "documentationReconciliation": {
       "result": "PASS",
@@ -54,7 +54,16 @@
       "contentCorrection": "README.md and docs/architecture/auditsphere-architecture-current-architecture.md now describe the four live worker groups including release-checkpoint and its FeatureActivation:LiveAuditRelease requirement.",
       "crossChecks": "Layer-relative source paths, test-class and migration names, npm and repository scripts, Angular feature files, heading anchors, configuration keys and documented /api/ui routes resolve in source or the checked-in OpenAPI contract; the only unresolved items are forward-looking plan text and proposed routes in the autonomous completion specification.",
       "notRun": "No .NET, Angular or browser suite was run locally for this documentation-only slice; the exact-source fast workflow (Docs, Angular, .NET Release compilation and guards) ran in CI instead.",
-      "observedAtUtc": "2026-11-07T17:23:40Z"
+      "observedAtUtc": "2026-11-07T17:23:40Z",
+      "postTerminalRefresh": {
+        "observedAtUtc": "2026-11-07T23:20:24Z",
+        "result": "UPDATED",
+        "staleMarkdownFound": "Only the execution current-slice handoff had stale claims for run 42411559445; other current Markdown did not refer to this run as active.",
+        "categoryConsolidation": "Already published in 3bb2d04dd5001ac18467d65c5e86f00ba73bcb19; one maintained entry point per category remains in place.",
+        "terminalReview": ".local/autonomous/evidence/practice-gap-t18-20261107/ci-42411559445/terminal-review.json",
+        "terminalReviewSha256": "6a8c59a03ae59fe2038519c0013eee0a8edf6568912ce09973d2d4025c7d51ad",
+        "preUpdateArchive": ".local/autonomous/evidence/practice-gap-t18-20261107/checkpoint-archives/pre-run-terminal-doc-reconciliation-20261107T232024Z/manifest.json"
+      }
     },
     "auditProgramSource": {
       "result": "PASS",
@@ -62,7 +71,7 @@
       "sections": 20,
       "procedureParagraphs": 165,
       "command": "python3 scripts/docs/verify-audit-program-source.py",
-      "observedAtUtc": "2026-11-07T16:11:55Z"
+      "observedAtUtc": "2026-11-07T23:20:24Z"
     },
     "taskStatusUtilityTests": {
       "result": "PASS",
@@ -82,8 +91,8 @@
     "diffCheck": {
       "result": "PASS",
       "command": "git diff --check",
-      "note": "Passed for the current seven-path T18 issue-recovery candidate after code-map, status and handoff updates.",
-      "observedAtUtc": "2026-11-07T19:43:49Z"
+      "note": "Passed after the terminal CI handoff/status refresh; the working tree contains the four-path focused Domain candidate and two documentation updates.",
+      "observedAtUtc": "2026-11-07T23:20:24Z"
     },
     "taskBoardGenerator": {
       "result": "PASS_WITH_SOURCE_LIMITATIONS",
@@ -96,8 +105,7 @@
         "docs/execution/auditsphere-execution-user-stories-ste-v21-remaining-proposed.md",
         "docs/execution/auditsphere-execution-user-stories-ste-v21-gap-closure-current.md"
       ],
-      "note": "Generated from available R2R/AUD task cards only; no code gaps or missing STE stories are inferred. T010 archived Blazor title is labeled historical under ADR-0002.",
-      "observedAtUtc": "2026-11-07T19:43:49Z"
+      "observedAtUtc": "2026-11-07T23:20:24Z"
     },
     "angularOffboardingReadinessSpec": {
       "result": "PASS",
@@ -129,7 +137,7 @@
       "packets": 3,
       "sourceSha256": "2931b367103966b6b656d36eb3e1def8fbee70161fc7977d1319b133a7bf7b8d",
       "command": "python3 scripts/agent/agent-check.py --validate-catalog",
-      "observedAtUtc": "2026-11-07T16:11:55Z"
+      "observedAtUtc": "2026-11-07T23:20:24Z"
     },
     "imageBuildMemoryGuard": {
       "result": "PASS_ON_STANDALONE_RERUN",
@@ -176,11 +184,11 @@
     "uiSourceInventory": {
       "result": "PASS",
       "command": "python3 scripts/ui/inventory.py --check",
-      "observedAtUtc": "2026-11-07T16:11:55Z",
+      "observedAtUtc": "2026-11-07T23:20:24Z",
       "note": "Current Angular source discovery is valid; legacy Blazor discovery inventory remains explicitly historical."
     },
     "t18GroupIssueTerminalRecovery": {
-      "result": "PASS_FOCUSED_UNCOMMITTED",
+      "result": "PASS_FOCUSED_PUBLISHED",
       "sourceBaseSha": "3bb2d04dd5001ac18467d65c5e86f00ba73bcb19",
       "codeDiffSha256": "eb16f119ce3c7fab82677c61b9847d194deb00ac27522aa60b5408c67c2aecc5",
       "evidence": ".local/autonomous/evidence/practice-gap-t18-20261107/issue-recovery-verification.json",
@@ -206,8 +214,8 @@
         "testsSkipped": 0,
         "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~GroupPerimeterStaleUsesConflictStatusForUiCommands'"
       },
-      "observedAtUtc": "2026-11-07T19:43:49Z",
-      "exactSourceCi": "NOT_RUN_UNCOMMITTED",
+      "observedAtUtc": "2026-11-07T23:20:24Z",
+      "exactSourceCi": "FAIL: exact run 42411559445 is terminal FAILURE; Domain 3/2009, API hosted-runner communication annotation with checkout unconfirmed, E2E inactivity abort after 335 completed passes. See observedCi.t18FullRun77985. The focused change is published at 77985 but release verification did not pass.",
       "interactiveBrowserAcceptance": "NOT_RUN",
       "releaseOrDeployment": "NOT_CLAIMED",
       "documentationValidation": {
@@ -218,7 +226,41 @@
         "narrativeProtectedDocuments": 6,
         "taskBoard": "PARTIAL_SOURCE; check passed"
       },
-      "testHarnessFinding": "The first run canceled the blocked issue command because the test disposed the issue DbContext before releasing the held membership lock. The test now keeps that context alive until release and result capture; the focused PostgreSQL test passes."
+      "testHarnessFinding": "The first run canceled the blocked issue command because the test disposed the issue DbContext before releasing the held membership lock. The test now keeps that context alive until release and result capture; the focused PostgreSQL test passes.",
+      "publicationCommit": "77985dee8644f422d227c9ec694eac5ff3c8cddf"
+    },
+    "t18DomainFailureFixCandidate20261108": {
+      "finalFocusedRun": {
+        "command": "env 'AUDITSPHERE_TEST_CONNECTION=Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres' DOTNET_ENVIRONMENT=Test ASPNETCORE_ENVIRONMENT=Test ExternalEffects__Enabled=false Application__AllowSimulationAdapters=true DevelopmentIdentity__Enabled=false dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~ClientProfileWorkspaceTests.OffboardingReadinessCarriesRetainedAdvanceReconciliationWithoutChangingTheSource|FullyQualifiedName~AuditDeliverablesTests.ArchiveCopyDurableHandler_ReconcilesUnknownAndPublishesOnlyExactReadbackEvidence' --logger 'trx;LogFileName=t18-domain-candidate-revised.trx' --results-directory .local/autonomous/evidence/practice-gap-t18-20261107/local-domain-fix-candidate-revised-20261108",
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "trx": ".local/autonomous/evidence/practice-gap-t18-20261107/local-domain-fix-candidate-revised-20261108/t18-domain-candidate-revised.trx",
+        "trxSha256": "84309bfcd27fce89b723617e7b0d470af5354839ff9a9f0e7ca721a060b33dc0",
+        "note": "dotnet test rebuilt the Release test project; the filtered output names both requested methods and confirms 2/2 passed."
+      },
+      "previousFocusedRun": {
+        "trx": ".local/autonomous/evidence/practice-gap-t18-20261107/local-domain-fix-cohort-20261108/t18-domain-fixes.trx",
+        "trxSha256": "38c5609c154c4bbcd807ced94aa2ad903afb7e25d131943c577d64dfb3d3c2ca",
+        "note": "The unchanged ExportEligibilityIsSeparateFromReadAccessAndRequiresTheSafeReviewedPayload method passed in this run. Its candidate fixture source did not change afterward."
+      },
+      "releaseBuild": "PASS; 0 warnings, 0 errors (from focused test build)",
+      "diffCheck": "PASS",
+      "candidateState": "UNCOMMITTED; full CI not dispatched for candidate",
+      "sourceBaseSha": "77985dee8644f422d227c9ec694eac5ff3c8cddf",
+      "candidateDiffSha256": "f468cea3a6491386c9600ba4b50c88ba21762ea21fccf80c08b83371600ccf50",
+      "evidence": ".local/autonomous/evidence/practice-gap-t18-20261107/domain-failure-fix-candidate-20261108.json",
+      "evidenceSha256": "6311f5e3513b8bc48a3a57a0ba17723b7d0933e34c65169e1893b84de3bb6ff7",
+      "observedAtUtc": "2026-11-07T22:12:37Z"
+    },
+    "autonomousState": {
+      "result": "PASS",
+      "taskRows": 48,
+      "activeTaskId": "RUN-003",
+      "nextAction": "REPAIR",
+      "command": "python3 scripts/agent/verify-completion-state.py --state .local/autonomous/state.json",
+      "observedAtUtc": "2026-11-07T23:20:24Z"
     }
   },
   "observedCi": {
@@ -311,7 +353,7 @@
         "imagesWorker": "d44bbc26095cf828169b5612e1e207e707946fc8afd6745f54c79a89cbda119b"
       }
     },
-    "fullReleaseVerification": "NOT_DISPATCHED for this source; no full-release or release-acceptance claim",
+    "fullReleaseVerification": "FAIL: exact run 42411559445 attempt 1, requested/resolved SHA 77985dee8644f422d227c9ec694eac5ff3c8cddf; Domain 3 failures, API hosted-runner communication failure, E2E inactivity abort. The candidate changes are not covered by this run. API/E2E root causes remain unproven; no full-release pass or release acceptance.",
     "docsFollowupBase42acad": {
       "observedAtUtc": "2026-11-07T15:02:34Z",
       "sourceShaFromRunMetadata": "42acad66c31a4bad8bb47a19436475030ef4bb86",
@@ -486,6 +528,81 @@
       "images": "NO_IMAGE_WORKFLOW_OBSERVED_FOR_THIS_DOCS_FOLLOWUP",
       "fullReleaseVerification": "NOT_DISPATCHED_FOR_DOCS_FOLLOWUP",
       "nonBlockingAnnotation": "GitHub reported Node 20 action runtime deprecation; all jobs passed."
+    },
+    "t18FullRun77985": {
+      "runId": 42411559445,
+      "attempt": 1,
+      "requestedRef": "77985dee8644f422d227c9ec694eac5ff3c8cddf",
+      "workflowHeadSha": "77985dee8644f422d227c9ec694eac5ff3c8cddf",
+      "resolvedSourceSha": "77985dee8644f422d227c9ec694eac5ff3c8cddf",
+      "aggregate": "FAILURE",
+      "resolveJob": {
+        "id": 128520603105,
+        "status": "PASS"
+      },
+      "angularJob": {
+        "id": 128520662492,
+        "status": "PASS",
+        "tests": "1,998 / 196 files",
+        "actualCheckout": "NOT_INDEPENDENTLY_VERIFIED_FROM_RETAINED_TERMINAL_LOG"
+      },
+      "contractsDocsJob": {
+        "id": 128521379406,
+        "status": "PASS",
+        "actualCheckout": "NOT_INDEPENDENTLY_VERIFIED_FROM_RETAINED_TERMINAL_LOG"
+      },
+      "domainJob": {
+        "id": 128525201555,
+        "status": "FAILURE",
+        "actualCheckoutSha": "77985dee8644f422d227c9ec694eac5ff3c8cddf",
+        "executed": 2009,
+        "passed": 2006,
+        "failed": 3,
+        "logsArtifactId": 13590997433,
+        "trxArtifactId": 13590139701,
+        "artifacts": "DOWNLOADED_ONCE"
+      },
+      "apiJob": {
+        "id": 128525201576,
+        "status": "FAILURE",
+        "testStepFailedAtUtc": "2026-11-07T22:23:11Z",
+        "annotation": "Hosted runner lost communication with the server.",
+        "terminalLogBytes": 0,
+        "terminalLogSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actualCheckout": "UNCONFIRMED"
+      },
+      "e2eJob": {
+        "id": 128525201664,
+        "status": "FAILURE_INCOMPLETE",
+        "actualCheckoutSha": "77985dee8644f422d227c9ec694eac5ff3c8cddf",
+        "completedTests": 335,
+        "passed": 335,
+        "assertionFailures": 0,
+        "inactivityAbortAtUtc": "2026-11-07T22:37:46Z",
+        "artifactIdsDownloadedOnce": [
+          13593801900,
+          13594011446
+        ],
+        "rootCause": "UNPROVEN"
+      },
+      "candidateEvidence": ".local/autonomous/evidence/practice-gap-t18-20261107/domain-failure-fix-candidate-20261108.json",
+      "candidateEvidenceSha256": "6311f5e3513b8bc48a3a57a0ba17723b7d0933e34c65169e1893b84de3bb6ff7",
+      "observedAtUtc": "2026-11-07T23:20:24Z",
+      "actualDomainJobCheckout": "77985dee8644f422d227c9ec694eac5ff3c8cddf; terminal job log confirms exact checkout.",
+      "latestPollEvidence": {
+        "path": ".local/autonomous/evidence/practice-gap-t18-20261107/ci-42411559445/poll-20261107T223902Z.json",
+        "sha256": "2cdbf5f788b342be831409d780aef0ec8e72e867d5cf7e69019a36058f127b67"
+      },
+      "terminalAtUtc": "2026-11-07T23:07:23Z",
+      "reviewedAtUtc": "2026-11-07T23:20:24Z",
+      "fullReleaseContractJob": {
+        "id": 128557509921,
+        "status": "FAILURE",
+        "actualCheckoutSha": "77985dee8644f422d227c9ec694eac5ff3c8cddf",
+        "reason": "One or more required release-verification jobs did not succeed."
+      },
+      "terminalReview": ".local/autonomous/evidence/practice-gap-t18-20261107/ci-42411559445/terminal-review.json",
+      "terminalReviewSha256": "6a8c59a03ae59fe2038519c0013eee0a8edf6568912ce09973d2d4025c7d51ad"
     }
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."
