@@ -32,25 +32,30 @@ PROHIBITED_GENERIC_BASENAMES = {
 
 CANONICAL_DOCS = [
     "docs/auditsphere-docs-index.md",
+    "docs/architecture/auditsphere-architecture-index-agent-context-current.md",
     "docs/architecture/auditsphere-architecture-current-architecture.md",
     "docs/architecture/auditsphere-architecture-code-map.md",
     "docs/architecture/auditsphere-architecture-document-naming-policy.md",
+    "docs/architecture/adr/auditsphere-architecture-index-adr-register-current.md",
     "docs/requirements/auditsphere-accounting-module-requirements-current.md",
     "docs/requirements/auditsphere-m365-onboarding-user-stories.md",
+    "docs/requirements/auditsphere-requirements-index-current.md",
     "docs/execution/status.json",
     "docs/execution/auditsphere-execution-current-slice.md",
-    "docs/execution/auditsphere-execution-pending-tasks.md",
+    "docs/execution/auditsphere-execution-index-task-board-current.md",
     "docs/operations/auditsphere-operations-runbook-restore-drill.md",
     "docs/operations/auditsphere-operations-decision-connection-capacity.md",
     "docs/operations/auditsphere-operations-guide-telemetry.md",
-    "docs/testing/auditsphere-testing-e2e-automation-strategy.md",
-    "docs/testing/auditsphere-testing-test-case-catalog.md",
+    "docs/operations/auditsphere-operations-index-current.md",
+    "docs/testing/auditsphere-testing-strategy-definition-of-done-current.md",
+    "docs/design/auditsphere-design-index-current.md",
+    "docs/evidence/auditsphere-evidence-index-current.md",
     "docs/evidence/auditsphere-evidence-approval-methodology-ste-meth-app-001-approved.md",
     "docs/evidence/auditsphere-evidence-approval-methodology-ste-meth-app-001-addendum-approved.md",
     "docs/task_breakdown/auditsphere-r2r-index-task-breakdown.md",
-    "docs/task_breakdown/source/auditsphere-r2r-source-blueprint-modules-20-26-historical.md",
-    "docs/task_breakdown/source/auditsphere-audit-source-workflow-gap-closure-user-stories-historical.md",
 ]
+
+TASK_LIBRARY_SOURCE_SHA = "574ed0c9b04882088aac8cf1e5030b2afbde6467"
 
 DELETED_PATHS = [
     "docs/execution/auditsphere-execution-implementation-checklist.md",
@@ -162,15 +167,22 @@ def validate_all():
         if not full_p.is_file():
             errors.append(f"Missing canonical documentation file: {cdoc}")
 
-    # Check 3: Preserved Source Banners
-    source_r2r = root / "docs/task_breakdown/source/auditsphere-r2r-source-blueprint-modules-20-26-historical.md"
-    if source_r2r.is_file():
-        if not source_r2r.read_text(encoding="utf-8").startswith("> STATUS: HISTORICAL_SOURCE"):
-            errors.append(f"Missing HISTORICAL_SOURCE banner in {source_r2r}")
-    source_audit = root / "docs/task_breakdown/source/auditsphere-audit-source-workflow-gap-closure-user-stories-historical.md"
-    if source_audit.is_file():
-        if not source_audit.read_text(encoding="utf-8").startswith("> STATUS: HISTORICAL_SOURCE"):
-            errors.append(f"Missing HISTORICAL_SOURCE banner in {source_audit}")
+    # Check 3: Approved decision records and consolidated task provenance.
+    adr_dir = root / "docs/architecture/adr"
+    for number in range(1, 20):
+        matches = list(adr_dir.glob(f"auditsphere-architecture-adr-{number:04d}-*.md"))
+        if len(matches) != 1:
+            errors.append(f"Expected exactly one preserved ADR-{number:04d} record; found {len(matches)}")
+    task_library = root / "docs/task_breakdown/auditsphere-r2r-index-task-breakdown.md"
+    if task_library.is_file():
+        content = task_library.read_text(encoding="utf-8")
+        missing_ids = [f"T{number:03d}" for number in range(1, 76) if f"T{number:03d}" not in content]
+        if missing_ids:
+            errors.append(f"Consolidated task library is missing archived task IDs: {', '.join(missing_ids)}")
+        if TASK_LIBRARY_SOURCE_SHA not in content:
+            errors.append("Consolidated task library must pin its source corpus to the exact historical Git commit")
+        if "HISTORICAL" not in content:
+            errors.append("Consolidated task library must distinguish archived source from current task status")
 
     # Check 4: Relative Links & References to Deleted Paths
     all_tracked_set = {str(p).replace("\\", "/") for p in tracked_files}
@@ -252,7 +264,7 @@ def validate_all():
         print(f"  - Backticked repository paths checked: {checked_paths}")
         print(f"  - Globally unique basenames: 100%")
         print(f"  - Deleted path references: 0")
-        print(f"  - HISTORICAL_SOURCE banners: Verified")
+        print(f"  - Approved ADR records and pinned task provenance: Verified")
         print(f"  - Ledger size budgets and requirements copy: verified")
 
 if __name__ == "__main__":

@@ -1,9 +1,10 @@
 # AuditSphereOps — Current Architecture Authority
 
 **Status: CURRENT.** This document and [`AGENTS.md`](../../AGENTS.md) are the architectural
-implementation authority for this repository. Requirement sources preserved under
-`docs/task_breakdown/source/` are `HISTORICAL_SOURCE` and never override this
-document. Verified project state (test counts, verified SHA, migration count, external blockers)
+implementation authority for this repository. Historical task and requirement
+sources are linked from the [consolidated task library](../task_breakdown/auditsphere-r2r-index-task-breakdown.md)
+at their exact source revision; they never override this document. Verified
+project state (test counts, verified SHA, migration count, external blockers)
 is recorded only in [`docs/execution/status.json`](../execution/status.json).
 
 ## Document authority vocabulary
@@ -185,7 +186,7 @@ flowchart TB
 - **Commands and queries are static capability services** returning `CommandResult` /
   `CommandResult<T>`. There is no MediatR/Wolverine handler layer; neither package is pinned.
   This is a recorded variation from R2R-ADR-02 (see
-  `docs/task_breakdown/reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md` §2.3.1).
+  the archived baseline reference linked from the [consolidated task library](../task_breakdown/auditsphere-r2r-index-task-breakdown.md)).
 - **One `AuditSphereDbContext`**, physically split into capability partial files
   (`AuditSphereDbContext.<Module>.cs`), with `OnModelCreating` calling `Configure<Module>(b)`
   methods. No DbContext-per-module.

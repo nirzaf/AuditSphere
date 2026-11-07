@@ -9,12 +9,12 @@ Change a limit only in its source constant or configuration key, and update this
 | Requirement | Value | Source | State |
 | --- | --- | --- | --- |
 | Business authorization | Explicit `RoleGrant` scope in every Application command, query and queue; HTTP layer only checks for an authenticated session | `Application/Security/`, `Api/HttpBoundary/HttpPolicies.cs` | Enforced |
-| Session revocation | Session epoch rechecked by every protected read and command; protected shells re-verify periodically and clear content on failure | `docs/execution/auditsphere-execution-pending-tasks.md` §2.2 | Enforced (periodic, not push) |
+| Session revocation | Session epoch rechecked by every protected read and command; protected shells re-verify periodically and clear content on failure | [Current architecture](auditsphere-architecture-current-architecture.md) and current authorization code | Enforced (periodic, not push) |
 | Browser credentials | No bearer tokens in the browser; same-origin cookie session; antiforgery via XSRF cookie | `docs/architecture/auditsphere-angular-conventions-current.md` | Enforced |
 | Security headers | `nosniff`, `no-referrer`, `X-Frame-Options: DENY`, strict CSP with hashed inline scripts | `Api/HttpBoundary/SecurityHeadersMiddleware` | Enforced |
 | Error bodies | `{ code, message, correlationId }`; never SQL, stack traces, tokens or internal paths | `Api/HttpBoundary/ApiError.cs` | Enforced |
 | Microsoft permissions | One app identity per capability, exactly one role, off by default, consent-verified | `docs/architecture/auditsphere-m365-tenant-administration-permissions.md` | Enforced locally; live `BLOCKED_EXTERNAL` |
-| Secrets | .NET user secrets in development; production custody requires P8 approval/evidence; never log or commit secrets | [API development boundary](auditsphere-angular-migration-current.md#api-and-angular-project-boundary); [P8 custody gate](../execution/auditsphere-execution-pending-tasks.md); `AGENTS.md` §6 (no logging/committing secrets) | Production custody Open (P8); no production secret store is selected here |
+| Secrets | .NET user secrets in development; production custody requires P8 approval/evidence; never log or commit secrets | [API development boundary](auditsphere-angular-migration-current.md#api-and-angular-project-boundary); [current execution status](../execution/status.json); `AGENTS.md` §6 (no logging/committing secrets) | Production custody Open (P8); no production secret store is selected here |
 
 ## 2. Request rate limits (per authenticated identity, configurable under `HttpBoundary:RateLimit`)
 
@@ -70,7 +70,7 @@ These are request or aggregate bounds. None limits how many clients, engagements
 
 | Requirement | Current evidence | State |
 | --- | --- | --- |
-| Interactive latency (p95 per endpoint class) | No target recorded; historical application-query sample is in `docs/execution/status-archive-2026-10.json` under `keys.verification.p8bProvisionalStaffQueryBaseline`, not an HTTP p95 measurement | **Open (P8)** — operations owner to set targets |
+| Interactive latency (p95 per endpoint class) | No target recorded; a historical application-query sample is not an HTTP p95 measurement or a production baseline | **Open (P8)** — operations owner to set targets |
 | Concurrent users | Bounded historical application-query sample only; no accepted browser/session workload or production capacity target | **Open (P8)** — operations owner to define workload and acceptance targets |
 | RPO / RTO | Local restore drill (`scripts/db/restore-drill.sh`, `docs/operations/auditsphere-operations-runbook-restore-drill.md`) | **Open (P7)** — custodially separate rehearsal required |
 | Observability | Telemetry guide `docs/operations/auditsphere-operations-guide-telemetry.md`; correlation IDs on errors | Collector and alerts **Open (P8)** |
@@ -80,4 +80,4 @@ These are request or aggregate bounds. None limits how many clients, engagements
 
 Single modular monolith plus workers on one PostgreSQL; no Kubernetes, microservices or message brokers (`AGENTS.md` §6). `infra/` contains operator configuration; deployed environments and their actual verification belong in `status.json` and the canonical operator Wiki. Configuration presence does not prove deployment or production acceptance.
 
-Production p95, recovery, capacity and residency targets need the operations/records owners' recorded workload, environment and acceptance rule. Existing request bounds remain the engineering default; they are not service-level targets or professional methodology. No new limit, provider, secret-store choice or deployment is authorized by this reconciliation. See the [reconciliation report](../execution/auditsphere-execution-report-documentation-reconciliation-current.md) for owners and evidence exits.
+Production p95, recovery, capacity and residency targets need the operations/records owners' recorded workload, environment and acceptance rule. Existing request bounds remain the engineering default; they are not service-level targets or professional methodology. No new limit, provider, secret-store choice or deployment is authorized by this reconciliation. See the [current execution task board](../execution/auditsphere-execution-index-task-board-current.md) and [status ledger](../execution/status.json) for observed engineering evidence and unresolved acceptance gates.

@@ -1,6 +1,6 @@
 # AuditSphere Angular presentation migration
 
-**Status: CURRENT for implemented API/Angular boundaries; local owner-approved route cutover and physical Blazor-host retirement are complete. ADR-0002 records the owner decision and removal at `e7ebe27c`. Historical source-action parity and operational rollback acceptance remain PARTIAL/unverified.**
+**Status: CURRENT for API/Angular ownership and security boundaries.** Local route cutover and the owner-authorized Blazor-host retirement are recorded in ADR-0002. Dated migration observations below are historical; they are not current CI, browser, parity, rollback, or release evidence. Consult [execution status](../execution/status.json) for the latest bounded observations and the task board for open work.
 
 The owner requested implementation of the attached Blazor-to-Angular guide. Angular became the canonical presentation while feature behavior migrated incrementally; the .NET modular monolith remains the capability, session and database authority. Commit `59387b54` physically removed the Web host before all behavior and operational gates passed; the source and solution project were later restored as a buildable reference. On 2026-10-17 the owner authorized physical retirement despite the removal gate remaining `NOT_READY`; the removal was merged to `master` as `e7ebe27c`, so the host is absent from the current tree. [ADR-0002](adr/auditsphere-architecture-adr-0002-angular-canonical-ui-blazor-rollback-approved.md) records that decision. The authorization and merge do not establish source-action parity, operational rollback or production acceptance. Sections below preserve dated migration evidence; this decision supersedes statements that the host is retained or that physical removal is blocked. Production deployment, canary, assistive-technology and live Microsoft gates remain separate acceptance work.
 
@@ -84,8 +84,7 @@ parity, production rollout and assistive-technology acceptance remain open. The
 Web host was physically removed before source-action parity passed, was later
 restored as a buildable reference, and was retired and merged to `master` as
 `e7ebe27c`. Historical migration parity and production-like rollback were never
-accepted. Curated source dispositions are in
-the [portfolio action audit](../execution/angular-portfolio-parity.json).
+accepted. Curated source dispositions are in the [historical portfolio action audit at revision 59b8482](https://github.com/nirzaf/AuditSphere/blob/59b8482ee32ff5915bbfcddf4380f968203b1e6c/docs/execution/angular-portfolio-parity.json).
 
 ### Reviewed local client contact creation
 
@@ -141,8 +140,7 @@ recovery and existing-shell inspection. Client creation remains tied to the
 reviewed proposal-conversion workflow: it requires an accepted proposal and won
 opportunity, reviews canonical identity, and records pending portal intent without
 granting access. Planning forms/drafts and broader engagement action parity remain
-open. See the
-[client action audit](../execution/angular-client-profile-parity.json).
+open. See the [historical client action audit at revision 59b8482](https://github.com/nirzaf/AuditSphere/blob/59b8482ee32ff5915bbfcddf4380f968203b1e6c/docs/execution/angular-client-profile-parity.json).
 
 ### Native engagement metadata and hold history
 
@@ -168,9 +166,7 @@ unsupported activation acknowledgment remains unconfirmed.
 This implements read-side metadata/history parity. The reviewed blocked-engagement
 creation flow now identifies matching service-period shells for authorized
 inspection and keeps duplicate writes blocked. Planning forms/drafts, broader
-engagement action parity and migration acceptance remain open. The
-[engagement action audit](../execution/angular-engagement-parity.json) records
-those boundaries; executed verification belongs to the execution ledger.
+engagement action parity and migration acceptance remain open. The [historical engagement action audit at revision 59b8482](https://github.com/nirzaf/AuditSphere/blob/59b8482ee32ff5915bbfcddf4380f968203b1e6c/docs/execution/angular-engagement-parity.json) records those migration-time boundaries; executed verification belongs to the current execution ledger.
 
 ### Reviewed Partner engagement activation
 
@@ -259,9 +255,9 @@ Search length at most 100, page size 1–100, nonnegative bounded page index. Ro
 
 ## Acceptance boundaries
 
-The generated [source discovery inventory](../execution/angular-source-inventory.json) identifies routes, event expressions, service injections and literal links. It is not manually accepted coverage: nested/dynamic commands, dialogs, drafts, permissions and source tests still require review.
+The [historical source discovery inventory at revision 59b8482](https://github.com/nirzaf/AuditSphere/blob/59b8482ee32ff5915bbfcddf4380f968203b1e6c/docs/execution/angular-source-inventory.json) identifies routes, event expressions, service injections and literal links. It is not manually accepted coverage: nested/dynamic commands, dialogs, drafts, permissions and source tests still require review.
 
-The implementation covers native route families for practice, accounting, consolidation, audit, completion, portal and administration. Route presence is not accepted source-action parity. Full form/draft/control parity, comprehensive security and behavioral coverage, measurable production-like performance and operational rollback acceptance remain open. The migration backlog records partial story coverage. Physical host retirement was authorized and merged to `master` as `e7ebe27c` under ADR-0002; historical rollback acceptance remains unverified.
+The implementation covers native route families for practice, accounting, consolidation, audit, completion, portal and administration. Route presence is not accepted source-action parity. Full form/draft/control parity, comprehensive security and behavioral coverage, measurable production-like performance and operational rollback acceptance remain separate acceptance concerns. The [historical migration backlog at revision 59b8482](https://github.com/nirzaf/AuditSphere/blob/59b8482ee32ff5915bbfcddf4380f968203b1e6c/docs/execution/angular-migration-backlog.json) records migration-time story coverage. Physical host retirement was authorized and merged to `master` as `e7ebe27c` under ADR-0002; this does not establish rollback acceptance.
 
 Execution evidence is recorded in [status.json](../execution/status.json). Local synthetic fixtures do not establish tenant, deployment, professional or owner acceptance. Wiki publication has not been authorized.
 
@@ -416,7 +412,7 @@ Executed verification and remaining migration acceptance are recorded in `status
 
 ## Incremental capability notes
 
-The following notes preserve the implemented slices and their safeguards. Earlier then-pending lists are superseded by the current [story backlog](../execution/angular-migration-backlog.json), implemented route catalogue and latest evidence in the execution ledger. They are not completion claims for the whole guide.
+The following notes preserve implementation slices and their safeguards as historical context. Their dated status is not a live backlog; current work is tracked in the [execution task board](../execution/auditsphere-execution-index-task-board-current.md) and [status ledger](../execution/status.json). The [historical migration backlog at revision 59b8482](https://github.com/nirzaf/AuditSphere/blob/59b8482ee32ff5915bbfcddf4380f968203b1e6c/docs/execution/angular-migration-backlog.json) remains available for provenance.
 
 ### Client profile migration
 
@@ -551,7 +547,7 @@ Worker workspace receipts now bind the exact resource, credential reference fing
 
 ### Confirmation workspace
 
-The [curated confirmation action audit](../execution/angular-confirmation-parity.json) records implemented controls and remaining dispositions independently from the historical generated Razor source-discovery inventory.
+The [historical confirmation action audit at revision 59b8482](https://github.com/nirzaf/AuditSphere/blob/59b8482ee32ff5915bbfcddf4380f968203b1e6c/docs/execution/angular-confirmation-parity.json) records migration-time dispositions independently from the historical generated Razor source-discovery inventory.
 
 The native engagement confirmation route composes `ConfirmationWorkspace` and the existing fieldwork/deliverable services. The register is paged with outstanding and critical filters. Case review pins current response and alternative revisions, identity, actor/session epoch and register generation. Reviewed commands take firm/client/engagement and case locks and participate in one local transaction. Creation refuses duplicate source/date identities; an uncertain response fences further writes until persisted-state refresh and fresh review. There is no external-send command or delivery claim.
 

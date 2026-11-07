@@ -1,7 +1,8 @@
 # AuditSphereOps — HTTP Boundary and OpenAPI Contract Architecture
 
-**Status: CURRENT.** Describes implemented, locally verified behavior of the hardened HTTP
-boundary and the canonical OpenAPI contract. Production infrastructure as code is specified in
+**Status: CURRENT architecture and contract reference.** Describes the implemented HTTP
+boundary and canonical OpenAPI contract; exact build and contract verification is recorded in
+[`docs/execution/status.json`](../execution/status.json). Production infrastructure as code is specified in
 `infra/auditsphere-deployment-iac-runbook.md` and remains a compiled (not deployed) baseline.
 
 ---

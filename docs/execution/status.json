@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-11-07T13:40:18Z",
+  "source": {
+    "branch": "master",
+    "baseSha": "da898328e7a23e199ea1b484758a8a87fcd9fe36",
+    "originMasterSha": "da898328e7a23e199ea1b484758a8a87fcd9fe36",
+    "workingTree": "IN_PROGRESS: documentation changes staged; T09 code changes unstaged",
+    "wholeAssignment": "INCOMPLETE"
+  },
+  "activeWork": {
+    "practiceManagement": "T09 bounded fee-reconciliation contract; implementation and regression edits remain uncommitted",
+    "documentation": "Category entry points, stale-link repair, exact-source provenance, and current-status reconciliation staged; no documentation commit yet",
+    "autonomousLedger": {
+      "validator": "scripts/agent/verify-completion-state.py",
+      "result": "PASS",
+      "taskRows": 48,
+      "activeTaskId": "RUN-003",
+      "nextAction": "Review and publish the documentation-only staged slice, then observe CI for its exact resulting SHA.",
+      "note": "The validated ledger has 48 rows and active task RUN-003, but its source and CI pointers are stale relative to this checkout; do not treat its old run IDs as current evidence."
+    }
+  },
+  "localVerification": {
+    "documentationHealth": {
+      "result": "PASS",
+      "markdownFiles": 73,
+      "canonicalDocuments": 22,
+      "relativeLinksChecked": 688,
+      "backtickedRepositoryPathsChecked": 191,
+      "deletedPathReferences": 0,
+      "approvedRecordsAndTaskProvenance": "PASS",
+      "command": "python3 scripts/docs/validate-markdown-documentation.py",
+      "evidence": ".local/autonomous/evidence/docs-consolidation-20261107/reconciliation-review.json"
+    },
+    "restoredArchitectureAndEvidenceSources": {
+      "result": "PASS",
+      "sourceArtifacts": 22,
+      "byteIdenticalFiles": 14,
+      "referenceOnlyUpdates": 7,
+      "currentArchitectureFactClarifications": 1,
+      "evidence": ".local/autonomous/evidence/docs-consolidation-20261107/reconciliation-review.json"
+    },
+    "filenameValidation": {
+      "result": "PASS",
+      "markdownFiles": 73,
+      "command": "python3 scripts/docs/validate-markdown-filenames.py"
+    },
+    "narrativeMetricsValidation": {
+      "result": "PASS",
+      "protectedDocuments": 6,
+      "command": "python3 scripts/docs/validate-narrative-metrics.py"
+    },
+    "uiInventory": {
+      "result": "PASS",
+      "command": "python3 scripts/ui/inventory.py --check"
+    },
+    "restoreDrillShellSyntax": {
+      "result": "PASS",
+      "command": "bash -n scripts/db/restore-drill.sh"
+    },
+    "diffCheck": {
+      "result": "PASS_SCOPED",
+      "unfilteredStagedResult": "FLAGS_ONLY_PRESERVED_APPROVED_MARKDOWN_HARD_BREAKS",
+      "scopedCheck": "git diff --check --cached excluding the two byte-preserved approved methodology records; git diff --check for unstaged changes",
+      "exception": "The two approved methodology records retain source-verbatim trailing spaces on Markdown hard-break lines 3-5. The unfiltered staged diff check reports those intentional spaces; their bytes are preserved and their source hashes are verified."
+    },
+    "angularOffboardingReadinessSpec": {
+      "result": "PASS",
+      "testsPassed": 24,
+      "testsFailed": 0,
+      "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/clients/client-offboarding-readiness.spec.ts'"
+    },
+    "domainOffboardingReadinessTests": {
+      "result": "BLOCKED_TEST_ENV",
+      "testsExecuted": 0,
+      "reason": "The approved loopback auditsphere_tests database was unavailable on port 5433. An unrelated T25-labelled isolated cluster on port 55432 was not reused."
+    },
+    "applicationReleaseBuild": {
+      "result": "PASS",
+      "command": "dotnet build src/AuditSphereOps.Application/AuditSphereOps.Application.csproj --no-restore -c Release --maxcpucount:1",
+      "warnings": 0,
+      "errors": 0
+    },
+    "angularProductionBuild": {
+      "result": "PASS_WITH_EXISTING_CSS_BUDGET_WARNINGS",
+      "command": "npm --prefix src/AuditSphereOps.Ui run build",
+      "warnings": [
+        "commercial/settings.scss exceeds its configured style budget by 3.53 KB",
+        "app.scss exceeds its configured style budget by 110 bytes"
+      ]
+    }
+  },
+  "observedCi": {
+    "fastRun": {
+      "runId": 42372619805,
+      "metadataHeadSha": "da898328e7a23e199ea1b484758a8a87fcd9fe36",
+      "status": "FAILURE",
+      "jobs": {
+        "docsHealth": "FAILURE at Validate Markdown documentation health",
+        "angular": "PASS",
+        "dotnetRelease": "FAILURE at Restore and build Release"
+      },
+      "actualCheckoutSha": "UNVERIFIED",
+      "logEvidence": "Job metadata confirms terminal steps; the one-time log capture is placeholder text, so no checkout SHA or root cause is claimed."
+    },
+    "imageRun": {
+      "runId": 42372619823,
+      "metadataHeadSha": "da898328e7a23e199ea1b484758a8a87fcd9fe36",
+      "status": "FAILURE",
+      "jobs": {
+        "api": "FAILURE at Build and push image",
+        "worker": "FAILURE at Build and push image",
+        "migrations": "FAILURE at Build and push image"
+      },
+      "actualCheckoutSha": "UNVERIFIED",
+      "cause": "UNCONFIRMED; each image build-and-push step failed in job metadata."
+    },
+    "fullReleaseVerification": "NOT_DISPATCHED for this source; other full-run evidence belongs to predecessor SHAs."
+  },
+  "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."
+}

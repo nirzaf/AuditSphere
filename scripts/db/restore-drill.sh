@@ -7,7 +7,7 @@ db_host="127.0.0.1"
 db_port="5433"
 source_db="auditsphere"
 db_user="postgres"
-evidence_file="${AUDITSPHERE_EVIDENCE_FILE:-docs/evidence/restore-drill-latest.json}"
+evidence_file="${AUDITSPHERE_EVIDENCE_FILE:-.local/autonomous/evidence/restore-drill-latest.json}"
 psql_bin="$(command -v psql || true)"
 if [[ -z "$psql_bin" && -x /opt/homebrew/opt/postgresql@18/bin/psql ]]; then
   psql_bin=/opt/homebrew/opt/postgresql@18/bin/psql

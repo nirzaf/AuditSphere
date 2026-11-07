@@ -1,75 +1,31 @@
-# AuditSphere — Agent Context Index
+# AuditSphere architecture guide
 
-**Status: CURRENT for navigation pointers only.** The dated pack snapshot below was
-prepared 2026-10-08 against `master` at merge `e0afe18`; its slot states, counts and
-application instructions are historical evidence, not current repository state.
-**Purpose:** the ordered set of inputs an AI coding agent needs for this repository, mapped to the file that fills each slot, so agents load a small, correct context instead of the whole `docs/` tree.
-**Authority:** navigation only. Current authority is `AGENTS.md`, the central [documentation index](../auditsphere-docs-index.md), current architecture and requirements, the [ADR register](adr/auditsphere-architecture-index-adr-register-current.md), and the current [testing strategy and Definition of Done](../testing/auditsphere-testing-strategy-definition-of-done-current.md). This file does not approve requirements, proposed decisions or test claims.
+**Status: CURRENT · Consolidated architecture navigation · Reconciled 2026-11-07**
 
-## 1. Current reading pointers
+This page is a category guide, not an approval source. Follow [`AGENTS.md`](../../AGENTS.md), the current architecture, and each applicable ADR's own status. The [documentation index](../auditsphere-docs-index.md) defines document authority and the wider category map.
 
-Use the repository's current authority order and task-specific reading rules in [`AGENTS.md`](../../AGENTS.md) and the [documentation index](../auditsphere-docs-index.md). In particular:
+## Runtime and code ownership
 
-1. Read `AGENTS.md`, then the central documentation index.
-2. For implementation boundaries, use the [current architecture](auditsphere-architecture-current-architecture.md), the [code map](auditsphere-architecture-code-map.md), and the relevant `CURRENT` or `APPROVED` requirement.
-3. For decisions, use the [current ADR register](adr/auditsphere-architecture-index-adr-register-current.md) and each linked ADR's own status. Do not infer current approvals from the historical snapshot below or rename a proposed ADR based on this guide.
-4. For test selection and completion claims, use [`AGENTS.md` §4](../../AGENTS.md) and the [current testing strategy](../testing/auditsphere-testing-strategy-definition-of-done-current.md). Test suites have been restored; the old test-absence finding below records only the 2026-10-08 baseline.
-5. For backlog ownership and current execution evidence, use [the task board](../execution/auditsphere-execution-index-task-board-current.md) and `docs/execution/status.json` as directed by `AGENTS.md`; historical counts and commit references in this file are not current verification.
+AuditSphere is a .NET modular monolith with an ASP.NET Core API, Angular 22 UI, PostgreSQL persistence, and a .NET worker. Business rules, authorization, and state transitions remain in Domain/Application; Infrastructure owns EF Core and providers; API owns authenticated HTTP/OpenAPI boundaries; Angular presents server-authorized projections; Worker owns durable background processing. See the [current architecture](auditsphere-architecture-current-architecture.md) and [capability code map](auditsphere-architecture-code-map.md) for implementation ownership.
 
-## 2. Historical 2026-10-08 pack snapshot
+Preserve three separate financial domains: the firm's own ledger, each client's accounting books, and group consolidation. Consolidation does not post to component books; client books do not post into the firm's ledger. VAT/tax is separately scoped. Payments, external filing, payroll execution, procurement, and inventory are not implied by a practice-management feature.
 
-The following layered loading rule, slot states, context hazards and pack-application instructions are preserved as a record of the pack prepared at `e0afe18`. They are not operative instructions. Use §1 and the linked current authorities above for today's work.
+## Architecture and contracts
 
-### Layered loading rule
+| Concern | Canonical source |
+|---|---|
+| Application structure, scope, locks, revisions, and immutable data | [Current architecture](auditsphere-architecture-current-architecture.md) · [data model contract](auditsphere-architecture-contract-data-model-current.md) |
+| Domain-to-Application-to-API-to-UI ownership | [Code map](auditsphere-architecture-code-map.md) |
+| HTTP, authentication, error shapes, OpenAPI and drift | [HTTP boundary](auditsphere-architecture-http-boundary-and-contract-current.md) · [`contracts/auditsphere-openapi.json`](../../contracts/auditsphere-openapi.json) |
+| UI conventions, decoders, server `can*` states | [Angular conventions](auditsphere-angular-conventions-current.md) |
+| User, role, grant, and scope semantics | [Roles and privileges](auditsphere-architecture-user-roles-and-privileges-current.md) |
+| Microsoft permissions and selected-client-site exception | [M365 permission model](auditsphere-m365-tenant-administration-permissions.md) · [client SharePoint sites](auditsphere-client-sharepoint-sites-current.md) |
+| Non-functional limits | [NFR register](auditsphere-architecture-policy-non-functional-requirements-current.md) |
+| Decisions | [ADR register](adr/auditsphere-architecture-index-adr-register-current.md) and the linked individual ADRs |
+| Requirements and task authority | [Requirements index](../requirements/auditsphere-requirements-index-current.md) · [current task board](../execution/auditsphere-execution-index-task-board-current.md) |
 
-| Layer | Loaded | Slots |
-| --- | --- | --- |
-| 1 Foundation | When the task touches product scope or vocabulary | 1–4 |
-| 2 Contracts | When the task touches data, endpoints or limits | 5–7 |
-| 3 Operating manual | Every session (automatically) | 8–9 |
-| 4 Work breakdown | When choosing or scoping work | 10–12 |
-| 5 Execution | Written fresh per task | 13 |
+## Authority and evidence boundary
 
-An agent should normally hold slot 8, one story from slot 11, and the two to four files that story names. Nothing else is required up front.
+Individual `APPROVED` or `ACCEPTED` ADRs govern only their stated decisions. `PROPOSED` documents and pinned historical task sources are context, not authorization. The consolidated [task library](../task_breakdown/auditsphere-r2r-index-task-breakdown.md) links to the exact source revision and does not assert current completion. Live implementation, CI, browser, professional review, and external acceptance are recorded separately in [execution status](../execution/status.json).
 
-### Slot map at the historical snapshot
-
-| # | Slot | Authoritative file(s) | State |
-| --- | --- | --- | --- |
-| 1 | Product brief / PRD | [Product brief](../requirements/auditsphere-requirements-specification-product-brief-current.md) → detail in [STE v2.2 requirements](../requirements/auditsphere-accounting-module-requirements-current.md) | Brief **current**. Requirements copy is v2.2; header wording is annotated against ADR-0002 and ADR-0003. |
-| 2 | Glossary | [Domain glossary](../requirements/auditsphere-requirements-catalog-domain-glossary-current.md) | **New.** Previously spread across code constants and narrative docs. |
-| 3 | Architecture overview | [Current architecture](auditsphere-architecture-current-architecture.md), [Code map](auditsphere-architecture-code-map.md) | Exists. Includes the current procedure-command, evidence-snapshot and current-evidence owners. The retired Web host is historical and is not a current build/test target. |
-| 4 | ADRs | [ADR register](adr/auditsphere-architecture-index-adr-register-current.md) + R2R-ADR-01..10 in [baseline and ADRs](../task_breakdown/reference/auditsphere-r2r-reference-baseline-architecture-and-adrs.md) | ADR-0001..0007 and ADR-0009 are approved under the owner's delegated project decision; ADR-0008 is superseded. Provider and professional gates remain separate. |
-| 5 | Data model | [Data model contract](auditsphere-architecture-contract-data-model-current.md) | Index over `AuditSphereDbContext.<Module>.cs`, Domain files and migrations. Includes `audit_procedure_command_receipts`, the evidence digest and the server-reserved evidence snapshot in immutable result JSON. Executable truth stays in code. |
-| 6 | API contract | `contracts/auditsphere-openapi.json` (OpenAPI 3.1), [HTTP boundary](auditsphere-architecture-http-boundary-and-contract-current.md), drift gate `scripts/contracts/verify-openapi.sh` | Exists and is machine-readable. Procedure command routes and the fail-closed legacy writes are documented; the OpenAPI drift gate is current. |
-| 7 | Non-functional requirements | [NFR policy](auditsphere-architecture-policy-non-functional-requirements-current.md) | **New.** Consolidates limits already enforced in code; lists the targets nobody has set (P8). |
-| 8 | Agent operating manual | `AGENTS.md` (Codex and others), `CLAUDE.md` → `@AGENTS.md` (Claude Code) | `AGENTS.md` **replaced**: same rules, 478 → about 100 lines (bytes fall only slightly, because the padding was blank lines and the new file adds the test-status and context-budget sections). `CLAUDE.md` **new**; needs the validator patch in section 4. |
-| 9 | Test strategy and DoD | [Strategy and Definition of Done](../testing/auditsphere-testing-strategy-definition-of-done-current.md) | **New.** Reflects the restored suites (STE-NXT-001). |
-| 10 | Roadmap | [STE closure roadmap](../execution/auditsphere-execution-workflow-roadmap-ste-closure-proposed.md) | **New.** Orders existing backlog (pending tasks, AS-PAR, STE packages, P-gates) into milestones. |
-| 11 | Stories | [Remaining STE v2.1 stories](../execution/auditsphere-execution-user-stories-ste-v21-remaining-proposed.md); existing [pending tasks](../execution/auditsphere-execution-pending-tasks.md), [R2R/audit task index](../task_breakdown/auditsphere-r2r-index-task-breakdown.md) | Stories **new**, each grounded in a verified code gap. |
-| 12 | Spikes | [Technical spikes](../execution/auditsphere-execution-tracker-technical-spikes-proposed.md) | **New.** |
-| 13 | Task prompt | [Agent task prompt guide](../execution/auditsphere-execution-guide-agent-task-prompt-current.md) | **New** template plus a filled example. |
-| — | Spec verification | [STE v2.1 gap verification](../execution/auditsphere-execution-tracker-ste-v21-gap-verification-current.md) | **New.** Requirement-by-requirement check against current code, separate from the earlier coverage table whose verification sources were test files. Also carries the v2.2 workflow-experience delta. |
-
-## 3. Historical context hazards (recorded 2026-10-08 at `e0afe18`)
-
-These measurements describe repository state at `e0afe18`; current resolution status is governed by the sources linked in §1. At that time, STE-NXT-001 and STE-NXT-002 were assigned to address the listed hazards.
-
-| Hazard | Evidence | Effect on an agent |
-| --- | --- | --- |
-| Automated tests absent (resolved by STE-NXT-001) | Commit `47ca0b05` removed the Domain, Api and E2E test-case files and every `*.spec.ts`; CI gates were rewritten in `aa9ff73`. `tests/` held only fixtures and project files until STE-NXT-001 restored the suites. | The old `AGENTS.md` and README still instruct `dotnet test` and `npm run test:ci`. An agent following them either fails or reports a vacuous pass. Acceptance criteria cannot be executed. |
-| Oversized "start here" files | At the time of writing, `docs/execution/status.json` was about 1.2 MB and the current slice about 460 KB. Both are steps 5–6 of the index reading order. Resolved: both are now under the size budgets enforced by the docs gate (STE-NXT-002). | Either file alone can exhaust a session's context before any code is read. |
-| Blank-line padding | The old `AGENTS.md` had 391 blank lines out of 478; the docs index 546 of 673; the M365 user stories 2,583 of 3,143; the code map 581 of 932. | Token cost with no content; pushes real instructions out of context. Resolved: blank-line runs under `docs/` are collapsed (STE-NXT-002). |
-| Dead references | At `e0afe18`, 35 backticked or linked paths pointed to files that did not exist. The backticked-path check now runs in the docs gate and reports zero dead references (STE-NXT-002). | Agents open missing files or trust stale verification sources. |
-| Stale test citations | The code map names 132 distinct `*Tests` classes; the STE coverage table cites 17 as verification sources. None existed at `e0afe18`, before STE-NXT-001 restored the suites. Re-check each citation before you rely on it. | Coverage claims look verified when their evidence is gone. |
-| Decisions without records | Entra sign-in replacing emailed passwords, lifecycle as a derived projection, Full Control site staffing, PNG credentials, test removal, and reporting-context identity — recorded in the current ADR register through ADR-0015. | Agents "fix" deliberate deviations back to the spec wording. |
-
-## 4. Historical pack application record (non-operative)
-
-The numbered steps below record the one-time 2026-10-08 pack application workflow. Do not rerun them as current setup or approval instructions; the root instructions, documentation index, ADR register and testing strategy linked in §1 supersede this checklist.
-
-1. Copy the contents of the pack's `repo/` folder to the repository root. `AGENTS.md` is a replacement; every other file is new.
-2. Apply the `CLAUDE.md` allowance before committing it, or omit `CLAUDE.md`: both `scripts/docs/validate-markdown-documentation.py` and `scripts/docs/validate-markdown-filenames.py` reject root files other than `README.md` and `AGENTS.md`. Add `"CLAUDE.md"` to `CONVENTIONAL_EXCEPTIONS` in both scripts and list it in §2 of the naming policy. The pack includes this as `patches/0001-allow-claude-md-root-file.patch` (apply with `git apply` from the repository root).
-3. Add the new files to `docs/auditsphere-docs-index.md` (one line each under the matching section) and point step 5 of "Start here" at the `jq` query in `AGENTS.md` §6 rather than at the whole `status.json`.
-4. Run the four docs checks in `AGENTS.md` §3. The pack was checked with them; see [the application record](../execution/auditsphere-execution-report-agent-pack-application-historical.md).
-5. Historical note: the pack requested owner review of then-`PROPOSED` ADRs. Current ADR decisions and statuses are maintained only in the [ADR register](adr/auditsphere-architecture-index-adr-register-current.md); do not treat this old request as an open approval list or rename ADR files based on this snapshot.
+Never widen firm/client/engagement/group grants, bypass session freshness or professional holds, mutate sealed evidence or posted accounting history, or infer approval from Angular flags. External providers and tenant effects remain separately gated.

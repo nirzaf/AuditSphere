@@ -5,10 +5,10 @@
 | Revision | 2.3 — proposed for adoption |
 | Prepared | 24 October 2026 |
 | Scope | Five existing modules; seven display phases; eleven derived audit lifecycle states |
-| Implementation status | Unverified in this document review |
+| Implementation status | This proposed specification is not a status ledger; see [execution status](../execution/status.json) |
 | Purpose | Canonical proposed specification for the six-file Markdown package |
 
-> **Authority:** This is a review-derived revision candidate. A filename ending in `current` is the requested naming convention; it does not establish approval or implementation. The six repository counterparts were not inspected. Source-reported approved ADRs and executed contracts remain controlling until an authorized change is adopted. Proposed changes and D01–D10 decisions do not silently override them.
+> **Authority:** This is a review-derived revision candidate. A filename ending in `current` is a naming convention; it does not establish approval or implementation. Source-reported approved ADRs and executed contracts remain controlling until an authorized change is adopted. Proposed changes and D01–D10 decisions do not silently override them. Current source and verification observations are recorded separately in the execution ledger.
 
 The [complete proposed specification](auditsphere-requirements-specification-complete-practice-management-proposed.md) governs the proposed design across this package. The [preserved v2.2 source](auditsphere-requirements-source-ste-audit-management-specification-v22.md) supplies historical requirements and approved source overlays. Companion documents use the same control identifiers and do not add product modules.
 

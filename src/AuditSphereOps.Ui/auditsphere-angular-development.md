@@ -104,7 +104,7 @@ canary or owner acceptance.
 
 The owner authorized retirement of the Blazor rollback/reference host on 2026-10-17.
 The owner-authorized removal was merged to `master`; the host and Razor files are absent from the current tree. The removed source remains available
-at the historical pre-removal commit identified in the [retirement gate](../../docs/migration/auditsphere-migration-blazor-removal-readiness.md). The API does not reference the retired project and continues
+at the historical pre-removal commit identified in the [migration record](../../docs/architecture/auditsphere-angular-migration-current.md). The API does not reference the retired project and continues
 to serve the current Angular UI. No production-like rollback exercise has been
 accepted; owner authorization does not prove OIDC callback, route-switch, data
 compatibility, or production rollback acceptance. The API host remains the normal

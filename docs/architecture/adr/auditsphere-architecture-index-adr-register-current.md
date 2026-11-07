@@ -1,0 +1,61 @@
+# AuditSphere — ADR Register
+
+**Status: CURRENT** (register). Individual records carry their own status.
+**Rule for agents:** a feature task never reverses an ADR. If a task appears to need that, stop and report the conflict.
+
+ADR-0001 to ADR-0007, ADR-0009 to ADR-0011, and ADR-0013 to ADR-0015 are approved under the repository owner's delegated project decision dated 2026-10-10. ADR-0012 is accepted as the unconditional activation control. These decisions do not approve professional accounting treatments, live provider behavior, external consent, or independent release acceptance. ADR-0008 is superseded.
+
+ADR-0016 is approved for firm-held X.509 PDF signing under the owner's 2026-10-10 instruction; ADR-0017 and ADR-0018 record the delegated product/reporting decisions dated 2026-10-12. Apply each record only within its stated scope. No repeat approval is needed for an already-approved choice; real certificate/legal acceptance, remaining professional policy and live evidence are separate gates.
+
+| ID | Decision | Status | Supersedes / relates to |
+| --- | --- | --- | --- |
+| [ADR-0001](auditsphere-architecture-adr-0001-modular-monolith-static-capability-services-approved.md) | One modular monolith; static capability services returning `CommandResult`, no mediator layer | APPROVED | Records the variation from R2R-ADR-02 |
+| [ADR-0002](auditsphere-architecture-adr-0002-angular-canonical-ui-blazor-rollback-approved.md) | Angular 22 is the canonical UI; the Blazor Web rollback host was retired and merged to `master` as `e7ebe27c` after the owner decision | APPROVED with 2026-10-17 amendment | Specification header "Blazor Interactive Server"; historical parity/rollback gaps remain unverified |
+| [ADR-0003](auditsphere-architecture-adr-0003-client-portal-microsoft-sign-in-approved.md) | Client portal uses Microsoft sign-in, not emailed temporary passwords | APPROVED | Deviates from specification §3.1 / §4.1.5; live tenant gates remain separate |
+| [ADR-0004](auditsphere-architecture-adr-0004-engagement-lifecycle-derived-projection-approved.md) | Specification §5 lifecycle is a derived projection over gate records | APPROVED | Specification §5 |
+| [ADR-0005](auditsphere-architecture-adr-0005-visual-credentials-no-esignature-purview-approved.md) | PNG signature/seal as visual credentials; eSignature and Purview out of scope | APPROVED | R2R-ADR-08; gates P4, P5; PKI-signing exclusion superseded by ADR-0016 |
+| [ADR-0006](auditsphere-architecture-adr-0006-client-sharepoint-site-staff-full-control-approved.md) | One SharePoint site per new client; assigned staff get Full Control | APPROVED | Provider acceptance and exact-site grants remain separately gated |
+| [ADR-0007](auditsphere-architecture-adr-0007-fee-invoice-automation-drafts-only-approved.md) | Automatic 50/50 invoicing creates drafts only | APPROVED | Specification §4.1.5, §4.4.2 |
+| [ADR-0008](auditsphere-architecture-adr-0008-automated-test-suites-temporarily-removed-superseded.md) | Automated test suites removed temporarily, then restored (STE-NXT-001) | SUPERSEDED | Restored by STE-NXT-001; the Definition of Done follows the restored suites |
+| [ADR-0009](auditsphere-architecture-adr-0009-archive-authority-release-store-approved.md) | Issued evidence is authoritative in the release and archive store; the SharePoint archive is a working copy | APPROVED | Relates to ADR-0005, ADR-0006; STE-GAP-007 stays BLOCKED_EXTERNAL |
+| [ADR-0010](auditsphere-architecture-adr-0010-end-of-service-accrual-approved.md) | End-of-service benefits are accrued as a provision entered by a person through the ledger maker and checker (STE-NXT-009, option b) | APPROVED | Posting waits for the accounting treatment, which is not yet confirmed; the platform computes no estimate |
+| [ADR-0011](auditsphere-architecture-adr-0011-materiality-pbt-without-normalization-approved.md) | Materiality uses profit before tax without normalization (STE-NXT-010, Option A) | APPROVED | Recorded deviation from specification §4.2.4 |
+| [ADR-0012](auditsphere-architecture-adr-0012-unconditional-advance-activation-hard-block-current.md) | The 50% advance is an unconditional `PORTAL_ACTIVE_PLANNING` hard block with no configuration bypass | ACCEPTED | Implements specification §4.1.5 / control C-02; relates to ADR-0007 |
+| [ADR-0013](auditsphere-architecture-adr-0013-approved-mapping-lineage-for-practice-time-approved.md) | Engagement tasks and time entries pin the exact approved FSLI mapping and destination | APPROVED | Technical attribution only; no accounting classification or posting decision |
+| [ADR-0014](auditsphere-architecture-adr-0014-monetary-scale-and-rounding-approved.md) | Preserve six-decimal monetary arithmetic, explicit scale changes and ToEven rounding | APPROVED | Resolves R2R-ADR-03's core numeric convention; FX methodology and professional policy approval remain under T003 |
+| [ADR-0015](auditsphere-architecture-adr-0015-reporting-context-identity-pins-approved.md) | Bind exact reporting contexts to existing scoped identities and approved revisions | APPROVED | Resolves T014's technical identity decision; implementation follows T013 and T007 |
+| [ADR-0016](auditsphere-architecture-adr-0016-certificate-signed-final-report-approved.md) | The final signed report is certificate-signed with a firm-held certificate; fails closed when required | APPROVED | Supersedes only the PKI-signing exclusion in ADR-0005; eSignature providers and Purview stay out of scope |
+| [ADR-0017](auditsphere-architecture-adr-0017-ste-v22-delegated-requirement-decisions-approved.md) | STE v2.2 delegated decisions: recorded deviations stand; Partner-only actions fail closed; Track B questions; response channel; Sunday to Thursday working week; recorded critical-estimate flag | APPROVED | Keeps ADR-0003 and ADR-0011 and the product-brief WhatsApp non-goal; decides open STE v2.2 rows |
+| [ADR-0018](auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md) | Practice reporting bases: non-billable time has no charge-out value; one billable utilization basis; receivables age every posted firm invoice; monthly profit and loss series; rate aliases everywhere. | APPROVED | Decides only how firm reports are calculated. Professional, legal and commercial decisions DEC-01 to DEC-11 stay open where listed. |
+
+## Proposed storage decision
+
+| ID | Decision | Status | Relationship |
+| --- | --- | --- | --- |
+| [ADR-0019](auditsphere-architecture-adr-0019-sharepoint-primary-working-documents-proposed.md) | SharePoint-primary working-document storage with functional parity: exact registered versions behind existing reads, gated staging cleanup | PROPOSED | Narrow supplement; ADR-0006 and ADR-0009 unchanged. Remote-read activation, cleanup, retention/outage decisions and pilot acceptance remain open |
+
+## Earlier decision records (R2R)
+
+R2R-ADR-01 to R2R-ADR-10 are preserved in the exact source revision linked from the [consolidated task library](../../task_breakdown/auditsphere-r2r-index-task-breakdown.md). They cover module ownership, mediator/bUnit (varied by ADR-0001), money/FX precision (`numeric(19,6)`, `decimal`, banker's rounding), framework editions, context identity and stale propagation, source/artifact storage, presentation/package split, release/records exclusions, consolidation methods, and capability-to-role mappings. Those historical references do not override current approved ADRs.
+
+## Template for new ADRs
+
+File: `auditsphere-architecture-adr-<nnnn>-<slug>-proposed.md`
+
+```markdown
+# ADR-<nnnn>: <decision in one line>
+
+**Status: PROPOSED** · Date: <yyyy-mm-dd> · Decider: <owner>
+
+## Context
+<the problem and the forces; cite files and commits>
+
+## Decision
+<what was chosen, stated so an agent can check code against it>
+
+## Alternatives considered
+<each option and why it lost>
+
+## Consequences
+<what becomes easier, harder, or forbidden; which gates or docs change>
+```
