@@ -14,6 +14,12 @@ public static partial class PracticeCrmService
   private const int OffboardingReceiptAllocationLimit = 20_000;
   private const int OffboardingTimeLimit = 10_000;
   private const int OffboardingFeeAgreementLimit = 100;
+  private const int OffboardingFeeInvoiceNumberLimit = 256;
+  private const int OffboardingFeeDetailCharacterLimit = 2_000;
+
+  private sealed record OffboardingFeeReadinessFact(
+    string Kind, Guid AgreementId, Guid MilestoneId, string Currency, string State, string Amount,
+    string? InvoiceNumber = null, string? InvoiceStatus = null);
 
   private sealed record ReceiptAllocationFact(ReceiptAllocation Allocation, Invoice Invoice, string InvoiceAccountCurrency,
     Guid InvoiceClientId);
@@ -178,7 +184,8 @@ public static partial class PracticeCrmService
   }
 
   private static async Task<ClientOffboardingSection> FeeMilestoneSectionAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct)
+    IAuditSphereDbContext db, ActorContext actor, Guid clientId,
+    List<OffboardingFeeReadinessFact> digestFacts, CancellationToken ct)
   {
     const string label = "Unresolved fee-agreement milestones";
     var request = new AuthorizationRequest(actor.FirmId, ClientId: clientId,
@@ -197,8 +204,9 @@ public static partial class PracticeCrmService
       return Section("FEE_MILESTONES", "Fee agreement", "/app/finance/fee-agreements",
         Counted("FEE_MILESTONES", label, 0));
 
-    var observations = new List<(string Currency, string State, decimal Amount)>();
+    var observations = new List<(Guid AgreementId, Guid MilestoneId, string Currency, string State, decimal Amount)>();
     var reconciliationFindings = new List<string>();
+    var reconciliationFacts = new List<OffboardingFeeReadinessFact>();
     foreach (var agreementId in agreements)
     {
       var result = await FeeSettlementWorkspaceQuery.GetAsync(db, actor, agreementId,
@@ -220,21 +228,31 @@ public static partial class PracticeCrmService
             milestone.State == FeeMilestoneStates.Paid && amount != 0m)
           return Section("FEE_MILESTONES", "Fee agreement", "/app/finance/fee-agreements",
             Unavailable("FEE_MILESTONES", label, "Fee milestone amounts could not be reconciled safely."));
-        observations.Add((workspace.Currency.ToUpperInvariant(), milestone.State, amount));
+        observations.Add((agreementId, milestone.Id, workspace.Currency.ToUpperInvariant(), milestone.State, amount));
       }
       if (workspace.AdvancePreparation.ReconciliationRequired)
       {
         var advance = workspace.Milestones.SingleOrDefault(item => item.Kind == FeeMilestoneKinds.Advance);
         if (advance is null || string.IsNullOrWhiteSpace(advance.InvoiceNumber) ||
+            advance.InvoiceNumber.Length > OffboardingFeeInvoiceNumberLimit ||
             string.IsNullOrWhiteSpace(advance.InvoiceStatus))
           return Section("FEE_MILESTONES", "Fee agreement", "/app/finance/fee-agreements",
-            Unavailable("FEE_MILESTONES", label,
-              "A retained advance invoice has incomplete source identity for reconciliation."));
+            Unavailable("FEE_MILESTONES", label, advance?.InvoiceNumber?.Length > OffboardingFeeInvoiceNumberLimit
+              ? $"A retained invoice number exceeds the supported {OffboardingFeeInvoiceNumberLimit}-character limit."
+              : "A retained advance invoice has incomplete source identity for reconciliation."));
 
         reconciliationFindings.Add(
           $"Agreement {agreementId:D}, advance milestone {advance.Id:D}, retained invoice {advance.InvoiceNumber} ({advance.InvoiceStatus}): milestone linkage requires reconciliation.");
+        reconciliationFacts.Add(new("RECONCILIATION", agreementId, advance.Id,
+          workspace.Currency.ToUpperInvariant(), advance.State,
+          ExactMoney(advance.Amount), advance.InvoiceNumber, advance.InvoiceStatus));
       }
     }
+
+    digestFacts.AddRange(observations.OrderBy(item => item.AgreementId).ThenBy(item => item.MilestoneId)
+      .Select(item => new OffboardingFeeReadinessFact("MILESTONE", item.AgreementId, item.MilestoneId,
+        item.Currency, item.State, ExactMoney(item.Amount))));
+    digestFacts.AddRange(reconciliationFacts.OrderBy(item => item.AgreementId).ThenBy(item => item.MilestoneId));
 
     var pending = observations.Where(item => item.State is FeeMilestoneStates.Planned or FeeMilestoneStates.Invoiced).ToArray();
     if (pending.Length == 0 && reconciliationFindings.Count == 0)
@@ -243,7 +261,7 @@ public static partial class PracticeCrmService
     string detail;
     try
     {
-      detail = string.Join("; ", observations.GroupBy(item => item.Currency)
+      var currencySummaries = observations.GroupBy(item => item.Currency)
         .OrderBy(group => group.Key, StringComparer.Ordinal).Select(group =>
         {
           var planned = group.Where(item => item.State == FeeMilestoneStates.Planned).ToArray();
@@ -256,7 +274,8 @@ public static partial class PracticeCrmService
             parts.Add($"INVOICED {invoiced.Length.ToString(CultureInfo.InvariantCulture)} ({ExactMoney(invoiced.Sum(item => item.Amount))} owner-calculated outstanding; do not add to invoice ageing)");
           if (paid > 0) parts.Add($"PAID {paid.ToString(CultureInfo.InvariantCulture)}");
           return $"{group.Key}: {string.Join(", ", parts)}";
-        }));
+        }).ToArray();
+      detail = BoundedFeeDetail(currencySummaries, "currency summaries");
     }
     catch (OverflowException)
     {
@@ -270,8 +289,24 @@ public static partial class PracticeCrmService
     if (reconciliationFindings.Count > 0)
       items.Add(new ClientOffboardingItem("FEE_RECONCILIATION",
         "Advance invoice awaiting milestone reconciliation", ClientOffboardingStates.ActionRequired,
-        reconciliationFindings.Count, string.Join("; ", reconciliationFindings)));
+        reconciliationFindings.Count, BoundedFeeDetail(reconciliationFindings, "reconciliation findings")));
     return Section("FEE_MILESTONES", "Fee agreement", "/app/finance/fee-agreements", items.ToArray());
+  }
+
+  private static string BoundedFeeDetail(IReadOnlyList<string> entries, string entryLabel)
+  {
+    var complete = string.Join("; ", entries);
+    if (complete.Length <= OffboardingFeeDetailCharacterLimit) return complete;
+
+    for (var visibleCount = entries.Count; visibleCount >= 0; visibleCount--)
+    {
+      var preview = $"Preview limited to {OffboardingFeeDetailCharacterLimit} characters: showing {visibleCount} of {entries.Count} {entryLabel}. Open the fee-agreement workspace for full source evidence.";
+      var prefix = string.Join("; ", entries.Take(visibleCount));
+      var result = prefix.Length == 0 ? preview : $"{prefix}; {preview}";
+      if (result.Length <= OffboardingFeeDetailCharacterLimit) return result;
+    }
+
+    return $"Preview limited to {OffboardingFeeDetailCharacterLimit} characters: open the fee-agreement workspace for full source evidence.";
   }
 
   private static bool IsCurrency(string? currency) => currency is { Length: 3 } &&
