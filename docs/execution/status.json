@@ -1,25 +1,25 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-07T16:11:55Z",
+  "observedAtUtc": "2026-11-07T16:38:45Z",
   "source": {
     "branch": "master",
-    "baseSha": "7784ea8f415b85f47552971aff89d852c81b6c8a",
-    "originMasterSha": "7784ea8f415b85f47552971aff89d852c81b6c8a",
-    "workingTree": "HEAD and origin/master are 7784ea8f415b85f47552971aff89d852c81b6c8a. An uncommitted four-path CI follow-up updates the restore-drill runbook and its focused regression expectation, plus this status and current-slice handoff. It does not restore historical recovery evidence or claim production recovery.",
+    "baseSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2",
+    "originMasterSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2",
+    "workingTree": "At the recorded observation, master HEAD and origin/master were a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2, clean, and the exact-source fast CI run 42390283923 had passed all three jobs. This status/handoff evidence refresh is a documentation-only follow-up; it does not claim a full release run or external acceptance.",
     "wholeAssignment": "INCOMPLETE",
-    "currentCandidateSha": "7784ea8f415b85f47552971aff89d852c81b6c8a"
+    "currentCandidateSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2"
   },
   "activeWork": {
-    "practiceManagement": "T09 bounded fee-reconciliation readiness committed as 0375b67e; local Angular and Application Release checks passed; exact-source CI pending; focused Domain tests remain BLOCKED_TEST_ENV on approved port 5433.",
-    "documentation": "Category entry points and PARTIAL_SOURCE task-board reconciliation are pushed at 7784ea8f. Exact fast run 42386372096 is terminal FAILURE: Angular PASS, Release PASS (exact checkout 7784, build 0 warnings/errors, Domain 16/16, API 12/12 and OpenAPI current), Docs FAILURE from the stale local-restore expectation. The local runbook/test correction makes missing current evidence remain UNKNOWN; focused 14-test regression and final docs gates pass. Fetch/review incoming paths and publish the scoped correction, then verify its exact successor CI.",
+    "practiceManagement": "The broader practice-management assignment remains open and is tracked in the ignored autonomous checkpoint. The last recorded T09 evidence is a bounded readiness build at 0375b67e and a Domain-test attempt blocked by the unavailable approved port-5433 database; later practice work and exact-source gates must be read from current-work.json. This documentation fast-CI pass does not establish T09 or whole-product acceptance.",
+    "documentation": "Per-category navigation is consolidated through docs/auditsphere-docs-index.md and the maintained Architecture/ADR, Requirements, Design, Operations, Testing, Execution, Task Library and Evidence entry points. Distinct approved requirements, ADRs, proposals, historical task sources, operator procedures and machine-consumed task inputs remain separate to preserve authority and provenance. The current category/restore-evidence correction is published at a21737ff. Exact fast run 42390283923 passed Docs, Angular and .NET Release with each job log confirming checkout a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2. The task board remains PARTIAL_SOURCE because the per-item audit JSON and two STE v2.1 source files are absent; no gaps or missing-story findings are inferred.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Fetch origin/master and review incoming paths, publish the scoped four-path local restore expectation/runbook/status/handoff correction, then monitor exact successor fast and any triggered image runs. No full or release-acceptance claim.",
-      "note": "The 48-row ledger validates. The generated task board is current for available sources (PARTIAL_SOURCE), with no invented audit verdicts or missing STE rows.",
-      "currentSourceSha": "7784ea8f415b85f47552971aff89d852c81b6c8a"
+      "nextAction": "Continue the broader assigned AuditSphere work from the validated autonomous ledger. Documentation category entry points and the evidenced restore-runbook/test discrepancy are published; keep task-board source limitations and whole-application/external acceptance open.",
+      "note": "The 48-row autonomous ledger validates. The generated task board reflects available sources only (PARTIAL_SOURCE); all code verdicts remain NOT_AUDITED and no gaps or missing STE stories are inferred.",
+      "currentSourceSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2"
     }
   },
   "localVerification": {
@@ -98,14 +98,14 @@
     "domainOffboardingReadinessTests": {
       "result": "BLOCKED_TEST_ENV",
       "testsExecuted": 0,
-      "reason": "The approved loopback auditsphere_tests database on port 5433 was unavailable; unrelated T25 cluster on port 55432 was not reused."
+      "reason": "Last recorded attempt could not use the approved auditsphere_tests database on port 5433; consult the current autonomous checkpoint for later work. The unrelated 55432 cluster was not reused."
     },
     "applicationReleaseBuild": {
       "result": "PASS",
       "warnings": 0,
       "errors": 0,
       "command": "dotnet build src/AuditSphereOps.Application/AuditSphereOps.Application.csproj --no-restore -c Release --maxcpucount:1",
-      "scope": "T09 commit 0375b67e; exact-source CI for that commit is pending."
+      "scope": "Observed for T09 commit 0375b67e only; this build is not a full practice-management or release-acceptance gate."
     },
     "angularProductionBuild": {
       "result": "PASS_WITH_EXISTING_CSS_BUDGET_WARNINGS",
@@ -331,7 +331,7 @@
       "failure": "The test expected LOCAL_ONLY while the operational evidence verifier returned UNKNOWN because docs/evidence/restore-drill-latest.json is absent. The declared historical JSON blob at c19f4cb73412 has the exact recorded SHA-256, but the current restore runbook states that it is historical only.",
       "localCorrection": "The regression now expects UNKNOWN and LOCAL_RESTORE_EVIDENCE_UNKNOWN; the runbook states LOCAL_ONLY requires present, hash-valid evidence passing reconciliation. No historical evidence was restored.",
       "fullReleaseVerification": "NOT_DISPATCHED_FOR_THIS_DOCUMENTATION_FOLLOWUP",
-      "imageRun": "No image run observed for the docs-only predecessor path; inspect any workflow triggered by the follow-up push.",
+      "imageRun": "No image workflow was observed for the 7784 docs-only predecessor; the exact a217 successor fast run is separately recorded and no image run was observed there either.",
       "terminalAtUtc": "2026-11-07T16:06:31Z",
       "artifactMetadata": {
         "path": ".local/autonomous/evidence/docs-consolidation-20261107/ci-7784ea8f-fast/artifact-metadata.json",
@@ -343,7 +343,53 @@
         ]
       },
       "nonBlockingAnnotation": "GitHub warns Node 20 action runtime is deprecated; actions were forced onto Node 24. Not the Docs failure.",
-      "nextAction": "The predecessor fast run is terminal. Fetch origin/master, inspect incoming paths, then publish the scoped four-path correction; monitor exact successor fast and any image workflow."
+      "nextAction": "Historical predecessor outcome; the exact-source correction and successful successor fast run are recorded under docsConsolidationCandidateA217."
+    },
+    "docsConsolidationCandidateA217": {
+      "runId": 42390283923,
+      "attempt": 1,
+      "event": "push",
+      "headSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2",
+      "aggregateStatus": "SUCCESS",
+      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/42390283923",
+      "jobs": {
+        "docsHealth": {
+          "id": 128456227125,
+          "status": "SUCCESS",
+          "actualCheckoutSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2",
+          "log": ".local/autonomous/evidence/docs-consolidation-20261107/ci-a21737ff-fast/job-128456227125-docs.log",
+          "logSha256": "7387ecfbd30dea4b3750dc7dc4405186229223cf96c5a4d3af545fc370a47c26",
+          "checks": "Markdown health, source manifest, capability and runner guards, UI inventory, filenames, narrative validators passed."
+        },
+        "angular": {
+          "id": 128456227241,
+          "status": "SUCCESS",
+          "actualCheckoutSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2",
+          "log": ".local/autonomous/evidence/docs-consolidation-20261107/ci-a21737ff-fast/job-128456227241-angular.log",
+          "logSha256": "bc63418b12f620bb606d3a2c26fff0f26b9bfe85ea795444ca19856c4e7513c8",
+          "checks": "Angular presentation build/test job passed."
+        },
+        "dotnetRelease": {
+          "id": 128456808859,
+          "status": "SUCCESS",
+          "actualCheckoutSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2",
+          "log": ".local/autonomous/evidence/docs-consolidation-20261107/ci-a21737ff-fast/job-128456808859-release.log",
+          "logSha256": "37d37ede0e085f0c0ea57bdecedcfbc5440ad82fe2aa2c6e524722c16312cab2",
+          "checks": "Release build passed with 0 warnings/0 errors; Domain guards 16/16; API guards 12/12; OpenAPI contract current."
+        }
+      },
+      "artifactMetadata": {
+        "path": ".local/autonomous/evidence/docs-consolidation-20261107/ci-a21737ff-fast/artifact-metadata.json",
+        "sha256": "8b295627eafc08b9a93527362795b48311b4e868d9d170da3cee544b6840771d",
+        "retrieval": "METADATA_ONLY_RETAINED_ONCE",
+        "artifacts": [
+          "fast-ci-guards",
+          "angular-ui-browser"
+        ]
+      },
+      "images": "NO_IMAGE_WORKFLOW_OBSERVED_FOR_THIS_DOCS_FOLLOWUP",
+      "fullReleaseVerification": "NOT_DISPATCHED_FOR_DOCS_FOLLOWUP",
+      "nonBlockingAnnotation": "GitHub reported Node 20 action runtime deprecation; all jobs passed."
     }
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."

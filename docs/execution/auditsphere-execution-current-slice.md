@@ -1,6 +1,6 @@
 # Current-slice handoff
 
-**Observed:** 2026-11-07T16:11:55Z · branch `master` · HEAD/origin `7784ea8f415b85f47552971aff89d852c81b6c8a` · candidate 7784 CI terminal; four-path restore-evidence correction local and uncommitted
+**Observed:** 2026-11-07T16:38:45Z · branch `master` · tested HEAD/origin `a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2` · exact fast CI run `42390283923` passed; status/handoff evidence refresh is documentation-only
 
 ## Goal and scope
 
@@ -28,6 +28,13 @@ Evidence logs and the parsed checkout/pin proof are under .local/autonomous/evid
 - Release job `128444946820` succeeded. Its once-fetched log `.local/autonomous/evidence/docs-consolidation-20261107/ci-7784ea8f-fast/job-128444946820-release.log` (SHA-256 `76b4f481e35685f7121e2219234d5bec8265e828622d45f03856d91beb9df40a`) confirms checkout SHA `7784ea8f415b85f47552971aff89d852c81b6c8a`, Release build with 0 warnings/errors, Domain guards 16/16, API guards 12/12, and current OpenAPI. The aggregate failed only because Docs failed. Artifact metadata was retained once, without downloading artifacts, at `.local/autonomous/evidence/docs-consolidation-20261107/ci-7784ea8f-fast/artifact-metadata.json` (2 artifacts: fast guards and Angular bundle).
 - No image workflow or full release-verification run was associated with this docs candidate. GitHub emitted a non-blocking warning that Node 20 action runtimes are deprecated and the actions are being forced to Node 24.
 
+## Exact CI for published restore-evidence correction a21737ff
+
+- Fast push run `42390283923` attempt 1 completed `SUCCESS` for exact source `a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2`. Docs job `128456227125`, Angular job `128456227241`, and .NET Release job `128456808859` each independently fetched and checked out that exact SHA; terminal logs were retained once under `.local/autonomous/evidence/docs-consolidation-20261107/ci-a21737ff-fast/`.
+- Docs Health passed Markdown health (22 canonical documents and 2,889 relative links), audit source manifest, capability/runner safety guards, UI inventory, filename validation and narrative validation. The correction to missing-current-restore evidence passed the exact-source guard.
+- Angular presentation build/test passed. Release compiled with 0 warnings and 0 errors, Domain architecture/rounding guards passed 16/16, API OpenAPI-semantics guards passed 12/12, and the generated OpenAPI contract was current.
+- Artifact metadata was retained once without downloading artifact contents: `fast-ci-guards` and `angular-ui-browser`. No image workflow or full release-verification run was observed for this docs follow-up. The non-blocking Node 20 action-runtime deprecation annotation did not fail a job.
+
 ## Local verification
 
 - After the restore-runbook edit, Markdown health passed for 180 files / 22 canonical documents / 2,889 relative links / 251 repository paths with zero deleted references; filename validation passed for 180 files, narrative validation passed for 6 protected documents, and the generated board matched available sources (`PARTIAL_SOURCE`).
@@ -35,15 +42,14 @@ Evidence logs and the parsed checkout/pin proof are under .local/autonomous/evid
 - Capability catalog validator passed for all 3 packets. Task-status utility tests passed 21/21; image-build counter tests passed 21/21. The image-memory guard passed on a standalone rerun after a transient cleanup assertion in its first parallel invocation. UI source inventory check passed; legacy Blazor discovery remains historical.
 - OpenAPI emitter Release build passed with 0 warnings and 0 errors. The generated contract comparison passed after adding the single missing `detail.maxLength` field.
 - `python3 scripts/docs/build-task-board.py` regenerated 75 task-card rows with `PARTIAL_SOURCE`; `--check` passes. Because the current per-item audit JSON and two STE v2.1 story sources are absent, the board labels all code verdicts `NOT_AUDITED`, lists no code gaps, and omits STE rows rather than reconstructing removed or unverified findings. The autonomous state validator passed for 48 rows (`RUN-003`, `POLL_CI`).
-- Focused `test_operational_evidence.py` passed 14/14. The verifier output remains `INCOMPLETE`, `localRestore: UNKNOWN`, with `LOCAL_RESTORE_EVIDENCE_UNKNOWN`; the matching historical JSON blob is not current drill evidence.
+- Focused `test_operational_evidence.py` passed 14/14 before publication. The verifier output remains `INCOMPLETE`, `localRestore: UNKNOWN`, with `LOCAL_RESTORE_EVIDENCE_UNKNOWN`; the matching historical JSON blob is not current drill evidence. The exact-source Docs CI also passed this correction.
 
-## Next actions
+## Consolidation outcome and remaining boundaries
 
-1. Fetch `origin/master` and review incoming paths. The last fetch showed no divergence; repeat immediately before publishing.
-2. Confirm only the four scoped paths are dirty: restore-drill runbook, focused operational-evidence regression, status ledger, and this handoff. Re-run `git diff --check` and required docs validators after final edits.
-3. Commit and push the four-path correction directly to `master` under repository rules.
-4. Monitor the exact successor fast run and any image workflow triggered by the changed paths. Do not dispatch full verification or claim release acceptance for this documentation correction.
+The stale current category navigation, execution handoff/status, task-board source labeling, generated OpenAPI detail and restore-evidence expectation have been corrected in the published docs slice. Each docs category has one maintained entry point in the root index. Detailed ADRs, approved requirements, proposals, historical source records, operator procedures and machine-consumed task cards remain separate where combining them would blur authority, provenance or inputs.
+
+The generated task board remains `PARTIAL_SOURCE`, not a complete code audit: its current per-item audit JSON and two STE v2.1 source files are absent. Every generated code verdict remains `NOT_AUDITED`; no findings or missing stories were reconstructed. Continue the broader assignment from the autonomous ledger, and update a document only when an observed source discrepancy warrants it. The fast CI result is not full application or release acceptance.
 
 ## Remaining boundaries
 
-Practice-management T09 Domain regressions remain `BLOCKED_TEST_ENV` because the approved `auditsphere_tests` database on port 5433 was unavailable; the unrelated port 55432 cluster was not reused. Browser acceptance, professional/external decisions and release acceptance remain separate. This docs slice does not claim full application verification, deployment, tenant permission changes, provider acceptance or professional approval.
+The last recorded practice-management T09 Domain-test attempt was `BLOCKED_TEST_ENV` because the approved `auditsphere_tests` database on port 5433 was unavailable; the unrelated port 55432 cluster was not reused. Consult the current autonomous checkpoint for later practice work. Browser acceptance, professional/external decisions and release acceptance remain separate. This docs slice does not claim full application verification, deployment, tenant permission changes, provider acceptance or professional approval.
