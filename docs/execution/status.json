@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-08T22:16:36Z",
+  "observedAtUtc": "2026-11-08T22:53:13Z",
   "source": {
     "branch": "master",
-    "baseSha": "17e142fea294d574ade773fb075019983dff4877",
-    "originMasterSha": "17e142fea294d574ade773fb075019983dff4877",
-    "workingTree": "At 2026-11-08T22:16:36Z, HEAD and fetched origin/master match 17e142fea294d574ade773fb075019983dff4877. The local CI workflow overlap candidate and current execution-record refresh are uncommitted. Exact full run 42527196539 is active: Resolve, Angular and Build/contracts passed; unfiltered Domain/API/E2E remain in progress. No image rehearsal, protected release or deployment.",
+    "baseSha": "84215010a896ff94089e13751ad89354335d076c",
+    "originMasterSha": "84215010a896ff94089e13751ad89354335d076c",
+    "workingTree": "CI run 42529618648 verified exact candidate 84215010a896ff94089e13751ad89354335d076c; current status/handoff reconciliation is being prepared on that base.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -16,11 +16,11 @@
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Monitor exact full run 42527196539 without rerun/cancel. Validate and publish the local fast-CI overlap candidate only after fetch/path review; observe exact fast CI. Do not dispatch another full run until 42527196539 is terminal, then require exact final-source full CI before any release.",
+      "nextAction": "Continue monitoring exact full run 42527196539 on predecessor SHA 17e142fea294d574ade773fb075019983dff4877; do not cancel or duplicate. Once terminal, dispatch only the required exact-source full verification for 84215010a896ff94089e13751ad89354335d076c, following current run policy.",
       "note": "2026-11-08T13:05:03Z: RUN-003 remains REPAIR on 98679131fa65076c429fca8f95bb1f74ba7d7d7e. Exact fast run 42481222673 passed Angular, Docs and Release with all three actual checkout hashes matching 98679131fa65076c429fca8f95bb1f74ba7d7d7e; terminal proof .local/autonomous/evidence/ci-98679131-current-20261108/fast-terminal-proof.json. Focused API route 3/3 and named E2E 1/1 pass. Full verification for 98679131fa65076c429fca8f95bb1f74ba7d7d7e is not yet dispatched; predecessor API cancellation and E2E inactivity causes remain unconfirmed. Docs category consolidation is complete for the requested scope.",
-      "currentSourceSha": "1a07935ce1aa0799a44fef076ce330b2fe499254"
+      "currentSourceSha": "84215010a896ff94089e13751ad89354335d076c"
     },
-    "ciCdAcceleration": "IN_PROGRESS. Exact-source Release output reuse reduced the full run Build/contracts job by 938 seconds (1,204s to 266s) on source 17e142fe; full Domain/API/E2E remain active. A local master-push fast-CI candidate overlaps Release compile with Angular and passes only a manifest-verified same-run artifact; PR/dispatch and clean-build fallback remain. Its estimated net opportunity is about 60s and is not measured. Deployment image builds remain parallel while migrations, canary and approval gates retain their order. No deployment or release acceptance."
+    "ciCdAcceleration": "FAST_CI_PASS for 84215010a896ff94089e13751ad89354335d076c (run 42529618648, all four actual checkouts). Full CI remains pending: run 42527196539 is still reported in progress on predecessor 17e142fea294d574ade773fb075019983dff4877; it cannot qualify the current candidate. The release workflow already builds images concurrently, overlaps that work with full-evidence verification, and preserves protected approval, migration order, canary and rollback. Deployment and end-to-end timing are not measured; no release or deployment is claimed."
   },
   "localVerification": {
     "documentationHealth": {
@@ -664,9 +664,9 @@
       "exactCandidateFastImagesFullCi": "NOT_RUN"
     },
     "latestDocsRefreshValidation": {
-      "result": "PASS_LOCAL_VALIDATION; PUBLICATION_PENDING",
-      "observedAtUtc": "2026-11-08T12:34:49Z",
-      "sourceBaseSha": "61c304e3a4ec92cbdc9147589d304a7e346283da",
+      "result": "PASS_CURRENT_REFRESH",
+      "observedAtUtc": "2026-11-08T22:53:13Z",
+      "sourceBaseSha": "84215010a896ff94089e13751ad89354335d076c",
       "evidence": ".local/autonomous/evidence/docs-consolidation-live-refresh-20261108/post-full-terminal-20261108T120840Z/final-validation.json",
       "evidenceSha256": "4f2c0e43e0b8f0ff59032bbcffe6a941eec50253b536786a85ae7375be00ee06",
       "markdownFiles": 179,
@@ -686,7 +686,16 @@
       },
       "taskBoardUnchanged": true,
       "statusBytesBeforeEvidencePointer": 84416,
-      "handoffBytes": 47624
+      "handoffBytes": 49055,
+      "currentRefreshCommands": [
+        "python3 scripts/docs/validate-markdown-documentation.py",
+        "python3 scripts/docs/validate-markdown-filenames.py",
+        "python3 scripts/docs/validate-narrative-metrics.py",
+        "python3 scripts/docs/build-task-board.py --check",
+        "git diff --check"
+      ],
+      "preUpdateArchive": ".local/autonomous/evidence/ci-cd-acceleration-20261108/pre-terminal-doc-refresh-20261108T225009Z/manifest.json",
+      "statusBytes": 98632
     },
     "wu015ScopeDenialReconciliation20261108": {
       "status": "PARTIAL; historical 42-endpoint 400 finding not reproduced",
@@ -1814,38 +1823,30 @@
       }
     },
     "ciCdAccelerationParallelFastBuild20261108": {
-      "baseSha": "17e142fea294d574ade773fb075019983dff4877",
-      "candidateStatus": "LOCAL_UNCOMMITTED_STATIC_CHECKS_PASS_CI_NOT_RUN",
-      "change": "Master-push Release compile runs alongside Angular; existing .NET Release verification consumes only the same-run, manifest-verified artifact. PR/dispatch build path and clean-build fallback are preserved.",
-      "estimatedOpportunitySeconds": 60,
-      "estimateBasis": "Prior Angular gate delayed the long Release build by 135s; same-run artifact download measured about 41s. Net timing is unmeasured.",
-      "baseFastRun": {
-        "id": 42515514056,
-        "result": "PASS_3_ACTUAL_CHECKOUTS",
-        "sourceSha": "17e142fea294d574ade773fb075019983dff4877",
-        "angularSeconds": 135,
-        "docsSeconds": 141,
-        "releaseSeconds": 1933,
-        "releaseArtifactBytes": 441441890,
-        "artifactPackageSeconds": 16,
-        "artifactUploadSeconds": 5
+      "candidateSha": "84215010a896ff94089e13751ad89354335d076c",
+      "runId": 42529618648,
+      "attempt": 1,
+      "conclusion": "SUCCESS",
+      "wallSeconds": 1208,
+      "proof": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-84215010-42529618648/fast-terminal-proof.json",
+      "proofSha256": "3b27f61930fc7ec709043e51228080f4c3063c17d68cd283c0f14d0dd7347037",
+      "actualCheckoutJobs": {
+        "Docs · Health": "84215010a896ff94089e13751ad89354335d076c",
+        "Build · .NET Release outputs": "84215010a896ff94089e13751ad89354335d076c",
+        "Build · Angular": "84215010a896ff94089e13751ad89354335d076c",
+        "Build · .NET Release": "84215010a896ff94089e13751ad89354335d076c"
       },
-      "artifactReuseFullRun": {
-        "id": 42527196539,
-        "attempt": 1,
-        "sourceSha": "17e142fea294d574ade773fb075019983dff4877",
-        "buildContractsSeconds": 266,
-        "predecessorSeconds": 1204,
-        "measuredJobReductionSeconds": 938,
-        "fullSuites": "IN_PROGRESS_DOMAIN_API_E2E"
-      },
-      "localChecks": {
-        "actionlint": "PASS",
-        "gitDiffCheck": "PASS"
-      },
-      "currentCandidateCi": "NOT_RUN",
-      "releaseOrDeployment": "NOT_PERFORMED",
-      "evidence": ".local/autonomous/evidence/ci-cd-acceleration-20261108/"
+      "compileAngularOverlapSeconds": 93,
+      "artifactId": 13637053881,
+      "artifactBytes": 439661072,
+      "artifactDownloadSeconds": 10,
+      "artifactVerifyRestoreSeconds": 9,
+      "cleanBuildFallback": "SKIPPED",
+      "observedPriorRunDifferenceSeconds": 875,
+      "causalEndToEndSavingsClaimed": false,
+      "exactFullCandidateCi": "PENDING",
+      "activePredecessorFullRunId": 42527196539,
+      "deploymentTiming": "NOT_MEASURED"
     }
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."
