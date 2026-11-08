@@ -6,7 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { finalize, Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { guidPattern } from '../../core/contracts';
-import { decodeOffboardingReadiness, OffboardingReadiness, offboardingStateLabel } from './client-contracts';
+import { decodeOffboardingCloseoutRecovery, decodeOffboardingReadiness, OffboardingReadiness, offboardingStateLabel } from './client-contracts';
 import { offboardingNotesHash, pendingOffboarding, type PendingOffboarding } from './offboarding-pending';
 
 const activeOffboardingRequests = new Set<string>();
@@ -42,7 +42,12 @@ const activeOffboardingRequests = new Set<string>();
             <p role="status">A BLOCKED_DECISION review record was saved. It did not approve offboarding or change the client's archive, work, money, access or retention state.</p>
           } @else {
             <p class="muted">This immutable snapshot records what was visible at review time. It does not approve or complete offboarding. UNKNOWN and action-required items remain unresolved; client archiving is a separate action.</p>
-            @if (pending()) { <p role="alert">A previous review outcome is unconfirmed. Re-enter its exact original notes to retry the same request.</p> }
+            @if (pending()) {
+              <p role="alert">A previous review outcome is unconfirmed. Re-enter its exact original notes to retry the same request or check its server-confirmed outcome.</p>
+              <button matButton="outlined" data-offboarding-recover [disabled]="closeoutLoading() || !dispositionNotes.trim()" (click)="recoverCloseout()">
+                {{ closeoutLoading() ? 'Checking…' : 'Check original review outcome' }}
+              </button>
+            }
             <label for="offboarding-disposition-notes">Review notes:</label>
             <textarea id="offboarding-disposition-notes" name="offboardingReviewNotes" [(ngModel)]="dispositionNotes" rows="3" maxlength="2000" placeholder="Enter notes about this blocked review"></textarea>
             <button matButton="filled" data-offboarding-closeout [disabled]="closeoutLoading() || !dispositionNotes.trim()" (click)="recordCloseout(r)">
@@ -78,6 +83,16 @@ export class ClientOffboardingReadiness {
   private storageKey(id: string): string | null {
     const session = this.session.current();
     return session?.staff ? 'auditsphere-offboarding-pending-v1:' + session.firmId.toLowerCase() + ':' + session.userId.toLowerCase() + ':' + id : null;
+  }
+  private clearExactPendingReference(key: string, raw: string): boolean {
+    try {
+      if (sessionStorage.getItem(key) !== raw) return false;
+      sessionStorage.removeItem(key);
+      return sessionStorage.getItem(key) === null;
+    } catch { return false; }
+  }
+  private matchesPendingReference(key: string, raw: string): boolean {
+    try { return sessionStorage.getItem(key) === raw; } catch { return false; }
   }
 
   private readPending(id: string): void {
@@ -145,6 +160,113 @@ export class ClientOffboardingReadiness {
         this.error.set('Offboarding readiness is unavailable for your current access. Nothing was changed.');
       },
     });
+  }
+
+  async recoverCloseout(): Promise<void> {
+    const id = this.clientId()?.toLowerCase();
+    const original = this.pending();
+    const notes = this.dispositionNotes.trim();
+    const context = this.currentContext();
+    const readiness = this.result();
+    if (!id || !guidPattern.test(id) || !original || !readiness || readiness.clientId.toLowerCase() !== id ||
+        this.readinessContext !== context || original.clientId !== id || this.closeoutLoading() || this.pendingUnavailable ||
+        !notes || notes.length > 2000) return;
+    const key = this.storageKey(id);
+    if (!key) return;
+    const revision = this.revision;
+    let claimed = false;
+    let sent = false;
+    this.closeoutLoading.set(true);
+    this.error.set('');
+    try {
+      if (await offboardingNotesHash(original.salt, notes) !== original.notesHash) {
+        if (revision === this.revision && context === this.currentContext())
+          this.error.set('The notes differ from the original review. Re-enter the original notes.');
+        return;
+      }
+      if (revision !== this.revision || context !== this.currentContext() || key !== this.storageKey(id)) return;
+      if (activeOffboardingRequests.has(key)) {
+        this.error.set('The original review request is still in flight. Wait before checking its outcome.');
+        return;
+      }
+      const raw = JSON.stringify(original);
+      if (sessionStorage.getItem(key) !== raw) {
+        this.pendingUnavailable = true;
+        this.error.set('The recovery reference changed. Reload this client and check the original request.');
+        return;
+      }
+      activeOffboardingRequests.add(key);
+      claimed = true;
+      this.closeoutRequest?.unsubscribe();
+      this.closeoutRequest = this.http.post<unknown>(
+        `/api/ui/clients/${id}/offboarding-closeout/recovery`, {
+          requestKey: original.requestKey, expectedRevision: original.archiveRevision,
+          expectedReadinessDigest: original.readinessDigest, dispositionNotes: notes, acknowledgedActionItems: []
+        }).pipe(timeout(30000), finalize(() => activeOffboardingRequests.delete(key))).subscribe({
+        next: (value) => {
+          if (revision !== this.revision || context !== this.currentContext() || key !== this.storageKey(id)) return;
+          this.closeoutLoading.set(false);
+          let recovery: ReturnType<typeof decodeOffboardingCloseoutRecovery>;
+          try { recovery = decodeOffboardingCloseoutRecovery(value); }
+          catch {
+            this.error.set('The server returned an invalid recovery result. The original outcome remains unconfirmed.');
+            return;
+          }
+          const actorId = this.session.current()?.userId.toLowerCase();
+          if (recovery.clientId.toLowerCase() !== id || recovery.actorUserId.toLowerCase() !== actorId ||
+              recovery.requestKey.toLowerCase() !== original.requestKey.toLowerCase() ||
+              recovery.readinessDigest !== original.readinessDigest ||
+              recovery.expectedArchiveRevision !== original.archiveRevision || !this.matchesPendingReference(key, raw)) {
+            this.pendingUnavailable = true;
+            this.error.set('The recovery result did not match the exact pending request. Its reference was retained.');
+            return;
+          }
+          if (recovery.outcome === 'COMMITTED_RECEIPT') {
+            const receipt = recovery.receipt;
+            if (!receipt || receipt.dispositionNotes !== notes || receipt.acknowledgedActionItems.length !== 0 ||
+                receipt.isArchived !== original.isArchived || receipt.readinessOverallState !== original.overallState ||
+                receipt.decidedByUserId.toLowerCase() !== actorId) {
+              this.error.set('The recovered receipt did not match the original review intent. Its reference was retained.');
+              return;
+            }
+            if (!this.clearExactPendingReference(key, raw)) {
+              this.pendingUnavailable = true;
+              this.error.set('The recovered receipt is confirmed, but its exact recovery reference could not be cleared.');
+              return;
+            }
+            this.pending.set(null);
+            this.closeoutSuccess.set(true);
+            this.dispositionNotes = '';
+            return;
+          }
+          if (!this.clearExactPendingReference(key, raw)) {
+            this.pendingUnavailable = true;
+            this.error.set('The terminal result is confirmed, but its exact recovery reference could not be cleared.');
+            return;
+          }
+          this.pending.set(null);
+          this.closeoutSuccess.set(false);
+          this.dispositionNotes = '';
+          this.readinessContext = null;
+          this.result.set(null);
+          this.error.set('The original review was not recorded because the client archive revision advanced. Refresh readiness before starting a new review.');
+        },
+        error: (err: unknown) => {
+          if (revision !== this.revision || context !== this.currentContext() || key !== this.storageKey(id)) return;
+          this.closeoutLoading.set(false);
+          this.error.set(err instanceof HttpErrorResponse && err.error?.code === 'generation.stale'
+            ? 'The server could not prove a committed receipt or terminal non-commit. Keep the original request and try recovery again later.'
+            : 'The original review outcome remains unconfirmed. Its recovery reference was retained.');
+        }
+      });
+      sent = true;
+    } catch {
+      if (revision === this.revision && context === this.currentContext())
+        this.error.set('The recovery reference or original notes could not be verified. No resolution was applied.');
+    } finally {
+      if (claimed && !sent) activeOffboardingRequests.delete(key);
+      if (!sent && revision === this.revision && context === this.currentContext()) this.closeoutLoading.set(false);
+    }
   }
 
   async recordCloseout(r: OffboardingReadiness): Promise<void> {

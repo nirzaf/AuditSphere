@@ -4533,6 +4533,123 @@
         ]
       }
     },
+    "/api/ui/clients/{id}/offboarding-closeout/recovery": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "summary": "Resolve a client offboarding review request",
+        "description": "Recovers the exact immutable BLOCKED_DECISION receipt or returns a server-proven terminal non-commit after the client archive revision advances. It never approves offboarding or changes client state.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveClientOffboardingCloseoutInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOffboardingCloseoutRecoveryResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiCodeErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/clients/{id}/relationship-candidates": {
       "get": {
         "tags": [
@@ -111139,6 +111256,54 @@
           }
         }
       },
+      "ClientOffboardingCloseoutRecoveryResult": {
+        "required": [
+          "outcome",
+          "clientId",
+          "actorUserId",
+          "requestKey",
+          "readinessDigest",
+          "expectedArchiveRevision",
+          "currentArchiveRevision",
+          "receipt"
+        ],
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestKey": {
+            "type": "string"
+          },
+          "readinessDigest": {
+            "type": "string"
+          },
+          "expectedArchiveRevision": {
+            "type": "string"
+          },
+          "currentArchiveRevision": {
+            "type": "string"
+          },
+          "receipt": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClientOffboardingCloseoutResult"
+              }
+            ]
+          }
+        }
+      },
       "ClientOffboardingCloseoutResult": {
         "required": [
           "recordId",
@@ -151905,6 +152070,41 @@
           },
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "ResolveClientOffboardingCloseoutInput": {
+        "required": [
+          "requestKey",
+          "expectedRevision",
+          "expectedReadinessDigest",
+          "dispositionNotes"
+        ],
+        "type": "object",
+        "properties": {
+          "requestKey": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "expectedReadinessDigest": {
+            "type": "string"
+          },
+          "dispositionNotes": {
+            "type": "string"
+          },
+          "acknowledgedActionItems": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

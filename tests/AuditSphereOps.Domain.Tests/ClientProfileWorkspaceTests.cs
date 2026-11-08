@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Globalization;
 using System.Text.Json;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
@@ -1048,6 +1049,221 @@ public sealed class ClientProfileWorkspaceTests
   }
 
   [Fact]
+  public async Task OffboardingCloseout_ResolvesSupersededRequestAndFreshReviewUsesCurrentRevision()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var manager = PbcSeed.User(f.FirmId, "Staff");
+    db.Users.Add(manager);
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, manager, "Manager", f.ClientId));
+    await db.SaveChangesAsync();
+    var actor = PbcSeed.Actor(manager, "Manager");
+    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, actor, f.ClientId);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    var original = new ClientOffboardingCloseoutRequest(f.ClientId, "Original blocked review.", [], 0,
+      ExpectedReadinessDigest: readiness.Value!.ReadinessDigest, RequestKey: Guid.NewGuid().ToString("D"));
+
+    var archived = await PracticeCrmService.SetClientArchivedAsync(db, actor, new(f.ClientId, true, 0));
+    Assert.True(archived.Succeeded, archived.Message);
+    var staleRetry = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, actor, original,
+      snapshotFactory: CreateOffboardingSnapshotFactory(pg));
+    Assert.False(staleRetry.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, staleRetry.ErrorCode);
+    Assert.Empty(await db.ClientOffboardingRecords.Where(x => x.ClientId == f.ClientId).ToListAsync());
+
+    var unauthorized = await PracticeCrmService.ResolveOffboardingCloseoutAsync(db,
+      PbcSeed.Actor(f.Client, "ClientUser"), new(f.ClientId, original.RequestKey!, original.ExpectedRevision!.Value,
+        original.ExpectedReadinessDigest!, original.DispositionNotes, original.AcknowledgedActionItems));
+    Assert.False(unauthorized.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, unauthorized.ErrorCode);
+
+    var resolved = await PracticeCrmService.ResolveOffboardingCloseoutAsync(db, actor,
+      new(f.ClientId, original.RequestKey!, original.ExpectedRevision!.Value,
+        original.ExpectedReadinessDigest!, original.DispositionNotes, original.AcknowledgedActionItems));
+    Assert.True(resolved.Succeeded, resolved.Message);
+    Assert.Equal(ClientOffboardingCloseoutRecoveryOutcomes.SupersededWithoutCommit, resolved.Value!.Outcome);
+    Assert.Equal(original.RequestKey, resolved.Value.RequestKey);
+    Assert.Equal(original.ExpectedReadinessDigest, resolved.Value.ReadinessDigest);
+    Assert.Equal("0", resolved.Value.ExpectedArchiveRevision);
+    Assert.Equal("1", resolved.Value.CurrentArchiveRevision);
+    Assert.Null(resolved.Value.Receipt);
+
+    var fresh = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, actor, f.ClientId);
+    Assert.True(fresh.Succeeded, fresh.Message);
+    Assert.Equal("1", fresh.Value!.ArchiveRevision);
+    var newReview = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, actor,
+      original with { ExpectedRevision = 1, ExpectedReadinessDigest = fresh.Value.ReadinessDigest, RequestKey = Guid.NewGuid().ToString("D") },
+      snapshotFactory: CreateOffboardingSnapshotFactory(pg));
+    Assert.True(newReview.Succeeded, newReview.Message);
+    Assert.Equal("1", newReview.Value!.ArchiveRevision);
+    Assert.True(newReview.Value.IsArchived);
+    Assert.Equal(1, await db.ClientOffboardingRecords.CountAsync(x => x.ClientId == f.ClientId));
+    Assert.Equal(1, await db.ClientLifecycleEvents.CountAsync(x => x.ClientId == f.ClientId));
+  }
+
+  [Fact]
+  public async Task OffboardingCloseout_RecoversCommittedReceiptBeforeArchiveRevisionDrift()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var manager = PbcSeed.User(f.FirmId, "Staff");
+    db.Users.Add(manager);
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, manager, "Manager", f.ClientId));
+    await db.SaveChangesAsync();
+    var actor = PbcSeed.Actor(manager, "Manager");
+    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db, actor, f.ClientId);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    var original = new ClientOffboardingCloseoutRequest(f.ClientId, "Exact committed review.", [], 0,
+      ExpectedReadinessDigest: readiness.Value!.ReadinessDigest, RequestKey: Guid.NewGuid().ToString("D"));
+    var committed = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, actor, original,
+      snapshotFactory: CreateOffboardingSnapshotFactory(pg));
+    Assert.True(committed.Succeeded, committed.Message);
+    var archived = await PracticeCrmService.SetClientArchivedAsync(db, actor, new(f.ClientId, true, 0));
+    Assert.True(archived.Succeeded, archived.Message);
+
+    var recovered = await PracticeCrmService.ResolveOffboardingCloseoutAsync(db, actor,
+      new(f.ClientId, original.RequestKey!, original.ExpectedRevision!.Value,
+        original.ExpectedReadinessDigest!, original.DispositionNotes, original.AcknowledgedActionItems));
+    Assert.True(recovered.Succeeded, recovered.Message);
+    Assert.Equal(ClientOffboardingCloseoutRecoveryOutcomes.CommittedReceipt, recovered.Value!.Outcome);
+    Assert.Equal("1", recovered.Value.CurrentArchiveRevision);
+    Assert.Equal(committed.Value!.RecordId, recovered.Value.Receipt!.RecordId);
+    Assert.Equal(committed.Value.DecidedAt, recovered.Value.Receipt.DecidedAt);
+    Assert.Equal("0", recovered.Value.Receipt.ArchiveRevision);
+    Assert.False(recovered.Value.Receipt.IsArchived);
+    Assert.Equal(1, await db.ClientOffboardingRecords.CountAsync(x => x.ClientId == f.ClientId));
+  }
+
+  [Fact]
+  public async Task OffboardingCloseout_RecoverySerializesAgainstDelayedOriginalAndFencesLatePublication()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    await using var setup = new AuditSphereDbContext(pg.Options);
+    var manager = PbcSeed.User(f.FirmId, "Staff");
+    setup.Users.Add(manager);
+    setup.RoleGrants.Add(PbcSeed.Grant(f.FirmId, manager, "Manager", f.ClientId));
+    await setup.SaveChangesAsync();
+    var actor = PbcSeed.Actor(manager, "Manager");
+    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(setup, actor, f.ClientId);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    var original = new ClientOffboardingCloseoutRequest(f.ClientId, "Delayed original review.", [], 0,
+      ExpectedReadinessDigest: readiness.Value!.ReadinessDigest, RequestKey: Guid.NewGuid().ToString("D"));
+    await using var writer = new AuditSphereDbContext(pg.Options);
+    await using var mutation = await writer.Database.BeginTransactionAsync();
+    await writer.Database.ExecuteSqlInterpolatedAsync(
+      $"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR UPDATE");
+    writer.ClientLifecycleEvents.Add(new ClientLifecycleEvent
+    {
+      Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, Revision = 1,
+      EventKind = ClientLifecycleEventKinds.Archived, ActorUserId = manager.Id, OccurredAt = DateTimeOffset.UtcNow
+    });
+    await writer.SaveChangesAsync();
+
+    await using var resolutionDb = new AuditSphereDbContext(pg.Options);
+    await using var originalDb = new AuditSphereDbContext(pg.Options);
+    await resolutionDb.Database.OpenConnectionAsync();
+    await originalDb.Database.OpenConnectionAsync();
+    var resolutionPid = ((NpgsqlConnection)resolutionDb.Database.GetDbConnection()).ProcessID;
+    var originalPid = ((NpgsqlConnection)originalDb.Database.GetDbConnection()).ProcessID;
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+    var resolution = PracticeCrmService.ResolveOffboardingCloseoutAsync(resolutionDb, actor,
+      new(f.ClientId, original.RequestKey!, original.ExpectedRevision!.Value,
+        original.ExpectedReadinessDigest!, original.DispositionNotes, original.AcknowledgedActionItems), deadline.Token);
+    Task<CommandResult<ClientOffboardingCloseoutResult>>? originalPublication = null;
+    try
+    {
+      await WaitUntilBlocked(resolutionPid, deadline.Token);
+      originalPublication = PracticeCrmService.RecordOffboardingCloseoutAsync(originalDb, actor, original, deadline.Token,
+        CreateOffboardingSnapshotFactory(pg));
+      await WaitUntilBlocked(originalPid, deadline.Token);
+      await mutation.CommitAsync(deadline.Token);
+      var resolved = await resolution;
+      var published = await originalPublication!;
+      Assert.True(resolved.Succeeded, resolved.Message);
+      Assert.Equal(ClientOffboardingCloseoutRecoveryOutcomes.SupersededWithoutCommit, resolved.Value!.Outcome);
+      Assert.False(published.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, published.ErrorCode);
+    }
+    finally
+    {
+      deadline.Cancel();
+      if (writer.Database.CurrentTransaction is not null) await mutation.RollbackAsync();
+    }
+    Assert.Empty(await setup.ClientOffboardingRecords.Where(x => x.ClientId == f.ClientId).ToListAsync());
+    Assert.Equal(1, await setup.ClientLifecycleEvents.CountAsync(x => x.ClientId == f.ClientId));
+
+    async Task WaitUntilBlocked(int pid, CancellationToken cancellationToken)
+    {
+      await using var observer = new NpgsqlConnection(pg.ConnectionString);
+      await observer.OpenAsync(cancellationToken);
+      await using var blocked = new NpgsqlCommand("SELECT cardinality(pg_blocking_pids(@pid)) > 0", observer);
+      blocked.Parameters.AddWithValue("pid", pid);
+      while (!(bool)(await blocked.ExecuteScalarAsync(cancellationToken))!)
+        await Task.Delay(10, cancellationToken);
+    }
+  }
+
+  [Fact]
+  public async Task OffboardingCloseout_RefusesArchiveRevisionChangedWhileWaitingForFirmFence()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    await using var writer = new AuditSphereDbContext(pg.Options);
+    var manager = PbcSeed.User(f.FirmId, "Staff");
+    writer.Users.Add(manager);
+    writer.RoleGrants.Add(PbcSeed.Grant(f.FirmId, manager, "Manager", f.ClientId));
+    await writer.SaveChangesAsync();
+    var actor = PbcSeed.Actor(manager, "Manager");
+    await using var reader = new AuditSphereDbContext(pg.Options);
+    var readiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(reader, actor, f.ClientId);
+    Assert.True(readiness.Succeeded, readiness.Message);
+    var request = new ClientOffboardingCloseoutRequest(f.ClientId, "Reviewed before archive change.", [], 0,
+      ExpectedReadinessDigest: readiness.Value!.ReadinessDigest, RequestKey: Guid.NewGuid().ToString("D"));
+
+    await using var mutation = await writer.Database.BeginTransactionAsync();
+    await writer.Database.ExecuteSqlInterpolatedAsync(
+      $"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR UPDATE");
+    await reader.Database.OpenConnectionAsync();
+    var readerPid = ((NpgsqlConnection)reader.Database.GetDbConnection()).ProcessID;
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+    var publication = PracticeCrmService.RecordOffboardingCloseoutAsync(reader, actor, request, deadline.Token,
+      CreateOffboardingSnapshotFactory(pg));
+    try
+    {
+      await using var observer = new NpgsqlConnection(pg.ConnectionString);
+      await observer.OpenAsync(deadline.Token);
+      await using var blocked = new NpgsqlCommand("SELECT cardinality(pg_blocking_pids(@pid)) > 0", observer);
+      blocked.Parameters.AddWithValue("pid", readerPid);
+      while (!(bool)(await blocked.ExecuteScalarAsync(deadline.Token))!)
+      {
+        Assert.False(publication.IsCompleted, "Closeout must wait for the firm fence before publication.");
+        await Task.Delay(10, deadline.Token);
+      }
+
+      writer.ClientLifecycleEvents.Add(new ClientLifecycleEvent
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, Revision = 1,
+        EventKind = ClientLifecycleEventKinds.Archived, ActorUserId = manager.Id, OccurredAt = DateTimeOffset.UtcNow
+      });
+      await writer.SaveChangesAsync(deadline.Token);
+      await mutation.CommitAsync(deadline.Token);
+      var refused = await publication;
+      Assert.False(refused.Succeeded, refused.Message);
+      Assert.Equal(ErrorCodes.GenerationStale, refused.ErrorCode);
+    }
+    finally
+    {
+      deadline.Cancel();
+      if (writer.Database.CurrentTransaction is not null) await mutation.RollbackAsync();
+    }
+    Assert.Empty(await writer.ClientOffboardingRecords.ToListAsync());
+    Assert.Equal(1, await writer.ClientLifecycleEvents.CountAsync(e => e.ClientId == f.ClientId));
+  }
+
+  [Fact]
   public async Task OffboardingCloseout_RefusesEpochRevokedWhileWaitingForFirmFence()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -1072,7 +1288,8 @@ public sealed class ClientProfileWorkspaceTests
     using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
     var publication = PracticeCrmService.RecordOffboardingCloseoutAsync(reader, actor,
       new ClientOffboardingCloseoutRequest(f.ClientId, "Reviewed before access revocation.", [], 0,
-        ExpectedReadinessDigest: readiness.Value!.ReadinessDigest, RequestKey: Guid.NewGuid().ToString("D")), deadline.Token);
+        ExpectedReadinessDigest: readiness.Value!.ReadinessDigest, RequestKey: Guid.NewGuid().ToString("D")), deadline.Token,
+      CreateOffboardingSnapshotFactory(pg));
     try
     {
       // Observe the real server-side wait, not just dispatch: its RepeatableRead snapshot
@@ -1396,6 +1613,19 @@ public sealed class ClientProfileWorkspaceTests
     Id = Guid.NewGuid(), FirmId = fixture.FirmId, ReceiptId = receipt.Id,
     InvoiceId = invoice.Id, Amount = amount, CreatedAt = createdAt
   };
+
+  private static IAuditSphereDbContextFactory CreateOffboardingSnapshotFactory(PgTestSchema pg) =>
+    new OffboardingSnapshotContextFactory(pg.Options);
+
+  private sealed class OffboardingSnapshotContextFactory(DbContextOptions<AuditSphereDbContext> options)
+    : IAuditSphereDbContextFactory
+  {
+    public Task<IAuditSphereDbContext> CreateAsync(CancellationToken ct = default)
+    {
+      ct.ThrowIfCancellationRequested();
+      return Task.FromResult<IAuditSphereDbContext>(new AuditSphereDbContext(options));
+    }
+  }
 
   private sealed class RevokeDuringContacts(Func<Task> revoke) : DbCommandInterceptor
   {

@@ -1,4 +1,5 @@
 using System.Globalization;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -36,6 +37,12 @@ public static partial class UiEndpoints
     bool ArchiveClientOnCloseout = false,
     string? ExpectedReadinessDigest = null,
     string? RequestKey = null);
+  public sealed record ResolveClientOffboardingCloseoutInput(
+    string RequestKey,
+    string? ExpectedRevision,
+    string ExpectedReadinessDigest,
+    string DispositionNotes,
+    IReadOnlyList<string>? AcknowledgedActionItems = null);
   public sealed record ClientArchiveStateResponse(bool IsArchived, DateTimeOffset? LastArchivedAt, string Revision);
 
   /// <summary>Direct success body returned after a client relationship or routing is revoked.</summary>
@@ -97,7 +104,8 @@ public static partial class UiEndpoints
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
 
     var closeout = group.MapPost("/clients/{id:guid}/offboarding-closeout", async (Guid id, RecordClientOffboardingCloseoutInput input,
-      HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
+      HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IAuditSphereDbContextFactory snapshotFactory,
+      IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
@@ -109,8 +117,9 @@ public static partial class UiEndpoints
       if (!long.TryParse(input.ExpectedRevision, NumberStyles.None, CultureInfo.InvariantCulture, out var expRev) || expRev < 0)
         return Results.Json(new { code = "crm.invalid", message = "A non-negative expected archive revision is required." }, statusCode: 400);
       var result = await PracticeCrmService.RecordOffboardingCloseoutAsync(db, actor,
-        new ClientOffboardingCloseoutRequest(id, input.DispositionNotes ?? string.Empty, input.AcknowledgedActionItems, expRev, input.ArchiveClientOnCloseout, input.ExpectedReadinessDigest, input.RequestKey),
-        http.RequestAborted);
+        new ClientOffboardingCloseoutRequest(id, input.DispositionNotes ?? string.Empty, input.AcknowledgedActionItems,
+          expRev, input.ArchiveClientOnCloseout, input.ExpectedReadinessDigest, input.RequestKey),
+        http.RequestAborted, snapshotFactory);
       if (!result.Succeeded)
         return Results.Json(new { code = result.ErrorCode, message = result.Message },
           statusCode: result.ErrorCode == "crm.invalid" ? 400 : result.ErrorCode is ErrorCodes.GateBlocked or ErrorCodes.GenerationStale or ErrorCodes.IdempotencyConflict ? 409 : 403);
@@ -120,6 +129,39 @@ public static partial class UiEndpoints
     }).WithSummary("Record client offboarding closeout")
       .WithDescription("Records an immutable BLOCKED_DECISION review snapshot. UNKNOWN and action-required items remain unresolved; this route never approves offboarding, archives the client, or changes access, work, money or retention.");
     closeout.Produces<ClientOffboardingCloseoutResult>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
+
+    var closeoutRecovery = group.MapPost("/clients/{id:guid}/offboarding-closeout/recovery", async (Guid id,
+      ResolveClientOffboardingCloseoutInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
+      IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 400); }
+
+      if (input is null || id == Guid.Empty || !long.TryParse(input.ExpectedRevision, NumberStyles.None,
+          CultureInfo.InvariantCulture, out var expectedRevision) || expectedRevision < 0)
+        return Results.Json(new { code = "crm.invalid", message = "A non-negative original archive revision is required." }, statusCode: 400);
+
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await PracticeCrmService.ResolveOffboardingCloseoutAsync(db, actor,
+        new ClientOffboardingCloseoutRecoveryRequest(id, input.RequestKey ?? string.Empty, expectedRevision,
+          input.ExpectedReadinessDigest ?? string.Empty, input.DispositionNotes ?? string.Empty, input.AcknowledgedActionItems),
+        http.RequestAborted);
+      if (!result.Succeeded)
+        return Results.Json(new { code = result.ErrorCode, message = result.Message },
+          statusCode: result.ErrorCode == "crm.invalid" ? 400 : result.ErrorCode is ErrorCodes.GateBlocked or ErrorCodes.GenerationStale or ErrorCodes.IdempotencyConflict ? 409 : 403);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return Results.Ok(result.Value);
+    }).WithSummary("Resolve a client offboarding review request")
+      .WithDescription("Recovers the exact immutable BLOCKED_DECISION receipt or returns a server-proven terminal non-commit after the client archive revision advances. It never approves offboarding or changes client state.");
+    closeoutRecovery.Produces<ClientOffboardingCloseoutRecoveryResult>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")

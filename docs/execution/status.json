@@ -3,22 +3,22 @@
   "observedAtUtc": "2026-11-08T05:56:14Z",
   "source": {
     "branch": "master",
-    "baseSha": "fbb153055546bf868515704eb310ca979752a396",
-    "originMasterSha": "fbb153055546bf868515704eb310ca979752a396",
-    "workingTree": "At the 2026-11-08T05:53:44Z observation, HEAD and origin/master both matched fbb153055546bf868515704eb310ca979752a396. Only this current-slice handoff and status refresh are locally changed. A fresh git fetch found no incoming commits or paths. T12-B exact fast and image runs passed all jobs with actual checkout logs and API, migrations, and worker manifest pins. The docs refresh is not covered by those runs and needs its own push-triggered fast CI. No full release verification, browser acceptance, release acceptance, professional/external approval, or deployment is claimed.",
+    "baseSha": "969018a85ed2ff4a00a65698d0a7d06456819e47",
+    "originMasterSha": "969018a85ed2ff4a00a65698d0a7d06456819e47",
+    "workingTree": "At 2026-11-08T07:51:29Z, HEAD and origin/master both match 969018a85ed2ff4a00a65698d0a7d06456819e47. The T24 offboarding-recovery candidate is uncommitted across API, application, Angular client/spec, Domain/API tests, OpenAPI contract and affected architecture/execution docs. Focused Domain/API/Angular checks, Angular production build and OpenAPI checks pass; final documentation validators pass. The prior 969 docs-only run 42452801437 reports all three jobs successful, but actual checkout SHAs are unverified because decoded logs were not retained. No CI covers this candidate yet; no browser acceptance, full release acceptance, professional/external approval or deployment is claimed.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
-    "practiceManagement": "INCOMPLETE. T13-A archive authority fencing, T18 Domain repair, T13-B exact archive-review identity and T12-B archive command ownership are published through fbb153055546bf868515704eb310ca979752a396. T12-B fast run 42450142142 and image run 42450142098 passed all jobs with actual checkout evidence; API, migrations and worker pins are retained. The focused archive Angular spec passed 38/38 and production build passed with two existing CSS budget warnings. No exact full release run or image rehearsal is claimed. T12-C unknown-outcome recovery remains open. The active continuation checkpoint gates T12-A/T12-C source changes on a successful exact T17 full-release run. Whole practice-management acceptance, browser acceptance and professional/external gates remain open.",
-    "documentation": "PASS: docs/ contains 173 Markdown files, including 107 task-breakdown inputs, with zero exact duplicates. docs/auditsphere-docs-index.md maps each category to a maintained entry point. No further safe flattening was identified because approved decisions, proposals, history, operator procedures, and machine-consumed inputs have separate authority or source identity. The handoff and machine status reflect fbb15305 and its terminal fast/image results. Final validators pass across 179 repository Markdown files, 22 canonical documents, 2,896 relative links, and 255 repository paths with zero deleted references. Fresh fetch found no incoming paths; publish only the two execution records, then verify their exact push-triggered fast CI.",
+    "practiceManagement": "INCOMPLETE. T24 terminal recovery for permanently superseded uncommitted offboarding reviews is implemented in the local candidate based on 969018a85ed2ff4a00a65698d0a7d06456819e47. Focused Domain, API and Angular regressions pass; the Angular production build and OpenAPI emitter/contract checks pass. Exact-candidate fast/image/full CI and browser acceptance are not run for this candidate. T12-A/T12-C, broader practice-management acceptance, lifecycle dependencies and qualified professional/external gates remain open; no release or deployment is claimed.",
+    "documentation": "PASS: category consolidation remains complete. docs/ contains 173 Markdown files, including 107 task-breakdown inputs behind the single human task-library index. No additional safe flattening was identified because approved decisions, proposals, historical provenance, operator procedures and machine-consumed sources have distinct authority or source identity. Documentation health passes for 179 repository Markdown files, 22 canonical documents, 2,896 relative links and 255 backticked repository paths with zero deleted references; filename, narrative, audit-source, task-board, UI-inventory and diff checks pass. Evidence: .local/autonomous/evidence/practice-gap-t24-20261108/final-verification.json.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Fresh fetch found origin/master at fbb153055546bf868515704eb310ca979752a396 with no incoming commits or paths. Commit and push only docs/execution/auditsphere-execution-current-slice.md and docs/execution/status.json, then monitor the exact push-triggered fast CI. Keep RUN-003/REPAIR and all broader practice-management, full-release, browser, and professional/external gates open; T12-A/T12-C remain gated on the exact T17 full-release dependency.",
-      "note": "At the 2026-11-08T05:52:04Z observation, state validation passed for 48 tasks with RUN-003/REPAIR. The task board remains PARTIAL_SOURCE with code verdicts NOT_AUDITED. fbb15305 exact fast/image runs passed with actual checkout evidence; final local docs validation passed and fresh fetch found no incoming changes.",
-      "currentSourceSha": "fbb153055546bf868515704eb310ca979752a396"
+      "nextAction": "Keep RUN-003/REPAIR. Publish the scoped T24 candidate and current docs after the already completed fresh fetch/path review; then monitor exact-candidate fast and image CI. Dispatch one immutable-SHA full release verification only after applicable fast/image gates pass. Keep browser, professional/external, overall practice-management and deployment acceptance open.",
+      "note": "2026-11-08T07:51:29Z: scripts/agent/verify-completion-state.py passed for 48 rows with RUN-003/REPAIR. The state ledger retains its exact 77985 full-CI failure; this newer T24 candidate is not recorded as a completed RUN-003 item. Actual checkout and origin/master are 969018a. T24 focused tests and local docs gates pass; no candidate CI/full/browser acceptance is claimed.",
+      "currentSourceSha": "969018a85ed2ff4a00a65698d0a7d06456819e47"
     }
   },
   "localVerification": {
@@ -31,7 +31,7 @@
       "deletedPathReferences": 0,
       "approvedRecordsAndTaskProvenance": "PASS",
       "command": "python3 scripts/docs/validate-markdown-documentation.py",
-      "observedAtUtc": "2026-11-08T05:56:14Z"
+      "observedAtUtc": "2026-11-08T07:51:29Z"
     },
     "filenameValidation": {
       "result": "PASS",
@@ -39,13 +39,13 @@
       "conventionalExceptions": 3,
       "standardizedDocuments": 176,
       "command": "python3 scripts/docs/validate-markdown-filenames.py",
-      "observedAtUtc": "2026-11-08T05:56:14Z"
+      "observedAtUtc": "2026-11-08T07:51:29Z"
     },
     "narrativeMetricsValidation": {
       "result": "PASS",
       "protectedDocuments": 6,
       "command": "python3 scripts/docs/validate-narrative-metrics.py",
-      "observedAtUtc": "2026-11-08T05:56:14Z"
+      "observedAtUtc": "2026-11-08T07:51:29Z"
     },
     "documentationReconciliation": {
       "result": "PASS",
@@ -94,6 +94,41 @@
           "headSha": "fbb153055546bf868515704eb310ca979752a396",
           "originMasterSha": "fbb153055546bf868515704eb310ca979752a396"
         }
+      },
+      "postT24LocalCandidate20261108": {
+        "result": "PASS_CURRENT_DOCS_RECONCILIATION",
+        "observedAtUtc": "2026-11-08T07:51:29Z",
+        "baseSha": "969018a85ed2ff4a00a65698d0a7d06456819e47",
+        "staleCurrentSourceFound": [
+          "execution handoff and status still described fbb15305 and a docs-only refresh as pending"
+        ],
+        "updatedDocuments": [
+          "docs/execution/auditsphere-execution-current-slice.md",
+          "docs/execution/status.json"
+        ],
+        "architectureReference": "The current architecture code map already records the T24 recovery API, lock order, receipt-first recovery and terminal non-commit boundary.",
+        "categoryAudit": {
+          "docsMarkdownFiles": 173,
+          "taskBreakdownMarkdownInputs": 107,
+          "result": "PASS_NO_ADDITIONAL_SAFE_FLATTENING",
+          "reason": "approved decisions, proposals, historical provenance, operator procedures and machine-consumed sources retain distinct authority or source identity"
+        },
+        "documentationValidation": {
+          "result": "PASS",
+          "repositoryMarkdownFiles": 179,
+          "canonicalDocuments": 22,
+          "relativeLinks": 2896,
+          "backtickedRepositoryPaths": 255,
+          "deletedReferences": 0,
+          "filenames": "PASS",
+          "narrativeMetrics": "PASS",
+          "auditSource": "PASS_20_SECTIONS_165_PROCEDURE_PARAGRAPHS",
+          "taskBoard": "PASS_PARTIAL_SOURCE",
+          "uiInventory": "PASS",
+          "diffCheck": "PASS"
+        },
+        "preUpdateArchive": ".local/autonomous/evidence/practice-gap-t24-20261108/docs-pre-update-20261108T072055Z/manifest.json",
+        "verificationEvidence": ".local/autonomous/evidence/practice-gap-t24-20261108/final-verification.json"
       }
     },
     "auditProgramSource": {
@@ -504,6 +539,62 @@
         "headSha": "fbb153055546bf868515704eb310ca979752a396",
         "originMasterSha": "fbb153055546bf868515704eb310ca979752a396"
       }
+    },
+    "t24OffboardingRecovery20261108": {
+      "result": "PASS_FOCUSED",
+      "observedAtUtc": "2026-11-08T07:49:59Z",
+      "baseSha": "969018a85ed2ff4a00a65698d0a7d06456819e47",
+      "candidateStatus": "UNCOMMITTED_AT_OBSERVATION",
+      "domainRecoveryCohort": {
+        "result": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "evidence": ".local/autonomous/evidence/practice-gap-t24-20261108/domain/t24-offboarding-recovery.trx"
+      },
+      "domainOriginalReadinessRegression": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "evidence": ".local/autonomous/evidence/practice-gap-t24-20261108/final/domain/t24-readiness-final.trx"
+      },
+      "domainWaitFenceCohort": {
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "overlapsRecoveryCohort": true,
+        "evidence": ".local/autonomous/evidence/practice-gap-t24-20261108/readcommitted-fence/t24-fence-red-green.trx"
+      },
+      "apiRecoveryRoute": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "evidence": ".local/autonomous/evidence/practice-gap-t24-20261108/api/t24-recovery-api.trx"
+      },
+      "angularReadinessSpec": {
+        "result": "PASS",
+        "passed": 29,
+        "failed": 0,
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/clients/client-offboarding-readiness.spec.ts'",
+        "evidence": "fresh 2026-11-08 focused rerun; result captured in final-verification.json"
+      },
+      "angularProductionBuild": {
+        "result": "PASS_WITH_EXISTING_CSS_BUDGET_WARNINGS",
+        "warnings": [
+          "src/app/features/commercial/settings.scss",
+          "src/app/app.scss"
+        ]
+      },
+      "openApiEmitterReleaseBuild": {
+        "result": "PASS",
+        "warnings": 0,
+        "errors": 0
+      },
+      "openApiContract": {
+        "result": "PASS",
+        "command": "bash scripts/contracts/verify-openapi.sh"
+      },
+      "browserAcceptance": "NOT_RUN",
+      "exactCandidateFastImagesFullCi": "NOT_RUN"
     }
   },
   "observedCi": {

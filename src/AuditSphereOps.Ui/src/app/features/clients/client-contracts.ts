@@ -84,6 +84,33 @@ export function decodeOffboardingReadiness(value: unknown) {
   return v;
 }
 export type OffboardingReadiness = ReturnType<typeof decodeOffboardingReadiness>;
+const closeoutReceipt = obj({
+  recordId: guid, clientId: guid, status: oneOf('BLOCKED_DECISION'), readinessOverallState: offboardingState,
+  readinessDigest: str(64), dispositionNotes: str(2000), acknowledgedActionItems: arr(str(100), 200),
+  decidedByUserId: guid, decidedAt: instant, isArchived: bool, archiveRevision: revision, requestKey: guid,
+});
+export function decodeOffboardingCloseoutRecovery(value: unknown) {
+  const r = decode(obj({
+    outcome: oneOf('COMMITTED_RECEIPT', 'SUPERSEDED_WITHOUT_COMMIT'), clientId: guid, actorUserId: guid,
+    requestKey: guid, readinessDigest: str(64), expectedArchiveRevision: revision,
+    currentArchiveRevision: revision, receipt: nullable(closeoutReceipt),
+  }), value);
+  if (!/^[0-9a-f]{64}$/.test(r.readinessDigest)) throw new Error('Invalid recovery digest');
+  if (BigInt(r.currentArchiveRevision) < BigInt(r.expectedArchiveRevision))
+    throw new Error('Invalid current archive revision');
+  if (r.outcome === 'COMMITTED_RECEIPT') {
+    const receipt = r.receipt;
+    if (!receipt || receipt.clientId.toLowerCase() !== r.clientId.toLowerCase() ||
+        receipt.decidedByUserId.toLowerCase() !== r.actorUserId.toLowerCase() ||
+        receipt.requestKey.toLowerCase() !== r.requestKey.toLowerCase() ||
+        receipt.readinessDigest !== r.readinessDigest || receipt.archiveRevision !== r.expectedArchiveRevision)
+      throw new Error('Recovery receipt identity mismatch');
+  } else if (r.receipt !== null || BigInt(r.currentArchiveRevision) <= BigInt(r.expectedArchiveRevision)) {
+    throw new Error('Invalid terminal non-commit proof');
+  }
+  return r;
+}
+export type OffboardingCloseoutRecovery = ReturnType<typeof decodeOffboardingCloseoutRecovery>;
 export function offboardingStateLabel(state: string): string {
   return state === 'ACTION_REQUIRED' ? 'Action required' : state === 'UNKNOWN' ? 'Unknown' : 'No findings';
 }

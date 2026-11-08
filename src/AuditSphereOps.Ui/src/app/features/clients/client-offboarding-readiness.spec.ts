@@ -58,6 +58,19 @@ const withFeeReconciliation = (count: number, detail: string) => {
       state: 'ACTION_REQUIRED', count, detail }] });
   return value;
 };
+const committedRecovery = (requestKey: string, notes: string, currentArchiveRevision = '1') => ({
+  outcome: 'COMMITTED_RECEIPT', clientId, actorUserId: clientId, requestKey, readinessDigest,
+  expectedArchiveRevision: '0', currentArchiveRevision,
+  receipt: {
+    recordId: otherId, clientId, status: 'BLOCKED_DECISION', readinessOverallState: 'ACTION_REQUIRED',
+    readinessDigest, dispositionNotes: notes, acknowledgedActionItems: [], decidedByUserId: clientId,
+    decidedAt: '2026-11-08T10:00:00Z', isArchived: false, archiveRevision: '0', requestKey,
+  },
+});
+const supersededRecovery = (requestKey: string, currentArchiveRevision = '1') => ({
+  outcome: 'SUPERSEDED_WITHOUT_COMMIT', clientId, actorUserId: clientId, requestKey, readinessDigest,
+  expectedArchiveRevision: '0', currentArchiveRevision, receipt: null,
+});
 
 describe('client offboarding readiness', () => {
   it('rejects an UNKNOWN item that carries a count, and a count that contradicts its state', () => {
@@ -439,6 +452,121 @@ describe('client offboarding readiness', () => {
       retry.flush({ code: 'generation.stale' }, { status: 409, statusText: 'Rejected' });
       expect(component.pending()?.requestKey).toBe(originalKey);
       expect(sessionStorage.length).toBe(1);
+    });
+
+    it('clears only a server-proven terminal non-commit and requires fresh readiness before a new review', async () => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId); fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.load(); http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      component.dispositionNotes = 'Original notes'; await component.recordCloseout(component.result()!);
+      const first = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      const original = component.pending()!;
+      first.error(new ProgressEvent('error'));
+
+      await component.recordCloseout(component.result()!);
+      const retry = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      expect(retry.request.body.requestKey).toBe(original.requestKey);
+      retry.flush({ code: 'generation.stale' }, { status: 409, statusText: 'Stale' });
+      expect(component.pending()?.requestKey).toBe(original.requestKey);
+      expect(sessionStorage.length).toBe(1);
+
+      await component.recoverCloseout();
+      const recovery = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout/recovery`);
+      expect(recovery.request.body).toEqual({ requestKey: original.requestKey, expectedRevision: '0',
+        expectedReadinessDigest: readinessDigest, dispositionNotes: 'Original notes', acknowledgedActionItems: [] });
+      recovery.flush(supersededRecovery(original.requestKey));
+      expect(component.pending()).toBeNull();
+      expect(component.closeoutSuccess()).toBe(false);
+      expect(component.result()).toBeNull();
+      expect(sessionStorage.length).toBe(0);
+      expect(component.error()).toContain('Refresh readiness before starting a new review');
+
+      component.load();
+      http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush({ ...body(), isArchived: true,
+        archiveRevision: '1', readinessDigest: 'b'.repeat(64) });
+      expect(component.result()?.archiveRevision).toBe('1');
+      expect(component.pending()).toBeNull();
+    });
+
+    it('recovers the exact committed receipt after archive state changes', async () => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId); fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.load(); http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      component.dispositionNotes = 'Original notes'; await component.recordCloseout(component.result()!);
+      const first = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      const original = component.pending()!;
+      first.error(new ProgressEvent('error'));
+
+      await component.recoverCloseout();
+      const recovery = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout/recovery`);
+      recovery.flush(committedRecovery(original.requestKey, 'Original notes'));
+      expect(component.closeoutSuccess()).toBe(true);
+      expect(component.pending()).toBeNull();
+      expect(sessionStorage.length).toBe(0);
+    });
+
+    it('retains pending recovery on generic stale errors and mismatched terminal identities', async () => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId); fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.load(); http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      component.dispositionNotes = 'Original notes'; await component.recordCloseout(component.result()!);
+      const first = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      const original = component.pending()!;
+      first.error(new ProgressEvent('error'));
+
+      await component.recoverCloseout();
+      http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout/recovery`).flush(
+        { code: 'generation.stale' }, { status: 409, statusText: 'Not terminal' });
+      expect(component.pending()?.requestKey).toBe(original.requestKey);
+      expect(sessionStorage.length).toBe(1);
+
+      await component.recoverCloseout();
+      const mismatched = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout/recovery`);
+      mismatched.flush(supersededRecovery(otherId));
+      expect(component.pending()?.requestKey).toBe(original.requestKey);
+      expect(sessionStorage.length).toBe(1);
+      expect(component.error()).toContain('did not match the exact pending request');
+    });
+
+    it('retains the exact request when a terminal proof has a regressed archive revision', async () => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId); fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.load(); http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      component.dispositionNotes = 'Original notes'; await component.recordCloseout(component.result()!);
+      const first = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      const original = component.pending()!;
+      first.error(new ProgressEvent('error'));
+
+      await component.recoverCloseout();
+      http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout/recovery`).flush({
+        ...supersededRecovery(original.requestKey), currentArchiveRevision: '0'
+      });
+      expect(component.pending()?.requestKey).toBe(original.requestKey);
+      expect(sessionStorage.length).toBe(1);
+      expect(component.error()).toContain('invalid recovery result');
+    });
+
+    it('does not dispatch recovery when the stored reference has been replaced', async () => {
+      const fixture = TestBed.createComponent(ClientOffboardingReadiness);
+      fixture.componentRef.setInput('clientId', clientId); fixture.detectChanges();
+      const component = fixture.componentInstance;
+      component.load(); http.expectOne(`/api/ui/clients/${clientId}/offboarding-readiness`).flush(body());
+      component.dispositionNotes = 'Original notes'; await component.recordCloseout(component.result()!);
+      const first = http.expectOne(`/api/ui/clients/${clientId}/offboarding-closeout`);
+      first.error(new ProgressEvent('error'));
+      const key = sessionStorage.key(0)!;
+      const replacement = JSON.stringify({ ...component.pending()!, requestKey: otherId });
+      sessionStorage.setItem(key, replacement);
+
+      await component.recoverCloseout();
+      http.expectNone(`/api/ui/clients/${clientId}/offboarding-closeout/recovery`);
+      expect(sessionStorage.getItem(key)).toBe(replacement);
+      expect(component.pending()?.requestKey).not.toBe(otherId);
+      expect(component.error()).toContain('recovery reference changed');
     });
 
     it('does not clear a changed recovery reference on an old definitive rejection', async () => {

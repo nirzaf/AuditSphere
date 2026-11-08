@@ -34,6 +34,30 @@ public sealed record ClientOffboardingCloseoutResult(
   string ArchiveRevision,
   string? RequestKey = null);
 
+public sealed record ClientOffboardingCloseoutRecoveryRequest(
+  Guid ClientId,
+  string RequestKey,
+  long ExpectedRevision,
+  string ExpectedReadinessDigest,
+  string DispositionNotes,
+  IReadOnlyList<string>? AcknowledgedActionItems = null);
+
+public sealed record ClientOffboardingCloseoutRecoveryResult(
+  string Outcome,
+  Guid ClientId,
+  Guid ActorUserId,
+  string RequestKey,
+  string ReadinessDigest,
+  string ExpectedArchiveRevision,
+  string CurrentArchiveRevision,
+  ClientOffboardingCloseoutResult? Receipt);
+
+public static class ClientOffboardingCloseoutRecoveryOutcomes
+{
+  public const string CommittedReceipt = "COMMITTED_RECEIPT";
+  public const string SupersededWithoutCommit = "SUPERSEDED_WITHOUT_COMMIT";
+}
+
 public static partial class PracticeCrmService
 {
   private static readonly JsonSerializerOptions OffboardingJsonOptions = new()
@@ -43,7 +67,8 @@ public static partial class PracticeCrmService
   };
 
   public static async Task<CommandResult<ClientOffboardingCloseoutResult>> RecordOffboardingCloseoutAsync(
-    IAuditSphereDbContext db, ActorContext actor, ClientOffboardingCloseoutRequest request, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, ClientOffboardingCloseoutRequest request, CancellationToken ct = default,
+    IAuditSphereDbContextFactory? snapshotFactory = null)
   {
     if (request.ClientId == Guid.Empty || request.ExpectedRevision is null or < 0)
       return CommandResult<ClientOffboardingCloseoutResult>.Fail("crm.invalid", "A client and non-negative expected archive revision are required.");
@@ -75,34 +100,36 @@ public static partial class PracticeCrmService
       if (replay is not null) return replay;
     }
 
-    await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
-    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
-      return CommandResult<ClientOffboardingCloseoutResult>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
-
-    // A role mutation that committed while the RepeatableRead firm lock waited must not
-    // remain hidden in that snapshot. The user lock fences session-epoch changes (or
-    // PostgreSQL refuses the stale snapshot), as in the existing CRM publication paths.
+    // Acquire the publication fence at ReadCommitted so post-wait archive revisions are visible.
+    // The API supplies a factory for a separate RepeatableRead readiness snapshot created only
+    // after this fence is held; direct callers retain the original single-context snapshot path.
+    await using var tx = await db.Database.BeginTransactionAsync(
+      snapshotFactory is null ? IsolationLevel.RepeatableRead : IsolationLevel.ReadCommitted, ct);
     try
     {
+      if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+        return CommandResult<ClientOffboardingCloseoutResult>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+
+      // Recheck after the firm fence. The user lock serializes session-epoch changes;
+      // authorization and the client lock below also remain inside this snapshot.
       await db.Users.FromSqlInterpolated(
         $"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+      auth = await AuthorizationDecision.AuthorizeAsync(db, actor, gate, ct);
+      if (!auth.Succeeded)
+        return CommandResult<ClientOffboardingCloseoutResult>.Fail(auth.ErrorCode!, auth.Message!);
+
+      var client = await db.PracticeClients.FromSqlInterpolated($"""
+        SELECT * FROM practice_clients WHERE firm_id = {actor.FirmId} AND id = {request.ClientId} FOR UPDATE
+        """).AsNoTracking().SingleOrDefaultAsync(ct);
+      if (client is null)
+        return CommandResult<ClientOffboardingCloseoutResult>.Fail(ErrorCodes.ScopeDenied, "Client unavailable.");
     }
-    catch (Exception ex) when (ex.GetBaseException() is DbException cause &&
-        cause.GetType().GetProperty("SqlState")?.GetValue(cause) is "40001")
+    catch (Exception ex) when (IsSerializationFailure(ex))
     {
       await tx.RollbackAsync(ct);
       return CommandResult<ClientOffboardingCloseoutResult>.Fail(ErrorCodes.GenerationStale,
-        "Authorization changed while offboarding readiness was being recorded; refresh and review again.");
+        "Authorization or client archive changed while offboarding readiness was being recorded; refresh and review again.");
     }
-    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, gate, ct);
-    if (!auth.Succeeded)
-      return CommandResult<ClientOffboardingCloseoutResult>.Fail(auth.ErrorCode!, auth.Message!);
-
-    var client = await db.PracticeClients.FromSqlInterpolated($"""
-      SELECT * FROM practice_clients WHERE firm_id = {actor.FirmId} AND id = {request.ClientId} FOR UPDATE
-      """).AsNoTracking().SingleOrDefaultAsync(ct);
-    if (client is null)
-      return CommandResult<ClientOffboardingCloseoutResult>.Fail(ErrorCodes.ScopeDenied, "Client unavailable.");
 
     // Recheck under the same firm -> client lock order as the separate archive route.
     existing = await db.ClientOffboardingRecords.AsNoTracking().SingleOrDefaultAsync(x =>
@@ -126,7 +153,18 @@ public static partial class PracticeCrmService
       return CommandResult<ClientOffboardingCloseoutResult>.Fail(ErrorCodes.GenerationStale,
         "Client archive state changed while readiness was being recorded; refresh and review again.");
 
-    var readinessResult = await GetClientOffboardingReadinessCoreAsync(db, actor, request.ClientId, true, ct);
+    CommandResult<ClientOffboardingReadiness> readinessResult;
+    if (snapshotFactory is null)
+    {
+      readinessResult = await GetClientOffboardingReadinessCoreAsync(db, actor, request.ClientId, true, ct);
+    }
+    else
+    {
+      await using var snapshotDb = await snapshotFactory.CreateAsync(ct);
+      await using var snapshotTx = await snapshotDb.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+      readinessResult = await GetClientOffboardingReadinessCoreAsync(snapshotDb, actor, request.ClientId, true, ct);
+      await snapshotTx.CommitAsync(ct);
+    }
     if (!readinessResult.Succeeded || readinessResult.Value is null)
       return CommandResult<ClientOffboardingCloseoutResult>.Fail(readinessResult.ErrorCode!, readinessResult.Message!);
     var readiness = readinessResult.Value;
@@ -174,6 +212,93 @@ public static partial class PracticeCrmService
     await tx.CommitAsync(ct);
 
     return CommandResult<ClientOffboardingCloseoutResult>.Ok(MapOffboardingRecord(record, readiness, normalizedAcknowledged));
+  }
+
+  public static async Task<CommandResult<ClientOffboardingCloseoutRecoveryResult>> ResolveOffboardingCloseoutAsync(
+    IAuditSphereDbContext db, ActorContext actor, ClientOffboardingCloseoutRecoveryRequest request, CancellationToken ct = default)
+  {
+    if (request.ClientId == Guid.Empty || request.ExpectedRevision < 0)
+      return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail("crm.invalid", "A client and non-negative expected archive revision are required.");
+    if (string.IsNullOrWhiteSpace(request.DispositionNotes) || request.DispositionNotes.Trim().Length > 2000)
+      return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail("crm.invalid", "Original review notes are required and must not exceed 2,000 characters.");
+    if (!TryNormalizeRequestKey(request.RequestKey, out var normalizedKey) || normalizedKey != request.RequestKey)
+      return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail("crm.invalid", "The original canonical request identity is required.");
+    if (!TryNormalizeDigest(request.ExpectedReadinessDigest, out var expectedDigest) || expectedDigest != request.ExpectedReadinessDigest)
+      return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail("crm.invalid", "The original reviewed readiness SHA-256 is required.");
+
+    var notes = request.DispositionNotes.Trim();
+    var acknowledged = request.AcknowledgedActionItems ?? Array.Empty<string>();
+    if (acknowledged.Any(string.IsNullOrWhiteSpace) ||
+        acknowledged.Distinct(StringComparer.Ordinal).Count() != acknowledged.Count)
+      return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail("crm.invalid", "Original acknowledged items must be distinct and non-empty.");
+    var normalizedAcknowledged = acknowledged.Order(StringComparer.Ordinal).ToArray();
+    var gate = new AuthorizationRequest(actor.FirmId, ClientId: request.ClientId, RequiredRoles: CommercialRoles, InternalOnly: true);
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, gate, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail(auth.ErrorCode!, auth.Message!);
+
+    // Use the same firm -> user -> client serialization as publication. ReadCommitted is
+    // essential here: a request that waited for the fence must inspect committed receipt
+    // and lifecycle rows using a snapshot taken after the wait.
+    await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+    try
+    {
+      if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+        return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+
+      await db.Users.FromSqlInterpolated(
+        $"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+      auth = await AuthorizationDecision.AuthorizeAsync(db, actor, gate, ct);
+      if (!auth.Succeeded)
+        return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail(auth.ErrorCode!, auth.Message!);
+
+      var client = await db.PracticeClients.FromSqlInterpolated($"""
+        SELECT * FROM practice_clients WHERE firm_id = {actor.FirmId} AND id = {request.ClientId} FOR UPDATE
+        """).AsNoTracking().SingleOrDefaultAsync(ct);
+      if (client is null)
+        return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail(ErrorCodes.ScopeDenied, "Client unavailable.");
+
+      // A committed receipt always wins over revision drift. Append-only receipt storage
+      // makes absence meaningful only after the original publication fence is acquired.
+      var existing = await db.ClientOffboardingRecords.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.RequestKey == normalizedKey, ct);
+      if (existing is not null)
+      {
+        var replay = ResolveOffboardingReplay(existing, actor, normalizedKey, expectedDigest,
+          request.ExpectedRevision, notes, normalizedAcknowledged);
+        if (replay is null || !replay.Succeeded || replay.Value is null)
+          return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail(
+            replay?.ErrorCode ?? ErrorCodes.GateBlocked, replay?.Message ?? "The retained offboarding review receipt is unavailable.");
+        var currentRevisionText = await db.ClientLifecycleEvents.AsNoTracking()
+          .Where(e => e.FirmId == actor.FirmId && e.ClientId == request.ClientId)
+          .Select(e => (long?)e.Revision).MaxAsync(ct) is long latestRevision
+            ? latestRevision.ToString(CultureInfo.InvariantCulture)
+            : "0";
+        await tx.CommitAsync(ct);
+        return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Ok(new(
+          ClientOffboardingCloseoutRecoveryOutcomes.CommittedReceipt, request.ClientId, actor.UserId, normalizedKey,
+          expectedDigest, request.ExpectedRevision.ToString(CultureInfo.InvariantCulture), currentRevisionText, replay.Value));
+      }
+
+      var currentArchiveRevision = await db.ClientLifecycleEvents.AsNoTracking()
+        .Where(e => e.FirmId == actor.FirmId && e.ClientId == request.ClientId)
+        .Select(e => (long?)e.Revision).MaxAsync(ct) ?? 0;
+      if (currentArchiveRevision <= request.ExpectedRevision)
+        return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail(ErrorCodes.GenerationStale,
+          "No committed review receipt or terminal non-commit proof is available yet. Keep the original request and retry recovery later.");
+
+      await tx.CommitAsync(ct);
+      return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Ok(new(
+        ClientOffboardingCloseoutRecoveryOutcomes.SupersededWithoutCommit, request.ClientId, actor.UserId, normalizedKey,
+        expectedDigest, request.ExpectedRevision.ToString(CultureInfo.InvariantCulture),
+        currentArchiveRevision.ToString(CultureInfo.InvariantCulture), null));
+    }
+    catch (Exception ex) when (IsSerializationFailure(ex))
+    {
+      await tx.RollbackAsync(ct);
+      return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail(ErrorCodes.GenerationStale,
+        "Authorization or archive state changed while the original review outcome was being resolved. Keep the request and refresh.");
+    }
   }
 
   private static async Task<CommandResult<ClientOffboardingCloseoutResult>?> ResolveOffboardingReplayAsync(
@@ -256,4 +381,7 @@ public static partial class PracticeCrmService
     normalized = candidate.ToLowerInvariant();
     return true;
   }
+
+  private static bool IsSerializationFailure(Exception ex) => ex.GetBaseException() is DbException cause &&
+    cause.GetType().GetProperty("SqlState")?.GetValue(cause) is "40001";
 }
