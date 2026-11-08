@@ -68,17 +68,20 @@ publish → non-root runtime with the Angular asset set), `src/AuditSphereOps.Wo
 
 ## Release process (also encoded in `.github/workflows/release.yml`)
 
-0. **Preconditions.** `verify-ci-passed` and `verify-release-source` refuse the release unless
-   both fast CI and retained full-regression evidence match the exact immutable commit SHA.
-   These read-only checks complete before image work or a protected environment approval.
-1. **Build candidate images in parallel.** Three independent jobs build the API, Worker and
-   migration images for `linux/amd64` from the exact verified checkout. Buildx uses an isolated
-   GitHub Actions cache scope per image. Each job uploads a SHA-256 checked image archive and
-   manifest bound to repository, workflow run/attempt, source SHA, Dockerfile and image tag.
-   These jobs receive no Azure OIDC token and write no ACR tags. Cache export is best-effort;
-   cache misses simply rebuild from the Dockerfiles, while cache-import errors remain visible.
-2. **Approve the protected environment.** The release job starts only after all three image builds
-   succeed and the configured reviewer approves. It downloads the three exact-run archives in
+0. **Verify fast CI.** `verify-ci-passed` requires a successful fast run for the exact immutable
+   release SHA. No candidate images build unless this read-only precondition passes.
+1. **Overlap full-evidence verification with candidate builds.** Once fast CI passes,
+   `verify-release-source` checks the retained full-regression evidence for the exact SHA while
+   three independent jobs build the API, Worker and migration images for `linux/amd64` from that
+   same checkout. Buildx uses an isolated GitHub Actions cache scope per image. Each job uploads a
+   SHA-256 checked archive and manifest bound to repository, workflow run/attempt, source SHA,
+   Dockerfile and image tag. These jobs receive no Azure OIDC token and write no ACR tags. If full
+   evidence is absent or invalid, the release job remains blocked and the uncredentialed candidate
+   archives are unusable and expire. Cache export is best-effort; cache misses rebuild from the
+   Dockerfiles, while cache-import errors remain visible.
+2. **Approve the protected environment.** The release job starts only after full evidence passes,
+   all three image builds succeed and the configured reviewer approves. It downloads the three
+   exact-run archives in
    parallel into separate artifact-name directories, then verifies the exact directory set,
    manifests and archive hashes before Azure login. OIDC remains limited to this protected job; it
    publishes the already-built SHA tags to ACR and records each registry digest. If an archive is

@@ -1,26 +1,26 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-08T17:37:08Z",
+  "observedAtUtc": "2026-11-08T18:02:29Z",
   "source": {
     "branch": "master",
-    "baseSha": "09a76bde75314b3a76ae12c6d310365d82427c6a",
-    "originMasterSha": "09a76bde75314b3a76ae12c6d310365d82427c6a",
-    "workingTree": "At 2026-11-08T17:35:55Z, HEAD and origin/master remain 09a76bde75314b3a76ae12c6d310365d82427c6a; only docs/execution/status.json and docs/execution/auditsphere-execution-current-slice.md are modified. The documentation health, filename, narrative and diff checks passed. Fetch/path review is next; the docs refresh is not yet published.",
+    "baseSha": "2f713a4cffdc08499b06901af80ff5ec504ba972",
+    "originMasterSha": "2f713a4cffdc08499b06901af80ff5ec504ba972",
+    "workingTree": "At 2026-11-08T18:02:29Z, HEAD and origin/master both equal 2f713a4cffdc08499b06901af80ff5ec504ba972; exact fast run 42505925107 passed for this SHA with all three actual job checkout hashes retained. The workflow/runbook/status/handoff currently contain a scoped local follow-up moving credential-free image builds to run in parallel with exact full-regression evidence verification after fast CI. The protected release still requires both gates. Only the listed workflow, runbook and execution-record paths are changed; no production effects.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
-    "practiceManagement": "INCOMPLETE. Current published source is 09a76bde75314b3a76ae12c6d310365d82427c6a; the broader practice-management backlog and professional/external acceptance remain separate from this CI/CD acceleration follow-up. No whole-application acceptance is claimed.",
+    "practiceManagement": "INCOMPLETE. Current source is 2f713a4cffdc08499b06901af80ff5ec504ba972; the broader practice-management backlog and professional/external acceptance remain separate from this CI/CD acceleration follow-up. No whole-application acceptance is claimed.",
     "documentation": "COMPLETE_FOR_REQUESTED_SCOPE; CATEGORY_AUDIT_AND_CONSOLIDATION_COMPLETE. The 173-file docs audit retains 107 machine/provenance task sources separately and found no exact duplicates or further safe flattening. Current health, filename and narrative validators passed after this refresh; exact candidate CI is still pending.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "RUN-003 remains REPAIR/incomplete. Continue practice-management work independently. CI/CD acceleration follow-up commit 09a76bde has exact fast PASS (run 42502644835; all three actual job checkouts verified). Refresh status/handoff, fetch and inspect incoming paths, publish only the docs refresh, run its exact fast gate, then dispatch one immutable exact-source full verification if it passes. Do not repeat predecessor cohorts or trigger protected release/deployment.",
+      "nextAction": "RUN-003 remains REPAIR/incomplete. Continue unrelated practice work independently. Exact fast CI on 2f713a4 passed run 42505925107 with all job checkouts. Current local release-only optimization overlaps credential-free image builds with the full-evidence check after fast CI; the release job still requires both. Finish actionlint/docs validation, fetch/review incoming paths, publish only the workflow/runbook/status/handoff paths, then pass exact fast CI and dispatch one immutable full run on that final source. Do not trigger protected release/deployment.",
       "note": "2026-11-08T13:05:03Z: RUN-003 remains REPAIR on 98679131fa65076c429fca8f95bb1f74ba7d7d7e. Exact fast run 42481222673 passed Angular, Docs and Release with all three actual checkout hashes matching 98679131fa65076c429fca8f95bb1f74ba7d7d7e; terminal proof .local/autonomous/evidence/ci-98679131-current-20261108/fast-terminal-proof.json. Focused API route 3/3 and named E2E 1/1 pass. Full verification for 98679131fa65076c429fca8f95bb1f74ba7d7d7e is not yet dispatched; predecessor API cancellation and E2E inactivity causes remain unconfirmed. Docs category consolidation is complete for the requested scope.",
       "currentSourceSha": "1a07935ce1aa0799a44fef076ce330b2fe499254"
     },
-    "ciCdAcceleration": "IN_PROGRESS. Published commit 1a07935 reuses same-run Release API/Worker outputs in the E2E runner via the existing OwnedHost artifact-root launcher, removing a redundant solution restore and second API/Worker builds while retaining all unfiltered tests. The predecessor full log measured those removed build steps at 670.48 seconds (API) and 2.63 seconds (Worker), 673.11 seconds combined; this is removed step work, not a measured end-to-end wall-time saving. Published commit 09a76bd builds API/Worker/migration image archives concurrently with isolated BuildKit caches, downloads the three exact-run archives in one pinned v4.3.0 parallel pattern step with exact directory/provenance/hash checks before OIDC, and pushes verified tags concurrently behind existing protection. Exact fast run 42502644835 passed on 09a76bde with all three job checkout SHAs verified. The exact-source full run for the post-refresh source, image pipeline, measured timing delta, protected release and deployment remain pending; no deployment."
+    "ciCdAcceleration": "IN_PROGRESS. Published 1a07935 reuses exact-source Release API/Worker outputs in E2E, eliminating the duplicate host build steps while retaining unfiltered tests. Published 09a76bd builds three image archives concurrently, downloads exact-run archives in parallel with provenance checks before OIDC, and pushes verified tags concurrently behind protection. Fast run 42502644835 passed for exact source 09a76bd with verified checkouts. The subsequent docs refresh 2f713a4 passed exact fast CI 42505925107, with all three checkout hashes verified; run creation-to-completion was 22m30 and Release job 19m41. The prior run 42502644835 took 29m21 from creation-to-completion; these are uncontrolled observations and do not prove the changes caused a saving. The current local follow-up starts credential-free image builds after fast CI while the exact full-evidence check runs in parallel; the protected release still needs both. Its exact fast/full gates are pending publication and execution. No image release or deployment."
   },
   "localVerification": {
     "documentationHealth": {
@@ -734,18 +734,15 @@
       "limitations": "Neither full run includes this local candidate. Scheduled API cancellation and E2E inactivity causes remain unconfirmed; no retry of unchanged source."
     },
     "ciAccelerationStaticReview": {
-      "result": "PASS_STATIC_AND_EXACT_FAST",
-      "actionlint": "PASS for release-verification.yml and release.yml",
-      "diffCheck": "PASS after current status/handoff refresh",
-      "exactCandidateCi": "Fast run 42502644835 SUCCESS on 09a76bde; Angular, Docs and Release logs each confirm the exact checkout; Angular 2029/196 files; Docs 2896 relative links; Release build PASS, OpenAPI semantics 12/12 and contract current",
-      "exactFullCi": "NOT_DISPATCHED for 09a76bde; dispatch one immutable full run only after post-refresh source exact fast passes",
-      "imageBuild": "NOT_RUN for 09a76bde",
+      "result": "PASS_STATIC_AND_PREVIOUS_EXACT_FAST",
+      "actionlint": "PASS for release-verification.yml and release.yml after local overlap edit",
+      "diffCheck": "PASS after local overlap edit; rerun with final docs",
+      "workflowGraphCheck": "PASS: build-images depends only on verify-ci-passed; release remains dependent on verify-ci-passed, verify-release-source and build-images; image job has no OIDC, Azure login or docker push",
+      "exactCandidateCi": "Exact fast run 42505925107 SUCCESS on 2f713a4; Angular, Docs and Release logs confirm exact checkout; Angular 2,029/196 files; Docs 2,896 links; Release build and guards passed",
+      "exactFullCi": "NOT_DISPATCHED for the final workflow candidate",
+      "imageBuild": "NOT_RUN",
       "deployment": "NOT_PERFORMED",
-      "evidence": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-42502644835/fast-terminal-proof.json",
-      "observedAtUtc": "2026-11-08T17:35:55Z",
-      "documentationHealth": "PASS_179_FILES_2896_LINKS_259_REPOSITORY_PATHS_0_DELETED_REFERENCES",
-      "filenameValidation": "PASS_179",
-      "narrativeValidation": "PASS_6"
+      "observedAtUtc": "2026-11-08T18:02:29Z"
     },
     "ciAccelerationFast42502644835": {
       "result": "PASS",
@@ -762,6 +759,24 @@
       "runCreatedAtUtc": "2026-11-08T16:59:23Z",
       "runCompletedAtUtc": "2026-11-08T17:28:44Z",
       "evidence": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-42502644835/fast-terminal-proof.json"
+    },
+    "ciAccelerationFast42505925107": {
+      "result": "PASS",
+      "runId": 42505925107,
+      "attempt": 1,
+      "sourceSha": "2f713a4cffdc08499b06901af80ff5ec504ba972",
+      "allThreeActualCheckoutShasMatch": true,
+      "angularTestsPassed": 2029,
+      "angularTestFilesPassed": 196,
+      "docsRelativeLinks": 2896,
+      "releaseBuild": "PASS",
+      "openApiSemanticTests": "12 passed, 0 failed, 0 skipped",
+      "openApiContract": "CURRENT",
+      "runCreatedAtUtc": "2026-11-08T17:37:57Z",
+      "runCompletedAtUtc": "2026-11-08T18:00:27Z",
+      "releaseJobSeconds": 1181,
+      "totalRunSeconds": 1350,
+      "evidence": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-2f713a4c-42505925107/fast-terminal-proof.json"
     }
   },
   "observedCi": {
@@ -1612,9 +1627,9 @@
       "noReleaseAcceptance": "CLAIMED_NONE"
     },
     "ciCdAccelerationCandidate20261108": {
-      "observedAtUtc": "2026-11-08T17:31:58Z",
+      "observedAtUtc": "2026-11-08T18:02:29Z",
       "baselineSha": "4352b4afd29053df09ee70845aa8c1aebe65d02c",
-      "publishedSha": "09a76bde75314b3a76ae12c6d310365d82427c6a",
+      "publishedSha": "2f713a4cffdc08499b06901af80ff5ec504ba972",
       "candidatePaths": [
         ".github/workflows/release-verification.yml",
         ".github/workflows/release.yml",
@@ -1622,7 +1637,7 @@
         "docs/execution/status.json",
         "docs/execution/auditsphere-execution-current-slice.md"
       ],
-      "candidateStatus": "PUBLISHED_FOLLOWUP_FAST_CI_PASS",
+      "candidateStatus": "PUBLISHED_DOC_REFRESH_FAST_CI_PASS",
       "e2eOptimization": "Reuse exact-run Release API/Worker build outputs through the existing OwnedHost artifact-root launcher; rely on the E2E project locked restore for direct ProjectReferences; remove the second solution restore and API/Worker builds. Unfiltered test commands and gates are unchanged.",
       "releaseOptimization": "Build API, Worker and migration image archives concurrently with isolated BuildKit cache scopes and no OIDC/ACR writes in image jobs. Protected release downloads the three exact-run archives concurrently with pinned v4.3.0 pattern matching into separate artifact-name directories; assert the exact directory set, then verify source/run/attempt/Dockerfile/tag/platform/archive size/SHA-256 before Azure login. Push the three verified tags concurrently and record digest pins.",
       "predecessorFullRun": {
@@ -1712,6 +1727,32 @@
       },
       "observedWallTimeSaving": "NOT_MEASURED",
       "candidateFollowupFastCi": {
+        "runId": 42505925107,
+        "attempt": 1,
+        "status": "SUCCESS",
+        "headSha": "2f713a4cffdc08499b06901af80ff5ec504ba972",
+        "actualCheckoutShaByJob": {
+          "Build · .NET Release": "2f713a4cffdc08499b06901af80ff5ec504ba972",
+          "Build · Angular": "2f713a4cffdc08499b06901af80ff5ec504ba972",
+          "Docs · Health": "2f713a4cffdc08499b06901af80ff5ec504ba972"
+        },
+        "jobIds": {
+          "Build · .NET Release": 128809108295,
+          "Build · Angular": 128808431662,
+          "Docs · Health": 128808431815
+        },
+        "createdAtUtc": "2026-11-08T17:37:57Z",
+        "completedAtUtc": "2026-11-08T18:00:27Z",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/42505925107",
+        "terminalProof": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-2f713a4c-42505925107/fast-terminal-proof.json",
+        "terminalProofSha256": "89981eb083e49294fc5080e923a7cc5992a657ed02230c4c39af34f135ffc395"
+      },
+      "candidateFollowupFullCi": "NOT_DISPATCHED_PENDING_LOCAL_RELEASE_WORKFLOW_CANDIDATE",
+      "candidateImageWorkflow": "NOT_DISPATCHED",
+      "protectedRelease": "NOT_PERFORMED",
+      "deployment": "NOT_PERFORMED",
+      "nextAction": "Finish docs/status refresh and validators; fetch origin and inspect incoming paths; publish only the four scoped paths. Run exact fast CI for that final source, then dispatch exactly one immutable full release-verification run if fast passes. Do not trigger protected release/deployment.",
+      "priorFollowupFastCi42502644835": {
         "runId": 42502644835,
         "attempt": 1,
         "status": "SUCCESS",
@@ -1730,11 +1771,25 @@
         "terminalProof": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-42502644835/fast-terminal-proof.json",
         "terminalProofSha256": "3af16b720454b78c0c21f3834b488ad2ea0fd7c3613efd811e8e257ccc1cf80a"
       },
-      "candidateFollowupFullCi": "NOT_DISPATCHED_PENDING_POST_REFRESH_FAST",
-      "candidateImageWorkflow": "NOT_DISPATCHED",
-      "protectedRelease": "NOT_PERFORMED",
-      "deployment": "NOT_PERFORMED",
-      "nextAction": "Refresh status and handoff, fetch origin and inspect incoming paths, publish only the docs refresh, run exact fast CI for its resulting SHA, then dispatch exactly one immutable full release-verification run on that final SHA if fast passes. Do not repeat predecessor cohorts or trigger protected release/deployment."
+      "observedFastTiming": {
+        "run42502644835CreatedToCompleteSeconds": 1761,
+        "run42505925107CreatedToCompleteSeconds": 1350,
+        "run42505925107ReleaseJobSeconds": 1181,
+        "comparison": "UNCONTROLLED; no causal speedup claim"
+      },
+      "localReleaseOverlapFollowup": {
+        "state": "LOCAL_UNCOMMITTED",
+        "paths": [
+          ".github/workflows/release.yml",
+          "infra/auditsphere-deployment-iac-runbook.md",
+          "docs/execution/status.json",
+          "docs/execution/auditsphere-execution-current-slice.md"
+        ],
+        "behavior": "After exact fast CI, credential-free image archive builds overlap with exact full-regression evidence verification; protected release still needs both and the image artifacts remain unpublishable if full verification fails.",
+        "actionlint": "PASS",
+        "workflowGraphCheck": "PASS",
+        "exactFastCi": "PENDING_FOR_FINAL_SOURCE"
+      }
     }
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."

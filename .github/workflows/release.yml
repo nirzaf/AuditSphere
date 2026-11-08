@@ -9,14 +9,16 @@
 #     created in the environment Key Vault through the approved secret process.
 # Until that plumbing exists, every live step remains BLOCKED_EXTERNAL and is not faked here.
 #
-# Release preconditions: fast CI and retained full-regression evidence must both match the exact
-# immutable release SHA before any image build or protected release job can start. Candidate
-# archives and BuildKit cache are staged first; Azure authentication, ACR writes and deployment
-# remain inside the protected environment job.
+# Release preconditions: exact-source fast CI must pass before candidate work starts. After that,
+# the read-only full-regression evidence check and credential-free image builds can run in parallel.
+# The protected release job still requires both gates and all three verified archives; Azure
+# authentication, ACR writes and deployment remain inside that protected environment job.
 #
 # Deployment order per the architecture contract:
-#   verify exact-source fast and full CI (read-only)
-#     -> parallel-build source-bound image archives without registry credentials
+#   verify exact-source fast CI (read-only)
+#     -> in parallel: verify exact-source full CI evidence and build source-bound image archives
+#        without registry credentials
+#     -> require both full evidence and all image archives before protected release
 #     -> approve the protected environment, then publish captured tags and deploy registry digests
 #     -> run the migration job (failure blocks the release)
 #     -> deploy API + worker revisions
@@ -173,8 +175,8 @@ jobs:
             --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY"
 
   build-images:
-    name: Build · ${{ matrix.name }} image for the verified source
-    needs: [verify-ci-passed, verify-release-source]
+    name: Build · ${{ matrix.name }} image from fast-CI-qualified source
+    needs: [verify-ci-passed]
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -200,7 +202,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - name: Check out the exact verified source
+      - name: Check out the exact fast-CI-qualified source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.sha }}
