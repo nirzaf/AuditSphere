@@ -78,16 +78,21 @@ publish → non-root runtime with the Angular asset set), `src/AuditSphereOps.Wo
    These jobs receive no Azure OIDC token and write no ACR tags. Cache export is best-effort;
    cache misses simply rebuild from the Dockerfiles, while cache-import errors remain visible.
 2. **Approve the protected environment.** The release job starts only after all three image builds
-   succeed and the configured reviewer approves. It verifies each same-run artifact manifest and
-   archive hash before Azure login. OIDC remains limited to this protected job; it publishes the
-   already-built SHA tags to ACR and records each registry digest. If the archive is absent, stale,
-   mismatched or corrupt, release stops before Azure authentication or registry writes.
+   succeed and the configured reviewer approves. It downloads the three exact-run archives in
+   parallel into separate artifact-name directories, then verifies the exact directory set,
+   manifests and archive hashes before Azure login. OIDC remains limited to this protected job; it
+   publishes the already-built SHA tags to ACR and records each registry digest. If an archive is
+   absent, unexpected, stale, mismatched or corrupt, release stops before Azure authentication or
+   registry writes.
 3. **Run the migration job.** If it fails or hangs, the new revision never receives traffic.
    Migrations are forward-only; application rollback is never coupled to a database rollback.
-4. **Deploy** API + worker revisions via `infra/environments/<env>/main.bicep`, passing the
-   **deployment epoch** as an explicit parameter (the release pipeline assigns
-   `github.run_number`, which is positive and strictly increasing — satisfying the
-   durable-operation fencing rule with no manual ambiguity).
+4. **Deploy** API + worker revisions via one `az deployment group create` against
+   `infra/environments/<env>/main.bicep`, passing the **deployment epoch** as an explicit
+   parameter (the release pipeline assigns `github.run_number`, which is positive and strictly
+   increasing — satisfying the durable-operation fencing rule with no manual ambiguity). The
+   template submits the API and worker modules in the same deployment without an app-level
+   dependency between them, allowing ARM to orchestrate those independent updates together; the
+   migration job remains a blocking precondition and the canary remains after deployment.
 5. **Canary**: `az containerapp ingress traffic update --revision-weight <new>=10`, then smoke
    checks — liveness, readiness, and a read-only Angular route. Canary validation never uses
    destructive business commands.

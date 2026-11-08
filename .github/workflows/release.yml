@@ -306,23 +306,12 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Download exact-run image archives
+      - name: Download exact-run image archives concurrently
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: release-image-api-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/release-images/api
-
-      - name: Download exact-run worker image archive
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: release-image-worker-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/release-images/worker
-
-      - name: Download exact-run migration image archive
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: release-image-migrations-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/release-images/migrations
+          pattern: release-image-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-images
+          merge-multiple: false
 
       - name: Verify image provenance and load exact image tags
         env:
@@ -331,13 +320,20 @@ jobs:
           set -euo pipefail
           [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]
           registry="$ACR_NAME.azurecr.io"
+          artifact_root="$RUNNER_TEMP/release-images"
+          expected_artifacts="$(printf '%s\n' \
+            "release-image-api-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            "release-image-migrations-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            "release-image-worker-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" | LC_ALL=C sort)"
+          actual_artifacts="$(find "$artifact_root" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort)"
+          test "$actual_artifacts" = "$expected_artifacts"
           for key in api worker migrations; do
             case "$key" in
               api) image_name=auditsphere-api; dockerfile=src/AuditSphereOps.Api/Dockerfile ;;
               worker) image_name=auditsphere-worker; dockerfile=src/AuditSphereOps.Worker/Dockerfile ;;
               migrations) image_name=auditsphere-migrations; dockerfile=infra/docker/migrations.Dockerfile ;;
             esac
-            artifact_dir="$RUNNER_TEMP/release-images/$key"
+            artifact_dir="$artifact_root/release-image-$key-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
             manifest="$artifact_dir/source.json"
             archive="$artifact_dir/image.tar"
             expected_image="$registry/$image_name:$GITHUB_SHA"

@@ -1,26 +1,26 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-08T16:18:49Z",
+  "observedAtUtc": "2026-11-08T16:58:08Z",
   "source": {
     "branch": "master",
-    "baseSha": "4352b4afd29053df09ee70845aa8c1aebe65d02c",
-    "originMasterSha": "4352b4afd29053df09ee70845aa8c1aebe65d02c",
-    "workingTree": "At 2026-11-08T16:18:49Z, HEAD and freshly checked origin/master are both 4352b4afd29053df09ee70845aa8c1aebe65d02c. Three candidate workflow/runbook files plus this status and current-slice handoff are modified and uncommitted. No deployment or release acceptance is claimed.",
+    "baseSha": "1a07935ce1aa0799a44fef076ce330b2fe499254",
+    "originMasterSha": "1a07935ce1aa0799a44fef076ce330b2fe499254",
+    "workingTree": "At 2026-11-08T16:54:28Z, HEAD and origin/master both equal 1a07935ce1aa0799a44fef076ce330b2fe499254. A local four-path follow-up changes the release workflow to download only this run/attempt's three image archives in one pinned parallel pattern step; it preserves exact-directory and provenance/hash checks before Azure OIDC. Exact fast run 42499665341 completed SUCCESS on head 1a07935ce1aa0799a44fef076ce330b2fe499254; its three job outcomes are success, but the job-log response was not retained after a local evidence-capture error, so actual job checkout hashes remain unverified. The predecessor full run 42486726156 is terminal FAILURE on 4352b4afd29053df09ee70845aa8c1aebe65d02c; API termination cause and E2E testhost abort cause remain unconfirmed. The follow-up remains uncommitted and has not run through CI. No exact follow-up full/image run, protected release, ACR write, or deployment is claimed.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
-    "practiceManagement": "INCOMPLETE. Current published baseline is 4352b4afd29053df09ee70845aa8c1aebe65d02c; the CI/CD workflow candidate is separate and uncommitted. Earlier practice-management implementation, focused evidence and historical CI records remain in the current-slice handoff and their evidence directories. Exact full run 42486726156 on 4352b4afd29053df09ee70845aa8c1aebe65d02c is still in progress: its E2E job failed and API test job remains active, so no terminal logs were fetched during this poll. Browser, professional/external acceptance and deployment remain unclaimed.",
+    "practiceManagement": "INCOMPLETE. Published source is 1a07935ce1aa0799a44fef076ce330b2fe499254; the broader practice-management backlog and professional/external acceptance remain separate from this CI/CD acceleration follow-up. No whole-application acceptance is claimed.",
     "documentation": "COMPLETE_FOR_REQUESTED_SCOPE; CATEGORY_AUDIT_AND_CONSOLIDATION_COMPLETE. The 173-file docs audit retains 107 machine/provenance task sources separately and found no exact duplicates or further safe flattening. Current health, filename and narrative validators passed after this refresh; exact candidate CI is still pending.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "RUN-003 remains REPAIR/incomplete. Continue the current practice backlog independently. Separately validate the CI/CD acceleration candidate on 4352b4afd29053df09ee70845aa8c1aebe65d02c, resolve and retain terminal evidence for exact full run 42486726156 once its parent is terminal, then publish only after origin fetch/path review. Candidate exact-source fast/full gates have not run.",
+      "nextAction": "RUN-003 remains REPAIR/incomplete. Continue unrelated practice-management work independently. For CI/CD, the published 1a07935ce1aa0799a44fef076ce330b2fe499254 fast run 42499665341 is terminal SUCCESS, while job-level actual checkout hashes were not retained; do not claim checkout proof. The predecessor full run 42486726156 is terminal FAILURE on 4352b4afd29053df09ee70845aa8c1aebe65d02c: API exited 143 after 365 passed test lines without a final summary or reported assertion failure; E2E stopped after the 15-minute inactivity watchdog with 335 passed and zero failed assertions; the two unfinished sequence entries are not proven causes. Do not repeat this predecessor cohort or invent a root cause. Finish static validation and fetch/path review, then publish the local parallel-download follow-up as a scoped change. Run one exact fast gate for that final source; if it passes, dispatch one immutable full release-verification run to validate the E2E artifact reuse. Keep image builds/protected release/deployment gated and do not claim timing savings until measured.",
       "note": "2026-11-08T13:05:03Z: RUN-003 remains REPAIR on 98679131fa65076c429fca8f95bb1f74ba7d7d7e. Exact fast run 42481222673 passed Angular, Docs and Release with all three actual checkout hashes matching 98679131fa65076c429fca8f95bb1f74ba7d7d7e; terminal proof .local/autonomous/evidence/ci-98679131-current-20261108/fast-terminal-proof.json. Focused API route 3/3 and named E2E 1/1 pass. Full verification for 98679131fa65076c429fca8f95bb1f74ba7d7d7e is not yet dispatched; predecessor API cancellation and E2E inactivity causes remain unconfirmed. Docs category consolidation is complete for the requested scope.",
-      "currentSourceSha": "98679131fa65076c429fca8f95bb1f74ba7d7d7e"
+      "currentSourceSha": "1a07935ce1aa0799a44fef076ce330b2fe499254"
     },
-    "ciCdAcceleration": "IN_PROGRESS. Static actionlint, diff and documentation validators pass for the uncommitted candidate. It reuses exact-source API/Worker Release outputs in the E2E runner, removes the redundant solution-wide restore, and builds three release images in parallel with isolated BuildKit caches before the protected release job; verified archives are then pushed concurrently after approval. Fast CI settings, tests and release gates are unchanged. Candidate exact-source CI and timing measurements remain pending; no deployment."
+    "ciCdAcceleration": "IN_PROGRESS. Published 1a07935ce1aa0799a44fef076ce330b2fe499254 reuses same-run Release API/Worker outputs in the E2E runner, removing the redundant solution restore and second API/Worker builds while retaining all unfiltered tests. The prior full run measured those redundant E2E build steps at 673.11 seconds combined; this is work removed from that job, not an observed end-to-end wall-time saving. The published source also builds API/Worker/migration image archives concurrently with isolated BuildKit caches, then pushes the three tags concurrently after protected approval. The local follow-up replaces sequential image-artifact downloads with one exact run/attempt pattern download using pinned actions/download-artifact v4.3.0; it asserts the three expected artifact directories and retains manifest/source/archive hash/platform checks before OIDC. Current static checks pass for the local follow-up. The exact fast run on 1a07935ce1aa0799a44fef076ce330b2fe499254 completed success, but actual job checkout hashes are not independently verified because the one log-capture attempt failed before evidence persistence. Follow-up fast/full/image CI, protected release and actual timing deltas remain pending; no deployment."
   },
   "localVerification": {
     "documentationHealth": {
@@ -28,10 +28,10 @@
       "markdownFiles": 179,
       "canonicalDocuments": 22,
       "relativeLinksChecked": 2896,
-      "backtickedRepositoryPathsChecked": 257,
+      "backtickedRepositoryPathsChecked": 260,
       "deletedPathReferences": 0,
       "command": "python3 scripts/docs/validate-markdown-documentation.py",
-      "observedAtUtc": "2026-11-08T16:18:49Z"
+      "observedAtUtc": "2026-11-08T16:58:08Z"
     },
     "filenameValidation": {
       "result": "PASS",
@@ -39,13 +39,13 @@
       "conventionalExceptions": 3,
       "standardizedDocuments": 176,
       "command": "python3 scripts/docs/validate-markdown-filenames.py",
-      "observedAtUtc": "2026-11-08T16:18:49Z"
+      "observedAtUtc": "2026-11-08T16:58:08Z"
     },
     "narrativeMetricsValidation": {
       "result": "PASS",
       "protectedDocuments": 6,
       "command": "python3 scripts/docs/validate-narrative-metrics.py",
-      "observedAtUtc": "2026-11-08T16:18:49Z"
+      "observedAtUtc": "2026-11-08T16:58:08Z"
     },
     "documentationReconciliation": {
       "result": "PASS",
@@ -741,10 +741,10 @@
         "actionlint .github/workflows/release-verification.yml .github/workflows/release.yml",
         "git diff --check"
       ],
-      "exactCandidateCi": "NOT_RUN",
+      "exactCandidateCi": "Published fast success on 1a07935; job checkout hashes unverified; local follow-up CI not run; full CI not dispatched",
       "imageBuild": "NOT_RUN",
       "deployment": "NOT_PERFORMED",
-      "observedAtUtc": "2026-11-08T16:18:49Z"
+      "observedAtUtc": "2026-11-08T16:58:08Z"
     }
   },
   "observedCi": {
@@ -1595,41 +1595,108 @@
       "noReleaseAcceptance": "CLAIMED_NONE"
     },
     "ciCdAccelerationCandidate20261108": {
-      "observedAtUtc": "2026-11-08T16:18:49Z",
+      "observedAtUtc": "2026-11-08T16:58:08Z",
       "baselineSha": "4352b4afd29053df09ee70845aa8c1aebe65d02c",
-      "candidateStatus": "UNCOMMITTED_STATIC_REVIEW_PASS",
+      "publishedSha": "1a07935ce1aa0799a44fef076ce330b2fe499254",
       "candidatePaths": [
-        ".github/workflows/release-verification.yml",
         ".github/workflows/release.yml",
         "infra/auditsphere-deployment-iac-runbook.md",
         "docs/execution/status.json",
         "docs/execution/auditsphere-execution-current-slice.md"
       ],
-      "e2eOptimization": "Reuse exact-run Release API/Worker outputs through OwnedHost existing AUDITSPHERE_TEST_ARTIFACTS_ROOT launcher; rely on the E2E project locked restore for its direct ProjectReferences; remove duplicate solution restore and two host builds; all unfiltered tests retained.",
-      "releaseOptimization": "Build API, Worker and migration image archives concurrently with isolated per-image BuildKit caches and no Azure OIDC/ACR write in build jobs; verify same-run source/run/hash/platform before protected job Azure login; push three tags concurrently and capture digest pins.",
-      "currentFullRun": {
+      "candidateStatus": "LOCAL_FOLLOWUP_STATIC_VALIDATION_PASS_FETCH_REVIEW_CLEAR",
+      "e2eOptimization": "Reuse exact-run Release API/Worker build outputs through the existing OwnedHost artifact-root launcher; rely on the E2E project locked restore for direct ProjectReferences; remove the second solution restore and API/Worker builds. Unfiltered test commands and gates are unchanged.",
+      "releaseOptimization": "Build API, Worker and migration image archives concurrently with isolated BuildKit cache scopes and no OIDC/ACR writes in image jobs. Protected release downloads the three exact-run archives concurrently with pinned v4.3.0 pattern matching into separate artifact-name directories; assert the exact directory set, then verify source/run/attempt/Dockerfile/tag/platform/archive size/SHA-256 before Azure login. Push the three verified tags concurrently and record digest pins.",
+      "predecessorFullRun": {
         "id": 42486726156,
         "attempt": 1,
         "sourceSha": "4352b4afd29053df09ee70845aa8c1aebe65d02c",
-        "aggregate": "IN_PROGRESS",
-        "e2eJobId": 128756845480,
-        "e2eStatus": "FAILURE_LOG_REVIEW_PENDING_PARENT_TERMINAL",
-        "apiJobId": 128756845474,
-        "apiStatus": "IN_PROGRESS",
-        "domainJobId": 128756845578,
-        "domainStatus": "SUCCESS"
+        "aggregate": "FAILURE",
+        "resolvedSourceSha": "4352b4afd29053df09ee70845aa8c1aebe65d02c",
+        "wallSeconds": 9978,
+        "observedStartUtc": "2026-11-08T13:48:50Z",
+        "observedEndUtc": "2026-11-08T16:35:08Z",
+        "jobs": {
+          "resolve": "SUCCESS",
+          "angular": "SUCCESS",
+          "buildContractsDocs": "SUCCESS",
+          "domain": "SUCCESS",
+          "api": "FAILURE_EXIT_143_CAUSE_UNCONFIRMED",
+          "e2e": "FAILURE_15_MINUTE_INACTIVITY_ABORT_CAUSE_UNCONFIRMED",
+          "fullContract": "FAILURE_REQUIRED_GATES_NOT_ALL_PASS"
+        },
+        "apiEvidence": {
+          "passedTestLines": 365,
+          "assertionFailureReported": false,
+          "testRunComplete": false,
+          "apiTrxArtifact": "NOT_PRESENT"
+        },
+        "e2eEvidence": {
+          "trxTotalExecutedPassed": 335,
+          "failedAssertions": 0,
+          "watchdog": "15-minute inactivity elapsed; testhost exited unexpectedly",
+          "unfinishedSequenceCount": 2,
+          "causalTests": "UNPROVEN"
+        },
+        "terminalEvidence": ".local/autonomous/evidence/ci-cd-acceleration-20261108/full-42486726156-terminal/terminal-review.json"
       },
-      "candidateCi": "NOT_RUN",
-      "timingMeasurement": "NOT_MEASURED",
-      "deployment": "NOT_PERFORMED",
+      "publishedFastRun": {
+        "id": 42499665341,
+        "attempt": 1,
+        "sourceSha": "1a07935ce1aa0799a44fef076ce330b2fe499254",
+        "headSha": "1a07935ce1aa0799a44fef076ce330b2fe499254",
+        "status": "SUCCESS",
+        "conclusion": "success",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/42499665341",
+        "completedAtUtc": "2026-11-08T16:46:51Z",
+        "jobs": {
+          "angular": {
+            "id": 128789443393,
+            "status": "SUCCESS"
+          },
+          "docs": {
+            "id": 128789443504,
+            "status": "SUCCESS"
+          },
+          "release": {
+            "id": 128790020478,
+            "status": "SUCCESS"
+          }
+        },
+        "jobLogs": "FETCH_ATTEMPTED_ONCE_BUT_NOT_RETAINED_AFTER_LOCAL_CAPTURE_ERROR",
+        "actualCheckoutSha": "UNVERIFIED"
+      },
+      "localFollowup": {
+        "state": "UNCOMMITTED",
+        "releaseWorkflow": "Parallel exact-run artifact pattern download with exact directory/provenance checks before OIDC",
+        "otherPaths": [
+          "infra/auditsphere-deployment-iac-runbook.md",
+          "docs/execution/status.json",
+          "docs/execution/auditsphere-execution-current-slice.md"
+        ]
+      },
       "validation": {
         "actionlint": "PASS",
         "gitDiffCheck": "PASS",
-        "markdownHealth": "PASS_179_FILES_2896_LINKS_0_DELETED_REFERENCES",
-        "filename": "PASS_179",
-        "narrative": "PASS_6",
-        "candidateExactCi": "NOT_RUN"
-      }
+        "markdownHealth": "PASS_179_FILES_2896_LINKS_260_REPOSITORY_PATHS_0_DELETED_REFERENCES",
+        "filenameValidation": "PASS_179",
+        "narrativeValidation": "PASS_6",
+        "autonomousState": "PASS_48_TASKS_RUN003_REPAIR",
+        "staticReleaseGuards": "PASS_PATTERN_DOWNLOAD_EXACT_DIRS_PROVENANCE_BEFORE_OIDC_CONCURRENT_PUSHES_MIGRATION_ORDER_HEALTH_CANARY",
+        "fetchReview": "PASS_NO_INCOMING_COMMITS_OR_PATHS"
+      },
+      "baselineDuplicatedE2EHostBuildsSeconds": {
+        "api": 670.48,
+        "worker": 2.63,
+        "combined": 673.11
+      },
+      "observedWallTimeSaving": "NOT_MEASURED",
+      "candidateFollowupFastCi": "NOT_RUN",
+      "candidateFollowupFullCi": "NOT_DISPATCHED",
+      "candidateImageWorkflow": "NOT_DISPATCHED",
+      "protectedRelease": "NOT_PERFORMED",
+      "deployment": "NOT_PERFORMED",
+      "nextAction": "Commit and push the four owned follow-up paths. Capture the new exact fast-run logs directly to files only after terminal status; if fast passes, dispatch one immutable exact-source full verification to validate E2E output reuse. Do not repeat predecessor cohorts or run a protected release/deployment before independent gates."
     }
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."
