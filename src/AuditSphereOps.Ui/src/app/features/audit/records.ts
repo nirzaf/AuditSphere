@@ -39,6 +39,7 @@ export const decodeArchive = obj({ id: guid, engagementId: guid, status: text, c
     operationId: nullable(guid), targetRevision: nullable(int), manifestVersion: nullable(int), manifestSha256: nullable(sha256),
     latestFileReadBackAt: nullable(instant), permissionReadBackAt: nullable(instant), note: text })),
   manifestId: nullable(guid), canReview: bool });
+type ArchiveActionOwner = { token: number; archiveId: string; actor: ReturnType<SessionService['current']>; sessionGeneration: number };
 const sum = (rows: { reviewedTestCount: number }[]) => rows.reduce((n, r) => n + r.reviewedTestCount, 0);
 
 @Component({
@@ -369,7 +370,12 @@ export class ArchiveRecord {
   readonly nextOrdinal = signal<number | null>(null);
   readonly loadingEntries = signal(false);
   readonly entriesError = signal('');
-  readonly actionBusy = signal(false);
+  private readonly actionOwner = signal<ArchiveActionOwner | null>(null);
+  private actionSequence = 0;
+  readonly actionBusy = computed(() => {
+    const owner = this.actionOwner();
+    return owner !== null && this.isCurrentAction(owner);
+  });
   readonly actionError = signal('');
   private generation = 0;
   private pendingReview: { archiveId: string; manifestId: string; manifestVersion: number; manifestDigest: string; sessionIdentity: string; requestKey: string } | null = null;
@@ -391,7 +397,6 @@ export class ArchiveRecord {
   }
   private invalidate(): void {
     ++this.generation; this.additionalEntries.set([]); this.nextOrdinal.set(null); this.loadingEntries.set(false); this.entriesError.set('');
-    this.actionBusy.set(false);
   }
   refresh(): void { this.invalidate(); this.rec.reload(); }
   async buildManifest(archive: ReturnType<typeof decodeArchive>): Promise<void> {
@@ -417,12 +422,13 @@ export class ArchiveRecord {
   private async archiveAction(archive: ReturnType<typeof decodeArchive>, action: 'build' | 'review',
     body: Record<string, unknown>, reviewBasis?: { manifestId: string; manifestVersion: number; manifestDigest: string }): Promise<void> {
     if (this.destroyed || this.actionBusy() || this.archive() !== archive) return;
-    const id = this.id(), generation = this.generation, sessionGeneration = this.session.invalidation();
-    this.actionBusy.set(true); this.actionError.set('');
+    const id = this.id(), actor = this.session.current(), sessionGeneration = this.session.invalidation();
+    if (!id || !actor?.staff) return;
+    const owner: ArchiveActionOwner = { token: ++this.actionSequence, archiveId: id, actor, sessionGeneration };
+    this.actionOwner.set(owner); this.actionError.set('');
     try {
       const raw = await firstValueFrom(this.http.post<unknown>('/api/ui/records/archives/' + id + '/' + action, body).pipe(timeout(30000)));
-      if (this.destroyed || generation !== this.generation || id !== this.id() ||
-          sessionGeneration !== this.session.invalidation() || this.archive() !== archive) return;
+      if (!this.isCurrentAction(owner)) return;
       let receipt: ReturnType<typeof decodeArchiveManifestResult>;
       try { receipt = decode(decodeArchiveManifestResponse, raw).value; }
       catch {
@@ -444,15 +450,20 @@ export class ArchiveRecord {
       if (reviewBasis) this.pendingReview = null;
       this.refresh();
     } catch (error) {
-      if (!this.destroyed && generation === this.generation && id === this.id() && sessionGeneration === this.session.invalidation()) {
+      if (this.isCurrentAction(owner)) {
         if (error instanceof HttpErrorResponse && error.status === 401) void this.session.refresh();
         this.actionError.set(error instanceof HttpErrorResponse && typeof (error.error as { message?: unknown })?.message === 'string'
           ? (error.error as { message: string }).message
           : error instanceof Error ? error.message : 'The archive action could not be completed.');
       }
     } finally {
-      if (!this.destroyed && generation === this.generation && id === this.id()) this.actionBusy.set(false);
+      if (this.actionOwner() === owner) this.actionOwner.set(null);
     }
+  }
+  private isCurrentAction(owner: ArchiveActionOwner): boolean {
+    return this.actionOwner() === owner && owner.actor?.staff === true && !this.destroyed && this.active() &&
+      owner.archiveId === this.id() && this.session.current() === owner.actor &&
+      this.session.invalidation() === owner.sessionGeneration;
   }
   visibleEntries(archive: ReturnType<typeof decodeArchive>) {
     return this.archive() === archive ? [...archive.entries, ...this.additionalEntries()] : [];

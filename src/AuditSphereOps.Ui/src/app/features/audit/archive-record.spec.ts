@@ -21,6 +21,8 @@ const archive = (n = 1, secondarySharePointCopy = copy(), fields: Record<string,
   profileId: 'SYNTHETIC-ARCHIVE', profileVersion: 1, manifestVersion: 1, manifestId: id(40 + n), manifestStatus: 'BUILT', manifestDigest: hash, completenessStatus: 'COMPLETE', completenessException: null, canExport: false, canReview: false,
   entries: Array.from({ length: 100 }, (_, i) => entry(i + 1)), totalEntryCount: 205, nextOrdinal: 100,
   activeHoldCount: 1, observedProtection: null, desiredLabel: 'SYNTHETIC LABEL', observedLabel: null, actionState: 'REQUESTED', externalReference: 'SYNTHETIC REFERENCE', secondarySharePointCopy, ...fields });
+const unbuiltArchive = (n = 1) => archive(n, copy(), { manifestVersion: null, manifestId: null, manifestStatus: null,
+  manifestDigest: null, completenessStatus: null, completenessException: null, totalEntryCount: 0, entries: [], nextOrdinal: null });
 const page2 = () => ({ ...archive(), entries: Array.from({ length: 100 }, (_, i) => entry(i + 101)), nextOrdinal: 200 });
 const page3 = () => ({ ...archive(), entries: Array.from({ length: 5 }, (_, i) => entry(i + 201)), nextOrdinal: null });
 
@@ -43,6 +45,71 @@ describe('Archive detail and exact paging safety', () => {
     expect(host.textContent).toContain('Unreleased local hold'); expect(host.textContent).toContain('Not observed');
     const cells = host.querySelector('tbody tr')!.querySelectorAll('td');
     expect(Array.from(cells, c => c.textContent?.trim())).toEqual(['1', 'DOCUMENT', 'evidence/item-1.pdf', hash, '1']);
+  });
+  it('keeps the current archive command busy when a same-scope refresh invalidates only its read', async () => {
+    component.refresh(); TestBed.tick(); http.expectOne(url()).flush(unbuiltArchive()); await fixture.whenStable();
+
+    const task = component.buildManifest(component.archive()!);
+    const request = http.expectOne(url() + '/build');
+    component.refresh(); TestBed.tick(); http.expectOne(url()).flush(unbuiltArchive()); await fixture.whenStable();
+    const remainedBusyForSameOwner = component.actionBusy();
+    const buildButton = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'))
+      .find(button => button.textContent?.includes('Building'));
+
+    request.flush({}, { status: 503, statusText: 'Build outcome unavailable' }); await task;
+    expect(remainedBusyForSameOwner).toBe(true);
+    expect(buildButton?.disabled).toBe(true);
+    expect(component.actionBusy()).toBe(false);
+  });
+  it('refreshes a successful build into the same-component exact review flow', async () => {
+    component.refresh(); TestBed.tick(); http.expectOne(url()).flush(unbuiltArchive()); await fixture.whenStable();
+
+    const buildTask = component.buildManifest(component.archive()!);
+    const build = http.expectOne(url() + '/build');
+    expect(component.actionBusy()).toBe(true);
+    build.flush({ value: { archiveId: id(1), manifestId: id(41), manifestVersion: 1, status: 'BUILT',
+      digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
+    await buildTask;
+    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', manifestStatus: 'BUILT', canReview: true }));
+    await fixture.whenStable();
+    expect(component.actionBusy()).toBe(false);
+    expect(component.archive()?.canReview).toBe(true);
+
+    const reviewTask = component.reviewManifest(component.archive()!);
+    const review = http.expectOne(url() + '/review');
+    expect(review.request.body).toMatchObject({ manifestId: id(41), manifestVersion: 1, manifestDigest: hash });
+    review.flush({ value: { archiveId: id(1), manifestId: id(41), manifestVersion: 1, status: 'REVIEWED',
+      digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
+    await reviewTask;
+    http.expectOne(url()).flush(archive(1, copy(), { status: 'ASSEMBLY_REVIEWED', manifestStatus: 'REVIEWED', canReview: false }));
+    await fixture.whenStable();
+    expect(component.archive()?.status).toBe('ASSEMBLY_REVIEWED');
+  });
+  it('does not let a previous archive command clear the next archive command busy owner', async () => {
+    component.refresh(); TestBed.tick(); http.expectOne(url()).flush(unbuiltArchive()); await fixture.whenStable();
+    const oldTask = component.buildManifest(component.archive()!);
+    const oldRequest = http.expectOne(url() + '/build');
+
+    params.next(convertToParamMap({ id: id(2) })); TestBed.tick();
+    http.expectOne(url(2)).flush(unbuiltArchive(2)); await fixture.whenStable();
+    expect(component.actionBusy()).toBe(false);
+    const currentTask = component.buildManifest(component.archive()!);
+    const currentRequest = http.expectOne(url(2) + '/build');
+    expect(component.actionBusy()).toBe(true);
+
+    oldRequest.flush({ value: { archiveId: id(1), manifestId: id(41), manifestVersion: 1, status: 'BUILT',
+      digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
+    await oldTask;
+    expect(component.actionBusy()).toBe(true);
+
+    currentRequest.flush({ value: { archiveId: id(2), manifestId: id(42), manifestVersion: 1, status: 'BUILT',
+      digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
+    await currentTask;
+    http.expectOne(url(2)).flush(archive(2, copy(), { status: 'MANIFEST_BUILT', manifestStatus: 'BUILT', canReview: true }));
+    await fixture.whenStable();
+    expect(component.actionBusy()).toBe(false);
+    expect(component.archive()?.id).toBe(id(2));
+    expect(component.archive()?.canReview).toBe(true);
   });
   it('reviews the exact displayed manifest and accepts only its matching receipt', async () => {
     component.refresh(); TestBed.tick();
