@@ -175,6 +175,10 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
     var restored = await NavigateAsync(page, targetEngagement, f.EngagementId.ToString("D"));
     Assert.Contains(f.EngagementId.ToString("D"), restored, StringComparison.Ordinal);
     Assert.Contains(privateHold, restored, StringComparison.Ordinal);
+    var restoredPlanning = page.GetByRole(AriaRole.Region,
+      new() { Name = "Engagement planning", Exact = true });
+    await Assertions.Expect(restoredPlanning).ToBeVisibleAsync();
+    await Assertions.Expect(restoredPlanning.GetByRole(AriaRole.Progressbar)).ToHaveCountAsync(0);
     var unrelatedText = await NavigateAsync(page, unrelatedEngagement, "Engagement unavailable");
     Assert.DoesNotContain("PBC TEST CLIENT", unrelatedText, StringComparison.Ordinal);
     Assert.DoesNotContain("SYN-PAR-002-ENGAGEMENT-PRIVATE-CLIENT", unrelatedText, StringComparison.Ordinal);

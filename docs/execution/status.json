@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-08T11:19:21Z",
+  "observedAtUtc": "2026-11-08T12:34:49Z",
   "source": {
     "branch": "master",
-    "baseSha": "428ad16b904bce309ea06b713d95b958aa6dc3e2",
-    "originMasterSha": "428ad16b904bce309ea06b713d95b958aa6dc3e2",
-    "workingTree": "At 2026-11-08T11:19:21Z, HEAD and origin/master matched 428ad16b904bce309ea06b713d95b958aa6dc3e2 with a clean tracked tree before this bounded execution-status refresh. Only docs/execution/auditsphere-execution-current-slice.md and docs/execution/status.json are targeted.",
+    "baseSha": "61c304e3a4ec92cbdc9147589d304a7e346283da",
+    "originMasterSha": "61c304e3a4ec92cbdc9147589d304a7e346283da",
+    "workingTree": "At 2026-11-08T12:31:28Z, HEAD and local origin/master tracking ref were 61c304e3a4ec92cbdc9147589d304a7e346283da before publication. The tracked candidate consists of the scoped API/E2E test corrections and current execution handoff/status refresh; fetch and inspect incoming paths before publishing.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
-    "practiceManagement": "INCOMPLETE. T24 offboarding recovery is published at 83ac83a630c4b023c9f176a3123436a0489796f8. On exact full run 42463038759 (requested/resolved 83ac83a), Resolve, Angular (2,029 tests/196 files), Build/contracts/docs and Domain passed; Domain checkout proof was not retained. API job 128683997471 failed at the unfiltered test step at 10:46:40Z; its checkout and cause are unverified and its log is unavailable until the aggregate run is terminal. Playwright/PostgreSQL E2E job 128683997450 remains in its unfiltered test step; aggregate remains in progress. Current-source focused WU-015 API tests passed 6/6 and WU-016 Domain tests passed 4/4 on 428ad16; those results do not close broader race/scope acceptance or full CI. No release acceptance, browser acceptance, professional/external approval or deployment is claimed.",
-    "documentation": "COMPLETE_FOR_REQUESTED_SCOPE. The category audit covered 173 docs Markdown files, found no exact duplicate groups and identified no additional safe flattening; 107 machine/provenance task-breakdown inputs remain behind the task-library index. Exact docs fast run 42468960242 passed all three jobs with actual checkout 428ad16 logs retained. This follow-up refresh records newer full-run and focused-test observations; its own push fast result must be observed separately.",
+    "practiceManagement": "INCOMPLETE. T24 is published on 83ac83a. Exact manual full run 42463038759 and scheduled full run 42465046946 both ended FAILURE on unchanged source 83ac83a. The manual run exposed a stale inventory-only API contract and one engagement-scope E2E assertion; the local candidate removes that obsolete test dependency while retaining current route-contract coverage, and waits for the restored engagement-planning read before the next transition. Focused API route tests passed 3/3 and the named E2E journey passed 1/1 locally; its temporary loopback PostgreSQL 18.6 container was removed and port 5433 is closed. The scheduled run repeated the inventory contract failure and separately recorded a REOPEN request TaskCanceledException/client-aborted response followed by API exit 143; the initiating shutdown cause is unconfirmed. Its E2E job recorded 335 passes and two incomplete test-sequence entries before a 15-minute inactivity abort; the host/hang cause is unconfirmed and the two active tests are not attributed. No full run covers the local candidate; no release, browser, professional/external acceptance or deployment is claimed.",
+    "documentation": "COMPLETE_FOR_REQUESTED_SCOPE; POST_EDIT_VALIDATION_PASS; PUBLICATION_PENDING. The category audit covers 173 docs Markdown files, 107 machine/provenance task sources remain separately indexed, no exact duplicate groups were found, and no further safe flattening was identified. Final post-edit validators passed; exact candidate push fast CI remains pending.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "REPAIR; monitor exact full run 42463038759 to aggregate terminal. Then fetch API/E2E logs and actual checkout evidence once, diagnose before any rerun. Keep T12-A/T12-C and T13 gated.",
-      "note": "2026-11-08T11:19:21Z: Current source 428ad16. WU-015 scope-denial review passed its six-test focused cohort and static scan; WU-016 task-recovery cohort passed 4/4. The 83ac full run API job failed but E2E remains active; no decoded API log, checkout proof, or cause yet. Documentation category consolidation remains complete.",
-      "currentSourceSha": "428ad16b904bce309ea06b713d95b958aa6dc3e2"
+      "nextAction": "REPAIR; complete post-edit docs validation, fetch origin and inspect incoming paths, publish only the scoped two-test/two-execution-doc candidate, then monitor its exact push fast CI. The two 83ac full runs are terminal failures; do not repeat unchanged cohorts. After candidate fast CI passes, run exactly one immutable exact-source full verification if still required, investigating the separate API cancellation and E2E inactivity failures narrowly.",
+      "note": "2026-11-08T12:31:28Z: RUN-003 remains REPAIR on published base 61c304e3a4ec92cbdc9147589d304a7e346283da. Docs category consolidation and post-edit docs validation are complete for the user-requested scope; exact push fast CI is not yet run for this candidate. Full runs 42463038759 and 42465046946 failed on old source 83ac. Focused API route (3/3) and named E2E (1/1) candidate checks pass locally; separate API cancellation and E2E inactivity causes remain unconfirmed.",
+      "currentSourceSha": "61c304e3a4ec92cbdc9147589d304a7e346283da"
     }
   },
   "localVerification": {
@@ -29,9 +29,8 @@
       "relativeLinksChecked": 2896,
       "backtickedRepositoryPathsChecked": 255,
       "deletedPathReferences": 0,
-      "approvedRecordsAndTaskProvenance": "PASS",
       "command": "python3 scripts/docs/validate-markdown-documentation.py",
-      "observedAtUtc": "2026-11-08T07:51:29Z"
+      "observedAtUtc": "2026-11-08T12:31:28Z"
     },
     "filenameValidation": {
       "result": "PASS",
@@ -39,13 +38,13 @@
       "conventionalExceptions": 3,
       "standardizedDocuments": 176,
       "command": "python3 scripts/docs/validate-markdown-filenames.py",
-      "observedAtUtc": "2026-11-08T07:51:29Z"
+      "observedAtUtc": "2026-11-08T12:31:28Z"
     },
     "narrativeMetricsValidation": {
       "result": "PASS",
       "protectedDocuments": 6,
       "command": "python3 scripts/docs/validate-narrative-metrics.py",
-      "observedAtUtc": "2026-11-08T07:51:29Z"
+      "observedAtUtc": "2026-11-08T12:31:28Z"
     },
     "documentationReconciliation": {
       "result": "PASS",
@@ -148,6 +147,23 @@
         "verificationEvidence": ".local/autonomous/evidence/docs-consolidation-20261108/current-83ac-docs-refresh-validation.json",
         "verificationEvidenceSha256": "88e8d4f6efa6cea57219cfd9d75f49fb8dec329933f6c2556fbfe9c6dedf3068",
         "categoryAudit": "173 docs Markdown files; 107 task-breakdown sources retained; 0 exact duplicate groups; no safe additional flattening."
+      },
+      "postScheduledTerminalRefresh20261108": {
+        "observedAtUtc": "2026-11-08T12:34:49Z",
+        "result": "PASS_LOCAL_DOCS_REFRESH; PUBLICATION_PENDING",
+        "updatedDocuments": [
+          "docs/execution/auditsphere-execution-current-slice.md",
+          "docs/execution/status.json"
+        ],
+        "currentPublishedBaseSha": "61c304e3a4ec92cbdc9147589d304a7e346283da",
+        "scheduledFullRunId": 42465046946,
+        "scheduledFullConclusion": "FAILURE",
+        "scheduledTerminalEvidence": ".local/autonomous/evidence/ci-428ad16-current-20261108/full-42465046946-terminal/scheduled-run-terminal-review.json",
+        "candidateReconciliation": "Local focused API route and engagement-scope E2E tests passed; full candidate CI not run.",
+        "categoryAudit": "173 docs Markdown files; 107 machine/provenance task sources retained; zero exact duplicate groups; no additional safe flattening.",
+        "verificationEvidence": ".local/autonomous/evidence/docs-consolidation-live-refresh-20261108/post-full-terminal-20261108T120840Z/final-validation.json",
+        "verificationEvidenceSha256": "4f2c0e43e0b8f0ff59032bbcffe6a941eec50253b536786a85ae7375be00ee06",
+        "finalValidation": "PASS"
       }
     },
     "auditProgramSource": {
@@ -156,7 +172,7 @@
       "procedureParagraphs": 165,
       "sourceShaVerified": true,
       "command": "python3 scripts/docs/verify-audit-program-source.py",
-      "observedAtUtc": "2026-11-08T05:56:14Z"
+      "observedAtUtc": "2026-11-08T12:31:28Z"
     },
     "taskStatusUtilityTests": {
       "result": "PASS",
@@ -176,14 +192,14 @@
     "diffCheck": {
       "result": "PASS",
       "command": "git diff --check",
-      "observedAtUtc": "2026-11-08T05:56:14Z"
+      "observedAtUtc": "2026-11-08T12:31:28Z"
     },
     "taskBoardGenerator": {
       "result": "PASS_PARTIAL_SOURCE",
       "rows": 75,
       "codeVerdicts": "NOT_AUDITED",
       "command": "python3 scripts/docs/build-task-board.py --check",
-      "observedAtUtc": "2026-11-08T05:56:14Z"
+      "observedAtUtc": "2026-11-08T12:31:28Z"
     },
     "angularOffboardingReadinessSpec": {
       "result": "PASS",
@@ -265,7 +281,7 @@
       "result": "PASS",
       "summary": "legacy Blazor source is retired; historical discovery inventory is retained",
       "command": "python3 scripts/ui/inventory.py --check",
-      "observedAtUtc": "2026-11-08T05:56:14Z"
+      "observedAtUtc": "2026-11-08T12:31:28Z"
     },
     "t18GroupIssueTerminalRecovery": {
       "result": "PASS_FOCUSED_PUBLISHED",
@@ -350,7 +366,7 @@
       "taskId": "RUN-003",
       "nextAction": "REPAIR",
       "command": "python3 scripts/agent/verify-completion-state.py --state .local/autonomous/state.json",
-      "observedAtUtc": "2026-11-08T11:19:21Z"
+      "observedAtUtc": "2026-11-08T12:34:49Z"
     },
     "t13aArchiveAuthorityFence20261108": {
       "status": "PUBLISHED_BASE_FAST_AND_IMAGES_PASS_FULL_NOT_RUN_FOR_BASE",
@@ -616,10 +632,11 @@
       "exactCandidateFastImagesFullCi": "NOT_RUN"
     },
     "latestDocsRefreshValidation": {
-      "result": "PASS",
-      "observedAtUtc": "2026-11-08T09:46:43Z",
-      "evidence": ".local/autonomous/evidence/docs-consolidation-20261108/current-83ac-docs-refresh-validation.json",
-      "evidenceSha256": "88e8d4f6efa6cea57219cfd9d75f49fb8dec329933f6c2556fbfe9c6dedf3068",
+      "result": "PASS_LOCAL_VALIDATION; PUBLICATION_PENDING",
+      "observedAtUtc": "2026-11-08T12:34:49Z",
+      "sourceBaseSha": "61c304e3a4ec92cbdc9147589d304a7e346283da",
+      "evidence": ".local/autonomous/evidence/docs-consolidation-live-refresh-20261108/post-full-terminal-20261108T120840Z/final-validation.json",
+      "evidenceSha256": "4f2c0e43e0b8f0ff59032bbcffe6a941eec50253b536786a85ae7375be00ee06",
       "markdownFiles": 179,
       "canonicalDocuments": 22,
       "relativeLinks": 2896,
@@ -628,9 +645,16 @@
       "filenameValidation": "PASS_179",
       "narrativeMetrics": "PASS_6",
       "auditSource": "PASS_20_SECTIONS_165_PARAGRAPHS",
-      "taskBoard": "PASS_PARTIAL_SOURCE",
+      "taskBoard": "PASS_PARTIAL_SOURCE_75_ROWS_NOT_AUDITED",
       "uiInventory": "PASS",
-      "diffCheck": "PASS"
+      "diffCheck": "PASS",
+      "sizeBytes": {
+        "status": 84081,
+        "handoff": 47624
+      },
+      "taskBoardUnchanged": true,
+      "statusBytesBeforeEvidencePointer": 84416,
+      "handoffBytes": 47624
     },
     "wu015ScopeDenialReconciliation20261108": {
       "status": "PARTIAL; historical 42-endpoint 400 finding not reproduced",
@@ -651,6 +675,31 @@
       "evidence": ".local/autonomous/evidence/wu016-current-reconciliation-20261108/review.json",
       "evidenceSha256": "099448922887efa0cc0ad2ea1303c6023077d359bdf87cf686f274d149d49900",
       "databaseCleanup": "PASS; ephemeral PostgreSQL 18.6 container removed, port 5433 closed"
+    },
+    "ciFailureReconciliation20261108": {
+      "result": "FOCUSED_LOCAL_PASS; EXACT_CANDIDATE_FULL_CI_NOT_RUN",
+      "apiRouteContract": {
+        "result": "PASS",
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularRoutingContractTests'"
+      },
+      "engagementScopeJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~EngagementAndAuditPlanClearOnScopeChangeAndRefuseRevokedWrites'",
+        "environment": "ephemeral PostgreSQL 18.6 on 127.0.0.1:5433; container removed and port closed"
+      },
+      "fullCiRuns": [
+        42463038759,
+        42465046946
+      ],
+      "scheduledRunEvidence": ".local/autonomous/evidence/ci-428ad16-current-20261108/full-42465046946-terminal/scheduled-run-terminal-review.json",
+      "candidateEvidence": ".local/autonomous/evidence/practice-ci-failure-reconciliation-20261108/candidate-review.json",
+      "limitations": "Neither full run includes this local candidate. Scheduled API cancellation and E2E inactivity causes remain unconfirmed; no retry of unchanged source."
     }
   },
   "observedCi": {
@@ -743,7 +792,7 @@
         "imagesWorker": "d44bbc26095cf828169b5612e1e207e707946fc8afd6745f54c79a89cbda119b"
       }
     },
-    "fullReleaseVerification": "FAIL: exact run 42411559445 attempt 1, requested/resolved SHA 77985dee8644f422d227c9ec694eac5ff3c8cddf; Domain 3 failures, API hosted-runner communication failure, E2E inactivity abort. The candidate changes are not covered by this run. API/E2E root causes remain unproven; no full-release pass or release acceptance.",
+    "fullReleaseVerification": "FAILURE on source 83ac83a: manual run 42463038759 and scheduled run 42465046946 both failed. The stale inventory-only API test and one engagement-scope E2E assertion from the manual run have focused local candidate corrections. The scheduled run additionally recorded a REOPEN API TaskCanceledException/client-aborted response with exit 143 and an E2E inactivity abort after 335 passes / two incomplete sequence entries; causes remain unconfirmed. Current candidate has no exact full verification yet; do not repeat unchanged cohorts or claim FULL_CI_PASS.",
     "docsFollowupBase42acad": {
       "observedAtUtc": "2026-11-07T15:02:34Z",
       "sourceShaFromRunMetadata": "42acad66c31a4bad8bb47a19436475030ef4bb86",
@@ -1281,7 +1330,7 @@
       "resolvedSha": "83ac83a630c4b023c9f176a3123436a0489796f8",
       "sourceArtifactId": 13610795483,
       "sourceArtifactDigest": "sha256:2805b355735e3de20137d05d6b2bda49b0ea640bf9f2c4c854bfd682501b7a2b",
-      "status": "IN_PROGRESS_API_FAILURE_E2E_ACTIVE",
+      "status": "FAILURE",
       "jobs": {
         "resolve": {
           "id": 128676258957,
@@ -1309,30 +1358,32 @@
         "api": {
           "id": 128683997471,
           "status": "FAILURE",
-          "failureStep": "Build and run the complete unfiltered test project",
-          "completedAtUtc": "2026-11-08T10:46:40Z",
-          "actualCheckoutSha": "UNVERIFIED",
-          "failureCause": "UNCONFIRMED",
-          "log": "UNAVAILABLE_UNTIL_PARENT_RUN_TERMINAL",
-          "diagnosticsAndUploadSteps": "SKIPPED"
+          "actualCheckoutSha": "83ac83a630c4b023c9f176a3123436a0489796f8",
+          "failedTest": "AngularLegacyRouteInventoryContractTests.EveryDiscoveredLegacyWorkspaceRouteHasExplicitNativeOwnership",
+          "failure": "FileNotFoundException: intentionally removed docs/execution/angular-source-inventory.json",
+          "tests": "363 passed / 1 failed; later process exit 143, shutdown cause unconfirmed",
+          "log": ".local/autonomous/evidence/ci-428ad16-current-20261108/full-42463038759-terminal/job-128683997471-api.log"
         },
         "playwrightPostgresE2e": {
           "id": 128683997450,
-          "status": "IN_PROGRESS",
-          "activeStep": "Build and run the complete unfiltered test project",
-          "activeStepStartedAtUtc": "2026-11-08T09:04:16Z",
-          "actualCheckoutSha": "PENDING_LOG_PROOF"
+          "status": "FAILURE",
+          "actualCheckoutSha": "83ac83a630c4b023c9f176a3123436a0489796f8",
+          "failedTest": "AngularClientScopeEngagementParityJourneyTests.EngagementAndAuditPlanClearOnScopeChangeAndRefuseRevokedWrites",
+          "tests": "334 passed / 1 failed before 15-minute inactivity abort; total unknown",
+          "crashCause": "UNCONFIRMED",
+          "log": ".local/autonomous/evidence/ci-428ad16-current-20261108/full-42463038759-terminal/job-128683997450-e2e.log"
         }
       },
-      "aggregate": "NOT_TERMINAL",
-      "observedAtUtc": "2026-11-08T11:19:21Z",
+      "aggregate": "FAILURE",
+      "observedAtUtc": "2026-11-08T12:28:04Z",
       "lastGitHubUpdatedAtUtc": "2026-11-08T09:03:19Z",
       "apiLogCapture": {
         "attempts": 2,
         "decodedLogFetches": 0,
         "retryUntilParentTerminal": false,
         "note": "Do not retry the log fetch until this exact run reaches aggregate terminal."
-      }
+      },
+      "terminalEvidence": ".local/autonomous/evidence/ci-428ad16-current-20261108/full-42463038759-terminal/terminal-review.json"
     },
     "docsFastRun428ad16": {
       "runId": 42468960242,
@@ -1347,6 +1398,156 @@
       },
       "evidence": ".local/autonomous/evidence/docs-consolidation-20261108/fast-428ad16-terminal-proof.json",
       "evidenceSha256": "ec15a2537f20dba0afccf0880188a80c08fb31e2cbbcdda70c11a3137175a533"
+    },
+    "docsFastRun61c304e3": {
+      "runId": 42475717110,
+      "attempt": 1,
+      "sourceSha": "61c304e3a4ec92cbdc9147589d304a7e346283da",
+      "conclusion": "SUCCESS",
+      "actualCheckoutsVerified": true,
+      "jobs": {
+        "docs": 128716515046,
+        "angular": 128716515279,
+        "release": 128717012798
+      },
+      "evidence": ".local/autonomous/evidence/docs-consolidation-live-refresh-20261108/ci-61c304e3/fast-terminal-proof.json",
+      "coverage": "PRIOR_BASE_ONLY; does not cover this local test/status candidate"
+    },
+    "scheduledFullRun83ac": {
+      "observedAtUtc": "2026-11-08T12:23:39Z",
+      "run": {
+        "id": 42465046946,
+        "attempt": 1,
+        "headSha": "83ac83a630c4b023c9f176a3123436a0489796f8",
+        "status": "FAILURE",
+        "completedAtUtc": "2026-11-08T12:14:52Z",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/42465046946"
+      },
+      "jobs": {
+        "resolve": "SUCCESS",
+        "angular": "SUCCESS",
+        "buildContractsDocs": "SUCCESS",
+        "domain": {
+          "status": "SUCCESS",
+          "checkoutProof": "NOT_INDEPENDENTLY_RETAINED_IN_THIS_REVIEW"
+        },
+        "api": {
+          "id": 128688634244,
+          "status": "FAILURE",
+          "actualCheckoutSha": "83ac83a630c4b023c9f176a3123436a0489796f8",
+          "checkoutProof": "git log -1 --format=%H in retained job log",
+          "failures": [
+            {
+              "test": "AuditSphereOps.Api.Tests.AngularLegacyRouteInventoryContractTests.EveryDiscoveredLegacyWorkspaceRouteHasExplicitNativeOwnership",
+              "observedAtUtc": "2026-11-08T09:40:58Z",
+              "cause": "FileNotFoundException for docs/execution/angular-source-inventory.json, removed as obsolete generated inventory."
+            },
+            {
+              "test": "AuditSphereOps.Api.Tests.ReviewPointCommandReceiptApiTests.ClearAndReopenPublishTypedExactBeforeAfterAndRecoverOriginalReceipt(action: \"REOPEN\")",
+              "observedAtUtc": "2026-11-08T11:05:46Z",
+              "failure": "TaskCanceledException during SignIn; HttpRequestException while copying response; inner IOException says client aborted request."
+            }
+          ],
+          "processExit": 143,
+          "processExitAtUtc": "2026-11-08T11:22:29Z",
+          "runnerShutdownCause": "UNCONFIRMED",
+          "trxOrDiagnosticsArtifact": "NOT_PRESENT_IN_ARTIFACT_METADATA"
+        },
+        "playwrightPostgresE2e": {
+          "id": 128688634187,
+          "status": "FAILURE",
+          "actualCheckoutSha": "83ac83a630c4b023c9f176a3123436a0489796f8",
+          "checkoutProof": "git log -1 --format=%H in retained job log",
+          "partialTrxCounters": {
+            "total": "335",
+            "executed": "335",
+            "passed": "335",
+            "failed": "0",
+            "error": "0",
+            "timeout": "0",
+            "aborted": "0",
+            "inconclusive": "0",
+            "passedButRunAborted": "0",
+            "notRunnable": "0",
+            "notExecuted": "0",
+            "disconnected": "0",
+            "warning": "0",
+            "completed": "0",
+            "inProgress": "0",
+            "pending": "0"
+          },
+          "blameSequenceEntries": 337,
+          "completedSequenceEntries": 335,
+          "unfinishedAtAbort": [
+            "AuditSphereOps.E2E.Tests.AngularClientOperationalOpeningBalanceJourneyTests.NativeSuccessorOpeningUsesExactReviewedClosedSourceAndRecoversOriginalUiRequest",
+            "AuditSphereOps.E2E.Tests.SiblingClientIsolationJourneyTests.SiblingClientDataNeverChangesWhatAClientScopedUserSees"
+          ],
+          "failure": "Test host aborted after 15-minute inactivity threshold; 335 tests had passed, total unknown. Active tests are not attributed as causes."
+        },
+        "fullContract": {
+          "id": 128727556029,
+          "status": "FAILURE",
+          "actualCheckoutSha": "83ac83a630c4b023c9f176a3123436a0489796f8",
+          "reason": "Required full-regression jobs did not all pass."
+        }
+      },
+      "artifacts": {
+        "metadataPath": ".local/autonomous/evidence/ci-428ad16-current-20261108/full-42465046946-terminal/artifact-metadata.json",
+        "metadataSha256": "7d19c62000d6760b2322f10a43a4160d7ae5c2270c8942e457b365c142883fd5",
+        "metadataRetrieval": "ONCE",
+        "downloadedOnce": [
+          {
+            "id": 13616767808,
+            "name": "release-verification-logs-e2e",
+            "size_in_bytes": 35862,
+            "digest": "sha256:41b220212b179384b238def1b2b9199520b544e515f7fd68d6affad743535728",
+            "created_at": "2026-11-08T12:14:34Z",
+            "expires_at": "2026-12-08T12:14:33Z"
+          },
+          {
+            "id": 13616538473,
+            "name": "release-verification-trx-e2e",
+            "size_in_bytes": 114835,
+            "digest": "sha256:3a48bfce7e3a0e5d885f5c8d6a7eed1c49aea29b98aaec09f3ef24661c508f33",
+            "created_at": "2026-11-08T12:14:34Z",
+            "expires_at": "2026-12-08T12:14:34Z"
+          }
+        ],
+        "notDownloaded": [
+          "API artifacts (not present)",
+          "Domain logs/TRX (not needed to diagnose terminal failures)",
+          "large source-bound test builds"
+        ]
+      },
+      "logs": {
+        "apiJobLog": {
+          "path": ".local/autonomous/evidence/ci-428ad16-current-20261108/full-42465046946-terminal/job-128688634244-api.log",
+          "bytes": 477612,
+          "sha256": "e1c79179c23c358e07eb884d7a072d5f5e11e5b3fcd40f0a9b33f891ad9f7808"
+        },
+        "e2eJobLog": {
+          "path": ".local/autonomous/evidence/ci-428ad16-current-20261108/full-42465046946-terminal/job-128688634187-e2e.log",
+          "bytes": 481591,
+          "sha256": "41a8c6cdf711f880ce5d60d3a0a40acccfd23d0c078327de21678ff5412d3788"
+        },
+        "e2eTestOutput": {
+          "path": ".local/autonomous/evidence/ci-428ad16-current-20261108/full-42465046946-terminal/artifacts-e2e-logs/10-full-e2e-test-project-no-filter.log",
+          "bytes": 55009,
+          "sha256": "44db1a78cceb561a80a9496eb32f59cecc06f91717bf6cc8f643192b0013501d"
+        },
+        "e2eTrx": {
+          "path": ".local/autonomous/evidence/ci-428ad16-current-20261108/full-42465046946-terminal/artifacts-e2e-trx/e2e.trx",
+          "bytes": 521064,
+          "sha256": "d9712dc22663a5e31c5aedbafe5cd55aad3def9006399aa8be178508e0770210"
+        },
+        "e2eBlameSequence": {
+          "path": ".local/autonomous/evidence/ci-428ad16-current-20261108/full-42465046946-terminal/artifacts-e2e-trx/_runnervm7aw5e_2026-11-08_09_51_09/In/runnervm7aw5e/Sequence_27330e806e0d488aa0e920c579934999.xml",
+          "bytes": 152400,
+          "sha256": "edfc355d0154c8940ba438953e2e95ebf0b92386a35881850b95845198c2b397"
+        }
+      },
+      "reviewConclusion": "The scheduled run is terminal FAILURE on unchanged source 83ac83a. It repeats the obsolete inventory-only API test failure, then exposes a separate request-canceled API failure with exit 143; the shutdown cause is unconfirmed. E2E records 335 passes and two incomplete sequence entries before a 15-minute inactivity abort; no active test is proven causal. This run does not include the local corrections based on its predecessor failure. Do not repeat this unchanged full cohort; investigate the new API cancellation/inactivity evidence narrowly before any exact-candidate full dispatch.",
+      "noReleaseAcceptance": "CLAIMED_NONE"
     }
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."
