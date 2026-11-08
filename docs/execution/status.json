@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-08T09:46:43Z",
+  "observedAtUtc": "2026-11-08T11:19:21Z",
   "source": {
     "branch": "master",
-    "baseSha": "83ac83a630c4b023c9f176a3123436a0489796f8",
-    "originMasterSha": "83ac83a630c4b023c9f176a3123436a0489796f8",
-    "workingTree": "At 2026-11-08T09:46:43Z, HEAD and origin/master matched 83ac83a630c4b023c9f176a3123436a0489796f8 after fresh fetch; the source commit was clean before this two-file documentation refresh. T24 is published. Exact full verification 42463038759 was still running API and Playwright/PostgreSQL E2E at this observation.",
+    "baseSha": "428ad16b904bce309ea06b713d95b958aa6dc3e2",
+    "originMasterSha": "428ad16b904bce309ea06b713d95b958aa6dc3e2",
+    "workingTree": "At 2026-11-08T11:19:21Z, HEAD and origin/master matched 428ad16b904bce309ea06b713d95b958aa6dc3e2 with a clean tracked tree before this bounded execution-status refresh. Only docs/execution/auditsphere-execution-current-slice.md and docs/execution/status.json are targeted.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
-    "practiceManagement": "INCOMPLETE. T24 offboarding recovery is published at 83ac83a630c4b023c9f176a3123436a0489796f8. Focused Domain/API/Angular checks and OpenAPI verification pass. Exact fast run 42460812153 and image run 42460812151 succeeded; Angular/Docs fast log capture did not retain actual checkout proof, while all three image checkout SHAs and pins are verified. Exact full run 42463038759 resolves to 83ac and passed Resolve, Angular (2,029/196 files), Build/contracts/docs and Domain (Domain checkout log not retained); API and Playwright/PostgreSQL E2E were still in progress at this observation. Broader practice-management, browser acceptance and qualified professional/external gates remain open; no release acceptance or deployment is claimed.",
-    "documentation": "PASS_LOCAL_VALIDATION_PUBLICATION_PENDING. The category consolidation remains complete: 173 Markdown files in docs, with 107 task-breakdown inputs behind one human task-library entry point; no safe additional flattening or exact duplicate groups were found. This refresh corrected the stale T24 published-source/CI statements in the current-slice handoff and status.json. Fresh validators pass on the refreshed content for 179 repository Markdown files, 22 canonical docs, 2,896 relative links, 255 backticked paths, zero deleted refs, filename/narrative/audit-source/task-board/UI-inventory and diff checks. The docs-only candidate is not yet published.",
+    "practiceManagement": "INCOMPLETE. T24 offboarding recovery is published at 83ac83a630c4b023c9f176a3123436a0489796f8. On exact full run 42463038759 (requested/resolved 83ac83a), Resolve, Angular (2,029 tests/196 files), Build/contracts/docs and Domain passed; Domain checkout proof was not retained. API job 128683997471 failed at the unfiltered test step at 10:46:40Z; its checkout and cause are unverified and its log is unavailable until the aggregate run is terminal. Playwright/PostgreSQL E2E job 128683997450 remains in its unfiltered test step; aggregate remains in progress. Current-source focused WU-015 API tests passed 6/6 and WU-016 Domain tests passed 4/4 on 428ad16; those results do not close broader race/scope acceptance or full CI. No release acceptance, browser acceptance, professional/external approval or deployment is claimed.",
+    "documentation": "COMPLETE_FOR_REQUESTED_SCOPE. The category audit covered 173 docs Markdown files, found no exact duplicate groups and identified no additional safe flattening; 107 machine/provenance task-breakdown inputs remain behind the task-library index. Exact docs fast run 42468960242 passed all three jobs with actual checkout 428ad16 logs retained. This follow-up refresh records newer full-run and focused-test observations; its own push fast result must be observed separately.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Keep RUN-003/REPAIR. Monitor exact full CI run 42463038759 to terminal; then fetch and inspect incoming master paths, publish only the two refreshed execution-document paths, and monitor the new docs-only fast CI. Retain checkout/log limitations and keep browser, professional/external and broader acceptance open.",
-      "note": "2026-11-08T09:46:43Z: state validator passed for 48 rows with RUN-003/REPAIR. HEAD/origin master 83ac83a630c4b023c9f176a3123436a0489796f8. The current-source docs refresh corrected two stale T24 records; docs gates pass. Exact full run 42463038759 is active on API and E2E.",
-      "currentSourceSha": "83ac83a630c4b023c9f176a3123436a0489796f8"
+      "nextAction": "REPAIR; monitor exact full run 42463038759 to aggregate terminal. Then fetch API/E2E logs and actual checkout evidence once, diagnose before any rerun. Keep T12-A/T12-C and T13 gated.",
+      "note": "2026-11-08T11:19:21Z: Current source 428ad16. WU-015 scope-denial review passed its six-test focused cohort and static scan; WU-016 task-recovery cohort passed 4/4. The 83ac full run API job failed but E2E remains active; no decoded API log, checkout proof, or cause yet. Documentation category consolidation remains complete.",
+      "currentSourceSha": "428ad16b904bce309ea06b713d95b958aa6dc3e2"
     }
   },
   "localVerification": {
@@ -349,8 +349,8 @@
       "tasks": 48,
       "taskId": "RUN-003",
       "nextAction": "REPAIR",
-      "command": "python3 scripts/agent/verify-completion-state.py --state .local/autonomous/state.json --evidence-root .local/autonomous",
-      "observedAtUtc": "2026-11-08T05:56:14Z"
+      "command": "python3 scripts/agent/verify-completion-state.py --state .local/autonomous/state.json",
+      "observedAtUtc": "2026-11-08T11:19:21Z"
     },
     "t13aArchiveAuthorityFence20261108": {
       "status": "PUBLISHED_BASE_FAST_AND_IMAGES_PASS_FULL_NOT_RUN_FOR_BASE",
@@ -631,6 +631,26 @@
       "taskBoard": "PASS_PARTIAL_SOURCE",
       "uiInventory": "PASS",
       "diffCheck": "PASS"
+    },
+    "wu015ScopeDenialReconciliation20261108": {
+      "status": "PARTIAL; historical 42-endpoint 400 finding not reproduced",
+      "sourceSha": "428ad16b904bce309ea06b713d95b958aa6dc3e2",
+      "endpointFilesScanned": 84,
+      "explicitDenialBranches": 59,
+      "mappedTo403": 59,
+      "unclassifiedOrWrong": 0,
+      "focusedApiTests": "6 passed / 0 failed / 0 skipped",
+      "evidence": ".local/autonomous/evidence/wu015-scope-denial-reconciliation-20261108/review.json",
+      "evidenceSha256": "016e933ed49e5508a225398e1717e0d22c897b3788932e5b61c23af76ce33d8f",
+      "broaderSiblingScopeAndRevocationRaceAcceptance": "OPEN"
+    },
+    "wu016CurrentReconciliation20261108": {
+      "status": "FOCUSED_PASS; acceptance pending dependencies",
+      "sourceSha": "428ad16b904bce309ea06b713d95b958aa6dc3e2",
+      "tests": "4 passed / 0 failed / 0 skipped",
+      "evidence": ".local/autonomous/evidence/wu016-current-reconciliation-20261108/review.json",
+      "evidenceSha256": "099448922887efa0cc0ad2ea1303c6023077d359bdf87cf686f274d149d49900",
+      "databaseCleanup": "PASS; ephemeral PostgreSQL 18.6 container removed, port 5433 closed"
     }
   },
   "observedCi": {
@@ -1261,7 +1281,7 @@
       "resolvedSha": "83ac83a630c4b023c9f176a3123436a0489796f8",
       "sourceArtifactId": 13610795483,
       "sourceArtifactDigest": "sha256:2805b355735e3de20137d05d6b2bda49b0ea640bf9f2c4c854bfd682501b7a2b",
-      "status": "IN_PROGRESS_API_E2E",
+      "status": "IN_PROGRESS_API_FAILURE_E2E_ACTIVE",
       "jobs": {
         "resolve": {
           "id": 128676258957,
@@ -1288,15 +1308,45 @@
         },
         "api": {
           "id": 128683997471,
-          "status": "IN_PROGRESS"
+          "status": "FAILURE",
+          "failureStep": "Build and run the complete unfiltered test project",
+          "completedAtUtc": "2026-11-08T10:46:40Z",
+          "actualCheckoutSha": "UNVERIFIED",
+          "failureCause": "UNCONFIRMED",
+          "log": "UNAVAILABLE_UNTIL_PARENT_RUN_TERMINAL",
+          "diagnosticsAndUploadSteps": "SKIPPED"
         },
         "playwrightPostgresE2e": {
           "id": 128683997450,
-          "status": "IN_PROGRESS"
+          "status": "IN_PROGRESS",
+          "activeStep": "Build and run the complete unfiltered test project",
+          "activeStepStartedAtUtc": "2026-11-08T09:04:16Z",
+          "actualCheckoutSha": "PENDING_LOG_PROOF"
         }
       },
       "aggregate": "NOT_TERMINAL",
-      "observedAtUtc": "2026-11-08T09:46:43Z"
+      "observedAtUtc": "2026-11-08T11:19:21Z",
+      "lastGitHubUpdatedAtUtc": "2026-11-08T09:03:19Z",
+      "apiLogCapture": {
+        "attempts": 2,
+        "decodedLogFetches": 0,
+        "retryUntilParentTerminal": false,
+        "note": "Do not retry the log fetch until this exact run reaches aggregate terminal."
+      }
+    },
+    "docsFastRun428ad16": {
+      "runId": 42468960242,
+      "attempt": 1,
+      "headSha": "428ad16b904bce309ea06b713d95b958aa6dc3e2",
+      "conclusion": "SUCCESS",
+      "actualCheckoutsVerified": true,
+      "jobs": {
+        "docs": 128694978149,
+        "angular": 128694978350,
+        "release": 128695609463
+      },
+      "evidence": ".local/autonomous/evidence/docs-consolidation-20261108/fast-428ad16-terminal-proof.json",
+      "evidenceSha256": "ec15a2537f20dba0afccf0880188a80c08fb31e2cbbcdda70c11a3137175a533"
     }
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."
