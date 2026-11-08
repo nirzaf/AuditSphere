@@ -17,7 +17,7 @@ public static partial class UiEndpoints
     string ManifestDigest, string ManifestBytesBase64);
   public sealed record ArchiveCreateInput(Guid ClientId, Guid EngagementId, string ProfileId, long ProfileVersion);
   public sealed record ArchiveBuildInput(Guid? CommercialBundleId, string? RequestKey);
-  public sealed record ArchiveReviewInput(Guid? ManifestId, string? RequestKey);
+  public sealed record ArchiveReviewInput(Guid ManifestId, long ManifestVersion, string? ManifestDigest, string? RequestKey);
   public sealed record WorkpaperDraftInput(long ExpectedDraftRevision, long BaseWorkpaperRevision, long BaseInputGeneration, long BasePolicyGeneration, Guid SaveId,
     string WorkPerformed, string Conclusion);
   public sealed record WorkpaperSubmitInput(long ExpectedRevision, string WorkPerformed, string Conclusion, long ExpectedDraftRevision, Guid DraftSaveId);
@@ -117,7 +117,7 @@ public static partial class UiEndpoints
       .WithUiResponse<UiValueResponse<ArchiveManifestResult>>(includeConflict: true);
     group.MapPost("/records/archives/{id:guid}/review", (Guid id, ArchiveReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => RecordsArchiveService.ReviewManifestAsync(db, actor, id,
-        i.ManifestId is { } manifestId && manifestId != Guid.Empty ? manifestId : null, ct, i.RequestKey)))
+        new ArchiveManifestReviewRequest(i.ManifestId, i.ManifestVersion, i.ManifestDigest, i.RequestKey), ct)))
       .WithUiResponse<UiValueResponse<ArchiveManifestResult>>(includeConflict: true);
     group.MapGet("/records/archives/{id:guid}/export", async (Guid id, HttpContext http) =>
     {

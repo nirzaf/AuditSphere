@@ -1,6 +1,6 @@
 # AuditSphere documentation index
 
-**Status: CURRENT · Navigation only · Reconciled 2026-11-07**
+**Status: CURRENT · Navigation only · Reconciled 2026-11-08**
 
 This index helps developers find the current source of authority. It does not create requirements, approve proposals, or certify release readiness.
 

@@ -73,7 +73,17 @@ public sealed class ArchiveRecordQueryTests
     }
     await using (var reviewer = new AuditSphereDbContext(pg.Options))
     {
-      var result = await RecordsArchiveService.ReviewManifestAsync(reviewer, admin, archiveId, built.ManifestId);
+      var staffRead = await AuditRecordQueries.ArchiveAsync(reviewer, PbcSeed.Actor(f.Staff, "Staff"), archiveId);
+      Assert.True(staffRead.Succeeded, staffRead.Message);
+      Assert.False(staffRead.Value!.CanReview);
+      var authorizedRead = await AuditRecordQueries.ArchiveAsync(reviewer, admin, archiveId);
+      Assert.True(authorizedRead.Succeeded, authorizedRead.Message);
+      Assert.True(authorizedRead.Value!.CanReview);
+      Assert.Equal(built.ManifestId, authorizedRead.Value.ManifestId);
+      Assert.Equal(built.ManifestVersion, authorizedRead.Value.ManifestVersion);
+      Assert.Equal(built.Digest, authorizedRead.Value.ManifestDigest);
+      var result = await RecordsArchiveService.ReviewManifestAsync(reviewer, admin, archiveId,
+        new ArchiveManifestReviewRequest(built.ManifestId, built.ManifestVersion, built.Digest, Guid.NewGuid().ToString("N")));
       Assert.True(result.Succeeded, result.Message);
     }
 
@@ -84,5 +94,6 @@ public sealed class ArchiveRecordQueryTests
     var custodian = await AuditRecordQueries.ArchiveAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), archiveId);
     Assert.True(custodian.Succeeded, custodian.Message);
     Assert.True(custodian.Value!.CanExport);
+    Assert.False(custodian.Value.CanReview);
   }
 }

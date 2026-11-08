@@ -27,7 +27,7 @@ public sealed record ArchiveEntryView(int Ordinal, string EntryKind, string Rela
 public sealed record ArchiveRecordView(Guid Id, Guid EngagementId, string Status, DateTimeOffset CreatedAt, string ProfileId, long ProfileVersion, long? ManifestVersion,
   string? ManifestStatus, string? ManifestDigest, string? CompletenessStatus, string? CompletenessException, IReadOnlyList<ArchiveEntryView> Entries, int TotalEntryCount, int? NextOrdinal, int ActiveHoldCount,
   string? ObservedProtection, string? DesiredLabel, string? ObservedLabel, string? ActionState, string? ExternalReference,
-  ArchiveCopyStatusProjection? SecondarySharePointCopy = null, bool CanExport = false);
+  ArchiveCopyStatusProjection? SecondarySharePointCopy = null, bool CanExport = false, Guid? ManifestId = null, bool CanReview = false);
 
 public sealed record WorkpaperSubmissionView(string Revision, DateTimeOffset SubmittedAt, string? Conclusion);
 public sealed record WorkpaperRecordView(Guid Id, Guid EngagementId, string Index, string Title, string Objective, string TemplateVersion, string Procedure,
@@ -191,8 +191,13 @@ public static class AuditRecordQueries
       (await AuthorizationDecision.AuthorizeAsync(db, actor,
         new AuthorizationRequest(actor.FirmId, a.ClientId, a.EngagementId,
           RequiredRoles: ["Administrator", "Partner", "RecordsCustodian"], InternalOnly: true), ct)).Succeeded;
+    var canReview = manifest is { Status: "BUILT", CompletenessStatus: "COMPLETE", SupersededByManifestId: null } &&
+      a.Status == ArchiveStates.ManifestBuilt && totalEntryCount == manifest.EntryCount &&
+      (await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, a.ClientId, a.EngagementId,
+          RequiredRoles: ["Administrator", "Partner", "RecordsCustodian"], InternalOnly: true), ct)).Succeeded;
     return CommandResult<ArchiveRecordView>.Ok(new(a.Id, a.EngagementId, a.Status, a.CreatedAt, a.ProfileId, a.ProfileVersion, manifest?.Version, manifest?.Status, manifest?.ManifestDigest,
       manifest?.CompletenessStatus, manifest?.CompletenessException, entries, totalEntryCount, nextOrdinal, holds, action?.ObservedProtection, action?.DesiredLabel, action?.ObservedLabel, action?.State,
-      action?.ExternalReference, secondaryCopy, canExport));
+      action?.ExternalReference, secondaryCopy, canExport, manifest?.Id, canReview));
   }
 }

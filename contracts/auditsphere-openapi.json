@@ -103871,6 +103871,7 @@
         "required": [
           "archiveId",
           "manifestId",
+          "manifestVersion",
           "status",
           "digest",
           "entryCount",
@@ -103885,6 +103886,14 @@
           "manifestId": {
             "type": "string",
             "format": "uuid"
+          },
+          "manifestVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           },
           "status": {
             "type": "string"
@@ -104107,22 +104116,46 @@
           "canExport": {
             "type": "boolean",
             "default": false
-          }
-        }
-      },
-      "ArchiveReviewInput": {
-        "required": [
-          "manifestId",
-          "requestKey"
-        ],
-        "type": "object",
-        "properties": {
+          },
           "manifestId": {
             "type": [
               "null",
               "string"
             ],
             "format": "uuid"
+          },
+          "canReview": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "ArchiveReviewInput": {
+        "required": [
+          "manifestId",
+          "manifestVersion",
+          "manifestDigest",
+          "requestKey"
+        ],
+        "type": "object",
+        "properties": {
+          "manifestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "manifestVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "manifestDigest": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "requestKey": {
             "type": [

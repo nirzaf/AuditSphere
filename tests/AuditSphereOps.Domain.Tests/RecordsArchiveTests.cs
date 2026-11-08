@@ -208,15 +208,30 @@ public sealed class RecordsArchiveTests
     Assert.Equal("build-request-1", await db.ArchiveManifests.Where(x => x.Id == build.Value.ManifestId)
       .Select(x => x.BuildRequestKey).SingleAsync());
 
-    var reviewed = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, first.Value.ArchiveId,
-      build.Value.ManifestId, requestKey: "review-request-1");
+    var reviewRequest = new ArchiveManifestReviewRequest(build.Value.ManifestId, build.Value.ManifestVersion,
+      build.Value.Digest, "review-request-1");
+    var reviewed = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, first.Value.ArchiveId, reviewRequest);
     Assert.True(reviewed.Succeeded, reviewed.Message);
-    var reviewReplay = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, first.Value.ArchiveId,
-      build.Value.ManifestId, requestKey: "review-request-1");
+    var reviewReplay = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, first.Value.ArchiveId, reviewRequest);
     Assert.True(reviewReplay.Succeeded, reviewReplay.Message);
     Assert.Equal(build.Value.ManifestId, reviewReplay.Value!.ManifestId);
     Assert.Equal("review-request-1", await db.ArchiveManifests.Where(x => x.Id == build.Value.ManifestId)
       .Select(x => x.ReviewRequestKey).SingleAsync());
+
+    Assert.True((await RecordsArchiveService.RequestRecordsActionAsync(db, scope.Actor,
+      new RequestRecordsActionRequest(first.Value.ArchiveId, "purview-request-replay-test"))).Succeeded);
+    var historicalReviewReplay = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor,
+      first.Value.ArchiveId, reviewRequest);
+    Assert.True(historicalReviewReplay.Succeeded, historicalReviewReplay.Message);
+    Assert.Equal(build.Value.ManifestId, historicalReviewReplay.Value!.ManifestId);
+    Assert.Equal(build.Value.ManifestVersion, historicalReviewReplay.Value.ManifestVersion);
+    Assert.Equal(build.Value.Digest, historicalReviewReplay.Value.Digest);
+    Assert.Equal(ArchiveStates.RecordsActionRequested,
+      await db.Archives.Where(x => x.Id == first.Value.ArchiveId).Select(x => x.Status).SingleAsync());
+    var differentReviewAfterTransition = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor,
+      first.Value.ArchiveId, reviewRequest with { RequestKey = "review-request-after-transition" });
+    Assert.False(differentReviewAfterTransition.Succeeded);
+    Assert.Equal(ErrorCodes.ProtectedState, differentReviewAfterTransition.ErrorCode);
   }
 
   [Fact]
@@ -456,6 +471,7 @@ public sealed class RecordsArchiveTests
     var archiveId = await SeedArchiveAuthorityScenarioAsync(pg, scope);
     const string buildRequestKey = "review-revoke-race-build";
     Guid manifestId;
+    ArchiveManifestReviewRequest reviewRequest;
     Guid custodianGrantId;
     ActorContext administrator;
     await using (var setup = new AuditSphereDbContext(pg.Options))
@@ -464,6 +480,8 @@ public sealed class RecordsArchiveTests
         archiveId, null, buildRequestKey, ct);
       Assert.True(built.Succeeded, built.Message);
       manifestId = built.Value!.ManifestId;
+      reviewRequest = new ArchiveManifestReviewRequest(built.Value.ManifestId, built.Value.ManifestVersion,
+        built.Value.Digest, "review-after-revocation");
       custodianGrantId = await setup.RoleGrants.AsNoTracking().Where(x => x.FirmId == scope.FirmId &&
         x.UserId == scope.Actor.UserId && x.Role == "Partner" && x.RevokedAt == null)
         .Select(x => x.Id).SingleAsync(ct);
@@ -495,8 +513,7 @@ public sealed class RecordsArchiveTests
         observer, revokerApplication, fenceHolderPid, revokeTask, ct);
       var revokerPid = await GetApplicationPidAsync(observer, revokerApplication, ct);
 
-      reviewTask = RecordsArchiveService.ReviewManifestAsync(reviewer, scope.Actor, archiveId, manifestId,
-        ct, "review-after-revocation");
+      reviewTask = RecordsArchiveService.ReviewManifestAsync(reviewer, scope.Actor, archiveId, reviewRequest, ct);
       reviewQueuedBehindRevocation = await WaitForApplicationBlockedByOrCompletedAsync(
         observer, reviewerApplication, revokerPid, reviewTask, ct);
     }
@@ -549,8 +566,7 @@ public sealed class RecordsArchiveTests
         new EnsureArchiveRequest(scope.ClientId, scope.EngagementId, "AUTHORITY-FENCE-TEST", 1));
       var built = await RecordsArchiveService.BuildManifestWithRequestAsync(snapshotDb, scope.Actor,
         archiveId, null, "snapshot-transaction-build");
-      var reviewed = await RecordsArchiveService.ReviewManifestAsync(snapshotDb, scope.Actor, archiveId,
-        Guid.NewGuid());
+      var reviewed = await RecordsArchiveService.ReviewManifestAsync(snapshotDb, scope.Actor, archiveId, null);
       Assert.Equal(ErrorCodes.GenerationStale, ensured.ErrorCode);
       Assert.Equal(ErrorCodes.GenerationStale, built.ErrorCode);
       Assert.Equal(ErrorCodes.GenerationStale, reviewed.ErrorCode);
@@ -569,7 +585,8 @@ public sealed class RecordsArchiveTests
         archiveId, null, "caller-transaction-build");
       Assert.True(built.Succeeded, built.Message);
       var reviewed = await RecordsArchiveService.ReviewManifestAsync(currentDb, scope.Actor, archiveId,
-        built.Value!.ManifestId, requestKey: "caller-transaction-review");
+        new ArchiveManifestReviewRequest(built.Value!.ManifestId, built.Value.ManifestVersion, built.Value.Digest,
+          "caller-transaction-review"));
       Assert.True(reviewed.Succeeded, reviewed.Message);
       await current.CommitAsync();
     }
@@ -661,7 +678,10 @@ public sealed class RecordsArchiveTests
     Assert.Contains("\"activityEvents\"", structuredExport.PayloadJson);
     Assert.Equal(structuredExport.ByteCount, System.Text.Encoding.UTF8.GetByteCount(structuredExport.PayloadJson));
 
-    var reviewed = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId);
+    var reviewManifest = await db.ArchiveManifests.AsNoTracking().SingleAsync(x => x.FirmId == scope.FirmId && x.ArchiveId == archiveId);
+    var reviewed = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId,
+      new ArchiveManifestReviewRequest(reviewManifest.Id, reviewManifest.Version, reviewManifest.ManifestDigest,
+        Guid.NewGuid().ToString("N")));
     Assert.True(reviewed.Succeeded, reviewed.Message);
     Assert.True((await db.ArchiveManifests.SingleAsync(x => x.ArchiveId == archiveId)).ReviewedAt.HasValue);
 
@@ -844,7 +864,8 @@ public sealed class RecordsArchiveTests
     db.ArchiveManifestEntries.Add(duplicate);
     await db.SaveChangesAsync();
 
-    var reviewed = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId, manifest.Id);
+    var reviewed = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId,
+      new ArchiveManifestReviewRequest(manifest.Id, manifest.Version, manifest.ManifestDigest, Guid.NewGuid().ToString("N")));
     Assert.True(reviewed.Succeeded, reviewed.Message);
     var export = await RecordsArchiveService.ExportReviewedArchiveAsync(db, scope.Actor, archiveId);
     Assert.False(export.Succeeded);
@@ -985,7 +1006,8 @@ public sealed class RecordsArchiveTests
 
     await using (var reviewDb = new AuditSphereDbContext(pg.Options))
     {
-      var reviewed = await RecordsArchiveService.ReviewManifestAsync(reviewDb, scope.Actor, archiveId, manifestId);
+      var reviewed = await RecordsArchiveService.ReviewManifestAsync(reviewDb, scope.Actor, archiveId,
+        new ArchiveManifestReviewRequest(manifestId, 1, manifestDigest, Guid.NewGuid().ToString("N")));
       Assert.True(reviewed.Succeeded, reviewed.Message);
     }
 
@@ -1107,11 +1129,37 @@ public sealed class RecordsArchiveTests
     Assert.Equal(manifest2.Id, manifest1.SupersededByManifestId);
 
     // Superseded manifest cannot be reviewed
-    var reviewSuperseded = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId, manifest1.Id);
+    var reviewSuperseded = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId,
+      new ArchiveManifestReviewRequest(manifest1.Id, manifest1.Version, manifest1.ManifestDigest, "review-superseded-v1"));
     Assert.False(reviewSuperseded.Succeeded);
-    Assert.Equal(ErrorCodes.ProtectedState, reviewSuperseded.ErrorCode);
+    Assert.Equal(ErrorCodes.GenerationStale, reviewSuperseded.ErrorCode);
     var retainedDigest = manifest2.ManifestDigest;
-    Assert.True((await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId, manifest2.Id)).Succeeded);
+    var wrongManifest = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId,
+      new ArchiveManifestReviewRequest(Guid.NewGuid(), manifest2.Version, manifest2.ManifestDigest, "review-wrong-id"));
+    Assert.False(wrongManifest.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, wrongManifest.ErrorCode);
+    var staleVersion = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId,
+      new ArchiveManifestReviewRequest(manifest2.Id, manifest2.Version + 1, manifest2.ManifestDigest, "review-stale-version"));
+    Assert.False(staleVersion.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, staleVersion.ErrorCode);
+    var staleDigest = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId,
+      new ArchiveManifestReviewRequest(manifest2.Id, manifest2.Version, new string('0', 64), "review-stale-digest"));
+    Assert.False(staleDigest.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, staleDigest.ErrorCode);
+    Assert.Equal("BUILT", await db.ArchiveManifests.Where(x => x.Id == manifest2.Id).Select(x => x.Status).SingleAsync());
+    Assert.Null(await db.ArchiveManifests.Where(x => x.Id == manifest2.Id).Select(x => x.ReviewedAt).SingleAsync());
+
+    var currentReview = new ArchiveManifestReviewRequest(manifest2.Id, manifest2.Version, manifest2.ManifestDigest, "review-current-v2");
+    Assert.True((await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId, currentReview)).Succeeded);
+    var currentReplay = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId, currentReview);
+    Assert.True(currentReplay.Succeeded, currentReplay.Message);
+    Assert.Equal(manifest2.Id, currentReplay.Value!.ManifestId);
+    Assert.Equal(manifest2.Version, currentReplay.Value.ManifestVersion);
+    Assert.Equal(manifest2.ManifestDigest, currentReplay.Value.Digest);
+    var newAssent = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId,
+      currentReview with { RequestKey = "review-current-v2-new-key" });
+    Assert.False(newAssent.Succeeded);
+    Assert.Equal(ErrorCodes.ProtectedState, newAssent.ErrorCode);
 
     // T17: a reviewed entry set is immutable through ordinary storage paths.
     var reviewedEntry = await db.ArchiveManifestEntries
@@ -1341,7 +1389,8 @@ public sealed class RecordsArchiveTests
 
     await using var reviewer = new AuditSphereDbContext(pg.Options);
     await using var reviewTransaction = await reviewer.Database.BeginTransactionAsync();
-    var reviewed = await RecordsArchiveService.ReviewManifestAsync(reviewer, scope.Actor, archiveId, built.ManifestId);
+    var reviewed = await RecordsArchiveService.ReviewManifestAsync(reviewer, scope.Actor, archiveId,
+      new ArchiveManifestReviewRequest(built.ManifestId, built.ManifestVersion, built.Digest, Guid.NewGuid().ToString("N")));
     Assert.True(reviewed.Succeeded, reviewed.Message);
     var original = await reviewer.ArchiveStructuredExports.AsNoTracking()
       .SingleAsync(x => x.FirmId == scope.FirmId && x.ArchiveId == archiveId && x.ArchiveManifestId == built.ManifestId);
@@ -1458,7 +1507,8 @@ public sealed class RecordsArchiveTests
     pidCommand.CommandText = "SELECT pg_backend_pid()";
     var reviewerPid = Convert.ToInt32(await pidCommand.ExecuteScalarAsync());
 
-    var reviewTask = RecordsArchiveService.ReviewManifestAsync(reviewer, scope.Actor, archiveId, built.ManifestId);
+    var reviewTask = RecordsArchiveService.ReviewManifestAsync(reviewer, scope.Actor, archiveId,
+      new ArchiveManifestReviewRequest(built.ManifestId, built.ManifestVersion, built.Digest, Guid.NewGuid().ToString("N")));
     await using var observer = new AuditSphereDbContext(pg.Options);
     await observer.Database.OpenConnectionAsync();
     var observerConnection = (NpgsqlConnection)observer.Database.GetDbConnection();
@@ -1529,8 +1579,11 @@ public sealed class RecordsArchiveTests
     }
 
     await using var db = new AuditSphereDbContext(pg.Options);
-    Assert.True((await RecordsArchiveService.BuildManifestAsync(db, scope.Actor, archiveId)).Succeeded);
-    Assert.True((await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId)).Succeeded);
+    var built = await RecordsArchiveService.BuildManifestAsync(db, scope.Actor, archiveId);
+    Assert.True(built.Succeeded, built.Message);
+    Assert.True((await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId,
+      new ArchiveManifestReviewRequest(built.Value!.ManifestId, built.Value.ManifestVersion, built.Value.Digest,
+        Guid.NewGuid().ToString("N")))).Succeeded);
     Assert.True((await RecordsArchiveService.RequestRecordsActionAsync(db, scope.Actor,
       new RequestRecordsActionRequest(archiveId, "req-1"))).Succeeded);
     Assert.True((await RecordsArchiveService.ObserveRecordsActionAsync(db, scope.Actor,

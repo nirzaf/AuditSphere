@@ -24,7 +24,10 @@ public sealed record EnsureArchiveRequest(Guid ClientId, Guid EngagementId, stri
 public sealed record EnsureArchiveResult(Guid ArchiveId, bool Created);
 
 public sealed record ArchiveManifestResult(
-  Guid ArchiveId, Guid ManifestId, string Status, string Digest, int EntryCount, string CompletenessStatus);
+  Guid ArchiveId, Guid ManifestId, long ManifestVersion, string Status, string Digest, int EntryCount, string CompletenessStatus);
+
+public sealed record ArchiveManifestReviewRequest(
+  Guid ManifestId, long ManifestVersion, string? ManifestDigest, string? RequestKey);
 
 public sealed record ArchiveEvidenceExport(
   string FileName, byte[] Content, string ContentSha256, string ManifestSha256,
@@ -194,7 +197,7 @@ public static class RecordsArchiveService
           return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.IdempotencyConflict,
             "This build request identity is already bound to a different bundle selection.");
         if (tx is not null) await tx.CommitAsync(ct);
-        var prior = new ArchiveManifestResult(archive.Id, priorRequest.Id, priorRequest.Status,
+        var prior = new ArchiveManifestResult(archive.Id, priorRequest.Id, priorRequest.Version, priorRequest.Status,
           priorRequest.ManifestDigest, priorRequest.EntryCount, priorRequest.CompletenessStatus);
         return priorRequest.CompletenessStatus == "COMPLETE"
           ? CommandResult<ArchiveManifestResult>.Ok(prior)
@@ -306,7 +309,7 @@ public static class RecordsArchiveService
         .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, ArchiveStates.ManifestBuilt), ct);
     if (tx is not null) await tx.CommitAsync(ct);
 
-    var result = new ArchiveManifestResult(archive.Id, manifest.Id, manifest.Status, manifest.ManifestDigest,
+    var result = new ArchiveManifestResult(archive.Id, manifest.Id, manifest.Version, manifest.Status, manifest.ManifestDigest,
       manifest.EntryCount, manifest.CompletenessStatus);
     return complete
       ? CommandResult<ArchiveManifestResult>.Ok(result)
@@ -321,8 +324,8 @@ public static class RecordsArchiveService
     })));
 
   public static async Task<CommandResult<ArchiveManifestResult>> ReviewManifestAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid archiveId, Guid? manifestId = null,
-    CancellationToken ct = default, string? requestKey = null)
+    IAuditSphereDbContext db, ActorContext actor, Guid archiveId, ArchiveManifestReviewRequest? request,
+    CancellationToken ct = default)
   {
     var transactionValidation = ValidateArchiveMutationTransaction(db);
     if (!transactionValidation.Succeeded)
@@ -340,24 +343,28 @@ public static class RecordsArchiveService
     var lockedArchiveAuth = await AuthorizeArchiveScopeAsync(db, actor, archive, ct);
     if (!lockedArchiveAuth.Succeeded)
       return CommandResult<ArchiveManifestResult>.Fail(lockedArchiveAuth.ErrorCode!, lockedArchiveAuth.Message!);
-    var manifestQuery = manifestId is { } selectedManifestId
-      ? db.ArchiveManifests.FromSqlInterpolated($"""
-          SELECT * FROM archive_manifests
-          WHERE firm_id = {actor.FirmId} AND archive_id = {archive.Id} AND id = {selectedManifestId}
-          FOR UPDATE
-          """)
-      : db.ArchiveManifests.FromSqlInterpolated($"""
-          SELECT * FROM archive_manifests
-          WHERE firm_id = {actor.FirmId} AND archive_id = {archive.Id}
-          ORDER BY version DESC
-          LIMIT 1
-          FOR UPDATE
-          """);
-    var manifest = await manifestQuery.SingleOrDefaultAsync(ct);
+    var requestKey = request?.RequestKey?.Trim();
+    if (request is null || request.ManifestId == Guid.Empty || request.ManifestVersion < 1 ||
+        request.ManifestDigest is not { Length: 64 } expectedDigest || expectedDigest.Any(ch => !Uri.IsHexDigit(ch)) ||
+        string.IsNullOrWhiteSpace(requestKey) || requestKey.Length > 64)
+      return CommandResult<ArchiveManifestResult>.Fail("records-manifest.request.invalid",
+        "Submit the exact displayed manifest identity, version, digest and review request identity.");
+
+    var manifest = await db.ArchiveManifests.FromSqlInterpolated($"""
+      SELECT * FROM archive_manifests
+      WHERE firm_id = {actor.FirmId} AND archive_id = {archive.Id} AND id = {request.ManifestId}
+      FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
     var manifestLockedAuth = await AuthorizeArchiveScopeAsync(db, actor, archive, ct);
     if (!manifestLockedAuth.Succeeded)
       return CommandResult<ArchiveManifestResult>.Fail(manifestLockedAuth.ErrorCode!, manifestLockedAuth.Message!);
-    if (manifest is null || manifest.CompletenessStatus != "COMPLETE")
+    if (manifest is null)
+      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (manifest.Version != request.ManifestVersion ||
+        !string.Equals(manifest.ManifestDigest, expectedDigest, StringComparison.Ordinal))
+      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GenerationStale,
+        "The displayed archive manifest changed. Refresh the archive before recording review.");
+    if (manifest.CompletenessStatus != "COMPLETE")
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked, "A complete archive manifest is required.");
 
     var manifestEntries = await db.ArchiveManifestEntries.AsNoTracking()
@@ -368,33 +375,34 @@ public static class RecordsArchiveService
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked,
         "The archive manifest entries do not match their retained digest.");
 
-    requestKey = string.IsNullOrWhiteSpace(requestKey) ? null : requestKey.Trim();
-    if (requestKey is { Length: > 64 })
-      return CommandResult<ArchiveManifestResult>.Fail("records-manifest.request.invalid", "The review request identity is invalid.");
-    if (requestKey is not null)
+    var priorRequest = await db.ArchiveManifests.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ArchiveId == archive.Id && x.ReviewRequestKey == requestKey, ct);
+    if (priorRequest is not null)
     {
-      var priorRequest = await db.ArchiveManifests.AsNoTracking().SingleOrDefaultAsync(x =>
-        x.FirmId == actor.FirmId && x.ArchiveId == archive.Id && x.ReviewRequestKey == requestKey, ct);
-      if (priorRequest is not null)
-      {
-        if (priorRequest.Id != manifest.Id)
-          return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.IdempotencyConflict,
-            "This review request identity is already bound to a different manifest.");
-        return CommandResult<ArchiveManifestResult>.Ok(new ArchiveManifestResult(archive.Id, priorRequest.Id,
-          priorRequest.Status, priorRequest.ManifestDigest, priorRequest.EntryCount, priorRequest.CompletenessStatus));
-      }
+      if (priorRequest.Id != manifest.Id || priorRequest.Version != request.ManifestVersion ||
+          !string.Equals(priorRequest.ManifestDigest, expectedDigest, StringComparison.Ordinal) ||
+          priorRequest.ReviewedByUserId != actor.UserId)
+        return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.IdempotencyConflict,
+          "This review request identity is already bound to a different reviewer or manifest basis.");
+      if (priorRequest.Status != "REVIEWED" || priorRequest.ReviewedAt is null)
+        return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GenerationStale,
+          "The original review request does not have a complete committed outcome.");
+      return CommandResult<ArchiveManifestResult>.Ok(new ArchiveManifestResult(archive.Id, priorRequest.Id,
+        priorRequest.Version, priorRequest.Status, priorRequest.ManifestDigest, priorRequest.EntryCount,
+        priorRequest.CompletenessStatus));
     }
-    var result = new ArchiveManifestResult(archive.Id, manifest.Id, "REVIEWED", manifest.ManifestDigest,
+    var result = new ArchiveManifestResult(archive.Id, manifest.Id, manifest.Version, "REVIEWED", manifest.ManifestDigest,
       manifest.EntryCount, manifest.CompletenessStatus);
-    if (manifest.Status == "REVIEWED" && archive.Status == ArchiveStates.AssemblyReviewed)
-      return CommandResult<ArchiveManifestResult>.Ok(result);
+    if (manifest.Status == "REVIEWED" || archive.Status == ArchiveStates.AssemblyReviewed)
+      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ProtectedState,
+        "This manifest was already reviewed under another request identity; recover it with the original request.");
     if (archive.Status != ArchiveStates.ManifestBuilt)
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ProtectedState,
         "Only a complete built manifest can be reviewed.");
     if (manifest.SupersededByManifestId is not null ||
         await db.ArchiveManifests.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
           x.ArchiveId == archive.Id && x.Version > manifest.Version, ct))
-      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ProtectedState,
+      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GenerationStale,
         "This manifest has been superseded by a newer version and cannot be reviewed.");
 
     manifest.Status = "REVIEWED";

@@ -742,7 +742,9 @@ public sealed partial class AuditDeliverablesTests
           var included = await RecordsArchiveService.BuildManifestWithCommercialBundleAsync(db, partner, archiveId, bundleId);
           Assert.True(included.Succeeded, $"{included.ErrorCode}: {included.Message ?? "No failure message was returned."}");
           await using var reviewDb = new AuditSphereDbContext(pg.Options);
-          var review = await RecordsArchiveService.ReviewManifestAsync(reviewDb, partner, archiveId);
+          var review = await RecordsArchiveService.ReviewManifestAsync(reviewDb, partner, archiveId,
+            new ArchiveManifestReviewRequest(included.Value!.ManifestId, included.Value.ManifestVersion,
+              included.Value.Digest, Guid.NewGuid().ToString("N")));
           Assert.True(review.Succeeded, $"{review.ErrorCode}: {review.Message ?? "No failure message was returned."}");
           Assert.Equal(16, included.Value!.EntryCount);
         }
@@ -1189,6 +1191,7 @@ public sealed partial class AuditDeliverablesTests
       };
       var snapshotBytes = System.Text.Encoding.UTF8.GetBytes("synthetic source bytes bound to version 7");
       var snapshotId = Guid.CreateVersion7();
+      ArchiveManifestResult includedManifest;
       await using (var db = new AuditSphereDbContext(pg.Options))
       {
         db.RecordsProfiles.Add(profile);
@@ -1223,11 +1226,14 @@ public sealed partial class AuditDeliverablesTests
         await db.SaveChangesAsync();
         var included = await RecordsArchiveService.BuildManifestWithCommercialBundleAsync(db, partner, archiveId, bundleId);
         Assert.True(included.Succeeded, included.Message);
-        Assert.Equal(16, included.Value!.EntryCount);
+        includedManifest = included.Value!;
+        Assert.Equal(16, includedManifest.EntryCount);
       }
       await using (var reviewDb = new AuditSphereDbContext(pg.Options))
       {
-        var reviewed = await RecordsArchiveService.ReviewManifestAsync(reviewDb, partner, archiveId);
+        var reviewed = await RecordsArchiveService.ReviewManifestAsync(reviewDb, partner, archiveId,
+          new ArchiveManifestReviewRequest(includedManifest.ManifestId, includedManifest.ManifestVersion,
+            includedManifest.Digest, Guid.NewGuid().ToString("N")));
         Assert.True(reviewed.Succeeded, reviewed.Message);
       }
 
@@ -1885,7 +1891,8 @@ public sealed partial class AuditDeliverablesTests
       await using (var reviewUnsafe = new AuditSphereDbContext(pg.Options))
       {
         var reviewed = await RecordsArchiveService.ReviewManifestAsync(reviewUnsafe, partner,
-          unsafeArchiveId, unsafeManifest.Id);
+          unsafeArchiveId, new ArchiveManifestReviewRequest(unsafeManifest.Id, unsafeManifest.Version,
+            unsafeManifest.ManifestDigest, Guid.NewGuid().ToString("N")));
         Assert.True(reviewed.Succeeded, reviewed.Message);
         unsafeManifest = await reviewUnsafe.ArchiveManifests.AsNoTracking().SingleAsync(x => x.Id == unsafeManifest.Id);
       }

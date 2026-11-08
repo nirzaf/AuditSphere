@@ -17,10 +17,10 @@ const copy = (state: 'NOT_REQUESTED' | 'REQUESTED' | 'OBSERVED' | 'BLOCKED_EXTER
     ? 'Historical readback only; the AuditSphere release/archive store remains authoritative.'
     : 'No SharePoint secondary-copy request is recorded. The AuditSphere release/archive store remains authoritative.'
 });
-const archive = (n = 1, secondarySharePointCopy = copy()) => ({ id: id(n), engagementId: id(20), status: 'SEALED', createdAt: created,
-  profileId: 'SYNTHETIC-ARCHIVE', profileVersion: 1, manifestVersion: 1, manifestStatus: 'BUILT', manifestDigest: hash, completenessStatus: 'COMPLETE', completenessException: null, canExport: false,
+const archive = (n = 1, secondarySharePointCopy = copy(), fields: Record<string, unknown> = {}) => ({ id: id(n), engagementId: id(20), status: 'SEALED', createdAt: created,
+  profileId: 'SYNTHETIC-ARCHIVE', profileVersion: 1, manifestVersion: 1, manifestId: id(40 + n), manifestStatus: 'BUILT', manifestDigest: hash, completenessStatus: 'COMPLETE', completenessException: null, canExport: false, canReview: false,
   entries: Array.from({ length: 100 }, (_, i) => entry(i + 1)), totalEntryCount: 205, nextOrdinal: 100,
-  activeHoldCount: 1, observedProtection: null, desiredLabel: 'SYNTHETIC LABEL', observedLabel: null, actionState: 'REQUESTED', externalReference: 'SYNTHETIC REFERENCE', secondarySharePointCopy });
+  activeHoldCount: 1, observedProtection: null, desiredLabel: 'SYNTHETIC LABEL', observedLabel: null, actionState: 'REQUESTED', externalReference: 'SYNTHETIC REFERENCE', secondarySharePointCopy, ...fields });
 const page2 = () => ({ ...archive(), entries: Array.from({ length: 100 }, (_, i) => entry(i + 101)), nextOrdinal: 200 });
 const page3 = () => ({ ...archive(), entries: Array.from({ length: 5 }, (_, i) => entry(i + 201)), nextOrdinal: null });
 
@@ -43,6 +43,81 @@ describe('Archive detail and exact paging safety', () => {
     expect(host.textContent).toContain('Unreleased local hold'); expect(host.textContent).toContain('Not observed');
     const cells = host.querySelector('tbody tr')!.querySelectorAll('td');
     expect(Array.from(cells, c => c.textContent?.trim())).toEqual(['1', 'DOCUMENT', 'evidence/item-1.pdf', hash, '1']);
+  });
+  it('reviews the exact displayed manifest and accepts only its matching receipt', async () => {
+    component.refresh(); TestBed.tick();
+    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true })); await fixture.whenStable();
+    const reviewButton = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'))
+      .find(button => button.textContent?.includes('Review exact manifest'));
+    expect(reviewButton).toBeTruthy();
+    const task = component.reviewManifest(component.archive()!);
+    const request = http.expectOne(url() + '/review');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ manifestId: id(41), manifestVersion: 1, manifestDigest: hash,
+      requestKey: expect.stringMatching(/^[0-9a-f-]{36}$/i) });
+    request.flush({ value: { archiveId: id(1), manifestId: id(41), manifestVersion: 1, status: 'REVIEWED',
+      digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
+    await task;
+    http.expectOne(url()).flush(archive(1, copy(), { status: 'ASSEMBLY_REVIEWED', manifestStatus: 'REVIEWED' }));
+    await fixture.whenStable();
+    expect(component.archive()?.status).toBe('ASSEMBLY_REVIEWED');
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Review exact manifest');
+  });
+  it('reuses the same review request identity after an unknown HTTP outcome', async () => {
+    component.refresh(); TestBed.tick();
+    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true })); await fixture.whenStable();
+    const firstTask = component.reviewManifest(component.archive()!);
+    const first = http.expectOne(url() + '/review');
+    const firstKey = first.request.body.requestKey;
+    first.flush({}, { status: 502, statusText: 'Gateway response lost' }); await firstTask;
+    const secondTask = component.reviewManifest(component.archive()!);
+    const second = http.expectOne(url() + '/review');
+    expect(second.request.body.requestKey).toBe(firstKey);
+    second.flush({ value: { archiveId: id(1), manifestId: id(41), manifestVersion: 1, status: 'REVIEWED',
+      digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
+    await secondTask;
+    http.expectOne(url()).flush(archive(1, copy(), { status: 'ASSEMBLY_REVIEWED', manifestStatus: 'REVIEWED' }));
+    await fixture.whenStable();
+    expect(component.archive()?.status).toBe('ASSEMBLY_REVIEWED');
+  });
+  it('does not reuse a pending review request identity after session replacement', async () => {
+    component.refresh(); TestBed.tick();
+    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true })); await fixture.whenStable();
+    const firstTask = component.reviewManifest(component.archive()!);
+    const first = http.expectOne(url() + '/review');
+    const firstKey = first.request.body.requestKey;
+
+    session.clear();
+    session.current.set({ userId: id(92), firmId: id(91), generation: '2', staff: true });
+    TestBed.tick();
+    first.flush({ value: { archiveId: id(1), manifestId: id(41), manifestVersion: 1, status: 'REVIEWED',
+      digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
+    await firstTask;
+    expect(component.archive()).toBeNull();
+
+    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true })); await fixture.whenStable();
+    const secondTask = component.reviewManifest(component.archive()!);
+    const second = http.expectOne(url() + '/review');
+    expect(second.request.body.requestKey).not.toBe(firstKey);
+    second.flush({ value: { archiveId: id(1), manifestId: id(41), manifestVersion: 1, status: 'REVIEWED',
+      digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
+    await secondTask;
+    http.expectOne(url()).flush(archive(1, copy(), { status: 'ASSEMBLY_REVIEWED', manifestStatus: 'REVIEWED' }));
+    await fixture.whenStable();
+    expect(component.archive()?.status).toBe('ASSEMBLY_REVIEWED');
+  });
+  it('refreshes instead of accepting a receipt for another manifest identity', async () => {
+    component.refresh(); TestBed.tick();
+    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true })); await fixture.whenStable();
+    const task = component.reviewManifest(component.archive()!);
+    const request = http.expectOne(url() + '/review');
+    request.flush({ value: { archiveId: id(1), manifestId: id(42), manifestVersion: 1, status: 'REVIEWED',
+      digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
+    await task;
+    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true }));
+    await fixture.whenStable();
+    expect(component.archive()?.status).toBe('MANIFEST_BUILT');
+    expect(component.actionError()).toContain('did not confirm');
   });
   it('renders a separate historical SharePoint observation without implying current protection', async () => {
     component.refresh(); TestBed.tick(); http.expectOne(url()).flush(archive(1, copy('OBSERVED'))); await fixture.whenStable();

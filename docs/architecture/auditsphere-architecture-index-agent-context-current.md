@@ -1,6 +1,6 @@
 # AuditSphere architecture guide
 
-**Status: CURRENT · Consolidated architecture navigation · Reconciled 2026-11-07**
+**Status: CURRENT · Consolidated architecture navigation · Reconciled 2026-11-08**
 
 This page is a category guide, not an approval source. Follow [`AGENTS.md`](../../AGENTS.md), the current architecture, and each applicable ADR's own status. The [documentation index](../auditsphere-docs-index.md) defines document authority and the wider category map.
 

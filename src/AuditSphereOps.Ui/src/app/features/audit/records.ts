@@ -5,7 +5,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, timeout } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
-import { arr, bool, dec, guid, instant, int, nat, nullable, obj, oneOf, sha256, text } from '../../core/decode';
+import { arr, bool, decode, dec, guid, instant, int, nat, nullable, obj, oneOf, sha256, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { FindingCommandState } from './finding-command-state';
@@ -28,13 +28,17 @@ export const decodeReviewPoint = obj({ id: guid, engagementId: guid, targetKind:
 const gate = obj({ state: text, detail: text });
 export const decodeRelease = obj({ id: guid, status: text, targetKind: text, targetRevision: int, revision: int, manifestDigest: text, createdAt: instant,
   checkpoint: gate, attestation: gate, lineage: gate, preflightReady: bool });
+export const decodeArchiveManifestResult = obj({ archiveId: guid, manifestId: guid, manifestVersion: int, status: text,
+  digest: sha256, entryCount: nat, completenessStatus: text });
+const decodeArchiveManifestResponse = obj({ value: decodeArchiveManifestResult });
 export const decodeArchive = obj({ id: guid, engagementId: guid, status: text, createdAt: instant, profileId: text, profileVersion: int, manifestVersion: nullable(int),
   manifestStatus: nullable(text), manifestDigest: nullable(text), completenessStatus: nullable(text), completenessException: nullable(text), canExport: bool,
   entries: arr(obj({ ordinal: int, entryKind: text, relativeName: text, contentHash: text, byteCount: int }), 100), totalEntryCount: nat, nextOrdinal: nullable(int), activeHoldCount: nat,
   observedProtection: nullable(text), desiredLabel: nullable(text), observedLabel: nullable(text), actionState: nullable(text), externalReference: nullable(text),
   secondarySharePointCopy: nullable(obj({ state: oneOf('NOT_REQUESTED', 'REQUESTED', 'OBSERVED', 'BLOCKED_EXTERNAL'),
     operationId: nullable(guid), targetRevision: nullable(int), manifestVersion: nullable(int), manifestSha256: nullable(sha256),
-    latestFileReadBackAt: nullable(instant), permissionReadBackAt: nullable(instant), note: text })) });
+    latestFileReadBackAt: nullable(instant), permissionReadBackAt: nullable(instant), note: text })),
+  manifestId: nullable(guid), canReview: bool });
 const sum = (rows: { reviewedTestCount: number }[]) => rows.reduce((n, r) => n + r.reviewedTestCount, 0);
 
 @Component({
@@ -307,7 +311,7 @@ export class ReleaseCandidate {
         @if (a.manifestVersion === null || a.completenessStatus === 'INCOMPLETE') {
           <button matButton="filled" type="button" [disabled]="actionBusy()" (click)="buildManifest(a)">{{ actionBusy() ? 'Building…' : 'Build archive manifest' }}</button>
         }
-        @if (a.status === 'MANIFEST_BUILT' && a.manifestStatus === 'BUILT' && a.completenessStatus === 'COMPLETE') {
+        @if (a.canReview) {
           <button matButton="filled" type="button" [disabled]="actionBusy()" (click)="reviewManifest(a)">{{ actionBusy() ? 'Reviewing…' : 'Review exact manifest' }}</button>
         }
         @if (actionError()) { <p role="alert">{{ actionError() }}</p> }
@@ -368,6 +372,7 @@ export class ArchiveRecord {
   readonly actionBusy = signal(false);
   readonly actionError = signal('');
   private generation = 0;
+  private pendingReview: { archiveId: string; manifestId: string; manifestVersion: number; manifestDigest: string; sessionIdentity: string; requestKey: string } | null = null;
   private destroyed = false;
 
   constructor() {
@@ -386,24 +391,60 @@ export class ArchiveRecord {
   }
   private invalidate(): void {
     ++this.generation; this.additionalEntries.set([]); this.nextOrdinal.set(null); this.loadingEntries.set(false); this.entriesError.set('');
+    this.actionBusy.set(false);
   }
   refresh(): void { this.invalidate(); this.rec.reload(); }
   async buildManifest(archive: ReturnType<typeof decodeArchive>): Promise<void> {
     await this.archiveAction(archive, 'build', { commercialBundleId: null, requestKey: crypto.randomUUID() });
   }
   async reviewManifest(archive: ReturnType<typeof decodeArchive>): Promise<void> {
-    await this.archiveAction(archive, 'review', { manifestId: null, requestKey: crypto.randomUUID() });
+    if (!archive.canReview || !archive.manifestId || archive.manifestVersion === null || !archive.manifestDigest) {
+      this.actionError.set('The exact reviewed manifest is unavailable. Refresh the archive before reviewing.');
+      return;
+    }
+    const basis = { archiveId: archive.id, manifestId: archive.manifestId, manifestVersion: archive.manifestVersion, manifestDigest: archive.manifestDigest };
+    const actor = this.session.current();
+    if (!actor?.staff) return;
+    const sessionIdentity = `${actor.firmId}/${actor.userId}/${actor.generation}/${this.session.invalidation()}`;
+    if (!this.pendingReview || this.pendingReview.archiveId !== basis.archiveId || this.pendingReview.manifestId !== basis.manifestId ||
+        this.pendingReview.manifestVersion !== basis.manifestVersion || this.pendingReview.manifestDigest !== basis.manifestDigest ||
+        this.pendingReview.sessionIdentity !== sessionIdentity) {
+      this.pendingReview = { ...basis, sessionIdentity, requestKey: crypto.randomUUID() };
+    }
+    await this.archiveAction(archive, 'review', { manifestId: basis.manifestId, manifestVersion: basis.manifestVersion,
+      manifestDigest: basis.manifestDigest, requestKey: this.pendingReview.requestKey }, basis);
   }
   private async archiveAction(archive: ReturnType<typeof decodeArchive>, action: 'build' | 'review',
-    body: Record<string, unknown>): Promise<void> {
+    body: Record<string, unknown>, reviewBasis?: { manifestId: string; manifestVersion: number; manifestDigest: string }): Promise<void> {
     if (this.destroyed || this.actionBusy() || this.archive() !== archive) return;
-    const id = this.id(), generation = this.generation;
+    const id = this.id(), generation = this.generation, sessionGeneration = this.session.invalidation();
     this.actionBusy.set(true); this.actionError.set('');
     try {
-      await firstValueFrom(this.http.post('/api/ui/records/archives/' + id + '/' + action, body).pipe(timeout(30000)));
-      if (!this.destroyed && generation === this.generation && id === this.id()) this.refresh();
+      const raw = await firstValueFrom(this.http.post<unknown>('/api/ui/records/archives/' + id + '/' + action, body).pipe(timeout(30000)));
+      if (this.destroyed || generation !== this.generation || id !== this.id() ||
+          sessionGeneration !== this.session.invalidation() || this.archive() !== archive) return;
+      let receipt: ReturnType<typeof decodeArchiveManifestResult>;
+      try { receipt = decode(decodeArchiveManifestResponse, raw).value; }
+      catch {
+        this.refresh();
+        this.actionError.set('The response did not confirm the archive action. Refresh and verify the retained archive state.');
+        return;
+      }
+      const matchesAction = reviewBasis
+        ? receipt.manifestId === reviewBasis.manifestId && receipt.manifestVersion === reviewBasis.manifestVersion &&
+          receipt.digest === reviewBasis.manifestDigest && receipt.status === 'REVIEWED' && receipt.completenessStatus === 'COMPLETE'
+        : receipt.status === 'BUILT' && receipt.manifestVersion > 0 && /^[a-f0-9]{64}$/i.test(receipt.digest);
+      if (receipt.archiveId !== id || !matchesAction) {
+        this.refresh();
+        this.actionError.set(reviewBasis
+          ? 'The response did not confirm the displayed manifest review. Refresh and verify the retained archive state.'
+          : 'The response did not confirm the archive manifest build. Refresh and verify the retained archive state.');
+        return;
+      }
+      if (reviewBasis) this.pendingReview = null;
+      this.refresh();
     } catch (error) {
-      if (!this.destroyed && generation === this.generation && id === this.id()) {
+      if (!this.destroyed && generation === this.generation && id === this.id() && sessionGeneration === this.session.invalidation()) {
         if (error instanceof HttpErrorResponse && error.status === 401) void this.session.refresh();
         this.actionError.set(error instanceof HttpErrorResponse && typeof (error.error as { message?: unknown })?.message === 'string'
           ? (error.error as { message: string }).message
@@ -419,8 +460,10 @@ export class ArchiveRecord {
   private validatePage(page: ReturnType<typeof decodeArchive>, cursor: number, loaded: number): void {
     const rows = page.entries, remaining = page.totalEntryCount - loaded;
     if (remaining < 0 || rows.length !== Math.min(remaining, 100) || page.profileVersion < 1 ||
-      (page.manifestVersion === null ? page.manifestDigest !== null || page.manifestStatus !== null || page.totalEntryCount !== 0 :
-        page.manifestVersion < 1 || !page.manifestStatus || !page.manifestDigest || !/^[a-f0-9]{64}$/i.test(page.manifestDigest)) ||
+      (page.manifestVersion === null ? page.manifestId !== null || page.manifestDigest !== null || page.manifestStatus !== null || page.totalEntryCount !== 0 :
+        page.manifestId === null || page.manifestVersion < 1 || !page.manifestStatus || !page.manifestDigest || !/^[a-f0-9]{64}$/i.test(page.manifestDigest)) ||
+      (page.canReview && (page.status !== 'MANIFEST_BUILT' || page.manifestStatus !== 'BUILT' || page.completenessStatus !== 'COMPLETE' ||
+        page.manifestId === null || page.manifestVersion === null || page.manifestDigest === null)) ||
       rows.some((row, index) => row.ordinal <= (index === 0 ? cursor : rows[index - 1].ordinal) || row.byteCount < 0 || !/^[a-f0-9]{64}$/i.test(row.contentHash)) ||
       (remaining > rows.length ? rows.length === 0 || page.nextOrdinal !== rows.at(-1)!.ordinal || page.nextOrdinal <= cursor : page.nextOrdinal !== null)) {
       throw new Error('The archive page, manifest or cursor is inconsistent. Refresh the archive.');
@@ -428,6 +471,7 @@ export class ArchiveRecord {
   }
   private sameManifest(a: ReturnType<typeof decodeArchive>, b: ReturnType<typeof decodeArchive>): boolean {
     return a.id === b.id && a.engagementId === b.engagementId && a.createdAt === b.createdAt && a.profileId === b.profileId && a.profileVersion === b.profileVersion &&
+      a.manifestId === b.manifestId && a.canReview === b.canReview &&
       a.manifestVersion === b.manifestVersion && a.manifestDigest === b.manifestDigest && a.manifestStatus === b.manifestStatus &&
       a.completenessStatus === b.completenessStatus && a.completenessException === b.completenessException && a.totalEntryCount === b.totalEntryCount;
   }

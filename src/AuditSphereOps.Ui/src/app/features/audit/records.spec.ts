@@ -134,6 +134,7 @@ describe('Audit Records Contracts', () => {
       profileId: 'ISQM1-PROFILE',
       profileVersion: 1,
       manifestVersion: 1,
+      manifestId: id2,
       manifestStatus: 'REVIEWED',
       manifestDigest: hash64,
       completenessStatus: 'COMPLETE',
@@ -156,6 +157,7 @@ describe('Audit Records Contracts', () => {
       observedLabel: 'CONFIDENTIAL',
       actionState: 'COMPLETED',
       externalReference: 'PURVIEW-REC-99',
+      canReview: false,
     };
 
     const decoded = decodeArchive(raw, 'archive');
@@ -195,12 +197,12 @@ describe('Archive export visibility', () => {
     const fixture = TestBed.createComponent(ArchiveRecord);
     archiveData.set(decode({
       id: id1, engagementId: id2, status: 'SEALED', createdAt: '2026-11-01T10:00:00Z',
-      profileId: 'ISQM1-PROFILE', profileVersion: 1, manifestVersion: 1, manifestStatus: 'REVIEWED',
+      profileId: 'ISQM1-PROFILE', profileVersion: 1, manifestVersion: 1, manifestId: id2, manifestStatus: 'REVIEWED',
       manifestDigest: hash64, completenessStatus: 'COMPLETE', completenessException: null, canExport,
       entries: [{ ordinal: 1, entryKind: 'SIGNED_REPORT', relativeName: 'Report.pdf', contentHash: hash64, byteCount: 42 }],
       totalEntryCount: 1, nextOrdinal: null, activeHoldCount: 0, observedProtection: 'PROTECTED',
       desiredLabel: 'CONFIDENTIAL', observedLabel: 'CONFIDENTIAL', actionState: 'OBSERVED',
-      externalReference: null, secondarySharePointCopy: null,
+      externalReference: null, secondarySharePointCopy: null, canReview: false,
     }, 'archive'));
     await fixture.whenStable();
 
