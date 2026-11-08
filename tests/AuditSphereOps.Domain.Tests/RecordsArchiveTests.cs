@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Records;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
@@ -14,6 +15,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
+using System.Data;
 using System.Text.Json;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -215,6 +217,371 @@ public sealed class RecordsArchiveTests
     Assert.Equal(build.Value.ManifestId, reviewReplay.Value!.ManifestId);
     Assert.Equal("review-request-1", await db.ArchiveManifests.Where(x => x.Id == build.Value.ManifestId)
       .Select(x => x.ReviewRequestKey).SingleAsync());
+  }
+
+  [Fact]
+  public async Task BuildManifest_WaitsBehindRevocationAndDoesNotPublishWithOldSession()
+  {
+    using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+    var ct = timeout.Token;
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    var archiveId = await SeedArchiveAuthorityScenarioAsync(pg, scope);
+    Guid custodianGrantId;
+    ActorContext administrator;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      custodianGrantId = await setup.RoleGrants.AsNoTracking().Where(x => x.FirmId == scope.FirmId &&
+        x.UserId == scope.Actor.UserId && x.Role == "Partner" && x.RevokedAt == null)
+        .Select(x => x.Id).SingleAsync(ct);
+      administrator = await StaffingCertificationTestEvidence.CreateAdministratorAsync(setup, scope.FirmId);
+    }
+
+    await using var fenceHolder = new AuditSphereDbContext(pg.Options);
+    await using var fenceTransaction = await fenceHolder.Database.BeginTransactionAsync(ct);
+    await fenceHolder.Database.SqlQuery<Guid>($"""
+      SELECT id AS "Value" FROM firm_safety_states WHERE id = {scope.FirmId} FOR UPDATE
+      """).SingleAsync(ct);
+    var fenceHolderPid = await fenceHolder.Database.SqlQuery<int>($"SELECT pg_backend_pid() AS \"Value\"")
+      .SingleAsync(ct);
+
+    var revokerApplication = "archive-revoke-first-" + Guid.NewGuid().ToString("N");
+    var builderApplication = "archive-build-after-revoke-" + Guid.NewGuid().ToString("N");
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await using var revoker = CreateApplicationNamedContext(pg, revokerApplication);
+    await using var builder = CreateApplicationNamedContext(pg, builderApplication);
+    Task<CommandResult>? revokeTask = null;
+    Task<CommandResult<ArchiveManifestResult>>? buildTask = null;
+    var revocationQueuedFirst = false;
+    var buildQueuedBehindRevocation = false;
+    try
+    {
+      revokeTask = RoleAdministrationService.RevokeRoleGrantAsync(revoker, administrator,
+        new RevokeRoleGrantRequest(custodianGrantId), ct);
+      revocationQueuedFirst = await WaitForApplicationBlockedByOrCompletedAsync(
+        observer, revokerApplication, fenceHolderPid, revokeTask, ct);
+      var revokerPid = await GetApplicationPidAsync(observer, revokerApplication, ct);
+
+      buildTask = RecordsArchiveService.BuildManifestWithRequestAsync(builder, scope.Actor,
+        archiveId, null, "revoked-session-build-request", ct);
+      buildQueuedBehindRevocation = await WaitForApplicationBlockedByOrCompletedAsync(
+        observer, builderApplication, revokerPid, buildTask, ct);
+    }
+    finally
+    {
+      await fenceTransaction.CommitAsync(CancellationToken.None);
+    }
+
+    var revoked = await revokeTask!.WaitAsync(ct);
+    var built = await buildTask!.WaitAsync(ct);
+    Assert.True(revocationQueuedFirst, "Role revocation did not acquire the firm fence queue first.");
+    Assert.True(buildQueuedBehindRevocation,
+      "The archive build must wait behind the normal firm role-revocation fence before it authorizes.");
+    Assert.True(revoked.Succeeded, revoked.Message);
+    Assert.False(built.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, built.ErrorCode);
+
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await proof.ArchiveManifests.AsNoTracking().Where(x =>
+      x.FirmId == scope.FirmId && x.ArchiveId == archiveId).ToListAsync(ct));
+    Assert.Equal(ArchiveStates.Issued,
+      await proof.Archives.AsNoTracking().Where(x => x.FirmId == scope.FirmId && x.Id == archiveId)
+        .Select(x => x.Status).SingleAsync(ct));
+    Assert.Equal(scope.Actor.SessionEpoch + 1,
+      await proof.Users.AsNoTracking().Where(x => x.FirmId == scope.FirmId && x.Id == scope.Actor.UserId)
+        .Select(x => x.SessionEpoch).SingleAsync(ct));
+  }
+
+  [Fact]
+  public async Task EnsureArchive_WaitsBehindRevocationAndDoesNotCreateWithOldSession()
+  {
+    using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+    var ct = timeout.Token;
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    await SeedArchiveAuthorityScenarioAsync(pg, scope, createArchive: false);
+    Guid custodianGrantId;
+    ActorContext administrator;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      custodianGrantId = await setup.RoleGrants.AsNoTracking().Where(x => x.FirmId == scope.FirmId &&
+        x.UserId == scope.Actor.UserId && x.Role == "Partner" && x.RevokedAt == null)
+        .Select(x => x.Id).SingleAsync(ct);
+      administrator = await StaffingCertificationTestEvidence.CreateAdministratorAsync(setup, scope.FirmId);
+    }
+
+    await using var fenceHolder = new AuditSphereDbContext(pg.Options);
+    await using var fenceTransaction = await fenceHolder.Database.BeginTransactionAsync(ct);
+    await fenceHolder.Database.SqlQuery<Guid>($"""
+      SELECT id AS "Value" FROM firm_safety_states WHERE id = {scope.FirmId} FOR UPDATE
+      """).SingleAsync(ct);
+    var fenceHolderPid = await fenceHolder.Database.SqlQuery<int>($"SELECT pg_backend_pid() AS \"Value\"")
+      .SingleAsync(ct);
+
+    var revokerApplication = "archive-ensure-revoke-first-" + Guid.NewGuid().ToString("N");
+    var ensureApplication = "archive-ensure-after-revoke-" + Guid.NewGuid().ToString("N");
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await using var revoker = CreateApplicationNamedContext(pg, revokerApplication);
+    await using var assurer = CreateApplicationNamedContext(pg, ensureApplication);
+    Task<CommandResult>? revokeTask = null;
+    Task<CommandResult<EnsureArchiveResult>>? ensureTask = null;
+    var revocationQueuedFirst = false;
+    var ensureQueuedBehindRevocation = false;
+    try
+    {
+      revokeTask = RoleAdministrationService.RevokeRoleGrantAsync(revoker, administrator,
+        new RevokeRoleGrantRequest(custodianGrantId), ct);
+      revocationQueuedFirst = await WaitForApplicationBlockedByOrCompletedAsync(
+        observer, revokerApplication, fenceHolderPid, revokeTask, ct);
+      var revokerPid = await GetApplicationPidAsync(observer, revokerApplication, ct);
+
+      ensureTask = RecordsArchiveService.EnsureArchiveAsync(assurer, scope.Actor,
+        new EnsureArchiveRequest(scope.ClientId, scope.EngagementId, "AUTHORITY-FENCE-TEST", 1), ct);
+      ensureQueuedBehindRevocation = await WaitForApplicationBlockedByOrCompletedAsync(
+        observer, ensureApplication, revokerPid, ensureTask, ct);
+    }
+    finally
+    {
+      await fenceTransaction.CommitAsync(CancellationToken.None);
+    }
+
+    var revoked = await revokeTask!.WaitAsync(ct);
+    var ensured = await ensureTask!.WaitAsync(ct);
+    Assert.True(revocationQueuedFirst, "Role revocation did not acquire the firm fence queue first.");
+    Assert.True(ensureQueuedBehindRevocation,
+      "Archive creation must wait behind the normal firm role-revocation fence before it authorizes.");
+    Assert.True(revoked.Succeeded, revoked.Message);
+    Assert.False(ensured.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, ensured.ErrorCode);
+
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await proof.Archives.AsNoTracking().Where(x =>
+      x.FirmId == scope.FirmId && x.ClientId == scope.ClientId && x.EngagementId == scope.EngagementId).ToListAsync(ct));
+    Assert.Equal(scope.Actor.SessionEpoch + 1,
+      await proof.Users.AsNoTracking().Where(x => x.FirmId == scope.FirmId && x.Id == scope.Actor.UserId)
+        .Select(x => x.SessionEpoch).SingleAsync(ct));
+  }
+
+  [Fact]
+  public async Task BuildManifest_QueuedFirstCompletesBeforeRevocationForAnotherCustodian()
+  {
+    using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+    var ct = timeout.Token;
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    var archiveId = await SeedArchiveAuthorityScenarioAsync(pg, scope);
+    Guid custodianGrantId;
+    ActorContext administrator;
+    ActorContext competingCustodian;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      custodianGrantId = await setup.RoleGrants.AsNoTracking().Where(x => x.FirmId == scope.FirmId &&
+        x.UserId == scope.Actor.UserId && x.Role == "Partner" && x.RevokedAt == null)
+        .Select(x => x.Id).SingleAsync(ct);
+      administrator = await StaffingCertificationTestEvidence.CreateAdministratorAsync(setup, scope.FirmId);
+      var other = PbcSeed.User(scope.FirmId, "Staff");
+      setup.Users.Add(other);
+      setup.RoleGrants.Add(PbcSeed.Grant(scope.FirmId, other, "RecordsCustodian", scope.ClientId, scope.EngagementId));
+      await setup.SaveChangesAsync(ct);
+      competingCustodian = PbcSeed.Actor(other, "RecordsCustodian");
+    }
+
+    await using var fenceHolder = new AuditSphereDbContext(pg.Options);
+    await using var fenceTransaction = await fenceHolder.Database.BeginTransactionAsync(ct);
+    await fenceHolder.Database.SqlQuery<Guid>($"""
+      SELECT id AS "Value" FROM firm_safety_states WHERE id = {scope.FirmId} FOR UPDATE
+      """).SingleAsync(ct);
+    var fenceHolderPid = await fenceHolder.Database.SqlQuery<int>($"SELECT pg_backend_pid() AS \"Value\"")
+      .SingleAsync(ct);
+
+    var builderApplication = "archive-build-command-first-" + Guid.NewGuid().ToString("N");
+    var revokerApplication = "archive-revoke-command-first-" + Guid.NewGuid().ToString("N");
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await using var builder = CreateApplicationNamedContext(pg, builderApplication);
+    await using var revoker = CreateApplicationNamedContext(pg, revokerApplication);
+    Task<CommandResult<ArchiveManifestResult>>? buildTask = null;
+    Task<CommandResult>? revokeTask = null;
+    var buildQueuedFirst = false;
+    var revocationQueuedBehindBuild = false;
+    try
+    {
+      buildTask = RecordsArchiveService.BuildManifestAsync(builder, competingCustodian, archiveId, ct);
+      buildQueuedFirst = await WaitForApplicationBlockedByOrCompletedAsync(
+        observer, builderApplication, fenceHolderPid, buildTask, ct);
+      var builderPid = await GetApplicationPidAsync(observer, builderApplication, ct);
+
+      revokeTask = RoleAdministrationService.RevokeRoleGrantAsync(revoker, administrator,
+        new RevokeRoleGrantRequest(custodianGrantId), ct);
+      revocationQueuedBehindBuild = await WaitForApplicationBlockedByOrCompletedAsync(
+        observer, revokerApplication, builderPid, revokeTask, ct);
+    }
+    finally
+    {
+      await fenceTransaction.CommitAsync(CancellationToken.None);
+    }
+
+    var built = await buildTask!.WaitAsync(ct);
+    var revoked = await revokeTask!.WaitAsync(ct);
+    Assert.True(buildQueuedFirst, "The authorized custodian did not acquire the firm fence queue first.");
+    Assert.True(revocationQueuedBehindBuild,
+      "Role revocation must serialize behind the archive command that acquired the firm fence first.");
+    Assert.True(built.Succeeded, built.Message);
+    Assert.True(revoked.Succeeded, revoked.Message);
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(ArchiveStates.ManifestBuilt,
+      await proof.Archives.AsNoTracking().Where(x => x.FirmId == scope.FirmId && x.Id == archiveId)
+        .Select(x => x.Status).SingleAsync(ct));
+    var manifest = await proof.ArchiveManifests.AsNoTracking().SingleAsync(x =>
+      x.FirmId == scope.FirmId && x.ArchiveId == archiveId, ct);
+    Assert.Equal(archiveId, built.Value!.ArchiveId);
+    Assert.Equal(manifest.Id, built.Value.ManifestId);
+    Assert.Equal("COMPLETE", built.Value.CompletenessStatus);
+    Assert.Equal(1, manifest.Version);
+    Assert.Equal(scope.Actor.SessionEpoch + 1,
+      await proof.Users.AsNoTracking().Where(x => x.FirmId == scope.FirmId && x.Id == scope.Actor.UserId)
+        .Select(x => x.SessionEpoch).SingleAsync(ct));
+  }
+
+  [Fact]
+  public async Task ReviewManifest_WaitsBehindRevocationAndDeniesRetainedBuildReplay()
+  {
+    using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+    var ct = timeout.Token;
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    var archiveId = await SeedArchiveAuthorityScenarioAsync(pg, scope);
+    const string buildRequestKey = "review-revoke-race-build";
+    Guid manifestId;
+    Guid custodianGrantId;
+    ActorContext administrator;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var built = await RecordsArchiveService.BuildManifestWithRequestAsync(setup, scope.Actor,
+        archiveId, null, buildRequestKey, ct);
+      Assert.True(built.Succeeded, built.Message);
+      manifestId = built.Value!.ManifestId;
+      custodianGrantId = await setup.RoleGrants.AsNoTracking().Where(x => x.FirmId == scope.FirmId &&
+        x.UserId == scope.Actor.UserId && x.Role == "Partner" && x.RevokedAt == null)
+        .Select(x => x.Id).SingleAsync(ct);
+      administrator = await StaffingCertificationTestEvidence.CreateAdministratorAsync(setup, scope.FirmId);
+    }
+
+    await using var fenceHolder = new AuditSphereDbContext(pg.Options);
+    await using var fenceTransaction = await fenceHolder.Database.BeginTransactionAsync(ct);
+    await fenceHolder.Database.SqlQuery<Guid>($"""
+      SELECT id AS "Value" FROM firm_safety_states WHERE id = {scope.FirmId} FOR UPDATE
+      """).SingleAsync(ct);
+    var fenceHolderPid = await fenceHolder.Database.SqlQuery<int>($"SELECT pg_backend_pid() AS \"Value\"")
+      .SingleAsync(ct);
+
+    var revokerApplication = "archive-review-revoke-first-" + Guid.NewGuid().ToString("N");
+    var reviewerApplication = "archive-review-after-revoke-" + Guid.NewGuid().ToString("N");
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await using var revoker = CreateApplicationNamedContext(pg, revokerApplication);
+    await using var reviewer = CreateApplicationNamedContext(pg, reviewerApplication);
+    Task<CommandResult>? revokeTask = null;
+    Task<CommandResult<ArchiveManifestResult>>? reviewTask = null;
+    var revocationQueuedFirst = false;
+    var reviewQueuedBehindRevocation = false;
+    try
+    {
+      revokeTask = RoleAdministrationService.RevokeRoleGrantAsync(revoker, administrator,
+        new RevokeRoleGrantRequest(custodianGrantId), ct);
+      revocationQueuedFirst = await WaitForApplicationBlockedByOrCompletedAsync(
+        observer, revokerApplication, fenceHolderPid, revokeTask, ct);
+      var revokerPid = await GetApplicationPidAsync(observer, revokerApplication, ct);
+
+      reviewTask = RecordsArchiveService.ReviewManifestAsync(reviewer, scope.Actor, archiveId, manifestId,
+        ct, "review-after-revocation");
+      reviewQueuedBehindRevocation = await WaitForApplicationBlockedByOrCompletedAsync(
+        observer, reviewerApplication, revokerPid, reviewTask, ct);
+    }
+    finally
+    {
+      await fenceTransaction.CommitAsync(CancellationToken.None);
+    }
+
+    var revoked = await revokeTask!.WaitAsync(ct);
+    var reviewed = await reviewTask!.WaitAsync(ct);
+    Assert.True(revocationQueuedFirst, "Role revocation did not acquire the firm fence queue first.");
+    Assert.True(reviewQueuedBehindRevocation,
+      "Manifest review must wait behind the normal firm role-revocation fence before it authorizes.");
+    Assert.True(revoked.Succeeded, revoked.Message);
+    Assert.False(reviewed.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, reviewed.ErrorCode);
+
+    await using var replay = CreateApplicationNamedContext(pg, "archive-build-replay-after-revoke-" + Guid.NewGuid().ToString("N"));
+    var replayed = await RecordsArchiveService.BuildManifestWithRequestAsync(replay, scope.Actor,
+      archiveId, null, buildRequestKey, ct);
+    Assert.False(replayed.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, replayed.ErrorCode);
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    var retained = await proof.ArchiveManifests.AsNoTracking().SingleAsync(x =>
+      x.FirmId == scope.FirmId && x.Id == manifestId, ct);
+    Assert.Equal("BUILT", retained.Status);
+    Assert.Null(retained.ReviewedAt);
+    Assert.Null(retained.ReviewedByUserId);
+    Assert.Null(retained.ReviewRequestKey);
+    Assert.Equal(ArchiveStates.ManifestBuilt,
+      await proof.Archives.AsNoTracking().Where(x => x.FirmId == scope.FirmId && x.Id == archiveId)
+        .Select(x => x.Status).SingleAsync(ct));
+    Assert.Equal(scope.Actor.SessionEpoch + 1,
+      await proof.Users.AsNoTracking().Where(x => x.FirmId == scope.FirmId && x.Id == scope.Actor.UserId)
+        .Select(x => x.SessionEpoch).SingleAsync(ct));
+  }
+
+  [Fact]
+  public async Task ArchiveMutationsRequireFreshCallerSnapshotAndAcceptReadCommittedTransaction()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, "Partner");
+    var scope = fixture.Primary;
+    var archiveId = await SeedArchiveAuthorityScenarioAsync(pg, scope);
+
+    await using (var snapshotDb = new AuditSphereDbContext(pg.Options))
+    await using (var snapshot = await snapshotDb.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead))
+    {
+      var ensured = await RecordsArchiveService.EnsureArchiveAsync(snapshotDb, scope.Actor,
+        new EnsureArchiveRequest(scope.ClientId, scope.EngagementId, "AUTHORITY-FENCE-TEST", 1));
+      var built = await RecordsArchiveService.BuildManifestWithRequestAsync(snapshotDb, scope.Actor,
+        archiveId, null, "snapshot-transaction-build");
+      var reviewed = await RecordsArchiveService.ReviewManifestAsync(snapshotDb, scope.Actor, archiveId,
+        Guid.NewGuid());
+      Assert.Equal(ErrorCodes.GenerationStale, ensured.ErrorCode);
+      Assert.Equal(ErrorCodes.GenerationStale, built.ErrorCode);
+      Assert.Equal(ErrorCodes.GenerationStale, reviewed.ErrorCode);
+      await snapshot.RollbackAsync();
+    }
+
+    await using (var currentDb = new AuditSphereDbContext(pg.Options))
+    await using (var current = await currentDb.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted))
+    {
+      var ensured = await RecordsArchiveService.EnsureArchiveAsync(currentDb, scope.Actor,
+        new EnsureArchiveRequest(scope.ClientId, scope.EngagementId, "AUTHORITY-FENCE-TEST", 1));
+      Assert.True(ensured.Succeeded, ensured.Message);
+      Assert.False(ensured.Value!.Created);
+      Assert.Equal(archiveId, ensured.Value.ArchiveId);
+      var built = await RecordsArchiveService.BuildManifestWithRequestAsync(currentDb, scope.Actor,
+        archiveId, null, "caller-transaction-build");
+      Assert.True(built.Succeeded, built.Message);
+      var reviewed = await RecordsArchiveService.ReviewManifestAsync(currentDb, scope.Actor, archiveId,
+        built.Value!.ManifestId, requestKey: "caller-transaction-review");
+      Assert.True(reviewed.Succeeded, reviewed.Message);
+      await current.CommitAsync();
+    }
+
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(ArchiveStates.AssemblyReviewed,
+      await proof.Archives.AsNoTracking().Where(x => x.FirmId == scope.FirmId && x.Id == archiveId)
+        .Select(x => x.Status).SingleAsync());
+    var manifest = await proof.ArchiveManifests.AsNoTracking().SingleAsync(x =>
+      x.FirmId == scope.FirmId && x.ArchiveId == archiveId);
+    Assert.Equal("REVIEWED", manifest.Status);
+    Assert.Equal("caller-transaction-review", manifest.ReviewRequestKey);
   }
 
   [Fact]
@@ -1416,6 +1783,101 @@ public sealed class RecordsArchiveTests
     Assert.False(ArchiveStructuredExportGuard.IsEngagementSafe(archive, "records-export.v2",
       "structured/records-export.v2.json", metadata,
       Payload(archive.ClientId, archive.EngagementId, false, embeddedRunManifest: true), out _));
+  }
+
+  private static async Task<Guid> SeedArchiveAuthorityScenarioAsync(
+    PgTestSchema pg, PlanningScope scope, bool createArchive = true)
+  {
+    var archiveId = Guid.CreateVersion7();
+    var now = DateTimeOffset.UtcNow;
+    await using var db = new AuditSphereDbContext(pg.Options);
+    await db.Engagements.Where(x => x.FirmId == scope.FirmId && x.Id == scope.EngagementId)
+      .ExecuteUpdateAsync(update => update
+        .SetProperty(x => x.ServiceRoute, "STATUTORY_AUDIT")
+        .SetProperty(x => x.Status, "Completed"));
+    db.RecordsProfiles.Add(new RecordsProfile
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ProfileCode = "AUTHORITY-FENCE-TEST",
+      Version = 1, RecordClass = "Synthetic authority-fence archive", Jurisdiction = "TEST",
+      ServiceRoute = "STATUTORY_AUDIT", RetentionTrigger = "REPORT_DATE", ProtectionMode = "LOCAL_ONLY",
+      LabelId = "test-only", LegalHoldBehavior = "SUSPEND_DISPOSITION", AmendmentRoute = "CONTROLLED_AMENDMENT",
+      DispositionOwner = "Records Custodian", BackupRequirements = "Synthetic fixture",
+      CreatedByUserId = scope.Actor.UserId, Approved = true, ApprovedAt = now,
+      ApprovedByUserId = scope.Actor.UserId, CreatedAt = now
+    });
+    if (createArchive) db.Archives.Add(new Archive
+    {
+      Id = archiveId, FirmId = scope.FirmId, ClientId = scope.ClientId,
+      EngagementId = scope.EngagementId, ProfileId = "AUTHORITY-FENCE-TEST", ProfileVersion = 1,
+      Status = ArchiveStates.Issued, CreatedAt = now
+    });
+    await db.SaveChangesAsync();
+    return archiveId;
+  }
+
+  private static AuditSphereDbContext CreateApplicationNamedContext(PgTestSchema pg, string applicationName)
+  {
+    var connection = new NpgsqlConnectionStringBuilder(pg.ConnectionString)
+    {
+      ApplicationName = applicationName
+    }.ConnectionString;
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>().UseNpgsql(connection).Options;
+    return new AuditSphereDbContext(options);
+  }
+
+  private static async Task<int> GetApplicationPidAsync(
+    AuditSphereDbContext observer, string applicationName, CancellationToken ct)
+  {
+    using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
+    bounded.CancelAfter(TimeSpan.FromSeconds(10));
+    try
+    {
+      while (true)
+      {
+        var pid = await observer.Database.SqlQuery<int?>($"""
+          SELECT (
+            SELECT pid FROM pg_stat_activity
+            WHERE datname = current_database() AND application_name = {applicationName}
+            ORDER BY backend_start DESC LIMIT 1
+          ) AS "Value"
+          """).SingleAsync(bounded.Token);
+        if (pid.HasValue) return pid.Value;
+        await Task.Delay(TimeSpan.FromMilliseconds(20), bounded.Token);
+      }
+    }
+    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+    {
+      throw new TimeoutException($"The PostgreSQL backend for {applicationName} did not start.");
+    }
+  }
+
+  private static async Task<bool> WaitForApplicationBlockedByOrCompletedAsync(
+    AuditSphereDbContext observer, string waitingApplicationName, int blockingPid, Task waitingTask,
+    CancellationToken ct)
+  {
+    using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
+    bounded.CancelAfter(TimeSpan.FromSeconds(10));
+    try
+    {
+      while (!waitingTask.IsCompleted)
+      {
+        var blocked = await observer.Database.SqlQuery<bool>($"""
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity AS waiting
+            WHERE waiting.datname = current_database() AND waiting.application_name = {waitingApplicationName}
+              AND waiting.wait_event_type = 'Lock'
+              AND {blockingPid} = ANY(pg_blocking_pids(waiting.pid))
+          ) AS "Value"
+          """).SingleAsync(bounded.Token);
+        if (blocked) return true;
+        await Task.Delay(TimeSpan.FromMilliseconds(20), bounded.Token);
+      }
+      return false;
+    }
+    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+    {
+      return false;
+    }
   }
 
   private static ArchiveCopyTargetRevision CreateArchiveCopyTarget(Guid firmId, Guid clientId, Guid clientSiteId)

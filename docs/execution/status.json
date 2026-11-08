@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-07T23:20:24Z",
+  "observedAtUtc": "2026-11-08T00:42:44Z",
   "source": {
     "branch": "master",
-    "baseSha": "77985dee8644f422d227c9ec694eac5ff3c8cddf",
-    "originMasterSha": "77985dee8644f422d227c9ec694eac5ff3c8cddf",
-    "workingTree": "Published source is 77985dee8644f422d227c9ec694eac5ff3c8cddf; the four-path Domain remediation candidate and this handoff/status refresh are uncommitted. Exact full run 42411559445 is terminal FAILURE: Domain 3/2009 failed; API runner communication failure (checkout unconfirmed); E2E aborted after 15-minute inactivity with 335 completed passes and no assertion failures. API/E2E root causes remain unproven; no release acceptance is claimed.",
+    "baseSha": "e6b3a233b55f86d76862e779a04c290578830093",
+    "originMasterSha": "e6b3a233b55f86d76862e779a04c290578830093",
+    "workingTree": "Published source remains e6b3a233b55f86d76862e779a04c290578830093; the T13-A archive authority-fence candidate is uncommitted in RecordsArchiveService.cs, RecordsArchiveTests.cs and the architecture code map. Four earlier Domain/offboarding candidate paths remain preserved and excluded from T13-A. Focused PostgreSQL authority and manifest-lock cohorts pass; exact-source CI and whole-application/release acceptance remain open.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
-    "practiceManagement": "Practice-management remains INCOMPLETE. T18 group issue recovery is published at 77985dee8644f422d227c9ec694eac5ff3c8cddf. Exact full run 42411559445 is terminal FAILURE: Domain 2006/2009 passed with 3 diagnosed failures; API failed with a hosted-runner communication annotation and no retained terminal log content; Playwright/E2E aborted after 15 minutes without output, with 335 completed tests passed and 0 assertion failures. API/E2E root causes remain unproven. The separate four-path Domain candidate is focused-pass but uncommitted and was not covered by that run. Browser, professional/external acceptance and release gates remain open; no release or deployment is claimed.",
-    "documentation": "Per-category navigation is consolidated through docs/auditsphere-docs-index.md and the maintained Architecture/ADR, Requirements, Design, Operations, Testing, Execution, Task Library and Evidence entry points. Distinct approved requirements, ADRs, proposals, historical task sources, operator procedures and machine-consumed task inputs remain separate to preserve authority and provenance. The current category/restore-evidence correction is published at a21737ff. Exact fast run 42390283923 passed Docs, Angular and .NET Release with each job log confirming checkout a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2. The task board remains PARTIAL_SOURCE because the per-item audit JSON and two STE v2.1 source files are absent; no gaps or missing-story findings are inferred. A repository-wide staleness sweep after that run removed the stale root review report, linked the document naming policy and corrected the live worker-group wording; its cross-checks are recorded under localVerification.documentationReconciliation, and its exact fast CI run 42396114501 passed Docs, Angular and .NET Release for 51c5e239 with every job log identifying that checkout.",
+    "practiceManagement": "Practice-management remains INCOMPLETE. T18 group issue recovery is published at 77985dee8644f422d227c9ec694eac5ff3c8cddf. Exact full run 42411559445 for that earlier SHA is terminal FAILURE: 3 Domain failures were diagnosed, the API runner lost communication with checkout unconfirmed, and E2E aborted after inactivity with 335 partial passes and 0 assertion failures. The four-path Domain candidate remains focused-pass, uncommitted and excluded from T13-A. T13-A now fences archive creation/build/review with the same Read Committed firm-safety row order as role revocation and rechecks current scoped authority after lock waits; the regression matrix passed 8 targeted PostgreSQL tests. Exact-source CI, browser/professional/external acceptance and release gates remain open; no release or deployment is claimed.",
+    "documentation": "Per-category navigation is consolidated through docs/auditsphere-docs-index.md and the maintained Architecture/ADR, Requirements, Design, Operations, Testing, Execution, Task Library and Evidence entry points. Distinct approved requirements, ADRs, proposals, historical task sources, operator procedures and machine-consumed task inputs remain separate to preserve authority and provenance. The current category/restore-evidence correction is published at a21737ff. Exact fast run 42390283923 passed Docs, Angular and .NET Release with each job log confirming checkout a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2. The task board remains PARTIAL_SOURCE because the per-item audit JSON and two STE v2.1 source files are absent; no gaps or missing-story findings are inferred. A repository-wide staleness sweep after that run removed the stale root review report, linked the document naming policy and corrected the live worker-group wording; its cross-checks are recorded under localVerification.documentationReconciliation, and its exact fast CI run 42396114501 passed Docs, Angular and .NET Release for 51c5e239 with every job log identifying that checkout. A fresh 2026-11-08 audit rechecked 173 docs Markdown files and all maintained category entry points: validators pass, no additional stale Markdown was found, and no approved, historical, proposal or machine-consumed source was flattened; evidence is .local/autonomous/evidence/docs-consolidation-20261108/recheck.json. After the T13-A code-map and handoff edits, the full documentation validators passed again: 179 Markdown files, 22 canonical documents, 2,896 relative links, 253 repository paths and zero deleted references; task board remains PARTIAL_SOURCE. Evidence: .local/autonomous/evidence/practice-gap-t13a-20261108/docs-verification-20261108.json.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
@@ -261,6 +261,48 @@
       "nextAction": "REPAIR",
       "command": "python3 scripts/agent/verify-completion-state.py --state .local/autonomous/state.json",
       "observedAtUtc": "2026-11-07T23:20:24Z"
+    },
+    "t13aArchiveAuthorityFence20261108": {
+      "status": "FOCUSED_PASS_NOT_RELEASE_ACCEPTANCE",
+      "sourceHead": "e6b3a233b55f86d76862e779a04c290578830093",
+      "evidence": ".local/autonomous/evidence/practice-gap-t13a-20261108/t13a-authority-fence-focused-verification.json",
+      "evidenceSha256": "436bfbe678260f5e03621934cf7180cd32098c9bd7ccac5150a28b71913b82d5",
+      "releaseBuild": "Domain, Application, Infrastructure, Worker and Domain.Tests Release compilation passed as part of targeted dotnet test builds.",
+      "postgresqlFocused": {
+        "newAuthorityRegressions": {
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0
+        },
+        "adjacentManifestLockRegressions": {
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0
+        }
+      },
+      "redGreen": "The revocation-first build race reproduced before the service fix; post-fix create/build/review, exact replay, caller-isolation and command-first second-custodian cases passed.",
+      "testEnvironment": "Owned loopback PostgreSQL 18.6 on 127.0.0.1:5433 was stopped; port 5433 clear. Unrelated PostgreSQL 18.6 on 55432 was not touched.",
+      "scopeLimit": "Focused regressions only; full CI, browser acceptance and professional/external release gates remain open."
+    },
+    "docsConsolidationRecheck20261108": {
+      "status": "PASS_NO_ADDITIONAL_STALE_MARKDOWN",
+      "evidence": ".local/autonomous/evidence/docs-consolidation-20261108/recheck.json",
+      "docsMarkdownCount": 173,
+      "trackedDocsChangedForRecheck": false,
+      "categoryEntryPoints": "One maintained entry point per category; detailed authority/provenance and machine-consumed sources preserved separately.",
+      "validators": "Markdown, filename, narrative, audit source, task-board, UI inventory and docs diff checks passed; task board remains PARTIAL_SOURCE."
+    },
+    "docsPostT13aRevalidation20261108": {
+      "status": "PASS",
+      "evidence": ".local/autonomous/evidence/practice-gap-t13a-20261108/docs-verification-20261108.json",
+      "evidenceSha256": "8f7010e05ecb48c87d77d46f4a902655e4fd98038daa652eb610ddf2c9c329c5",
+      "markdown": "179 files; 22 canonical documents; 2,896 relative links; 253 repository paths; zero deleted references.",
+      "filenames": "179 files, 3 conventional exceptions",
+      "narrativeMetrics": "6 protected docs pass",
+      "auditProgramSource": "20 sections and 165 exact procedure paragraphs pass",
+      "taskBoard": "PASS_WITH_SOURCE_LIMITATIONS; 75 rows; PARTIAL_SOURCE; code verdicts NOT_AUDITED",
+      "uiInventory": "PASS",
+      "diffCheck": "PASS"
     }
   },
   "observedCi": {

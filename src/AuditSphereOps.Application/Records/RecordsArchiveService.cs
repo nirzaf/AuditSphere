@@ -1,3 +1,4 @@
+using System.Data;
 using System.Text;
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
@@ -8,6 +9,7 @@ using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace AuditSphereOps.Application.Records;
 
@@ -86,7 +88,12 @@ public static class RecordsArchiveService
     if (request.ClientId == Guid.Empty || request.EngagementId == Guid.Empty ||
         string.IsNullOrWhiteSpace(request.ProfileId) || request.ProfileVersion < 1)
       return CommandResult<EnsureArchiveResult>.Fail("records-archive.invalid", "Select one client, engagement and approved profile version.");
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+    var transactionValidation = ValidateArchiveMutationTransaction(db);
+    if (!transactionValidation.Succeeded)
+      return CommandResult<EnsureArchiveResult>.Fail(transactionValidation.ErrorCode!, transactionValidation.Message!);
+    var callerTransaction = AuthorizationDecision.HasCallerTransaction(db);
+    await using var tx = callerTransaction ? null : await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+    var auth = await LockFirmAndAuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId,
         RequiredRoles: CustodianRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
@@ -117,6 +124,7 @@ public static class RecordsArchiveService
     };
     db.Archives.Add(archive);
     await db.SaveChangesAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<EnsureArchiveResult>.Ok(new(archive.Id, true));
   }
 
@@ -147,16 +155,23 @@ public static class RecordsArchiveService
     IAuditSphereDbContext db, ActorContext actor, Guid archiveId, Guid? commercialBundleId, string? requestKey,
     CancellationToken ct)
   {
-    var authorized = await AuthorizeArchiveAsync(db, actor, archiveId, ct);
+    var transactionValidation = ValidateArchiveMutationTransaction(db);
+    if (!transactionValidation.Succeeded)
+      return CommandResult<ArchiveManifestResult>.Fail(transactionValidation.ErrorCode!, transactionValidation.Message!);
+    var callerTransaction = AuthorizationDecision.HasCallerTransaction(db);
+    await using var tx = callerTransaction ? null : await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+    var authorized = await LockFirmAndAuthorizeArchiveAsync(db, actor, archiveId, ct);
     if (!authorized.Succeeded)
       return CommandResult<ArchiveManifestResult>.Fail(authorized.ErrorCode!, authorized.Message!);
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
     var archive = await db.Archives.FromSqlInterpolated($"""
       SELECT * FROM archives WHERE id = {archiveId} AND firm_id = {actor.FirmId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (archive is null)
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var lockedArchiveAuth = await AuthorizeArchiveScopeAsync(db, actor, archive, ct);
+    if (!lockedArchiveAuth.Succeeded)
+      return CommandResult<ArchiveManifestResult>.Fail(lockedArchiveAuth.ErrorCode!, lockedArchiveAuth.Message!);
     if (archive.Status is not (ArchiveStates.Issued or ArchiveStates.AssemblyInProgress or ArchiveStates.ManifestBuilt))
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ProtectedState,
         "The archive is not in an assembly state.");
@@ -289,7 +304,7 @@ public static class RecordsArchiveService
     if (complete)
       await db.Archives.Where(x => x.Id == archive.Id && x.FirmId == archive.FirmId)
         .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, ArchiveStates.ManifestBuilt), ct);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
 
     var result = new ArchiveManifestResult(archive.Id, manifest.Id, manifest.Status, manifest.ManifestDigest,
       manifest.EntryCount, manifest.CompletenessStatus);
@@ -309,13 +324,22 @@ public static class RecordsArchiveService
     IAuditSphereDbContext db, ActorContext actor, Guid archiveId, Guid? manifestId = null,
     CancellationToken ct = default, string? requestKey = null)
   {
-    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
-    var authorized = await AuthorizeArchiveAsync(db, actor, archiveId, ct);
+    var transactionValidation = ValidateArchiveMutationTransaction(db);
+    if (!transactionValidation.Succeeded)
+      return CommandResult<ArchiveManifestResult>.Fail(transactionValidation.ErrorCode!, transactionValidation.Message!);
+    var callerTransaction = AuthorizationDecision.HasCallerTransaction(db);
+    await using var tx = callerTransaction ? null : await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+    var authorized = await LockFirmAndAuthorizeArchiveAsync(db, actor, archiveId, ct);
     if (!authorized.Succeeded)
       return CommandResult<ArchiveManifestResult>.Fail(authorized.ErrorCode!, authorized.Message!);
     var archive = await db.Archives.FromSqlInterpolated($"""
       SELECT * FROM archives WHERE firm_id = {actor.FirmId} AND id = {archiveId} FOR UPDATE
-      """).SingleAsync(ct);
+      """).SingleOrDefaultAsync(ct);
+    if (archive is null)
+      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var lockedArchiveAuth = await AuthorizeArchiveScopeAsync(db, actor, archive, ct);
+    if (!lockedArchiveAuth.Succeeded)
+      return CommandResult<ArchiveManifestResult>.Fail(lockedArchiveAuth.ErrorCode!, lockedArchiveAuth.Message!);
     var manifestQuery = manifestId is { } selectedManifestId
       ? db.ArchiveManifests.FromSqlInterpolated($"""
           SELECT * FROM archive_manifests
@@ -330,6 +354,9 @@ public static class RecordsArchiveService
           FOR UPDATE
           """);
     var manifest = await manifestQuery.SingleOrDefaultAsync(ct);
+    var manifestLockedAuth = await AuthorizeArchiveScopeAsync(db, actor, archive, ct);
+    if (!manifestLockedAuth.Succeeded)
+      return CommandResult<ArchiveManifestResult>.Fail(manifestLockedAuth.ErrorCode!, manifestLockedAuth.Message!);
     if (manifest is null || manifest.CompletenessStatus != "COMPLETE")
       return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked, "A complete archive manifest is required.");
 
@@ -712,12 +739,59 @@ public static class RecordsArchiveService
       x.Id == archiveId && x.FirmId == actor.FirmId, ct);
     if (archive is null)
       return CommandResult<Archive>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, archive.ClientId, archive.EngagementId,
-        RequiredRoles: CustodianRoles, InternalOnly: true), ct);
+    var auth = await AuthorizeArchiveScopeAsync(db, actor, archive, ct);
     return auth.Succeeded
       ? CommandResult<Archive>.Ok(archive)
       : CommandResult<Archive>.Fail(auth.ErrorCode!, auth.Message!);
+  }
+
+  private static async Task<CommandResult<Archive>> LockFirmAndAuthorizeArchiveAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid archiveId, CancellationToken ct)
+  {
+    var firmAuthorization = await LockFirmAsync(db, actor.FirmId, ct);
+    if (!firmAuthorization.Succeeded)
+      return CommandResult<Archive>.Fail(firmAuthorization.ErrorCode!, firmAuthorization.Message!);
+    return await AuthorizeArchiveAsync(db, actor, archiveId, ct);
+  }
+
+  private static async Task<CommandResult> LockFirmAndAuthorizeAsync(
+    IAuditSphereDbContext db, ActorContext actor, AuthorizationRequest request, CancellationToken ct)
+  {
+    var firmAuthorization = await LockFirmAsync(db, actor.FirmId, ct);
+    return !firmAuthorization.Succeeded
+      ? firmAuthorization
+      : await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
+  }
+
+  private static async Task<CommandResult> LockFirmAsync(
+    IAuditSphereDbContext db, Guid firmId, CancellationToken ct)
+  {
+    var firmSafetyState = await db.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    return firmSafetyState is null
+      ? CommandResult.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.")
+      : CommandResult.Ok();
+  }
+
+  private static async Task<CommandResult> AuthorizeArchiveScopeAsync(
+    IAuditSphereDbContext db, ActorContext actor, Archive archive, CancellationToken ct)
+  {
+    if (archive.FirmId != actor.FirmId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    return await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, archive.ClientId, archive.EngagementId,
+        RequiredRoles: CustodianRoles, InternalOnly: true), ct);
+  }
+
+  private static CommandResult ValidateArchiveMutationTransaction(IAuditSphereDbContext db)
+  {
+    if (!AuthorizationDecision.HasCallerTransaction(db)) return CommandResult.Ok();
+    if (db.Database.CurrentTransaction is { } transaction &&
+        transaction.GetDbTransaction().IsolationLevel == IsolationLevel.ReadCommitted)
+      return CommandResult.Ok();
+    return CommandResult.Fail(ErrorCodes.GenerationStale,
+      "Archive mutation requires a fresh Read Committed transaction to recheck current access.");
   }
 
   private static async Task<string> BuildStructuredExportAsync(
