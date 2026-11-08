@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-08T03:36:57Z",
+  "observedAtUtc": "2026-11-08T04:16:54Z",
   "source": {
     "branch": "master",
-    "baseSha": "190213772c932f595b7da74da3c005be3550a18f",
-    "originMasterSha": "190213772c932f595b7da74da3c005be3550a18f",
-    "workingTree": "At 2026-11-08T03:12:48Z HEAD and origin/master matched 190213772c932f595b7da74da3c005be3550a18f; the local T13-B archive-review identity slice remains uncommitted. Exact base fast run 42436652036 passed, with only the Docs checkout independently retained. Base image run 42436651902 is terminal FAILURE: API job 128596814945 was canceled during dotnet publish approximately at its configured 75-minute job limit; cancellation initiator remains unproven. Migration and worker jobs succeeded, but their checkout SHAs and manifest pins are unverified because their logs were fetched once and not retained. Terminal API evidence and empty artifact metadata are in .local/autonomous/evidence/ci-19021377-current-20261108/images-terminal-review.json. The candidate has not yet been published; candidate full CI and browser acceptance remain open, and no release acceptance is claimed.",
+    "baseSha": "35dc103e41b0b4f398241a3d393070a1675e3995",
+    "originMasterSha": "35dc103e41b0b4f398241a3d393070a1675e3995",
+    "workingTree": "At this observation, master and origin/master are 35dc103e41b0b4f398241a3d393070a1675e3995. Its exact fast CI (run 42443918797) and image CI (run 42443918825) passed all jobs with independently verified actual checkouts. This status and handoff refresh is a local docs-only follow-up after that push and is not covered by those runs. Final documentation checks passed; the follow-up is limited to the two execution records and needs its own push-triggered Docs CI. No full release verification, deployment or release acceptance is claimed.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
-    "practiceManagement": "INCOMPLETE. T13-A archive mutation authority fencing and the four-path T18 Domain repair are published in ancestry at 190213772c932f595b7da74da3c005be3550a18f. Current local T13-B binds assent to the displayed manifest ID/version/digest and request key, validates receipts, scopes pending keys to actor/session, and recovers a matching committed receipt after a later authorized archive lifecycle transition. Verification: focused PostgreSQL Domain cohort 5/5, post-transition replay regression 1/1, Angular archive spec 35/35, Angular production build PASS with two existing CSS budget warnings, OpenAPI PASS, and a clean local API Release publish diagnostic PASS. The exact base fast run passed; only the Docs checkout is independently retained. Its image run is terminal FAILURE because the API job was canceled during publish; the initiating cause is unproven and migration/worker checkout and pins remain unverified. Candidate exact fast/images/full CI, browser acceptance and professional/external gates remain open. No release/deployment claimed.",
-    "documentation": "Category-level consolidation remains complete: docs/auditsphere-docs-index.md provides one maintained entry point per category, while approved requirements/ADRs, proposals, historical sources, operator procedures and machine-consumed task sources remain separate. The 173-file category audit found no further safe consolidation target. The current handoff/status now record terminal base image run 42436651902, the API cancellation with its cause explicitly unproven, and the exact prior-byte archives. The refreshed documentation validators pass. Task board remains PARTIAL_SOURCE and unaudited code verdicts remain NOT_AUDITED.",
+    "practiceManagement": "INCOMPLETE. T13-A archive authority fencing, the four-path T18 Domain repair and T13-B exact archive-review identity/replay are published through 35dc103e41b0b4f398241a3d393070a1675e3995. T13-B requires the displayed manifest ID/version/digest and bounded request key; it validates retained entry integrity, scopes pending identity to actor/session, and recovers the original committed reviewer receipt after an authorized lifecycle transition without permitting new assent. Focused PostgreSQL Domain cohort 5/5 and post-transition regression 1/1 passed; Angular archive spec 35/35; Angular production build passed with two existing CSS budget warnings; OpenAPI passed. Exact fast run 42443918797 and exact image run 42443918825 both passed all jobs on 35dc103; full release verification has not been dispatched. Browser acceptance and professional/external gates remain open. No release or deployment is claimed.",
+    "documentation": "Category consolidation is complete: docs/auditsphere-docs-index.md maps each category to a maintained entry point, while approved requirements/ADRs, proposals, history, operator procedures and machine-consumed task sources remain separate. The 173-file category audit found no further safe flattening target; the latest validation covers 179 Markdown files, 22 canonical documents, 2,896 relative links, 253 repository paths and zero deleted references. Filename, narrative, audit-source, generated task-board, UI-inventory, state and diff checks pass; task board remains PARTIAL_SOURCE with code verdicts NOT_AUDITED. This local handoff/status follow-up is after 35dc103 and requires its own exact push-triggered Docs CI.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Complete the docs/status validation for the terminal base image result, review the exact T13-B diff, fetch and inspect incoming paths, then publish only the coherent T13-B candidate. Bind one exact fast and image run to its final SHA; after those pass, dispatch one full release-verification run. Preserve RUN-003 as incomplete until all applicable technical, browser and external/professional gates pass.",
-      "note": "48-row autonomous ledger validates. RUN-003 remains REPAIR; the generated task board remains PARTIAL_SOURCE and unaudited code verdicts remain NOT_AUDITED. Current checkout SHA and active CI identities are recorded in observedCi.t13bCurrentBase190213.",
-      "currentSourceSha": "190213772c932f595b7da74da3c005be3550a18f"
+      "nextAction": "Final local docs checks passed; fetch and path review found no incoming commits. Commit/push only docs/execution/auditsphere-execution-current-slice.md and docs/execution/status.json, then monitor the resulting exact-source Docs CI. Preserve whole-assignment, full-CI, browser and professional/external gates as open.",
+      "note": "At the 2026-11-08T04:16:54Z observation, the 48-row autonomous ledger validated; RUN-003 remains REPAIR, the generated task board remains PARTIAL_SOURCE, and code verdicts remain NOT_AUDITED. Exact 35dc103 fast and image evidence is in observedCi.t13bPublishedCandidate35dc103e.",
+      "currentSourceSha": "35dc103e41b0b4f398241a3d393070a1675e3995"
     }
   },
   "localVerification": {
@@ -338,7 +338,7 @@
       "expectedSummary": "179 Markdown files; 22 canonical documents; 2,896 relative links; 253 repository paths; zero deleted references; 179 filenames pass; 6 protected narrative docs pass; 20 audit sections/165 procedure paragraphs pass; task board PARTIAL_SOURCE; UI inventory pass."
     },
     "t13bArchiveReviewIdentity20261108": {
-      "status": "FOCUSED_LOCAL_PASS_EXACT_CANDIDATE_CI_PENDING",
+      "status": "PUBLISHED_FAST_AND_IMAGES_PASS_FULL_NOT_DISPATCHED",
       "evidence": ".local/autonomous/evidence/practice-gap-t13b-20261108/verification/t13b-focused-verification.json",
       "proposalSha256": "5d8c84aed73c75fcd88a690868f974be985f8241e1884539718146a4aefddf2c",
       "domainPostgres": {
@@ -356,7 +356,12 @@
       "angularProductionBuild": "PASS; two existing CSS budget warnings in commercial/settings.scss and app.scss",
       "openApiContract": "PASS_CURRENT",
       "browserAcceptance": "NOT_RUN",
-      "candidateFullCi": "NOT_DISPATCHED"
+      "candidateFullCi": "NOT_DISPATCHED",
+      "publishedCommit": "35dc103e41b0b4f398241a3d393070a1675e3995",
+      "fastRunId": 42443918797,
+      "imagesRunId": 42443918825,
+      "fastStatus": "PASS_ALL_3_ACTUAL_CHECKOUTS",
+      "imagesStatus": "PASS_ALL_3_ACTUAL_CHECKOUTS_AND_PINS"
     },
     "docsAndT13bRefresh20261108": {
       "status": "PASS",
@@ -861,6 +866,90 @@
       },
       "evidence": ".local/autonomous/evidence/ci-19021377-current-20261108/terminal-observation-and-log-capture.json",
       "fullForCurrentT13BCandidate": "NOT_DISPATCHED_LOCAL_CANDIDATE_NOT_YET_PUBLISHED"
+    },
+    "t13bPublishedCandidate35dc103e": {
+      "observedAtUtc": "2026-11-08T04:10:45Z",
+      "sourceSha": "35dc103e41b0b4f398241a3d393070a1675e3995",
+      "publication": "PUSHED_REMOTE_READBACK_CONFIRMED",
+      "fastRun": {
+        "id": 42443918797,
+        "attempt": 1,
+        "status": "SUCCESS",
+        "actualCheckouts": "ALL_3_EXACT_SHA",
+        "proof": ".local/autonomous/evidence/ci-35dc103-current-20261108/fast-terminal/fast-terminal-proof.json",
+        "proofSha256": "b5adbfd11e5a6bff9363c65fa024766d8ac8f45f591c32594011dbdd6cbd6518",
+        "jobs": {
+          "angular": {
+            "id": 128618745246,
+            "status": "SUCCESS",
+            "actualCheckoutSha": "35dc103e41b0b4f398241a3d393070a1675e3995",
+            "tests": "2021 passed / 196 files"
+          },
+          "docs": {
+            "id": 128618745309,
+            "status": "SUCCESS",
+            "actualCheckoutSha": "35dc103e41b0b4f398241a3d393070a1675e3995",
+            "summary": "179 Markdown files; docs, source, task board, UI inventory, filename and narrative checks passed"
+          },
+          "release": {
+            "id": 128619142788,
+            "status": "SUCCESS",
+            "actualCheckoutSha": "35dc103e41b0b4f398241a3d393070a1675e3995",
+            "summary": "Release build 0 warnings / 0 errors; fast guards and OpenAPI contract passed"
+          }
+        },
+        "artifactMetadata": "Retrieved once; 2 metadata entries; no artifact contents downloaded."
+      },
+      "imagesRun": {
+        "id": 42443918825,
+        "attempt": 1,
+        "status": "SUCCESS",
+        "actualCheckouts": "ALL_3_EXACT_SHA",
+        "proof": ".local/autonomous/evidence/ci-35dc103-current-20261108/images-terminal/images-terminal-review.json",
+        "proofSha256": "cdb977361a92718563bb176689b72705b0685e73e2164f1df5477a0103678b45",
+        "jobs": {
+          "worker": {
+            "id": 128618745270,
+            "status": "SUCCESS",
+            "actualCheckoutSha": "35dc103e41b0b4f398241a3d393070a1675e3995",
+            "pushingManifestPin": "sha256:d04aaf120d87066c47de46893169d404e3df856256ae1d7e78456d24c9fc6c69"
+          },
+          "migrations": {
+            "id": 128618745358,
+            "status": "SUCCESS",
+            "actualCheckoutSha": "35dc103e41b0b4f398241a3d393070a1675e3995",
+            "pushingManifestPin": "sha256:902fe20b670cac3c34ca37ae646f329e9238a72ccfcfd38f395e7db6a1adb54f"
+          },
+          "api": {
+            "id": 128618745445,
+            "status": "SUCCESS",
+            "actualCheckoutSha": "35dc103e41b0b4f398241a3d393070a1675e3995",
+            "pushingManifestPin": "sha256:48c2d6e4107eb7f7d49efbf8cbc48350fa3916a0e63fe1196eddf0021e793810"
+          }
+        },
+        "artifactMetadata": "Retrieved once; no artifacts listed."
+      },
+      "fullRun": "NOT_DISPATCHED",
+      "docsRefreshAfterPush": true,
+      "nextAction": "Publish the two-path docs-only refresh after final validation; monitor its exact fast CI. The run IDs above verify only the 35dc103 source and do not cover the local follow-up."
+    },
+    "docsConsolidationRecheck20261108": {
+      "currentValidation": {
+        "observedAtUtc": "2026-11-08T04:16:54Z",
+        "status": "PASS",
+        "markdownFiles": 179,
+        "canonicalDocuments": 22,
+        "relativeLinks": 2896,
+        "repositoryPaths": 253,
+        "deletedReferences": 0,
+        "filenames": "PASS (179; 3 accepted conventions)",
+        "narrative": "PASS (6 protected documents)",
+        "auditSource": "PASS (20 sections; 165 exact procedure paragraphs; source SHA verified)",
+        "taskBoard": "PASS_PARTIAL_SOURCE; 75 available rows; code verdicts NOT_AUDITED",
+        "uiInventory": "PASS",
+        "state": "PASS (48 rows; RUN-003/REPAIR)",
+        "diffCheck": "PASS"
+      }
     }
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."
