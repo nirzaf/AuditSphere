@@ -372,6 +372,10 @@ jobs:
             output_root="${TEST_PROJECT%/*}/bin/Release/net10.0"
             expected_sdk="$(jq -r .sdk.version global.json)"
             actual_sdk="$(dotnet --version)"
+            expected_hosts="[]"
+            if [ "$TEST_PROJECT_KEY" = e2e ]; then
+              expected_hosts="[{\"key\":\"api\",\"project\":\"src/AuditSphereOps.Api/AuditSphereOps.Api.csproj\",\"assembly\":\"AuditSphereOps.Api\"},{\"key\":\"worker\",\"project\":\"src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj\",\"assembly\":\"AuditSphereOps.Worker\"}]"
+            fi
             test "$actual_sdk" = "$expected_sdk"
             jq -e \
               --arg artifact "$EXPECTED_BUILD_ARTIFACT" \
@@ -384,7 +388,8 @@ jobs:
               --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
               --arg machine "$(uname -m)" \
               --arg operatingSystem "$(uname -s)" \
-              ".schemaVersion == 1 and .artifactName == \$artifact and .repository == \$repository and .resolvedCommit == \$commit and .project == \$project and .assembly == \$assembly and .configuration == \"Release\" and .targetFramework == \"net10.0\" and .dotnetSdk == \$sdk and .runId == (\$runId | tonumber) and .runAttempt >= 1 and .runAttempt <= (\$runAttempt | tonumber) and .machine == \$machine and .operatingSystem == \$operatingSystem" \
+              --argjson expectedHosts "$expected_hosts" \
+              ".schemaVersion == 1 and .artifactName == \$artifact and .repository == \$repository and .resolvedCommit == \$commit and .project == \$project and .assembly == \$assembly and .configuration == \"Release\" and .targetFramework == \"net10.0\" and .dotnetSdk == \$sdk and .runId == (\$runId | tonumber) and .runAttempt >= 1 and .runAttempt <= (\$runAttempt | tonumber) and .machine == \$machine and .operatingSystem == \$operatingSystem and .hostArtifacts == \$expectedHosts" \
               "$manifest" >/dev/null
             test -s "$binary_root/$TEST_ASSEMBLY.dll"
             test -s "$binary_root/$TEST_ASSEMBLY.deps.json"
@@ -393,6 +398,17 @@ jobs:
               test -s "$binary_root/playwright.ps1"
               test -s "$binary_root/.playwright/node/linux-x64/node"
               test -s "$binary_root/.playwright/package/lib/coreBundle.js"
+              for host in api worker; do
+                case "$host" in
+                  api) host_assembly=AuditSphereOps.Api ;;
+                  worker) host_assembly=AuditSphereOps.Worker ;;
+                esac
+                host_binary_root="$RUNNER_TEMP/release-verification-test-build/hosts/bin/$host_assembly/release"
+                test -s "$host_binary_root/$host_assembly.dll"
+                test -s "$host_binary_root/$host_assembly.deps.json"
+                test -s "$host_binary_root/$host_assembly.runtimeconfig.json"
+              done
+              echo "AUDITSPHERE_TEST_ARTIFACTS_ROOT=$RUNNER_TEMP/release-verification-test-build/hosts" >> "$GITHUB_ENV"
             fi
             mkdir -p "$output_root"
             cp -a "$binary_root/." "$output_root/"
@@ -403,18 +419,14 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$TEST_PROJECT_KEY" = e2e ]; then
-            # The Playwright suite owns and starts the real API and worker hosts. Only the E2E
-            # test project artifact is restored into this clean checkout, so build both apphosts.
-            bash scripts/release/run-verification-step.sh "Restore API host for E2E" \
-              dotnet restore AuditSphereOps.slnx --locked-mode
-            bash scripts/release/run-verification-step.sh "Build API host for E2E" \
-              dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --no-restore \
-                --configuration Release --maxcpucount:1 -p:BuildInParallel=false \
-                -p:UseSharedCompilation=false -p:RunAnalyzers=false -p:UseAppHost=true
-            bash scripts/release/run-verification-step.sh "Build worker host for E2E" \
-              dotnet build src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj --no-restore \
-                --configuration Release --maxcpucount:1 -p:BuildInParallel=false \
-                -p:UseSharedCompilation=false -p:RunAnalyzers=false -p:UseAppHost=true
+            # The Playwright suite owns and starts the real API and worker hosts. Their Release
+            # outputs are verified in the same-run E2E artifact; restore project assets for this
+            # clean runner. The preceding locked restore of the E2E test project covers its API
+            # and Worker ProjectReferences, so do not restore the entire solution a second time.
+            for host_project in src/AuditSphereOps.Api src/AuditSphereOps.Worker; do
+              test -s "$host_project/obj/project.assets.json"
+            done
+            # Reuse the verified exact-SHA host binaries without rebuilding.
             # The artifact round trip drops the executable bit from Playwright's packaged Node binary.
             bash scripts/release/run-verification-step.sh "Restore Playwright Node executable bit" \
               chmod u+x tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/.playwright/node/linux-x64/node
@@ -658,13 +670,40 @@ jobs:
               test -s "$source_output/playwright.ps1"
               test -s "$source_output/.playwright/node/linux-x64/node"
               test -s "$source_output/.playwright/package/lib/coreBundle.js"
+              # These hosts were compiled by the exact-SHA Release solution build. Carry the
+              # outputs in the layout already supported by OwnedHost's artifact-root launch path.
+              for host in api worker; do
+                case "$host" in
+                  api)
+                    host_project=src/AuditSphereOps.Api/AuditSphereOps.Api.csproj
+                    host_assembly=AuditSphereOps.Api
+                    ;;
+                  worker)
+                    host_project=src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj
+                    host_assembly=AuditSphereOps.Worker
+                    ;;
+                esac
+                host_source="${host_project%/*}/bin/Release/net10.0"
+                host_staging="$staging/hosts/bin/$host_assembly/release"
+                test -s "$host_source/$host_assembly.dll"
+                test -s "$host_source/$host_assembly.deps.json"
+                test -s "$host_source/$host_assembly.runtimeconfig.json"
+                mkdir -p "$host_staging"
+                cp -a "$host_source/." "$host_staging/"
+              done
             fi
             mkdir -p "$staging/bin/Release/net10.0"
             cp -a "$source_output/." "$staging/bin/Release/net10.0/"
             ARTIFACT_NAME="release-verification-test-build-${SOURCE_COMMIT}-${GITHUB_RUN_ID}-${key}" \
-              PROJECT="$project" ASSEMBLY="$assembly" DOTNET_SDK="$actual_sdk" \
+              PROJECT="$project" ASSEMBLY="$assembly" PROJECT_KEY="$key" DOTNET_SDK="$actual_sdk" \
               python3 - "$staging/source.json" <<'PY'
           import json, os, platform, sys
+          host_artifacts = []
+          if os.environ["PROJECT_KEY"] == "e2e":
+              host_artifacts = [
+                  {"key": "api", "project": "src/AuditSphereOps.Api/AuditSphereOps.Api.csproj", "assembly": "AuditSphereOps.Api"},
+                  {"key": "worker", "project": "src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj", "assembly": "AuditSphereOps.Worker"},
+              ]
           json.dump({
               "schemaVersion": 1,
               "artifactName": os.environ["ARTIFACT_NAME"],
@@ -679,6 +718,7 @@ jobs:
               "dotnetSdk": os.environ["DOTNET_SDK"],
               "operatingSystem": platform.system(),
               "machine": platform.machine(),
+              "hostArtifacts": host_artifacts,
           }, open(sys.argv[1], "w"), indent=2)
           PY
           done

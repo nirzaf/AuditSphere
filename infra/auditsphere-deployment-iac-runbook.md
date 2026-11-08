@@ -68,25 +68,32 @@ publish → non-root runtime with the Angular asset set), `src/AuditSphereOps.Wo
 
 ## Release process (also encoded in `.github/workflows/release.yml`)
 
-0. **Precondition.** The `verify-ci-passed` job refuses the release unless a successful `ci.yml`
-   run exists for the exact commit SHA, before any environment approval is requested. It does not
-   yet check `release-verification.yml`; the complete-suite result for the commit must be checked
-   separately until the owner makes that workflow a required check.
-1. **Build immutable artifacts** tagged with the Git commit SHA, from the commit that passed the
-   precondition; production runs a known artifact, never a rebuild. The fast `ci.yml` gate covers
-   the focused checks; the complete suite runs in `release-verification.yml`.
-2. **Run the migration job.** If it fails or hangs, the new revision never receives traffic.
+0. **Preconditions.** `verify-ci-passed` and `verify-release-source` refuse the release unless
+   both fast CI and retained full-regression evidence match the exact immutable commit SHA.
+   These read-only checks complete before image work or a protected environment approval.
+1. **Build candidate images in parallel.** Three independent jobs build the API, Worker and
+   migration images for `linux/amd64` from the exact verified checkout. Buildx uses an isolated
+   GitHub Actions cache scope per image. Each job uploads a SHA-256 checked image archive and
+   manifest bound to repository, workflow run/attempt, source SHA, Dockerfile and image tag.
+   These jobs receive no Azure OIDC token and write no ACR tags. Cache export is best-effort;
+   cache misses simply rebuild from the Dockerfiles, while cache-import errors remain visible.
+2. **Approve the protected environment.** The release job starts only after all three image builds
+   succeed and the configured reviewer approves. It verifies each same-run artifact manifest and
+   archive hash before Azure login. OIDC remains limited to this protected job; it publishes the
+   already-built SHA tags to ACR and records each registry digest. If the archive is absent, stale,
+   mismatched or corrupt, release stops before Azure authentication or registry writes.
+3. **Run the migration job.** If it fails or hangs, the new revision never receives traffic.
    Migrations are forward-only; application rollback is never coupled to a database rollback.
-3. **Deploy** API + worker revisions via `infra/environments/<env>/main.bicep`, passing the
+4. **Deploy** API + worker revisions via `infra/environments/<env>/main.bicep`, passing the
    **deployment epoch** as an explicit parameter (the release pipeline assigns
    `github.run_number`, which is positive and strictly increasing — satisfying the
    durable-operation fencing rule with no manual ambiguity).
-4. **Canary**: `az containerapp ingress traffic update --revision-weight <new>=10`, then smoke
+5. **Canary**: `az containerapp ingress traffic update --revision-weight <new>=10`, then smoke
    checks — liveness, readiness, and a read-only Angular route. Canary validation never uses
    destructive business commands.
-5. **Promote** (`--revision-weight <new>=100`) or **roll back**
+6. **Promote** (`--revision-weight <new>=100`) or **roll back**
    (`--revision-weight <previous>=100`). Worker rollback is redeploying the previous image tag.
-6. **Angular asset transition**: the release pipeline uploads the new browser bundle to the
+7. **Angular asset transition**: the release pipeline uploads the new browser bundle to the
    `ui-current` share and moves the previous approved bundle to `ui-previous`. Existing tabs
    keep loading fingerprinted chunks from `AngularUi:PreviousBuildPath` during the transition
    window; old HTML shells are never served.
@@ -107,6 +114,7 @@ publish → non-root runtime with the Angular asset set), `src/AuditSphereOps.Wo
 | Property | Status |
 | --- | --- |
 | Templates compile (`az bicep build`) | Verified locally, all modules + both environments |
-| Runtime images build | Dockerfiles written to mirror the CI build gate; not built locally (Docker daemon unavailable in the working environment) |
+| Parallel image archive workflow | Implemented in `.github/workflows/release.yml`; requires exact-source CI and a protected-environment workflow run before its wall-time benefit is measured |
+| E2E host build reuse | Candidate in `.github/workflows/release-verification.yml` reuses same-run Release API/Worker outputs through the existing artifact-root launcher; exact-source full CI and timing are still pending |
 | Live deployment, canary, rollback | Not exercised; requires the owner plumbing above |
 | Health probes wiring | `/health/live` and `/health/ready` are the application's existing endpoints; probe configuration compiles but is not yet observed in Azure |

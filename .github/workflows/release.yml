@@ -10,11 +10,14 @@
 # Until that plumbing exists, every live step remains BLOCKED_EXTERNAL and is not faked here.
 #
 # Release preconditions: fast CI and retained full-regression evidence must both match the exact
-# immutable release SHA before the protected release job can start.
+# immutable release SHA before any image build or protected release job can start. Candidate
+# archives and BuildKit cache are staged first; Azure authentication, ACR writes and deployment
+# remain inside the protected environment job.
 #
 # Deployment order per the architecture contract:
-#   verify the commit passed CI (read-only, before any environment approval)
-#     -> build SHA-tagged artifacts, then deploy the captured registry digests
+#   verify exact-source fast and full CI (read-only)
+#     -> parallel-build source-bound image archives without registry credentials
+#     -> approve the protected environment, then publish captured tags and deploy registry digests
 #     -> run the migration job (failure blocks the release)
 #     -> deploy API + worker revisions
 #     -> canary: split 10% of API traffic to the new revision
@@ -54,7 +57,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: auditsphere-release-${{ inputs.environment }}
@@ -170,11 +172,130 @@ jobs:
             --runs-dir "$tmp/runs" --evidence-dir "$tmp/evidence" \
             --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY"
 
-  release:
+  build-images:
+    name: Build · ${{ matrix.name }} image for the verified source
     needs: [verify-ci-passed, verify-release-source]
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - key: api
+            name: API
+            image: auditsphere-api
+            dockerfile: src/AuditSphereOps.Api/Dockerfile
+          - key: worker
+            name: Worker
+            image: auditsphere-worker
+            dockerfile: src/AuditSphereOps.Worker/Dockerfile
+          - key: migrations
+            name: Migrations
+            image: auditsphere-migrations
+            dockerfile: infra/docker/migrations.Dockerfile
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the exact verified source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Validate registry input and exact checkout
+        env:
+          ACR_NAME: ${{ inputs.acr_name }}
+        run: |
+          set -euo pipefail
+          [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Set up Buildx with isolated image cache
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver: docker-container
+
+      - name: Build image and stage a source-bound archive
+        id: image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          tags: ${{ inputs.acr_name }}.azurecr.io/${{ matrix.image }}:${{ github.sha }}
+          load: true
+          cache-from: type=gha,scope=auditsphere-release-${{ matrix.key }}
+          cache-to: type=gha,scope=auditsphere-release-${{ matrix.key }},mode=max,ignore-error=true,timeout=3m
+
+      - name: Package and record the exact source image for the approval-gated release
+        env:
+          ACR_NAME: ${{ inputs.acr_name }}
+          IMAGE_KEY: ${{ matrix.key }}
+          IMAGE_NAME: ${{ matrix.image }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: |
+          set -euo pipefail
+          [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          image_ref="$ACR_NAME.azurecr.io/$IMAGE_NAME:$GITHUB_SHA"
+          test "$(docker image inspect "$image_ref" --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
+          artifact_dir="$RUNNER_TEMP/release-image"
+          mkdir -p "$artifact_dir"
+          docker save --output "$artifact_dir/image.tar" "$image_ref"
+          IMAGE_REF="$image_ref" \
+            python3 - "$artifact_dir/source.json" <<'PY'
+          import hashlib, json, os, pathlib, platform, sys
+          archive = pathlib.Path(sys.argv[1]).with_name("image.tar")
+          with archive.open("rb") as stream:
+              digest = hashlib.file_digest(stream, "sha256").hexdigest()
+          json.dump({
+              "schemaVersion": 1,
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "workflowRunId": int(os.environ["GITHUB_RUN_ID"]),
+              "workflowRunAttempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "sourceSha": os.environ["GITHUB_SHA"],
+              "imageKey": os.environ["IMAGE_KEY"],
+              "imageName": os.environ["IMAGE_NAME"],
+              "dockerfile": os.environ["DOCKERFILE"],
+              "imageRef": os.environ["IMAGE_REF"],
+              "platform": "linux/amd64",
+              "archiveFile": archive.name,
+              "archiveSha256": digest,
+              "archiveBytes": archive.stat().st_size,
+              "cacheScope": f"auditsphere-release-{os.environ['IMAGE_KEY']}",
+              "runnerArchitecture": platform.machine(),
+          }, open(sys.argv[1], "w"), indent=2)
+          PY
+          {
+            echo "## Release image staged before environment approval"
+            echo
+            echo "- Source: \`$GITHUB_SHA\`"
+            echo "- Image: \`$image_ref\`"
+            echo "- Archive SHA-256: \`$(jq -r .archiveSha256 "$artifact_dir/source.json")\`"
+            echo "- ACR push and deployment remain behind the protected environment approval."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload immutable image input for this workflow attempt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-image-${{ matrix.key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-image
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 1
+
+  release:
+    needs: [verify-ci-passed, verify-release-source, build-images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         shell: bash
@@ -185,12 +306,62 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+      - name: Download exact-run image archives
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          global-json-file: global.json
+          name: release-image-api-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-images/api
 
-      # Unpinned intentionally: pin azure/login by verified commit SHA during the owner
-      # plumbing approval; a fabricated pin would be worse than an explicit reviewable tag.
+      - name: Download exact-run worker image archive
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-image-worker-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-images/worker
+
+      - name: Download exact-run migration image archive
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-image-migrations-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-images/migrations
+
+      - name: Verify image provenance and load exact image tags
+        env:
+          ACR_NAME: ${{ inputs.acr_name }}
+        run: |
+          set -euo pipefail
+          [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]
+          registry="$ACR_NAME.azurecr.io"
+          for key in api worker migrations; do
+            case "$key" in
+              api) image_name=auditsphere-api; dockerfile=src/AuditSphereOps.Api/Dockerfile ;;
+              worker) image_name=auditsphere-worker; dockerfile=src/AuditSphereOps.Worker/Dockerfile ;;
+              migrations) image_name=auditsphere-migrations; dockerfile=infra/docker/migrations.Dockerfile ;;
+            esac
+            artifact_dir="$RUNNER_TEMP/release-images/$key"
+            manifest="$artifact_dir/source.json"
+            archive="$artifact_dir/image.tar"
+            expected_image="$registry/$image_name:$GITHUB_SHA"
+            jq -e \
+              --arg repository "$GITHUB_REPOSITORY" \
+              --arg runId "$GITHUB_RUN_ID" \
+              --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+              --arg sourceSha "$GITHUB_SHA" \
+              --arg imageKey "$key" \
+              --arg imageName "$image_name" \
+              --arg dockerfile "$dockerfile" \
+              --arg imageRef "$expected_image" \
+              '.schemaVersion == 1 and .repository == $repository and .workflowRunId == ($runId | tonumber) and .workflowRunAttempt == ($runAttempt | tonumber) and .sourceSha == $sourceSha and .imageKey == $imageKey and .imageName == $imageName and .dockerfile == $dockerfile and .imageRef == $imageRef and .platform == "linux/amd64" and .archiveFile == "image.tar" and (.archiveSha256 | test("^[0-9a-f]{64}$")) and (.archiveBytes | type == "number" and . > 0) and .cacheScope == ("auditsphere-release-" + $imageKey)' \
+              "$manifest" >/dev/null
+            test -s "$archive"
+            test "$(wc -c < "$archive" | tr -d '[:space:]')" -eq "$(jq -r .archiveBytes "$manifest")"
+            expected_digest="$(jq -r .archiveSha256 "$manifest")"
+            printf '%s  %s\n' "$expected_digest" "$archive" | sha256sum --check --status
+            docker load --input "$archive"
+            test "$(docker image inspect "$expected_image" --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
+          done
+
+      # OIDC stays on this protected-environment job, and the credential is requested only after
+      # all three artifacts have passed their exact-run/source/hash checks.
       - name: Azure login (OIDC, no stored secrets)
         uses: azure/login@v2
         with:
@@ -198,43 +369,54 @@ jobs:
           tenant-id: ${{ inputs.azure_tenant_id }}
           subscription-id: ${{ inputs.azure_subscription_id }}
 
-      - name: Build and publish images for the verified commit
-        id: build
+      - name: Publish the three verified tags and capture registry digest pins
+        id: publish
+        env:
+          ACR_NAME: ${{ inputs.acr_name }}
         run: |
           set -euo pipefail
-          sha="${GITHUB_SHA}"
-          registry="${{ inputs.acr_name }}.azurecr.io"
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "registry=$registry" >> "$GITHUB_OUTPUT"
-          docker build -f src/AuditSphereOps.Api/Dockerfile -t "$registry/auditsphere-api:$sha" .
-          docker build -f src/AuditSphereOps.Worker/Dockerfile -t "$registry/auditsphere-worker:$sha" .
-          docker build -f infra/docker/migrations.Dockerfile -t "$registry/auditsphere-migrations:$sha" .
-          az acr login --name "${{ inputs.acr_name }}"
-
+          [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]
+          registry="$ACR_NAME.azurecr.io"
+          sha="$GITHUB_SHA"
+          az acr login --name "$ACR_NAME"
           push_and_pin() {
-            local output_name="$1"
-            local image="$2"
-            local push_log="$RUNNER_TEMP/${output_name}-push.log"
-            docker push "$image" 2>&1 | tee "$push_log"
+            local key="$1" image="$2"
+            local push_log="$RUNNER_TEMP/${key}-push.log"
+            docker push "$image" >"$push_log" 2>&1 || return 1
             local digest
             digest="$(awk '$2 == "digest:" && $3 ~ /^sha256:[0-9a-f]+$/ { value=$3 } END { print value }' "$push_log")"
-            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-              echo "Registry did not return a valid digest for ${image}; refusing release." >&2
-              exit 1
-            fi
-            echo "${output_name}=${image%%:*}@${digest}" >> "$GITHUB_OUTPUT"
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || return 1
+            printf '%s\n' "$digest" > "$RUNNER_TEMP/${key}-digest.txt"
           }
-
-          push_and_pin api_image "$registry/auditsphere-api:$sha"
-          push_and_pin worker_image "$registry/auditsphere-worker:$sha"
-          push_and_pin migration_image "$registry/auditsphere-migrations:$sha"
+          push_and_pin api "$registry/auditsphere-api:$sha" & api_pid=$!
+          push_and_pin worker "$registry/auditsphere-worker:$sha" & worker_pid=$!
+          push_and_pin migrations "$registry/auditsphere-migrations:$sha" & migrations_pid=$!
+          push_status=0
+          wait "$api_pid" || push_status=1
+          wait "$worker_pid" || push_status=1
+          wait "$migrations_pid" || push_status=1
+          for key in api worker migrations; do
+            cat "$RUNNER_TEMP/${key}-push.log"
+          done
+          if (( push_status != 0 )); then
+            echo "At least one image push failed or omitted a valid registry digest; refusing deployment." >&2
+            exit 1
+          fi
+          api_image="$registry/auditsphere-api@$(cat "$RUNNER_TEMP/api-digest.txt")"
+          worker_image="$registry/auditsphere-worker@$(cat "$RUNNER_TEMP/worker-digest.txt")"
+          migration_image="$registry/auditsphere-migrations@$(cat "$RUNNER_TEMP/migrations-digest.txt")"
+          {
+            echo "api_image=$api_image"
+            echo "worker_image=$worker_image"
+            echo "migration_image=$migration_image"
+          } >> "$GITHUB_OUTPUT"
           {
             echo "## Published image identities"
             echo
             echo "- Source commit: \`$sha\`"
-            echo "- API: \`$(sed -n 's/^api_image=//p' "$GITHUB_OUTPUT" | tail -n 1)\`"
-            echo "- Worker: \`$(sed -n 's/^worker_image=//p' "$GITHUB_OUTPUT" | tail -n 1)\`"
-            echo "- Migration: \`$(sed -n 's/^migration_image=//p' "$GITHUB_OUTPUT" | tail -n 1)\`"
+            echo "- API: \`$api_image\`"
+            echo "- Worker: \`$worker_image\`"
+            echo "- Migration: \`$migration_image\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run the migration job (blocking)
@@ -244,7 +426,7 @@ jobs:
           az containerapp job start --name "$job" \
             --resource-group "${{ inputs.azure_resource_group }}"
           # The job exits non-zero on failed migrations; poll until it terminates.
-          for attempt in $(seq 1 60); do
+          for _attempt in $(seq 1 60); do
             status="$(az containerapp job execution list --name "$job" \
               --resource-group "${{ inputs.azure_resource_group }}" \
               --query '[0].properties.status' -o tsv || true)"
@@ -259,15 +441,13 @@ jobs:
       - name: Deploy API and worker revisions
         run: |
           set -euo pipefail
-          sha="${{ steps.build.outputs.sha }}"
-          registry="${{ steps.build.outputs.registry }}"
           az deployment group create \
             --resource-group "${{ inputs.azure_resource_group }}" \
             --template-file infra/environments/${{ inputs.environment }}/main.bicep \
             --parameters deploymentEpoch="${{ github.run_number }}" \
-              apiImage="${{ steps.build.outputs.api_image }}" \
-              workerImage="${{ steps.build.outputs.worker_image }}" \
-              migrationImage="${{ steps.build.outputs.migration_image }}" \
+              apiImage="${{ steps.publish.outputs.api_image }}" \
+              workerImage="${{ steps.publish.outputs.worker_image }}" \
+              migrationImage="${{ steps.publish.outputs.migration_image }}" \
               registryServer="${{ inputs.acr_name }}.azurecr.io" \
               registryId="/subscriptions/${{ inputs.azure_subscription_id }}/resourceGroups/${{ inputs.azure_resource_group }}/providers/Microsoft.ContainerRegistry/registries/${{ inputs.acr_name }}"
 
@@ -288,7 +468,7 @@ jobs:
           fqdn="$(az containerapp show --name auditsphere-prod-api \
             --resource-group "${{ inputs.azure_resource_group }}" \
             --query 'properties.configuration.ingress.fqdn' -o tsv)"
-          for attempt in $(seq 1 20); do
+          for _attempt in $(seq 1 20); do
             if curl -fsS "https://$fqdn/health/live" >/dev/null; then break; fi
             sleep 10
           done
