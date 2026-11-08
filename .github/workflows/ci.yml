@@ -69,11 +69,80 @@ jobs:
           printf 'Angular gate outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
             "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
 
+  # Compile independently of Angular on master pushes. The checked Release outputs are passed to
+  # the existing verification job as an exact-run artifact; other events retain the clean build
+  # path in dotnet-build. This overlaps the long solution build with Angular without moving any
+  # fast-gate checks or weakening full verification.
+  dotnet-release-compile:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    name: Build · .NET Release outputs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      DOTNET_gcServer: '0'
+      DOTNET_GCConserveMemory: '9'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Restore and build Release outputs
+        run: |
+          set -euo pipefail
+          test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
+          dotnet restore AuditSphereOps.slnx --locked-mode
+          # Serialize to a single MSBuild node: Web and test projects ProjectReference the Api,
+          # so parallel solution builds race on shared Api outputs. Match the successful runner
+          # settings for migration-heavy projects.
+          dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1 \
+            -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RunAnalyzers=false
+
+      # The same manifest, confined archive and digest checks protect this same-run handoff and
+      # the later full-verification reuse. Packaging is optional; the consumer clean-builds if
+      # the artifact is absent or rejected.
+      - name: Package exact-run Release outputs
+        id: package-parallel-build
+        if: ${{ success() }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          python3 scripts/release/ci_build_artifact.py create \
+            --root "$GITHUB_WORKSPACE" \
+            --output-dir "$RUNNER_TEMP/auditsphere-release-build" \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --source-sha "$GITHUB_SHA" \
+            --dotnet-sdk "$(dotnet --version)" \
+            --runner-image "ubuntu-24.04" \
+            --runner-version "${ImageVersion:-unknown}"
+
+      - name: Upload exact-run Release outputs
+        if: ${{ success() && steps.package-parallel-build.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: auditsphere-release-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/auditsphere-release-build
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
   # Fast push/PR gate: compile all projects, run database-free guards and OpenAPI semantics,
   # check model/contract drift and publication. PostgreSQL and full API/browser regressions are
   # deferred to release-verification.yml (nightly + manual, complete unfiltered suites).
   dotnet-build:
-    needs: ui-build
+    needs: [ui-build, dotnet-release-compile]
+    if: ${{ always() && needs.ui-build.result == 'success' && (needs.dotnet-release-compile.result == 'success' || needs.dotnet-release-compile.result == 'skipped') }}
     name: Build · .NET Release
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -109,11 +178,49 @@ jobs:
           print(f'Verified pinned .NET SDK {actual}')
           PY
 
-      - name: Restore and build Release
+      - name: Restore tools and locked packages
         run: |
           set -euo pipefail
           dotnet tool restore
           dotnet restore AuditSphereOps.slnx --locked-mode
+
+      - name: Download exact-run Release outputs
+        id: download-parallel-build
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: auditsphere-release-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/auditsphere-release-build
+
+      - name: Verify and restore exact-run Release outputs
+        id: verify-parallel-build
+        if: ${{ steps.download-parallel-build.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          result_file="$RUNNER_TEMP/auditsphere-release-build-restore.json"
+          if python3 scripts/release/ci_build_artifact.py verify-and-extract \
+            --root "$GITHUB_WORKSPACE" \
+            --artifact-dir "$RUNNER_TEMP/auditsphere-release-build" \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --source-sha "$GITHUB_SHA" \
+            --dotnet-sdk "$(dotnet --version)" \
+            --runner-image "ubuntu-24.04" \
+            --runner-version "${ImageVersion:-unknown}" > "$result_file"; then
+            cat "$result_file"
+            printf 'reused=true\n' >> "$GITHUB_OUTPUT"
+          else
+            echo "Same-run Release build artifact was rejected; falling back to a clean build." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Build Release when parallel outputs are unavailable or rejected
+        if: ${{ steps.verify-parallel-build.outputs.reused != 'true' }}
+        run: |
+          set -euo pipefail
           # Serialize to a single MSBuild node: Web and the test projects ProjectReference
           # the Api, so the default parallel solution build races on the Api's output files
           # (runtimeconfig.json and Roslyn satellite DLLs), causing intermittent MSB3026/MSB4018
@@ -178,39 +285,6 @@ jobs:
       # suite: a single in-process generation check, consistent with the build-gate policy.
       - name: Verify OpenAPI contract drift
         run: bash scripts/contracts/verify-openapi.sh
-
-      # Full verification often follows this successful default-branch push. Keep a short-lived,
-      # exact-source copy of the Release outputs so that workflow can reuse its build instead of
-      # compiling the migration-heavy solution again. Upload is optional and never changes the CI
-      # result; the consumer verifies identity and digest before reuse, then builds from scratch if
-      # the artifact is absent or rejected.
-      - name: Package exact-source Release outputs for full verification
-        id: package-release-build
-        if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          python3 scripts/release/ci_build_artifact.py create \
-            --root "$GITHUB_WORKSPACE" \
-            --output-dir "$RUNNER_TEMP/auditsphere-release-build" \
-            --repository "$GITHUB_REPOSITORY" \
-            --run-id "$GITHUB_RUN_ID" \
-            --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --source-sha "$GITHUB_SHA" \
-            --dotnet-sdk "$(dotnet --version)" \
-            --runner-image "ubuntu-24.04" \
-            --runner-version "${ImageVersion:-unknown}"
-
-      - name: Upload exact-source Release build outputs
-        if: ${{ success() && steps.package-release-build.outcome == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        continue-on-error: true
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: auditsphere-release-build-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/auditsphere-release-build
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
 
       - name: Summarize
         if: ${{ always() }}

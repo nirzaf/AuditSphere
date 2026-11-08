@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-08T19:21:32Z",
+  "observedAtUtc": "2026-11-08T22:16:36Z",
   "source": {
     "branch": "master",
-    "baseSha": "00966fcbf750808c6b7c4ee18c87826f0f816013",
-    "originMasterSha": "00966fcbf750808c6b7c4ee18c87826f0f816013",
-    "workingTree": "At 2026-11-08T19:21:32Z, HEAD and fetched origin/master match 00966fcbf750808c6b7c4ee18c87826f0f816013. Seven scoped local paths contain the exact-source Release build reuse candidate. Base fast run 42508248094 passed all three actual checkouts; its .NET Release compile took 23m53s. Base full run 42511339287 remains in progress on the pre-candidate workflow. No image rehearsal, protected release or deployment.",
+    "baseSha": "17e142fea294d574ade773fb075019983dff4877",
+    "originMasterSha": "17e142fea294d574ade773fb075019983dff4877",
+    "workingTree": "At 2026-11-08T22:16:36Z, HEAD and fetched origin/master match 17e142fea294d574ade773fb075019983dff4877. The local CI workflow overlap candidate and current execution-record refresh are uncommitted. Exact full run 42527196539 is active: Resolve, Angular and Build/contracts passed; unfiltered Domain/API/E2E remain in progress. No image rehearsal, protected release or deployment.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -16,11 +16,11 @@
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "RUN-003 remains REPAIR/incomplete. Continue unrelated practice work independently. Exact fast CI on 2f713a4 passed run 42505925107 with all job checkouts. Current local release-only optimization overlaps credential-free image builds with the full-evidence check after fast CI; the release job still requires both. Finish actionlint/docs validation, fetch/review incoming paths, publish only the workflow/runbook/status/handoff paths, then pass exact fast CI and dispatch one immutable full run on that final source. Do not trigger protected release/deployment.",
+      "nextAction": "Monitor exact full run 42527196539 without rerun/cancel. Validate and publish the local fast-CI overlap candidate only after fetch/path review; observe exact fast CI. Do not dispatch another full run until 42527196539 is terminal, then require exact final-source full CI before any release.",
       "note": "2026-11-08T13:05:03Z: RUN-003 remains REPAIR on 98679131fa65076c429fca8f95bb1f74ba7d7d7e. Exact fast run 42481222673 passed Angular, Docs and Release with all three actual checkout hashes matching 98679131fa65076c429fca8f95bb1f74ba7d7d7e; terminal proof .local/autonomous/evidence/ci-98679131-current-20261108/fast-terminal-proof.json. Focused API route 3/3 and named E2E 1/1 pass. Full verification for 98679131fa65076c429fca8f95bb1f74ba7d7d7e is not yet dispatched; predecessor API cancellation and E2E inactivity causes remain unconfirmed. Docs category consolidation is complete for the requested scope.",
       "currentSourceSha": "1a07935ce1aa0799a44fef076ce330b2fe499254"
     },
-    "ciCdAcceleration": "IN_PROGRESS. Published same-run E2E host output reuse, parallel image archive builds/downloads/pushes, and image-build/full-evidence overlap remain in ancestry. The local candidate packages Release bin/obj outputs from successful master fast CI for one day and lets full verification reuse them only after exact SHA/run/attempt/SDK/runner/digest/path checks; otherwise it performs the existing full build. Focused helper tests pass 6/6 and actionlint passes. Exact candidate CI and measured artifact time remain pending. Base fast run 42508248094 passed; base full run 42511339287 is still running without this candidate. No deployment or release acceptance."
+    "ciCdAcceleration": "IN_PROGRESS. Exact-source Release output reuse reduced the full run Build/contracts job by 938 seconds (1,204s to 266s) on source 17e142fe; full Domain/API/E2E remain active. A local master-push fast-CI candidate overlaps Release compile with Angular and passes only a manifest-verified same-run artifact; PR/dispatch and clean-build fallback remain. Its estimated net opportunity is about 60s and is not measured. Deployment image builds remain parallel while migrations, canary and approval gates retain their order. No deployment or release acceptance."
   },
   "localVerification": {
     "documentationHealth": {
@@ -1813,74 +1813,39 @@
         "exactFastCi": "PENDING_FOR_FINAL_SOURCE"
       }
     },
-    "ciCdAccelerationBuildArtifactReuse20261108": {
-      "candidateBaseSha": "00966fcbf750808c6b7c4ee18c87826f0f816013",
-      "candidatePaths": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/release-verification.yml",
-        "scripts/release/ci_build_artifact.py",
-        "scripts/release/test_ci_build_artifact.py",
-        "infra/auditsphere-deployment-iac-runbook.md",
-        "docs/execution/status.json",
-        "docs/execution/auditsphere-execution-current-slice.md"
-      ],
-      "candidateStatus": "LOCAL_UNCOMMITTED_STATIC_AND_DOCS_CHECKS_PASS",
-      "candidateFastCi": "NOT_RUN",
-      "candidateFullCi": "NOT_RUN",
-      "expectedBenefit": "Avoid a duplicate 23m53s Release compile in full verification when a matching one-day fast-CI artifact is available; transfer/restore time and actual savings are unmeasured.",
-      "fallback": "Any missing/expired/API-inaccessible/downloaded-but-invalid artifact runs the normal full Release solution build; all full tests and gates stay enabled.",
+    "ciCdAccelerationParallelFastBuild20261108": {
+      "baseSha": "17e142fea294d574ade773fb075019983dff4877",
+      "candidateStatus": "LOCAL_UNCOMMITTED_STATIC_CHECKS_PASS_CI_NOT_RUN",
+      "change": "Master-push Release compile runs alongside Angular; existing .NET Release verification consumes only the same-run, manifest-verified artifact. PR/dispatch build path and clean-build fallback are preserved.",
+      "estimatedOpportunitySeconds": 60,
+      "estimateBasis": "Prior Angular gate delayed the long Release build by 135s; same-run artifact download measured about 41s. Net timing is unmeasured.",
       "baseFastRun": {
-        "runId": 42508248094,
-        "attempt": 1,
-        "sourceSha": "00966fcbf750808c6b7c4ee18c87826f0f816013",
-        "status": "PASS_ALL_3_ACTUAL_CHECKOUTS",
-        "jobs": {
-          "angular": {
-            "id": 128815473300,
-            "seconds": 159,
-            "checkoutSha": "00966fcbf750808c6b7c4ee18c87826f0f816013"
-          },
-          "docs": {
-            "id": 128815473604,
-            "seconds": 149,
-            "checkoutSha": "00966fcbf750808c6b7c4ee18c87826f0f816013"
-          },
-          "release": {
-            "id": 128816168646,
-            "seconds": 1577,
-            "restoreBuildSeconds": 1439,
-            "checkoutSha": "00966fcbf750808c6b7c4ee18c87826f0f816013"
-          }
-        },
-        "proof": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-00966fcb-42508248094/fast-terminal-proof.json"
+        "id": 42515514056,
+        "result": "PASS_3_ACTUAL_CHECKOUTS",
+        "sourceSha": "17e142fea294d574ade773fb075019983dff4877",
+        "angularSeconds": 135,
+        "docsSeconds": 141,
+        "releaseSeconds": 1933,
+        "releaseArtifactBytes": 441441890,
+        "artifactPackageSeconds": 16,
+        "artifactUploadSeconds": 5
       },
-      "baseFullRun": {
-        "runId": 42511339287,
+      "artifactReuseFullRun": {
+        "id": 42527196539,
         "attempt": 1,
-        "sourceSha": "00966fcbf750808c6b7c4ee18c87826f0f816013",
-        "status": "IN_PROGRESS_UNFILTERED_DOMAIN_API_E2E",
-        "jobs": {
-          "resolve": 128824866300,
-          "angular": 128824930471,
-          "releaseContract": 128825647456,
-          "e2e": 128830745818,
-          "api": 128830745836,
-          "domain": 128830745946
-        },
-        "workflowUsesBuildArtifactReuseCandidate": false
+        "sourceSha": "17e142fea294d574ade773fb075019983dff4877",
+        "buildContractsSeconds": 266,
+        "predecessorSeconds": 1204,
+        "measuredJobReductionSeconds": 938,
+        "fullSuites": "IN_PROGRESS_DOMAIN_API_E2E"
       },
-      "archive": ".local/autonomous/evidence/ci-cd-acceleration-20261108/pre-build-reuse-20261108T191522Z/manifest.json",
-      "observedAtUtc": "2026-11-08T19:21:32Z",
       "localChecks": {
-        "artifactHelper": "PASS_6_6",
-        "pythonCompile": "PASS",
         "actionlint": "PASS",
-        "gitDiffCheck": "PASS",
-        "markdownHealth": "PASS_179_FILES_2896_LINKS_262_REPOSITORY_PATHS_0_DELETED_REFERENCES",
-        "markdownFilenames": "PASS_179",
-        "narrativeMetrics": "PASS_6",
-        "autonomousState": "PASS_48_TASKS_RUN003_REPAIR"
-      }
+        "gitDiffCheck": "PASS"
+      },
+      "currentCandidateCi": "NOT_RUN",
+      "releaseOrDeployment": "NOT_PERFORMED",
+      "evidence": ".local/autonomous/evidence/ci-cd-acceleration-20261108/"
     }
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."
