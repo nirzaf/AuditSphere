@@ -70,6 +70,13 @@ publish → non-root runtime with the Angular asset set), `src/AuditSphereOps.Wo
 
 0. **Verify fast CI.** `verify-ci-passed` requires a successful fast run for the exact immutable
    release SHA. No candidate images build unless this read-only precondition passes.
+   For full verification, a successful `master` push of `ci.yml` may also provide a one-day
+   Release build artifact. The verifier selects it only for the exact resolved SHA and matching
+   workflow run/attempt, repository, pinned .NET SDK, Ubuntu runner image and SHA-256 manifest;
+   it validates every archive path before restoring outputs. Missing, expired or rejected
+   artifacts fall back to the normal Release solution build. This skips compilation only: locked
+   restore, EF/OpenAPI/documentation checks, the unfiltered Domain/API/E2E suites and the aggregate
+   gate still run.
 1. **Overlap full-evidence verification with candidate builds.** Once fast CI passes,
    `verify-release-source` checks the retained full-regression evidence for the exact SHA while
    three independent jobs build the API, Worker and migration images for `linux/amd64` from that
@@ -123,6 +130,7 @@ publish → non-root runtime with the Angular asset set), `src/AuditSphereOps.Wo
 | --- | --- |
 | Templates compile (`az bicep build`) | Verified locally, all modules + both environments |
 | Parallel image archive workflow | Implemented in `.github/workflows/release.yml`; requires exact-source CI and a protected-environment workflow run before its wall-time benefit is measured |
-| E2E host build reuse | Candidate in `.github/workflows/release-verification.yml` reuses same-run Release API/Worker outputs through the existing artifact-root launcher; exact-source full CI and timing are still pending |
+| E2E host build reuse | Implemented in `.github/workflows/release-verification.yml` using same-run Release API/Worker outputs through the existing artifact-root launcher; current full-verification outcome remains bound to its exact run |
+| Fast-to-full Release build reuse | Local candidate in `.github/workflows/ci.yml` and `.github/workflows/release-verification.yml`; exact-source artifact verification has focused tests and actionlint coverage, but candidate CI and measured time savings are pending |
 | Live deployment, canary, rollback | Not exercised; requires the owner plumbing above |
 | Health probes wiring | `/health/live` and `/health/ready` are the application's existing endpoints; probe configuration compiles but is not yet observed in Azure |

@@ -491,6 +491,9 @@ jobs:
     needs: [resolve-ref, angular]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
     # Keep Roslyn within the runner memory limit while compiling the migration-heavy projects.
     env:
       DOTNET_gcServer: '0'
@@ -532,7 +535,7 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
-      - name: Verify SDK, restore tools and packages, then build Release
+      - name: Verify SDK and restore tools and packages
         run: |
           set -euo pipefail
           bash scripts/release/run-verification-step.sh "Pinned .NET SDK disables roll-forward" \
@@ -542,6 +545,75 @@ jobs:
           bash scripts/release/run-verification-step.sh "dotnet tool restore" dotnet tool restore
           bash scripts/release/run-verification-step.sh "dotnet restore (locked mode)" \
             dotnet restore AuditSphereOps.slnx --locked-mode
+
+      # A successful push run of ci.yml may have compiled this exact commit in the same pinned
+      # SDK and runner image. Its optional artifact is a performance hint only: identity, manifest,
+      # digest and every extracted path are verified below, and any absence/refusal uses the clean
+      # solution-build path. Full test execution and all publication/contract checks remain here.
+      - name: Locate a successful exact-source fast-CI build artifact
+        id: fast-build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API_URL: ${{ github.api_url }}
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release/ci_build_artifact.py find \
+            --api-url "$API_URL" \
+            --repository "$GITHUB_REPOSITORY" \
+            --branch master \
+            --source-sha "$SOURCE_COMMIT" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Download exact-source fast-CI Release build artifact
+        id: download-fast-build
+        if: ${{ steps.fast-build.outputs.available == 'true' }}
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ steps.fast-build.outputs.artifact_name }}
+          path: ${{ runner.temp }}/auditsphere-fast-release-build
+          run-id: ${{ steps.fast-build.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify and restore exact-source Release build artifact
+        id: verify-fast-build
+        if: ${{ steps.download-fast-build.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          REPOSITORY: ${{ github.repository }}
+          FAST_RUN_ID: ${{ steps.fast-build.outputs.run_id }}
+          FAST_RUN_ATTEMPT: ${{ steps.fast-build.outputs.run_attempt }}
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          result_file="$RUNNER_TEMP/auditsphere-fast-build-restore.json"
+          if python3 scripts/release/ci_build_artifact.py verify-and-extract \
+            --root "$GITHUB_WORKSPACE" \
+            --artifact-dir "$RUNNER_TEMP/auditsphere-fast-release-build" \
+            --repository "$REPOSITORY" \
+            --run-id "$FAST_RUN_ID" \
+            --run-attempt "$FAST_RUN_ATTEMPT" \
+            --source-sha "$SOURCE_COMMIT" \
+            --dotnet-sdk "$(dotnet --version)" \
+            --runner-image "ubuntu-24.04" \
+            --runner-version "${ImageVersion:-unknown}" > "$result_file"; then
+            cat "$result_file"
+            printf 'reused=true\n' >> "$GITHUB_OUTPUT"
+            {
+              echo "Fast-CI Release outputs matched the exact source, SDK, runner image, run attempt, and archive digest; the unfiltered .NET tests will now run against these compiled outputs."
+              echo
+              echo "Restore proof: $(cat "$result_file")"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Fast-CI build artifact was rejected; the clean Release build will run." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Build Release when no verified fast-CI outputs are available
+        if: ${{ steps.verify-fast-build.outputs.reused != 'true' }}
+        run: |
+          set -euo pipefail
           bash scripts/release/run-verification-step.sh "dotnet build (Release, one MSBuild node)" \
             dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1 \
               -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RunAnalyzers=false
@@ -618,6 +690,8 @@ jobs:
             python3 -m unittest discover -s scripts/agent -p 'test_*.py'
           bash scripts/release/run-verification-step.sh "Exact-source release evidence unit tests" \
             python3 -m unittest discover -s scripts/release -p 'test_verify_release_source.py'
+          bash scripts/release/run-verification-step.sh "Exact-source CI build artifact unit tests" \
+            python3 -m unittest discover -s scripts/release -p 'test_ci_build_artifact.py'
           bash scripts/release/run-verification-step.sh "Verification evidence guard unit tests" \
             python3 -m unittest discover -s scripts/verification -p 'test_*.py'
           bash scripts/release/run-verification-step.sh "M365 result contract unit tests" \

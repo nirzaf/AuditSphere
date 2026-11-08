@@ -179,6 +179,39 @@ jobs:
       - name: Verify OpenAPI contract drift
         run: bash scripts/contracts/verify-openapi.sh
 
+      # Full verification often follows this successful default-branch push. Keep a short-lived,
+      # exact-source copy of the Release outputs so that workflow can reuse its build instead of
+      # compiling the migration-heavy solution again. Upload is optional and never changes the CI
+      # result; the consumer verifies identity and digest before reuse, then builds from scratch if
+      # the artifact is absent or rejected.
+      - name: Package exact-source Release outputs for full verification
+        id: package-release-build
+        if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          python3 scripts/release/ci_build_artifact.py create \
+            --root "$GITHUB_WORKSPACE" \
+            --output-dir "$RUNNER_TEMP/auditsphere-release-build" \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --source-sha "$GITHUB_SHA" \
+            --dotnet-sdk "$(dotnet --version)" \
+            --runner-image "ubuntu-24.04" \
+            --runner-version "${ImageVersion:-unknown}"
+
+      - name: Upload exact-source Release build outputs
+        if: ${{ success() && steps.package-release-build.outcome == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: auditsphere-release-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/auditsphere-release-build
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
       - name: Summarize
         if: ${{ always() }}
         env:
@@ -218,6 +251,7 @@ jobs:
           python3 scripts/diagnostics/test-image-build-counters.py
           python3 -m unittest discover -s scripts/agent -p 'test_*.py'
           python3 -m unittest discover -s scripts/verification -p 'test_*.py'
+          python3 -m unittest discover -s scripts/release -p 'test_ci_build_artifact.py'
           python3 -m unittest discover -s scripts/dev/tests -p 'test_*.py'
           python3 -m unittest discover -s scripts/m365 -p 'test_*.py'
           pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-017 -Offline

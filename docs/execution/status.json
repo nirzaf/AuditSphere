@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-08T18:02:29Z",
+  "observedAtUtc": "2026-11-08T19:21:32Z",
   "source": {
     "branch": "master",
-    "baseSha": "2f713a4cffdc08499b06901af80ff5ec504ba972",
-    "originMasterSha": "2f713a4cffdc08499b06901af80ff5ec504ba972",
-    "workingTree": "At 2026-11-08T18:02:29Z, HEAD and origin/master both equal 2f713a4cffdc08499b06901af80ff5ec504ba972; exact fast run 42505925107 passed for this SHA with all three actual job checkout hashes retained. The workflow/runbook/status/handoff currently contain a scoped local follow-up moving credential-free image builds to run in parallel with exact full-regression evidence verification after fast CI. The protected release still requires both gates. Only the listed workflow, runbook and execution-record paths are changed; no production effects.",
+    "baseSha": "00966fcbf750808c6b7c4ee18c87826f0f816013",
+    "originMasterSha": "00966fcbf750808c6b7c4ee18c87826f0f816013",
+    "workingTree": "At 2026-11-08T19:21:32Z, HEAD and fetched origin/master match 00966fcbf750808c6b7c4ee18c87826f0f816013. Seven scoped local paths contain the exact-source Release build reuse candidate. Base fast run 42508248094 passed all three actual checkouts; its .NET Release compile took 23m53s. Base full run 42511339287 remains in progress on the pre-candidate workflow. No image rehearsal, protected release or deployment.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,7 @@
       "note": "2026-11-08T13:05:03Z: RUN-003 remains REPAIR on 98679131fa65076c429fca8f95bb1f74ba7d7d7e. Exact fast run 42481222673 passed Angular, Docs and Release with all three actual checkout hashes matching 98679131fa65076c429fca8f95bb1f74ba7d7d7e; terminal proof .local/autonomous/evidence/ci-98679131-current-20261108/fast-terminal-proof.json. Focused API route 3/3 and named E2E 1/1 pass. Full verification for 98679131fa65076c429fca8f95bb1f74ba7d7d7e is not yet dispatched; predecessor API cancellation and E2E inactivity causes remain unconfirmed. Docs category consolidation is complete for the requested scope.",
       "currentSourceSha": "1a07935ce1aa0799a44fef076ce330b2fe499254"
     },
-    "ciCdAcceleration": "IN_PROGRESS. Published 1a07935 reuses exact-source Release API/Worker outputs in E2E, eliminating the duplicate host build steps while retaining unfiltered tests. Published 09a76bd builds three image archives concurrently, downloads exact-run archives in parallel with provenance checks before OIDC, and pushes verified tags concurrently behind protection. Fast run 42502644835 passed for exact source 09a76bd with verified checkouts. The subsequent docs refresh 2f713a4 passed exact fast CI 42505925107, with all three checkout hashes verified; run creation-to-completion was 22m30 and Release job 19m41. The prior run 42502644835 took 29m21 from creation-to-completion; these are uncontrolled observations and do not prove the changes caused a saving. The current local follow-up starts credential-free image builds after fast CI while the exact full-evidence check runs in parallel; the protected release still needs both. Its exact fast/full gates are pending publication and execution. No image release or deployment."
+    "ciCdAcceleration": "IN_PROGRESS. Published same-run E2E host output reuse, parallel image archive builds/downloads/pushes, and image-build/full-evidence overlap remain in ancestry. The local candidate packages Release bin/obj outputs from successful master fast CI for one day and lets full verification reuse them only after exact SHA/run/attempt/SDK/runner/digest/path checks; otherwise it performs the existing full build. Focused helper tests pass 6/6 and actionlint passes. Exact candidate CI and measured artifact time remain pending. Base fast run 42508248094 passed; base full run 42511339287 is still running without this candidate. No deployment or release acceptance."
   },
   "localVerification": {
     "documentationHealth": {
@@ -777,6 +777,28 @@
       "releaseJobSeconds": 1181,
       "totalRunSeconds": 1350,
       "evidence": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-2f713a4c-42505925107/fast-terminal-proof.json"
+    },
+    "ciBuildArtifactReuseFocused20261108": {
+      "baseSha": "00966fcbf750808c6b7c4ee18c87826f0f816013",
+      "candidateStatus": "LOCAL_UNCOMMITTED",
+      "unitTests": "PASS_6_6",
+      "coverage": [
+        "exact successful master-push SHA/run/attempt selection",
+        "valid archive round trip and Release output replacement",
+        "wrong source rejected without mutation",
+        "archive size/digest mismatch rejected",
+        "tar traversal rejected before extraction",
+        "Actions API unavailable fails closed to normal build"
+      ],
+      "pythonCompile": "PASS",
+      "actionlint": "PASS",
+      "gitDiffCheck": "PASS",
+      "fullLocalSuites": "NOT_RUN",
+      "exactCandidateCi": "NOT_RUN",
+      "artifactReuseTiming": "NOT_MEASURED",
+      "evidenceArchive": ".local/autonomous/evidence/ci-cd-acceleration-20261108/pre-build-reuse-20261108T191522Z/manifest.json",
+      "observedAtUtc": "2026-11-08T19:21:32Z",
+      "documentationValidation": "PASS_179_MARKDOWN_22_CANONICAL_2896_LINKS_179_FILENAMES_6_NARRATIVE"
     }
   },
   "observedCi": {
@@ -1789,6 +1811,75 @@
         "actionlint": "PASS",
         "workflowGraphCheck": "PASS",
         "exactFastCi": "PENDING_FOR_FINAL_SOURCE"
+      }
+    },
+    "ciCdAccelerationBuildArtifactReuse20261108": {
+      "candidateBaseSha": "00966fcbf750808c6b7c4ee18c87826f0f816013",
+      "candidatePaths": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/release-verification.yml",
+        "scripts/release/ci_build_artifact.py",
+        "scripts/release/test_ci_build_artifact.py",
+        "infra/auditsphere-deployment-iac-runbook.md",
+        "docs/execution/status.json",
+        "docs/execution/auditsphere-execution-current-slice.md"
+      ],
+      "candidateStatus": "LOCAL_UNCOMMITTED_STATIC_AND_DOCS_CHECKS_PASS",
+      "candidateFastCi": "NOT_RUN",
+      "candidateFullCi": "NOT_RUN",
+      "expectedBenefit": "Avoid a duplicate 23m53s Release compile in full verification when a matching one-day fast-CI artifact is available; transfer/restore time and actual savings are unmeasured.",
+      "fallback": "Any missing/expired/API-inaccessible/downloaded-but-invalid artifact runs the normal full Release solution build; all full tests and gates stay enabled.",
+      "baseFastRun": {
+        "runId": 42508248094,
+        "attempt": 1,
+        "sourceSha": "00966fcbf750808c6b7c4ee18c87826f0f816013",
+        "status": "PASS_ALL_3_ACTUAL_CHECKOUTS",
+        "jobs": {
+          "angular": {
+            "id": 128815473300,
+            "seconds": 159,
+            "checkoutSha": "00966fcbf750808c6b7c4ee18c87826f0f816013"
+          },
+          "docs": {
+            "id": 128815473604,
+            "seconds": 149,
+            "checkoutSha": "00966fcbf750808c6b7c4ee18c87826f0f816013"
+          },
+          "release": {
+            "id": 128816168646,
+            "seconds": 1577,
+            "restoreBuildSeconds": 1439,
+            "checkoutSha": "00966fcbf750808c6b7c4ee18c87826f0f816013"
+          }
+        },
+        "proof": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-00966fcb-42508248094/fast-terminal-proof.json"
+      },
+      "baseFullRun": {
+        "runId": 42511339287,
+        "attempt": 1,
+        "sourceSha": "00966fcbf750808c6b7c4ee18c87826f0f816013",
+        "status": "IN_PROGRESS_UNFILTERED_DOMAIN_API_E2E",
+        "jobs": {
+          "resolve": 128824866300,
+          "angular": 128824930471,
+          "releaseContract": 128825647456,
+          "e2e": 128830745818,
+          "api": 128830745836,
+          "domain": 128830745946
+        },
+        "workflowUsesBuildArtifactReuseCandidate": false
+      },
+      "archive": ".local/autonomous/evidence/ci-cd-acceleration-20261108/pre-build-reuse-20261108T191522Z/manifest.json",
+      "observedAtUtc": "2026-11-08T19:21:32Z",
+      "localChecks": {
+        "artifactHelper": "PASS_6_6",
+        "pythonCompile": "PASS",
+        "actionlint": "PASS",
+        "gitDiffCheck": "PASS",
+        "markdownHealth": "PASS_179_FILES_2896_LINKS_262_REPOSITORY_PATHS_0_DELETED_REFERENCES",
+        "markdownFilenames": "PASS_179",
+        "narrativeMetrics": "PASS_6",
+        "autonomousState": "PASS_48_TASKS_RUN003_REPAIR"
       }
     }
   },
