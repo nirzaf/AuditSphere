@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Application.Records;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -40,33 +41,43 @@ public sealed class ArchiveRecordQueryTests
     await using var pg = await PgTestSchema.CreateAsync();
     var f = await PbcSeed.SeedAsync(pg);
     var archiveId = Guid.NewGuid();
-    var manifestId = Guid.NewGuid();
-    var content = "{\"schema\":\"records-export.v2\"}";
-    var bytes = System.Text.Encoding.UTF8.GetBytes(content);
-    await using var db = new AuditSphereDbContext(pg.Options);
-    db.Archives.Add(new Archive
+    var now = DateTimeOffset.UtcNow;
+    var admin = PbcSeed.Actor(f.Admin, "Administrator");
+    await using (var seed = new AuditSphereDbContext(pg.Options))
     {
-      Id = archiveId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-      ProfileId = "SYNTHETIC-REVIEWED", ProfileVersion = 1,
-      Status = ArchiveStates.AssemblyReviewed, CreatedAt = DateTimeOffset.UtcNow
-    });
-    db.ArchiveManifests.Add(new ArchiveManifest
-    {
-      Id = manifestId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-      ArchiveId = archiveId, Version = 1, Status = "REVIEWED", ManifestDigest = new string('a', 64),
-      EntryCount = 1, CompletenessStatus = "COMPLETE", BuiltAt = DateTimeOffset.UtcNow,
-      ReviewedAt = DateTimeOffset.UtcNow, ReviewedByUserId = f.Admin.Id
-    });
-    db.ArchiveStructuredExports.Add(new ArchiveStructuredExport
-    {
-      Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-      ArchiveId = archiveId, ArchiveManifestId = manifestId, Version = 1,
-      Schema = ArchiveStructuredExportSchemas.EngagementV2, PayloadJson = content,
-      ContentHash = AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(bytes), ByteCount = bytes.Length,
-      CreatedAt = DateTimeOffset.UtcNow
-    });
-    await db.SaveChangesAsync();
+      seed.RecordsProfiles.Add(new RecordsProfile
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ProfileCode = "SYNTHETIC-REVIEWED", Version = 1,
+        RecordClass = "Synthetic reviewed archive", Jurisdiction = "TEST", ServiceRoute = "STATUTORY_AUDIT",
+        RetentionTrigger = "REPORT_DATE", ProtectionMode = "LOCAL_ONLY", LabelId = "test-only",
+        LegalHoldBehavior = "SUSPEND_DISPOSITION", AmendmentRoute = "CONTROLLED_AMENDMENT",
+        DispositionOwner = "Records Custodian", BackupRequirements = "Synthetic fixture",
+        CreatedByUserId = f.Admin.Id, Approved = true, ApprovedAt = now,
+        ApprovedByUserId = f.Admin.Id, CreatedAt = now
+      });
+      seed.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ProfileId = "SYNTHETIC-REVIEWED", ProfileVersion = 1,
+        Status = ArchiveStates.Issued, CreatedAt = now
+      });
+      await seed.SaveChangesAsync();
+    }
 
+    ArchiveManifestResult built;
+    await using (var builder = new AuditSphereDbContext(pg.Options))
+    {
+      var result = await RecordsArchiveService.BuildManifestAsync(builder, admin, archiveId);
+      Assert.True(result.Succeeded, result.Message);
+      built = result.Value!;
+    }
+    await using (var reviewer = new AuditSphereDbContext(pg.Options))
+    {
+      var result = await RecordsArchiveService.ReviewManifestAsync(reviewer, admin, archiveId, built.ManifestId);
+      Assert.True(result.Succeeded, result.Message);
+    }
+
+    await using var db = new AuditSphereDbContext(pg.Options);
     var staff = await AuditRecordQueries.ArchiveAsync(db, PbcSeed.Actor(f.Staff, "Staff"), archiveId);
     Assert.True(staff.Succeeded, staff.Message);
     Assert.False(staff.Value!.CanExport);

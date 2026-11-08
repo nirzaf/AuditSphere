@@ -299,16 +299,17 @@ public static partial class PracticeCrmService
   {
     var complete = string.Join("; ", entries);
     if (complete.Length <= OffboardingFeeDetailCharacterLimit) return complete;
+    var limitText = OffboardingFeeDetailCharacterLimit.ToString("N0", CultureInfo.InvariantCulture);
 
     for (var visibleCount = entries.Count; visibleCount >= 0; visibleCount--)
     {
-      var preview = $"Preview limited to {OffboardingFeeDetailCharacterLimit} characters: showing {visibleCount} of {entries.Count} {entryLabel}. Open the fee-agreement workspace for full source evidence.";
+      var preview = $"Preview limited to {limitText} characters: showing {visibleCount} of {entries.Count} {entryLabel}. Open the fee-agreement workspace for full source evidence.";
       var prefix = string.Join("; ", entries.Take(visibleCount));
       var result = prefix.Length == 0 ? preview : $"{prefix}; {preview}";
       if (result.Length <= OffboardingFeeDetailCharacterLimit) return result;
     }
 
-    return $"Preview limited to {OffboardingFeeDetailCharacterLimit} characters: open the fee-agreement workspace for full source evidence.";
+    return $"Preview limited to {limitText} characters: open the fee-agreement workspace for full source evidence.";
   }
 
   private static bool IsCurrency(string? currency) => currency is { Length: 3 } &&

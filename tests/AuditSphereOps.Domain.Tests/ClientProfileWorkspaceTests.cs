@@ -746,8 +746,9 @@ public sealed class ClientProfileWorkspaceTests
 
     // Change a source fact whose invoice identity was omitted from the bounded preview.
     // The private canonical facts must invalidate a new review without changing the old receipt.
-    orderedOrphans[^1].Invoice.Status = BillingStates.InvoiceSent;
-    await db.SaveChangesAsync();
+    var sent = await BillingService.SendInvoiceAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
+      orderedOrphans[^1].Invoice.Id);
+    Assert.True(sent.Succeeded, sent.Message);
     var changedReadiness = await PracticeCrmService.GetClientOffboardingReadinessAsync(db,
       PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);
     Assert.True(changedReadiness.Succeeded, changedReadiness.Message);
@@ -781,7 +782,13 @@ public sealed class ClientProfileWorkspaceTests
     Assert.Equal(recorded.Value.RecordId, replay.Value!.RecordId);
     Assert.Equal(recorded.Value.ReadinessDigest, replay.Value.ReadinessDigest);
 
-    orderedOrphans[^1].Invoice.InvoiceNumber = new string('L', 257);
+    // Add a newly retained source with an over-limit legacy identity after the old receipt.
+    // Posted invoice history stays immutable while a fresh readiness read still fails closed.
+    var oversizedIdentity = AddFeeAgreement(db, f, f.ClientId, null,
+      "SYN-OFF-ADVANCE-OVERLIMIT-IDENTITY", 100m, now);
+    AddFeeInvoiceSource(db, f, account, oversizedIdentity.Advance, new string('L', 257), now);
+    oversizedIdentity.Advance.InvoiceId = null;
+    oversizedIdentity.Advance.State = FeeMilestoneStates.Planned;
     await db.SaveChangesAsync();
     var unsupportedIdentity = await PracticeCrmService.GetClientOffboardingReadinessAsync(db,
       PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId);

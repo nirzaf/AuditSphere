@@ -1614,15 +1614,13 @@ public sealed partial class AuditDeliverablesTests
         Assert.NotEmpty(legacyHashes);
 
         var migrator = db.GetService<IMigrator>();
-        // The retained reviewed manifest is protected by the newer T17 integrity migration,
-        // which refuses to roll back before any archive-copy migration is removed.
+        // The structured-export guard refuses first, before any migration is removed.
         var refusedV2Downgrade = await Assert.ThrowsAnyAsync<Exception>(() =>
           migrator.MigrateAsync(migrations[foundationIndex]));
         var v2DowngradeFailure = Assert.IsType<PostgresException>(refusedV2Downgrade.GetBaseException());
         Assert.Equal("55000", v2DowngradeFailure.SqlState);
-        Assert.Contains("retained manifests exist", v2DowngradeFailure.MessageText, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(migrations[..(archiveIntegrityIndex + 1)],
-          (await db.Database.GetAppliedMigrationsAsync()).ToArray());
+        Assert.Contains("retained structured exports exist", v2DowngradeFailure.MessageText, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(migrations, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
         await using (var restoreDb = new AuditSphereDbContext(pg.Options))
         {
           await restoreDb.GetService<IMigrator>().MigrateAsync();

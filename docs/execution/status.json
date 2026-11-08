@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-08T00:42:44Z",
+  "observedAtUtc": "2026-11-08T01:59:34Z",
   "source": {
     "branch": "master",
-    "baseSha": "e6b3a233b55f86d76862e779a04c290578830093",
-    "originMasterSha": "e6b3a233b55f86d76862e779a04c290578830093",
-    "workingTree": "Published source remains e6b3a233b55f86d76862e779a04c290578830093; the T13-A archive authority-fence candidate is uncommitted in RecordsArchiveService.cs, RecordsArchiveTests.cs and the architecture code map. Four earlier Domain/offboarding candidate paths remain preserved and excluded from T13-A. Focused PostgreSQL authority and manifest-lock cohorts pass; exact-source CI and whole-application/release acceptance remain open.",
+    "baseSha": "560005a63471e428d7ffc7de16ad5a156b521f65",
+    "originMasterSha": "560005a63471e428d7ffc7de16ad5a156b521f65",
+    "workingTree": "Published base 560005a63471e428d7ffc7de16ad5a156b521f65; only the four-path T18 Domain candidate is uncommitted. Exact fast CI 42431114445 and images run 42431114440 both passed on this base. The T18 candidate revalidated 10 focused PostgreSQL tests; publish it as a separate coherent slice, then bind fresh fast/images/full CI to its resulting SHA. No whole-application or release acceptance is claimed.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
-    "practiceManagement": "Practice-management remains INCOMPLETE. T18 group issue recovery is published at 77985dee8644f422d227c9ec694eac5ff3c8cddf. Exact full run 42411559445 for that earlier SHA is terminal FAILURE: 3 Domain failures were diagnosed, the API runner lost communication with checkout unconfirmed, and E2E aborted after inactivity with 335 partial passes and 0 assertion failures. The four-path Domain candidate remains focused-pass, uncommitted and excluded from T13-A. T13-A now fences archive creation/build/review with the same Read Committed firm-safety row order as role revocation and rechecks current scoped authority after lock waits; the regression matrix passed 8 targeted PostgreSQL tests. Exact-source CI, browser/professional/external acceptance and release gates remain open; no release or deployment is claimed.",
-    "documentation": "Per-category navigation is consolidated through docs/auditsphere-docs-index.md and the maintained Architecture/ADR, Requirements, Design, Operations, Testing, Execution, Task Library and Evidence entry points. Distinct approved requirements, ADRs, proposals, historical task sources, operator procedures and machine-consumed task inputs remain separate to preserve authority and provenance. The current category/restore-evidence correction is published at a21737ff. Exact fast run 42390283923 passed Docs, Angular and .NET Release with each job log confirming checkout a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2. The task board remains PARTIAL_SOURCE because the per-item audit JSON and two STE v2.1 source files are absent; no gaps or missing-story findings are inferred. A repository-wide staleness sweep after that run removed the stale root review report, linked the document naming policy and corrected the live worker-group wording; its cross-checks are recorded under localVerification.documentationReconciliation, and its exact fast CI run 42396114501 passed Docs, Angular and .NET Release for 51c5e239 with every job log identifying that checkout. A fresh 2026-11-08 audit rechecked 173 docs Markdown files and all maintained category entry points: validators pass, no additional stale Markdown was found, and no approved, historical, proposal or machine-consumed source was flattened; evidence is .local/autonomous/evidence/docs-consolidation-20261108/recheck.json. After the T13-A code-map and handoff edits, the full documentation validators passed again: 179 Markdown files, 22 canonical documents, 2,896 relative links, 253 repository paths and zero deleted references; task board remains PARTIAL_SOURCE. Evidence: .local/autonomous/evidence/practice-gap-t13a-20261108/docs-verification-20261108.json.",
+    "practiceManagement": "Practice-management remains INCOMPLETE. T13-A archive authority fencing is published at 560005a63471e428d7ffc7de16ad5a156b521f65; exact fast run 42431114445 and image run 42431114440 completed successfully on that base. The four-path T18 Domain candidate remains uncommitted and was revalidated with 10 focused PostgreSQL tests passing on the current base. It formats the bounded offboarding fee preview with invariant grouping, corrects a downgrade-guard assertion while preserving full migration history, constructs the export fixture through build then review services, and uses BillingService for invoice state while preserving posted history. The prior full failure 42411559445 targeted 77985dee; three Domain failures were diagnosed there, while API runner communication loss and E2E inactivity remain unconfirmed. Exact-source full CI for the new candidate, browser acceptance, and professional/external release gates remain open; no release or deployment is claimed.",
+    "documentation": "Documentation category consolidation is complete, with one maintained entry point for each category and detailed authority/provenance or machine-consumed sources kept separate. The 2026-11-08 repository recheck found no additional stale Markdown among 173 docs files. Status/handoff now reflect T13-A publication, terminal exact fast/images on 560005a6, and the focused T18 candidate. The final local documentation validator run after this refresh is recorded at .local/autonomous/evidence/practice-gap-t13a-20261108/docs-verification-t18-publication-refresh-final.json. The task board remains PARTIAL_SOURCE and unaudited code verdicts remain NOT_AUDITED.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Continue the broader assigned AuditSphere work from the validated autonomous ledger. Documentation category entry points and the evidenced restore-runbook/test discrepancy are published; keep task-board source limitations and whole-application/external acceptance open.",
-      "note": "The 48-row autonomous ledger validates. The generated task board reflects available sources only (PARTIAL_SOURCE); all code verdicts remain NOT_AUDITED and no gaps or missing STE stories are inferred.",
-      "currentSourceSha": "a21737ffa3ed6cd352ce855a77b6a6ac1b70dfe2"
+      "nextAction": "Publish the revalidated four-path T18 candidate with aligned status/handoff after docs validation; then obtain exact-source fast/images and one full release-verification run on the immutable combined SHA. Preserve RUN-003 as incomplete until all applicable gates are satisfied.",
+      "note": "48-row autonomous ledger validates. RUN-003 remains REPAIR after the older exact full failure; the 75-row task board is PARTIAL_SOURCE and all unaudited code verdicts remain NOT_AUDITED.",
+      "currentSourceSha": "560005a63471e428d7ffc7de16ad5a156b521f65"
     }
   },
   "localVerification": {
@@ -247,12 +247,21 @@
       },
       "releaseBuild": "PASS; 0 warnings, 0 errors (from focused test build)",
       "diffCheck": "PASS",
-      "candidateState": "UNCOMMITTED; full CI not dispatched for candidate",
+      "candidateState": "CURRENT_SOURCE_FOCUSED_PASS_10_ON_560005a6; BASE_FAST_AND_IMAGES_PASS; READY_FOR_SCOPED_PUBLICATION; FULL_NOT_DISPATCHED",
       "sourceBaseSha": "77985dee8644f422d227c9ec694eac5ff3c8cddf",
       "candidateDiffSha256": "f468cea3a6491386c9600ba4b50c88ba21762ea21fccf80c08b83371600ccf50",
       "evidence": ".local/autonomous/evidence/practice-gap-t18-20261107/domain-failure-fix-candidate-20261108.json",
       "evidenceSha256": "6311f5e3513b8bc48a3a57a0ba17723b7d0933e34c65169e1893b84de3bb6ff7",
-      "observedAtUtc": "2026-11-07T22:12:37Z"
+      "observedAtUtc": "2026-11-07T22:12:37Z",
+      "candidateBaseForRevalidation": "560005a63471e428d7ffc7de16ad5a156b521f65",
+      "currentSourceFocusedEvidence": ".local/autonomous/evidence/ci-560005a6-current-20261108/t18-and-t13a-current-source-focused-revalidation.json",
+      "currentSourceFocusedEvidenceSha256": "0a3eed460b58661e8e5c0bf891a14972bf0a6ab5249b1bfab449f4f65c7b4247",
+      "currentSourceFocusedResults": {
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0
+      },
+      "nextAction": "Stage only the four T18 candidate paths plus aligned current status/handoff; docs checks, fetch and path-scope review first; publish to master, then exact fast/images and one full run for the resulting SHA."
     },
     "autonomousState": {
       "result": "PASS",
@@ -263,7 +272,7 @@
       "observedAtUtc": "2026-11-07T23:20:24Z"
     },
     "t13aArchiveAuthorityFence20261108": {
-      "status": "FOCUSED_PASS_NOT_RELEASE_ACCEPTANCE",
+      "status": "PUBLISHED_BASE_FAST_AND_IMAGES_PASS_FULL_NOT_RUN_FOR_BASE",
       "sourceHead": "e6b3a233b55f86d76862e779a04c290578830093",
       "evidence": ".local/autonomous/evidence/practice-gap-t13a-20261108/t13a-authority-fence-focused-verification.json",
       "evidenceSha256": "436bfbe678260f5e03621934cf7180cd32098c9bd7ccac5150a28b71913b82d5",
@@ -282,7 +291,14 @@
       },
       "redGreen": "The revocation-first build race reproduced before the service fix; post-fix create/build/review, exact replay, caller-isolation and command-first second-custodian cases passed.",
       "testEnvironment": "Owned loopback PostgreSQL 18.6 on 127.0.0.1:5433 was stopped; port 5433 clear. Unrelated PostgreSQL 18.6 on 55432 was not touched.",
-      "scopeLimit": "Focused regressions only; full CI, browser acceptance and professional/external release gates remain open."
+      "scopeLimit": "Focused regressions only; full CI, browser acceptance and professional/external release gates remain open.",
+      "exactSourceFastRunId": 42431114445,
+      "exactSourceFastStatus": "PASS_ALL_3_ACTUAL_CHECKOUTS",
+      "exactSourceImagesRunId": 42431114440,
+      "exactSourceImagesStatus": "PASS_ALL_3_IMAGE_JOBS",
+      "fullRun": "NOT_DISPATCHED_FOR_560005_BECAUSE_T18_DOMAIN_FIX_CANDIDATE_IS_READY_FOR_COMBINED_SOURCE",
+      "workerRegistryEvidence": ".local/autonomous/evidence/ci-560005a6-current-20261108/worker-image-registry-observation.json",
+      "publishedCommit": "560005a63471e428d7ffc7de16ad5a156b521f65"
     },
     "docsConsolidationRecheck20261108": {
       "status": "PASS_NO_ADDITIONAL_STALE_MARKDOWN",
@@ -303,6 +319,21 @@
       "taskBoard": "PASS_WITH_SOURCE_LIMITATIONS; 75 rows; PARTIAL_SOURCE; code verdicts NOT_AUDITED",
       "uiInventory": "PASS",
       "diffCheck": "PASS"
+    },
+    "docsT18PublicationRefresh20261108": {
+      "result": "PASS",
+      "observedAtUtc": "2026-11-08T01:59:34Z",
+      "evidence": ".local/autonomous/evidence/practice-gap-t13a-20261108/docs-verification-t18-publication-refresh-final.json",
+      "validators": [
+        "validate-markdown-documentation.py",
+        "validate-markdown-filenames.py",
+        "validate-narrative-metrics.py",
+        "verify-audit-program-source.py",
+        "build-task-board.py --check",
+        "scripts/ui/inventory.py --check",
+        "git diff --check"
+      ],
+      "expectedSummary": "179 Markdown files; 22 canonical documents; 2,896 relative links; 253 repository paths; zero deleted references; 179 filenames pass; 6 protected narrative docs pass; 20 audit sections/165 procedure paragraphs pass; task board PARTIAL_SOURCE; UI inventory pass."
     }
   },
   "observedCi": {
@@ -645,6 +676,21 @@
       },
       "terminalReview": ".local/autonomous/evidence/practice-gap-t18-20261107/ci-42411559445/terminal-review.json",
       "terminalReviewSha256": "6a8c59a03ae59fe2038519c0013eee0a8edf6568912ce09973d2d4025c7d51ad"
+    },
+    "t13aBase560005FastImages": {
+      "sourceSha": "560005a63471e428d7ffc7de16ad5a156b521f65",
+      "fastRunId": 42431114445,
+      "fastAttempt": 1,
+      "fastStatus": "COMPLETED_SUCCESS",
+      "fastProof": ".local/autonomous/evidence/ci-560005a6-current-20261108/fast-terminal-proof.json",
+      "fastProofSha256": "63910f407874fc2a9dfff5f9b874d9d921470b16d09c5c860968f087e216e0a0",
+      "imagesRunId": 42431114440,
+      "imagesAttempt": 1,
+      "imagesStatus": "COMPLETED_SUCCESS",
+      "imagesProof": ".local/autonomous/evidence/ci-560005a6-current-20261108/images-terminal-proof.json",
+      "imagesProofSha256": "ece597679720308b318302bc697e115a50f5c1c8aaa564397cd932a19b8d1703",
+      "fullStatus": "NOT_DISPATCHED_FOR_560005; combine ready T18 Domain fixes first",
+      "observedAtUtc": "2026-11-08T01:54:54Z"
     }
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."
