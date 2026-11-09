@@ -1900,12 +1900,12 @@
     "nextAction": "No CI classification change pending. Release image build/deploy already parallelizes images with full verification; production deployment timing remains NOT_MEASURED."
   },
   "ciCdAccelerationCandidate20261109": {
-    "candidateStatus": "CANDIDATE_PENDING_EXACT_CI",
+    "candidateStatus": "FAST_PASS_FULL_CONTRACT_FAIL_FIX_IN_PROGRESS",
     "baseSha": "0a7cbc66395d4951bb4613891771b56b1e5bb07b",
     "change": "Parallelize full .NET suites with contract checks after one exact-source build/artifact stage.",
     "preserved": "Single build/fallback; all unfiltered tests, contracts and release gates.",
     "localVerification": "actionlint, dependency/provenance assertions, release Python tests 9/9, diff check PASS.",
-    "exactCandidateCi": "NOT_RUN",
-    "deploymentTiming": "NOT_MEASURED"
+    "exactCandidateCi": "Fast 42549944774 PASS. Full 42551955020 contract fail: OpenAPI emitter host omitted. Three full suites still running; artifact fix uncommitted.",
+    "deploymentTiming": "NOT_MEASURED; deployment not run."
   }
 }

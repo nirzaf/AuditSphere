@@ -374,7 +374,7 @@ jobs:
             actual_sdk="$(dotnet --version)"
             expected_hosts="[]"
             if [ "$TEST_PROJECT_KEY" = e2e ]; then
-              expected_hosts="[{\"key\":\"api\",\"project\":\"src/AuditSphereOps.Api/AuditSphereOps.Api.csproj\",\"assembly\":\"AuditSphereOps.Api\",\"objPath\":\"hosts/obj/AuditSphereOps.Api/release\"},{\"key\":\"worker\",\"project\":\"src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj\",\"assembly\":\"AuditSphereOps.Worker\",\"objPath\":\"hosts/obj/AuditSphereOps.Worker/release\"},{\"key\":\"infrastructure\",\"project\":\"src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj\",\"assembly\":\"AuditSphereOps.Infrastructure\",\"objPath\":\"hosts/obj/AuditSphereOps.Infrastructure/release\"}]"
+              expected_hosts="[{\"key\":\"api\",\"project\":\"src/AuditSphereOps.Api/AuditSphereOps.Api.csproj\",\"assembly\":\"AuditSphereOps.Api\",\"objPath\":\"hosts/obj/AuditSphereOps.Api/release\"},{\"key\":\"worker\",\"project\":\"src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj\",\"assembly\":\"AuditSphereOps.Worker\",\"objPath\":\"hosts/obj/AuditSphereOps.Worker/release\"},{\"key\":\"infrastructure\",\"project\":\"src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj\",\"assembly\":\"AuditSphereOps.Infrastructure\",\"objPath\":\"hosts/obj/AuditSphereOps.Infrastructure/release\"},{\"key\":\"openapi-emitter\",\"project\":\"tools/AuditSphereOps.OpenApiEmitter/AuditSphereOps.OpenApiEmitter.csproj\",\"assembly\":\"AuditSphereOps.OpenApiEmitter\",\"objPath\":\"hosts/obj/AuditSphereOps.OpenApiEmitter/release\"}]"
             fi
             test "$actual_sdk" = "$expected_sdk"
             jq -e \
@@ -398,11 +398,12 @@ jobs:
               test -s "$binary_root/playwright.ps1"
               test -s "$binary_root/.playwright/node/linux-x64/node"
               test -s "$binary_root/.playwright/package/lib/coreBundle.js"
-              for host in api worker infrastructure; do
+              for host in api worker infrastructure openapi-emitter; do
                 case "$host" in
                   api) host_assembly=AuditSphereOps.Api ;;
                   worker) host_assembly=AuditSphereOps.Worker ;;
                   infrastructure) host_assembly=AuditSphereOps.Infrastructure ;;
+                  openapi-emitter) host_assembly=AuditSphereOps.OpenApiEmitter ;;
                 esac
                 host_binary_root="$RUNNER_TEMP/release-verification-test-build/hosts/bin/$host_assembly/release"
                 test -s "$host_binary_root/$host_assembly.dll"
@@ -650,7 +651,7 @@ jobs:
               test -s "$source_output/.playwright/node/linux-x64/node"
               test -s "$source_output/.playwright/package/lib/coreBundle.js"
               # The contract job also runs no-build EF and publish checks from these exact outputs.
-              for host in api worker infrastructure; do
+              for host in api worker infrastructure openapi-emitter; do
                 case "$host" in
                   api)
                     host_project=src/AuditSphereOps.Api/AuditSphereOps.Api.csproj
@@ -664,6 +665,10 @@ jobs:
                     host_project=src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj
                     host_assembly=AuditSphereOps.Infrastructure
                     ;;
+                  openapi-emitter)
+                    host_project=tools/AuditSphereOps.OpenApiEmitter/AuditSphereOps.OpenApiEmitter.csproj
+                    host_assembly=AuditSphereOps.OpenApiEmitter
+                    ;;
                 esac
                 host_source="${host_project%/*}/bin/Release/net10.0"
                 host_staging="$staging/hosts/bin/$host_assembly/release"
@@ -673,6 +678,9 @@ jobs:
                 test -s "$host_source/$host_assembly.deps.json"
                 if [ "$host" != infrastructure ]; then
                   test -s "$host_source/$host_assembly.runtimeconfig.json"
+                fi
+                if [ "$host" = openapi-emitter ]; then
+                  test -s "$host_source/$host_assembly"
                 fi
                 test -d "${host_project%/*}/obj/Release/net10.0"
                 mkdir -p "$host_staging" "$host_obj_staging"
@@ -692,6 +700,7 @@ jobs:
                   {"key": "api", "project": "src/AuditSphereOps.Api/AuditSphereOps.Api.csproj", "assembly": "AuditSphereOps.Api", "objPath": "hosts/obj/AuditSphereOps.Api/release"},
                   {"key": "worker", "project": "src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj", "assembly": "AuditSphereOps.Worker", "objPath": "hosts/obj/AuditSphereOps.Worker/release"},
                   {"key": "infrastructure", "project": "src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj", "assembly": "AuditSphereOps.Infrastructure", "objPath": "hosts/obj/AuditSphereOps.Infrastructure/release"},
+                  {"key": "openapi-emitter", "project": "tools/AuditSphereOps.OpenApiEmitter/AuditSphereOps.OpenApiEmitter.csproj", "assembly": "AuditSphereOps.OpenApiEmitter", "objPath": "hosts/obj/AuditSphereOps.OpenApiEmitter/release"},
               ]
           json.dump({
               "schemaVersion": 1,
@@ -837,7 +846,7 @@ jobs:
           manifest="$artifact/source.json"
           expected_sdk="$(jq -r .sdk.version global.json)"
           actual_sdk="$(dotnet --version)"
-          expected_hosts='[{"key":"api","project":"src/AuditSphereOps.Api/AuditSphereOps.Api.csproj","assembly":"AuditSphereOps.Api","objPath":"hosts/obj/AuditSphereOps.Api/release"},{"key":"worker","project":"src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj","assembly":"AuditSphereOps.Worker","objPath":"hosts/obj/AuditSphereOps.Worker/release"},{"key":"infrastructure","project":"src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj","assembly":"AuditSphereOps.Infrastructure","objPath":"hosts/obj/AuditSphereOps.Infrastructure/release"}]'
+          expected_hosts='[{"key":"api","project":"src/AuditSphereOps.Api/AuditSphereOps.Api.csproj","assembly":"AuditSphereOps.Api","objPath":"hosts/obj/AuditSphereOps.Api/release"},{"key":"worker","project":"src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj","assembly":"AuditSphereOps.Worker","objPath":"hosts/obj/AuditSphereOps.Worker/release"},{"key":"infrastructure","project":"src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj","assembly":"AuditSphereOps.Infrastructure","objPath":"hosts/obj/AuditSphereOps.Infrastructure/release"},{"key":"openapi-emitter","project":"tools/AuditSphereOps.OpenApiEmitter/AuditSphereOps.OpenApiEmitter.csproj","assembly":"AuditSphereOps.OpenApiEmitter","objPath":"hosts/obj/AuditSphereOps.OpenApiEmitter/release"}]'
           test "$actual_sdk" = "$expected_sdk"
           jq -e \
             --arg artifact "release-verification-test-build-${SOURCE_COMMIT}-${GITHUB_RUN_ID}-e2e" \
@@ -851,11 +860,12 @@ jobs:
             --argjson expectedHosts "$expected_hosts" \
             '.schemaVersion == 1 and .artifactName == $artifact and .repository == $repository and .resolvedCommit == $commit and .project == "tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj" and .assembly == "AuditSphereOps.E2E.Tests" and .configuration == "Release" and .targetFramework == "net10.0" and .dotnetSdk == $sdk and .runId == ($runId | tonumber) and .runAttempt == ($runAttempt | tonumber) and .machine == $machine and .operatingSystem == $operatingSystem and .hostArtifacts == $expectedHosts' \
             "$manifest" >/dev/null
-          for host in api worker infrastructure; do
+          for host in api worker infrastructure openapi-emitter; do
             case "$host" in
               api) project=src/AuditSphereOps.Api/AuditSphereOps.Api.csproj; assembly=AuditSphereOps.Api ;;
               worker) project=src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj; assembly=AuditSphereOps.Worker ;;
               infrastructure) project=src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj; assembly=AuditSphereOps.Infrastructure ;;
+              openapi-emitter) project=tools/AuditSphereOps.OpenApiEmitter/AuditSphereOps.OpenApiEmitter.csproj; assembly=AuditSphereOps.OpenApiEmitter ;;
             esac
             source="$artifact/hosts/bin/$assembly/release"
             output="${project%/*}/bin/Release/net10.0"
@@ -864,12 +874,18 @@ jobs:
             if [ "$host" != infrastructure ]; then
               test -s "$source/$assembly.runtimeconfig.json"
             fi
+            if [ "$host" = openapi-emitter ]; then
+              test -s "$source/$assembly"
+            fi
             test -d "$artifact/hosts/obj/$assembly/release"
             mkdir -p "$output"
             cp -a "$source/." "$output/"
             obj_output="${project%/*}/obj/Release/net10.0"
             mkdir -p "$obj_output"
             cp -a "$artifact/hosts/obj/$assembly/release/." "$obj_output/"
+            if [ "$host" = openapi-emitter ]; then
+              chmod u+x "$output/$assembly"
+            fi
           done
           echo "Restored exact-source API, Infrastructure, and Worker Release outputs for no-build contract checks."
 
