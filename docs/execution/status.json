@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T15:17:31Z",
+  "observedAtUtc": "2026-11-09T15:49:59Z",
   "source": {
     "branch": "master",
-    "baseSha": "6f5d58dc2b964801f43d4b2d5caaaa47dbb75501",
-    "originMasterSha": "6f5d58dc2b964801f43d4b2d5caaaa47dbb75501",
-    "workingTree": "6f5d published; exact fast CI PASS; same-run artifact restored; evidence refresh pending.",
+    "baseSha": "3207ec544f28a64b34d0dff07a2c09b4fc239d58",
+    "originMasterSha": "3207ec544f28a64b34d0dff07a2c09b4fc239d58",
+    "workingTree": "Two execution-record files changed for evidence refresh; base and last-fetched origin/master are 3207ec54.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -16,12 +16,12 @@
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Do not repeat unchanged full failures; await distinct API/E2E cause evidence. Measure warm cache and deployment only on valid future runs.",
-      "note": "2026-11-09: 6f5d exact fast run 42637291070 passed all five jobs; 439.7MB Release artifact restored in 12.3s without fallback.",
-      "currentSourceSha": "6f5d58dc2b964801f43d4b2d5caaaa47dbb75501"
+      "nextAction": "Do not repeat unchanged full failures or change test parallelism/timeouts. Wait for distinct API/E2E diagnostics; observe warm cache only on a naturally needed exact full run and deployment timing only on an authorized release.",
+      "note": "2026-11-09: exact fast artifact reuse verified; docs-only run 42643767085 passed; full runs 42572301443, 42581159439 and 42605366775 failed in API/E2E with unresolved causes.",
+      "currentSourceSha": "3207ec544f28a64b34d0dff07a2c09b4fc239d58"
     },
-    "ciCdAcceleration": "Fast 42637291070 PASS in ~32m13s; 439.7MB Release artifact restored in 12.3s without rebuild. Prior full failed; cache warm gain and deployment time unmeasured.",
-    "manualCiArtifactReuse20261109": "6f5d exact fast CI passed; push-run artifact built, uploaded, verified and restored. Manual-event and full-run reuse not yet exercised."
+    "ciCdAcceleration": "Published: docs-only master path skips app jobs (latest pass 156s); exact fast Release artifact restores in 12.315s; exact-source full-run reuse completed build prep in 87s. Full API/E2E runs still fail; warm cache and deployment timings unmeasured.",
+    "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
     "documentationHealth": {
@@ -1882,47 +1882,54 @@
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed.",
   "ciCdAccelerationDocsOnlyFastPath20261109": {
-    "baseSha": "72940983789e2495b97ea0dcbba746599bf90d13",
-    "candidateStatus": "PUBLISHED_DOCS_ONLY_FAST_PATH_OBSERVED",
-    "paths": [
-      "docs/execution/status.json",
-      "docs/execution/auditsphere-execution-current-slice.md"
+    "candidateStatus": "PUBLISHED_AND_OBSERVED",
+    "rule": "Only non-empty docs Markdown and exact docs/execution/status.json pushes on master skip app jobs; Docs always runs. PR/manual/source/empty/ambiguous cases run full app gate.",
+    "observations": [
+      {
+        "id": 42542623600,
+        "sha": "93fe85ed76fd444d1c4dc3350f7dccdb5a118e24",
+        "result": "PASS"
+      },
+      {
+        "id": 42643767085,
+        "sha": "3207ec544f28a64b34d0dff07a2c09b4fc239d58",
+        "result": "Docs/classifier PASS; app jobs skipped; 156s"
+      }
     ],
-    "rule": "Only master pushes containing docs Markdown and/or docs/execution/status.json skip Angular/.NET jobs; Docs always runs.",
-    "fallback": "PR/manual/source/other JSON/non-docs/empty/invalid/diff-error => full app gate.",
-    "verification": "11 focused tests pass; exact 676fb416 fast CI and exact docs-only run pass.",
-    "currentFastRun": {
-      "id": 42546981580,
-      "result": "PASS_DOCS_ONLY",
-      "sourceSha": "72940983789e2495b97ea0dcbba746599bf90d13",
-      "proof": ".local/autonomous/evidence/ci-cd-acceleration-20261109/docs-only-72940983-42546981580/docs-only-terminal-proof.json"
-    },
-    "savings": "ONE_OBSERVATION: docs-only 117s vs prior full fast 1153s; 1036s observed difference, not controlled.",
-    "nextAction": "No CI classification change pending. Release image build/deploy already parallelizes images with full verification; production deployment timing remains NOT_MEASURED."
+    "nextAction": "No further path classes are allowed without preserving full application checks."
   },
   "ciCdAccelerationCandidate20261109": {
-    "observedAtUtc": "2026-11-09T15:17:31Z",
+    "observedAtUtc": "2026-11-09T15:40:56Z",
     "candidateSha": "6f5d58dc2b964801f43d4b2d5caaaa47dbb75501",
-    "status": "EXACT_FAST_PASS; PRIOR_FULL_FAILURE_UNCHANGED; NO_RELEASE",
-    "change": "Pinned Playwright browser cache and exact-SHA Release artifact reuse; checks and release gates retained.",
+    "status": "CI_SPEEDUPS_PUBLISHED; FAST_AND_ARTIFACT_REUSE_PASS; FULL_FAILURES_UNRESOLVED; NO_DEPLOYMENT",
     "fastRun": {
       "id": 42637291070,
-      "sha": "6f5d58dc2b964801f43d4b2d5caaaa47dbb75501",
-      "result": "PASS_ALL_5; ~32m13s; 439.7MB artifact restored in 12.3s; no fallback"
+      "result": "5 jobs pass; exact 439.7MB Release artifact restored in 12.315s; no fallback"
     },
-    "docsFastRun": {
-      "id": 42604714418,
-      "sha": "8376ed3c12fae3fc4061da766eb65c7a5c70c05d",
-      "result": "PASS_DOCS_ONLY; 130s"
+    "docsOnlyRun": {
+      "id": 42643767085,
+      "sha": "3207ec544f28a64b34d0dff07a2c09b4fc239d58",
+      "result": "Docs/classifier pass; app jobs skipped; 156s"
     },
-    "fullRun": {
-      "id": 42605366775,
-      "sha": "8376ed3c12fae3fc4061da766eb65c7a5c70c05d",
-      "result": "FAIL; API exit 143 at 150m, E2E host inactivity after 334 passes; causes unconfirmed"
-    },
-    "cache": "Miss; 281.7MB saved; warm benefit unmeasured.",
-    "deployment": "No release run; stage timing unmeasured.",
-    "evidence": ".local/autonomous/evidence/ci-acceleration-20261109/full-8376ed3c-42605366775/terminal-speed-review.json",
-    "nextAction": "Do not repeat unchanged full failures. Manual-event cross-run reuse and warm Playwright cache remain unmeasured; deploy timings require an authorized real release."
+    "fullRuns": [
+      {
+        "id": 42572301443,
+        "sha": "afa6e2b5",
+        "result": "failure in API/E2E; terminal logs not retained; causes unknown"
+      },
+      {
+        "id": 42581159439,
+        "sha": "3bea3433",
+        "result": "failure in API/E2E; exact build artifact reused; prep 87s; API 5701s; causes unknown"
+      },
+      {
+        "id": 42605366775,
+        "sha": "8376ed3c",
+        "result": "failure after 2h50m; API exit 143 at 150m; E2E inactivity after 334 passes/0 assertions; causes unknown"
+      }
+    ],
+    "playwrightCache": "42605366775 missed, installed browsers in 33.6s and saved 281.7MB; 42581159439 one-second cache step does not prove hit. Warm-hit benefit unknown.",
+    "deployment": "No production release/deployment; stage timings unmeasured. Existing protected order unchanged.",
+    "nextAction": "No unchanged full reruns, test parallelism/timeout changes or deployment. Wait for distinct causal API/E2E evidence; measure cache and release stages only on a naturally required full run and owner-authorized release."
   }
 }
