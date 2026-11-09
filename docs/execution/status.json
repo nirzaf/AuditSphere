@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T00:24:51Z",
+  "observedAtUtc": "2026-11-09T00:51:32Z",
   "source": {
     "branch": "master",
-    "baseSha": "b1e20c7e8948138c4f1c98472dde0cf8e7726003",
-    "originMasterSha": "b1e20c7e8948138c4f1c98472dde0cf8e7726003",
-    "workingTree": "master HEAD/origin/master b1e20c7e; one uncommitted E2E performance-budget isolation change plus aligned CI evidence docs; whole assignment incomplete.",
+    "baseSha": "ccc2e271ba36c88143c70fd4010aadc1eb724115",
+    "originMasterSha": "ccc2e271ba36c88143c70fd4010aadc1eb724115",
+    "workingTree": "HEAD/origin/master ccc2e271; local uncommitted files add the fail-closed docs-only CI fast path and aligned evidence docs. Exact ccc2e271 fast run 42540220178 passed all four jobs; its source-bound build artifact was reused.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,7 @@
       "note": "2026-11-08T13:05:03Z: RUN-003 remains REPAIR on 98679131fa65076c429fca8f95bb1f74ba7d7d7e. Exact fast run 42481222673 passed Angular, Docs and Release with all three actual checkout hashes matching 98679131fa65076c429fca8f95bb1f74ba7d7d7e; terminal proof .local/autonomous/evidence/ci-98679131-current-20261108/fast-terminal-proof.json. Focused API route 3/3 and named E2E 1/1 pass. Full verification for 98679131fa65076c429fca8f95bb1f74ba7d7d7e is not yet dispatched; predecessor API cancellation and E2E inactivity causes remain unconfirmed. Docs category consolidation is complete for the requested scope.",
       "currentSourceSha": "84215010a896ff94089e13751ad89354335d076c"
     },
-    "ciCdAcceleration": "Published pipeline acceleration is in place on master; exact b1e20c7e fast run 42532507997 passed all three jobs. Predecessor full run 42527196539 is terminal FAILURE: E2E passed 340/341 with a 12467 ms cold sample over the unchanged 12000 ms budget; API failed after a generic hosted-runner communication loss with no API log/TRX and no proven initiating cause. Benchmark isolation candidate on b1e20c7e passed the focused 2/2 E2E cohort; exact-source CI is pending. No deployment or full-CI pass is claimed."
+    "ciCdAcceleration": "Published ccc2e271 fast CI passed all four jobs with exact checkout logs; Release compile was 16m44s and its verified 439.7 MB artifact was reused (duplicate build skipped). Local docs-only classifier has 10 focused tests/actionlint pass; it is not published and has no measured workflow savings yet. Full verification remains pending."
   },
   "localVerification": {
     "documentationHealth": {
@@ -1849,9 +1849,9 @@
       "deploymentTiming": "NOT_MEASURED"
     },
     "ciCdAccelerationCandidate20261109": {
-      "observedAtUtc": "2026-11-09T00:24:51Z",
-      "sourceSha": "b1e20c7e8948138c4f1c98472dde0cf8e7726003",
-      "candidateStatus": "UNCOMMITTED_FOCUSED_E2E_PASS",
+      "observedAtUtc": "2026-11-09T00:27:30Z",
+      "sourceSha": "ccc2e271ba36c88143c70fd4010aadc1eb724115",
+      "candidateStatus": "PUBLISHED_FAST_CI_PASS_FULL_NOT_DISPATCHED",
       "candidatePath": "tests/AuditSphereOps.E2E.Tests/AngularPerformanceBudgetTests.cs",
       "candidateChange": "Serialize only the Angular cold-start budget xUnit collection; keep the 12000 ms ceiling and test assertions unchanged.",
       "focusedResult": "2 passed, 0 failed, 0 skipped; cold 2309 ms, warm 43 ms, router 85 ms, 60-lead render 87 ms.",
@@ -1860,17 +1860,44 @@
         "id": 42527196539,
         "sourceSha": "17e142fea294d574ade773fb075019983dff4877",
         "aggregate": "FAILURE",
-        "completedAtUtc": "2026-11-09T00:21:31Z",
-        "e2eJobId": 128875229933,
-        "e2eResult": "340/341 passed; cold first paint 12467 ms > 12000 ms",
-        "apiJobId": 128875229978,
-        "apiResult": "runner lost communication; cause unconfirmed; no API log/TRX artifact",
+        "e2e": "340/341; cold first paint 12467 ms > 12000 ms",
+        "api": "runner lost communication; cause unconfirmed; no API log/TRX artifact",
         "terminalEvidence": ".local/autonomous/evidence/ci-cd-acceleration-20261108/full-17e142fe-42527196539/terminal-review.json"
       },
       "causality": "Isolation addresses possible parallel test contention; root cause and end-to-end speed impact are not proven.",
       "deploymentTiming": "NOT_MEASURED",
-      "nextAction": "Fetch origin, review incoming paths, then publish the focused benchmark-isolation candidate with aligned docs; exact fast CI must pass before one exact-source full verification."
+      "nextAction": "Publish the docs-only workflow candidate after incoming-path review; require its exact fast gate, then one exact-source full verification. No deployment.",
+      "candidateCommit": "ccc2e271ba36c88143c70fd4010aadc1eb724115",
+      "candidateFastRun": {
+        "id": 42540220178,
+        "attempt": 1,
+        "status": "SUCCESS",
+        "sourceSha": "ccc2e271ba36c88143c70fd4010aadc1eb724115",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/42540220178",
+        "actualCheckouts": "ALL_FOUR_CONFIRMED",
+        "proofPath": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-ccc2e271-42540220178/fast-terminal-proof.json"
+      }
     }
   },
-  "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."
+  "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed.",
+  "ciCdAccelerationDocsOnlyFastPath20261109": {
+    "baseSha": "ccc2e271ba36c88143c70fd4010aadc1eb724115",
+    "candidateStatus": "LOCAL_CANDIDATE_NOT_PUBLISHED",
+    "paths": [
+      ".github/workflows/ci.yml",
+      "scripts/release/ci_change_scope.py",
+      "scripts/release/test_ci_change_scope.py"
+    ],
+    "rule": "Only non-empty docs/**/*.md-only master pushes skip Angular/.NET build jobs; Docs always runs.",
+    "fallback": "All PR/manual/source/non-Markdown/empty/invalid/diff-error cases use full checks.",
+    "verification": "10 tests pass; actionlint passes; historical docs-only and current full-path classifications pass.",
+    "currentFastRun": {
+      "id": 42540220178,
+      "result": "PASS",
+      "sourceSha": "ccc2e271ba36c88143c70fd4010aadc1eb724115",
+      "proof": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-ccc2e271-42540220178/fast-terminal-proof.json"
+    },
+    "savings": "NOT_MEASURED",
+    "nextAction": "Fetch/path-review, publish; validate its own full fast gate. No image/full/deployment dispatch yet."
+  }
 }

@@ -24,10 +24,39 @@ env:
   DevelopmentIdentity__Enabled: 'false'
 
 jobs:
+  # The only fast-path exemption is content-only Markdown under docs/. Pull requests, manual
+  # dispatches, empty diffs, unknown paths, and diff failures take the normal application gate.
+  # Docs health remains mandatory on every event; application builds are skipped only when the
+  # classifier proves every changed path is documentation content.
+  change-scope:
+    name: Classify · Documentation-only changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      full_build: ${{ steps.classify.outputs.full_build }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Classify changed paths (fail closed to full application checks)
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: python3 scripts/release/ci_change_scope.py
+
   # Angular presentation gate: production build, then the Vitest specs. Runs before the
   # .NET publication gate; its browser bundle is handed to the API publish verification through a build
   # artifact (the Api publish target globs ../AuditSphereOps.Ui/dist/auditsphere-ui/browser).
   ui-build:
+    needs: [change-scope]
+    if: ${{ always() && (needs.change-scope.result != 'success' || needs.change-scope.outputs.full_build != 'false') }}
     name: Build · Angular
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -74,7 +103,8 @@ jobs:
   # path in dotnet-build. This overlaps the long solution build with Angular without moving any
   # fast-gate checks or weakening full verification.
   dotnet-release-compile:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    needs: [change-scope]
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && (needs.change-scope.result != 'success' || needs.change-scope.outputs.full_build != 'false') }}
     name: Build · .NET Release outputs
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -141,8 +171,8 @@ jobs:
   # check model/contract drift and publication. PostgreSQL and full API/browser regressions are
   # deferred to release-verification.yml (nightly + manual, complete unfiltered suites).
   dotnet-build:
-    needs: [ui-build, dotnet-release-compile]
-    if: ${{ always() && needs.ui-build.result == 'success' && (needs.dotnet-release-compile.result == 'success' || needs.dotnet-release-compile.result == 'skipped') }}
+    needs: [change-scope, ui-build, dotnet-release-compile]
+    if: ${{ always() && (needs.change-scope.result != 'success' || (needs.change-scope.outputs.full_build != 'false' && needs.ui-build.result == 'success' && (needs.dotnet-release-compile.result == 'success' || needs.dotnet-release-compile.result == 'skipped'))) }}
     name: Build · .NET Release
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -325,7 +355,7 @@ jobs:
           python3 scripts/diagnostics/test-image-build-counters.py
           python3 -m unittest discover -s scripts/agent -p 'test_*.py'
           python3 -m unittest discover -s scripts/verification -p 'test_*.py'
-          python3 -m unittest discover -s scripts/release -p 'test_ci_build_artifact.py'
+          python3 -m unittest discover -s scripts/release -p 'test_ci_*.py'
           python3 -m unittest discover -s scripts/dev/tests -p 'test_*.py'
           python3 -m unittest discover -s scripts/m365 -p 'test_*.py'
           pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-017 -Offline
