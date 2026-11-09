@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T07:12:34Z",
+  "observedAtUtc": "2026-11-09T10:16:01Z",
   "source": {
     "branch": "master",
-    "baseSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6",
-    "originMasterSha": "b9b2741e1026e10e11ad468002d8128f396656cf",
-    "workingTree": "Documentation-only update of exact CI evidence; application/workflow candidate remains afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6.",
+    "baseSha": "3bea3433556e091dd4c230cebafdf47b5415cde1",
+    "originMasterSha": "3bea3433556e091dd4c230cebafdf47b5415cde1",
+    "workingTree": "One uncommitted workflow-only Playwright cache persistence change on master; no product/test source changed.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -16,11 +16,11 @@
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Monitor API 129012994991 and Playwright E2E 129012995092 in full run 42572301443; capture terminal logs once and retain them in the same operation. Domain job 129012995039 passed by metadata in 1203 seconds, but its log was fetched once and not retained, so its exact checkout remains unverified. Capture final run artifact metadata once terminal.",
-      "note": "2026-11-09: RUN-003 REPAIR. Fast 42562349587 passed 5/5 exact checkouts. Full 42572301443: exact artifact reuse, Angular and contracts pass; Domain passes metadata in 1203s, but checkout is unverified because its fetched log was not retained. API/E2E active. Docs-only run 42574558615 passed by metadata; checkout log not retained.",
-      "currentSourceSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6"
+      "nextAction": "Validate and publish the scoped cache-persistence workflow patch. Require exact fast CI and one exact full run; measure cache hit/savings from retained evidence.",
+      "note": "2026-11-09: exact full 42581159439 failed API/E2E; causes and cache hit unknown. Build artifact reuse passed; full workflow candidate remains unverified.",
+      "currentSourceSha": "3bea3433556e091dd4c230cebafdf47b5415cde1"
     },
-    "ciCdAcceleration": "Full 42572301443: artifact reuse, Angular/contracts pass; Domain metadata pass; API/E2E active. Docs run 42574558615 passed by metadata. Deployment timings unmeasured."
+    "ciCdAcceleration": "Cache-persistence workflow patch pending exact CI; run 42581159439 failed API/E2E with causes unknown. Deployment timing unmeasured."
   },
   "localVerification": {
     "documentationHealth": {
@@ -174,9 +174,9 @@
         "fastConclusion": "SUCCESS",
         "actualCheckoutSha": "98679131fa65076c429fca8f95bb1f74ba7d7d7e",
         "actualCheckoutJobs": [
-          "Build · Angular",
-          "Docs · Health",
-          "Build · .NET Release"
+          "Build \u00b7 Angular",
+          "Docs \u00b7 Health",
+          "Build \u00b7 .NET Release"
         ],
         "fastProof": ".local/autonomous/evidence/ci-98679131-current-20261108/fast-terminal-proof.json",
         "fastProofSha256": "74f5c4b4c91e0e90a02123545515f2cf4c1bd98178266be879af95ec594ff48d",
@@ -1763,14 +1763,14 @@
         "status": "SUCCESS",
         "headSha": "2f713a4cffdc08499b06901af80ff5ec504ba972",
         "actualCheckoutShaByJob": {
-          "Build · .NET Release": "2f713a4cffdc08499b06901af80ff5ec504ba972",
-          "Build · Angular": "2f713a4cffdc08499b06901af80ff5ec504ba972",
-          "Docs · Health": "2f713a4cffdc08499b06901af80ff5ec504ba972"
+          "Build \u00b7 .NET Release": "2f713a4cffdc08499b06901af80ff5ec504ba972",
+          "Build \u00b7 Angular": "2f713a4cffdc08499b06901af80ff5ec504ba972",
+          "Docs \u00b7 Health": "2f713a4cffdc08499b06901af80ff5ec504ba972"
         },
         "jobIds": {
-          "Build · .NET Release": 128809108295,
-          "Build · Angular": 128808431662,
-          "Docs · Health": 128808431815
+          "Build \u00b7 .NET Release": 128809108295,
+          "Build \u00b7 Angular": 128808431662,
+          "Docs \u00b7 Health": 128808431815
         },
         "createdAtUtc": "2026-11-08T17:37:57Z",
         "completedAtUtc": "2026-11-08T18:00:27Z",
@@ -1790,9 +1790,9 @@
         "conclusion": "success",
         "headSha": "09a76bde75314b3a76ae12c6d310365d82427c6a",
         "actualCheckoutShaByJob": {
-          "Build · Angular": "09a76bde75314b3a76ae12c6d310365d82427c6a",
-          "Docs · Health": "09a76bde75314b3a76ae12c6d310365d82427c6a",
-          "Build · .NET Release": "09a76bde75314b3a76ae12c6d310365d82427c6a"
+          "Build \u00b7 Angular": "09a76bde75314b3a76ae12c6d310365d82427c6a",
+          "Docs \u00b7 Health": "09a76bde75314b3a76ae12c6d310365d82427c6a",
+          "Build \u00b7 .NET Release": "09a76bde75314b3a76ae12c6d310365d82427c6a"
         },
         "jobIds": {
           "angular": 128798536633,
@@ -1831,10 +1831,10 @@
       "proof": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-84215010-42529618648/fast-terminal-proof.json",
       "proofSha256": "3b27f61930fc7ec709043e51228080f4c3063c17d68cd283c0f14d0dd7347037",
       "actualCheckoutJobs": {
-        "Docs · Health": "84215010a896ff94089e13751ad89354335d076c",
-        "Build · .NET Release outputs": "84215010a896ff94089e13751ad89354335d076c",
-        "Build · Angular": "84215010a896ff94089e13751ad89354335d076c",
-        "Build · .NET Release": "84215010a896ff94089e13751ad89354335d076c"
+        "Docs \u00b7 Health": "84215010a896ff94089e13751ad89354335d076c",
+        "Build \u00b7 .NET Release outputs": "84215010a896ff94089e13751ad89354335d076c",
+        "Build \u00b7 Angular": "84215010a896ff94089e13751ad89354335d076c",
+        "Build \u00b7 .NET Release": "84215010a896ff94089e13751ad89354335d076c"
       },
       "compileAngularOverlapSeconds": 93,
       "artifactId": 13637053881,
@@ -1900,12 +1900,25 @@
     "nextAction": "No CI classification change pending. Release image build/deploy already parallelizes images with full verification; production deployment timing remains NOT_MEASURED."
   },
   "ciCdAccelerationCandidate20261109": {
-    "status": "FAST_CI_PASS; FULL_CI_PARTIAL_PASS; DOMAIN_PASS_METADATA; API_E2E_ACTIVE; NO_DEPLOYMENT",
-    "candidateSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6",
-    "fastRun": "42562349587 PASS: 5/5 exact checkout, Angular 2029 tests/196 files, exact artifact restore.",
-    "fullRun": "42572301443 exact source and exact fast artifact restore proven (20 dirs, 99s, fallback skipped); Angular/contracts pass; Domain job passes by metadata in 1203s (actual checkout unverified); API/E2E active.",
-    "deployment": "NOT_RUN; production timing NOT_MEASURED; protected approval/migration/canary/smoke unchanged.",
-    "docsRefreshFastRun": "42574558615 SUCCESS by GitHub metadata; classifier and docs jobs passed, build jobs skipped; job checkout proof not retained.",
-    "playwrightCache": "UNVERIFIED_CANDIDATE: pinned Chromium cache keyed by OS and E2E lockfile; install-with-deps retained; runtime saving unmeasured."
+    "observedAtUtc": "2026-11-09T10:16:01Z",
+    "candidateSha": "3bea3433556e091dd4c230cebafdf47b5415cde1",
+    "status": "WORKFLOW_PATCH_UNCOMMITTED; ACTIONLINT_PASS; EXACT_CI_PENDING",
+    "patchSha256": "c412af1a351ef603782ab38df9d27d2c35f006333b4170be3d21d31916f3d261",
+    "change": "Restore and save pinned Chromium cache after install --with-deps and before E2E; cache save non-blocking.",
+    "priorRun": {
+      "id": 42581159439,
+      "result": "FAILURE",
+      "apiJob": 129041401704,
+      "apiSeconds": 5701,
+      "e2eJob": 129041401699,
+      "causes": "UNCONFIRMED",
+      "cacheHit": "UNKNOWN",
+      "buildPrepSeconds": 87,
+      "artifactReuse": true
+    },
+    "verification": "actionlint and diff check pass; exact fast/full pending.",
+    "deployment": "No deployment or order change; timing NOT_MEASURED.",
+    "evidence": ".local/autonomous/evidence/ci-acceleration-20261109/full-3bea3433-42581159439/terminal-speed-review.json",
+    "archive": ".local/autonomous/evidence/ci-acceleration-20261109/cache-persist-on-test-failure/pre-update-archive-manifest.json"
   }
 }

@@ -424,7 +424,36 @@ jobs:
 
       - name: Cache lockfile-pinned Playwright browser binaries
         if: ${{ matrix.key == 'e2e' }}
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        id: playwright-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        continue-on-error: true
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'tests/AuditSphereOps.E2E.Tests/packages.lock.json') }}
+
+      - name: Prepare Playwright Chromium browser and system dependencies
+        if: ${{ matrix.key == 'e2e' }}
+        id: playwright-install
+        run: |
+          set -euo pipefail
+          # The Playwright suite owns and starts the real API and worker hosts. Their Release
+          # outputs are verified in the same-run E2E artifact; restore project assets for this
+          # clean runner. The preceding locked restore of the E2E test project covers its API
+          # and Worker ProjectReferences, so do not restore the entire solution a second time.
+          for host_project in src/AuditSphereOps.Api src/AuditSphereOps.Worker; do
+            test -s "$host_project/obj/project.assets.json"
+          done
+          # Reuse the verified exact-SHA host binaries without rebuilding.
+          # The artifact round trip drops the executable bit from Playwright's packaged Node binary.
+          bash scripts/release/run-verification-step.sh "Restore Playwright Node executable bit" \
+            chmod u+x tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/.playwright/node/linux-x64/node
+          test -x tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/.playwright/node/linux-x64/node
+          bash scripts/release/run-verification-step.sh "Playwright Chromium install" \
+            pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Save Playwright cache before the long E2E suite
+        if: ${{ always() && matrix.key == 'e2e' && steps.playwright-install.outcome == 'success' && steps.playwright-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         continue-on-error: true
         with:
           path: ~/.cache/ms-playwright
@@ -433,22 +462,6 @@ jobs:
       - name: Build and run the complete unfiltered test project
         run: |
           set -euo pipefail
-          if [ "$TEST_PROJECT_KEY" = e2e ]; then
-            # The Playwright suite owns and starts the real API and worker hosts. Their Release
-            # outputs are verified in the same-run E2E artifact; restore project assets for this
-            # clean runner. The preceding locked restore of the E2E test project covers its API
-            # and Worker ProjectReferences, so do not restore the entire solution a second time.
-            for host_project in src/AuditSphereOps.Api src/AuditSphereOps.Worker; do
-              test -s "$host_project/obj/project.assets.json"
-            done
-            # Reuse the verified exact-SHA host binaries without rebuilding.
-            # The artifact round trip drops the executable bit from Playwright's packaged Node binary.
-            bash scripts/release/run-verification-step.sh "Restore Playwright Node executable bit" \
-              chmod u+x tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/.playwright/node/linux-x64/node
-            test -x tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/.playwright/node/linux-x64/node
-            bash scripts/release/run-verification-step.sh "Playwright Chromium install" \
-              pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
-          fi
           bash scripts/release/run-verification-step.sh "Full $TEST_PROJECT_KEY test project (no --filter)" \
             dotnet test "$TEST_PROJECT" --no-build --no-restore --configuration Release --maxcpucount:1 \
             --logger "trx;LogFileName=$TEST_PROJECT_KEY.trx" --logger "console;verbosity=normal" \
