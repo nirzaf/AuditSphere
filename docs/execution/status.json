@@ -1,26 +1,26 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T10:16:01Z",
+  "observedAtUtc": "2026-11-09T10:54:13Z",
   "source": {
     "branch": "master",
-    "baseSha": "3bea3433556e091dd4c230cebafdf47b5415cde1",
-    "originMasterSha": "3bea3433556e091dd4c230cebafdf47b5415cde1",
-    "workingTree": "One uncommitted workflow-only Playwright cache persistence change on master; no product/test source changed.",
+    "baseSha": "cf93f9efe47cafba778ec58fa8b423ccd45ec75e",
+    "originMasterSha": "cf93f9efe47cafba778ec58fa8b423ccd45ec75e",
+    "workingTree": "Workflow candidate cf93f9ef passed exact fast CI; scoped docs evidence refresh only.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
     "practiceManagement": "INCOMPLETE. Current source is 2f713a4cffdc08499b06901af80ff5ec504ba972; the broader practice-management backlog and professional/external acceptance remain separate from this CI/CD acceleration follow-up. No whole-application acceptance is claimed.",
-    "documentation": "COMPLETE_FOR_REQUESTED_SCOPE; CATEGORY_AUDIT_AND_CONSOLIDATION_COMPLETE. The 173-file docs audit retains 107 machine/provenance task sources separately and found no exact duplicates or further safe flattening. Current health, filename and narrative validators passed after this refresh; exact candidate CI is still pending.",
+    "documentation": "COMPLETE_FOR_REQUESTED_SCOPE; CATEGORY_AUDIT_AND_CONSOLIDATION_COMPLETE. This refresh records the exact cf93f9ef fast pass; its docs-only successor gate remains pending.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Validate and publish the scoped cache-persistence workflow patch. Require exact fast CI and one exact full run; measure cache hit/savings from retained evidence.",
-      "note": "2026-11-09: exact full 42581159439 failed API/E2E; causes and cache hit unknown. Build artifact reuse passed; full workflow candidate remains unverified.",
-      "currentSourceSha": "3bea3433556e091dd4c230cebafdf47b5415cde1"
+      "nextAction": "Publish scoped evidence refresh after incoming-path review; require docs-only fast CI, then one exact full run. Measure Playwright cache behavior from its retained logs.",
+      "note": "2026-11-09: exact fast run 42600087328 passed all five jobs on cf93f9ef. Release build took 23m06.71s; 439.7 MB exact artifact restored in 10.48s. Full/cache outcome pending.",
+      "currentSourceSha": "cf93f9efe47cafba778ec58fa8b423ccd45ec75e"
     },
-    "ciCdAcceleration": "Cache-persistence workflow patch pending exact CI; run 42581159439 failed API/E2E with causes unknown. Deployment timing unmeasured."
+    "ciCdAcceleration": "Fast 42600087328 passed all five jobs on cf93f9ef; 26m53s total, including 23m06.71s build. Exact artifact restore took 10.48s. Full/cache pending; deployment unmeasured."
   },
   "localVerification": {
     "documentationHealth": {
@@ -28,10 +28,10 @@
       "markdownFiles": 179,
       "canonicalDocuments": 22,
       "relativeLinksChecked": 2896,
-      "backtickedRepositoryPathsChecked": 259,
+      "backtickedRepositoryPathsChecked": 260,
       "deletedPathReferences": 0,
       "command": "python3 scripts/docs/validate-markdown-documentation.py",
-      "observedAtUtc": "2026-11-08T17:37:08Z"
+      "observedAtUtc": "2026-11-09T10:54:13Z"
     },
     "filenameValidation": {
       "result": "PASS",
@@ -39,13 +39,13 @@
       "conventionalExceptions": 3,
       "standardizedDocuments": 176,
       "command": "python3 scripts/docs/validate-markdown-filenames.py",
-      "observedAtUtc": "2026-11-08T17:37:08Z"
+      "observedAtUtc": "2026-11-09T10:54:13Z"
     },
     "narrativeMetricsValidation": {
       "result": "PASS",
       "protectedDocuments": 6,
       "command": "python3 scripts/docs/validate-narrative-metrics.py",
-      "observedAtUtc": "2026-11-08T17:37:08Z"
+      "observedAtUtc": "2026-11-09T10:54:13Z"
     },
     "documentationReconciliation": {
       "result": "PASS",
@@ -1900,25 +1900,22 @@
     "nextAction": "No CI classification change pending. Release image build/deploy already parallelizes images with full verification; production deployment timing remains NOT_MEASURED."
   },
   "ciCdAccelerationCandidate20261109": {
-    "observedAtUtc": "2026-11-09T10:16:01Z",
-    "candidateSha": "3bea3433556e091dd4c230cebafdf47b5415cde1",
-    "status": "WORKFLOW_PATCH_UNCOMMITTED; ACTIONLINT_PASS; EXACT_CI_PENDING",
-    "patchSha256": "c412af1a351ef603782ab38df9d27d2c35f006333b4170be3d21d31916f3d261",
-    "change": "Restore and save pinned Chromium cache after install --with-deps and before E2E; cache save non-blocking.",
-    "priorRun": {
-      "id": 42581159439,
-      "result": "FAILURE",
-      "apiJob": 129041401704,
-      "apiSeconds": 5701,
-      "e2eJob": 129041401699,
-      "causes": "UNCONFIRMED",
-      "cacheHit": "UNKNOWN",
-      "buildPrepSeconds": 87,
-      "artifactReuse": true
+    "observedAtUtc": "2026-11-09T10:54:13Z",
+    "candidateSha": "cf93f9efe47cafba778ec58fa8b423ccd45ec75e",
+    "status": "FAST_CI_PASS_ALL_5; DOCS_REFRESH_PENDING; FULL_NOT_DISPATCHED",
+    "change": "Pinned Playwright restore/save before full E2E; install --with-deps retained; save non-blocking.",
+    "fastRun": {
+      "id": 42600087328,
+      "attempt": 1,
+      "conclusion": "success",
+      "durationSeconds": 1613,
+      "actualCheckout": "All five terminal logs confirm exact SHA.",
+      "proof": ".local/autonomous/evidence/ci-acceleration-20261109/fast-cf93f9ef-42600087328/fast-terminal-proof.json"
     },
-    "verification": "actionlint and diff check pass; exact fast/full pending.",
-    "deployment": "No deployment or order change; timing NOT_MEASURED.",
-    "evidence": ".local/autonomous/evidence/ci-acceleration-20261109/full-3bea3433-42581159439/terminal-speed-review.json",
-    "archive": ".local/autonomous/evidence/ci-acceleration-20261109/cache-persist-on-test-failure/pre-update-archive-manifest.json"
+    "criticalPath": "Release job 1443s; build 1386.71s; dependent .NET gate 150s; 439656617-byte artifact restored in 10.48s.",
+    "fullVerification": "NOT_DISPATCHED_FOR_FINAL_DOCS_SOURCE",
+    "cacheSavings": "NOT_MEASURED; exact full run pending.",
+    "deployment": "Not run; images overlap full CI; protected order retained; timing unmeasured.",
+    "nextAction": "Fetch/review paths, publish docs refresh, require exact docs fast pass, then dispatch one exact full run and measure cache."
   }
 }
