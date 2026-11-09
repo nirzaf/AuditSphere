@@ -430,6 +430,11 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'tests/AuditSphereOps.E2E.Tests/packages.lock.json') }}
+          # Dependency-lock changes can miss the exact key even when Chromium's pinned
+          # Playwright revision is unchanged. Restore the newest OS-compatible cache;
+          # `playwright install` below still verifies/installs the required revision.
+          restore-keys: |
+            playwright-chromium-${{ runner.os }}-
 
       - name: Prepare Playwright Chromium browser and system dependencies
         if: ${{ matrix.key == 'e2e' }}

@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T15:49:59Z",
+  "observedAtUtc": "2026-11-09T16:10:00Z",
   "source": {
     "branch": "master",
-    "baseSha": "3207ec544f28a64b34d0dff07a2c09b4fc239d58",
-    "originMasterSha": "3207ec544f28a64b34d0dff07a2c09b4fc239d58",
-    "workingTree": "Two execution-record files changed for evidence refresh; base and last-fetched origin/master are 3207ec54.",
+    "baseSha": "c2d8ba800448e56fbe28203d326366b68fcccd67",
+    "originMasterSha": "c2d8ba800448e56fbe28203d326366b68",
+    "workingTree": "CI acceleration cache-fallback slice in progress; baseline c2d8ba80.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -16,11 +16,11 @@
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Do not repeat unchanged full failures or change test parallelism/timeouts. Wait for distinct API/E2E diagnostics; observe warm cache only on a naturally needed exact full run and deployment timing only on an authorized release.",
-      "note": "2026-11-09: exact fast artifact reuse verified; docs-only run 42643767085 passed; full runs 42572301443, 42581159439 and 42605366775 failed in API/E2E with unresolved causes.",
-      "currentSourceSha": "3207ec544f28a64b34d0dff07a2c09b4fc239d58"
+      "nextAction": "Verify cache-fallback workflow and docs; publish scoped change, then observe cache behavior on a naturally required full run. No test filtering, timeout/parallelism change or deployment benchmark.",
+      "note": "2026-11-09: exact fast artifact reuse and docs-only run 42643767085 passed; full runs 42572301443/42581159439/42605366775 failed API/E2E with unresolved causes.",
+      "currentSourceSha": "c2d8ba800448e56fbe28203d326366b68fcccd67"
     },
-    "ciCdAcceleration": "Published: docs-only master path skips app jobs (latest pass 156s); exact fast Release artifact restores in 12.315s; exact-source full-run reuse completed build prep in 87s. Full API/E2E runs still fail; warm cache and deployment timings unmeasured.",
+    "ciCdAcceleration": "Published: docs-only master path 156s; exact fast artifact restore 12.315s; full-build reuse prep 87s. Playwright now restores exact or OS-prefix browser cache; hit/savings unmeasured. API/E2E full failures remain unexplained; deployment timings unmeasured.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
