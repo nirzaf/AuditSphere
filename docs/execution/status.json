@@ -5,7 +5,7 @@
     "branch": "master",
     "baseSha": "188d6621e174e580c6037e303b5896fc75eacc15",
     "originMasterSha": "188d6621e174e580c6037e303b5896fc75eacc15",
-    "workingTree": "Uncommitted workflow acceleration follow-up on 188d6621; base full run active, contract job failed.",
+    "workingTree": "Acceleration candidate committed locally on 188d6621; exact candidate CI pending.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -1900,7 +1900,7 @@
     "nextAction": "No CI classification change pending. Release image build/deploy already parallelizes images with full verification; production deployment timing remains NOT_MEASURED."
   },
   "ciCdAccelerationCandidate20261109": {
-    "status": "BASE_CONTRACT_FAIL; SUITES_ACTIVE; FIX_UNCOMMITTED",
+    "status": "BASE_CONTRACT_FAIL; SUITES_ACTIVE; FIX_COMMITTED; EXACT_CANDIDATE_CI_PENDING",
     "baseSha": "188d6621e174e580c6037e303b5896fc75eacc15",
     "change": "Overlap Release prep with Angular; stage and restore Application/Domain outputs for no-build API publish.",
     "safety": "No checks removed; suite and contract gates/provenance retained.",
