@@ -1899,38 +1899,39 @@
     "nextAction": "No further path classes are allowed without preserving full application checks."
   },
   "ciCdAccelerationCandidate20261109": {
-    "observedAtUtc": "2026-11-09T20:46:55Z",
-    "status": "P8 exact fast CI PASS; hosted docs gain unproven; producer anomalously slow; diagnostic instrumentation added; no deployment.",
-    "sourceSha": "60e7aab3de703d008765ef156a9feeed100c0278",
+    "observedAtUtc": "2026-11-09T21:20:20Z",
+    "status": "P8 docs parallelism retained; exact fast CI passes; Release compile remains dominant; deployment timing unmeasured.",
+    "sourceSha": "2120c8e4a32285f24f94d6656f7d99836a963bd1",
     "fastRun": {
-      "id": 42690400625,
+      "id": 42697501935,
       "attempt": 1,
-      "result": "SUCCESS_5_JOBS_ALL_EXACT_CHECKOUTS",
-      "wallSeconds": 2182,
-      "evidence": ".local/autonomous/evidence/ci-acceleration-20261109/docs-unit-parallelism/p8-fast-42690400625/run-metadata-terminal.json"
+      "result": "SUCCESS",
+      "wallSeconds": 1361,
+      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/42697501935",
+      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261109/performance-summary-fast-42697501935/terminal-proof.json",
+      "terminalProofSha256": "c109364a41413978ba34b061c8b32fe5916600f7262bdba84b3689016a4a9ad0"
     },
     "docs": {
-      "p8Seconds": 113,
+      "p8Seconds": 84,
       "priorP4Seconds": 117,
-      "interpretation": "one observation each; no proven hosted gain"
+      "interpretation": "one hosted observation per setting; no causal speed claim"
     },
     "angular": {
-      "seconds": 116,
+      "seconds": 165,
       "tests": 2029,
       "files": 196
     },
     "dotnet": {
-      "producerJobSeconds": 1989,
-      "buildSeconds": 1939.97,
-      "priorP4ProducerSeconds": 847,
-      "priorP4BuildSeconds": 804.99,
-      "consumerSeconds": 172,
-      "artifact": "439653272 bytes; all 20 output directories restored; fallback skipped"
+      "producerSeconds": 1181,
+      "buildSeconds": 1128.05,
+      "consumerSeconds": 159,
+      "artifactBytes": 439659460,
+      "artifactRestoredDirectories": 20,
+      "fallback": "SKIPPED"
     },
-    "producerCriticalPath": "Same runner image and one-node settings; Application output to Infrastructure output was 29m47s vs P4 11m43s. Timing gap is a profiling lead, not causal project timing.",
-    "p8Parallelism": "WU-017..025: 9/9, 517 assertions; local P4 29.67s, P8 21.74s, P12 22.41s. Single uncontrolled workstation observations; no tests/assertions/timeouts changed.",
-    "nextDiagnostic": "MSBuild PerformanceSummary enabled for next exact CI build; review project/task timings before considering build topology changes.",
-    "deployment": "NOT_PERFORMED; deployment-stage timings unmeasured; protected gates unchanged.",
-    "evidence": ".local/autonomous/evidence/ci-acceleration-20261109/docs-unit-parallelism/p8-fast-42690400625/"
+    "diagnostic": "MSBuild build succeeded with 0 warnings/errors. Csc aggregate 1121s; Infrastructure/API project summaries 966s/1044s (nested project/task totals are not additive). One-node build retained; no topology change justified.",
+    "localParallelism": "Six same-host offline trials, 9 units/517 assertions each, all pass: mean P4 27.98s, P8 21.39s, P12 22.30s; not hosted-runner evidence.",
+    "deployment": "NOT_PERFORMED; deployment-stage timing remains unmeasured.",
+    "evidence": ".local/autonomous/evidence/ci-acceleration-20261109/performance-summary-fast-42697501935"
   }
 }
