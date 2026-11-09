@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T23:11:37Z",
+  "observedAtUtc": "2026-11-09T23:34:55Z",
   "source": {
     "branch": "master",
-    "baseSha": "beec2e5add3b0f58c12b1602f55618838fb0c12d",
-    "originMasterSha": "beec2e5add3b0f58c12b1602f55618838fb0c12d",
-    "workingTree": "Exact fast CI passed for beec2e5; release/deployment not run.",
+    "baseSha": "bd20615bc0af79a40124fb2cb5779275f37c2c7b",
+    "originMasterSha": "bd20615bc0af79a40124fb2cb5779275f37c2c7b",
+    "workingTree": "Uncommitted CI/CD optimization candidate; local checks pass; exact fast/image CI pending; no deployment.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,7 @@
       "note": "Exact-source UI reuse is optional; fallback and release gates remain.",
       "currentSourceSha": "beec2e5add3b0f58c12b1602f55618838fb0c12d"
     },
-    "ciCdAcceleration": "Fast CI 42713037416 passed exact SHA; .NET outputs reused; 7-day Angular bundle retained; image reuse unmeasured.",
+    "ciCdAcceleration": "Candidate: exact-source Angular reuse in Hostinger images and lockfile-keyed npm layer; local checks pass, exact CI pending; no deployment timing.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {

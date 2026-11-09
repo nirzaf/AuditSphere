@@ -9,8 +9,10 @@ FROM mcr.microsoft.com/devcontainers/javascript-node:26-bookworm AS ui
 USER root
 WORKDIR /ui
 ARG USE_PREBUILT_ANGULAR=false
-COPY release-assets/angular/ /prebuilt-ui/
 COPY src/AuditSphereOps.Ui/package.json src/AuditSphereOps.Ui/package-lock.json ./
+# Keep dependency installation cached by the locked manifests, not UI source contents.
+RUN if [ "$USE_PREBUILT_ANGULAR" = "true" ]; then :; else npm ci; fi
+COPY release-assets/angular/ /prebuilt-ui/
 COPY src/AuditSphereOps.Ui/ ./
 # Production asset set: fingerprinted browser output consumed by the API host.
 RUN if [ "$USE_PREBUILT_ANGULAR" = "true" ]; then \
@@ -18,7 +20,7 @@ RUN if [ "$USE_PREBUILT_ANGULAR" = "true" ]; then \
       mkdir -p /ui/dist/auditsphere-ui/browser && \
       cp -a /prebuilt-ui/. /ui/dist/auditsphere-ui/browser/; \
     else \
-      npm ci && npm run build; \
+      npm run build; \
     fi
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS api
