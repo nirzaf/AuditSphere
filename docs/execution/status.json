@@ -1,26 +1,26 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T22:04:28Z",
+  "observedAtUtc": "2026-11-09T23:11:37Z",
   "source": {
     "branch": "master",
-    "baseSha": "8850042898f300c05bd6dac51981c45b80349fda",
-    "originMasterSha": "8850042898f300c05bd6dac51981c45b80349fda",
-    "workingTree": "Exact fast CI passed for 88500428; release/deployment not run.",
+    "baseSha": "beec2e5add3b0f58c12b1602f55618838fb0c12d",
+    "originMasterSha": "beec2e5add3b0f58c12b1602f55618838fb0c12d",
+    "workingTree": "Exact fast CI passed for beec2e5; release/deployment not run.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
     "practiceManagement": "INCOMPLETE. Current source is 2f713a4cffdc08499b06901af80ff5ec504ba972; the broader practice-management backlog and professional/external acceptance remain separate from this CI/CD acceleration follow-up. No whole-application acceptance is claimed.",
-    "documentation": "CATEGORY_AUDIT_AND_CONSOLIDATION_COMPLETE; this evidence refresh records terminal run 42605366775 and does not claim full CI.",
+    "documentation": "CATEGORY_AUDIT_AND_CONSOLIDATION_COMPLETE; current evidence refresh records exact fast run 42713037416; no full CI or deployment claim.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Fast CI passed; keep full regression and deployment gates separate; deployment timing unmeasured.",
+      "nextAction": "Exact fast CI 42713037416 passed; preserve full regression and deployment gates; image reuse timing unmeasured.",
       "note": "Exact-source UI reuse is optional; fallback and release gates remain.",
-      "currentSourceSha": "b0e18c5f7f13d63e85a58d8679958cd54e8d2b98"
+      "currentSourceSha": "beec2e5add3b0f58c12b1602f55618838fb0c12d"
     },
-    "ciCdAcceleration": "Fast CI passed; same-run .NET outputs reused; Angular artifact staging passed. Seven-day Angular artifact retention candidate; deployment savings unmeasured.",
+    "ciCdAcceleration": "Fast CI 42713037416 passed exact SHA; .NET outputs reused; 7-day Angular bundle retained; image reuse unmeasured.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
@@ -29,10 +29,10 @@
       "markdownFiles": 179,
       "canonicalDocuments": 22,
       "relativeLinksChecked": 2896,
-      "backtickedRepositoryPathsChecked": 260,
+      "backtickedRepositoryPathsChecked": 262,
       "deletedPathReferences": 0,
       "command": "python3 scripts/docs/validate-markdown-documentation.py",
-      "observedAtUtc": "2026-11-09T10:54:13Z"
+      "observedAtUtc": "2026-11-09T23:11:37Z"
     },
     "filenameValidation": {
       "result": "PASS",
