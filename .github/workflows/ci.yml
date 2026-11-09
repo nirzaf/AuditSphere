@@ -133,9 +133,11 @@ jobs:
           dotnet restore AuditSphereOps.slnx --locked-mode
           # Serialize to a single MSBuild node: Web and test projects ProjectReference the Api,
           # so parallel solution builds race on shared Api outputs. Match the successful runner
-          # settings for migration-heavy projects.
+          # settings for migration-heavy projects. Emit project/task timing so slow compile stages
+          # can be optimized from evidence without changing build parallelism or output ownership.
           dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1 \
-            -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RunAnalyzers=false
+            -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RunAnalyzers=false \
+            -clp:PerformanceSummary
 
       # The same manifest, confined archive and digest checks protect this same-run handoff and
       # the later full-verification reuse. Packaging is optional; the consumer clean-builds if
@@ -258,9 +260,11 @@ jobs:
           # "used by another process" failures.
           # Match the successful container builds for migration-heavy projects. Analyzer output is
           # not part of this release gate; the generated migration/model files otherwise push the
-          # single compiler past the hosted runner's useful build budget.
+          # single compiler past the hosted runner's useful build budget. Emit project/task timing
+          # for diagnosis without altering the single-node build topology.
           dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1 \
-            -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RunAnalyzers=false
+            -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RunAnalyzers=false \
+            -clp:PerformanceSummary
 
       - name: Run fast database-free architecture and rounding guards
         run: |
