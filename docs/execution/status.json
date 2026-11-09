@@ -1899,8 +1899,8 @@
     "nextAction": "No further path classes are allowed without preserving full application checks."
   },
   "ciCdAccelerationCandidate20261109": {
-    "observedAtUtc": "2026-11-09T21:20:20Z",
-    "status": "P8 docs parallelism retained; exact fast CI passes; Release compile remains dominant; deployment timing unmeasured.",
+    "observedAtUtc": "2026-11-09T21:32:01Z",
+    "status": "P8 docs parallelism and build diagnostics published; deployment poll-cadence optimization prepared; exact fast CI pending; deployment runtime unmeasured.",
     "sourceSha": "2120c8e4a32285f24f94d6656f7d99836a963bd1",
     "fastRun": {
       "id": 42697501935,
@@ -1932,6 +1932,7 @@
     "diagnostic": "MSBuild build succeeded with 0 warnings/errors. Csc aggregate 1121s; Infrastructure/API project summaries 966s/1044s (nested project/task totals are not additive). One-node build retained; no topology change justified.",
     "localParallelism": "Six same-host offline trials, 9 units/517 assertions each, all pass: mean P4 27.98s, P8 21.39s, P12 22.30s; not hosted-runner evidence.",
     "deployment": "NOT_PERFORMED; deployment-stage timing remains unmeasured.",
-    "evidence": ".local/autonomous/evidence/ci-acceleration-20261109/performance-summary-fast-42697501935"
+    "evidence": ".local/autonomous/evidence/ci-acceleration-20261109/performance-summary-fast-42697501935",
+    "deploymentPollCadence": "Migration 5s×180 (900s budget); canary 5s×40 (200s); theoretical ≤10s/≤5s detection improvement; unmeasured in release."
   }
 }

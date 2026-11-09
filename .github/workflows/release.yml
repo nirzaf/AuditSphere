@@ -488,7 +488,8 @@ jobs:
           az containerapp job start --name "$job" \
             --resource-group "${{ inputs.azure_resource_group }}"
           # The job exits non-zero on failed migrations; poll until it terminates.
-          for _attempt in $(seq 1 60); do
+          # Keep the 15-minute wait budget while observing completion more frequently.
+          for _attempt in $(seq 1 180); do
             status="$(az containerapp job execution list --name "$job" \
               --resource-group "${{ inputs.azure_resource_group }}" \
               --query '[0].properties.status' -o tsv || true)"
@@ -496,7 +497,7 @@ jobs:
               Succeeded) echo "Migrations succeeded."; exit 0 ;;
               Failed|FailedStarting) echo "Migration job failed; new revision must not receive traffic."; exit 1 ;;
             esac
-            sleep 15
+            sleep 5
           done
           echo "Migration job did not complete in time."; exit 1
 
@@ -530,9 +531,10 @@ jobs:
           fqdn="$(az containerapp show --name auditsphere-prod-api \
             --resource-group "${{ inputs.azure_resource_group }}" \
             --query 'properties.configuration.ingress.fqdn' -o tsv)"
-          for _attempt in $(seq 1 20); do
+          # Keep the 200-second readiness budget while reducing detection latency.
+          for _attempt in $(seq 1 40); do
             if curl -fsS "https://$fqdn/health/live" >/dev/null; then break; fi
-            sleep 10
+            sleep 5
           done
           curl -fsS "https://$fqdn/health/live" >/dev/null
           # Readiness includes database and migration-state verification.
