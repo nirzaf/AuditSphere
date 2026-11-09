@@ -6,11 +6,18 @@ using Microsoft.Playwright;
 namespace AuditSphereOps.E2E.Tests;
 
 /// <summary>
+/// Cold-start budgets are measured without unrelated browser journeys competing for the runner.
+/// </summary>
+[CollectionDefinition("Angular performance budget", DisableParallelization = true)]
+public sealed class AngularPerformanceBudgetCollection { }
+
+/// <summary>
 /// US-043 local production-like budgets for the native shell: cold first paint of the signed-in portfolio,
 /// a warm full load of a lazy route, a client-side router navigation, and rendering a large lead dataset.
 /// Ceilings are deliberately loose local budgets that catch order-of-magnitude regressions; exact observed
 /// measurements are recorded only in docs/execution/status.json, never asserted to two significant figures.
 /// </summary>
+[Collection("Angular performance budget")]
 public sealed class AngularPerformanceBudgetTests
 {
   private readonly Xunit.Abstractions.ITestOutputHelper output;

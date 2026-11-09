@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-08T22:53:13Z",
+  "observedAtUtc": "2026-11-09T00:24:51Z",
   "source": {
     "branch": "master",
-    "baseSha": "84215010a896ff94089e13751ad89354335d076c",
-    "originMasterSha": "84215010a896ff94089e13751ad89354335d076c",
-    "workingTree": "CI run 42529618648 verified exact candidate 84215010a896ff94089e13751ad89354335d076c; current status/handoff reconciliation is being prepared on that base.",
+    "baseSha": "b1e20c7e8948138c4f1c98472dde0cf8e7726003",
+    "originMasterSha": "b1e20c7e8948138c4f1c98472dde0cf8e7726003",
+    "workingTree": "master HEAD/origin/master b1e20c7e; one uncommitted E2E performance-budget isolation change plus aligned CI evidence docs; whole assignment incomplete.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,7 @@
       "note": "2026-11-08T13:05:03Z: RUN-003 remains REPAIR on 98679131fa65076c429fca8f95bb1f74ba7d7d7e. Exact fast run 42481222673 passed Angular, Docs and Release with all three actual checkout hashes matching 98679131fa65076c429fca8f95bb1f74ba7d7d7e; terminal proof .local/autonomous/evidence/ci-98679131-current-20261108/fast-terminal-proof.json. Focused API route 3/3 and named E2E 1/1 pass. Full verification for 98679131fa65076c429fca8f95bb1f74ba7d7d7e is not yet dispatched; predecessor API cancellation and E2E inactivity causes remain unconfirmed. Docs category consolidation is complete for the requested scope.",
       "currentSourceSha": "84215010a896ff94089e13751ad89354335d076c"
     },
-    "ciCdAcceleration": "FAST_CI_PASS for 84215010a896ff94089e13751ad89354335d076c (run 42529618648, all four actual checkouts). Full CI remains pending: run 42527196539 is still reported in progress on predecessor 17e142fea294d574ade773fb075019983dff4877; it cannot qualify the current candidate. The release workflow already builds images concurrently, overlaps that work with full-evidence verification, and preserves protected approval, migration order, canary and rollback. Deployment and end-to-end timing are not measured; no release or deployment is claimed."
+    "ciCdAcceleration": "Published pipeline acceleration is in place on master; exact b1e20c7e fast run 42532507997 passed all three jobs. Predecessor full run 42527196539 is terminal FAILURE: E2E passed 340/341 with a 12467 ms cold sample over the unchanged 12000 ms budget; API failed after a generic hosted-runner communication loss with no API log/TRX and no proven initiating cause. Benchmark isolation candidate on b1e20c7e passed the focused 2/2 E2E cohort; exact-source CI is pending. No deployment or full-CI pass is claimed."
   },
   "localVerification": {
     "documentationHealth": {
@@ -1847,6 +1847,29 @@
       "exactFullCandidateCi": "PENDING",
       "activePredecessorFullRunId": 42527196539,
       "deploymentTiming": "NOT_MEASURED"
+    },
+    "ciCdAccelerationCandidate20261109": {
+      "observedAtUtc": "2026-11-09T00:24:51Z",
+      "sourceSha": "b1e20c7e8948138c4f1c98472dde0cf8e7726003",
+      "candidateStatus": "UNCOMMITTED_FOCUSED_E2E_PASS",
+      "candidatePath": "tests/AuditSphereOps.E2E.Tests/AngularPerformanceBudgetTests.cs",
+      "candidateChange": "Serialize only the Angular cold-start budget xUnit collection; keep the 12000 ms ceiling and test assertions unchanged.",
+      "focusedResult": "2 passed, 0 failed, 0 skipped; cold 2309 ms, warm 43 ms, router 85 ms, 60-lead render 87 ms.",
+      "focusedEvidence": ".local/autonomous/evidence/ci-cd-acceleration-20261108/performance-isolation-focused/review.json",
+      "predecessorFullRun": {
+        "id": 42527196539,
+        "sourceSha": "17e142fea294d574ade773fb075019983dff4877",
+        "aggregate": "FAILURE",
+        "completedAtUtc": "2026-11-09T00:21:31Z",
+        "e2eJobId": 128875229933,
+        "e2eResult": "340/341 passed; cold first paint 12467 ms > 12000 ms",
+        "apiJobId": 128875229978,
+        "apiResult": "runner lost communication; cause unconfirmed; no API log/TRX artifact",
+        "terminalEvidence": ".local/autonomous/evidence/ci-cd-acceleration-20261108/full-17e142fe-42527196539/terminal-review.json"
+      },
+      "causality": "Isolation addresses possible parallel test contention; root cause and end-to-end speed impact are not proven.",
+      "deploymentTiming": "NOT_MEASURED",
+      "nextAction": "Fetch origin, review incoming paths, then publish the focused benchmark-isolation candidate with aligned docs; exact fast CI must pass before one exact-source full verification."
     }
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed."
