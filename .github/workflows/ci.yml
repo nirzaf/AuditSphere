@@ -89,7 +89,9 @@ jobs:
         with:
           name: angular-ui-browser
           path: src/AuditSphereOps.Ui/dist/auditsphere-ui/browser
-          retention-days: 1
+          # The release workflow can reuse this small exact-source bundle after its approval
+          # and full-regression gates. Keep it available through normal release scheduling.
+          retention-days: 7
 
       - name: Summarize
         if: ${{ always() }}

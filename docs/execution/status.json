@@ -20,7 +20,7 @@
       "note": "Exact-source UI reuse is optional; fallback and release gates remain.",
       "currentSourceSha": "b0e18c5f7f13d63e85a58d8679958cd54e8d2b98"
     },
-    "ciCdAcceleration": "Fast CI passed in 885s; same-run .NET outputs reused; Angular artifact staging passed. Image fallback; deployment savings unmeasured.",
+    "ciCdAcceleration": "Fast CI passed; same-run .NET outputs reused; Angular artifact staging passed. Seven-day Angular artifact retention candidate; deployment savings unmeasured.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
