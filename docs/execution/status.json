@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T04:29:16Z",
+  "observedAtUtc": "2026-11-09T06:23:03Z",
   "source": {
     "branch": "master",
-    "baseSha": "188d6621e174e580c6037e303b5896fc75eacc15",
-    "originMasterSha": "188d6621e174e580c6037e303b5896fc75eacc15",
-    "workingTree": "Acceleration candidate committed locally on 188d6621; exact candidate CI pending.",
+    "baseSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6",
+    "originMasterSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6",
+    "workingTree": "Documentation-only status refresh; CI candidate code SHA afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -16,11 +16,11 @@
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Monitor API/Domain/E2E jobs in 42555421126 and the two active jobs in 42551955020; then refresh exact-source verification.",
-      "note": "2026-11-09: RUN-003 remains REPAIR. Source 188d6621 is unchanged. Exact run 42555421126 has a retained contract publish failure (missing Application/Domain DLLs); API/E2E remain active. Run 42551955020 has the same retained contract failure; API/E2E remain active. The uncommitted repair adds both host outputs and overlaps artifact prep with Angular; local validators pass, candidate CI is pending.",
-      "currentSourceSha": "188d6621e174e580c6037e303b5896fc75eacc15"
+      "nextAction": "Monitor immutable full release-verification run 42572301443; capture source resolution, actual job checkout logs, artifact reuse evidence and terminal results once the full run finishes.",
+      "note": "2026-11-09: RUN-003 remains REPAIR. CI acceleration candidate afa6e2b5 fast run 42562349587 passed all five jobs with exact-checkout logs and same-run Release artifact restore. Exact full run 42572301443 is in progress on immutable afa6e2b5; resolve and Release prep report success by metadata (prep 99s), Angular active; actual checkout/reuse awaits logs after terminal.",
+      "currentSourceSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6"
     },
-    "ciCdAcceleration": "Candidate: prep/Angular overlap plus Application/Domain artifact handoff repair; local validators pass, exact candidate CI pending. Base full prep took 42m09 without an exact fast artifact; another run reused exact outputs and prepped in 1m31 (uncontrolled comparison). Deployment remains gated and unmeasured."
+    "ciCdAcceleration": "Candidate afa6e2b5 fast CI passed in one 891s observation; full run 42572301443 in progress. Resolve/Release prep success by metadata, prep 99s; checkout and artifact reuse unverified until terminal logs are available. Deployment stages unchanged; production timing unmeasured."
   },
   "localVerification": {
     "documentationHealth": {
@@ -1900,13 +1900,12 @@
     "nextAction": "No CI classification change pending. Release image build/deploy already parallelizes images with full verification; production deployment timing remains NOT_MEASURED."
   },
   "ciCdAccelerationCandidate20261109": {
-    "status": "BASE_CONTRACT_FAIL; SUITES_ACTIVE; FIX_COMMITTED; EXACT_CANDIDATE_CI_PENDING",
-    "baseSha": "188d6621e174e580c6037e303b5896fc75eacc15",
-    "change": "Overlap Release prep with Angular; stage and restore Application/Domain outputs for no-build API publish.",
-    "safety": "No checks removed; suite and contract gates/provenance retained.",
-    "localVerification": "actionlint, host manifest static check, docs validators, status shape/size, and diff check PASS; exact candidate CI not run.",
-    "fastRun": "42555119618 PASS exact base; docs-only, 137s once.",
-    "fullRun": "42555421126: prep 42m09 without exact fast artifact; contract failed on missing Application/Domain DLLs; suites active.",
-    "deployment": "NOT_RUN; timing NOT_MEASURED; release gates unchanged."
+    "status": "FAST_CI_PASS; EXACT_FULL_IN_PROGRESS; NO_DEPLOYMENT",
+    "candidateSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6",
+    "change": "Overlap Release prep with Angular; include Application/Domain outputs needed by no-build API publication.",
+    "fastRun": "42562349587 PASS all 5 exact checkouts; 2029 Angular tests/196 files; exact-run artifact reused by fast consumer.",
+    "fullRun": "42572301443 attempt 1 IN_PROGRESS for immutable candidate ref; resolve and build-prep jobs report success (99s prep metadata), Angular active; logs/checkout/artifact reuse pending run terminal.",
+    "priorFailures": "Pre-fix runs 42551955020 and 42555421126 terminal failure; second-run API/E2E causes and checkouts unverified.",
+    "deployment": "NOT_RUN; production timing NOT_MEASURED; migration/readiness/canary/smoke/protected approval unchanged."
   }
 }
