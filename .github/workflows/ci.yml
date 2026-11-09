@@ -360,7 +360,7 @@ jobs:
           python3 -m unittest discover -s scripts/dev/tests -p 'test_*.py'
           python3 -m unittest discover -s scripts/m365 -p 'test_*.py'
           units=(WU-017 WU-018 WU-019 WU-020 WU-021 WU-022 WU-023 WU-024 WU-025)
-          printf '%s\n' "${units[@]}" | xargs -r -P 4 -I '{}' \
+          printf '%s\n' "${units[@]}" | xargs -r -P 8 -I '{}' \
             pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 \
               -Unit '{}' -Offline
 

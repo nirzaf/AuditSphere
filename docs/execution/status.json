@@ -1899,8 +1899,8 @@
     "nextAction": "No further path classes are allowed without preserving full application checks."
   },
   "ciCdAccelerationCandidate20261109": {
-    "observedAtUtc": "2026-11-09T19:51:43Z",
-    "status": "Docs parallelism exact fast run passed; 117s Docs job; no deployment.",
+    "observedAtUtc": "2026-11-09T20:09:47Z",
+    "status": "P8 local timing improved; hosted exact CI pending; no deployment.",
     "fastRun": {
       "id": 42678122385,
       "result": "PASS 5 jobs/885s; .NET artifact reused; Angular 2029/196",
@@ -1941,13 +1941,11 @@
     },
     "docsUnitParallelism": {
       "units": "WU-017..025",
-      "p": 4,
-      "local": "9/9; 517; 29.67s",
-      "hosted": "117 vs 132s; single observation",
-      "run": 42684616718,
-      "wallSeconds": 1044,
-      "sha": "1800fd4780ed4eab43947a3b41487500ffaad639",
-      "proof": ".local/autonomous/evidence/ci-acceleration-20261109/docs-unit-parallelism/fast-42684616718/fast-terminal-proof.json"
+      "p": 8,
+      "local": "P8 21.74s vs P4 29.67s; 9/9; 517",
+      "hosted": "P4 117s vs132s; one observation; P8 CI pending",
+      "p4FastRun": 42684616718,
+      "localP8Evidence": ".local/autonomous/evidence/ci-acceleration-20261109/docs-unit-parallelism/local-parallelism-p8-review.json"
     }
   }
 }
