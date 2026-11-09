@@ -1899,8 +1899,8 @@
     "nextAction": "No further path classes are allowed without preserving full application checks."
   },
   "ciCdAccelerationCandidate20261109": {
-    "observedAtUtc": "2026-11-09T19:33:22Z",
-    "status": "Fast/images and Angular staging passed; WU parallelism candidate pending exact CI; no deployment.",
+    "observedAtUtc": "2026-11-09T19:51:43Z",
+    "status": "Docs parallelism exact fast run passed; 117s Docs job; no deployment.",
     "fastRun": {
       "id": 42678122385,
       "result": "PASS 5 jobs/885s; .NET artifact reused; Angular 2029/196",
@@ -1940,12 +1940,14 @@
       "result": "Exact-SHA artifact 13700737971 staged, 145 files; release image path not exercised"
     },
     "docsUnitParallelism": {
-      "units": "WU-017..WU-025",
-      "parallelism": 4,
-      "localElapsedSeconds": 29.67,
-      "assertions": 517,
-      "exactCandidateCi": "PENDING",
-      "evidence": ".local/autonomous/evidence/ci-acceleration-20261109/docs-unit-parallelism/candidate-review.json"
+      "units": "WU-017..025",
+      "p": 4,
+      "local": "9/9; 517; 29.67s",
+      "hosted": "117 vs 132s; single observation",
+      "run": 42684616718,
+      "wallSeconds": 1044,
+      "sha": "1800fd4780ed4eab43947a3b41487500ffaad639",
+      "proof": ".local/autonomous/evidence/ci-acceleration-20261109/docs-unit-parallelism/fast-42684616718/fast-terminal-proof.json"
     }
   }
 }
