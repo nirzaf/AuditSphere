@@ -237,6 +237,183 @@ class CiBuildArtifactTests(unittest.TestCase):
         self.assertFalse(result["available"])
         self.assertEqual("GitHub Actions API unavailable (HTTP 403)", result["reason"])
 
+    def test_angular_lookup_skips_docs_only_run_and_selects_exact_master_artifact(self) -> None:
+        runs_by_event = {
+            "push": {
+                "workflow_runs": [
+                    {
+                        "id": 303,
+                        "run_attempt": 1,
+                        "run_number": 303,
+                        "head_sha": SOURCE_SHA,
+                        "head_branch": "master",
+                        "event": "push",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "path": ".github/workflows/ci.yml",
+                    },
+                    {
+                        "id": 302,
+                        "run_attempt": 1,
+                        "run_number": 302,
+                        "head_sha": SOURCE_SHA,
+                        "head_branch": "master",
+                        "event": "push",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "path": ".github/workflows/ci.yml",
+                    },
+                    {
+                        "id": 301,
+                        "run_attempt": 1,
+                        "run_number": 301,
+                        "head_sha": SOURCE_SHA,
+                        "head_branch": "feature/untrusted",
+                        "event": "push",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "path": ".github/workflows/ci.yml",
+                    },
+                ]
+            },
+            "workflow_dispatch": {"workflow_runs": []},
+        }
+        artifacts_by_run = {
+            303: {"artifacts": []},  # A successful docs-only run has no Angular bundle.
+            302: {
+                "artifacts": [
+                    {"id": 9002, "name": "angular-ui-browser", "expired": False, "size_in_bytes": 1234}
+                ]
+            },
+        }
+
+        def fake_api(_api_url: str, _token: str, path: str) -> dict[str, object]:
+            if "/artifacts?" in path:
+                run_id = int(path.split("/runs/")[1].split("/")[0])
+                return artifacts_by_run[run_id]
+            event = "workflow_dispatch" if "event=workflow_dispatch" in path else "push"
+            return runs_by_event[event]
+
+        with patch.object(build_artifact, "_github_json", side_effect=fake_api):
+            result = build_artifact.find_angular_bundle_artifact(
+                api_url="https://api.github.com",
+                token="test-token",
+                repository="nirzaf/AuditSphere",
+                branch="master",
+                source_sha=SOURCE_SHA,
+            )
+
+        self.assertTrue(result["available"])
+        self.assertEqual(302, result["runId"])
+        self.assertEqual(1, result["runAttempt"])
+        self.assertEqual(9002, result["artifactId"])
+        self.assertEqual(SOURCE_SHA, result["sourceSha"])
+
+    def test_angular_lookup_falls_back_for_expired_or_missing_artifact(self) -> None:
+        runs = {
+            "workflow_runs": [
+                {
+                    "id": 401,
+                    "run_attempt": 1,
+                    "run_number": 401,
+                    "head_sha": SOURCE_SHA,
+                    "head_branch": "master",
+                    "event": "push",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "path": ".github/workflows/ci.yml",
+                }
+            ]
+        }
+        artifacts = {
+            "artifacts": [
+                {"id": 1, "name": "angular-ui-browser", "expired": True, "size_in_bytes": 400},
+                {"id": 2, "name": "angular-ui-browser", "expired": False, "size_in_bytes": 0},
+            ]
+        }
+
+        def fake_api(_api_url: str, _token: str, path: str) -> dict[str, object]:
+            return artifacts if "/artifacts?" in path else runs
+
+        with patch.object(build_artifact, "_github_json", side_effect=fake_api):
+            result = build_artifact.find_angular_bundle_artifact(
+                api_url="https://api.github.com",
+                token="test-token",
+                repository="nirzaf/AuditSphere",
+                branch="master",
+                source_sha=SOURCE_SHA,
+            )
+
+        self.assertFalse(result["available"])
+        self.assertEqual("no matching retained exact-source Angular artifact", result["reason"])
+
+    def test_prepare_angular_context_copies_bundle_and_removes_placeholder(self) -> None:
+        artifact = Path(self.temp.name) / "angular-artifact"
+        artifact.mkdir()
+        (artifact / "index.html").write_text("<html>tested exact-source bundle</html>", encoding="utf-8")
+        (artifact / "main.js").write_text("bundle", encoding="utf-8")
+        assets = artifact / "assets"
+        assets.mkdir()
+        (assets / "logo.svg").write_text("<svg />", encoding="utf-8")
+        release_assets = self.root / "release-assets" / "angular"
+        release_assets.mkdir(parents=True)
+        (release_assets / ".keep").touch()
+
+        result = build_artifact.prepare_angular_docker_context(
+            artifact_dir=artifact,
+            context_dir=self.root,
+        )
+
+        self.assertTrue(result["available"])
+        self.assertEqual(3, result["fileCount"])
+        self.assertFalse((release_assets / ".keep").exists())
+        self.assertEqual("bundle", (release_assets / "main.js").read_text(encoding="utf-8"))
+        self.assertEqual("<svg />", (release_assets / "assets" / "logo.svg").read_text(encoding="utf-8"))
+
+    def test_prepare_angular_context_keeps_fallback_when_bundle_is_missing(self) -> None:
+        artifact = Path(self.temp.name) / "missing-angular-artifact"
+        release_assets = self.root / "release-assets" / "angular"
+        release_assets.mkdir(parents=True)
+        placeholder = release_assets / ".keep"
+        placeholder.touch()
+
+        result = build_artifact.prepare_angular_docker_context(
+            artifact_dir=artifact,
+            context_dir=self.root,
+        )
+
+        self.assertFalse(result["available"])
+        self.assertTrue(placeholder.is_file())
+
+    def test_prepare_angular_context_rejects_symlinked_release_assets_parent(self) -> None:
+        artifact = Path(self.temp.name) / "angular-artifact"
+        artifact.mkdir()
+        (artifact / "index.html").write_text("<html />", encoding="utf-8")
+        real_assets = self.root / "actual-release-assets"
+        real_assets.mkdir()
+        (self.root / "release-assets").symlink_to(real_assets, target_is_directory=True)
+
+        with self.assertRaisesRegex(ValueError, "cannot be symlinks"):
+            build_artifact.prepare_angular_docker_context(
+                artifact_dir=artifact,
+                context_dir=self.root,
+            )
+
+    def test_prepare_angular_context_falls_back_for_symlinked_artifact_root(self) -> None:
+        artifact = Path(self.temp.name) / "angular-artifact"
+        artifact.mkdir()
+        (artifact / "index.html").write_text("<html />", encoding="utf-8")
+        artifact_link = Path(self.temp.name) / "angular-artifact-link"
+        artifact_link.symlink_to(artifact, target_is_directory=True)
+
+        result = build_artifact.prepare_angular_docker_context(
+            artifact_dir=artifact_link,
+            context_dir=self.root,
+        )
+
+        self.assertFalse(result["available"])
+        self.assertEqual("downloaded Angular bundle root cannot be a symlink", result["reason"])
+
 
 if __name__ == "__main__":
     unittest.main()

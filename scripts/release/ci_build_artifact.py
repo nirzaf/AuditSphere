@@ -464,6 +464,141 @@ def find_fast_build_artifact(
     return {"available": False, "reason": "no matching successful fast-CI artifact"}
 
 
+def find_angular_bundle_artifact(
+    *,
+    api_url: str,
+    token: str,
+    repository: str,
+    branch: str,
+    source_sha: str,
+    workflow_id: str = "ci.yml",
+) -> dict[str, Any]:
+    """Find a retained Angular bundle from a successful default-branch CI run for this SHA."""
+
+    _validate_sha(source_sha)
+    if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) is None:
+        raise ValueError("repository must be in owner/name form")
+    if not token:
+        return {"available": False, "reason": "actions-read token unavailable"}
+    workflow = urllib.parse.quote(workflow_id, safe="")
+    repo = urllib.parse.quote(repository, safe="/")
+    runs: list[dict[str, Any]] = []
+    for event in ("push", "workflow_dispatch"):
+        query = urllib.parse.urlencode(
+            {"branch": branch, "event": event, "status": "completed", "per_page": "100"}
+        )
+        try:
+            payload = _github_json(
+                api_url,
+                token,
+                f"/repos/{repo}/actions/workflows/{workflow}/runs?{query}",
+            )
+        except (OSError, urllib.error.URLError, json.JSONDecodeError, ValueError) as exc:
+            status = getattr(exc, "code", None)
+            return {
+                "available": False,
+                "reason": f"GitHub Actions API unavailable{f' (HTTP {status})' if status else ''}",
+            }
+        event_runs = payload.get("workflow_runs", [])
+        if not isinstance(event_runs, list):
+            return {"available": False, "reason": "GitHub Actions run metadata is malformed"}
+        runs.extend(run for run in event_runs if isinstance(run, dict))
+
+    matches = [
+        run
+        for run in runs
+        if run.get("head_sha") == source_sha
+        and run.get("head_branch") == branch
+        and run.get("event") in {"push", "workflow_dispatch"}
+        and run.get("status") == "completed"
+        and run.get("conclusion") == "success"
+        and isinstance(run.get("path", ".github/workflows/ci.yml"), str)
+        and run.get("path", ".github/workflows/ci.yml").endswith("/ci.yml")
+    ]
+    matches.sort(key=lambda run: (run.get("run_number", 0), run.get("run_attempt", 0)), reverse=True)
+    for run in matches:
+        run_id = run.get("id")
+        attempt = run.get("run_attempt")
+        if not isinstance(run_id, int) or run_id < 1 or not isinstance(attempt, int) or attempt < 1:
+            continue
+        try:
+            artifacts = _github_json(
+                api_url,
+                token,
+                f"/repos/{repo}/actions/runs/{run_id}/artifacts?per_page=100",
+            ).get("artifacts", [])
+        except (OSError, urllib.error.URLError, json.JSONDecodeError, ValueError) as exc:
+            status = getattr(exc, "code", None)
+            return {
+                "available": False,
+                "reason": f"GitHub Actions artifact metadata unavailable{f' (HTTP {status})' if status else ''}",
+            }
+        for artifact in artifacts if isinstance(artifacts, list) else []:
+            if (
+                isinstance(artifact, dict)
+                and artifact.get("name") == "angular-ui-browser"
+                and artifact.get("expired") is False
+                and isinstance(artifact.get("size_in_bytes"), int)
+                and artifact["size_in_bytes"] > 0
+                and isinstance(artifact.get("id"), int)
+            ):
+                return {
+                    "available": True,
+                    "reason": "exact-source successful default-branch Angular artifact found",
+                    "runId": run_id,
+                    "runAttempt": attempt,
+                    "artifactId": artifact["id"],
+                    "artifactName": "angular-ui-browser",
+                    "sourceSha": source_sha,
+                }
+    return {"available": False, "reason": "no matching retained exact-source Angular artifact"}
+
+
+def prepare_angular_docker_context(*, artifact_dir: Path, context_dir: Path) -> dict[str, Any]:
+    """Copy a downloaded CI UI bundle into the API image context, or report fallback required."""
+
+    if artifact_dir.is_symlink():
+        return {"available": False, "reason": "downloaded Angular bundle root cannot be a symlink"}
+    artifact_dir = artifact_dir.resolve()
+    context_dir = context_dir.resolve()
+    index = artifact_dir / "index.html"
+    if (
+        not artifact_dir.is_dir()
+        or not index.is_file()
+        or index.is_symlink()
+        or index.stat().st_size == 0
+    ):
+        return {"available": False, "reason": "downloaded Angular bundle has no regular index.html"}
+    files = [path for path in artifact_dir.rglob("*") if path.is_file()]
+    if not files or any(path.is_symlink() for path in artifact_dir.rglob("*")):
+        return {"available": False, "reason": "downloaded Angular bundle is empty or contains symlinks"}
+    target = context_dir / "release-assets" / "angular"
+    if context_dir not in target.parents:
+        raise ValueError("Angular bundle target must be within the Docker build context")
+    release_assets = context_dir / "release-assets"
+    if release_assets.is_symlink() or target.is_symlink():
+        raise ValueError("Angular bundle target and its parent cannot be symlinks")
+    target.mkdir(parents=True, exist_ok=True)
+    for child in target.iterdir():
+        if child.name == ".keep":
+            child.unlink()
+        elif child.is_dir() and not child.is_symlink():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+    for source in files:
+        relative = source.relative_to(artifact_dir)
+        destination = target / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, destination)
+    return {
+        "available": True,
+        "reason": "exact-source CI Angular artifact copied into API image context",
+        "fileCount": len(files),
+        "indexBytes": index.stat().st_size,
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -497,6 +632,23 @@ def _parser() -> argparse.ArgumentParser:
     find.add_argument("--source-sha", required=True)
     find.add_argument("--workflow-id", default="ci.yml")
     find.add_argument("--github-output", type=Path)
+
+    find_angular = commands.add_parser(
+        "find-angular-bundle", help="locate a retained exact-source Angular CI artifact"
+    )
+    find_angular.add_argument("--api-url", required=True)
+    find_angular.add_argument("--repository", required=True)
+    find_angular.add_argument("--branch", required=True)
+    find_angular.add_argument("--source-sha", required=True)
+    find_angular.add_argument("--workflow-id", default="ci.yml")
+    find_angular.add_argument("--github-output", type=Path)
+
+    prepare_angular = commands.add_parser(
+        "prepare-angular-context", help="stage an optional downloaded Angular bundle for API image build"
+    )
+    prepare_angular.add_argument("--artifact-dir", required=True, type=Path)
+    prepare_angular.add_argument("--context-dir", type=Path, default=Path.cwd())
+    prepare_angular.add_argument("--github-output", type=Path)
     return parser
 
 
@@ -527,8 +679,17 @@ def main() -> int:
                 runner_image=args.runner_image,
                 runner_version=args.runner_version,
             )
-        else:
+        elif args.command == "find":
             result = find_fast_build_artifact(
+                api_url=args.api_url,
+                token=os.environ.get("GH_TOKEN", ""),
+                repository=args.repository,
+                branch=args.branch,
+                source_sha=args.source_sha,
+                workflow_id=args.workflow_id,
+            )
+        elif args.command == "find-angular-bundle":
+            result = find_angular_bundle_artifact(
                 api_url=args.api_url,
                 token=os.environ.get("GH_TOKEN", ""),
                 repository=args.repository,
@@ -541,6 +702,7 @@ def main() -> int:
                     "available": str(result["available"]).lower(),
                     "run_id": str(result.get("runId", "")),
                     "run_attempt": str(result.get("runAttempt", "")),
+                    "artifact_id": str(result.get("artifactId", "")),
                     "artifact_name": result.get("artifactName", ""),
                     "reason": result.get("reason", ""),
                 }
@@ -549,6 +711,14 @@ def main() -> int:
                         if "\n" in value or "\r" in value:
                             raise ValueError("GitHub output value contains a newline")
                         stream.write(f"{key}={value}\n")
+        else:
+            result = prepare_angular_docker_context(
+                artifact_dir=args.artifact_dir,
+                context_dir=args.context_dir,
+            )
+            if args.github_output:
+                with args.github_output.open("a", encoding="utf-8") as stream:
+                    stream.write(f"available={str(result['available']).lower()}\n")
         print(json.dumps(result, sort_keys=True))
         return 0
     except (OSError, tarfile.TarError, ValueError, json.JSONDecodeError, urllib.error.URLError) as exc:

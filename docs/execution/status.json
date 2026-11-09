@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T16:18:00Z",
+  "observedAtUtc": "2026-11-09T18:45:20Z",
   "source": {
     "branch": "master",
-    "baseSha": "db72e1de4d994213405e2ed40680d9a9127fc8b6",
-    "originMasterSha": "db72e1de4d994213405e2ed40680d9a9127fc8b6",
-    "workingTree": "CI acceleration evidence refresh; baseline db72e1de.",
+    "baseSha": "472238a8e4dc4c6d6c31a27ef69fca495b50cabb",
+    "originMasterSha": "472238a8e4dc4c6d6c31a27ef69fca495b50cabb",
+    "workingTree": "API image Angular bundle reuse candidate based on 472238a8; exact-source fast CI pending.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -16,11 +16,11 @@
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Observe the new Playwright fallback only on naturally required full verification; no unchanged rerun. Deployment-stage timings require owner-authorized release. Do not change tests/timeouts/parallelism.",
-      "note": "Exact fast CI 42650506452 PASS all 5 jobs and actual checkout db72e1de; exact build artifact restored. Full API/E2E failures remain unresolved.",
-      "currentSourceSha": "db72e1de4d994213405e2ed40680d9a9127fc8b6"
+      "nextAction": "Push the scoped candidate and monitor its exact-source fast CI; image and deployment timings await an authorized release.",
+      "note": "Exact-source UI artifact reuse is limited to the API image; fallback and release gates are retained.",
+      "currentSourceSha": "472238a8e4dc4c6d6c31a27ef69fca495b50cabb"
     },
-    "ciCdAcceleration": "Published exact/OS-prefix Playwright cache restore; cache savings unmeasured. Exact fast run 42650506452 passed all 5 jobs on db72e1de; exact 439.7MB Release artifact restored across 20 outputs in 50.9s. Full API/E2E causes unknown; deployment timings unmeasured.",
+    "ciCdAcceleration": "Playwright cache fallback published; savings unmeasured. API-only exact-SHA Angular artifact reuse candidate has source-build fallback; 13 focused tests/static checks pass. Exact fast CI and image/deployment savings pending.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
@@ -1899,9 +1899,8 @@
     "nextAction": "No further path classes are allowed without preserving full application checks."
   },
   "ciCdAccelerationCandidate20261109": {
-    "observedAtUtc": "2026-11-09T15:40:56Z",
-    "candidateSha": "db72e1de4d994213405e2ed40680d9a9127fc8b6",
-    "status": "FAST_CI_PASS; PLAYWRIGHT_CACHE_PREFIX_PUBLISHED; CACHE_SAVINGS_UNMEASURED; FULL_FAILURES_UNRESOLVED; NO_DEPLOYMENT",
+    "observedAtUtc": "2026-11-09T18:45:20Z",
+    "status": "CANDIDATE_FROM_472238A8; 13_HELPER_TESTS_PASS; STATIC_CHECKS_PASS; EXACT_FAST_CI_PENDING; NO_DEPLOYMENT",
     "fastRun": {
       "id": 42650506452,
       "result": "PASS all 5 jobs; actual checkouts verified; exact 439.7MB artifact restored across 20 outputs in 50.9s"
@@ -1928,8 +1927,9 @@
         "result": "failure after 2h50m; API exit 143 at 150m; E2E inactivity after 334 passes/0 assertions; causes unknown"
       }
     ],
-    "playwrightCache": "Restore now falls back to OS-compatible prefix after exact key miss; exact fast CI does not exercise this cache. Savings unmeasured.",
+    "playwrightCache": "Exact and OS-prefix restore paths are published; full-suite hit/savings remain unmeasured.",
     "deployment": "No deployment performed; protected approval and migration/canary/smoke order unchanged; stage durations unmeasured.",
-    "nextAction": "Observe cache behavior on a naturally required exact full run; no repeat of failed API/E2E cohort without distinct cause evidence. Deployment measurements only on authorized release."
+    "nextAction": "Push candidate and monitor exact fast CI. Image/deployment savings remain unmeasured; no release dispatch.",
+    "baseSha": "UNCOMMITTED_FROM_472238a8e4dc4c6d6c31a27ef69fca495b50cabb"
   }
 }

@@ -76,6 +76,10 @@ jobs:
     name: Precondition · CI passed for this commit
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      angular_bundle_run_id: ${{ steps.find-angular.outputs.run_id }}
+      angular_bundle_run_attempt: ${{ steps.find-angular.outputs.run_attempt }}
+      angular_bundle_artifact_id: ${{ steps.find-angular.outputs.artifact_id }}
     permissions:
       contents: read
       actions: read
@@ -87,9 +91,16 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Check out the exact release source for CI artifact discovery
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
       - name: Require a successful ci.yml run for the exact commit
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
           runs="$(gh api --paginate \
             "repos/${REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${RELEASE_SHA}&per_page=100" \
             --jq '.workflow_runs[] | select(.head_sha == env.RELEASE_SHA and .conclusion == "success") | .html_url')"
@@ -110,6 +121,19 @@ jobs:
             echo "- Successful ci.yml run(s):"
             printf '%s\n' "$runs" | sed 's/^/  - /'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Find optional exact-source Angular bundle artifact
+        id: find-angular
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          default_branch="$(gh api "repos/${REPOSITORY}" --jq .default_branch)"
+          python3 scripts/release/ci_build_artifact.py find-angular-bundle \
+            --api-url https://api.github.com \
+            --repository "$REPOSITORY" \
+            --branch "$default_branch" \
+            --source-sha "$RELEASE_SHA" \
+            --github-output "$GITHUB_OUTPUT"
 
   verify-release-source:
     name: Precondition · Full regression passed for this commit
@@ -216,6 +240,37 @@ jobs:
           [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
+      - name: Download exact-source Angular bundle when retained
+        id: download-angular
+        if: ${{ matrix.key == 'api' && needs.verify-ci-passed.outputs.angular_bundle_run_id != '' }}
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: angular-ui-browser
+          path: ${{ runner.temp }}/release-angular-ui
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.verify-ci-passed.outputs.angular_bundle_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Prepare verified UI bundle or Dockerfile source-build fallback
+        id: prepare-angular
+        if: ${{ matrix.key == 'api' }}
+        run: |
+          set -euo pipefail
+          test -f release-assets/angular/.keep
+          python3 scripts/release/ci_build_artifact.py prepare-angular-context \
+            --artifact-dir "$RUNNER_TEMP/release-angular-ui" \
+            --context-dir "$GITHUB_WORKSPACE" \
+            --github-output "$GITHUB_OUTPUT"
+          available="$(sed -n 's/^available=//p' "$GITHUB_OUTPUT" | tail -n 1)"
+          if [ "$available" = true ]; then
+            echo "Reusing tested Angular bundle from successful exact-source CI run ${{ needs.verify-ci-passed.outputs.angular_bundle_run_id }}." \
+              >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Exact-source Angular artifact unavailable; API Dockerfile will build Angular from this checkout." \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Set up Buildx with isolated image cache
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
         with:
@@ -230,6 +285,7 @@ jobs:
           platforms: linux/amd64
           tags: ${{ inputs.acr_name }}.azurecr.io/${{ matrix.image }}:${{ github.sha }}
           load: true
+          build-args: ${{ matrix.key == 'api' && format('USE_PREBUILT_ANGULAR={0}', steps.prepare-angular.outputs.available) || '' }}
           cache-from: type=gha,scope=auditsphere-release-${{ matrix.key }}
           cache-to: type=gha,scope=auditsphere-release-${{ matrix.key }},mode=max,ignore-error=true,timeout=3m
 
@@ -239,6 +295,10 @@ jobs:
           IMAGE_KEY: ${{ matrix.key }}
           IMAGE_NAME: ${{ matrix.image }}
           DOCKERFILE: ${{ matrix.dockerfile }}
+          ANGULAR_BUNDLE_AVAILABLE: ${{ matrix.key == 'api' && steps.prepare-angular.outputs.available == 'true' }}
+          ANGULAR_BUNDLE_RUN_ID: ${{ matrix.key == 'api' && needs.verify-ci-passed.outputs.angular_bundle_run_id || '' }}
+          ANGULAR_BUNDLE_RUN_ATTEMPT: ${{ matrix.key == 'api' && needs.verify-ci-passed.outputs.angular_bundle_run_attempt || '' }}
+          ANGULAR_BUNDLE_ARTIFACT_ID: ${{ matrix.key == 'api' && needs.verify-ci-passed.outputs.angular_bundle_artifact_id || '' }}
         run: |
           set -euo pipefail
           [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]
@@ -269,6 +329,10 @@ jobs:
               "archiveSha256": digest,
               "archiveBytes": archive.stat().st_size,
               "cacheScope": f"auditsphere-release-{os.environ['IMAGE_KEY']}",
+              "prebuiltAngular": os.environ["ANGULAR_BUNDLE_AVAILABLE"] == "true",
+              "angularBundleCiRunId": int(os.environ["ANGULAR_BUNDLE_RUN_ID"]) if os.environ["ANGULAR_BUNDLE_AVAILABLE"] == "true" else None,
+              "angularBundleCiRunAttempt": int(os.environ["ANGULAR_BUNDLE_RUN_ATTEMPT"]) if os.environ["ANGULAR_BUNDLE_AVAILABLE"] == "true" else None,
+              "angularBundleArtifactId": int(os.environ["ANGULAR_BUNDLE_ARTIFACT_ID"]) if os.environ["ANGULAR_BUNDLE_AVAILABLE"] == "true" else None,
               "runnerArchitecture": platform.machine(),
           }, open(sys.argv[1], "w"), indent=2)
           PY
@@ -348,7 +412,7 @@ jobs:
               --arg imageName "$image_name" \
               --arg dockerfile "$dockerfile" \
               --arg imageRef "$expected_image" \
-              '.schemaVersion == 1 and .repository == $repository and .workflowRunId == ($runId | tonumber) and .workflowRunAttempt == ($runAttempt | tonumber) and .sourceSha == $sourceSha and .imageKey == $imageKey and .imageName == $imageName and .dockerfile == $dockerfile and .imageRef == $imageRef and .platform == "linux/amd64" and .archiveFile == "image.tar" and (.archiveSha256 | test("^[0-9a-f]{64}$")) and (.archiveBytes | type == "number" and . > 0) and .cacheScope == ("auditsphere-release-" + $imageKey)' \
+              '.schemaVersion == 1 and .repository == $repository and .workflowRunId == ($runId | tonumber) and .workflowRunAttempt == ($runAttempt | tonumber) and .sourceSha == $sourceSha and .imageKey == $imageKey and .imageName == $imageName and .dockerfile == $dockerfile and .imageRef == $imageRef and .platform == "linux/amd64" and .archiveFile == "image.tar" and (.archiveSha256 | test("^[0-9a-f]{64}$")) and (.archiveBytes | type == "number" and . > 0) and .cacheScope == ("auditsphere-release-" + $imageKey) and (.prebuiltAngular | type == "boolean") and (if .prebuiltAngular then (.imageKey == "api" and (.angularBundleCiRunId | type == "number" and . > 0) and (.angularBundleCiRunAttempt | type == "number" and . > 0) and (.angularBundleArtifactId | type == "number" and . > 0)) else (.angularBundleCiRunId == null and .angularBundleCiRunAttempt == null and .angularBundleArtifactId == null) end)' \
               "$manifest" >/dev/null
             test -s "$archive"
             test "$(wc -c < "$archive" | tr -d '[:space:]')" -eq "$(jq -r .archiveBytes "$manifest")"

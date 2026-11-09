@@ -25,3 +25,7 @@ Dockerfile*
 **/Dockerfile*
 .dockerignore
 !docs/task_breakdown/tasks/**/*.md
+release-assets/*
+!release-assets/angular/
+release-assets/angular/*
+!release-assets/angular/**
