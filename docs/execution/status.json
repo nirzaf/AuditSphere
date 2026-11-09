@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T00:51:32Z",
+  "observedAtUtc": "2026-11-09T02:09:45Z",
   "source": {
     "branch": "master",
-    "baseSha": "ccc2e271ba36c88143c70fd4010aadc1eb724115",
-    "originMasterSha": "ccc2e271ba36c88143c70fd4010aadc1eb724115",
-    "workingTree": "HEAD/origin/master ccc2e271; local uncommitted files add the fail-closed docs-only CI fast path and aligned evidence docs. Exact ccc2e271 fast run 42540220178 passed all four jobs; its source-bound build artifact was reused.",
+    "baseSha": "0a7cbc66395d4951bb4613891771b56b1e5bb07b",
+    "originMasterSha": "0a7cbc66395d4951bb4613891771b56b1e5bb07b",
+    "workingTree": "Candidate based on master 0a7cbc66395d4951bb4613891771b56b1e5bb07b; exact-source full verification has not run.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,7 @@
       "note": "2026-11-08T13:05:03Z: RUN-003 remains REPAIR on 98679131fa65076c429fca8f95bb1f74ba7d7d7e. Exact fast run 42481222673 passed Angular, Docs and Release with all three actual checkout hashes matching 98679131fa65076c429fca8f95bb1f74ba7d7d7e; terminal proof .local/autonomous/evidence/ci-98679131-current-20261108/fast-terminal-proof.json. Focused API route 3/3 and named E2E 1/1 pass. Full verification for 98679131fa65076c429fca8f95bb1f74ba7d7d7e is not yet dispatched; predecessor API cancellation and E2E inactivity causes remain unconfirmed. Docs category consolidation is complete for the requested scope.",
       "currentSourceSha": "84215010a896ff94089e13751ad89354335d076c"
     },
-    "ciCdAcceleration": "Published ccc2e271 fast CI passed all four jobs with exact checkout logs; Release compile was 16m44s and its verified 439.7 MB artifact was reused (duplicate build skipped). Local docs-only classifier has 10 focused tests/actionlint pass; it is not published and has no measured workflow savings yet. Full verification remains pending."
+    "ciCdAcceleration": "Candidate based on 0a7cbc66395d4951bb4613891771b56b1e5bb07b separates exact-source build/artifact prep from contracts so full .NET suites and contracts can run concurrently. Local checks pass; exact CI and savings remain unmeasured."
   },
   "localVerification": {
     "documentationHealth": {
@@ -1898,5 +1898,14 @@
     },
     "savings": "ONE_OBSERVATION: docs-only 117s vs prior full fast 1153s; 1036s observed difference, not controlled.",
     "nextAction": "No CI classification change pending. Release image build/deploy already parallelizes images with full verification; production deployment timing remains NOT_MEASURED."
+  },
+  "ciCdAccelerationCandidate20261109": {
+    "candidateStatus": "CANDIDATE_PENDING_EXACT_CI",
+    "baseSha": "0a7cbc66395d4951bb4613891771b56b1e5bb07b",
+    "change": "Parallelize full .NET suites with contract checks after one exact-source build/artifact stage.",
+    "preserved": "Single build/fallback; all unfiltered tests, contracts and release gates.",
+    "localVerification": "actionlint, dependency/provenance assertions, release Python tests 9/9, diff check PASS.",
+    "exactCandidateCi": "NOT_RUN",
+    "deploymentTiming": "NOT_MEASURED"
   }
 }

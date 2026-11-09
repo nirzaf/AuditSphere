@@ -249,7 +249,7 @@ jobs:
 
   dotnet-tests:
     name: Test · .NET ${{ matrix.name }} (unfiltered)
-    needs: [resolve-ref, angular, release-contract]
+    needs: [resolve-ref, angular, release-build-artifacts]
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     strategy:
@@ -374,7 +374,7 @@ jobs:
             actual_sdk="$(dotnet --version)"
             expected_hosts="[]"
             if [ "$TEST_PROJECT_KEY" = e2e ]; then
-              expected_hosts="[{\"key\":\"api\",\"project\":\"src/AuditSphereOps.Api/AuditSphereOps.Api.csproj\",\"assembly\":\"AuditSphereOps.Api\"},{\"key\":\"worker\",\"project\":\"src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj\",\"assembly\":\"AuditSphereOps.Worker\"}]"
+              expected_hosts="[{\"key\":\"api\",\"project\":\"src/AuditSphereOps.Api/AuditSphereOps.Api.csproj\",\"assembly\":\"AuditSphereOps.Api\",\"objPath\":\"hosts/obj/AuditSphereOps.Api/release\"},{\"key\":\"worker\",\"project\":\"src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj\",\"assembly\":\"AuditSphereOps.Worker\",\"objPath\":\"hosts/obj/AuditSphereOps.Worker/release\"},{\"key\":\"infrastructure\",\"project\":\"src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj\",\"assembly\":\"AuditSphereOps.Infrastructure\",\"objPath\":\"hosts/obj/AuditSphereOps.Infrastructure/release\"}]"
             fi
             test "$actual_sdk" = "$expected_sdk"
             jq -e \
@@ -398,15 +398,18 @@ jobs:
               test -s "$binary_root/playwright.ps1"
               test -s "$binary_root/.playwright/node/linux-x64/node"
               test -s "$binary_root/.playwright/package/lib/coreBundle.js"
-              for host in api worker; do
+              for host in api worker infrastructure; do
                 case "$host" in
                   api) host_assembly=AuditSphereOps.Api ;;
                   worker) host_assembly=AuditSphereOps.Worker ;;
+                  infrastructure) host_assembly=AuditSphereOps.Infrastructure ;;
                 esac
                 host_binary_root="$RUNNER_TEMP/release-verification-test-build/hosts/bin/$host_assembly/release"
                 test -s "$host_binary_root/$host_assembly.dll"
                 test -s "$host_binary_root/$host_assembly.deps.json"
-                test -s "$host_binary_root/$host_assembly.runtimeconfig.json"
+                if [ "$host" != infrastructure ]; then
+                  test -s "$host_binary_root/$host_assembly.runtimeconfig.json"
+                fi
               done
               echo "AUDITSPHERE_TEST_ARTIFACTS_ROOT=$RUNNER_TEMP/release-verification-test-build/hosts" >> "$GITHUB_ENV"
             fi
@@ -486,8 +489,8 @@ jobs:
             echo "Commit: \`$SOURCE_COMMIT\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  release-contract:
-    name: Verify · Build, contracts and publication
+  release-build-artifacts:
+    name: Build · Exact-source Release and test artifacts
     needs: [resolve-ref, angular]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -519,7 +522,7 @@ jobs:
           echo "VERIFICATION_LOG_DIR=$evidence/logs" >> "$GITHUB_ENV"
           echo "VERIFICATION_TRX_DIR=$evidence/trx" >> "$GITHUB_ENV"
           {
-            echo "## Build, contract and publication verification"
+            echo "## Exact-source Release build and test artifacts"
             echo
             echo "- Requested ref: \`$REQUESTED_REF\`"
             echo "- Commit: \`$SOURCE_COMMIT\`"
@@ -549,7 +552,8 @@ jobs:
       # A successful push run of ci.yml may have compiled this exact commit in the same pinned
       # SDK and runner image. Its optional artifact is a performance hint only: identity, manifest,
       # digest and every extracted path are verified below, and any absence/refusal uses the clean
-      # solution-build path. Full test execution and all publication/contract checks remain here.
+      # solution-build path. The uploaded binaries let full .NET tests and contract checks start
+      # independently as soon as this preparation job completes.
       - name: Locate a successful exact-source fast-CI build artifact
         id: fast-build
         env:
@@ -617,6 +621,257 @@ jobs:
           bash scripts/release/run-verification-step.sh "dotnet build (Release, one MSBuild node)" \
             dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1 \
               -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RunAnalyzers=false
+
+      - name: Stage source-bound unfiltered test outputs
+        env:
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          expected_sdk="$(jq -r .sdk.version global.json)"
+          actual_sdk="$(dotnet --version)"
+          test "$actual_sdk" = "$expected_sdk"
+          artifact_root="$RUNNER_TEMP/release-verification-test-build"
+          mkdir -p "$artifact_root"
+          for key in domain api e2e; do
+            case "$key" in
+              domain) project=tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj ;;
+              api) project=tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj ;;
+              e2e) project=tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj ;;
+              *) echo "Unexpected test project key: $key" >&2; exit 2 ;;
+            esac
+            assembly="$(basename "$project" .csproj)"
+            source_output="${project%/*}/bin/Release/net10.0"
+            staging="$artifact_root/$key"
+            test -s "$source_output/$assembly.dll"
+            test -s "$source_output/$assembly.deps.json"
+            test -s "$source_output/$assembly.runtimeconfig.json"
+            if [ "$key" = e2e ]; then
+              test -s "$source_output/playwright.ps1"
+              test -s "$source_output/.playwright/node/linux-x64/node"
+              test -s "$source_output/.playwright/package/lib/coreBundle.js"
+              # The contract job also runs no-build EF and publish checks from these exact outputs.
+              for host in api worker infrastructure; do
+                case "$host" in
+                  api)
+                    host_project=src/AuditSphereOps.Api/AuditSphereOps.Api.csproj
+                    host_assembly=AuditSphereOps.Api
+                    ;;
+                  worker)
+                    host_project=src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj
+                    host_assembly=AuditSphereOps.Worker
+                    ;;
+                  infrastructure)
+                    host_project=src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj
+                    host_assembly=AuditSphereOps.Infrastructure
+                    ;;
+                esac
+                host_source="${host_project%/*}/bin/Release/net10.0"
+                host_staging="$staging/hosts/bin/$host_assembly/release"
+                host_obj_source="${host_project%/*}/obj/Release/net10.0"
+                host_obj_staging="$staging/hosts/obj/$host_assembly/release"
+                test -s "$host_source/$host_assembly.dll"
+                test -s "$host_source/$host_assembly.deps.json"
+                if [ "$host" != infrastructure ]; then
+                  test -s "$host_source/$host_assembly.runtimeconfig.json"
+                fi
+                test -d "${host_project%/*}/obj/Release/net10.0"
+                mkdir -p "$host_staging" "$host_obj_staging"
+                cp -a "$host_source/." "$host_staging/"
+                cp -a "$host_obj_source/." "$host_obj_staging/"
+              done
+            fi
+            mkdir -p "$staging/bin/Release/net10.0"
+            cp -a "$source_output/." "$staging/bin/Release/net10.0/"
+            ARTIFACT_NAME="release-verification-test-build-${SOURCE_COMMIT}-${GITHUB_RUN_ID}-${key}" \
+              PROJECT="$project" ASSEMBLY="$assembly" PROJECT_KEY="$key" DOTNET_SDK="$actual_sdk" \
+              python3 - "$staging/source.json" <<'PY'
+          import json, os, platform, sys
+          host_artifacts = []
+          if os.environ["PROJECT_KEY"] == "e2e":
+              host_artifacts = [
+                  {"key": "api", "project": "src/AuditSphereOps.Api/AuditSphereOps.Api.csproj", "assembly": "AuditSphereOps.Api", "objPath": "hosts/obj/AuditSphereOps.Api/release"},
+                  {"key": "worker", "project": "src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj", "assembly": "AuditSphereOps.Worker", "objPath": "hosts/obj/AuditSphereOps.Worker/release"},
+                  {"key": "infrastructure", "project": "src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj", "assembly": "AuditSphereOps.Infrastructure", "objPath": "hosts/obj/AuditSphereOps.Infrastructure/release"},
+              ]
+          json.dump({
+              "schemaVersion": 1,
+              "artifactName": os.environ["ARTIFACT_NAME"],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "runId": int(os.environ["GITHUB_RUN_ID"]),
+              "runAttempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "resolvedCommit": os.environ["SOURCE_COMMIT"],
+              "project": os.environ["PROJECT"],
+              "assembly": os.environ["ASSEMBLY"],
+              "configuration": "Release",
+              "targetFramework": "net10.0",
+              "dotnetSdk": os.environ["DOTNET_SDK"],
+              "operatingSystem": platform.system(),
+              "machine": platform.machine(),
+              "hostArtifacts": host_artifacts,
+          }, open(sys.argv[1], "w"), indent=2)
+          PY
+          done
+
+      - name: Upload source-bound Domain test build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-test-build-${{ needs.resolve-ref.outputs.commit }}-${{ github.run_id }}-domain
+          path: ${{ runner.temp }}/release-verification-test-build/domain
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+          include-hidden-files: true
+
+      - name: Upload source-bound API test build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-test-build-${{ needs.resolve-ref.outputs.commit }}-${{ github.run_id }}-api
+          path: ${{ runner.temp }}/release-verification-test-build/api
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+          include-hidden-files: true
+
+      - name: Upload source-bound E2E test and host build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-test-build-${{ needs.resolve-ref.outputs.commit }}-${{ github.run_id }}-e2e
+          path: ${{ runner.temp }}/release-verification-test-build/e2e
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+          include-hidden-files: true
+
+      - name: Upload Release build preparation logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-logs-build
+          path: ${{ runner.temp }}/release-verification/logs
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Record build artifact outcome
+        if: ${{ always() }}
+        env:
+          RESULT: ${{ job.status }}
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          {
+            echo
+            echo "Exact-source build artifact preparation outcome: \`$RESULT\`"
+            echo "Commit: \`$SOURCE_COMMIT\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release-contract:
+    name: Verify · Contracts and publication
+    needs: [resolve-ref, angular, release-build-artifacts]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
+    env:
+      DOTNET_gcServer: '0'
+      DOTNET_GCConserveMemory: '9'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the resolved requested ref
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.commit }}
+          persist-credentials: false
+
+      - name: Prepare evidence directories and job summary
+        env:
+          REQUESTED_REF: ${{ inputs.ref || github.event.repository.default_branch }}
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/release-verification"
+          mkdir -p "$evidence/logs" "$evidence/trx"
+          echo "VERIFICATION_LOG_DIR=$evidence/logs" >> "$GITHUB_ENV"
+          echo "VERIFICATION_TRX_DIR=$evidence/trx" >> "$GITHUB_ENV"
+          {
+            echo "## Contract and publication verification"
+            echo
+            echo "- Requested ref: \`$REQUESTED_REF\`"
+            echo "- Commit: \`$SOURCE_COMMIT\`"
+            echo
+            echo "| Step | Command | Exit status | Result |"
+            echo "| --- | --- | ---: | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up the pinned .NET SDK
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Verify SDK and restore tools and packages
+        run: |
+          set -euo pipefail
+          bash scripts/release/run-verification-step.sh "Pinned .NET SDK disables roll-forward" \
+            jq -e '.sdk.rollForward == "disable"' global.json
+          bash scripts/release/run-verification-step.sh "Selected .NET SDK matches global.json" \
+            bash -c 'test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"'
+          bash scripts/release/run-verification-step.sh "dotnet tool restore" dotnet tool restore
+          bash scripts/release/run-verification-step.sh "dotnet restore (locked mode)" \
+            dotnet restore AuditSphereOps.slnx --locked-mode
+
+      - name: Download source-bound E2E test and host build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-verification-test-build-${{ needs.resolve-ref.outputs.commit }}-${{ github.run_id }}-e2e
+          path: ${{ runner.temp }}/release-verification-e2e-build
+
+      - name: Verify and restore exact-source contract host outputs
+        env:
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          artifact="$RUNNER_TEMP/release-verification-e2e-build"
+          manifest="$artifact/source.json"
+          expected_sdk="$(jq -r .sdk.version global.json)"
+          actual_sdk="$(dotnet --version)"
+          expected_hosts='[{"key":"api","project":"src/AuditSphereOps.Api/AuditSphereOps.Api.csproj","assembly":"AuditSphereOps.Api","objPath":"hosts/obj/AuditSphereOps.Api/release"},{"key":"worker","project":"src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj","assembly":"AuditSphereOps.Worker","objPath":"hosts/obj/AuditSphereOps.Worker/release"},{"key":"infrastructure","project":"src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj","assembly":"AuditSphereOps.Infrastructure","objPath":"hosts/obj/AuditSphereOps.Infrastructure/release"}]'
+          test "$actual_sdk" = "$expected_sdk"
+          jq -e \
+            --arg artifact "release-verification-test-build-${SOURCE_COMMIT}-${GITHUB_RUN_ID}-e2e" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg commit "$SOURCE_COMMIT" \
+            --arg sdk "$actual_sdk" \
+            --arg runId "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg machine "$(uname -m)" \
+            --arg operatingSystem "$(uname -s)" \
+            --argjson expectedHosts "$expected_hosts" \
+            '.schemaVersion == 1 and .artifactName == $artifact and .repository == $repository and .resolvedCommit == $commit and .project == "tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj" and .assembly == "AuditSphereOps.E2E.Tests" and .configuration == "Release" and .targetFramework == "net10.0" and .dotnetSdk == $sdk and .runId == ($runId | tonumber) and .runAttempt == ($runAttempt | tonumber) and .machine == $machine and .operatingSystem == $operatingSystem and .hostArtifacts == $expectedHosts' \
+            "$manifest" >/dev/null
+          for host in api worker infrastructure; do
+            case "$host" in
+              api) project=src/AuditSphereOps.Api/AuditSphereOps.Api.csproj; assembly=AuditSphereOps.Api ;;
+              worker) project=src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj; assembly=AuditSphereOps.Worker ;;
+              infrastructure) project=src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj; assembly=AuditSphereOps.Infrastructure ;;
+            esac
+            source="$artifact/hosts/bin/$assembly/release"
+            output="${project%/*}/bin/Release/net10.0"
+            test -s "$source/$assembly.dll"
+            test -s "$source/$assembly.deps.json"
+            if [ "$host" != infrastructure ]; then
+              test -s "$source/$assembly.runtimeconfig.json"
+            fi
+            test -d "$artifact/hosts/obj/$assembly/release"
+            mkdir -p "$output"
+            cp -a "$source/." "$output/"
+            obj_output="${project%/*}/obj/Release/net10.0"
+            mkdir -p "$obj_output"
+            cp -a "$artifact/hosts/obj/$assembly/release/." "$obj_output/"
+          done
+          echo "Restored exact-source API, Infrastructure, and Worker Release outputs for no-build contract checks."
 
       - name: Capture NuGet operational scan evidence
         env:
@@ -717,116 +972,6 @@ jobs:
           bash scripts/release/run-verification-step.sh "UI source discovery drift" \
             python3 scripts/ui/inventory.py --check
 
-      - name: Stage source-bound unfiltered test outputs
-        env:
-          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
-        run: |
-          set -euo pipefail
-          expected_sdk="$(jq -r .sdk.version global.json)"
-          actual_sdk="$(dotnet --version)"
-          test "$actual_sdk" = "$expected_sdk"
-          artifact_root="$RUNNER_TEMP/release-verification-test-build"
-          mkdir -p "$artifact_root"
-          for key in domain api e2e; do
-            case "$key" in
-              domain) project=tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj ;;
-              api) project=tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj ;;
-              e2e) project=tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj ;;
-              *) echo "Unexpected test project key: $key" >&2; exit 2 ;;
-            esac
-            assembly="$(basename "$project" .csproj)"
-            source_output="${project%/*}/bin/Release/net10.0"
-            staging="$artifact_root/$key"
-            test -s "$source_output/$assembly.dll"
-            test -s "$source_output/$assembly.deps.json"
-            test -s "$source_output/$assembly.runtimeconfig.json"
-            if [ "$key" = e2e ]; then
-              test -s "$source_output/playwright.ps1"
-              test -s "$source_output/.playwright/node/linux-x64/node"
-              test -s "$source_output/.playwright/package/lib/coreBundle.js"
-              # These hosts were compiled by the exact-SHA Release solution build. Carry the
-              # outputs in the layout already supported by OwnedHost's artifact-root launch path.
-              for host in api worker; do
-                case "$host" in
-                  api)
-                    host_project=src/AuditSphereOps.Api/AuditSphereOps.Api.csproj
-                    host_assembly=AuditSphereOps.Api
-                    ;;
-                  worker)
-                    host_project=src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj
-                    host_assembly=AuditSphereOps.Worker
-                    ;;
-                esac
-                host_source="${host_project%/*}/bin/Release/net10.0"
-                host_staging="$staging/hosts/bin/$host_assembly/release"
-                test -s "$host_source/$host_assembly.dll"
-                test -s "$host_source/$host_assembly.deps.json"
-                test -s "$host_source/$host_assembly.runtimeconfig.json"
-                mkdir -p "$host_staging"
-                cp -a "$host_source/." "$host_staging/"
-              done
-            fi
-            mkdir -p "$staging/bin/Release/net10.0"
-            cp -a "$source_output/." "$staging/bin/Release/net10.0/"
-            ARTIFACT_NAME="release-verification-test-build-${SOURCE_COMMIT}-${GITHUB_RUN_ID}-${key}" \
-              PROJECT="$project" ASSEMBLY="$assembly" PROJECT_KEY="$key" DOTNET_SDK="$actual_sdk" \
-              python3 - "$staging/source.json" <<'PY'
-          import json, os, platform, sys
-          host_artifacts = []
-          if os.environ["PROJECT_KEY"] == "e2e":
-              host_artifacts = [
-                  {"key": "api", "project": "src/AuditSphereOps.Api/AuditSphereOps.Api.csproj", "assembly": "AuditSphereOps.Api"},
-                  {"key": "worker", "project": "src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj", "assembly": "AuditSphereOps.Worker"},
-              ]
-          json.dump({
-              "schemaVersion": 1,
-              "artifactName": os.environ["ARTIFACT_NAME"],
-              "repository": os.environ["GITHUB_REPOSITORY"],
-              "runId": int(os.environ["GITHUB_RUN_ID"]),
-              "runAttempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
-              "resolvedCommit": os.environ["SOURCE_COMMIT"],
-              "project": os.environ["PROJECT"],
-              "assembly": os.environ["ASSEMBLY"],
-              "configuration": "Release",
-              "targetFramework": "net10.0",
-              "dotnetSdk": os.environ["DOTNET_SDK"],
-              "operatingSystem": platform.system(),
-              "machine": platform.machine(),
-              "hostArtifacts": host_artifacts,
-          }, open(sys.argv[1], "w"), indent=2)
-          PY
-          done
-
-      - name: Upload source-bound Domain test build
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: release-verification-test-build-${{ needs.resolve-ref.outputs.commit }}-${{ github.run_id }}-domain
-          path: ${{ runner.temp }}/release-verification-test-build/domain
-          if-no-files-found: error
-          retention-days: 1
-          overwrite: true
-          include-hidden-files: true
-
-      - name: Upload source-bound API test build
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: release-verification-test-build-${{ needs.resolve-ref.outputs.commit }}-${{ github.run_id }}-api
-          path: ${{ runner.temp }}/release-verification-test-build/api
-          if-no-files-found: error
-          retention-days: 1
-          overwrite: true
-          include-hidden-files: true
-
-      - name: Upload source-bound E2E test build
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: release-verification-test-build-${{ needs.resolve-ref.outputs.commit }}-${{ github.run_id }}-e2e
-          path: ${{ runner.temp }}/release-verification-test-build/e2e
-          if-no-files-found: error
-          retention-days: 1
-          overwrite: true
-          include-hidden-files: true
-
       - name: Upload build and contract verification logs
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -855,14 +1000,14 @@ jobs:
           set -euo pipefail
           {
             echo
-            echo "Build and contract verification outcome: \`$RESULT\`"
+            echo "Contract verification outcome: \`$RESULT\`"
             echo "Commit: \`$SOURCE_COMMIT\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   release-gate:
     name: Verify · Full release contract
     if: ${{ always() }}
-    needs: [resolve-ref, angular, dotnet-tests, release-contract]
+    needs: [resolve-ref, angular, release-build-artifacts, dotnet-tests, release-contract]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -882,6 +1027,7 @@ jobs:
         env:
           SOURCE_RESULT: ${{ needs.resolve-ref.result }}
           ANGULAR_RESULT: ${{ needs.angular.result }}
+          BUILD_ARTIFACTS_RESULT: ${{ needs.release-build-artifacts.result }}
           DOTNET_RESULT: ${{ needs.dotnet-tests.result }}
           CONTRACT_RESULT: ${{ needs.release-contract.result }}
           REQUESTED_REF: ${{ inputs.ref || github.event.repository.default_branch }}
@@ -898,11 +1044,13 @@ jobs:
             echo "| --- | --- |"
             echo "| Resolve requested ref | $SOURCE_RESULT |"
             echo "| Angular build and full specs | $ANGULAR_RESULT |"
+            echo "| Exact-source Release/test artifact preparation | $BUILD_ARTIFACTS_RESULT |"
             echo "| All unfiltered .NET project suites | $DOTNET_RESULT |"
-            echo "| Build, contracts and publication | $CONTRACT_RESULT |"
+            echo "| Contracts and publication | $CONTRACT_RESULT |"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [[ "$SOURCE_RESULT" != success || "$ANGULAR_RESULT" != success || \
+                "$BUILD_ARTIFACTS_RESULT" != success || \
                 "$DOTNET_RESULT" != success || "$CONTRACT_RESULT" != success ]]; then
             echo "Release verification failed: one or more required gates did not succeed." >&2
             exit 1
