@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Select the fast CI path, allowing only docs-only Markdown pushes to skip app builds."""
+"""Select the fast CI path, allowing only approved docs-content pushes to skip app builds."""
 
 from __future__ import annotations
 
@@ -17,6 +17,8 @@ def requires_application_checks(paths: list[str]) -> bool:
         path = PurePosixPath(raw_path)
         if path.is_absolute() or ".." in path.parts or "\\" in raw_path:
             return True
+        if raw_path == "docs/execution/status.json":
+            continue
         if not raw_path.startswith("docs/") or path.suffix.lower() != ".md":
             return True
     return False
@@ -78,7 +80,7 @@ def main() -> int:
         return 0
 
     full_build = requires_application_checks(paths)
-    reason = "application-paths" if full_build else "docs-markdown-only"
+    reason = "application-paths" if full_build else "docs-content-only"
     _set_output(full_build, reason)
     print(f"CI classification: {reason}; changed paths: {len(paths)}.")
     if not paths:

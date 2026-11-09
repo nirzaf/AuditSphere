@@ -1881,23 +1881,25 @@
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed.",
   "ciCdAccelerationDocsOnlyFastPath20261109": {
-    "baseSha": "ccc2e271ba36c88143c70fd4010aadc1eb724115",
-    "candidateStatus": "LOCAL_CANDIDATE_NOT_PUBLISHED",
+    "baseSha": "93fe85ed76fd444d1c4dc3350f7dccdb5a118e24",
+    "candidateStatus": "LOCAL_FOLLOWUP_NOT_PUBLISHED",
     "paths": [
       ".github/workflows/ci.yml",
       "scripts/release/ci_change_scope.py",
-      "scripts/release/test_ci_change_scope.py"
+      "scripts/release/test_ci_change_scope.py",
+      "docs/execution/status.json",
+      "docs/execution/auditsphere-execution-current-slice.md"
     ],
-    "rule": "Only non-empty docs/**/*.md-only master pushes skip Angular/.NET build jobs; Docs always runs.",
-    "fallback": "All PR/manual/source/non-Markdown/empty/invalid/diff-error cases use full checks.",
-    "verification": "10 tests pass; actionlint passes; historical docs-only and current full-path classifications pass.",
+    "rule": "Master push with only docs Markdown plus docs/execution/status.json skips Angular/.NET builds; Docs always runs.",
+    "fallback": "PR/manual/source/other JSON/non-docs/empty/invalid/diff-error => full app gate.",
+    "verification": "11 focused tests pass; diff check clean; classifier fail-closed.",
     "currentFastRun": {
-      "id": 42540220178,
+      "id": 42542623600,
       "result": "PASS",
-      "sourceSha": "ccc2e271ba36c88143c70fd4010aadc1eb724115",
-      "proof": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-ccc2e271-42540220178/fast-terminal-proof.json"
+      "sourceSha": "93fe85ed76fd444d1c4dc3350f7dccdb5a118e24",
+      "checkoutLogs": "NOT_RETAINED_CONNECTOR_RETURNED_GENERIC_ACTION_COMPLETED"
     },
-    "savings": "NOT_MEASURED",
-    "nextAction": "Fetch/path-review, publish; validate its own full fast gate. No image/full/deployment dispatch yet."
+    "savings": "DOCS_ONLY_RUN_NOT_YET_OBSERVED",
+    "nextAction": "Publish follow-up after origin path review; verify its exact full fast gate, then observe one docs-only status/handoff push."
   }
 }

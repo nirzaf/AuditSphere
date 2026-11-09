@@ -24,8 +24,9 @@ env:
   DevelopmentIdentity__Enabled: 'false'
 
 jobs:
-  # The only fast-path exemption is content-only Markdown under docs/. Pull requests, manual
-  # dispatches, empty diffs, unknown paths, and diff failures take the normal application gate.
+  # The only fast-path exemption is content-only docs Markdown or the execution status ledger.
+  # Pull requests, manual dispatches, empty diffs, unknown paths, and diff failures take the
+  # normal application gate.
   # Docs health remains mandatory on every event; application builds are skipped only when the
   # classifier proves every changed path is documentation content.
   change-scope:

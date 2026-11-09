@@ -13,6 +13,14 @@ class CiChangeScopeTests(unittest.TestCase):
             )
         )
 
+    def test_execution_status_ledger_can_accompany_docs_markdown(self) -> None:
+        self.assertFalse(ci_change_scope.requires_application_checks(["docs/execution/status.json"]))
+        self.assertFalse(
+            ci_change_scope.requires_application_checks(
+                ["docs/execution/status.json", "docs/execution/auditsphere-execution-current-slice.md"]
+            )
+        )
+
     def test_empty_diff_fails_closed(self) -> None:
         self.assertTrue(ci_change_scope.requires_application_checks([]))
 
@@ -22,6 +30,7 @@ class CiChangeScopeTests(unittest.TestCase):
             ".github/workflows/ci.yml",
             "README.md",
             "docs/contracts/openapi.yaml",
+            "docs/execution/arbitrary-state.json",
             "docs/architecture/adr/record.mdx",
         ):
             with self.subTest(path=path):
