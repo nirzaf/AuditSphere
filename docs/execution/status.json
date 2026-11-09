@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T06:38:41Z",
+  "observedAtUtc": "2026-11-09T06:49:01Z",
   "source": {
     "branch": "master",
     "baseSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6",
@@ -16,11 +16,11 @@
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Monitor immutable full run 42572301443; capture each new terminal test-job log once, and capture the final resolved-source/artifact listing once after aggregate completion.",
-      "note": "2026-11-09: RUN-003 remains REPAIR. Candidate afa6e2b5 fast run 42562349587 passed all five exact checkouts. Full run 42572301443 has exact source resolution and exact fast artifact reuse proven by retained logs; restored 20 output directories in 99s and skipped fallback. Angular 2029/2029 and 196/196 files; EF/OpenAPI contracts passed. API, Domain and E2E remain active; full gate pending.",
+      "nextAction": "Monitor API 129012994991 and Playwright E2E 129012995092 in full run 42572301443; capture terminal logs once and retain them in the same operation. Domain job 129012995039 passed by metadata in 1203 seconds, but its log was fetched once and not retained, so its exact checkout remains unverified. Capture final run artifact metadata once terminal.",
+      "note": "2026-11-09: RUN-003 REPAIR. Fast 42562349587 passed 5/5 exact checkouts. Full 42572301443: exact artifact reuse, Angular and contracts pass; Domain passes metadata in 1203s, but checkout is unverified because its fetched log was not retained. API/E2E active. Docs-only run 42574558615 passed by metadata; checkout log not retained.",
       "currentSourceSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6"
     },
-    "ciCdAcceleration": "Fast CI passed on afa6e2b5; exact full run 42572301443 confirms source checkout and same-SHA fast artifact restore (20 dirs, 99s, fallback skipped). Angular and contracts pass; API/Domain/E2E active. Deployment workflow unchanged; production timing unmeasured."
+    "ciCdAcceleration": "Full 42572301443: artifact reuse, Angular/contracts pass; Domain metadata pass; API/E2E active. Docs run 42574558615 passed by metadata. Deployment timings unmeasured."
   },
   "localVerification": {
     "documentationHealth": {
@@ -1900,10 +1900,11 @@
     "nextAction": "No CI classification change pending. Release image build/deploy already parallelizes images with full verification; production deployment timing remains NOT_MEASURED."
   },
   "ciCdAccelerationCandidate20261109": {
-    "status": "FAST_CI_PASS; FULL_CI_PARTIAL_PASS; THREE_SUITES_ACTIVE; NO_DEPLOYMENT",
+    "status": "FAST_CI_PASS; FULL_CI_PARTIAL_PASS; DOMAIN_PASS_METADATA; API_E2E_ACTIVE; NO_DEPLOYMENT",
     "candidateSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6",
     "fastRun": "42562349587 PASS: 5/5 exact checkout, Angular 2029 tests/196 files, exact artifact restore.",
-    "fullRun": "42572301443 exact source/checkout proven; exact fast artifact restored 20 dirs in 99s and fallback skipped; Angular and contracts pass; API/Domain/E2E active.",
-    "deployment": "NOT_RUN; production timing NOT_MEASURED; protected approval/migration/canary/smoke unchanged."
+    "fullRun": "42572301443 exact source and exact fast artifact restore proven (20 dirs, 99s, fallback skipped); Angular/contracts pass; Domain job passes by metadata in 1203s (actual checkout unverified); API/E2E active.",
+    "deployment": "NOT_RUN; production timing NOT_MEASURED; protected approval/migration/canary/smoke unchanged.",
+    "docsRefreshFastRun": "42574558615 SUCCESS by GitHub metadata; classifier and docs jobs passed, build jobs skipped; job checkout proof not retained."
   }
 }
