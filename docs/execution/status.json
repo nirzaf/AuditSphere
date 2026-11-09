@@ -1881,8 +1881,8 @@
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed.",
   "ciCdAccelerationDocsOnlyFastPath20261109": {
-    "baseSha": "93fe85ed76fd444d1c4dc3350f7dccdb5a118e24",
-    "candidateStatus": "LOCAL_FOLLOWUP_NOT_PUBLISHED",
+    "baseSha": "676fb4164e075f43793a2c398f3e16232a48659b",
+    "candidateStatus": "PUBLISHED_FAST_CI_PASS_DOCS_ONLY_MEASUREMENT_PENDING",
     "paths": [
       ".github/workflows/ci.yml",
       "scripts/release/ci_change_scope.py",
@@ -1890,16 +1890,16 @@
       "docs/execution/status.json",
       "docs/execution/auditsphere-execution-current-slice.md"
     ],
-    "rule": "Master push with only docs Markdown plus docs/execution/status.json skips Angular/.NET builds; Docs always runs.",
+    "rule": "Only master pushes containing docs Markdown and/or docs/execution/status.json skip Angular/.NET jobs; Docs always runs.",
     "fallback": "PR/manual/source/other JSON/non-docs/empty/invalid/diff-error => full app gate.",
-    "verification": "11 focused tests pass; diff check clean; classifier fail-closed.",
+    "verification": "11 focused tests pass; exact fast CI passes all 5 jobs; docs validations pass.",
     "currentFastRun": {
-      "id": 42542623600,
+      "id": 42545038658,
       "result": "PASS",
-      "sourceSha": "93fe85ed76fd444d1c4dc3350f7dccdb5a118e24",
-      "checkoutLogs": "NOT_RETAINED_CONNECTOR_RETURNED_GENERIC_ACTION_COMPLETED"
+      "sourceSha": "676fb4164e075f43793a2c398f3e16232a48659b",
+      "proof": ".local/autonomous/evidence/ci-cd-acceleration-20261109/fast-676fb416-42545038658/fast-terminal-proof.json"
     },
     "savings": "DOCS_ONLY_RUN_NOT_YET_OBSERVED",
-    "nextAction": "Publish follow-up after origin path review; verify its exact full fast gate, then observe one docs-only status/handoff push."
+    "nextAction": "Publish one aligned status/handoff-only refresh; measure its exact docs-only workflow. No full release verification or deployment is claimed."
   }
 }
