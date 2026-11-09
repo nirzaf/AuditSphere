@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T10:54:13Z",
+  "observedAtUtc": "2026-11-09T14:14:56Z",
   "source": {
     "branch": "master",
-    "baseSha": "cf93f9efe47cafba778ec58fa8b423ccd45ec75e",
-    "originMasterSha": "cf93f9efe47cafba778ec58fa8b423ccd45ec75e",
-    "workingTree": "Workflow candidate cf93f9ef passed exact fast CI; scoped docs evidence refresh only.",
+    "baseSha": "8376ed3c12fae3fc4061da766eb65c7a5c70c05d",
+    "originMasterSha": "8376ed3c12fae3fc4061da766eb65c7a5c70c05d",
+    "workingTree": "Clean at the recorded exact full candidate before this evidence refresh.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
     "practiceManagement": "INCOMPLETE. Current source is 2f713a4cffdc08499b06901af80ff5ec504ba972; the broader practice-management backlog and professional/external acceptance remain separate from this CI/CD acceleration follow-up. No whole-application acceptance is claimed.",
-    "documentation": "COMPLETE_FOR_REQUESTED_SCOPE; CATEGORY_AUDIT_AND_CONSOLIDATION_COMPLETE. This refresh records the exact cf93f9ef fast pass; its docs-only successor gate remains pending.",
+    "documentation": "CATEGORY_AUDIT_AND_CONSOLIDATION_COMPLETE; this evidence refresh records terminal run 42605366775 and does not claim full CI.",
     "autonomousLedger": {
       "validator": "scripts/agent/verify-completion-state.py",
       "result": "PASS",
@@ -20,7 +20,7 @@
       "note": "2026-11-09: exact fast run 42600087328 passed all five jobs on cf93f9ef. Release build took 23m06.71s; 439.7 MB exact artifact restored in 10.48s. Full/cache outcome pending.",
       "currentSourceSha": "cf93f9efe47cafba778ec58fa8b423ccd45ec75e"
     },
-    "ciCdAcceleration": "Fast 42600087328 passed all five jobs on cf93f9ef; 26m53s total, including 23m06.71s build. Exact artifact restore took 10.48s. Full/cache pending; deployment unmeasured."
+    "ciCdAcceleration": "Fast 42600087328 PASS all5 on cf93 (26m53s); exact artifact restored in 10.48s. Docs 42604714418 PASS in 130s. Full 42605366775 on 8376 failed: API exit 143 at 150m; E2E host inactive/crashed after 334 passes. Browser cache missed; 281.7MB saved; warm gain unknown. Deployment unrun."
   },
   "localVerification": {
     "documentationHealth": {
@@ -1900,22 +1900,28 @@
     "nextAction": "No CI classification change pending. Release image build/deploy already parallelizes images with full verification; production deployment timing remains NOT_MEASURED."
   },
   "ciCdAccelerationCandidate20261109": {
-    "observedAtUtc": "2026-11-09T10:54:13Z",
-    "candidateSha": "cf93f9efe47cafba778ec58fa8b423ccd45ec75e",
-    "status": "FAST_CI_PASS_ALL_5; DOCS_REFRESH_PENDING; FULL_NOT_DISPATCHED",
-    "change": "Pinned Playwright restore/save before full E2E; install --with-deps retained; save non-blocking.",
+    "observedAtUtc": "2026-11-09T14:14:56Z",
+    "candidateSha": "8376ed3c12fae3fc4061da766eb65c7a5c70c05d",
+    "status": "EXACT_FULL_FAILED_API_EXIT_143_AND_E2E_INACTIVITY; NO_RELEASE",
+    "change": "Pinned Playwright browser cache and exact-SHA Release artifact reuse; checks and release gates retained.",
     "fastRun": {
       "id": 42600087328,
-      "attempt": 1,
-      "conclusion": "success",
-      "durationSeconds": 1613,
-      "actualCheckout": "All five terminal logs confirm exact SHA.",
-      "proof": ".local/autonomous/evidence/ci-acceleration-20261109/fast-cf93f9ef-42600087328/fast-terminal-proof.json"
+      "sha": "cf93f9efe47cafba778ec58fa8b423ccd45ec75e",
+      "result": "PASS_ALL_5; 1613s; artifact restored in 10.48s"
     },
-    "criticalPath": "Release job 1443s; build 1386.71s; dependent .NET gate 150s; 439656617-byte artifact restored in 10.48s.",
-    "fullVerification": "NOT_DISPATCHED_FOR_FINAL_DOCS_SOURCE",
-    "cacheSavings": "NOT_MEASURED; exact full run pending.",
-    "deployment": "Not run; images overlap full CI; protected order retained; timing unmeasured.",
-    "nextAction": "Fetch/review paths, publish docs refresh, require exact docs fast pass, then dispatch one exact full run and measure cache."
+    "docsFastRun": {
+      "id": 42604714418,
+      "sha": "8376ed3c12fae3fc4061da766eb65c7a5c70c05d",
+      "result": "PASS_DOCS_ONLY; 130s"
+    },
+    "fullRun": {
+      "id": 42605366775,
+      "sha": "8376ed3c12fae3fc4061da766eb65c7a5c70c05d",
+      "result": "FAIL; API exit 143 at 150m, E2E host inactivity after 334 passes; causes unconfirmed"
+    },
+    "cache": "Miss; 281.7MB saved; warm benefit unmeasured.",
+    "deployment": "No release run; stage timing unmeasured.",
+    "evidence": ".local/autonomous/evidence/ci-acceleration-20261109/full-8376ed3c-42605366775/terminal-speed-review.json",
+    "nextAction": "Investigate both failures; measure cache hit on a future scheduled run. No unchanged rerun or release."
   }
 }
