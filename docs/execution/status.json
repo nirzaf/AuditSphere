@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T02:09:45Z",
+  "observedAtUtc": "2026-11-09T04:29:16Z",
   "source": {
     "branch": "master",
-    "baseSha": "0a7cbc66395d4951bb4613891771b56b1e5bb07b",
-    "originMasterSha": "0a7cbc66395d4951bb4613891771b56b1e5bb07b",
-    "workingTree": "Candidate based on master 0a7cbc66395d4951bb4613891771b56b1e5bb07b; exact-source full verification has not run.",
+    "baseSha": "188d6621e174e580c6037e303b5896fc75eacc15",
+    "originMasterSha": "188d6621e174e580c6037e303b5896fc75eacc15",
+    "workingTree": "Uncommitted workflow acceleration follow-up on 188d6621; base full run active, contract job failed.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -16,11 +16,11 @@
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Continue monitoring exact full run 42527196539 on predecessor SHA 17e142fea294d574ade773fb075019983dff4877; do not cancel or duplicate. Once terminal, dispatch only the required exact-source full verification for 84215010a896ff94089e13751ad89354335d076c, following current run policy.",
-      "note": "2026-11-08T13:05:03Z: RUN-003 remains REPAIR on 98679131fa65076c429fca8f95bb1f74ba7d7d7e. Exact fast run 42481222673 passed Angular, Docs and Release with all three actual checkout hashes matching 98679131fa65076c429fca8f95bb1f74ba7d7d7e; terminal proof .local/autonomous/evidence/ci-98679131-current-20261108/fast-terminal-proof.json. Focused API route 3/3 and named E2E 1/1 pass. Full verification for 98679131fa65076c429fca8f95bb1f74ba7d7d7e is not yet dispatched; predecessor API cancellation and E2E inactivity causes remain unconfirmed. Docs category consolidation is complete for the requested scope.",
-      "currentSourceSha": "84215010a896ff94089e13751ad89354335d076c"
+      "nextAction": "Monitor API/Domain/E2E jobs in 42555421126 and the two active jobs in 42551955020; then refresh exact-source verification.",
+      "note": "2026-11-09: RUN-003 remains REPAIR. Source 188d6621 is unchanged. Exact run 42555421126 has a retained contract publish failure (missing Application/Domain DLLs); API/E2E remain active. Run 42551955020 has the same retained contract failure; API/E2E remain active. The uncommitted repair adds both host outputs and overlaps artifact prep with Angular; local validators pass, candidate CI is pending.",
+      "currentSourceSha": "188d6621e174e580c6037e303b5896fc75eacc15"
     },
-    "ciCdAcceleration": "Candidate based on 0a7cbc66395d4951bb4613891771b56b1e5bb07b separates exact-source build/artifact prep from contracts so full .NET suites and contracts can run concurrently. Local checks pass; exact CI and savings remain unmeasured."
+    "ciCdAcceleration": "Candidate: prep/Angular overlap plus Application/Domain artifact handoff repair; local validators pass, exact candidate CI pending. Base full prep took 42m09 without an exact fast artifact; another run reused exact outputs and prepped in 1m31 (uncontrolled comparison). Deployment remains gated and unmeasured."
   },
   "localVerification": {
     "documentationHealth": {
@@ -1900,12 +1900,13 @@
     "nextAction": "No CI classification change pending. Release image build/deploy already parallelizes images with full verification; production deployment timing remains NOT_MEASURED."
   },
   "ciCdAccelerationCandidate20261109": {
-    "candidateStatus": "FAST_PASS_FULL_FAILS_FIXING",
-    "baseSha": "0a7cbc66395d4951bb4613891771b56b1e5bb07b",
-    "change": "Parallelize full .NET suites with contract checks after one exact-source build/artifact stage.",
-    "preserved": "Single build/fallback; all unfiltered tests, contracts and release gates.",
-    "localVerification": "actionlint, dependency/provenance assertions, release Python tests 9/9, diff check PASS.",
-    "exactCandidateCi": "Fast 42549944774 passed. Full 42551955020: contract failure (missing emitter artifact); unfiltered suites active. Fast 42553083243: docs guard failed because handoff backticked a generated output path; correction pending.",
-    "deploymentTiming": "NOT_MEASURED; deployment not run."
+    "status": "BASE_CONTRACT_FAIL; SUITES_ACTIVE; FIX_UNCOMMITTED",
+    "baseSha": "188d6621e174e580c6037e303b5896fc75eacc15",
+    "change": "Overlap Release prep with Angular; stage and restore Application/Domain outputs for no-build API publish.",
+    "safety": "No checks removed; suite and contract gates/provenance retained.",
+    "localVerification": "actionlint, host manifest static check, docs validators, status shape/size, and diff check PASS; exact candidate CI not run.",
+    "fastRun": "42555119618 PASS exact base; docs-only, 137s once.",
+    "fullRun": "42555421126: prep 42m09 without exact fast artifact; contract failed on missing Application/Domain DLLs; suites active.",
+    "deployment": "NOT_RUN; timing NOT_MEASURED; release gates unchanged."
   }
 }
