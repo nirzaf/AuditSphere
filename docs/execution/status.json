@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T16:10:00Z",
+  "observedAtUtc": "2026-11-09T16:18:00Z",
   "source": {
     "branch": "master",
-    "baseSha": "c2d8ba800448e56fbe28203d326366b68fcccd67",
-    "originMasterSha": "c2d8ba800448e56fbe28203d326366b68",
-    "workingTree": "CI acceleration cache-fallback slice in progress; baseline c2d8ba80.",
+    "baseSha": "db72e1de4d994213405e2ed40680d9a9127fc8b6",
+    "originMasterSha": "db72e1de4d994213405e2ed40680d9a9127fc8b6",
+    "workingTree": "CI acceleration evidence refresh; baseline db72e1de.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -16,11 +16,11 @@
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Verify cache-fallback workflow and docs; publish scoped change, then observe cache behavior on a naturally required full run. No test filtering, timeout/parallelism change or deployment benchmark.",
-      "note": "2026-11-09: exact fast artifact reuse and docs-only run 42643767085 passed; full runs 42572301443/42581159439/42605366775 failed API/E2E with unresolved causes.",
-      "currentSourceSha": "c2d8ba800448e56fbe28203d326366b68fcccd67"
+      "nextAction": "Observe the new Playwright fallback only on naturally required full verification; no unchanged rerun. Deployment-stage timings require owner-authorized release. Do not change tests/timeouts/parallelism.",
+      "note": "Exact fast CI 42650506452 PASS all 5 jobs and actual checkout db72e1de; exact build artifact restored. Full API/E2E failures remain unresolved.",
+      "currentSourceSha": "db72e1de4d994213405e2ed40680d9a9127fc8b6"
     },
-    "ciCdAcceleration": "Published: docs-only master path 156s; exact fast artifact restore 12.315s; full-build reuse prep 87s. Playwright now restores exact or OS-prefix browser cache; hit/savings unmeasured. API/E2E full failures remain unexplained; deployment timings unmeasured.",
+    "ciCdAcceleration": "Published exact/OS-prefix Playwright cache restore; cache savings unmeasured. Exact fast run 42650506452 passed all 5 jobs on db72e1de; exact 439.7MB Release artifact restored across 20 outputs in 50.9s. Full API/E2E causes unknown; deployment timings unmeasured.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
@@ -1900,11 +1900,11 @@
   },
   "ciCdAccelerationCandidate20261109": {
     "observedAtUtc": "2026-11-09T15:40:56Z",
-    "candidateSha": "6f5d58dc2b964801f43d4b2d5caaaa47dbb75501",
-    "status": "CI_SPEEDUPS_PUBLISHED; FAST_AND_ARTIFACT_REUSE_PASS; FULL_FAILURES_UNRESOLVED; NO_DEPLOYMENT",
+    "candidateSha": "db72e1de4d994213405e2ed40680d9a9127fc8b6",
+    "status": "FAST_CI_PASS; PLAYWRIGHT_CACHE_PREFIX_PUBLISHED; CACHE_SAVINGS_UNMEASURED; FULL_FAILURES_UNRESOLVED; NO_DEPLOYMENT",
     "fastRun": {
-      "id": 42637291070,
-      "result": "5 jobs pass; exact 439.7MB Release artifact restored in 12.315s; no fallback"
+      "id": 42650506452,
+      "result": "PASS all 5 jobs; actual checkouts verified; exact 439.7MB artifact restored across 20 outputs in 50.9s"
     },
     "docsOnlyRun": {
       "id": 42643767085,
@@ -1928,8 +1928,8 @@
         "result": "failure after 2h50m; API exit 143 at 150m; E2E inactivity after 334 passes/0 assertions; causes unknown"
       }
     ],
-    "playwrightCache": "42605366775 missed, installed browsers in 33.6s and saved 281.7MB; 42581159439 one-second cache step does not prove hit. Warm-hit benefit unknown.",
-    "deployment": "No production release/deployment; stage timings unmeasured. Existing protected order unchanged.",
-    "nextAction": "No unchanged full reruns, test parallelism/timeout changes or deployment. Wait for distinct causal API/E2E evidence; measure cache and release stages only on a naturally required full run and owner-authorized release."
+    "playwrightCache": "Restore now falls back to OS-compatible prefix after exact key miss; exact fast CI does not exercise this cache. Savings unmeasured.",
+    "deployment": "No deployment performed; protected approval and migration/canary/smoke order unchanged; stage durations unmeasured.",
+    "nextAction": "Observe cache behavior on a naturally required exact full run; no repeat of failed API/E2E cohort without distinct cause evidence. Deployment measurements only on authorized release."
   }
 }
