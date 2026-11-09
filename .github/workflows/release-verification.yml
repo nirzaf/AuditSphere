@@ -574,11 +574,11 @@ jobs:
           bash scripts/release/run-verification-step.sh "dotnet restore (locked mode)" \
             dotnet restore AuditSphereOps.slnx --locked-mode
 
-      # A successful push run of ci.yml may have compiled this exact commit in the same pinned
-      # SDK and runner image. Its optional artifact is a performance hint only: identity, manifest,
-      # digest and every extracted path are verified below, and any absence/refusal uses the clean
-      # solution-build path. The uploaded binaries let full .NET tests and contract checks start
-      # independently as soon as this preparation job completes.
+      # A successful master push or manually dispatched master run of ci.yml may have compiled
+      # this exact commit in the same pinned SDK and runner image. Its optional artifact is a
+      # performance hint only: identity, manifest, digest and every extracted path are verified
+      # below, and any absence/refusal uses the clean solution-build path. The uploaded binaries
+      # let full .NET tests and contract checks start independently as soon as this job completes.
       - name: Locate a successful exact-source fast-CI build artifact
         id: fast-build
         env:

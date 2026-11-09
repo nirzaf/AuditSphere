@@ -382,33 +382,36 @@ def find_fast_build_artifact(
     source_sha: str,
     workflow_id: str = "ci.yml",
 ) -> dict[str, Any]:
-    """Find a successful default-branch push artifact for the exact resolved source SHA."""
+    """Find a successful default-branch CI artifact for the exact resolved source SHA."""
 
     _validate_sha(source_sha)
     if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) is None:
         raise ValueError("repository must be in owner/name form")
     if not token:
         return {"available": False, "reason": "actions-read token unavailable"}
-    query = urllib.parse.urlencode(
-        {"branch": branch, "event": "push", "status": "completed", "per_page": "100"}
-    )
     workflow = urllib.parse.quote(workflow_id, safe="")
     repo = urllib.parse.quote(repository, safe="/")
-    try:
-        runs_payload = _github_json(
-            api_url,
-            token,
-            f"/repos/{repo}/actions/workflows/{workflow}/runs?{query}",
+    runs: list[dict[str, Any]] = []
+    for event in ("push", "workflow_dispatch"):
+        query = urllib.parse.urlencode(
+            {"branch": branch, "event": event, "status": "completed", "per_page": "100"}
         )
-    except (OSError, urllib.error.URLError, json.JSONDecodeError, ValueError) as exc:
-        status = getattr(exc, "code", None)
-        return {
-            "available": False,
-            "reason": f"GitHub Actions API unavailable{f' (HTTP {status})' if status else ''}",
-        }
-    runs = runs_payload.get("workflow_runs", [])
-    if not isinstance(runs, list):
-        return {"available": False, "reason": "GitHub Actions run metadata is malformed"}
+        try:
+            runs_payload = _github_json(
+                api_url,
+                token,
+                f"/repos/{repo}/actions/workflows/{workflow}/runs?{query}",
+            )
+        except (OSError, urllib.error.URLError, json.JSONDecodeError, ValueError) as exc:
+            status = getattr(exc, "code", None)
+            return {
+                "available": False,
+                "reason": f"GitHub Actions API unavailable{f' (HTTP {status})' if status else ''}",
+            }
+        event_runs = runs_payload.get("workflow_runs", [])
+        if not isinstance(event_runs, list):
+            return {"available": False, "reason": "GitHub Actions run metadata is malformed"}
+        runs.extend(run for run in event_runs if isinstance(run, dict))
 
     matches = [
         run
@@ -416,7 +419,7 @@ def find_fast_build_artifact(
         if isinstance(run, dict)
         and run.get("head_sha") == source_sha
         and run.get("head_branch") == branch
-        and run.get("event") == "push"
+        and run.get("event") in {"push", "workflow_dispatch"}
         and run.get("status") == "completed"
         and run.get("conclusion") == "success"
         and isinstance(run.get("path", ".github/workflows/ci.yml"), str)
@@ -451,7 +454,7 @@ def find_fast_build_artifact(
             ):
                 return {
                     "available": True,
-                    "reason": "exact-source successful master push artifact found",
+                    "reason": "exact-source successful master CI artifact found",
                     "runId": run_id,
                     "runAttempt": attempt,
                     "artifactId": artifact.get("id"),

@@ -99,13 +99,13 @@ jobs:
           printf 'Angular gate outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
             "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
 
-  # Compile independently of Angular on master pushes. The checked Release outputs are passed to
-  # the existing verification job as an exact-run artifact; other events retain the clean build
-  # path in dotnet-build. This overlaps the long solution build with Angular without moving any
-  # fast-gate checks or weakening full verification.
+  # Compile independently of Angular on master pushes and manual master CI runs. The checked
+  # Release outputs are passed to the fast gate and can later be reused by exact-source full
+  # verification. Other events retain the clean build path in dotnet-build. This overlaps the
+  # long solution build with Angular without moving any checks or weakening full verification.
   dotnet-release-compile:
     needs: [change-scope]
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && (needs.change-scope.result != 'success' || needs.change-scope.outputs.full_build != 'false') }}
+    if: ${{ always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master' && (needs.change-scope.result != 'success' || needs.change-scope.outputs.full_build != 'false') }}
     name: Build · .NET Release outputs
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -217,7 +217,7 @@ jobs:
 
       - name: Download exact-run Release outputs
         id: download-parallel-build
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master' }}
         continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:

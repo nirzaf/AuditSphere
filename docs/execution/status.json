@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T14:14:56Z",
+  "observedAtUtc": "2026-11-09T14:39:59Z",
   "source": {
     "branch": "master",
-    "baseSha": "8376ed3c12fae3fc4061da766eb65c7a5c70c05d",
-    "originMasterSha": "8376ed3c12fae3fc4061da766eb65c7a5c70c05d",
-    "workingTree": "Clean at the recorded exact full candidate before this evidence refresh.",
+    "baseSha": "c03f32b8723acb4c1f9316eb62dbcb98dfe5f537",
+    "originMasterSha": "c03f32b8723acb4c1f9316eb62dbcb98dfe5f537",
+    "workingTree": "Manual master CI artifact-reuse candidate; exact CI pending.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,8 @@
       "note": "2026-11-09: exact fast run 42600087328 passed all five jobs on cf93f9ef. Release build took 23m06.71s; 439.7 MB exact artifact restored in 10.48s. Full/cache outcome pending.",
       "currentSourceSha": "cf93f9efe47cafba778ec58fa8b423ccd45ec75e"
     },
-    "ciCdAcceleration": "Fast 42600087328 PASS all5 on cf93 (26m53s); exact artifact restored in 10.48s. Docs 42604714418 PASS in 130s. Full 42605366775 on 8376 failed: API exit 143 at 150m; E2E host inactive/crashed after 334 passes. Browser cache missed; 281.7MB saved; warm gain unknown. Deployment unrun."
+    "ciCdAcceleration": "Fast 42600087328 PASS in 26m53s; exact artifact restore 10.48s. Full 42605366775 failed (API exit 143 at 150m; E2E inactivity after 334 passes). Cache warm gain and deployment time unmeasured.",
+    "manualCiArtifactReuse20261109": "Candidate enables exact-source Release artifact reuse from successful manual master CI in full verification; helper tests 7/7 and actionlint pass. Exact candidate CI pending; no gates changed."
   },
   "localVerification": {
     "documentationHealth": {

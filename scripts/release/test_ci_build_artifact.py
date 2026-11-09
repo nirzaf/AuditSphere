@@ -163,6 +163,66 @@ class CiBuildArtifactTests(unittest.TestCase):
         self.assertEqual(101, result["runId"])
         self.assertEqual(2, result["runAttempt"])
 
+    def test_lookup_accepts_successful_manual_master_ci_artifact_for_exact_sha(self) -> None:
+        runs_by_event = {
+            "push": {"workflow_runs": []},
+            "workflow_dispatch": {
+                "workflow_runs": [
+                    {
+                        "id": 202,
+                        "run_attempt": 1,
+                        "run_number": 202,
+                        "head_sha": SOURCE_SHA,
+                        "head_branch": "master",
+                        "event": "workflow_dispatch",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "path": ".github/workflows/ci.yml",
+                    },
+                    {
+                        "id": 203,
+                        "run_attempt": 1,
+                        "run_number": 203,
+                        "head_sha": SOURCE_SHA,
+                        "head_branch": "feature/untrusted",
+                        "event": "workflow_dispatch",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "path": ".github/workflows/ci.yml",
+                    },
+                ]
+            },
+        }
+        artifacts = {
+            "artifacts": [
+                {
+                    "id": 9,
+                    "name": "auditsphere-release-build-202-1",
+                    "expired": False,
+                    "size_in_bytes": 456,
+                }
+            ]
+        }
+
+        def fake_api(_api_url: str, _token: str, path: str) -> dict[str, object]:
+            if "/artifacts?" in path:
+                return artifacts
+            event = "workflow_dispatch" if "event=workflow_dispatch" in path else "push"
+            return runs_by_event[event]
+
+        with patch.object(build_artifact, "_github_json", side_effect=fake_api):
+            result = build_artifact.find_fast_build_artifact(
+                api_url="https://api.github.com",
+                token="test-token",
+                repository="nirzaf/AuditSphere",
+                branch="master",
+                source_sha=SOURCE_SHA,
+            )
+
+        self.assertTrue(result["available"])
+        self.assertEqual(202, result["runId"])
+        self.assertEqual("exact-source successful master CI artifact found", result["reason"])
+
     def test_lookup_falls_back_when_actions_read_is_unavailable(self) -> None:
         error = urllib.error.HTTPError("https://api.github.com", 403, "forbidden", {}, None)
         with patch.object(build_artifact, "_github_json", side_effect=error):
