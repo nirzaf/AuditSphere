@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T06:49:01Z",
+  "observedAtUtc": "2026-11-09T07:12:34Z",
   "source": {
     "branch": "master",
     "baseSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6",
@@ -1905,6 +1905,7 @@
     "fastRun": "42562349587 PASS: 5/5 exact checkout, Angular 2029 tests/196 files, exact artifact restore.",
     "fullRun": "42572301443 exact source and exact fast artifact restore proven (20 dirs, 99s, fallback skipped); Angular/contracts pass; Domain job passes by metadata in 1203s (actual checkout unverified); API/E2E active.",
     "deployment": "NOT_RUN; production timing NOT_MEASURED; protected approval/migration/canary/smoke unchanged.",
-    "docsRefreshFastRun": "42574558615 SUCCESS by GitHub metadata; classifier and docs jobs passed, build jobs skipped; job checkout proof not retained."
+    "docsRefreshFastRun": "42574558615 SUCCESS by GitHub metadata; classifier and docs jobs passed, build jobs skipped; job checkout proof not retained.",
+    "playwrightCache": "UNVERIFIED_CANDIDATE: pinned Chromium cache keyed by OS and E2E lockfile; install-with-deps retained; runtime saving unmeasured."
   }
 }

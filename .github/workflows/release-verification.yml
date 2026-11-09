@@ -422,6 +422,14 @@ jobs:
             echo "Verified $EXPECTED_BUILD_ARTIFACT for $SOURCE_COMMIT, workflow run $GITHUB_RUN_ID, build attempt $(jq -r .runAttempt "$manifest"), SDK $actual_sdk, $TEST_PROJECT."
           '
 
+      - name: Cache lockfile-pinned Playwright browser binaries
+        if: ${{ matrix.key == 'e2e' }}
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        continue-on-error: true
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'tests/AuditSphereOps.E2E.Tests/packages.lock.json') }}
+
       - name: Build and run the complete unfiltered test project
         run: |
           set -euo pipefail
