@@ -1900,12 +1900,12 @@
     "nextAction": "No CI classification change pending. Release image build/deploy already parallelizes images with full verification; production deployment timing remains NOT_MEASURED."
   },
   "ciCdAccelerationCandidate20261109": {
-    "candidateStatus": "FAST_PASS_FULL_CONTRACT_FAIL_FIX_IN_PROGRESS",
+    "candidateStatus": "FAST_PASS_FULL_FAILS_FIXING",
     "baseSha": "0a7cbc66395d4951bb4613891771b56b1e5bb07b",
     "change": "Parallelize full .NET suites with contract checks after one exact-source build/artifact stage.",
     "preserved": "Single build/fallback; all unfiltered tests, contracts and release gates.",
     "localVerification": "actionlint, dependency/provenance assertions, release Python tests 9/9, diff check PASS.",
-    "exactCandidateCi": "Fast 42549944774 PASS. Full 42551955020 contract fail: OpenAPI emitter host omitted. Three full suites still running; artifact fix uncommitted.",
+    "exactCandidateCi": "Fast 42549944774 passed. Full 42551955020: contract failure (missing emitter artifact); unfiltered suites active. Fast 42553083243: docs guard failed because handoff backticked a generated output path; correction pending.",
     "deploymentTiming": "NOT_MEASURED; deployment not run."
   }
 }
