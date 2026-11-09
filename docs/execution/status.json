@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T06:23:03Z",
+  "observedAtUtc": "2026-11-09T06:38:41Z",
   "source": {
     "branch": "master",
     "baseSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6",
-    "originMasterSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6",
-    "workingTree": "Documentation-only status refresh; CI candidate code SHA afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6.",
+    "originMasterSha": "b9b2741e1026e10e11ad468002d8128f396656cf",
+    "workingTree": "Documentation-only update of exact CI evidence; application/workflow candidate remains afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -16,11 +16,11 @@
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Monitor immutable full release-verification run 42572301443; capture source resolution, actual job checkout logs, artifact reuse evidence and terminal results once the full run finishes.",
-      "note": "2026-11-09: RUN-003 remains REPAIR. CI acceleration candidate afa6e2b5 fast run 42562349587 passed all five jobs with exact-checkout logs and same-run Release artifact restore. Exact full run 42572301443 is in progress on immutable afa6e2b5; resolve and Release prep report success by metadata (prep 99s), Angular active; actual checkout/reuse awaits logs after terminal.",
+      "nextAction": "Monitor immutable full run 42572301443; capture each new terminal test-job log once, and capture the final resolved-source/artifact listing once after aggregate completion.",
+      "note": "2026-11-09: RUN-003 remains REPAIR. Candidate afa6e2b5 fast run 42562349587 passed all five exact checkouts. Full run 42572301443 has exact source resolution and exact fast artifact reuse proven by retained logs; restored 20 output directories in 99s and skipped fallback. Angular 2029/2029 and 196/196 files; EF/OpenAPI contracts passed. API, Domain and E2E remain active; full gate pending.",
       "currentSourceSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6"
     },
-    "ciCdAcceleration": "Candidate afa6e2b5 fast CI passed in one 891s observation; full run 42572301443 in progress. Resolve/Release prep success by metadata, prep 99s; checkout and artifact reuse unverified until terminal logs are available. Deployment stages unchanged; production timing unmeasured."
+    "ciCdAcceleration": "Fast CI passed on afa6e2b5; exact full run 42572301443 confirms source checkout and same-SHA fast artifact restore (20 dirs, 99s, fallback skipped). Angular and contracts pass; API/Domain/E2E active. Deployment workflow unchanged; production timing unmeasured."
   },
   "localVerification": {
     "documentationHealth": {
@@ -1900,12 +1900,10 @@
     "nextAction": "No CI classification change pending. Release image build/deploy already parallelizes images with full verification; production deployment timing remains NOT_MEASURED."
   },
   "ciCdAccelerationCandidate20261109": {
-    "status": "FAST_CI_PASS; EXACT_FULL_IN_PROGRESS; NO_DEPLOYMENT",
+    "status": "FAST_CI_PASS; FULL_CI_PARTIAL_PASS; THREE_SUITES_ACTIVE; NO_DEPLOYMENT",
     "candidateSha": "afa6e2b5b8e1a2d196f7c10c86dc3ace4017dea6",
-    "change": "Overlap Release prep with Angular; include Application/Domain outputs needed by no-build API publication.",
-    "fastRun": "42562349587 PASS all 5 exact checkouts; 2029 Angular tests/196 files; exact-run artifact reused by fast consumer.",
-    "fullRun": "42572301443 attempt 1 IN_PROGRESS for immutable candidate ref; resolve and build-prep jobs report success (99s prep metadata), Angular active; logs/checkout/artifact reuse pending run terminal.",
-    "priorFailures": "Pre-fix runs 42551955020 and 42555421126 terminal failure; second-run API/E2E causes and checkouts unverified.",
-    "deployment": "NOT_RUN; production timing NOT_MEASURED; migration/readiness/canary/smoke/protected approval unchanged."
+    "fastRun": "42562349587 PASS: 5/5 exact checkout, Angular 2029 tests/196 files, exact artifact restore.",
+    "fullRun": "42572301443 exact source/checkout proven; exact fast artifact restored 20 dirs in 99s and fallback skipped; Angular and contracts pass; API/Domain/E2E active.",
+    "deployment": "NOT_RUN; production timing NOT_MEASURED; protected approval/migration/canary/smoke unchanged."
   }
 }
