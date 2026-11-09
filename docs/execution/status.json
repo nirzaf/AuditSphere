@@ -174,9 +174,9 @@
         "fastConclusion": "SUCCESS",
         "actualCheckoutSha": "98679131fa65076c429fca8f95bb1f74ba7d7d7e",
         "actualCheckoutJobs": [
-          "Build \u00b7 Angular",
-          "Docs \u00b7 Health",
-          "Build \u00b7 .NET Release"
+          "Build · Angular",
+          "Docs · Health",
+          "Build · .NET Release"
         ],
         "fastProof": ".local/autonomous/evidence/ci-98679131-current-20261108/fast-terminal-proof.json",
         "fastProofSha256": "74f5c4b4c91e0e90a02123545515f2cf4c1bd98178266be879af95ec594ff48d",
@@ -1763,14 +1763,14 @@
         "status": "SUCCESS",
         "headSha": "2f713a4cffdc08499b06901af80ff5ec504ba972",
         "actualCheckoutShaByJob": {
-          "Build \u00b7 .NET Release": "2f713a4cffdc08499b06901af80ff5ec504ba972",
-          "Build \u00b7 Angular": "2f713a4cffdc08499b06901af80ff5ec504ba972",
-          "Docs \u00b7 Health": "2f713a4cffdc08499b06901af80ff5ec504ba972"
+          "Build · .NET Release": "2f713a4cffdc08499b06901af80ff5ec504ba972",
+          "Build · Angular": "2f713a4cffdc08499b06901af80ff5ec504ba972",
+          "Docs · Health": "2f713a4cffdc08499b06901af80ff5ec504ba972"
         },
         "jobIds": {
-          "Build \u00b7 .NET Release": 128809108295,
-          "Build \u00b7 Angular": 128808431662,
-          "Docs \u00b7 Health": 128808431815
+          "Build · .NET Release": 128809108295,
+          "Build · Angular": 128808431662,
+          "Docs · Health": 128808431815
         },
         "createdAtUtc": "2026-11-08T17:37:57Z",
         "completedAtUtc": "2026-11-08T18:00:27Z",
@@ -1790,9 +1790,9 @@
         "conclusion": "success",
         "headSha": "09a76bde75314b3a76ae12c6d310365d82427c6a",
         "actualCheckoutShaByJob": {
-          "Build \u00b7 Angular": "09a76bde75314b3a76ae12c6d310365d82427c6a",
-          "Docs \u00b7 Health": "09a76bde75314b3a76ae12c6d310365d82427c6a",
-          "Build \u00b7 .NET Release": "09a76bde75314b3a76ae12c6d310365d82427c6a"
+          "Build · Angular": "09a76bde75314b3a76ae12c6d310365d82427c6a",
+          "Docs · Health": "09a76bde75314b3a76ae12c6d310365d82427c6a",
+          "Build · .NET Release": "09a76bde75314b3a76ae12c6d310365d82427c6a"
         },
         "jobIds": {
           "angular": 128798536633,
@@ -1831,10 +1831,10 @@
       "proof": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-84215010-42529618648/fast-terminal-proof.json",
       "proofSha256": "3b27f61930fc7ec709043e51228080f4c3063c17d68cd283c0f14d0dd7347037",
       "actualCheckoutJobs": {
-        "Docs \u00b7 Health": "84215010a896ff94089e13751ad89354335d076c",
-        "Build \u00b7 .NET Release outputs": "84215010a896ff94089e13751ad89354335d076c",
-        "Build \u00b7 Angular": "84215010a896ff94089e13751ad89354335d076c",
-        "Build \u00b7 .NET Release": "84215010a896ff94089e13751ad89354335d076c"
+        "Docs · Health": "84215010a896ff94089e13751ad89354335d076c",
+        "Build · .NET Release outputs": "84215010a896ff94089e13751ad89354335d076c",
+        "Build · Angular": "84215010a896ff94089e13751ad89354335d076c",
+        "Build · .NET Release": "84215010a896ff94089e13751ad89354335d076c"
       },
       "compileAngularOverlapSeconds": 93,
       "artifactId": 13637053881,
