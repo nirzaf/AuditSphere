@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T19:10:00Z",
+  "observedAtUtc": "2026-11-09T22:04:28Z",
   "source": {
     "branch": "master",
-    "baseSha": "b0e18c5f7f13d63e85a58d8679958cd54e8d2b98",
-    "originMasterSha": "b0e18c5f7f13d63e85a58d8679958cd54e8d2b98",
-    "workingTree": "Exact fast CI passed on b0e18c5f; no release or deployment.",
+    "baseSha": "8850042898f300c05bd6dac51981c45b80349fda",
+    "originMasterSha": "8850042898f300c05bd6dac51981c45b80349fda",
+    "workingTree": "Exact fast CI passed for 88500428; release/deployment not run.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -1899,17 +1899,17 @@
     "nextAction": "No further path classes are allowed without preserving full application checks."
   },
   "ciCdAccelerationCandidate20261109": {
-    "observedAtUtc": "2026-11-09T21:32:01Z",
-    "status": "P8 docs parallelism and build diagnostics published; deployment poll-cadence optimization prepared; exact fast CI pending; deployment runtime unmeasured.",
-    "sourceSha": "2120c8e4a32285f24f94d6656f7d99836a963bd1",
+    "observedAtUtc": "2026-11-09T22:04:28Z",
+    "status": "Poll cadence change verified on 88500428; no speedup demonstrated; deployment unmeasured.",
+    "sourceSha": "8850042898f300c05bd6dac51981c45b80349fda",
     "fastRun": {
-      "id": 42697501935,
+      "id": 42703592406,
       "attempt": 1,
       "result": "SUCCESS",
-      "wallSeconds": 1361,
-      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/42697501935",
-      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261109/performance-summary-fast-42697501935/terminal-proof.json",
-      "terminalProofSha256": "c109364a41413978ba34b061c8b32fe5916600f7262bdba84b3689016a4a9ad0"
+      "wallSeconds": 1869,
+      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/42703592406",
+      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261109/deployment-poll-cadence/ci-42703592406/terminal-proof.json",
+      "terminalProofSha256": "63997295d89ddce156080b73b5b806753665131e334d4f648a7fb702edaa4ff4"
     },
     "docs": {
       "p8Seconds": 84,
@@ -1933,6 +1933,6 @@
     "localParallelism": "Six same-host offline trials, 9 units/517 assertions each, all pass: mean P4 27.98s, P8 21.39s, P12 22.30s; not hosted-runner evidence.",
     "deployment": "NOT_PERFORMED; deployment-stage timing remains unmeasured.",
     "evidence": ".local/autonomous/evidence/ci-acceleration-20261109/performance-summary-fast-42697501935",
-    "deploymentPollCadence": "Migration 5s×180 (900s budget); canary 5s×40 (200s); theoretical ≤10s/≤5s detection improvement; unmeasured in release."
+    "deploymentPollCadence": "Migration 5s×180/900s; canary 5s×40/200s, gates retained. Fast 42703592406 PASS/31m09s; producer 28m22s vs prior 19m41s, no CI gain shown; deployment unmeasured. Proof .local/autonomous/evidence/ci-acceleration-20261109/deployment-poll-cadence/ci-42703592406/terminal-proof.json."
   }
 }
