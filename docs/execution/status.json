@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-10T00:25:37Z",
+  "observedAtUtc": "2026-11-10T00:55:59Z",
   "source": {
     "branch": "master",
-    "baseSha": "3a8ab76de5f09e7d7ef715e79c8e6634f2fa7260",
-    "originMasterSha": "3a8ab76de5f09e7d7ef715e79c8e6634f2fa7260",
-    "workingTree": "Three-path release-cache candidate based on 3a8ab76; predecessor exact fast/images PASS; candidate CI pending; no deployment.",
+    "baseSha": "dba678bdf0a4a6d7d0312cbd39e856c09f887199",
+    "originMasterSha": "dba678bdf0a4a6d7d0312cbd39e856c09f887199",
+    "workingTree": "Based on dba678bd with only this exact-source CI evidence refresh pending; fast and image CI pass; protected release cache import and deployment timing remain unmeasured.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -16,11 +16,11 @@
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Run exact fast and image CI for the release-cache candidate; do not dispatch release or deploy.",
+      "nextAction": "Continue independent AuditSphere work. For any owner-authorized release, use current exact-source fast/full/image gates; observe protected cache and deployment stage timing only during a real approved release. No release dispatch or deployment for benchmarking.",
       "note": "Exact-source UI reuse is optional; fallback and release gates remain.",
-      "currentSourceSha": "3a8ab76de5f09e7d7ef715e79c8e6634f2fa7260"
+      "currentSourceSha": "dba678bdf0a4a6d7d0312cbd39e856c09f887199"
     },
-    "ciCdAcceleration": "3a8ab76 fast 42725379276 PASS/5 in 21m46s; images 42725379102 PASS/3 in 33s (prior push 128s, uncontrolled). release.yml cache import pending; no release/deployment.",
+    "ciCdAcceleration": "Exact dba678bd candidate: fast run 42729114971 passed all 6 actual checkouts in 18m44s; image run 42729192788 passed all 3 exact checkouts in 38s with registry cache layers. Protected release cache-import path and deployment timing are unmeasured; no release/deployment.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
@@ -1881,58 +1881,35 @@
     }
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed.",
-  "ciCdAccelerationDocsOnlyFastPath20261109": {
-    "candidateStatus": "PUBLISHED_AND_OBSERVED",
-    "rule": "Only non-empty docs Markdown and exact docs/execution/status.json pushes on master skip app jobs; Docs always runs. PR/manual/source/empty/ambiguous cases run full app gate.",
-    "observations": [
-      {
-        "id": 42542623600,
-        "sha": "93fe85ed76fd444d1c4dc3350f7dccdb5a118e24",
-        "result": "PASS"
-      },
-      {
-        "id": 42643767085,
-        "sha": "3207ec544f28a64b34d0dff07a2c09b4fc239d58",
-        "result": "Docs/classifier PASS; app jobs skipped; 156s"
-      }
-    ],
-    "nextAction": "No further path classes are allowed without preserving full application checks."
-  },
-  "ciCdAccelerationCandidate20261109": {
-    "observedAtUtc": "2026-11-09T22:04:28Z",
-    "status": "Poll cadence change verified on 88500428; no speedup demonstrated; deployment unmeasured.",
-    "sourceSha": "8850042898f300c05bd6dac51981c45b80349fda",
-    "fastRun": {
-      "id": 42703592406,
+  "ciCdAccelerationCandidate20261110": {
+    "observedAtUtc": "2026-11-10T00:55:59Z",
+    "sourceSha": "dba678bdf0a4a6d7d0312cbd39e856c09f887199",
+    "status": "FAST_CI_AND_IMAGE_CI_PASS; RELEASE_CACHE_IMPORT_AND_DEPLOYMENT_UNMEASURED",
+    "fast": {
+      "runId": 42729114971,
       "attempt": 1,
       "result": "SUCCESS",
-      "wallSeconds": 1869,
-      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/42703592406",
-      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261109/deployment-poll-cadence/ci-42703592406/terminal-proof.json",
-      "terminalProofSha256": "63997295d89ddce156080b73b5b806753665131e334d4f648a7fb702edaa4ff4"
+      "wallSeconds": 1124,
+      "allSixJobCheckoutsVerified": true,
+      "angularTests": "2029 passed across 196 files",
+      "dotnetBuildSeconds": 882.13,
+      "releaseOutputArtifactBytes": 439659276,
+      "consumer": "restored and verified all 20 output directories; clean build fallback skipped; Domain 16/16 and API 12/12 guards passed",
+      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261110/hostinger-angular-cache/runs/42729114971/fast-terminal-proof.json",
+      "terminalProofSha256": "388b0e32b01654fbaf442ecf92bcf18e93027614f2b2919bead80de8d1cd8712"
     },
-    "docs": {
-      "p8Seconds": 84,
-      "priorP4Seconds": 117,
-      "interpretation": "one hosted observation per setting; no causal speed claim"
+    "images": {
+      "runId": 42729192788,
+      "attempt": 1,
+      "result": "SUCCESS",
+      "wallSeconds": 38,
+      "allThreeActualCheckoutsAndPinsVerified": true,
+      "registryCache": "BuildKit reported 12 cached worker, 8 migrations and 22 API steps",
+      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261110/hostinger-angular-cache/images-42729192788-terminal-proof.json",
+      "terminalProofSha256": "53f923770fac40e72aebed85e8984ce81268b70fb27cb5c8bb58db7d3ca9067c"
     },
-    "angular": {
-      "seconds": 165,
-      "tests": 2029,
-      "files": 196
-    },
-    "dotnet": {
-      "producerSeconds": 1181,
-      "buildSeconds": 1128.05,
-      "consumerSeconds": 159,
-      "artifactBytes": 439659460,
-      "artifactRestoredDirectories": 20,
-      "fallback": "SKIPPED"
-    },
-    "diagnostic": "MSBuild build succeeded with 0 warnings/errors. Csc aggregate 1121s; Infrastructure/API project summaries 966s/1044s (nested project/task totals are not additive). One-node build retained; no topology change justified.",
-    "localParallelism": "Six same-host offline trials, 9 units/517 assertions each, all pass: mean P4 27.98s, P8 21.39s, P12 22.30s; not hosted-runner evidence.",
-    "deployment": "NOT_PERFORMED; deployment-stage timing remains unmeasured.",
-    "evidence": ".local/autonomous/evidence/ci-acceleration-20261109/performance-summary-fast-42697501935",
-    "deploymentPollCadence": "Migration 5s×180/900s; canary 5s×40/200s, gates retained. Fast 42703592406 PASS/31m09s; producer 28m22s vs prior 19m41s, no CI gain shown; deployment unmeasured. Proof .local/autonomous/evidence/ci-acceleration-20261109/deployment-poll-cadence/ci-42703592406/terminal-proof.json."
+    "timingInterpretation": "Compared with predecessor fast 42725379276 (1306s), this run took 1124s; one-run comparison is uncontrolled and not causal. Image workflow was 38s versus 33s on the immediate predecessor, so no image timing gain is demonstrated.",
+    "protectedReleaseCache": "release.yml imports matching GHCR BuildKit cache and retains the per-release GHA cache; the protected build-images path was not executed, so cache import hit and release-stage duration are unverified.",
+    "releaseAndDeployment": "NOT_DISPATCHED; NOT_PERFORMED; no deployment timing or release acceptance claimed."
   }
 }
