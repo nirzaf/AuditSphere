@@ -43,6 +43,8 @@ public static class AuditCompletionService
     ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Administrator"];
   private static readonly string[] ReviewRoles = ["Reviewer", "Manager", "Partner", "Administrator"];
 
+  private sealed record CompletionRecordScope(Guid ClientId, Guid EngagementId);
+
   /// <summary>Records an analytical-review variance with its investigation. The conclusion
   /// follows from the facts: a difference above the threshold without an explanation is
   /// UNEXPLAINED and cannot be closed by assertion.</summary>
@@ -268,60 +270,145 @@ public static class AuditCompletionService
   /// their own work and an unresolved state is refused.</summary>
   public static async Task<CommandResult> ReviewCompletionRecordAsync(
     IClientAccountingDbContext db, ActorContext actor, string recordKind, Guid recordId,
-    CancellationToken ct = default)
+    long expectedRevision, CancellationToken ct = default)
   {
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, RequiredRoles: ReviewRoles, InternalOnly: true), ct);
+    if (recordId == Guid.Empty || expectedRevision < 1)
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "A current completion record and revision are required.");
+
+    var kind = recordKind?.Trim().ToUpperInvariant();
+    var scope = kind switch
+    {
+      "VARIANCE" => await db.AnalyticalReviewVarianceInvestigations.AsNoTracking()
+        .Where(x => x.Id == recordId && x.FirmId == actor.FirmId)
+        .Select(x => new CompletionRecordScope(x.ClientId, x.EngagementId)).SingleOrDefaultAsync(ct),
+      "GOING_CONCERN" => await db.GoingConcernAssessments.AsNoTracking()
+        .Where(x => x.Id == recordId && x.FirmId == actor.FirmId)
+        .Select(x => new CompletionRecordScope(x.ClientId, x.EngagementId)).SingleOrDefaultAsync(ct),
+      "SUBSEQUENT_EVENT" => await db.SubsequentEventReviews.AsNoTracking()
+        .Where(x => x.Id == recordId && x.FirmId == actor.FirmId)
+        .Select(x => new CompletionRecordScope(x.ClientId, x.EngagementId)).SingleOrDefaultAsync(ct),
+      _ => null
+    };
+    if (scope is null)
+      return CommandResult.Fail(kind is "VARIANCE" or "GOING_CONCERN" or "SUBSEQUENT_EVENT"
+        ? ErrorCodes.ScopeDenied : ErrorCodes.Accounting.MappingInvalid,
+        kind is "VARIANCE" or "GOING_CONCERN" or "SUBSEQUENT_EVENT"
+          ? "Access denied." : "An unsupported completion record kind was requested.");
+
+    async Task<CommandResult> AuthorizeExactScopeAsync() => await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, scope.ClientId, scope.EngagementId, ReviewRoles,
+        InternalOnly: true, RequireProfessionalWork: true), ct);
+
+    var auth = await AuthorizeExactScopeAsync();
+    if (!auth.Succeeded) return auth;
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var safety = await AuditPlanningCommandWorkspace.LockAsync(db, actor, scope.EngagementId, publishing: true, ct);
+    if (!safety.Succeeded)
+    {
+      await tx.CommitAsync(ct);
+      return safety;
+    }
+
+    var engagement = await db.Engagements.FromSqlInterpolated($"""
+      SELECT * FROM engagements WHERE firm_id = {actor.FirmId} AND id = {scope.EngagementId} FOR UPDATE
+      """).AsNoTracking().SingleOrDefaultAsync(ct);
+    if (engagement is null || engagement.PracticeClientId != scope.ClientId)
+    {
+      await tx.CommitAsync(ct);
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    }
+
+    // Re-read grants, session and professional-work state after all lock waits and again
+    // after the exact record lock, immediately before changing the reviewed basis.
+    auth = await AuthorizeExactScopeAsync();
     if (!auth.Succeeded)
+    {
+      await tx.CommitAsync(ct); // retain any frozen-access refusal evidence written by authorization
       return auth;
-    switch (recordKind?.Trim().ToUpperInvariant())
+    }
+
+    CommandResult? refusal = null;
+    switch (kind)
     {
       case "VARIANCE":
       {
-        var record = await db.AnalyticalReviewVarianceInvestigations.SingleOrDefaultAsync(x =>
-          x.Id == recordId && x.FirmId == actor.FirmId, ct);
-        if (record is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-        if (record.RecordedByUserId == actor.UserId)
-          return CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review their own variance investigation.");
-        if (record.Conclusion == VarianceInvestigationConclusions.Unexplained)
-          return CommandResult.Fail(ErrorCodes.GateBlocked,
+        var record = await db.AnalyticalReviewVarianceInvestigations.FromSqlInterpolated($"""
+          SELECT * FROM analytical_variance_investigations
+          WHERE firm_id = {actor.FirmId} AND id = {recordId} FOR UPDATE
+          """).SingleOrDefaultAsync(ct);
+        if (record is null || record.ClientId != scope.ClientId || record.EngagementId != scope.EngagementId)
+          refusal = CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+        else if (record.Revision != expectedRevision)
+          refusal = CommandResult.Fail(ErrorCodes.GenerationStale, "The variance investigation changed; reload and review its current revision.");
+        else if (record.RecordedByUserId == actor.UserId)
+          refusal = CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review their own variance investigation.");
+        else if (record.Conclusion == VarianceInvestigationConclusions.Unexplained)
+          refusal = CommandResult.Fail(ErrorCodes.GateBlocked,
             "An unexplained variance above the investigation threshold must be resolved before review.");
-        record.ReviewedByUserId = actor.UserId;
-        record.ReviewedAt = DateTimeOffset.UtcNow;
+        else
+        {
+          auth = await AuthorizeExactScopeAsync();
+          if (!auth.Succeeded) refusal = auth;
+          else { record.ReviewedByUserId = actor.UserId; record.ReviewedAt = DateTimeOffset.UtcNow; }
+        }
         break;
       }
       case "GOING_CONCERN":
       {
-        var record = await db.GoingConcernAssessments.SingleOrDefaultAsync(x =>
-          x.Id == recordId && x.FirmId == actor.FirmId, ct);
-        if (record is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-        if (record.RecordedByUserId == actor.UserId)
-          return CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review their own going-concern assessment.");
-        if (record.Conclusion is GoingConcernConclusions.NotAssessed or GoingConcernConclusions.InadequateDisclosure)
-          return CommandResult.Fail(ErrorCodes.GateBlocked,
+        var record = await db.GoingConcernAssessments.FromSqlInterpolated($"""
+          SELECT * FROM going_concern_assessments
+          WHERE firm_id = {actor.FirmId} AND id = {recordId} FOR UPDATE
+          """).SingleOrDefaultAsync(ct);
+        if (record is null || record.ClientId != scope.ClientId || record.EngagementId != scope.EngagementId)
+          refusal = CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+        else if (record.Revision != expectedRevision)
+          refusal = CommandResult.Fail(ErrorCodes.GenerationStale, "The going-concern assessment changed; reload and review its current revision.");
+        else if (record.RecordedByUserId == actor.UserId)
+          refusal = CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review their own going-concern assessment.");
+        else if (record.Conclusion is GoingConcernConclusions.NotAssessed or GoingConcernConclusions.InadequateDisclosure)
+          refusal = CommandResult.Fail(ErrorCodes.GateBlocked,
             "The going-concern conclusion must be assessed and adequately disclosed before review.");
-        record.ReviewedByUserId = actor.UserId;
-        record.ReviewedAt = DateTimeOffset.UtcNow;
+        else
+        {
+          auth = await AuthorizeExactScopeAsync();
+          if (!auth.Succeeded) refusal = auth;
+          else { record.ReviewedByUserId = actor.UserId; record.ReviewedAt = DateTimeOffset.UtcNow; }
+        }
         break;
       }
       case "SUBSEQUENT_EVENT":
       {
-        var record = await db.SubsequentEventReviews.SingleOrDefaultAsync(x =>
-          x.Id == recordId && x.FirmId == actor.FirmId, ct);
-        if (record is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-        if (record.RecordedByUserId == actor.UserId)
-          return CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review their own subsequent-event assessment.");
-        if (record.Classification == SubsequentEventClassifications.PendingAssessment)
-          return CommandResult.Fail(ErrorCodes.GateBlocked,
+        var record = await db.SubsequentEventReviews.FromSqlInterpolated($"""
+          SELECT * FROM subsequent_event_reviews
+          WHERE firm_id = {actor.FirmId} AND id = {recordId} FOR UPDATE
+          """).SingleOrDefaultAsync(ct);
+        if (record is null || record.ClientId != scope.ClientId || record.EngagementId != scope.EngagementId)
+          refusal = CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+        else if (record.Revision != expectedRevision)
+          refusal = CommandResult.Fail(ErrorCodes.GenerationStale, "The subsequent-event assessment changed; reload and review its current revision.");
+        else if (record.RecordedByUserId == actor.UserId)
+          refusal = CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review their own subsequent-event assessment.");
+        else if (record.Classification == SubsequentEventClassifications.PendingAssessment)
+          refusal = CommandResult.Fail(ErrorCodes.GateBlocked,
             "A subsequent event must be classified before it can be reviewed.");
-        record.ReviewedByUserId = actor.UserId;
-        record.ReviewedAt = DateTimeOffset.UtcNow;
+        else
+        {
+          auth = await AuthorizeExactScopeAsync();
+          if (!auth.Succeeded) refusal = auth;
+          else { record.ReviewedByUserId = actor.UserId; record.ReviewedAt = DateTimeOffset.UtcNow; }
+        }
         break;
       }
-      default:
-        return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "An unsupported completion record kind was requested.");
+    }
+
+    if (refusal is not null)
+    {
+      await tx.CommitAsync(ct);
+      return refusal;
     }
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 }

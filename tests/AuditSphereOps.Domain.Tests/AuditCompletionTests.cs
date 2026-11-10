@@ -4,6 +4,7 @@ using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -35,12 +36,36 @@ public sealed class AuditCompletionTests
         GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Actor.UserId
       });
       await db.SaveChangesAsync();
+
+      // A record in the same firm but a sibling engagement must not be reviewable
+      // through the exact-engagement grant created for the primary scope.
+      db.AnalyticalReviewVarianceInvestigations.Add(new AnalyticalReviewVarianceInvestigation
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.Other.FirmId, ClientId = fixture.Other.ClientId,
+        EngagementId = fixture.Other.EngagementId, AccountArea = AuditAreaCodes.Revenue,
+        PeriodReference = "2026-Q1", ExpectedAmount = 100m, ActualAmount = 100m,
+        DifferenceAmount = 0m, DifferencePercent = 0m, InvestigationThreshold = 10m,
+        ExceedsThreshold = false, Conclusion = VarianceInvestigationConclusions.Explained,
+        Currency = "QAR", EvidenceReferencesJson = "[]", Revision = 1,
+        RecordedByUserId = scope.Actor.UserId, RecordedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
     }
     var reviewer = new ActorContext(reviewerId, scope.FirmId, 1, ["Reviewer", "Partner"]);
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       // --- variance: below threshold is explained; above threshold without an explanation is unexplained.
+      var siblingRecordId = await db.AnalyticalReviewVarianceInvestigations.AsNoTracking()
+        .Where(x => x.EngagementId == fixture.Other.EngagementId)
+        .Select(x => x.Id).SingleAsync();
+      var siblingReview = await AuditCompletionService.ReviewCompletionRecordAsync(db, reviewer,
+        "VARIANCE", siblingRecordId, expectedRevision: 1);
+      Assert.False(siblingReview.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, siblingReview.ErrorCode);
+      Assert.Null(await db.AnalyticalReviewVarianceInvestigations.AsNoTracking()
+        .Where(x => x.Id == siblingRecordId).Select(x => x.ReviewedByUserId).SingleAsync());
+
       var belowThreshold = await AuditCompletionService.RecordVarianceInvestigationAsync(db, scope.Actor,
         new VarianceInvestigationRequest(scope.EngagementId, null, AuditAreaCodes.Revenue, "2026-Q1",
           1000m, 1050m, 100m, "QAR", null, ["tb-extract"]));
@@ -56,7 +81,7 @@ public sealed class AuditCompletionTests
       Assert.True(aboveUnexplained.Value!.ExceedsThreshold);
       Assert.Equal(VarianceInvestigationConclusions.Unexplained, aboveUnexplained.Value.Conclusion);
       var blockedVarianceReview = await AuditCompletionService.ReviewCompletionRecordAsync(db, reviewer,
-        "VARIANCE", aboveUnexplained.Value.InvestigationId);
+        "VARIANCE", aboveUnexplained.Value.InvestigationId, expectedRevision: aboveUnexplained.Value.Revision);
       Assert.False(blockedVarianceReview.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, blockedVarianceReview.ErrorCode);
 
@@ -68,10 +93,23 @@ public sealed class AuditCompletionTests
       Assert.True(corroborated.Succeeded);
       Assert.Equal(VarianceInvestigationConclusions.Corroborated, corroborated.Value!.Conclusion);
       Assert.Equal(2, corroborated.Value.Revision);
+      var staleSessionReview = await AuditCompletionService.ReviewCompletionRecordAsync(db,
+        new ActorContext(reviewerId, scope.FirmId, 0, ["Reviewer"]),
+        "VARIANCE", corroborated.Value.InvestigationId, expectedRevision: corroborated.Value.Revision);
+      Assert.False(staleSessionReview.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleSessionReview.ErrorCode);
+      Assert.Null(await db.AnalyticalReviewVarianceInvestigations.AsNoTracking()
+        .Where(x => x.Id == corroborated.Value.InvestigationId).Select(x => x.ReviewedByUserId).SingleAsync());
+      var staleVarianceReview = await AuditCompletionService.ReviewCompletionRecordAsync(db, reviewer,
+        "VARIANCE", corroborated.Value.InvestigationId, expectedRevision: corroborated.Value.Revision - 1);
+      Assert.False(staleVarianceReview.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, staleVarianceReview.ErrorCode);
+      Assert.Null(await db.AnalyticalReviewVarianceInvestigations.AsNoTracking()
+        .Where(x => x.Id == corroborated.Value.InvestigationId).Select(x => x.ReviewedByUserId).SingleAsync());
       Assert.True((await AuditCompletionService.ReviewCompletionRecordAsync(db, reviewer,
-        "VARIANCE", corroborated.Value.InvestigationId)).Succeeded);
+        "VARIANCE", corroborated.Value.InvestigationId, expectedRevision: corroborated.Value.Revision)).Succeeded);
       var selfReview = await AuditCompletionService.ReviewCompletionRecordAsync(db, scope.Actor,
-        "VARIANCE", corroborated.Value.InvestigationId);
+        "VARIANCE", corroborated.Value.InvestigationId, expectedRevision: corroborated.Value.Revision);
       Assert.False(selfReview.Succeeded);
 
       // --- going concern: no uncertainty needs no disclosure; uncertainty with disclosure is recorded.
@@ -83,7 +121,7 @@ public sealed class AuditCompletionTests
       Assert.True(noUncertainty.Succeeded, noUncertainty.Message);
       Assert.Equal(GoingConcernConclusions.NoMaterialUncertainty, noUncertainty.Value!.Conclusion);
       Assert.True((await AuditCompletionService.ReviewCompletionRecordAsync(db, reviewer,
-        "GOING_CONCERN", noUncertainty.Value.AssessmentId)).Succeeded);
+        "GOING_CONCERN", noUncertainty.Value.AssessmentId, expectedRevision: noUncertainty.Value.Revision)).Succeeded);
 
       var uncertainty = await AuditCompletionService.RecordGoingConcernAssessmentAsync(db, scope.Actor,
         new GoingConcernAssessmentRequest(scope.EngagementId, null, new DateOnly(2026, 12, 15),
@@ -93,7 +131,7 @@ public sealed class AuditCompletionTests
       Assert.True(uncertainty.Succeeded);
       Assert.Equal(GoingConcernConclusions.InadequateDisclosure, uncertainty.Value!.Conclusion);
       var blockedGoingConcern = await AuditCompletionService.ReviewCompletionRecordAsync(db, reviewer,
-        "GOING_CONCERN", uncertainty.Value.AssessmentId);
+        "GOING_CONCERN", uncertainty.Value.AssessmentId, expectedRevision: uncertainty.Value.Revision);
       Assert.False(blockedGoingConcern.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, blockedGoingConcern.ErrorCode);
 
@@ -106,7 +144,7 @@ public sealed class AuditCompletionTests
       Assert.True(pendingEvent.Succeeded, pendingEvent.Message);
       Assert.Equal(1, pendingEvent.Value!.PendingEventCount);
       var blockedEventReview = await AuditCompletionService.ReviewCompletionRecordAsync(db, reviewer,
-        "SUBSEQUENT_EVENT", pendingEvent.Value.ReviewId);
+        "SUBSEQUENT_EVENT", pendingEvent.Value.ReviewId, expectedRevision: pendingEvent.Value.Revision);
       Assert.False(blockedEventReview.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, blockedEventReview.ErrorCode);
 
@@ -134,10 +172,10 @@ public sealed class AuditCompletionTests
       Assert.Equal(2, classified.Value!.Revision);
       Assert.Equal(0, classified.Value.PendingEventCount);
       Assert.True((await AuditCompletionService.ReviewCompletionRecordAsync(db, reviewer,
-        "SUBSEQUENT_EVENT", classified.Value.ReviewId)).Succeeded);
+        "SUBSEQUENT_EVENT", classified.Value.ReviewId, expectedRevision: classified.Value.Revision)).Succeeded);
 
       var unsupportedKind = await AuditCompletionService.ReviewCompletionRecordAsync(db, reviewer,
-        "NOT_A_KIND", classified.Value.ReviewId);
+        "NOT_A_KIND", classified.Value.ReviewId, expectedRevision: classified.Value.Revision);
       Assert.False(unsupportedKind.Succeeded);
     }
   }
