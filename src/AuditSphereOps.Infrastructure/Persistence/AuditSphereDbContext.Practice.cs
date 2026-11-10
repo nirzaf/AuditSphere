@@ -243,7 +243,18 @@ public sealed partial class AuditSphereDbContext
       t.HasCheckConstraint("ck_finance_profile_currency", "functional_currency ~ '^[A-Z]{3}$'");
       t.HasCheckConstraint("ck_finance_profile_kind", "profile_kind IN ('TEST','PRODUCTION')");
       t.HasCheckConstraint("ck_finance_profile_approval", "(approved = false AND approved_at IS NULL AND approved_by_user_id IS NULL) OR (approved = true AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL)");
+      t.HasCheckConstraint("ck_finance_profile_review_basis",
+        "(created_by_user_id IS NULL AND created_by_epoch IS NULL AND draft_revision IS NULL AND draft_basis_sha256 IS NULL AND approved_draft_revision IS NULL AND approved_draft_basis_sha256 IS NULL) OR " +
+        "(created_by_user_id IS NOT NULL AND created_by_epoch IS NOT NULL AND created_by_epoch >= 0 AND draft_revision IS NOT NULL AND draft_revision >= 1 AND draft_basis_sha256 IS NOT NULL AND draft_basis_sha256 ~ '^[0-9a-f]{64}$' AND " +
+        "((approved = false AND approved_draft_revision IS NULL AND approved_draft_basis_sha256 IS NULL) OR " +
+        "(approved = true AND approved_draft_revision IS NOT NULL AND approved_draft_revision = draft_revision AND approved_draft_basis_sha256 IS NOT NULL AND approved_draft_basis_sha256 = draft_basis_sha256 AND approved_by_user_id IS NOT NULL AND approved_by_user_id <> created_by_user_id)))");
     });
+    b.Entity<FirmFinanceProfile>().Property(x => x.DraftBasisSha256).HasMaxLength(64);
+    b.Entity<FirmFinanceProfile>().Property(x => x.ApprovedDraftBasisSha256).HasMaxLength(64);
+    b.Entity<FirmFinanceProfile>().Property(x => x.DraftRevision).IsConcurrencyToken();
+    b.Entity<FirmFinanceProfile>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<Invoice>().ToTable("invoices", t =>
     {
       t.HasCheckConstraint("ck_invoice_state", "status IN ('DRAFT','REVIEW_REQUIRED','APPROVED','POSTED','SENT','CANCELLED') AND revision >= 1");

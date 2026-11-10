@@ -35,6 +35,14 @@ public sealed class FirmFinanceProfile
   public Guid? ApprovedByUserId { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
   public DateTimeOffset? ApprovedAt { get; set; }
+  // Null on retained legacy rows. New profiles are created only as maker-owned drafts;
+  // approval records the exact immutable draft basis and revision.
+  public Guid? CreatedByUserId { get; set; }
+  public long? CreatedByEpoch { get; set; }
+  public long? DraftRevision { get; set; }
+  public string? DraftBasisSha256 { get; set; }
+  public long? ApprovedDraftRevision { get; set; }
+  public string? ApprovedDraftBasisSha256 { get; set; }
 }
 
 public sealed class Invoice

@@ -13533,7 +13533,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("reviewed_by_user_id");
 
+                    b.Property<long?>("ReviewedRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reviewed_revision");
+
                     b.Property<long>("Revision")
+                        .IsConcurrencyToken()
                         .HasColumnType("bigint")
                         .HasColumnName("revision");
 
@@ -17297,7 +17302,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("reviewed_by_user_id");
 
+                    b.Property<long?>("ReviewedRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reviewed_revision");
+
                     b.Property<long>("Revision")
+                        .IsConcurrencyToken()
                         .HasColumnType("bigint")
                         .HasColumnName("revision");
 
@@ -18421,7 +18431,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("reviewed_by_user_id");
 
+                    b.Property<long?>("ReviewedRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reviewed_revision");
+
                     b.Property<long>("Revision")
+                        .IsConcurrencyToken()
                         .HasColumnType("bigint")
                         .HasColumnName("revision");
 
@@ -26497,9 +26512,36 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("approved_by_user_id");
 
+                    b.Property<string>("ApprovedDraftBasisSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("approved_draft_basis_sha256");
+
+                    b.Property<long?>("ApprovedDraftRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("approved_draft_revision");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedByEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by_epoch");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("DraftBasisSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("draft_basis_sha256");
+
+                    b.Property<long?>("DraftRevision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("draft_revision");
 
                     b.Property<Guid>("FirmId")
                         .HasColumnType("uuid")
@@ -26525,6 +26567,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ApprovedByUserId");
 
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
                     b.ToTable("firm_finance_profiles", null, t =>
                         {
                             t.HasCheckConstraint("ck_finance_profile_approval", "(approved = false AND approved_at IS NULL AND approved_by_user_id IS NULL) OR (approved = true AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL)");
@@ -26532,6 +26576,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_finance_profile_currency", "functional_currency ~ '^[A-Z]{3}$'");
 
                             t.HasCheckConstraint("ck_finance_profile_kind", "profile_kind IN ('TEST','PRODUCTION')");
+
+                            t.HasCheckConstraint("ck_finance_profile_review_basis", "(created_by_user_id IS NULL AND created_by_epoch IS NULL AND draft_revision IS NULL AND draft_basis_sha256 IS NULL AND approved_draft_revision IS NULL AND approved_draft_basis_sha256 IS NULL) OR (created_by_user_id IS NOT NULL AND created_by_epoch IS NOT NULL AND created_by_epoch >= 0 AND draft_revision IS NOT NULL AND draft_revision >= 1 AND draft_basis_sha256 IS NOT NULL AND draft_basis_sha256 ~ '^[0-9a-f]{64}$' AND ((approved = false AND approved_draft_revision IS NULL AND approved_draft_basis_sha256 IS NULL) OR (approved = true AND approved_draft_revision IS NOT NULL AND approved_draft_revision = draft_revision AND approved_draft_basis_sha256 IS NOT NULL AND approved_draft_basis_sha256 = draft_basis_sha256 AND approved_by_user_id IS NOT NULL AND approved_by_user_id <> created_by_user_id)))");
                         });
                 });
 
@@ -39272,6 +39318,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ApprovedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
                 });

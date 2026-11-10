@@ -13,7 +13,8 @@ namespace AuditSphereOps.Application.Audit;
 public sealed record VarianceInvestigationRequest(
   Guid EngagementId, Guid? ProcedureId, string AccountArea, string PeriodReference,
   decimal ExpectedAmount, decimal ActualAmount, decimal InvestigationThreshold,
-  string Currency, string? Explanation, IReadOnlyList<string> EvidenceReferences);
+  string Currency, string? Explanation, IReadOnlyList<string> EvidenceReferences,
+  long? ExpectedRevision = null);
 
 public sealed record VarianceInvestigationValue(
   Guid InvestigationId, decimal DifferenceAmount, decimal? DifferencePercent,
@@ -85,6 +86,10 @@ public static class AuditCompletionService
     if (existing is not null && existing.RecordedByUserId != actor.UserId)
       return CommandResult<VarianceInvestigationValue>.Fail(ErrorCodes.ScopeDenied,
         "Only the recording auditor can revise this variance investigation.");
+    if (existing is not null &&
+        (request.ExpectedRevision is null || request.ExpectedRevision != existing.Revision))
+      return CommandResult<VarianceInvestigationValue>.Fail(ErrorCodes.GenerationStale,
+        "The variance investigation changed; reload its current revision before revising it.");
     if (existing is null)
     {
       existing = new AnalyticalReviewVarianceInvestigation
@@ -100,6 +105,7 @@ public static class AuditCompletionService
       existing.RecordedAt = DateTimeOffset.UtcNow;
       existing.ReviewedByUserId = null;
       existing.ReviewedAt = null;
+      existing.ReviewedRevision = null;
     }
     existing.ProcedureId = request.ProcedureId;
     existing.AccountArea = area;
@@ -115,7 +121,15 @@ public static class AuditCompletionService
     existing.Currency = currency;
     existing.EvidenceReferencesJson = System.Text.Json.JsonSerializer.Serialize(
       (request.EvidenceReferences ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray());
-    await db.SaveChangesAsync(ct);
+    try
+    {
+      await db.SaveChangesAsync(ct);
+    }
+    catch (DbUpdateConcurrencyException)
+    {
+      return CommandResult<VarianceInvestigationValue>.Fail(ErrorCodes.GenerationStale,
+        "The variance investigation changed; reload its current revision before revising it.");
+    }
 
     return CommandResult<VarianceInvestigationValue>.Ok(new VarianceInvestigationValue(
       existing.Id, difference, percent, exceeds, conclusion, existing.Revision));
@@ -171,6 +185,7 @@ public static class AuditCompletionService
       existing.RecordedAt = DateTimeOffset.UtcNow;
       existing.ReviewedByUserId = null;
       existing.ReviewedAt = null;
+      existing.ReviewedRevision = null;
     }
     existing.ProcedureId = request.ProcedureId;
     existing.AssessmentDate = request.AssessmentDate;
@@ -183,7 +198,15 @@ public static class AuditCompletionService
     existing.Currency = currency;
     existing.EvidenceReferencesJson = System.Text.Json.JsonSerializer.Serialize(
       (request.EvidenceReferences ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray());
-    await db.SaveChangesAsync(ct);
+    try
+    {
+      await db.SaveChangesAsync(ct);
+    }
+    catch (DbUpdateConcurrencyException)
+    {
+      return CommandResult<GoingConcernAssessmentValue>.Fail(ErrorCodes.GenerationStale,
+        "The going-concern assessment changed; reload its current revision before revising it.");
+    }
 
     return CommandResult<GoingConcernAssessmentValue>.Ok(new GoingConcernAssessmentValue(
       existing.Id, conclusion, existing.MaterialUncertaintyIdentified, existing.Revision));
@@ -242,6 +265,7 @@ public static class AuditCompletionService
       existing.RecordedAt = DateTimeOffset.UtcNow;
       existing.ReviewedByUserId = null;
       existing.ReviewedAt = null;
+      existing.ReviewedRevision = null;
     }
     existing.ProcedureId = request.ProcedureId;
     existing.PeriodEndDate = request.PeriodEndDate;
@@ -256,7 +280,15 @@ public static class AuditCompletionService
     existing.FinancialEffect = request.FinancialEffect;
     existing.EvidenceReferencesJson = System.Text.Json.JsonSerializer.Serialize(
       (request.EvidenceReferences ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray());
-    await db.SaveChangesAsync(ct);
+    try
+    {
+      await db.SaveChangesAsync(ct);
+    }
+    catch (DbUpdateConcurrencyException)
+    {
+      return CommandResult<SubsequentEventReviewValue>.Fail(ErrorCodes.GenerationStale,
+        "The subsequent-event assessment changed; reload its current revision before revising it.");
+    }
 
     var pending = await db.SubsequentEventReviews.AsNoTracking()
       .CountAsync(x => x.FirmId == actor.FirmId && x.EngagementId == request.EngagementId &&
@@ -350,7 +382,13 @@ public static class AuditCompletionService
         {
           auth = await AuthorizeExactScopeAsync();
           if (!auth.Succeeded) refusal = auth;
-          else { record.ReviewedByUserId = actor.UserId; record.ReviewedAt = DateTimeOffset.UtcNow; }
+          else
+          {
+            record.ReviewedByUserId = actor.UserId;
+            record.ReviewedAt = DateTimeOffset.UtcNow;
+            record.ReviewedRevision = expectedRevision;
+            record.Revision++;
+          }
         }
         break;
       }
@@ -373,7 +411,13 @@ public static class AuditCompletionService
         {
           auth = await AuthorizeExactScopeAsync();
           if (!auth.Succeeded) refusal = auth;
-          else { record.ReviewedByUserId = actor.UserId; record.ReviewedAt = DateTimeOffset.UtcNow; }
+          else
+          {
+            record.ReviewedByUserId = actor.UserId;
+            record.ReviewedAt = DateTimeOffset.UtcNow;
+            record.ReviewedRevision = expectedRevision;
+            record.Revision++;
+          }
         }
         break;
       }
@@ -396,7 +440,13 @@ public static class AuditCompletionService
         {
           auth = await AuthorizeExactScopeAsync();
           if (!auth.Succeeded) refusal = auth;
-          else { record.ReviewedByUserId = actor.UserId; record.ReviewedAt = DateTimeOffset.UtcNow; }
+          else
+          {
+            record.ReviewedByUserId = actor.UserId;
+            record.ReviewedAt = DateTimeOffset.UtcNow;
+            record.ReviewedRevision = expectedRevision;
+            record.Revision++;
+          }
         }
         break;
       }
@@ -407,7 +457,16 @@ public static class AuditCompletionService
       await tx.CommitAsync(ct);
       return refusal;
     }
-    await db.SaveChangesAsync(ct);
+    try
+    {
+      await db.SaveChangesAsync(ct);
+    }
+    catch (DbUpdateConcurrencyException)
+    {
+      await tx.RollbackAsync(ct);
+      return CommandResult.Fail(ErrorCodes.GenerationStale,
+        "The completion record changed; reload and review its current revision.");
+    }
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }

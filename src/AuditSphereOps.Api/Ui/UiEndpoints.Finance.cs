@@ -15,6 +15,8 @@ public static partial class UiEndpoints
 {
   public sealed record FirmAccountInput(string Code, string Name, string AccountType, string NormalSide, bool PostingAllowed = true);
   public sealed record FirmPeriodInput(string PeriodCode);
+  public sealed record FirmFinanceProfileInput(string FunctionalCurrency, string ProfileKind);
+  public sealed record FirmFinanceProfileApprovalInput(long ExpectedRevision, string ExpectedDraftBasisSha256);
   public sealed record FirmJournalLineInput(Guid FirmAccountId, string Description, string Debit, string Credit);
   public sealed record FirmJournalInput(Guid PeriodId, string JournalNumber, string SourceKey,
     string PostingPurpose, string Currency, IReadOnlyList<FirmJournalLineInput> Lines);
@@ -145,6 +147,17 @@ public static partial class UiEndpoints
           })
         : CommandResult<object>.Fail(r.ErrorCode!, r.Message!);
     })).WithOversightAccessEvidence("firm-finance.read", "FIRM"), includeBadRequest: false);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<FirmFinanceProfileDraft>>(
+      group.MapPost("/finance/profile", (FirmFinanceProfileInput input, HttpContext http) =>
+        CommandAsync(http, (db, actor, ct) => FirmFinanceProfileService.CreateDraftAsync(db, actor,
+          new CreateFirmFinanceProfileRequest(input.FunctionalCurrency ?? "", input.ProfileKind ?? ""), ct))), includeConflict: true);
+    group.MapUiGet("/finance/profile", http =>
+      ReadAsync(http, (db, actor, ct) => FirmFinanceProfileService.ReadAsync(db, actor, ct)))
+      .WithUiResponse<FirmFinanceProfileView>();
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<FirmFinanceProfileApproval>>(
+      group.MapPost("/finance/profile/{id:guid}/approve", (Guid id, FirmFinanceProfileApprovalInput input, HttpContext http) =>
+        CommandAsync(http, (db, actor, ct) => FirmFinanceProfileService.ApproveDraftAsync(db, actor,
+          new ApproveFirmFinanceProfileRequest(id, input.ExpectedRevision, input.ExpectedDraftBasisSha256 ?? ""), ct))), includeConflict: true);
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/finance/accounts", (FirmAccountInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.CreateFirmAccountAsync(db, actor,
         new CreateFirmAccountRequest(input.Code ?? "", input.Name ?? "", input.AccountType ?? "", input.NormalSide ?? "", input.PostingAllowed), ct))),

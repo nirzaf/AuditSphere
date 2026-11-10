@@ -494,7 +494,9 @@ public static partial class AuditFieldworkService
     if (analytics.Count == 0) blockers.Add("analytical-review:missing");
     else
     {
-      if (analytics.Any(x => x.ReviewedByUserId is null)) blockers.Add("analytical-review:unreviewed");
+      if (analytics.Any(x => !IsCurrentReviewedBasis(x.ReviewedByUserId, x.ReviewedAt,
+          x.ReviewedRevision, x.Revision)))
+        blockers.Add("analytical-review:unreviewed");
       if (analytics.Any(x => x.ExceedsThreshold && x.Conclusion == VarianceInvestigationConclusions.Unexplained)) blockers.Add("analytical-review:unexplained-variance");
     }
     var goingConcern = await db.GoingConcernAssessments.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId)
@@ -502,11 +504,20 @@ public static partial class AuditFieldworkService
     if (goingConcern is null) blockers.Add("going-concern:missing");
     else
     {
-      if (goingConcern.ReviewedByUserId is null) blockers.Add("going-concern:unreviewed");
+      if (!IsCurrentReviewedBasis(goingConcern.ReviewedByUserId, goingConcern.ReviewedAt,
+          goingConcern.ReviewedRevision, goingConcern.Revision))
+        blockers.Add("going-concern:unreviewed");
       if (DateOnly.TryParseExact(engagement.PeriodEnd, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var periodEnd) &&
           goingConcern.PeriodCoveredTo < periodEnd.AddMonths(12))
         blockers.Add("going-concern:horizon-under-12-months");
     }
     return blockers;
   }
+
+  internal static bool IsReviewedBasisCurrent(long? reviewedRevision, long currentRevision) =>
+    reviewedRevision is >= 1 and < long.MaxValue && currentRevision == reviewedRevision + 1;
+
+  internal static bool IsCurrentReviewedBasis(Guid? reviewerUserId, DateTimeOffset? reviewedAt,
+    long? reviewedRevision, long currentRevision) =>
+    reviewerUserId.HasValue && reviewedAt.HasValue && IsReviewedBasisCurrent(reviewedRevision, currentRevision);
 }

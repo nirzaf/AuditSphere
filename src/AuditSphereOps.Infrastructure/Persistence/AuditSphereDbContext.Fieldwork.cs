@@ -231,6 +231,8 @@ public sealed partial class AuditSphereDbContext
     variance.Property(x => x.Explanation).HasMaxLength(4000);
     variance.Property(x => x.Conclusion).HasMaxLength(30);
     variance.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
+    variance.Property(x => x.Revision).IsConcurrencyToken();
+    variance.Property(x => x.ReviewedRevision).HasColumnName("reviewed_revision");
     variance.HasIndex(x => new { x.FirmId, x.EngagementId, x.AccountArea, x.PeriodReference }).IsUnique()
       .HasDatabaseName("ux_analytical_variance_engagement_area_period");
     variance.ToTable("analytical_variance_investigations", t => t.HasCheckConstraint("ck_analytical_variance_values",
@@ -245,6 +247,8 @@ public sealed partial class AuditSphereDbContext
     goingConcern.Property(x => x.Rationale).HasMaxLength(4000);
     goingConcern.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
     goingConcern.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
+    goingConcern.Property(x => x.Revision).IsConcurrencyToken();
+    goingConcern.Property(x => x.ReviewedRevision).HasColumnName("reviewed_revision");
     goingConcern.HasIndex(x => new { x.FirmId, x.EngagementId, x.AssessmentDate }).IsUnique()
       .HasDatabaseName("ux_going_concern_engagement_date");
     goingConcern.ToTable("going_concern_assessments", t => t.HasCheckConstraint("ck_going_concern_values",
@@ -260,6 +264,8 @@ public sealed partial class AuditSphereDbContext
     subsequentEvent.Property(x => x.Rationale).HasMaxLength(4000);
     subsequentEvent.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
     subsequentEvent.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
+    subsequentEvent.Property(x => x.Revision).IsConcurrencyToken();
+    subsequentEvent.Property(x => x.ReviewedRevision).HasColumnName("reviewed_revision");
     subsequentEvent.ToTable("subsequent_event_reviews", t => t.HasCheckConstraint("ck_subsequent_event_values",
       "revision > 0 AND currency ~ '^[A-Z]{3}$' AND event_date >= period_end_date " +
       "AND classification IN ('ADJUSTING','NON_ADJUSTING','PENDING_ASSESSMENT')"));

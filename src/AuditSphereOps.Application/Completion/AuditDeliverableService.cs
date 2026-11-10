@@ -123,21 +123,34 @@ public static partial class AuditDeliverableService
     // The report-release blocking count: critical cases without a returned and independently evaluated
     // response, which stays blocking even after alternative-only closure (STE-REM-08).
     var criticalConfirmations = confirmations.Count(c => c.Critical && !c.ReturnedEvaluatedResponse);
-    var unresolvedVariances = await db.AnalyticalReviewVarianceInvestigations.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
-        (x.Conclusion == VarianceInvestigationConclusions.Unexplained || x.ReviewedByUserId == null))
+    var varianceRows = await db.AnalyticalReviewVarianceInvestigations.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
       .OrderBy(x => x.RecordedAt)
-      .Select(x => new UnresolvedVariance(x.AccountArea, x.PeriodReference, x.DifferenceAmount, x.Currency, x.Conclusion))
+      .Select(x => new { x.AccountArea, x.PeriodReference, x.DifferenceAmount, x.Currency, x.Conclusion,
+        x.ReviewedByUserId, x.ReviewedAt, x.ReviewedRevision, x.Revision })
       .ToListAsync(ct);
+    var unresolvedVariances = varianceRows
+      .Where(x => x.Conclusion == VarianceInvestigationConclusions.Unexplained ||
+        !AuditFieldworkService.IsCurrentReviewedBasis(x.ReviewedByUserId, x.ReviewedAt, x.ReviewedRevision, x.Revision))
+      .Select(x => new UnresolvedVariance(x.AccountArea, x.PeriodReference, x.DifferenceAmount, x.Currency, x.Conclusion))
+      .ToList();
     var gc = await db.GoingConcernAssessments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderByDescending(x => x.Revision)
-      .Select(x => new { x.Id, x.Revision, x.Conclusion, Reviewed = x.ReviewedByUserId != null }).FirstOrDefaultAsync(ct);
+      .Select(x => new { x.Id, x.Revision, x.Conclusion, x.ReviewedByUserId, x.ReviewedAt, x.ReviewedRevision }).FirstOrDefaultAsync(ct);
+    var currentGoingConcern = gc is null ? null : new
+    {
+      gc.Id,
+      gc.Revision,
+      gc.Conclusion,
+      Reviewed = AuditFieldworkService.IsCurrentReviewedBasis(gc.ReviewedByUserId, gc.ReviewedAt,
+        gc.ReviewedRevision, gc.Revision)
+    };
     var completion = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, actor.FirmId, engagement.PracticeClientId, engagementId, ct);
     return new(client.CommercialName ?? client.LegalName, engagement.PeriodEnd, materiality,
       routing.Succeeded ? routing.Value!.Select(r => (object)new { r.RiskId, r.Area, r.Band, r.PartnerCleared }).ToList() : [],
       redAreas,
       procedures, openNotes, findings, unadjustedDifferences,
       outstandingConfirmations, criticalConfirmations,
-      confirmations.Select(c => (object)new { c.CaseId, c.Status, c.Critical }).ToList(), gc, unresolvedVariances,
+      confirmations.Select(c => (object)new { c.CaseId, c.Status, c.Critical }).ToList(), currentGoingConcern, unresolvedVariances,
       completion.Succeeded ? completion.Value!.Blockers : ["completion:unavailable"],
       differenceRows.Where(x => x.CorrectionState is not null || x.ProposedJournalId is not null)
         .OrderBy(x => x.Currency, StringComparer.Ordinal).ThenBy(x => x.Id)

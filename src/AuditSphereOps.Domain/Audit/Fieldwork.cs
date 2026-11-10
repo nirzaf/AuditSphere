@@ -577,6 +577,7 @@ public sealed class AnalyticalReviewVarianceInvestigation
   public Guid? ReviewedByUserId { get; set; }
   public DateTimeOffset RecordedAt { get; set; }
   public DateTimeOffset? ReviewedAt { get; set; }
+  public long? ReviewedRevision { get; set; }
 }
 
 public static class GoingConcernConclusions
@@ -613,6 +614,7 @@ public sealed class GoingConcernAssessment
   public Guid? ReviewedByUserId { get; set; }
   public DateTimeOffset RecordedAt { get; set; }
   public DateTimeOffset? ReviewedAt { get; set; }
+  public long? ReviewedRevision { get; set; }
 }
 
 public static class SubsequentEventClassifications
@@ -650,4 +652,5 @@ public sealed class SubsequentEventReview
   public Guid? ReviewedByUserId { get; set; }
   public DateTimeOffset RecordedAt { get; set; }
   public DateTimeOffset? ReviewedAt { get; set; }
+  public long? ReviewedRevision { get; set; }
 }
