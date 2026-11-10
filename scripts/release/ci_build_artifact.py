@@ -24,8 +24,9 @@ ARCHIVE_NAME = "release-build.tar.gz"
 ARTIFACT_PREFIX = "auditsphere-release-build"
 OUTPUT_ROOTS = {"src", "tests", "tools"}
 BUILD_PROPERTIES = {
-    "maxCpuCount": 1,
-    "buildInParallel": False,
+    "maxCpuCount": 2,
+    "buildInParallel": True,
+    "graphBuild": True,
     "useSharedCompilation": False,
     "runAnalyzers": False,
 }
@@ -160,7 +161,7 @@ def create_build_artifact(
         "configuration": "Release",
         "targetFramework": "net10.0",
         "dotnetSdk": dotnet_sdk,
-        "buildProperties": BUILD_PROPERTIES,
+        "buildProperties": dict(BUILD_PROPERTIES),
         **_runner_identity(runner_image, runner_version),
         "archiveFile": ARCHIVE_NAME,
         "archiveSha256": _sha256(archive),
@@ -228,7 +229,7 @@ def verify_and_extract_build_artifact(
         "configuration": "Release",
         "targetFramework": "net10.0",
         "dotnetSdk": dotnet_sdk,
-        "buildProperties": BUILD_PROPERTIES,
+        "buildProperties": dict(BUILD_PROPERTIES),
         **_runner_identity(runner_image, runner_version),
         "archiveFile": ARCHIVE_NAME,
     }

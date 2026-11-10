@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-10T02:10:09Z",
+  "observedAtUtc": "2026-11-10T02:44:32Z",
   "source": {
     "branch": "master",
-    "baseSha": "624817a3437151fb776631d736397e4bbe90cc45",
-    "originMasterSha": "624817a3437151fb776631d736397e4bbe90cc45",
-    "workingTree": "Clean master/origin-master at 624817a3437151fb776631d736397e4bbe90cc45 before bounded MSBuild graph-parallelism experiment. Exact fast CI 42735915750 passed all six terminal jobs; Release compile took 38m01.77s (CoreCompile 37m39.13s), and its digest-verified 439,654,312-byte artifact restored all 20 output directories. Graph preflight loaded 10 projects/29 edges. No full release or deployment was run.",
+    "baseSha": "ed1daf883484a6758e51c44cf046460a124f6000",
+    "originMasterSha": "ed1daf883484a6758e51c44cf046460a124f6000",
+    "workingTree": "Uncommitted artifact-manifest correction on ed1daf883484a6758e51c44cf046460a124f6000: record actual two-worker graph-build properties and reject mismatched manifests before restore. Focused helper tests 14/14; exact CI pending. No full release or deployment.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,7 @@
       "note": "Exact-source UI reuse is optional; fallback and release gates remain.",
       "currentSourceSha": "dba678bdf0a4a6d7d0312cbd39e856c09f887199"
     },
-    "ciCdAcceleration": "Bounded two-worker MSBuild static-graph candidate is being validated after exact fast CI showed 38m01.77s serial compile; graph preflight loaded 10 projects/29 edges. Exact CI not yet run for graph change. Release artifact discovery was moved into the API image job to overlap independent image/regression work; release workflow and deployment timing remain unmeasured.",
+    "ciCdAcceleration": "Exact fast run 42741934134 passed with a two-worker graph build (14m39.95s vs prior 38m01.77s; one observation each, not causal). Its restored artifact manifest had stale build flags. The follow-up now records graphBuild=true, maxCpuCount=2, BuildInParallel=true and rejects mismatch; focused helper tests 14/14, exact CI pending. Release overlap and deployment timing remain unmeasured.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
@@ -175,9 +175,9 @@
         "fastConclusion": "SUCCESS",
         "actualCheckoutSha": "98679131fa65076c429fca8f95bb1f74ba7d7d7e",
         "actualCheckoutJobs": [
-          "Build · Angular",
-          "Docs · Health",
-          "Build · .NET Release"
+          "Build \u00b7 Angular",
+          "Docs \u00b7 Health",
+          "Build \u00b7 .NET Release"
         ],
         "fastProof": ".local/autonomous/evidence/ci-98679131-current-20261108/fast-terminal-proof.json",
         "fastProofSha256": "74f5c4b4c91e0e90a02123545515f2cf4c1bd98178266be879af95ec594ff48d",
@@ -1764,14 +1764,14 @@
         "status": "SUCCESS",
         "headSha": "2f713a4cffdc08499b06901af80ff5ec504ba972",
         "actualCheckoutShaByJob": {
-          "Build · .NET Release": "2f713a4cffdc08499b06901af80ff5ec504ba972",
-          "Build · Angular": "2f713a4cffdc08499b06901af80ff5ec504ba972",
-          "Docs · Health": "2f713a4cffdc08499b06901af80ff5ec504ba972"
+          "Build \u00b7 .NET Release": "2f713a4cffdc08499b06901af80ff5ec504ba972",
+          "Build \u00b7 Angular": "2f713a4cffdc08499b06901af80ff5ec504ba972",
+          "Docs \u00b7 Health": "2f713a4cffdc08499b06901af80ff5ec504ba972"
         },
         "jobIds": {
-          "Build · .NET Release": 128809108295,
-          "Build · Angular": 128808431662,
-          "Docs · Health": 128808431815
+          "Build \u00b7 .NET Release": 128809108295,
+          "Build \u00b7 Angular": 128808431662,
+          "Docs \u00b7 Health": 128808431815
         },
         "createdAtUtc": "2026-11-08T17:37:57Z",
         "completedAtUtc": "2026-11-08T18:00:27Z",
@@ -1791,9 +1791,9 @@
         "conclusion": "success",
         "headSha": "09a76bde75314b3a76ae12c6d310365d82427c6a",
         "actualCheckoutShaByJob": {
-          "Build · Angular": "09a76bde75314b3a76ae12c6d310365d82427c6a",
-          "Docs · Health": "09a76bde75314b3a76ae12c6d310365d82427c6a",
-          "Build · .NET Release": "09a76bde75314b3a76ae12c6d310365d82427c6a"
+          "Build \u00b7 Angular": "09a76bde75314b3a76ae12c6d310365d82427c6a",
+          "Docs \u00b7 Health": "09a76bde75314b3a76ae12c6d310365d82427c6a",
+          "Build \u00b7 .NET Release": "09a76bde75314b3a76ae12c6d310365d82427c6a"
         },
         "jobIds": {
           "angular": 128798536633,
@@ -1832,10 +1832,10 @@
       "proof": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-84215010-42529618648/fast-terminal-proof.json",
       "proofSha256": "3b27f61930fc7ec709043e51228080f4c3063c17d68cd283c0f14d0dd7347037",
       "actualCheckoutJobs": {
-        "Docs · Health": "84215010a896ff94089e13751ad89354335d076c",
-        "Build · .NET Release outputs": "84215010a896ff94089e13751ad89354335d076c",
-        "Build · Angular": "84215010a896ff94089e13751ad89354335d076c",
-        "Build · .NET Release": "84215010a896ff94089e13751ad89354335d076c"
+        "Docs \u00b7 Health": "84215010a896ff94089e13751ad89354335d076c",
+        "Build \u00b7 .NET Release outputs": "84215010a896ff94089e13751ad89354335d076c",
+        "Build \u00b7 Angular": "84215010a896ff94089e13751ad89354335d076c",
+        "Build \u00b7 .NET Release": "84215010a896ff94089e13751ad89354335d076c"
       },
       "compileAngularOverlapSeconds": 93,
       "artifactId": 13637053881,
@@ -1882,31 +1882,37 @@
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed.",
   "ciCdAccelerationCandidate20261110": {
-    "observedAtUtc": "2026-11-10T02:10:09Z",
-    "sourceSha": "624817a3437151fb776631d736397e4bbe90cc45",
-    "status": "EXACT_FAST_CI_PASS; BOUNDED_GRAPH_BUILD_CANDIDATE_PENDING",
+    "observedAtUtc": "2026-11-10T02:44:32Z",
+    "sourceSha": "ed1daf883484a6758e51c44cf046460a124f6000",
+    "status": "LOCAL_CHECKS_PASS; EXACT_FAST_CI_PENDING_FOR_ARTIFACT_PROFILE_CORRECTION",
     "fast": {
-      "runId": 42735915750,
+      "runId": 42741934134,
       "attempt": 1,
       "result": "SUCCESS",
-      "wallSeconds": 2558,
+      "wallSeconds": 1123,
       "allSixActualCheckoutsVerified": true,
-      "producerBuildSeconds": 2281.77,
-      "coreCompileMilliseconds": 2259130,
-      "artifactBytes": 439654312,
-      "artifactSha256": "a2005d44296d3a759247496c2c73bc7794beadc59a1da1edbf329a981604b70e",
-      "consumer": "Digest verified; all 20 output directories restored; clean rebuild skipped; database-free guards and OpenAPI drift passed.",
-      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261110/release-artifact-overlap/fast-ci-terminal-proof.json"
+      "producerElapsedSeconds": 879.95,
+      "coreCompileMilliseconds": 898835,
+      "cscMilliseconds": 898800,
+      "runnerImageVersion": "20261101.360.1",
+      "priorSerialBuildSeconds": 2281.77,
+      "observedBuildReductionPercent": 61.4,
+      "causalTimingClaim": false,
+      "artifactBytes": 439657405,
+      "artifactSha256": "6431f9871746fbf2a80961934f93e8af66a19b714f1af5cfd9cecff724b4de64",
+      "consumer": "Digest verified; 20 output directories restored; clean rebuild skipped; Domain, API/OpenAPI, EF model and OpenAPI contract checks passed.",
+      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261110/parallel-build-experiment/run-42741934134/fast-ci-terminal-proof.json"
     },
-    "artifactDiscoveryOverlap": "Implemented in release.yml; not exercised by this fast CI. No release/images dispatch was used to benchmark it.",
-    "nextCandidate": {
-      "method": "MSBuild static project graph with two workers; retain shared compilation disabled and analyzers disabled. Graph preflight succeeded (10 nodes, 29 edges); exact fast CI is required to establish race-free success and timing.",
-      "paths": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/release-verification.yml"
-      ],
-      "deployment": "NOT_MEASURED; deployment not run."
-    },
-    "releaseAndDeployment": "NOT_DISPATCHED; NOT_PERFORMED; no release acceptance claimed."
+    "manifestIssue": "Corrected in the uncommitted follow-up: manifest now records maxCpuCount=2, BuildInParallel=true and graphBuild=true; expected properties are copied defensively, and a mismatch test verifies refusal before output restoration. Focused helper tests 14/14. Exact CI remains pending.",
+    "preflight": "MSBuild static graph preflight loaded 10 projects / 29 edges; project-target check passed.",
+    "releaseArtifactOverlap": "Implemented in release.yml but not exercised by a release workflow run; wall-time impact unmeasured.",
+    "deployment": "NOT_RUN; deployment timing unmeasured.",
+    "localVerification": {
+      "artifactHelperTests": "PASS 14/14",
+      "actionlint": "PASS ci.yml and release-verification.yml",
+      "documentation": "PASS markdown health, filenames, narrative metrics, generated task board",
+      "diffCheck": "PASS",
+      "stateValidator": "PASS 48 tasks"
+    }
   }
 }

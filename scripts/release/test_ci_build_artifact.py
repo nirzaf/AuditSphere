@@ -62,12 +62,27 @@ class CiBuildArtifactTests(unittest.TestCase):
     def test_round_trip_replaces_existing_release_outputs(self) -> None:
         manifest = self.create_artifact()
         self.assertEqual(2, len(manifest["outputDirectories"]))
+        self.assertEqual(build_artifact.BUILD_PROPERTIES, manifest["buildProperties"])
         (self.bin_output / "Example.dll").write_bytes(b"stale output")
         (self.obj_output / "project.assets.json").write_text("stale", encoding="utf-8")
 
         result = self.verify_artifact()
 
         self.assertTrue(result["restored"])
+        self.assertEqual(b"compiled assembly", (self.bin_output / "Example.dll").read_bytes())
+        self.assertEqual("{}", (self.obj_output / "project.assets.json").read_text(encoding="utf-8"))
+
+    def test_build_property_mismatch_is_rejected_before_output_restore(self) -> None:
+        manifest = self.create_artifact()
+        manifest["buildProperties"]["maxCpuCount"] = 1
+        self.assertEqual(2, build_artifact.BUILD_PROPERTIES["maxCpuCount"])
+        (self.artifact_dir / "source.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
+
+        with self.assertRaisesRegex(ValueError, "manifest mismatch for buildProperties"):
+            self.verify_artifact()
+
         self.assertEqual(b"compiled assembly", (self.bin_output / "Example.dll").read_bytes())
         self.assertEqual("{}", (self.obj_output / "project.assets.json").read_text(encoding="utf-8"))
 
